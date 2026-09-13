@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BRIDGE_PROTOCOL_VERSION } from './lib/release/bridge-inbox.mjs';
@@ -92,11 +92,71 @@ writeFileSync(
  */
 const runtimeApp = path.join(root, 'release/Soty.app');
 
+/**
+ * The seven files `package:mac` refuses to build without.
+ *
+ * They are portable binaries and source archives that were approved once and
+ * kept: an ffmpeg and ffprobe of a known build, the matching sources the
+ * licence obliges the installer to carry, a statically linked whisper, the
+ * silence model, and the node the app runs on. Nothing downloads them and
+ * nothing may substitute them, which is why the packager names each one instead
+ * of searching.
+ *
+ * Until now the names were in a runbook and the values were in whichever shell
+ * the owner happened to be sitting at. A release run by an agent has no such
+ * shell, so `macos_package` failed on the first of the seven with the runbook's
+ * own error message -- a documented requirement is not an installed one. They
+ * are recorded here, after this command has looked at each file, so the failure
+ * happens at install time where somebody can fix it rather than forty minutes
+ * into a release.
+ *
+ * @type {ReadonlyArray<[string, string]>}
+ */
+const PACKAGING_INPUTS = Object.freeze([
+  ['NODE_BINARY', 'bin/node'],
+  ['FFMPEG_BINARY', 'bin/ffmpeg'],
+  ['FFPROBE_BINARY', 'bin/ffprobe'],
+  ['WHISPER_BINARY', 'bin/whisper-cli'],
+  ['WHISPER_VAD_MODEL', 'models/ggml-silero-v5.1.2.bin'],
+  ['FFMPEG_SOURCE_ARCHIVE', 'sources/ffmpeg-7.1.1.tar.xz'],
+  ['X264_SOURCE_ARCHIVE', 'sources/x264-source.tar.gz']
+]);
+
+/**
+ * Where that set lives. `SOTY_RELEASE_INPUTS` names it explicitly; otherwise the
+ * highest-numbered `release/inputs-*` is taken, since the number records when
+ * the set was approved rather than which release uses it.
+ */
+function packagingInputsDirectory() {
+  const declared = process.env.SOTY_RELEASE_INPUTS?.trim();
+  if (declared) return path.resolve(declared);
+  const candidates = existsSync(path.join(root, 'release'))
+    ? readdirSync(path.join(root, 'release'))
+        .filter(name => name.startsWith('inputs-'))
+        .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
+    : [];
+  if (!candidates.length)
+    fail(
+      'no approved packaging inputs: expected release/inputs-<version>/ with the ffmpeg, ' +
+        'whisper and node binaries package:mac requires, or SOTY_RELEASE_INPUTS naming one'
+    );
+  return path.join(root, 'release', candidates.at(-1));
+}
+
+const inputsDirectory = packagingInputsDirectory();
+const packagingEnvironment = PACKAGING_INPUTS.map(([name, relative]) => {
+  const file = path.join(inputsDirectory, relative);
+  if (!existsSync(file))
+    fail(`the approved input ${name} is missing: ${path.relative(root, file)}`);
+  return `${name}=${file}`;
+});
+
 const environment = [
   `SOTY_RELEASE_PROBE=${probeBinary}`,
   `SOTY_RELEASE_PROBE_DIGEST=${probeDigest}`,
   `SOTY_RELEASE_BRIDGE_CONFIG=${bridgeConfigPath}`,
-  ...(existsSync(runtimeApp) ? [`BETA_RUNTIME_SOURCE_APP=${runtimeApp}`] : [])
+  ...(existsSync(runtimeApp) ? [`BETA_RUNTIME_SOURCE_APP=${runtimeApp}`] : []),
+  ...packagingEnvironment
 ];
 writeFileSync(envPath, `${environment.join('\n')}\n`, { mode: 0o600 });
 
@@ -107,6 +167,7 @@ if (process.argv.includes('--print-env')) {
     `Release runner installed.\n` +
       `  probe   ${path.relative(root, probeBinary)} (${probeDigest.slice(0, 12)}…)\n` +
       `  bridge  ${path.relative(root, bridgeConfigPath)}\n` +
+      `  inputs  ${path.relative(root, inputsDirectory)} (${PACKAGING_INPUTS.length} approved files)\n` +
       `  env     ${path.relative(root, envPath)} — source it before a release\n`
   );
 }

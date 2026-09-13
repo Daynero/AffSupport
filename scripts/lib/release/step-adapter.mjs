@@ -11,6 +11,38 @@ import { createSupabaseBackendAdapter } from './adapters/supabase-backend.mjs';
 const exec = promisify(execFile);
 
 /**
+ * The committed half of the release environment.
+ *
+ * The runbook opens by telling a person to `set -a` and source these two files,
+ * and everything after that assumes they did. An agent driving the same sequence
+ * has no shell that was ever sourced into, so `package:mac` stopped on the first
+ * thing it needs -- `PUBLIC_SITE_ORIGIN` -- with the runbook's own error message.
+ * A requirement that lives in prose is not installed.
+ *
+ * They are read from the checkout being released, not from this one, and they
+ * win over the surrounding shell: the origin baked into an artifact should come
+ * from the commit that artifact is built from, not from what somebody exported
+ * an hour ago. Both files are tracked and hold no secrets -- origins, a port, a
+ * public key, and the web client's publishable values.
+ */
+const RELEASE_ENV_FILES = Object.freeze(['config/production.env', 'apps/web/.env.production']);
+
+function releaseEnvironment(cwd) {
+  const loaded = {};
+  for (const relative of RELEASE_ENV_FILES) {
+    const file = path.join(cwd, relative);
+    if (!existsSync(file)) continue;
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/u.exec(line);
+      if (!match) continue;
+      loaded[match[1]] = match[2].trim().replace(/^(['"])(.*)\1$/u, '$2');
+    }
+  }
+  return loaded;
+}
+
+
+/**
  * The step adapter: what each registry step actually does.
  *
  * Everything here is a command the production runbook already tells a person to
@@ -209,8 +241,10 @@ export async function createStepAdapter({
   const dmg = path.join('release', `Soty-v${version}-macOS-arm64.dmg`);
   const exe = path.join('release', 'windows', `download-${version}`, `Soty-v${version}-Windows-x64.exe`);
   // The binding travels into every child, so a sandbox release reaches sandbox
-  // destinations without any command here naming one.
-  const childEnv = { ...env, SOTY_RELEASE_RUN_ID: runId };
+  // destinations without any command here naming one. The release environment is
+  // read out of the checkout being released rather than out of whichever shell
+  // started the run.
+  const childEnv = { ...env, ...releaseEnvironment(cwd), SOTY_RELEASE_RUN_ID: runId };
 
   const steps = {
     /**
