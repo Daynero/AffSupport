@@ -91,7 +91,23 @@ export async function provisionWorktree({ cwd, directory }) {
     await symlink(source, target);
     provisioned.push(relative);
   }
-  return Object.freeze({ provisioned });
+  /**
+   * The shared package's build output is the one thing the worktree must own
+   * rather than borrow.
+   *
+   * Half the release's gates import `packages/shared/dist` — the binding, the
+   * release contract, the manifest key — and `dist` is ignored, so a fresh
+   * checkout has none and the very first gate dies on a missing module. Lending
+   * the checkout's copy would be worse than that failure: it would verify the
+   * commit being released against constants compiled from a different one.
+   *
+   * So it is built here, from the worktree's own source, before any step runs.
+   */
+  await exec('npm', ['run', 'build', '-w', '@video-compressor/shared'], {
+    cwd: directory,
+    env: { ...process.env, ...(process.env.PATH ? { PATH: process.env.PATH } : {}) }
+  });
+  return Object.freeze({ provisioned, built: ['packages/shared/dist'] });
 }
 
 export async function refreshReleaseRefs({ cwd, sourceSha, env = process.env }) {
