@@ -11,6 +11,7 @@ import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage } from '../errors';
 import { MediaActionIcon } from './mediaActionIcons';
+import { ErrorState } from '../../components/ui/index';
 
 export interface LibraryShareClient {
   getLibrarySharePreference(teamId: string): Promise<{
@@ -177,9 +178,10 @@ export function LibraryShareActions({
             <h2 id="creative-library-share-title">{t('creativeLibraryShareTitle')}</h2>
             <p>{t('creativeLibrarySharePrompt')}</p>
             {!confirmation.canShare && (
-              <p className="team-inline-error" role="alert">
-                {t('creativeLibraryShareUnavailable')}
-              </p>
+              <ErrorState
+                className="team-inline-error"
+                message={t('creativeLibraryShareUnavailable')}
+              />
             )}
             <label className="creative-library-share-remember">
               <input

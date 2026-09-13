@@ -3,6 +3,7 @@ import type { TeamContextSnapshot } from '../../api/team';
 import { TeamApiError } from '../../api/team';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { ErrorState } from '../../components/ui/index';
 
 /**
  * Wizard step 1: the required space name. Reuses the existing team-name
@@ -52,7 +53,7 @@ export function SpaceNameStep({
     <form className="team-create-step" onSubmit={event => void submit(event)}>
       <div className="team-create-step-copy">
         <h2>{t('teamCreateStepNameTitle')}</h2>
-        <p>{t('teamCreateStepNameHint')}</p>
+        <p className="prose">{t('teamCreateStepNameHint')}</p>
       </div>
       <label className="team-create-field">
         <span>{t('teamName')}</span>
@@ -64,11 +65,7 @@ export function SpaceNameStep({
           onChange={event => setName(event.target.value)}
         />
       </label>
-      {error && (
-        <p className="team-inline-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorState className="team-inline-error" message={error} />}
       <div className="team-create-actions">
         <Button type="button" variant="ghost" onClick={onCancel}>
           {t('teamCancel')}
