@@ -140,7 +140,7 @@ tooltip look and move the same wherever they are raised.
 in inventory components, with the compressor looking exactly as good as it does today.
 
 - [x] T047 [US1] Migrate `apps/web/src/HomePage.tsx` — tool cards onto Card + Badge + Button, including the "in development" state
-- [ ] T048 [US1] Migrate `apps/web/src/components/SettingsPanel.tsx` onto Card + Collapsible + FormField + Choice, keeping the summary-in-the-heading behaviour
+- [x] T048 [US1] Migrate `apps/web/src/components/SettingsPanel.tsx` onto Card + Collapsible + FormField + Choice, keeping the summary-in-the-heading behaviour
 - [ ] T049 [US1] Migrate the compressor shell in `apps/web/src/App.tsx` — drop zone, batch toolbar, selection bar with its count, results summary
 - [ ] T050 [P] [US1] Migrate `apps/web/src/components/JobRow.tsx` and `apps/web/src/components/ImageEmbeddingSection.tsx` onto Table row + Progress + Badge + Alert
 - [ ] T051 [P] [US1] Migrate `apps/web/src/team/explorer/TeamCompressorDialog.tsx` onto Modal + the migrated settings panel
@@ -162,7 +162,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 ## Phase 8: [US1] C5 — Transcription
 
 - [ ] T059 [US1] Migrate `apps/web/src/transcription/TranscriptionPage.tsx` — intake, toolbar, selection bar, results
-- [ ] T060 [US1] Migrate `apps/web/src/transcription/TranscriptionSettingsPanel.tsx` onto the shared settings panel (mode, language, turbo)
+- [x] T060 [US1] Migrate `apps/web/src/transcription/TranscriptionSettingsPanel.tsx` onto the shared settings panel (mode, language, turbo)
 - [ ] T061 [P] [US1] Migrate `apps/web/src/transcription/TranscriptionRow.tsx` onto Table row + Progress + Badge, covering queued/running/paused/done/failed
 - [x] T062 [P] [US1] Migrate `apps/web/src/transcription/LanguageCombobox.tsx` and `LanguageDoubt.tsx` onto SelectMenu + Alert
 - [x] T063 [P] [US1] Migrate `apps/web/src/transcription/ModelGate.tsx`, `GemmaConsent.tsx`, `TranslatorNotice.tsx` and `TranslationElapsed.tsx` onto Alert + Progress + Button
@@ -267,7 +267,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [x] T122 [P] [US1] Migrate `apps/web/src/team/members/MemberList.tsx`, `InvitationPanel.tsx`, `MemberPermissionsDialog.tsx` and `OwnershipTransferDialog.tsx` onto Table + Modal + Choice
 - [ ] T123 [P] [US1] Migrate `apps/web/src/team/members/TeamAuditPanel.tsx` onto Timeline
 - [x] T124 [P] [US1] Migrate `apps/web/src/team/labels/TaskLabelsSection.tsx`, `TaskLabelChip.tsx` and `TaskLabelMenu.tsx` onto Chip + Popover + the empty-state pattern
-- [ ] T125 [US1] Migrate `apps/web/src/team/workspace/RestitchDefaultsSection.tsx` onto the shared settings panel and picto RadioGroup
+- [x] T125 [US1] Migrate `apps/web/src/team/workspace/RestitchDefaultsSection.tsx` onto the shared settings panel and picto RadioGroup
 - [ ] T126 [US1] Migrate the leave-space panel and its confirmation onto the confirmation pattern
 - [ ] T127 [US1] Update `tests/team-members.test.tsx`, `tests/team-direct-member.test.tsx`, `tests/team-invitation-link.test.tsx` and `tests/team-restitch-section.test.tsx` to assert through roles
 - [ ] T128 [US1] [US4] Verify C13 at five widths × two themes × reduced motion, on all five tabs
