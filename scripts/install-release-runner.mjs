@@ -82,10 +82,21 @@ writeFileSync(
   { mode: 0o600 }
 );
 
+/**
+ * The packaged runtime the beta build borrows.
+ *
+ * `package-beta-mac.sh` refuses without a verified packaged app and offers this
+ * variable as the supported alternative to building one. A release builds in an
+ * isolated checkout, which by definition has never packaged anything, so the
+ * runtime has to be named rather than found.
+ */
+const runtimeApp = path.join(root, 'release/Soty.app');
+
 const environment = [
   `SOTY_RELEASE_PROBE=${probeBinary}`,
   `SOTY_RELEASE_PROBE_DIGEST=${probeDigest}`,
-  `SOTY_RELEASE_BRIDGE_CONFIG=${bridgeConfigPath}`
+  `SOTY_RELEASE_BRIDGE_CONFIG=${bridgeConfigPath}`,
+  ...(existsSync(runtimeApp) ? [`BETA_RUNTIME_SOURCE_APP=${runtimeApp}`] : [])
 ];
 writeFileSync(envPath, `${environment.join('\n')}\n`, { mode: 0o600 });
 
