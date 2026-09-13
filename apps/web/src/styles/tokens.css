@@ -61,26 +61,29 @@
   --grey-950: #120f17;
 
   /* ---- Colour roles: primary ---------------------------------------------
-     The one action a surface exists for. Violet. */
-  --color-primary-solid: var(--purple-600);
-  --color-primary-hover: var(--purple-700);
-  --color-primary-active: var(--purple-800);
-  --color-primary-soft: var(--purple-100);
-  --color-primary-softer: var(--purple-50);
-  --color-primary-border: color-mix(in oklab, var(--purple-600) 30%, transparent);
-  --color-primary-text: var(--purple-700);
-  --color-primary-on-solid: #ffffff;
+     The one action a surface exists for. Honey — which is what
+     `.button-primary` has been since the beginning; naming it `primary` only
+     makes the rule sayable. */
+  --color-primary-solid: var(--honey-500);
+  --color-primary-hover: var(--honey-600);
+  --color-primary-active: var(--honey-700);
+  --color-primary-soft: var(--honey-100);
+  --color-primary-softer: var(--honey-50);
+  --color-primary-border: color-mix(in oklab, var(--honey-600) 32%, transparent);
+  --color-primary-text: var(--honey-800);
+  --color-primary-on-solid: var(--honey-950);
 
   /* ---- Colour roles: secondary -------------------------------------------
-     A second, weaker call to action. Honey. */
-  --color-secondary-solid: var(--honey-500);
-  --color-secondary-hover: var(--honey-600);
-  --color-secondary-active: var(--honey-700);
-  --color-secondary-soft: var(--honey-100);
-  --color-secondary-softer: var(--honey-50);
-  --color-secondary-border: color-mix(in oklab, var(--honey-600) 32%, transparent);
-  --color-secondary-text: var(--honey-800);
-  --color-secondary-on-solid: var(--honey-950);
+     Violet: identity, navigation, selection, links and focus. Everything the
+     product does that is not "press this one button". */
+  --color-secondary-solid: var(--purple-600);
+  --color-secondary-hover: var(--purple-700);
+  --color-secondary-active: var(--purple-800);
+  --color-secondary-soft: var(--purple-100);
+  --color-secondary-softer: var(--purple-50);
+  --color-secondary-border: color-mix(in oklab, var(--purple-600) 30%, transparent);
+  --color-secondary-text: var(--purple-700);
+  --color-secondary-on-solid: #ffffff;
 
   /* ---- Colour roles: status ----------------------------------------------- */
   --color-success-solid: #18794e;
@@ -235,23 +238,23 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --color-primary-solid: var(--purple-400);
-  --color-primary-hover: var(--purple-300);
-  --color-primary-active: var(--purple-500);
-  --color-primary-soft: color-mix(in srgb, var(--purple-400) 22%, transparent);
-  --color-primary-softer: color-mix(in srgb, var(--purple-400) 12%, transparent);
-  --color-primary-border: color-mix(in oklab, var(--purple-400) 45%, transparent);
-  --color-primary-text: var(--purple-300);
-  --color-primary-on-solid: #17102b;
+  --color-primary-solid: #ffb51b;
+  --color-primary-hover: var(--honey-500);
+  --color-primary-active: var(--honey-600);
+  --color-primary-soft: color-mix(in srgb, #ffb51b 16%, transparent);
+  --color-primary-softer: color-mix(in srgb, #ffb51b 9%, transparent);
+  --color-primary-border: color-mix(in oklab, #ffb51b 40%, transparent);
+  --color-primary-text: var(--honey-300);
+  --color-primary-on-solid: var(--honey-950);
 
-  --color-secondary-solid: #ffb51b;
-  --color-secondary-hover: var(--honey-500);
-  --color-secondary-active: var(--honey-600);
-  --color-secondary-soft: color-mix(in srgb, #ffb51b 16%, transparent);
-  --color-secondary-softer: color-mix(in srgb, #ffb51b 9%, transparent);
-  --color-secondary-border: color-mix(in oklab, #ffb51b 40%, transparent);
-  --color-secondary-text: var(--honey-300);
-  --color-secondary-on-solid: var(--honey-950);
+  --color-secondary-solid: var(--purple-400);
+  --color-secondary-hover: var(--purple-300);
+  --color-secondary-active: var(--purple-500);
+  --color-secondary-soft: color-mix(in srgb, var(--purple-400) 22%, transparent);
+  --color-secondary-softer: color-mix(in srgb, var(--purple-400) 12%, transparent);
+  --color-secondary-border: color-mix(in oklab, var(--purple-400) 45%, transparent);
+  --color-secondary-text: var(--purple-300);
+  --color-secondary-on-solid: #17102b;
 
   --color-success-solid: #56d597;
   --color-success-soft: color-mix(in srgb, #56d597 15%, transparent);
@@ -332,21 +335,21 @@
   --color-border: var(--color-neutral-border);
   --color-border-strong: var(--color-neutral-border-strong);
 
-  /* Accent was "primary" all along */
-  --color-accent: var(--color-primary-solid);
-  --color-accent-hover: var(--color-primary-hover);
-  --color-accent-active: var(--color-primary-active);
-  --color-accent-soft: var(--color-primary-soft);
-  --color-accent-softer: var(--color-primary-softer);
-  --color-on-accent: var(--color-primary-on-solid);
+  /* Accent — violet — is the secondary role: identity, navigation, selection */
+  --color-accent: var(--color-secondary-solid);
+  --color-accent-hover: var(--color-secondary-hover);
+  --color-accent-active: var(--color-secondary-active);
+  --color-accent-soft: var(--color-secondary-soft);
+  --color-accent-softer: var(--color-secondary-softer);
+  --color-on-accent: var(--color-secondary-on-solid);
   --color-focus: var(--color-focus-ring);
 
-  /* Action was "secondary" all along */
-  --color-action: var(--color-secondary-solid);
-  --color-action-hover: var(--color-secondary-hover);
-  --color-action-active: var(--color-secondary-active);
-  --color-action-soft: var(--color-secondary-soft);
-  --color-on-action: var(--color-secondary-on-solid);
+  /* Action — honey — is the primary role: the one button a surface exists for */
+  --color-action: var(--color-primary-solid);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
+  --color-action-soft: var(--color-primary-soft);
+  --color-on-action: var(--color-primary-on-solid);
 
   /* Status: the old names carried both the solid and the text role */
   --color-success: var(--color-success-solid);
