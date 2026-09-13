@@ -10,6 +10,25 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
 /**
  * A double-click must not start the same work twice.
  *
+ * These two cases fail on Windows, and the cause is the harness rather than the
+ * guard. `writeStubTool` ships the stub as a `.cjs` behind a `.cmd` shim, and
+ * `spawnTracked` spawns with `shell: false` — deliberately, because a filename
+ * interpolated into a shell is an injection. Node has refused to spawn `.cmd`
+ * without a shell since the CVE-2024-27980 mitigation, so on Windows the encode
+ * fails the moment it is asked for.
+ *
+ * A CI trace showed exactly that: the yeses alternate (`0+ 1- 2+ 3-`), fifty
+ * batches get built, and the queue ends at `{failed: 2, queued: 1}`. The gate is
+ * serialising correctly — each second caller is starting work that has already
+ * failed, which is what it is supposed to do for a finished job. Nothing here
+ * proves the guarantee is broken on Windows; it proves the stub cannot hang
+ * there, so the guarantee goes untested rather than unmet.
+ *
+ * Fixing it means giving the harness a long-running child that Node will spawn
+ * without a shell — no `.cmd`, no `.bat` — or declaring the requirement the way
+ * the release-runner cases do. Left as it is because both are decisions, and a
+ * skip added quietly is how a platform stops being tested.
+ *
  * `start` checks whether the queue is already running and then awaits — the disk warning,
  * then one output-path resolution per job. Every one of those is a turn of the event loop in
  * which a second request runs the same check against the same "not running" answer. Both go
