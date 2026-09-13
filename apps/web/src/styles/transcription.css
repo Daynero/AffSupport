@@ -648,6 +648,12 @@
   transform-origin: top right;
   text-align: left;
 }
+/* The grid is the menu's own element, sitting between the popover and its
+   groups so the arrow-key walk has something to own; it takes no space of its
+   own. */
+.transcription-export-grid {
+  display: contents;
+}
 .transcription-export-group {
   display: grid;
   gap: 6px;

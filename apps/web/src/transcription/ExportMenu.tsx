@@ -1,8 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useAnchoredLayer } from '../components/useAnchoredLayer';
 import { ChevronDown, Download } from 'lucide-react';
 import { Button, type Translate } from '../components/ui';
+import { Popover } from '../components/ui/index';
 import type { TranscriptExportContent, TranscriptExportFormat } from './export';
 
 /**
@@ -39,7 +38,6 @@ export function ExportMenu({
   const root = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const layerStyle = useAnchoredLayer(root, menu, open && portal, { align: 'end', gap: 6 });
 
   const close = (restoreFocus: boolean) => {
     setOpen(false);
@@ -56,19 +54,10 @@ export function ExportMenu({
         menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? []
       );
     items()[0]?.focus();
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!root.current?.contains(target) && !menu.current?.contains(target)) setOpen(false);
-    };
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as Node;
       const inside = root.current?.contains(target) || menu.current?.contains(target);
-      if (!inside && event.key !== 'Escape') return;
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        close(true);
-        return;
-      }
+      if (!inside) return;
       if (event.key === 'Tab') {
         // Tab leaves the menu the way Escape does: back on the toggle. Portalled to the end
         // of the body, the menu has nothing after it, and a natural Tab out of it landed on
@@ -91,12 +80,8 @@ export function ExportMenu({
         list.at(-1)?.focus();
       }
     };
-    document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown, true);
-    };
+    return () => document.removeEventListener('keydown', onKeyDown, true);
   }, [open]);
 
   const choose = (format: TranscriptExportFormat, content: TranscriptExportContent) => {
@@ -118,15 +103,14 @@ export function ExportMenu({
     { content: 'both', label: t('transcriptionCopyContentBoth'), enabled: hasTranslation }
   ];
 
-  // One markup for both homes: on the body beside a list card, in place inside the viewer.
-  const popover = (
-    <div
-      id={menuId}
-      ref={menu}
-      role="menu"
-      className={`transcription-export-popover${portal ? ' is-portal' : ''}`}
-      style={portal ? (layerStyle ?? undefined) : undefined}
-    >
+  /*
+   * One markup for both homes: beside a list card, where it has to leave the
+   * card to avoid being clipped, and in place inside the viewer, which has room
+   * for it. Anchoring is what decides — the shared Popover portals whatever it
+   * anchors.
+   */
+  const grid = (
+    <div id={menuId} ref={menu} role="menu" className="transcription-export-grid">
       {contents.map(entry => (
         <div
           key={entry.content}
@@ -189,7 +173,17 @@ export function ExportMenu({
       >
         <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
       </button>
-      {open && (portal ? createPortal(popover, document.body) : popover)}
+      <Popover
+        open={open}
+        onClose={() => close(true)}
+        anchor={portal ? root : undefined}
+        placement="bottom-end"
+        frequent
+        label={t('transcriptionExportOptions')}
+        className={`transcription-export-popover${portal ? ' is-portal' : ''}`}
+      >
+        {grid}
+      </Popover>
     </div>
   );
 }

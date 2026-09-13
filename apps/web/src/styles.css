@@ -7791,11 +7791,11 @@ body:has(.public-home) {
 .transcription-copy-toggle[aria-expanded='true'] {
   background: var(--color-surface);
 }
+/* Placed by the component now (021): it is portalled to the body so the
+   toolbar cannot clip it, and it flips above the trigger when the window is
+   short. What is left here is what it looks like. */
 .transcription-copy-popover {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 8px);
-  right: 0;
   display: grid;
   gap: var(--space-2);
   width: 250px;

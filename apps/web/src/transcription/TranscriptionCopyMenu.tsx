@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronDown, ClipboardCopy } from 'lucide-react';
 import { Button, type Translate } from '../components/ui';
+import { Popover, RadioGroup } from '../components/ui/index';
 import type { TranscriptionCopyContent, TranscriptionCopyScope } from './copy';
 
 /**
@@ -32,31 +33,7 @@ export function TranscriptionCopyMenu({
   t: Translate;
 }) {
   const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const group = useId();
-  const popoverId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    // The dialog takes the keyboard, as the export menu does: the first choice is focused,
-    // and a screen reader hears that something opened.
-    root.current?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.focus();
-    const closeOutside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      trigger.current?.focus();
-    };
-    document.addEventListener('pointerdown', closeOutside);
-    document.addEventListener('keydown', closeEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOutside);
-      document.removeEventListener('keydown', closeEscape);
-    };
-  }, [open]);
 
   const scopes: { value: TranscriptionCopyScope; label: string }[] = [
     { value: 'finished', label: t('transcriptionCopyScopeFinished', { count: finishedCount }) },
@@ -73,17 +50,7 @@ export function TranscriptionCopyMenu({
       : t('transcriptionCopyFinished', { count: finishedCount });
 
   return (
-    <div
-      className="transcription-copy-menu"
-      ref={root}
-      onBlur={event => {
-        // Tabbing out closes it: a dialog still open with nothing focused inside it was
-        // announced as expanded while the keyboard had moved on.
-        if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setOpen(false);
-        }
-      }}
-    >
+    <div className="transcription-copy-menu">
       <Button
         variant="secondary"
         className="transcription-copy-action"
@@ -108,49 +75,41 @@ export function TranscriptionCopyMenu({
         // expect arrow-key menu navigation that is not there.
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-controls={open ? popoverId : undefined}
         disabled={disabled}
         onClick={() => setOpen(value => !value)}
       >
         <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
       </button>
-      {open && (
-        <div
-          className="transcription-copy-popover"
-          id={popoverId}
-          role="dialog"
-          aria-label={t('transcriptionCopyOptions')}
-        >
-          <fieldset>
-            <legend>{t('transcriptionCopyScopeTitle')}</legend>
-            {scopes.map(option => (
-              <label key={option.value}>
-                <input
-                  type="radio"
-                  name={`${group}-scope`}
-                  checked={scope === option.value}
-                  onChange={() => onScopeChange(option.value)}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
-          </fieldset>
-          <fieldset>
-            <legend>{t('transcriptionCopyContentTitle')}</legend>
-            {contents.map(option => (
-              <label key={option.value}>
-                <input
-                  type="radio"
-                  name={`${group}-content`}
-                  checked={content === option.value}
-                  onChange={() => onContentChange(option.value)}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
-          </fieldset>
-        </div>
-      )}
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          trigger.current?.focus();
+        }}
+        anchor={trigger}
+        placement="bottom-end"
+        label={t('transcriptionCopyOptions')}
+        className="transcription-copy-popover"
+      >
+        <fieldset>
+          <legend>{t('transcriptionCopyScopeTitle')}</legend>
+          <RadioGroup
+            label={t('transcriptionCopyScopeTitle')}
+            value={scope}
+            options={scopes}
+            onChange={onScopeChange}
+          />
+        </fieldset>
+        <fieldset>
+          <legend>{t('transcriptionCopyContentTitle')}</legend>
+          <RadioGroup
+            label={t('transcriptionCopyContentTitle')}
+            value={content}
+            options={contents}
+            onChange={onContentChange}
+          />
+        </fieldset>
+      </Popover>
     </div>
   );
 }
