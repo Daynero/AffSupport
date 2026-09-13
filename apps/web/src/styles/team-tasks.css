@@ -132,7 +132,7 @@
 }
 
 .team-task-card-description > span {
-  color: color-mix(in oklab, var(--color-text-muted) 72%, transparent);
+  color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
 
@@ -262,7 +262,7 @@
 .task-date-filter .task-date-filter-trigger.is-active {
   border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
   background: color-mix(in srgb, var(--color-accent) 16%, transparent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* The status glyphs keep their own meaning-colours inside a selected pill. */

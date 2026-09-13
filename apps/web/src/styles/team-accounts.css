@@ -195,7 +195,12 @@
   color: var(--color-text-muted);
 }
 
+/* The field suppresses its own outline so the ring sits on the whole control
+   rather than on the bare input inside it — but it is the product's ring, not
+   a border tint: a 1px colour change is not something a keyboard user finds. */
 .team-accounts-search:focus-within {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
   border-color: var(--color-focus);
 }
 
@@ -2258,7 +2263,7 @@ button.team-task-agent-chip.is-selected {
   padding: 0 8px;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: var(--text-caption);
   font-weight: 650;
   text-decoration: none;

@@ -425,7 +425,6 @@ const TASKS = [
 
 /** Everything an unanswered call should look like: empty, not broken. */
 function fallback(name: string) {
-  // eslint-disable-next-line no-console
   console.info(`[mock] rpc ${name} — not taught yet, answering empty`);
   return [];
 }

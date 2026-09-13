@@ -512,6 +512,13 @@
 
   /* Accent — violet — is the secondary role: identity, navigation, selection */
   --color-accent: var(--color-secondary-solid);
+  /*
+   * The accent as *text*, which is a different shade from the accent as a
+   * fill. The contrast sweep found three screens using the solid for a label
+   * sitting on a soft accent wash — 4.26:1 in dark, just under AA — because
+   * `--color-accent` was the only accent name a rule could reach for.
+   */
+  --color-accent-text: var(--color-secondary-text);
   --color-accent-hover: var(--color-secondary-hover);
   --color-accent-active: var(--color-secondary-active);
   --color-accent-soft: var(--color-secondary-soft);
