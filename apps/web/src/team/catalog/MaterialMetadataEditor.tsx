@@ -7,6 +7,7 @@ import type {
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { ErrorState } from '../../components/ui/index';
 
 export function MaterialMetadataEditor({
   material,
@@ -87,9 +88,7 @@ export function MaterialMetadataEditor({
           <input value={tags} onChange={event => setTags(event.target.value)} />
         </label>
         {error && (
-          <p className="team-inline-error" role="alert">
-            {t('teamCatalogMetadataFailed')}
-          </p>
+          <ErrorState className="team-inline-error" message={t('teamCatalogMetadataFailed')} />
         )}
         <div className="team-dialog-actions">
           <Button type="button" variant="ghost" onClick={onClose}>

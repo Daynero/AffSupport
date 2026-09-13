@@ -13,6 +13,8 @@ export {
   type ProcessLibraryAgent,
   type ProcessLibraryClient
 } from './process-library-contract';
+import { Alert, EmptyState } from '../../components/ui/index';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string;
 
@@ -114,11 +116,11 @@ export function ProcessLibraryDialog({
          * word that the request had been put aside until this one finishes.
          */}
         {deferred && (
-          <p className="team-inline-notice" role="status">
+          <Alert className="team-inline-notice" color="info" variant="soft">
             {t('teamBatchScopeDeferred', { scope: batchScopeName(scope, t) })}
-          </p>
+          </Alert>
         )}
-        {batch.phase === 'scanning' && <p aria-live="polite">{t('teamBatchScanning')}</p>}
+        {batch.phase === 'scanning' && <LabeledSkeleton label="teamBatchScanning" rows={2} />}
         {batch.scan && (
           <>
             {/* Only the kinds this computer will actually claim. A tile for
@@ -159,16 +161,18 @@ export function ProcessLibraryDialog({
             {alreadyDone > 0 ? ` ${t('teamBatchAlreadyDone', { count: alreadyDone })}` : ''}
           </p>
         )}
-        {batch.phase === 'ready' && batch.total === 0 && <p>{t('teamBatchNothing')}</p>}
+        {batch.phase === 'ready' && batch.total === 0 && (
+          <EmptyState size="sm" title={t('teamBatchNothing')} />
+        )}
         {!agentCompatible && (
-          <p className="team-inline-error" role="alert">
+          <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
             {t('teamProcessAgentUpdate')}
-          </p>
+          </Alert>
         )}
         {agentCompatible && batch.supportedKinds.length === 0 && (
-          <p className="team-inline-error" role="alert">
+          <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
             {t('teamProcessToolUpdate')}
-          </p>
+          </Alert>
         )}
         {batch.phase === 'running' && (
           <div className="team-batch-progress" aria-live="polite">
