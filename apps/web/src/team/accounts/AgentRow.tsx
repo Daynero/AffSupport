@@ -49,6 +49,7 @@ import { Marked } from './Marked';
 import { AgentLabels } from './AgentLabels';
 import { AgentMoney } from './AgentMoney';
 import { runCountKey, taskCountKey } from './plural';
+import { Popover } from '../../components/ui/index';
 
 const ICON = 18;
 
@@ -171,13 +172,9 @@ function AgentMenu({
     closeOpenAgentMenu?.();
     const forget = () => setOpen(false);
     closeOpenAgentMenu = forget;
-    const onDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && box.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    document.addEventListener('pointerdown', onDown);
+    // The outside press and Escape are the shared popover's; what stays here is
+    // the rule that only one agent menu in the table is ever open.
     return () => {
-      document.removeEventListener('pointerdown', onDown);
       if (closeOpenAgentMenu === forget) closeOpenAgentMenu = null;
     };
   }, [open]);
@@ -264,9 +261,17 @@ function AgentMenu({
       >
         <MoreHorizontal size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
       </button>
-      {open && (
+      <Popover
+        open={open}
+        onClose={() => close(true)}
+        anchor={box}
+        placement="bottom-end"
+        frequent
+        label={label}
+        className="team-agent-menu-list"
+      >
         <div
-          className="team-agent-menu-list"
+          className="team-agent-menu-items"
           role="menu"
           aria-label={label}
           onKeyDown={onKeyDown}
@@ -298,7 +303,7 @@ function AgentMenu({
             () => choose(onDelete)
           )}
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

@@ -1335,11 +1335,10 @@
   color: var(--color-text);
 }
 
+/* Placed by the component (021): a table row clips what spills past its edge,
+   so the menu opens on the body beside the trigger. */
 .team-agent-menu-list {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 4px);
-  right: 0;
   display: grid;
   min-width: 200px;
   padding: var(--space-1);
@@ -1347,6 +1346,11 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
+}
+
+/* The menu's own element inside the surface; it takes no space of its own. */
+.team-agent-menu-items {
+  display: contents;
 }
 
 .team-agent-menu-item {

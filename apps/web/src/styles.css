@@ -17060,11 +17060,11 @@ input[type='number'] {
   display: inline-flex;
 }
 
+/* Placed by the component (021): portalled out of the row and flipped upward
+   near the bottom of the window, which the two rules below used to do by hand
+   for the last rows of the table. */
 .tfa-menu {
-  position: absolute;
   z-index: var(--layer-dropdown);
-  top: calc(100% + var(--space-2));
-  left: 0;
   display: grid;
   min-width: 210px;
   padding: var(--space-1);
@@ -17072,18 +17072,6 @@ input[type='number'] {
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
-}
-
-.tfa-menu-right,
-.tfa-cell-actions .tfa-menu {
-  right: 0;
-  left: auto;
-}
-
-/* The last rows' menus would open below the fold; they open upward instead. */
-.tfa-table tbody tr:nth-last-child(-n + 2) .tfa-cell-actions .tfa-menu {
-  top: auto;
-  bottom: calc(100% + var(--space-2));
 }
 
 .tfa-menu button {

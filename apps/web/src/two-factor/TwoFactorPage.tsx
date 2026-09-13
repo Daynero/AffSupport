@@ -24,6 +24,7 @@ import { QuickCode } from './QuickCode';
 import { useIdle, useTotpStep } from './totp-clock';
 import { TwoFactorProvider, useTwoFactor } from './TwoFactorContext';
 import { TwoFactorEditRow, TwoFactorRow } from './TwoFactorRow';
+import { DropdownMenu } from '../components/ui/index';
 
 type SortOrder = 'az' | 'za' | 'newest' | 'oldest';
 
@@ -355,15 +356,6 @@ function SortMenu({ order, onChange }: { order: SortOrder; onChange: (order: Sor
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: MouseEvent) => {
-      if (!anchor.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
-  }, [open]);
-
   return (
     <div className="tfa-menu-anchor" ref={anchor}>
       <button
@@ -376,24 +368,20 @@ function SortMenu({ order, onChange }: { order: SortOrder; onChange: (order: Sor
         {t('twoFactorSort', { order: t(SORT_LABELS[order]) })}
         <ChevronDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
       </button>
-      {open && (
-        <div className="tfa-menu" role="menu">
-          {(Object.keys(SORT_LABELS) as SortOrder[]).map(value => (
-            <button
-              key={value}
-              type="button"
-              role="menuitemradio"
-              aria-checked={order === value}
-              onClick={() => {
-                onChange(value);
-                setOpen(false);
-              }}
-            >
-              {t(SORT_LABELS[value])}
-            </button>
-          ))}
-        </div>
-      )}
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={anchor}
+        placement="bottom-start"
+        label={t('twoFactorSort', { order: t(SORT_LABELS[order]) })}
+        className="tfa-menu"
+        items={(Object.keys(SORT_LABELS) as SortOrder[]).map(value => ({
+          id: value,
+          label: t(SORT_LABELS[value]),
+          checked: order === value,
+          onSelect: () => onChange(value)
+        }))}
+      />
     </div>
   );
 }
@@ -402,15 +390,6 @@ function AddMenu({ onPaste }: { onPaste: () => void }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: MouseEvent) => {
-      if (!anchor.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
-  }, [open]);
 
   return (
     <div className="tfa-menu-anchor" ref={anchor}>
@@ -423,21 +402,22 @@ function AddMenu({ onPaste }: { onPaste: () => void }) {
       >
         <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
       </IconButton>
-      {open && (
-        <div className="tfa-menu tfa-menu-right" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onPaste();
-            }}
-          >
-            <Clipboard size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t('twoFactorAddFromClipboard')}
-          </button>
-        </div>
-      )}
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={anchor}
+        placement="bottom-end"
+        label={t('twoFactorAddOptions')}
+        className="tfa-menu tfa-menu-right"
+        items={[
+          {
+            id: 'paste',
+            label: t('twoFactorAddFromClipboard'),
+            icon: <Clipboard size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+            onSelect: onPaste
+          }
+        ]}
+      />
     </div>
   );
 }
