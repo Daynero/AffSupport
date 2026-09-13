@@ -12,6 +12,7 @@ import { MaterialRowMenu } from './MaterialRowMenu';
 import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
+import { EmptyState, ErrorState } from '../../components/ui/index';
 
 /** Matches the page size `useCatalogSearch` requests. */
 const PAGE_SIZE = 50;
@@ -83,13 +84,11 @@ export function MaterialResults({
    */
   const [justTagged, setJustTagged] = useState<Record<string, TeamMaterialTagColor | null>>({});
   if (error)
-    return (
-      <p className="team-inline-error" role="alert">
-        {t('teamCatalogLoadFailed')}
-      </p>
-    );
+    return <ErrorState className="team-inline-error" message={t('teamCatalogLoadFailed')} />;
   if (loading && !result) return <LabeledSkeleton label="teamCatalogLoadingResults" />;
-  if (!result || result.items.length === 0) return <p>{t('teamCatalogEmpty')}</p>;
+  // Nothing matched. The search bar above is the control that changes that, so
+  // the state says so rather than repeating it as a button.
+  if (!result || result.items.length === 0) return <EmptyState title={t('teamCatalogEmpty')} />;
 
   // The request always asks for fifty; the envelope carries the true total.
   const pageCount = Math.max(1, Math.ceil(result.total / PAGE_SIZE));

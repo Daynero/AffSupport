@@ -8,6 +8,7 @@ import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { formatDate } from '../../format';
 import { KindIcon } from '../explorer/KindIcon';
+import { EmptyState } from '../../components/ui/index';
 
 export interface TrashViewClient {
   listTrashedMaterials: (input: {
@@ -102,7 +103,8 @@ export function TrashView({
           {t('teamTrashLoadFailed')}
         </p>
       )}
-      {items !== null && items.length === 0 && <p>{t('teamTrashEmpty')}</p>}
+      {/* An empty bin is the good state, and there is nothing to do about it. */}
+      {items !== null && items.length === 0 && <EmptyState title={t('teamTrashEmpty')} />}
 
       {/* The same row the folder list and the search results use: a kind icon,
           the name, where it came from, when it was thrown away. It was a stack

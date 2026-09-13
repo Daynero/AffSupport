@@ -214,9 +214,9 @@ in inventory components, with the compressor looking exactly as good as it does 
 - [ ] T089 [P] [US1] Migrate `apps/web/src/team/explorer/ContentList.tsx` and `ContentGrid.tsx` onto Table (`sm`) and a tile grid, keeping today's density
 - [ ] T090 [P] [US1] Migrate `apps/web/src/team/explorer/FolderTree.tsx` and `Breadcrumb.tsx` onto Tree and Breadcrumb, keeping drag-and-drop targets
 - [x] T091 [P] [US1] Migrate `apps/web/src/team/explorer/SortMenu.tsx`, `KindFilterMenu.tsx`, `RowActions.tsx` and `ShareButton.tsx` onto DropdownMenu + IconButton (no open/close animation — frequent actions)
-- [ ] T092 [P] [US1] [US2] Migrate `apps/web/src/team/explorer/PreviewPane.tsx` with its empty, loading, failed and unsupported states
+- [x] T092 [P] [US1] [US2] Migrate `apps/web/src/team/explorer/PreviewPane.tsx` with its empty, loading, failed and unsupported states
 - [ ] T093 [P] [US1] Migrate `apps/web/src/team/explorer/UploadConflictDialog.tsx`, `FolderScopeDialog.tsx` and `ProcessPanel.tsx` onto Modal + the confirmation pattern
-- [ ] T094 [P] [US1] Migrate `apps/web/src/team/catalog/TrashView.tsx` onto Table + Empty + the confirmation pattern (purge is destructive and de-emphasised)
+- [x] T094 [P] [US1] Migrate `apps/web/src/team/catalog/TrashView.tsx` onto Table + Empty + the confirmation pattern (purge is destructive and de-emphasised)
 - [ ] T095 [US1] Update `tests/team-explorer-grid.test.tsx` and the explorer's other class-name assertions to roles
 - [ ] T096 [US1] [US4] Verify C9 at five widths × two themes × reduced motion, with a 500-row folder
 
@@ -226,7 +226,7 @@ in inventory components, with the compressor looking exactly as good as it does 
 
 - [ ] T097 [US1] Migrate `apps/web/src/team/catalog/TeamCatalog.tsx` and `CatalogSearchBar.tsx` onto Input (with leading icon) + SegmentedControl for scope
 - [ ] T098 [US1] Migrate `apps/web/src/team/catalog/CatalogFilters.tsx` onto Select/SelectMenu + Chip, keeping the facet-driven options and localised values added in 020
-- [ ] T099 [P] [US1] [US2] Migrate `apps/web/src/team/catalog/MaterialResults.tsx` with loading skeleton, empty result and failed states
+- [x] T099 [P] [US1] [US2] Migrate `apps/web/src/team/catalog/MaterialResults.tsx` with loading skeleton, empty result and failed states
 - [ ] T100 [P] [US1] Migrate `apps/web/src/team/catalog/MaterialMetadataEditor.tsx` and `MaterialRowMenu.tsx` onto Modal + FormField + DropdownMenu
 - [ ] T101 [P] [US1] Migrate `apps/web/src/team/catalog/ProvenancePanel.tsx`, `FolderPicker.tsx` and `TeamTextEditor.tsx`
 - [ ] T102 [US1] [US4] Verify C10 at five widths × two themes × reduced motion

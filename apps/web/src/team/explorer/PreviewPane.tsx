@@ -18,6 +18,7 @@ import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 import { VideoTextActions } from '../library/VideoTextActions';
 import { ShareButton } from './ShareButton';
+import { EmptyState } from '../../components/ui/index';
 
 /**
  * What the selected row looks like, before it is opened (011, FR-016): the
@@ -104,7 +105,9 @@ export function PreviewPane({
   if (!row) {
     return (
       <aside className="team-explorer-pane is-empty" aria-label={t('teamExplorerPaneLabel')}>
-        <p className="team-explorer-muted">{t('teamExplorerPreviewEmpty')}</p>
+        {/* Nothing is chosen, which is not a failure and has no action: the
+            pattern's smallest size, with the sentence and nothing else. */}
+        <EmptyState size="sm" title={t('teamExplorerPreviewEmpty')} />
       </aside>
     );
   }
