@@ -44,7 +44,7 @@ import {
 } from '@video-compressor/shared';
 import { Button, IconButton } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { Empty } from '../../components/ui/index';
+import { Empty, ErrorState, LoadingState } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
@@ -604,11 +604,11 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       </div>
 
       {accounts.loading && accounts.accounts.length === 0 && (
-        <p className="team-accounts-notice" aria-live="polite">
-          {t('teamAccountsLoading')}
-        </p>
+        <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
       )}
-      {accounts.error && <p className="team-inline-error">{t('teamAccountsLoadFailed')}</p>}
+      {accounts.error && (
+        <ErrorState message={t('teamAccountsLoadFailed')} onRetry={() => void accounts.refetch()} retryLabel={t('retry')} />
+      )}
 
       {(creating || accounts.accounts.length > 0) && (
         <div className={`team-accounts-table${moneyFolded ? ' is-money-folded' : ''}`}>

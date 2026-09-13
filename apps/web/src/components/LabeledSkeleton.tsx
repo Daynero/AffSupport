@@ -1,4 +1,5 @@
 import { useI18n, type TranslationKey } from '../i18n';
+import { Skeleton } from './ui/index';
 
 /**
  * A loading placeholder that says what it is loading.
@@ -19,14 +20,13 @@ export function LabeledSkeleton({
   const { t } = useI18n();
   return (
     <div className="ui-skeleton-list">
+      {/* The caption stays visible rather than becoming screen-reader-only:
+          this product's loads can take a while, and a shimmering bar with no
+          words is indistinguishable from a stuck screen. */}
       <p className="ui-skeleton-label" aria-live="polite">
         {t(label)}
       </p>
-      <div className="ui-skeleton-rows" aria-hidden="true">
-        {Array.from({ length: rows }, (_, index) => (
-          <span key={index} className="skeleton ui-skeleton-row" />
-        ))}
-      </div>
+      <Skeleton shape="row" count={rows} />
     </div>
   );
 }
