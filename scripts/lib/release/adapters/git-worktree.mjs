@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 const exec = promisify(execFile);
@@ -38,6 +39,55 @@ export async function createOwnedWorktree({ cwd, sourceSha, root = tmpdir(), env
       await exec('git', ['worktree', 'remove', '--force', directory], { cwd, env: worktreeEnv });
     }
   });
+}
+
+/**
+ * What a release needs that git will not put in a worktree.
+ *
+ * A detached checkout is the tracked source and nothing else, which is the
+ * point — but a release also needs the things this repository deliberately does
+ * not track: the dependency closure, the signing keys, the production build
+ * environment, the downloaded runtime. Each is named here rather than inferred,
+ * because a worktree that silently lacks one produces a build that is wrong in a
+ * way only the artifact shows.
+ */
+const PROVISIONED_PATHS = Object.freeze([
+  'node_modules',
+  'config/keys',
+  '.env.production',
+  '.env.production.local',
+  'apps/agent/runtime'
+]);
+
+/**
+ * Lends the checkout's untracked state to the worktree.
+ *
+ * Dependencies are shared rather than installed, and only when the lockfiles are
+ * byte-identical: same lockfile means the same closure, so an install would
+ * reproduce what is already on the disk at the cost of several minutes on a
+ * machine the release is trying not to monopolise. A lockfile that differs is
+ * refused outright — sharing a closure that does not match the source being
+ * built is how a release ships against dependencies nobody reviewed.
+ */
+export async function provisionWorktree({ cwd, directory }) {
+  const lockPath = 'package-lock.json';
+  if (existsSync(path.join(cwd, lockPath)) && existsSync(path.join(directory, lockPath))) {
+    const [here, there] = await Promise.all([
+      readFile(path.join(cwd, lockPath)),
+      readFile(path.join(directory, lockPath))
+    ]);
+    if (!here.equals(there)) throw new Error('RELEASE_WORKTREE_DEPENDENCIES_DIFFER');
+  }
+  const provisioned = [];
+  for (const relative of PROVISIONED_PATHS) {
+    const source = path.join(cwd, relative);
+    const target = path.join(directory, relative);
+    if (!existsSync(source) || existsSync(target)) continue;
+    await mkdir(path.dirname(target), { recursive: true });
+    await symlink(source, target);
+    provisioned.push(relative);
+  }
+  return Object.freeze({ provisioned });
 }
 
 export async function refreshReleaseRefs({ cwd, sourceSha, env = process.env }) {

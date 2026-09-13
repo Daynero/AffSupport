@@ -14,6 +14,7 @@ import { enqueueHandoff } from './lib/release/handoff.mjs';
 import { loadSnapshot, runDirectory, saveSnapshot } from './lib/release/store.mjs';
 import { activeBinding } from './lib/release/bindings.mjs';
 import { createWorkerAdmission, installedProbeFrom } from './lib/release/worker-admission.mjs';
+import { createOwnedWorktree, provisionWorktree } from './lib/release/adapters/git-worktree.mjs';
 
 /**
  * The process that actually performs a release.
@@ -236,15 +237,44 @@ if (invokedDirectly) {
       ? await import(pathToFileURL(process.env.SOTY_RELEASE_STEP_ADAPTER).href)
       : await import('./lib/release/step-adapter.mjs');
     let adapter;
+    let worktree = null;
     try {
-      adapter = await createStepAdapter({
+      const identity = {
         runId,
         version: snapshot.version ?? process.env.SOTY_RELEASE_VERSION,
         sourceSha: snapshot.sourceSha,
         binding: activeBinding(),
         backendPlan,
         allowRemote: process.env.SOTY_RELEASE_DRY_RUN !== '1'
+      };
+      // Identity first, and deliberately before anything exists: a run with no
+      // version has no release to perform, and a checkout made for it would be a
+      // directory nobody asked for and nobody removes.
+      adapter = await createStepAdapter(identity);
+      /**
+       * Every step runs against the commit this release names, not against
+       * whatever the checkout happens to hold.
+       *
+       * The module for this was written and tested and never called, so the
+       * runner declared a `sourceSha` and then built the working tree. On a
+       * repository where somebody is working in parallel — which is the case
+       * this whole feature exists for — that ships their unfinished work under a
+       * version verified without it. It came within one step of doing exactly
+       * that.
+       *
+       * The worker keeps its own directory: the journal, the snapshot and the
+       * run state stay where `status` can find them. Only the steps move.
+       */
+      worktree = await createOwnedWorktree({ cwd: process.cwd(), sourceSha: snapshot.sourceSha });
+      const provisioning = await provisionWorktree({
+        cwd: process.cwd(),
+        directory: worktree.directory
       });
+      process.stdout.write(
+        `release-worker building in ${worktree.directory} at ${worktree.sourceSha.slice(0, 12)} ` +
+          `(provisioned: ${provisioning.provisioned.join(', ') || 'nothing'})\n`
+      );
+      adapter = await createStepAdapter({ ...identity, cwd: worktree.directory });
     } catch (error) {
       // A run whose frozen identity or destination cannot be resolved has
       // nothing it may legitimately do. Saying so is the honest outcome;
@@ -268,6 +298,9 @@ if (invokedDirectly) {
         process.exitCode = result.ok ? 0 : 1;
       } finally {
         admission.stop();
+        // Left in place when the run did not finish: a resumed release wants the
+        // same checkout, and a worktree is cheap next to a rebuild.
+        if (worktree && process.exitCode === 0) await worktree.remove().catch(() => {});
       }
     }
   }
