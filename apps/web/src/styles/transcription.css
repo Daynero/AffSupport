@@ -403,8 +403,7 @@
 
 /* The likely alternatives sit at the top of the picker, with a line under them so the
    alphabet below reads as a separate list rather than a continuation. */
-.transcript-language-listbox li.is-pinned + li:not(.is-pinned),
-.transcript-language-combobox ul li.is-pinned + li:not(.is-pinned) {
+.transcript-language-listbox li.is-pinned + li:not(.is-pinned) {
   margin-top: 5px;
   border-top: 1px solid var(--color-border);
   padding-top: 9px;
@@ -1132,10 +1131,10 @@
   inset: auto;
   overflow-y: auto;
 }
+/* Placed by the component (021): the surface is the shared popover's, anchored
+   to the field and sent to the body so no list card can clip it. */
 .transcript-language-listbox {
-  position: fixed;
   z-index: var(--layer-popover);
-  margin: 0;
   padding: 4px;
   overflow-y: auto;
   list-style: none;
@@ -1158,11 +1157,6 @@
   color: var(--color-text-muted);
   cursor: default;
 }
-/* Inside the viewer the list stays in place, above the dialog's chrome. */
-.transcript-language-combobox ul {
-  z-index: var(--layer-popover);
-}
-
 /* The consent's button is pinned to the bottom of the column: the notice can be taller
    than the column on a laptop, and a button cut in half by the fold read as a bug. */
 .transcript-translation-notice .transcription-consent-actions {
