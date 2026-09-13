@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 const exec = promisify(execFile);
 
-const ALLOWED_ENV = Object.freeze(['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'CI']);
+const ALLOWED_ENV = Object.freeze(['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'CI', 'SOTY_RELEASE_GH']);
 
 export async function assertFastForward({ cwd, baseRef, candidateSha }) {
   try { await exec('git', ['merge-base', '--is-ancestor', baseRef, candidateSha], { cwd }); return { ok: true }; }
@@ -308,7 +308,11 @@ export async function promoteBeta({ cwd, sourceSha, expectedBetaSha, env = proce
         // own token and demonstrably works here; every other remote call this
         // release makes goes through it.
         '-c',
-        'credential.helper=!gh auth git-credential',
+        // Absolute, because the helper runs through a shell whose PATH in a
+        // detached process is not the owner's -- `gh: command not found`, at the
+        // end of a release that had already published both installers. The
+        // installer records where it is, after running it.
+        `credential.helper=!${worktreeEnv.SOTY_RELEASE_GH ?? 'gh'} auth git-credential`,
         'push',
         '--no-verify',
         `--force-with-lease=refs/heads/beta:${expectedBetaSha}`,
