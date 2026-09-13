@@ -102,6 +102,27 @@ size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 | **CodeCell / Countdown** | TOTP digits and expiry ring | tokens, reduced motion |
 | **SotyLoader family** | brand loaders | consolidated to two: inline and page |
 
+### Anatomy, as built (T027)
+
+Recorded after the migration, because what a component is made of is only
+settled once it is. Each one names a token for every value it draws; none of
+them spells a colour, a duration, a radius or a type step of its own.
+
+| Component | Anatomy | Motion |
+|---|---|---|
+| **DropZone** | outer target (`--radius-xl`, dashed `--color-border`) → icon plate → title → hint → hidden file input. The whole target is the label. | `is-dragging` raises the fill only; no size change, so the page under it does not move |
+| **HoneycombField** | absolutely-positioned SVG field, `--purple-*` at low alpha, `aria-hidden` | ambient loop, exempt from the 300ms ceiling; removed under reduced motion |
+| **PowerLever / PowerReadout / PowerThrottle** | track → fill (`scaleX(var(--fill-ratio))`) → thumb → readout. The colour interpolates through a registered custom property (`--power-level-color`), not through a class swap. | `--motion-base`, `--ease-out-curve`; the drag itself is untransitioned |
+| **CRF pixel gem** | a `<canvas>` inside a picto button: the lucide Gem is rasterised through a shrinking sample, so the crystal visibly falls apart as CRF climbs. Carries `is-zoomed` while its slider moves. | scale only, and only while dragging |
+| **JobRow** | checkbox → title block → status badge → progress panel (`ProgressBar`, sizes, timer) → media panels → action row. Status colour comes from the badge's role, not from the row. | progress scales; the row's own wash is a background change |
+| **TranscriptPlayer** | transport → scrub track with a marker positioned by `left` (no transition: it follows a finger) → segment list → copy affordances | none on scrub; copy gives feedback without animation (frequent action) |
+| **TaskProgressScale** | track → two-colour gradient split at `--task-progress-position` (`--green-600` done, `--red-600` left) → grab handle. Keyboard moves in the same steps as the drag snaps. | none: the handle follows the pointer |
+| **LandingGalleryGrid** | device-framed tile → `--color-paper` stage → `--shadow-stage` → caption. A rendered page is the customer's artefact and stays on paper in both themes. | tile entrance only, once |
+| **StorageChip** | `Badge` trigger (role by state) → `Popover` with the detail rows. Connection state is a word as well as a colour. | none on the trigger; the popover is `frequent` |
+| **Marked** | `<mark>` on the matched run, `--amber-*` wash, inherits its parent's type step | none |
+| **CodeCell / Countdown** | digit cells at a fixed measure → expiry ring drawn with `stroke-dasharray` | the ring is an ambient loop; copying a code is silent |
+| **SotyLoader family** | three ribbons compressing into one (`SotyLoader`), the transcription wave (`TranscriptionLoader`), three dots (`SotyDots`) | ambient loops, all removed under reduced motion except the spinner, which slows to `--motion-spin-reduced` |
+
 ---
 
 ## Per-component state rules
