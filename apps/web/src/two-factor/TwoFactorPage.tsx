@@ -337,25 +337,15 @@ function TwoFactorWallet() {
             }
           />
         )}
-        {/* An empty notebook is filled by adding a key, so the state carries
-            the same control the header does (FR-021). */}
+        {/* No action here on purpose: FR-021 asks that the way out be offered,
+            and on this page it always is — the header's Add sits above this
+            state, on screen, never behind a toggle. A second button with the
+            same name would be two answers to one question. */}
         {status === 'ready' && entries.length === 0 && !adding && (
           <EmptyState
             className="tfa-notice"
             title={t('twoFactorEmpty')}
             description={t('twoFactorEmptyBody')}
-            action={
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setEditingId(null);
-                  setAdding(true);
-                }}
-              >
-                {t('twoFactorAdd')}
-              </Button>
-            }
           />
         )}
         {/* Distinct from the empty notebook on purpose: "you have nothing" and
