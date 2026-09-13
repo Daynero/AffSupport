@@ -7,8 +7,12 @@ import { stepDefinition } from './steps.mjs';
 import { applyBackendPlan } from './adapters/backend.mjs';
 import { rehearseBackendBeta } from './adapters/backend-beta.mjs';
 import { createSupabaseBackendAdapter } from './adapters/supabase-backend.mjs';
+import { commitKnownFiles, promoteBeta, remoteBetaSha } from './adapters/git.mjs';
 
 const exec = promisify(execFile);
+
+/** The one file a release rewrites after its artifacts exist. */
+const MANIFEST_PATH = 'apps/web/public/.well-known/wishly/stable.json';
 
 /**
  * The committed half of the release environment.
@@ -359,7 +363,47 @@ export async function createStepAdapter({
           { cwd, env: childEnv, admission });
         if (!signed.ok) return signed;
       }
-      return run('manifest', [process.execPath, 'scripts/verify-published-release.mjs'], { cwd, env: childEnv, admission });
+      const published = await run('manifest', [process.execPath, 'scripts/verify-published-release.mjs'], { cwd, env: childEnv, admission });
+      if (!published.ok) return published;
+
+      /**
+       * The signed manifest has to join the release line, not sit in a checkout.
+       *
+       * Signing rewrites `stable.json` with the digests of artifacts that did
+       * not exist when the release was prepared. Left uncommitted it makes the
+       * worktree dirty, and `deploy:web` refuses a dirty worktree -- so the
+       * release would build everything, publish everything, and then decline to
+       * ship on the grounds that it had modified itself.
+       *
+       * `commitKnownFiles` and `promoteBeta` were written for exactly this and
+       * never called from anywhere, which is why no release had reached the step
+       * that needed them. The commit moves the beta line with it, and
+       * `manifest_beta_verify` then re-packages and re-verifies at that commit:
+       * what ships is verified after the digests are recorded, not before.
+       */
+      const expectedBetaSha = await remoteBetaSha({ cwd, env: childEnv });
+      const committed = await commitKnownFiles({
+        cwd,
+        files: [MANIFEST_PATH],
+        message: `release: record ${version} artifact digests`,
+        env: childEnv
+      });
+      if (!committed.committed) return { ok: true };
+      const promoted = await promoteBeta({
+        cwd,
+        sourceSha: committed.sourceSha,
+        expectedBetaSha,
+        env: childEnv
+      });
+      if (!promoted.ok)
+        return fail(
+          promoted.code === 'REMOTE_NOT_FAST_FORWARD' ? 'TARGET_MISMATCH' : 'EFFECT_AMBIGUOUS',
+          `the manifest commit could not be promoted to beta: ${promoted.code}${promoted.subject ? ` — ${promoted.subject}` : ''}`
+        );
+      // The promotion gate consults the local ref before the remote one, and
+      // refs are shared with the checkout this worktree was cut from.
+      await exec('git', ['update-ref', 'refs/heads/beta', committed.sourceSha], { cwd, shell: false });
+      return { ok: true };
     },
 
     manifest_beta_verify: async () => {
