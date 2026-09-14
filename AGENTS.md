@@ -1,6 +1,9 @@
 # Agent guide
 
-Instructions for coding agents working in this repository.
+Instructions for coding agents working in this repository. Claude Code loads
+[`CLAUDE.md`](CLAUDE.md) by name and nothing else; that file is a pointer back
+to this one, so the two must not drift — anything that belongs to a subject
+below belongs _here_, not there.
 
 ## Soty Analytics
 
