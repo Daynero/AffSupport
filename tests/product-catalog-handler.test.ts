@@ -118,7 +118,7 @@ function setup(
         name: input.name,
         mimeType: 'application/vnd.google-apps.spreadsheet',
         webViewLink: 'https://docs.google.com/spreadsheets/d/drive-sheet/edit?usp=drivesdk',
-        size: null
+        size: 4096
       });
     }),
     updateFileMetadata: vi.fn(async () => metadata())
@@ -306,6 +306,10 @@ describe('making a catalog', () => {
       })
     );
     expect(drive.updateFileMetadata).not.toHaveBeenCalled();
+    // Drive sizes a native spreadsheet once it exists; the intent carries what Drive reported.
+    expect(deps.bindIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'clip catalog', sizeBytes: 4096 })
+    );
   });
 
   it('shows the catalog that already exists instead of making another', async () => {
@@ -366,7 +370,7 @@ describe('making a catalog', () => {
 describe('re-creating a catalog', () => {
   it('replaces the live catalog and trashes the retired file', async () => {
     const { deps, drive } = setup({
-      live: existing,
+      live: { ...existing, driveFileId: 'drive-old' },
       link: { linked: true, retired: [{ driveFileId: 'drive-old', resourceKey: null }] }
     });
     const result = await createProductCatalog(
@@ -376,6 +380,10 @@ describe('re-creating a catalog', () => {
     );
     expect(result.outcome).toBe('recreated');
     expect(deps.link).toHaveBeenCalledWith(expect.objectContaining({ replaces: OLD_SHEET }));
+    // The successor keeps the name: the sheet it retires is no conflict.
+    expect(deps.planName).toHaveBeenCalledWith(
+      expect.objectContaining({ replacingDriveFileId: 'drive-old' })
+    );
     expect(drive.updateFileMetadata).toHaveBeenCalledWith(
       expect.objectContaining({ fileId: 'drive-old', trashed: true })
     );

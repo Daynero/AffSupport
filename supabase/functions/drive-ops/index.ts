@@ -2314,6 +2314,7 @@ function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatal
   if (!materialId || !name || !sheetUrl || !sourceLink || productCount === null) return null;
   return {
     materialId,
+    driveFileId: stringValue(row, 'drive_file_id') ?? stringValue(row, 'driveFileId'),
     name,
     sheetUrl,
     sourceLink,
@@ -2397,9 +2398,19 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       destinationClient = found.client;
       return { materialId: found.context.materialId, live: found.live };
     },
-    async planName({ teamId, destinationMaterialId, live, name, idempotencyKey }) {
+    async planName({
+      teamId,
+      destinationMaterialId,
+      live,
+      name,
+      idempotencyKey,
+      replacingDriveFileId
+    }) {
       if (!destinationClient) throw new TeamFunctionError('WRONG_STATE', { retryable: false });
-      const names = await nameCandidates(destinationClient, live);
+      // Drive ids, despite the field's name: a re-create keeps the name of the sheet it retires.
+      const names = (await nameCandidates(destinationClient, live)).filter(
+        candidate => candidate.materialId !== replacingDriveFileId
+      );
       const plan = buildUploadConflictPlan(
         {
           teamId,
@@ -2436,14 +2447,14 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         bytesTotal: null
       });
     },
-    bindIntent({ authority, actorId, name }) {
+    bindIntent({ authority, actorId, name, sizeBytes }) {
       return bindIntent({
         service,
         authority,
         actorId,
         expectedName: name,
         mimeType: SPREADSHEET_MIME_TYPE,
-        expectedSize: null
+        expectedSize: sizeBytes
       });
     },
     markRunning(operationId) {

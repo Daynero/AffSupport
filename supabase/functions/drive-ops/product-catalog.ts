@@ -61,6 +61,8 @@ export interface CatalogVideo {
 
 export interface ExistingCatalog {
   materialId: string;
+  /** The sheet's Drive id, when the reader knows it; a re-create names its successor the same. */
+  driveFileId?: string | null;
   name: string;
   sheetUrl: string;
   sourceLink: string;
@@ -96,6 +98,8 @@ export interface ProductCatalogDeps {
     live: DriveFileMetadata;
     name: string;
     idempotencyKey: string;
+    /** The sheet being replaced: its name is about to be free, so it is no conflict. */
+    replacingDriveFileId: string | null;
   }): Promise<{ name: string; reservationKey: string }>;
   startOperation(input: {
     teamId: string;
@@ -105,10 +109,15 @@ export interface ProductCatalogDeps {
     destinationMaterialId: string | null;
     reservationKey: string;
   }): Promise<OperationAuthority>;
+  /**
+   * Bound after the upload, not before: Drive reports a size for a native spreadsheet only once
+   * it exists, and finalize compares the committed file with the intent field by field.
+   */
   bindIntent(input: {
     authority: OperationAuthority;
     actorId: string;
     name: string;
+    sizeBytes: number | null;
   }): Promise<void>;
   markRunning(operationId: string): Promise<void>;
   failOperation(operationId: string, cause: unknown): Promise<void>;
@@ -248,7 +257,8 @@ export async function createProductCatalog(
     destinationMaterialId: destination.materialId,
     live: destination.live,
     name: productCatalogName(video.name),
-    idempotencyKey: request.idempotencyKey
+    idempotencyKey: request.idempotencyKey,
+    replacingDriveFileId: live?.driveFileId ?? null
   });
   const authority = await deps.startOperation({
     teamId,
@@ -267,8 +277,6 @@ export async function createProductCatalog(
     }
     throw new TeamFunctionError('WRONG_STATE', { retryable: true });
   }
-  await deps.bindIntent({ authority, actorId, name: plan.name });
-
   try {
     await deps.markRunning(authority.operationId);
     const bytes = buildXlsx({
@@ -289,6 +297,7 @@ export async function createProductCatalog(
     });
     const created = { driveFileId: file.id, resourceKey: file.resourceKey ?? null };
     try {
+      await deps.bindIntent({ authority, actorId, name: file.name, sizeBytes: file.size });
       await ensureAnyoneReader(drive, file.id);
       const sheetUrl = file.webViewLink ?? '';
       if (!/^https:\/\/[^\s]+$/u.test(sheetUrl)) {

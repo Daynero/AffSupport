@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -133,15 +133,14 @@ describe('creating a catalog', () => {
     expect(screen.getByText('A whole number from 1 to 400.')).toBeTruthy();
   });
 
-  it('does not let a fourth digit or a letter into the count', async () => {
+  it('does not let a fourth digit or a letter into the count', () => {
     renderDialog(dialogClient());
-    const user = userEvent.setup();
     const count = screen.getByLabelText('Products') as HTMLInputElement;
-    await user.clear(count);
-    await user.type(count, '12345');
+    // A change event rather than typed keys: what is asserted is the field's own filter, and
+    // simulated typing into a controlled field races under load.
+    fireEvent.change(count, { target: { value: '12345' } });
     expect(count.value).toBe('123');
-    await user.clear(count);
-    await user.type(count, 'a7');
+    fireEvent.change(count, { target: { value: 'a7' } });
     expect(count.value).toBe('7');
   });
 

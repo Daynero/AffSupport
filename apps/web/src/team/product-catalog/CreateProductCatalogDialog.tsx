@@ -174,6 +174,8 @@ export function CreateProductCatalogDialog({
               <Button
                 type="button"
                 variant="ghost"
+                className="product-catalog-dialog-recreate"
+                aria-label={t('productCatalogRecreate')}
                 onClick={() => {
                   setReplaces(existing);
                   setLink(existing.sourceLink);
@@ -181,7 +183,7 @@ export function CreateProductCatalogDialog({
                   setPhase({ kind: 'form' });
                 }}
               >
-                {t('productCatalogRecreate')}
+                {t('productCatalogRecreateShort')}
               </Button>
             )}
             <a
@@ -189,11 +191,17 @@ export function CreateProductCatalogDialog({
               href={shown.sheetUrl}
               target="_blank"
               rel="noopener noreferrer"
+              aria-label={t('productCatalogOpen')}
             >
-              {t('productCatalogOpen')}
+              {t('productCatalogOpenShort')}
             </a>
-            <Button type="button" variant="secondary" onClick={() => void copy(shown.sheetUrl)}>
-              {t('productCatalogCopyLink')}
+            <Button
+              type="button"
+              variant="secondary"
+              aria-label={t('productCatalogCopyLink')}
+              onClick={() => void copy(shown.sheetUrl)}
+            >
+              {t('productCatalogCopyLinkShort')}
             </Button>
             <Button type="button" variant="primary" onClick={onClose}>
               {t('productCatalogDone')}
@@ -225,7 +233,7 @@ export function CreateProductCatalogDialog({
         <h2 id={titleId}>{t(replaces ? 'productCatalogRecreate' : 'productCatalogCreate')}</h2>
         <p className="product-catalog-dialog-name">{video.name}</p>
 
-        {replaces && <p className="team-inline-note">{t('productCatalogRecreateNotice')}</p>}
+        {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}
 
         {settingsMissing && (
           <div className="product-catalog-dialog-missing" role="status">

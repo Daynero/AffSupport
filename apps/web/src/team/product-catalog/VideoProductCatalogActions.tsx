@@ -71,21 +71,35 @@ export function VideoProductCatalogActions({
     <div className="team-explorer-pane-catalog">
       <p className="team-explorer-pane-transcript-title">{t('productCatalogSection')}</p>
       {catalog === undefined ? null : catalog ? (
-        <div className="product-catalog-actions">
-          <Button type="button" variant="primary" onClick={() => void copy(catalog.sheetUrl)}>
-            {t('productCatalogCopyLink')}
+        /* One primary action and two beside it, not a wall of three: copying the link is what a
+           catalog is opened for. Short labels here, the full names for assistive technology. */
+        <div className="product-catalog-actions is-present">
+          <Button
+            type="button"
+            variant="primary"
+            className="product-catalog-copy"
+            aria-label={t('productCatalogCopyLink')}
+            onClick={() => void copy(catalog.sheetUrl)}
+          >
+            {t('productCatalogCopyLinkShort')}
           </Button>
           <a
             className="button button-secondary"
             href={catalog.sheetUrl}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label={t('productCatalogOpen')}
           >
-            {t('productCatalogOpen')}
+            {t('productCatalogOpenShort')}
           </a>
           {mayCreate && (
-            <Button type="button" variant="ghost" onClick={() => setDialog('recreate')}>
-              {t('productCatalogRecreate')}
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label={t('productCatalogRecreate')}
+              onClick={() => setDialog('recreate')}
+            >
+              {t('productCatalogRecreateShort')}
             </Button>
           )}
         </div>

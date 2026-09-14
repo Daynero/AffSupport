@@ -216,7 +216,9 @@ export function ProductCatalogSettingsSection({
         {fieldError('description')}
       </div>
 
-      <div className="settings-field-grid">
+      {/* Not `settings-field-grid`: its subgrid gives a field two rows, label and control, and a
+          hint or an error under the control would be drawn over it. */}
+      <div className="product-catalog-settings-pair">
         <div className="field-group">
           <label className="field-label" htmlFor={ids.price}>
             <span>{t('productCatalogPriceLabel')}</span>

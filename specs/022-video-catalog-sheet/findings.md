@@ -78,6 +78,32 @@ web update, without a full release?". The spec stays free of implementation; thi
 - **Cell types.** The example stores `id`, `quantity_to_sell_on_facebook` and `gtin` as numbers;
   the spec keeps the first two numeric and makes `gtin` text so Sheets never shows `8.80609E+12`.
 
+## What the beta taught (2026-09-15, real Google Drive)
+
+- **Drive sizes native spreadsheets.** `files.create` with conversion returns `size` for the new
+  Google Sheet (the explorer already showed "Google-документ · 29.9 KB" for native files). Binding
+  the upload intent with `expectedSize: null` before the upload made
+  `service_finalize_uploaded_material` refuse the commit with `SOURCE_CHANGED`. The intent is now
+  bound after the upload, from the metadata Drive returned (`drive-ops/product-catalog.ts`).
+- **Re-creating kept a "(2)" suffix.** The retired sheet is trashed only after the new one is
+  linked, so name planning saw it and suffixed the successor. The replaced sheet's Drive id is now
+  excluded from the conflict candidates; the name reservation is unique among operations only,
+  and Drive tolerates the brief duplicate.
+- **Formula safety holds on real Drive (R2's verification debt closed).** A description
+  `=HYPERLINK("https://example.com","x") …` exported back as CSV is the literal text, not `x`.
+- **Links open signed out.** The sheet URL and the column-Z video URL (`…?usp=sharing?v=001`) both
+  answer 200 with no sign-in redirect.
+- **Timing.** A 3-product catalog: 9.5 s from confirm to the result on a loaded machine (load
+  average above 20), inside SC-001's 15 s.
+- **Settings layout.** `.settings-field-grid` turns each field group into a two-row subgrid (label,
+  control), so a hint or an error under the price input was drawn over the input. The catalog
+  settings use their own two-column grid.
+- **The row menu cannot own a dialog** — it unmounts on close. "Catalog" in the menu asks the
+  explorer shell to open `ProductCatalogMenuDialog`, the same arrangement the transcript prompt has.
+- **Tail operations run after the primary one.** A rename's companion renames start only when the
+  video's rename returns; closing the page within those seconds leaves the sheet unrenamed. This is
+  the transcript's existing behaviour, not new to catalogs.
+
 ## Rollout path (no desktop release)
 
 1. Additive migration(s): widen `companion_kind`, catalog metadata (pasted link, product count),
