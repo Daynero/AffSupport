@@ -8,6 +8,7 @@ import { applyBackendPlan } from './adapters/backend.mjs';
 import { rehearseBackendBeta } from './adapters/backend-beta.mjs';
 import { createSupabaseBackendAdapter } from './adapters/supabase-backend.mjs';
 import { commitKnownFiles, promoteBeta, remoteBetaSha } from './adapters/git.mjs';
+import { retryDelay } from './retry.mjs';
 
 const exec = promisify(execFile);
 
@@ -182,7 +183,12 @@ async function listWorkflowRuns({ cwd, workflow }) {
       return JSON.parse(stdout);
     } catch (error) {
       if (attempt === 2 || !TRANSIENT.test(messageOf(error))) return null;
-      await new Promise(resolve => setTimeout(resolve, 3000 * (attempt + 1)));
+      // The backoff policy is `retry.mjs`, which was written for exactly this
+      // and had no caller -- the same shape as every other defect this release
+      // turned up, and one I walked straight into by hand-rolling a fixed delay
+      // here first. Jitter matters against an API that rate-limits: three
+      // clients backing off in lockstep arrive together.
+      await new Promise(resolve => setTimeout(resolve, retryDelay(attempt + 1, { baseMs: 1500, maxMs: 8000 })));
     }
   }
   return null;
@@ -260,6 +266,11 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
    * So the step waits for the run it just asked for, up to a minute. A dispatch
    * that produced nothing at all still ends as ambiguous, which is the honest
    * answer: the request was accepted and nothing can be found.
+   *
+   * Deliberately not `retry.mjs`: nothing here failed. This is waiting for
+   * something expected to appear, and that module's policy -- five attempts,
+   * growing delays -- is for a call that went wrong, not for a fact that has
+   * not arrived yet.
    */
   let found = null;
   for (let attempt = 0; attempt < 10 && !found; attempt += 1) {
