@@ -702,3 +702,29 @@ checkpoint). Restore `private.claim_catalog_sync_jobs` from `20260907100000` and
 `private.invoke_catalog_sync_worker` from `20260815102000`; reschedule
 `wishly-catalog-sync` to `* * * * *`. The new save/release RPCs can remain unused
 until all in-flight workers have finished. No catalog rows need to be deleted.
+
+## 20260915010000_product_catalogs.sql
+
+Feature 022: a video's product catalog sheet. Deploy the previous `drive-ops` first, so nothing
+creates or links a catalog while the schema goes away. Sheets already created stay in Drive and
+in the catalog as ordinary spreadsheets; unlinking them is what lets the old constraint return.
+
+```sql
+drop function if exists public.service_link_product_catalog_companion(uuid, uuid, uuid, uuid, jsonb);
+drop function if exists public.service_get_team_product_catalog_settings(uuid);
+drop function if exists public.get_material_product_catalog(uuid, uuid);
+drop function if exists public.set_team_product_catalog_settings(uuid, jsonb);
+drop function if exists public.get_team_product_catalog_settings(uuid);
+drop table if exists public.team_product_catalogs;
+drop table if exists public.team_product_catalog_settings;
+update public.team_materials
+   set companion_of = null, companion_kind = null
+ where companion_kind = 'product_catalog';
+alter table public.team_materials drop constraint if exists team_materials_companion_kind_check;
+alter table public.team_materials
+  add constraint team_materials_companion_kind_check
+  check (
+    (companion_of is null and companion_kind is null)
+    or (companion_of is not null and companion_kind in ('transcript'))
+  );
+```

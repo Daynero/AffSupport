@@ -1,0 +1,389 @@
+/**
+ * A video's product catalog sheet (feature 022) — everything about it that is not I/O.
+ *
+ * The owner's Meta catalog template, the four limits a person can hit, and the rows a sheet is
+ * made of. No imports on purpose: this file is read by the Edge Function and by vitest, and the
+ * web keeps its own copy of the limits (`apps/web/src/team/product-catalog/limits.ts`) because
+ * the one shared package cannot change without a desktop release. A parity test holds the two
+ * together.
+ *
+ * The template itself is the contract in `specs/022-video-catalog-sheet/contracts/`; a test
+ * keeps `PRODUCT_CATALOG_TEMPLATE` equal to its JSON form, header strings byte for byte.
+ */
+
+export const PRODUCT_COUNT_MIN = 1;
+export const PRODUCT_COUNT_MAX = 400;
+export const PRODUCT_COUNT_DEFAULT = 100;
+export const PRICE_MIN = 1;
+export const PRICE_MAX = 999_999;
+export const TITLE_MAX = 200;
+export const DESCRIPTION_MAX = 9999;
+export const IMAGE_LINK_MAX = 2048;
+export const SOURCE_LINK_MAX = 8192;
+
+export const PRODUCT_CATALOG_SHEET_NAME = 'catalog_products';
+export const SPREADSHEET_MIME_TYPE = 'application/vnd.google-apps.spreadsheet';
+/** The description row and the key row come before the first product. */
+export const PRODUCT_CATALOG_HEADER_ROWS = 2;
+
+export type Cell = { t: 'string'; v: string } | { t: 'number'; v: number };
+
+export interface ProductCatalogSettingsValues {
+  title: string;
+  description: string;
+  price: number;
+  imageLink: string;
+}
+
+type ColumnSource =
+  | { kind: 'rowNumber' }
+  | { kind: 'setting'; setting: 'title' | 'description' | 'price' | 'imageLink' }
+  | { kind: 'sourceLink' }
+  | { kind: 'copyOf'; column: string }
+  | { kind: 'videoLink' }
+  | { kind: 'fixed'; cell: Cell };
+
+export interface ProductCatalogColumn {
+  column: string;
+  key: string;
+  description: string;
+  source: ColumnSource;
+}
+
+export type ParseResult<T, E extends string> = { ok: true; value: T } | { ok: false; error: E };
+
+/**
+ * A product count as a person types it: digits only, surrounding spaces and leading zeros
+ * forgiven (`007` is seven), and never more than three digits — the dialog's field is that wide.
+ */
+export function parseProductCount(value: unknown): ParseResult<number, 'count'> {
+  let digits: string;
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value)) return { ok: false, error: 'count' };
+    digits = String(value);
+  } else if (typeof value === 'string') {
+    digits = value.trim();
+  } else {
+    return { ok: false, error: 'count' };
+  }
+  if (!/^\d{1,3}$/u.test(digits)) return { ok: false, error: 'count' };
+  const count = Number(digits);
+  return count >= PRODUCT_COUNT_MIN && count <= PRODUCT_COUNT_MAX
+    ? { ok: true, value: count }
+    : { ok: false, error: 'count' };
+}
+
+/** An `http`/`https` link with nothing around or inside it that a browser would not keep. */
+export function parseWebLink(value: unknown, max: number): ParseResult<string, 'link'> {
+  if (typeof value !== 'string') return { ok: false, error: 'link' };
+  const link = value.trim();
+  if (link.length === 0 || link.length > max || /\s/u.test(link)) {
+    return { ok: false, error: 'link' };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(link);
+  } catch {
+    return { ok: false, error: 'link' };
+  }
+  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.hostname === '') {
+    return { ok: false, error: 'link' };
+  }
+  return { ok: true, value: link };
+}
+
+/** A whole-dollar price as the sheet writes it — the owner's form, comma and all. */
+export function formatPrice(price: number): string {
+  return `${price},00 USD`;
+}
+
+/**
+ * The link a signed-out viewer can open a Drive video with. Drive hands back `usp=drivesdk`;
+ * the owner's template uses `usp=sharing`, and a file with a resource key needs it in the link.
+ */
+export function videoShareLink(fileId: string, resourceKey: string | null): string {
+  const base = `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view?usp=sharing`;
+  return resourceKey ? `${base}&resourcekey=${encodeURIComponent(resourceKey)}` : base;
+}
+
+/** `clip.final.mp4` → `clip.final catalog`: the one naming rule for a catalog sheet. */
+export function productCatalogName(videoName: string): string {
+  const stem = videoName.replace(/\.[^.]+$/u, '');
+  return `${stem.length > 0 ? stem : videoName} catalog`;
+}
+
+export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
+  {
+    column: 'A',
+    key: 'id',
+    description:
+      "# Обязательно | A unique content ID for the item. Use the item's SKU if you can. Each content ID must appear only once in your catalog. To run dynamic ads this ID must exactly match the content ID for the same item in your Meta Pixel code. Character limit: 100",
+    source: { kind: 'rowNumber' }
+  },
+  {
+    column: 'B',
+    key: 'title',
+    description:
+      '# Обязательно | A specific and relevant title for the item. See title specifications: https://www.facebook.com/business/help/2104231189874655 Character limit: 200',
+    source: { kind: 'setting', setting: 'title' }
+  },
+  {
+    column: 'C',
+    key: 'description',
+    description:
+      "# Обязательно | A short and relevant description of the item. Include specific or unique product features like material or color. Use plain text and don't enter text in all capital letters. See description specifications: https://www.facebook.com/business/help/2302017289821154 Character limit: 9999",
+    source: { kind: 'setting', setting: 'description' }
+  },
+  {
+    column: 'D',
+    key: 'availability',
+    description:
+      '# Обязательно | The current availability of the item. | Поддерживаемые значения: in stock; out of stock',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'in stock' } }
+  },
+  {
+    column: 'E',
+    key: 'condition',
+    description:
+      '# Обязательно | The current condition of the item. | Поддерживаемые значения: new; used',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'new' } }
+  },
+  {
+    column: 'F',
+    key: 'price',
+    description:
+      "# Обязательно | The price of the item. Format the price as a number followed by the 3-letter currency code (ISO 4217 standards). Use a period (.) as the decimal point; don't use a comma.",
+    source: { kind: 'setting', setting: 'price' }
+  },
+  {
+    column: 'G',
+    key: 'link',
+    description:
+      '# Обязательно | The URL of the specific product page where people can buy the item.',
+    source: { kind: 'sourceLink' }
+  },
+  {
+    column: 'H',
+    key: 'image_link',
+    description:
+      '# Обязательно | The URL for the main image of your item. Images must be in a supported format (JPG/GIF/PNG) and at least 500 x 500 pixels.',
+    source: { kind: 'setting', setting: 'imageLink' }
+  },
+  {
+    column: 'I',
+    key: 'brand',
+    description: '# Обязательно | Фирменное название товара. Не более 100 символов.',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'Facebook' } }
+  },
+  {
+    column: 'J',
+    key: 'google_product_category',
+    description:
+      '# Необязательно | The Google product category for the item. Learn more about product categories: https://www.facebook.com/business/help/526764014610932.',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'Apparel & Accessories > Clothing' } }
+  },
+  {
+    column: 'K',
+    key: 'fb_product_category',
+    description:
+      '# Необязательно | The Facebook product category for the item. Learn more about product categories: https://www.facebook.com/business/help/526764014610932.',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'Clothing & Accessories > Clothing' } }
+  },
+  {
+    column: 'L',
+    key: 'quantity_to_sell_on_facebook',
+    description:
+      "# Необязательно | The quantity of this item you have to sell on Facebook and Instagram with checkout. Must be 1 or higher or the item won't be buyable",
+    source: { kind: 'fixed', cell: { t: 'number', v: 75 } }
+  },
+  {
+    column: 'M',
+    key: 'sale_price',
+    description:
+      "# Необязательно | The discounted price of the item if it's on sale. Format the price as a number followed by the 3-letter currency code (ISO 4217 standards). Use a period (.) as the decimal point; don't use a comma. A sale price is required if you want to use an overlay for discounted prices.",
+    source: { kind: 'copyOf', column: 'F' }
+  },
+  {
+    column: 'N',
+    key: 'sale_price_effective_date',
+    description:
+      "# Необязательно | The time range for your sale period. Includes the date and time/time zone when your sale starts and ends. If this field is blank any items with a sale_price remain on sale until you remove the sale price. Use this format: YYYY-MM-DDT23:59+00:00/YYYY-MM-DDT23:59+00:00. Enter the start date as YYYY-MM-DD. Enter a 'T'. Enter the start time in 24-hour format (00:00 to 23:59) followed by the UTC time zone (-12:00 to +14:00). Enter '/' and then repeat the same format for your end date and time. The example row below uses PST time zone (-08:00).",
+    source: {
+      kind: 'fixed',
+      cell: { t: 'string', v: '2020-04-30T09:30-08:00/2020-05-30T23:59-08:00' }
+    }
+  },
+  {
+    column: 'O',
+    key: 'item_group_id',
+    description:
+      '# Необязательно | Use this field to create variants of the same item. Enter the same group ID for all variants within a group. Learn more about variants: https://www.facebook.com/business/help/2256580051262113 Character limit: 100.',
+    source: { kind: 'fixed', cell: { t: 'string', v: '' } }
+  },
+  {
+    column: 'P',
+    key: 'gender',
+    description:
+      '# Необязательно | Пол человека; на которого рассчитан этот товар. | Поддерживаемые значения: female; male; unisex',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'unisex' } }
+  },
+  {
+    column: 'Q',
+    key: 'color',
+    description:
+      "# Необязательно | The color of the item. Use one or more words to describe the color. Don't use a hex code. Character limit: 200.",
+    source: { kind: 'fixed', cell: { t: 'string', v: 'royal blue' } }
+  },
+  {
+    column: 'R',
+    key: 'size',
+    description:
+      '# Необязательно | The size of the item written as a word or abbreviation or number. For example: small; XL; 12. Character limit: 200.',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'M' } }
+  },
+  {
+    column: 'S',
+    key: 'age_group',
+    description:
+      '# Необязательно | Возрастная группа; на которую рассчитан товар. | Поддерживаемые значения: adult; all ages; infant; kids; newborn; teen; toddler',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'adult' } }
+  },
+  {
+    column: 'T',
+    key: 'material',
+    description:
+      '# Необязательно | Материал; из которого изготовлен товар; например хлопок; деним или кожа. Лимит: 200\u00a0символов.',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'cotton' } }
+  },
+  {
+    column: 'U',
+    key: 'pattern',
+    description:
+      '# Необязательно | The pattern or graphic print on the item. Character limit: 100.',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'stripes' } }
+  },
+  {
+    column: 'V',
+    key: 'shipping',
+    description:
+      '# Необязательно | Информация о доставке товара в следующем формате: "Страна:Регион:Служба:Цена". В цене следует указать 3-буквенный код валюты по стандарту ISO 4217. Чтобы использовать в рекламе оверлей "Бесплатная доставка"; для цены доставки укажите значение "0.0". Данные о доставке в разные регионы или страны нужно отделять точкой с запятой (";") или запятой (";"). Только люди из определенного региона или страны увидят информацию о доставке в этот регион или страну. Если данные о доставке для всей страны одинаковы; регион можно не указывать (оставьте последовательность символов "::").',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'US:CA:Ground:9.99 USD;US:NY:Air:15.99 USD' } }
+  },
+  {
+    column: 'W',
+    key: 'shipping_weight',
+    description:
+      '# Необязательно | The shipping weight of the item. Include the unit of measurement (lb/oz/g/kg).',
+    source: { kind: 'fixed', cell: { t: 'string', v: '10 kg' } }
+  },
+  {
+    column: 'X',
+    key: 'offer_disclaimer',
+    description:
+      '# Необязательно | Legal disclaimer text for product offers. This text provides important legal or regulatory information that must be displayed with the product offer. For example: "Valid while supplies last. Terms and conditions apply."',
+    source: {
+      kind: 'fixed',
+      cell: { t: 'string', v: 'Valid while supplies last. Terms and conditions apply.' }
+    }
+  },
+  {
+    column: 'Y',
+    key: 'offer_disclaimer_url',
+    description:
+      '# Необязательно | URL linking to the full disclaimer text. This provides a link to a page containing the complete disclaimer information for the product offer. For example: "https://example.com/terms-and-conditions"',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'https://example.com/terms-and-conditions' } }
+  },
+  {
+    column: 'Z',
+    key: 'video[0].url',
+    description:
+      '# Необязательно | URL видео о товаре. Добавьте ссылку на видеофайл в файловом хранилище; а не на видеопроигрыватель. Поддерживаемые форматы видео: .3g2; .3gp; .3gpp; .asf; .avi; .dat; .divx; .dv; .f4v; .flv; .gif; .m2ts; .m4v; .mkv; .mod; .mov; .mp4; .mpe; .mpeg; .mpeg4; .mpg; .mts; .nsv; .ogm; .ogv; .qt; .tod; .ts; .vob и .wmv.',
+    source: { kind: 'videoLink' }
+  },
+  {
+    column: 'AA',
+    key: 'video[0].tag[0]',
+    description:
+      '# Необязательно | URL видео о товаре. Добавьте ссылку на видеофайл в файловом хранилище; а не на видеопроигрыватель. Поддерживаемые форматы видео: .3g2; .3gp; .3gpp; .asf; .avi; .dat; .divx; .dv; .f4v; .flv; .gif; .m2ts; .m4v; .mkv; .mod; .mov; .mp4; .mpe; .mpeg; .mpeg4; .mpg; .mts; .nsv; .ogm; .ogv; .qt; .tod; .ts; .vob и .wmv.',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'Gym' } }
+  },
+  {
+    column: 'AB',
+    key: 'gtin',
+    description:
+      '# Необязательно | Международный торговый код товара (GTIN). Рекомендуется для классификации товара. Может отображаться на штрихкоде; упаковке или обложке книги. Указывайте GTIN только в том случае; если вы уверены в его правильности. К типам GTIN относятся UPC (12 цифр); EAN (13 цифр); JAN (8 или 13 цифр); ISBN (13 цифр) или ITF-14 (14 цифр)',
+    source: { kind: 'fixed', cell: { t: 'string', v: '8806088573892' } }
+  },
+  {
+    column: 'AC',
+    key: 'product_tags[0]',
+    description:
+      '# Необязательно | Add labels to products to help filter them into product sets. Max characters: 110 per label; 5000 labels per product',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'some_string' } }
+  },
+  {
+    column: 'AD',
+    key: 'product_tags[1]',
+    description:
+      '# Необязательно | Add labels to products to help filter them into product sets. Max characters: 110 per label; 5000 labels per product',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'other' } }
+  },
+  {
+    column: 'AE',
+    key: 'style[0]',
+    description: '# Необязательно | Опишите стиль этого товара.',
+    source: { kind: 'fixed', cell: { t: 'string', v: 'Bodycon' } }
+  }
+];
+
+/**
+ * The whole sheet as cells: the template's description row, its key row, then one row per
+ * product. Every product carries the same values except its number and its video link, which
+ * gets `?v=001`, `?v=002`… appended as the owner's example does — literally, even though the
+ * link already has a `?` — so no two products share a video URL.
+ */
+export function buildProductCatalogRows(input: {
+  settings: ProductCatalogSettingsValues;
+  sourceLink: string;
+  videoLink: string;
+  count: number;
+}): Cell[][] {
+  const text = (v: string): Cell => ({ t: 'string', v });
+  const rows: Cell[][] = [
+    PRODUCT_CATALOG_TEMPLATE.map(column => text(column.description)),
+    PRODUCT_CATALOG_TEMPLATE.map(column => text(column.key))
+  ];
+  const settingCell = (setting: keyof ProductCatalogSettingsValues): Cell =>
+    setting === 'price' ? text(formatPrice(input.settings.price)) : text(input.settings[setting]);
+  for (let index = 1; index <= input.count; index += 1) {
+    const byColumn = new Map<string, Cell>();
+    const row = PRODUCT_CATALOG_TEMPLATE.map(column => {
+      const source = column.source;
+      let cell: Cell;
+      switch (source.kind) {
+        case 'rowNumber':
+          cell = { t: 'number', v: index };
+          break;
+        case 'setting':
+          cell = settingCell(source.setting);
+          break;
+        case 'sourceLink':
+          cell = text(input.sourceLink);
+          break;
+        case 'copyOf':
+          cell = byColumn.get(source.column) ?? text('');
+          break;
+        case 'videoLink':
+          cell = text(`${input.videoLink}?v=${String(index).padStart(3, '0')}`);
+          break;
+        case 'fixed':
+          cell = source.cell;
+          break;
+      }
+      byColumn.set(column.column, cell);
+      return cell;
+    });
+    rows.push(row);
+  }
+  return rows;
+}

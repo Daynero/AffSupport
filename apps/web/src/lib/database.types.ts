@@ -2013,6 +2013,45 @@ export type Database = {
           updated_at: string;
         };
       };
+      // 022 — a space's product catalog values, and a video's catalog sheet.
+      get_team_product_catalog_settings: {
+        Args: { p_team: string };
+        Returns: {
+          team_id: string;
+          title: string;
+          description: string;
+          price: number;
+          image_link: string;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      set_team_product_catalog_settings: {
+        Args: { p_team: string; p_settings: Json };
+        Returns: {
+          team_id: string;
+          title: string;
+          description: string;
+          price: number;
+          image_link: string;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      get_material_product_catalog: {
+        Args: { p_team: string; p_video: string };
+        Returns: {
+          id: string;
+          name: string;
+          drive_file_id: string;
+          sheet_url: string;
+          source_link: string;
+          product_count: number;
+          created_at: string;
+        }[];
+      };
       get_material_restitch_prep: {
         Args: { p_team: string; p_materials: string[] };
         Returns: {

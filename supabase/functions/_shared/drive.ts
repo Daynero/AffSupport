@@ -397,6 +397,65 @@ export class GoogleDriveClient {
     return metadata;
   }
 
+  /**
+   * Creates a file from bytes that Drive converts on the way in — an XLSX becoming a native
+   * spreadsheet (022). One multipart request: the file never exists in its source format, so
+   * there is no half-made original to clean up.
+   */
+  async createConvertedFile(input: {
+    name: string;
+    parentId: string;
+    sourceMimeType: string;
+    targetMimeType: string;
+    bytes: Uint8Array<ArrayBuffer>;
+  }): Promise<DriveFileMetadata> {
+    if (
+      input.name.length < 1 ||
+      input.name.length > 1024 ||
+      input.parentId.length < 1 ||
+      input.name.includes(String.fromCharCode(0)) ||
+      /[\r\n]/u.test(input.name)
+    ) {
+      throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    }
+    if (input.bytes.byteLength > 10 * 1024 * 1024) {
+      throw new TeamFunctionError('TOO_LARGE', { retryable: false });
+    }
+    const boundary = `soty-${crypto.randomUUID()}`;
+    const encoder = new TextEncoder();
+    const head = encoder.encode(
+      `--${boundary}\r\ncontent-type: application/json; charset=utf-8\r\n\r\n` +
+        JSON.stringify({
+          name: input.name,
+          mimeType: input.targetMimeType,
+          parents: [input.parentId]
+        }) +
+        `\r\n--${boundary}\r\ncontent-type: ${input.sourceMimeType}\r\n\r\n`
+    );
+    const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
+    const body = new Uint8Array(new ArrayBuffer(head.length + input.bytes.length + tail.length));
+    body.set(head, 0);
+    body.set(input.bytes, head.length);
+    body.set(tail, head.length + input.bytes.length);
+
+    const url = new URL('https://www.googleapis.com/upload/drive/v3/files');
+    url.searchParams.set('uploadType', 'multipart');
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', FILE_FIELDS);
+    const response = await this.#request(url, {
+      method: 'POST',
+      headers: { 'content-type': `multipart/related; boundary=${boundary}` },
+      body,
+      // A conversion is slower than a metadata call; still bounded.
+      signal: AbortSignal.timeout(60_000)
+    });
+    const metadata = parseMetadata(await response.json().catch(() => null));
+    if (!metadata || metadata.mimeType !== input.targetMimeType) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    return metadata;
+  }
+
   async listAnyonePermissions(fileId: string): Promise<Array<{ id: string; role: string }>> {
     const url = new URL(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`

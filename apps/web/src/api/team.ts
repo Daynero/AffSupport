@@ -166,6 +166,72 @@ export interface TeamContextSnapshot {
 
 export type UnknownGuard<T> = (value: unknown) => value is T;
 
+/** 022 — a video's product catalog sheet, as the card and the tail module see it. */
+export interface ProductCatalogSummary {
+  id: string;
+  name: string;
+  sheetUrl: string;
+  sourceLink: string;
+  productCount: number;
+  createdAt: string;
+}
+
+/** 022 — the four values every catalog in a space is filled from. */
+export interface ProductCatalogSettings {
+  title: string;
+  description: string;
+  /** Whole dollars; the sheet writes `${price},00 USD`. */
+  price: number;
+  imageLink: string;
+  updatedAt: string;
+}
+
+export interface ProductCatalogCreateResult {
+  outcome: 'created' | 'recreated' | 'existing';
+  catalog: Omit<ProductCatalogSummary, 'createdAt'> & { createdAt: string | null };
+  videoShared: boolean;
+}
+
+function productCatalogSettingsFrom(value: unknown): ProductCatalogSettings | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.title !== 'string' ||
+    typeof row.description !== 'string' ||
+    typeof row.price !== 'number' ||
+    !Number.isInteger(row.price) ||
+    typeof row.image_link !== 'string' ||
+    typeof row.updated_at !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    title: row.title,
+    description: row.description,
+    price: row.price,
+    imageLink: row.image_link,
+    updatedAt: row.updated_at
+  };
+}
+
+function productCatalogCreateGuard(value: unknown): value is ProductCatalogCreateResult {
+  const row = asRecord(value);
+  const catalog = asRecord(row?.catalog);
+  return Boolean(
+    row &&
+    catalog &&
+    ['created', 'recreated', 'existing'].includes(String(row.outcome)) &&
+    typeof row.videoShared === 'boolean' &&
+    typeof catalog.materialId === 'string' &&
+    typeof catalog.name === 'string' &&
+    typeof catalog.sheetUrl === 'string' &&
+    /^https:\/\//u.test(catalog.sheetUrl) &&
+    typeof catalog.sourceLink === 'string' &&
+    typeof catalog.productCount === 'number' &&
+    (catalog.createdAt === null || typeof catalog.createdAt === 'string')
+  );
+}
+
 /**
  * Recovers the team error envelope from a failed `functions.invoke`.
  *
@@ -1573,6 +1639,85 @@ export const teamApi = {
       ingestState: typeof row.ingest_state === 'string' ? row.ingest_state : 'pending',
       hasText: row.has_text === true
     };
+  },
+
+  async getProductCatalog(teamId: string, videoId: string): Promise<ProductCatalogSummary | null> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_material_product_catalog', {
+        p_team: teamId,
+        p_video: videoId
+      })
+    );
+    throwRpc(error);
+    const row = asRecord(Array.isArray(data) ? data[0] : null);
+    if (
+      !row ||
+      typeof row.id !== 'string' ||
+      typeof row.name !== 'string' ||
+      typeof row.sheet_url !== 'string' ||
+      !/^https:\/\//u.test(row.sheet_url) ||
+      typeof row.source_link !== 'string' ||
+      typeof row.product_count !== 'number' ||
+      typeof row.created_at !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      id: row.id,
+      name: row.name,
+      sheetUrl: row.sheet_url,
+      sourceLink: row.source_link,
+      productCount: row.product_count,
+      createdAt: row.created_at
+    };
+  },
+
+  async getProductCatalogSettings(teamId: string): Promise<ProductCatalogSettings | null> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_product_catalog_settings', { p_team: teamId })
+    );
+    throwRpc(error);
+    const first = Array.isArray(data) ? data[0] : null;
+    if (first === undefined || first === null) return null;
+    const parsed = productCatalogSettingsFrom(first);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async setProductCatalogSettings(
+    teamId: string,
+    input: { title: string; description: string; price: number; imageLink: string }
+  ): Promise<ProductCatalogSettings> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_product_catalog_settings', {
+        p_team: teamId,
+        p_settings: {
+          title: input.title,
+          description: input.description,
+          price: input.price,
+          imageLink: input.imageLink
+        }
+      })
+    );
+    throwRpc(error);
+    const parsed = productCatalogSettingsFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async createProductCatalog(input: {
+    teamId: string;
+    videoMaterialId: string;
+    sourceLink: string;
+    productCount: number;
+    replacesMaterialId: string | null;
+    idempotencyKey: string;
+  }): Promise<ProductCatalogCreateResult> {
+    return invokeTeamFunction(
+      'drive-ops/product-catalog/create',
+      { ...input },
+      productCatalogCreateGuard
+    );
   },
 
   async regenerateLandingPreview(teamId: string, materialId: string): Promise<void> {
