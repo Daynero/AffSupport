@@ -61,7 +61,14 @@ const catalog: ProductCatalogSummary = {
 
 const created: ProductCatalogCreateResult = {
   outcome: 'created',
-  catalog: { ...catalog, materialId: catalog.id, createdAt: null },
+  catalog: {
+    materialId: catalog.id,
+    name: catalog.name,
+    sheetUrl: catalog.sheetUrl,
+    sourceLink: catalog.sourceLink,
+    productCount: catalog.productCount,
+    createdAt: null
+  },
   videoShared: true
 };
 

@@ -279,7 +279,7 @@ describe('making a catalog', () => {
       }
     });
     expect(drive.createConvertedFile).toHaveBeenCalledTimes(1);
-    const upload = drive.createConvertedFile.mock.calls[0]![0] as {
+    const upload = drive.createConvertedFile.mock.calls[0]![0] as unknown as {
       name: string;
       parentId: string;
       targetMimeType: string;

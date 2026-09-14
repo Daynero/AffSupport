@@ -1,7 +1,10 @@
 import type { GoogleDriveClient } from './drive.ts';
 import { TeamFunctionError } from './errors.ts';
 
-type SharingClient = Pick<GoogleDriveClient, 'listAnyonePermissions' | 'createAnyoneReaderPermission'>;
+type SharingClient = Pick<
+  GoogleDriveClient,
+  'listAnyonePermissions' | 'createAnyoneReaderPermission'
+>;
 
 /**
  * Makes a Drive file viewable by anyone with its link, and proves it did (022).

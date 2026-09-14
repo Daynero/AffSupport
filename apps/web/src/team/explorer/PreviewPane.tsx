@@ -18,6 +18,7 @@ import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 import { VideoTextActions } from '../library/VideoTextActions';
 import { VideoProductCatalogActions } from '../product-catalog/VideoProductCatalogActions';
+import { useOptionalTeam } from '../TeamContext';
 import { ShareButton } from './ShareButton';
 
 /**
@@ -74,6 +75,9 @@ export function PreviewPane({
   const { t } = useI18n();
   const { push } = useToasts();
   const { teamId } = useExplorer();
+  // The catalog block needs the space (its permissions and Drive state); a pane rendered on its
+  // own, as a preview surface, simply has no catalog.
+  const team = useOptionalTeam();
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
   const [broken, setBroken] = useState(false);
@@ -254,7 +258,7 @@ export function PreviewPane({
           )}
         </div>
       )}
-      {row.category === 'video' && (
+      {row.category === 'video' && team && (
         <VideoProductCatalogActions
           key={row.id}
           teamId={teamId}

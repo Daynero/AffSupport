@@ -188,7 +188,15 @@ export interface ProductCatalogSettings {
 
 export interface ProductCatalogCreateResult {
   outcome: 'created' | 'recreated' | 'existing';
-  catalog: Omit<ProductCatalogSummary, 'createdAt'> & { createdAt: string | null };
+  /** The server names the sheet by `materialId`; a sheet it just made has no `createdAt` yet. */
+  catalog: {
+    materialId: string;
+    name: string;
+    sheetUrl: string;
+    sourceLink: string;
+    productCount: number;
+    createdAt: string | null;
+  };
   videoShared: boolean;
 }
 
