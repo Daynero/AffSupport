@@ -17,6 +17,7 @@ import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 import { VideoTextActions } from '../library/VideoTextActions';
+import { VideoProductCatalogActions } from '../product-catalog/VideoProductCatalogActions';
 import { ShareButton } from './ShareButton';
 
 /**
@@ -44,7 +45,8 @@ export function PreviewPane({
   onDownloadRestitched,
   restitchPrepared,
   onShare,
-  onDelete
+  onDelete,
+  revision = 0
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
@@ -66,6 +68,8 @@ export function PreviewPane({
   onShare?: boolean;
   /** Move it to the space's bin; absent when the member may not delete. */
   onDelete?: (row: TeamMaterialRow) => void;
+  /** The space's realtime revision; a video's catalog is read again when it moves (022). */
+  revision?: number;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -249,6 +253,14 @@ export function PreviewPane({
             />
           )}
         </div>
+      )}
+      {row.category === 'video' && (
+        <VideoProductCatalogActions
+          key={row.id}
+          teamId={teamId}
+          video={{ id: row.id, name: row.name }}
+          revision={revision}
+        />
       )}
     </aside>
   );

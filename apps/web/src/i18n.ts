@@ -1504,6 +1504,7 @@ const en = {
   productCatalogSettingsSaved: 'Catalog settings saved',
   productCatalogSettingsReadOnly: 'Only a space manager can change these.',
   productCatalogSection: 'Catalog',
+  productCatalogMenuEntry: 'Catalog',
   productCatalogCreate: 'Create catalog',
   productCatalogRecreate: 'Re-create catalog',
   productCatalogOpen: 'Open catalog',
@@ -1518,7 +1519,6 @@ const en = {
   productCatalogCancel: 'Cancel',
   productCatalogDone: 'Done',
   productCatalogCreating: 'Creating the catalog…',
-  productCatalogMissingSettings: 'Fill in the catalog settings first: {fields}.',
   productCatalogMissingSettingsNoAccess:
     'A space manager needs to fill in the catalog settings first.',
   productCatalogOpenSettings: 'Open catalog settings',
@@ -3939,6 +3939,7 @@ const uk: Record<keyof typeof en, string> = {
   productCatalogSettingsSaved: 'Налаштування каталогу збережено',
   productCatalogSettingsReadOnly: 'Змінювати це може лише керівник простору.',
   productCatalogSection: 'Каталог',
+  productCatalogMenuEntry: 'Каталог',
   productCatalogCreate: 'Створити каталог',
   productCatalogRecreate: 'Перестворити каталог',
   productCatalogOpen: 'Відкрити каталог',
@@ -3953,7 +3954,6 @@ const uk: Record<keyof typeof en, string> = {
   productCatalogCancel: 'Скасувати',
   productCatalogDone: 'Готово',
   productCatalogCreating: 'Створюємо каталог…',
-  productCatalogMissingSettings: 'Спершу заповніть налаштування каталогу: {fields}.',
   productCatalogMissingSettingsNoAccess:
     'Спершу керівник простору має заповнити налаштування каталогу.',
   productCatalogOpenSettings: 'Відкрити налаштування каталогу',

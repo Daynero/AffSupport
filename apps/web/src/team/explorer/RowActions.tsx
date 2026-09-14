@@ -45,6 +45,11 @@ export interface RowActionsProps {
    * pays for the looking first.
    */
   preparedIds?: ReadonlySet<string>;
+  /**
+   * 022 — a video's product catalog. Like the transcript prompt, its dialog belongs to the shell:
+   * this component unmounts with its menu.
+   */
+  onProductCatalog?: (row: TeamMaterialRow) => void;
 }
 
 export function RowActions({
@@ -60,6 +65,7 @@ export function RowActions({
   onVideoTrashed,
   onDownloadRestitched,
   preparedIds,
+  onProductCatalog,
   row
 }: RowActionsProps & { row: TeamMaterialRow }) {
   const { currentFolderId } = useExplorer();
@@ -106,6 +112,9 @@ export function RowActions({
         row.kind === 'folder' && onProcessFolder ? () => onProcessFolder(row) : undefined
       }
       onRegeneratePreview={regeneratePreview}
+      onProductCatalog={
+        row.category === 'video' && onProductCatalog ? () => onProductCatalog(row) : undefined
+      }
       afterTrash={
         row.category === 'video' && onVideoTrashed ? () => onVideoTrashed(row.id) : undefined
       }

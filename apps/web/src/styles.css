@@ -14796,6 +14796,48 @@ button.team-landing-tile:hover {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+/* 022: a video's product catalog sits under its transcript, in the same ruled block. */
+.team-explorer-pane-catalog {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-2);
+}
+.product-catalog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.product-catalog-actions .field-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+.product-catalog-dialog {
+  display: grid;
+  gap: var(--space-2);
+}
+.product-catalog-dialog h2,
+.product-catalog-dialog p {
+  margin: 0;
+}
+.product-catalog-dialog-name {
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.product-catalog-dialog-missing {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+.product-catalog-dialog .product-catalog-count {
+  max-width: 7ch;
+}
+.product-catalog-dialog .team-dialog-actions {
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
 .team-explorer-pane-facts {
   display: grid;
   grid-template-columns: auto 1fr;

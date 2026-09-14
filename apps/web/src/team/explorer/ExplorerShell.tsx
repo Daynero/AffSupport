@@ -70,6 +70,7 @@ import {
   type CompressPlanItem as CompressPlanItem_
 } from './TeamCompressorDialog';
 import type { RowActionsProps } from './RowActions';
+import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
 import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
 import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
 import {
@@ -315,6 +316,7 @@ function ExplorerBody({
   } = explorer;
   const [treeOpen, setTreeOpen] = useState(false);
   const [processing, setProcessing] = useState<{ row: TeamMaterialRow } | null>(null);
+  const [catalogFor, setCatalogFor] = useState<TeamMaterialRow | null>(null);
   /*
    * The card's live transcription progress used to have a second source: a
    * `tool` on this state that nothing ever set, so the branch that read it, the
@@ -669,6 +671,7 @@ function ExplorerBody({
         storageKind,
         onChanged: changed,
         preparedIds,
+        onProductCatalog: (row: TeamMaterialRow) => setCatalogFor(row),
         ...(permissions.download
           ? {
               onDownloadRestitched: (row: TeamMaterialRow) => void deliverRestitched([row])
@@ -1656,6 +1659,7 @@ function ExplorerBody({
         <PreviewPane
           row={focused}
           client={client}
+          revision={revision}
           onOpen={onPreview}
           onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
           onDownloadRestitched={
@@ -1833,6 +1837,14 @@ function ExplorerBody({
           )
         }
       />
+      {catalogFor && (
+        <ProductCatalogMenuDialog
+          teamId={teamId}
+          video={{ id: catalogFor.id, name: catalogFor.name }}
+          onClose={() => setCatalogFor(null)}
+          onChanged={changed}
+        />
+      )}
       {processing && (
         <MaterialProcessFlow
           teamId={teamId}

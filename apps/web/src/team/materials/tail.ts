@@ -65,6 +65,8 @@ export type TrashTailClient = Pick<TailClient, 'trashMaterial'>;
 /** What the catalog says belongs to this material right now. */
 export interface MaterialTail {
   transcript: { id: string; name: string } | null;
+  /** 022 — the video's product catalog sheet. */
+  catalog: { id: string; name: string } | null;
 }
 
 const key = () => crypto.randomUUID();
@@ -78,9 +80,21 @@ const key = () => crypto.randomUUID();
  * move that refuses to happen.
  */
 export async function tailOf(teamId: string, material: TailMaterial): Promise<MaterialTail> {
-  if (material.category !== 'video') return { transcript: null };
-  const companion = await teamApi.getTranscriptCompanion(teamId, material.id).catch(() => null);
-  return { transcript: companion ? { id: companion.id, name: companion.name } : null };
+  if (material.category !== 'video') return { transcript: null, catalog: null };
+  const [companion, catalog] = await Promise.all([
+    teamApi.getTranscriptCompanion(teamId, material.id).catch(() => null),
+    teamApi.getProductCatalog(teamId, material.id).catch(() => null)
+  ]);
+  return {
+    transcript: companion ? { id: companion.id, name: companion.name } : null,
+    catalog: catalog ? { id: catalog.id, name: catalog.name } : null
+  };
+}
+
+/** `clip.mp4` → `clip catalog`: the naming rule the Edge Function creates catalogs with (022). */
+export function productCatalogNameFor(videoName: string): string {
+  const stem = videoName.replace(/\.[^.]+$/u, '');
+  return `${stem.length > 0 ? stem : videoName} catalog`;
 }
 
 /** `<stem>.txt` for a video's name — the one naming rule for a transcript. */
@@ -95,6 +109,10 @@ export function transcriptNameFor(videoName: string): string {
  * re-transcribing a copy replaces the copy's text and leaves the original's
  * alone. Named after the copy — a copy called `clip (2).mp4` gets
  * `clip (2).txt` — so the pair still reads as a pair.
+ *
+ * The product catalog is deliberately left behind (022): every row of a catalog
+ * links to one specific video file, so a copied sheet would describe the
+ * original. The copy starts without one and offers to make its own.
  */
 export async function copyMaterialWithTail(input: {
   teamId: string;
@@ -131,7 +149,7 @@ export async function copyMaterialWithTail(input: {
   return result;
 }
 
-/** Moves a material, and its transcript to the same folder. */
+/** Moves a material, and its transcript and catalog to the same folder. */
 export async function moveMaterialWithTail(input: {
   teamId: string;
   material: TailMaterial;
@@ -148,11 +166,12 @@ export async function moveMaterialWithTail(input: {
     conflictMode: input.conflictMode ?? 'cancel',
     idempotencyKey: key()
   });
-  if (tail.transcript) {
+  for (const companion of [tail.transcript, tail.catalog]) {
+    if (!companion) continue;
     await client
       .moveMaterial({
         teamId,
-        materialId: tail.transcript.id,
+        materialId: companion.id,
         destinationFolderId,
         conflictMode: 'keep_both',
         idempotencyKey: key()
@@ -162,7 +181,7 @@ export async function moveMaterialWithTail(input: {
   return result;
 }
 
-/** Renames a material, and its transcript after it. */
+/** Renames a material, and its transcript and catalog after it. */
 export async function renameMaterialWithTail(input: {
   teamId: string;
   material: TailMaterial;
@@ -179,12 +198,17 @@ export async function renameMaterialWithTail(input: {
     conflictMode: input.conflictMode ?? 'cancel',
     idempotencyKey: key()
   });
-  if (tail.transcript) {
+  const renames = [
+    tail.transcript && { id: tail.transcript.id, name: transcriptNameFor(newName) },
+    tail.catalog && { id: tail.catalog.id, name: productCatalogNameFor(newName) }
+  ];
+  for (const companion of renames) {
+    if (!companion) continue;
     await client
       .renameMaterial({
         teamId,
-        materialId: tail.transcript.id,
-        newName: transcriptNameFor(newName),
+        materialId: companion.id,
+        newName: companion.name,
         conflictMode: 'keep_both',
         idempotencyKey: key()
       })
@@ -194,7 +218,7 @@ export async function renameMaterialWithTail(input: {
 }
 
 /**
- * Trashes a material and the transcript that belongs to it.
+ * Trashes a material and the transcript and catalog that belong to it.
  *
  * No question asked, because there is nothing to weigh: a video owns its
  * transcript, copies get their own, and text without the video it describes is
@@ -208,9 +232,10 @@ export async function trashMaterialWithTail(input: {
   const { teamId, material, client } = input;
   const tail = await tailOf(teamId, material);
   await client.trashMaterial({ teamId, materialId: material.id, idempotencyKey: key() });
-  if (tail.transcript) {
+  for (const companion of [tail.transcript, tail.catalog]) {
+    if (!companion) continue;
     await client
-      .trashMaterial({ teamId, materialId: tail.transcript.id, idempotencyKey: key() })
+      .trashMaterial({ teamId, materialId: companion.id, idempotencyKey: key() })
       .catch(() => undefined);
   }
 }
