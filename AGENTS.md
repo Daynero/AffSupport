@@ -159,11 +159,17 @@ For an actual production release, read and follow the canonical runbook in
 `docs/PRODUCTION.md`; do not substitute commands, skip gates, or use manual
 artifacts. On failure, fix and repeat the affected gate only.
 
-- The exact release SHA must be on `main` and `beta` and have a clean packaged
-  beta verification. Heavy local commands run one at a time via `nice -n 15`.
-- Run Windows `publish=false` plus `npm run release:watch -- <run-id>` before
-  tagging; only Windows `publish=true` may attach the `.exe`. Never use
-  `gh run watch` or rapid log polling.
+- A release begins with a `release: prepare X.Y.Z` commit: the version is frozen
+  in the source and the runner does not raise it. The release SHA must be
+  contained in `beta` with a clean packaged beta verification; when `main` has
+  moved on to work that is not shipping, cut a `release/X.Y.Z` branch and put
+  `beta` on it. Heavy local commands run one at a time via `nice -n 15`.
+- The runner dispatches Windows twice on its own -- `publish=false` to validate,
+  then `publish=true` to attach the `.exe` -- and adopts a run already under way
+  rather than starting a second. Never use `gh run watch` or rapid log polling.
+- A failed step is resumed by running `start` again with the same intent: the
+  journal says what is done and the kept worktree still holds the artifacts. A
+  new `sourceSha` needs a new `runId`.
 - Keep the production entitlement private key out of CI. Sign `stable.json`
   from the exact published GitHub assets. A manifest-only commit needs fresh
   exact-SHA beta verification, never rebuilt binaries.
