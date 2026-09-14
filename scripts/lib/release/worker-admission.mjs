@@ -44,7 +44,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms).unref?.());
  *   profile: object,
  *   probe?: {executable: string, digest: string} | null,
  *   reservationsDirectory?: string,
- *   onWait?: (event: {stepId: string, reason: string, waitedMs: number, nextCheckAt: number}) => void | Promise<void>
+ *   onWait?: (event: {stepId: string, reason: string, code?: string | null, detail?: string | null, waitedMs: number, nextCheckAt: number}) => void | Promise<void>
  * }} options
  */
 export async function createWorkerAdmission({
@@ -157,12 +157,18 @@ export async function createWorkerAdmission({
           break;
         }
         // The wait itself is normal progress, not a failure; it is reported so
-        // status can say what the release is waiting for.
-        if (decision.reason !== announced) {
-          announced = decision.reason;
+        // status can say what the release is waiting for. Announced again
+        // whenever the reason underneath changes -- a wait that turns from "not
+        // enough readings yet" into "ram short by two gigabytes" is a different
+        // wait, and the one that will not end by itself.
+        const signature = `${decision.reason}:${decision.code ?? ''}`;
+        if (signature !== announced) {
+          announced = signature;
           await report({
             stepId,
             reason: decision.reason,
+            code: decision.code ?? null,
+            detail: decision.detail ?? null,
             waitedMs: Date.now() - startedWaiting,
             nextCheckAt: Date.now() + profile.sampleIntervalMs
           });

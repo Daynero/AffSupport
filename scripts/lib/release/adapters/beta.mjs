@@ -37,6 +37,35 @@ export function residentBetaReservation(profile, { residentBytes = 0 } = {}) {
  * owned. A record without a reservation is an older or borrowed stack and
  * contributes nothing: this function never invents a claim on the machine.
  */
+/**
+ * Whether the stack this record reserves for is still there to reserve for.
+ *
+ * The record is a receipt, and a receipt can outlive its effect. This one did:
+ * the beta agent and web server it names were stopped so a release step could
+ * have the machine, the file stayed behind saying three gigabytes were spoken
+ * for, and the next heavy step waited for memory that nothing was holding. On a
+ * sixteen-gigabyte machine with five free, three phantom gigabytes is the
+ * difference between running and waiting forever.
+ *
+ * So liveness is asked of the operating system rather than read out of the
+ * file. A record with no owner named is still charged in full -- an unprovable
+ * claim is not a disproved one, and the reservation exists to be conservative.
+ * `kill(pid, 0)` sends no signal; EPERM means somebody else owns a process that
+ * exists, which is still a process that exists.
+ *
+ * @param {unknown} ownerPid
+ */
+function ownerIsRunning(ownerPid) {
+  const pid = typeof ownerPid === 'number' && Number.isInteger(ownerPid) ? ownerPid : null;
+  if (pid === null || pid <= 0) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return /** @type {NodeJS.ErrnoException} */ (error)?.code === 'EPERM';
+  }
+}
+
 export async function readResidentReservations(directory) {
   let entries;
   try {
@@ -50,6 +79,7 @@ export async function readResidentReservations(directory) {
     try {
       const record = JSON.parse(await readFile(path.join(directory, name), 'utf8'));
       if (record?.schemaVersion !== 1 || !record.stackStarted) continue;
+      if (!ownerIsRunning(record.ownerPid)) continue;
       ramBytes += Number(record.reservation?.ramBytes) || 0;
       diskBytes += Number(record.reservation?.diskBytes) || 0;
     } catch {

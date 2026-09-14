@@ -8,8 +8,10 @@ import {
   pressureDecision,
   reservationFor,
   stableWindow,
-  validateProfile
+  validateProfile,
+  windowVerdict
 } from '../scripts/lib/release/resources.mjs';
+import { readResidentReservations } from '../scripts/lib/release/adapters/beta.mjs';
 import {
   createProbeSampler,
   deriveSample,
@@ -62,6 +64,72 @@ describe('resource admission', () => {
       reason: 'RESOURCE_SIGNAL_UNKNOWN'
     });
   });
+  it('names the condition that refused the window, with the numbers that decided it', async () => {
+    const { default: profile } = JSON.parse(
+      await readFile('config/release-resource-profiles.json', 'utf8')
+    );
+    const reading = (index: number, availableBytes: number) => ({
+      observedAt: new Date(1_000 + index * 5_000).toISOString(),
+      cpuPercent: 20,
+      availableBytes,
+      pressure: 'normal',
+      swapGrowthBytes: 0,
+      diskFreeBytes: 20e9,
+      thermal: 'nominal',
+      bootId: 'boot-a'
+    });
+    // Two readings into a machine nobody has measured yet: patience, and it
+    // says so rather than looking identical to paralysis.
+    expect(windowVerdict([reading(0, 8e9), reading(1, 8e9)], profile)).toMatchObject({
+      ok: false,
+      code: 'WINDOW_TOO_SHORT',
+      detail: '2 of 7 readings taken'
+    });
+    // A full window on a machine that is short of memory. `RESOURCE_WAIT` alone
+    // cost two releases an hour each, because this is the wait that does not end
+    // on its own and nothing distinguished it from the wait that does.
+    const short = Array.from({ length: 7 }, (_, index) => reading(index, 2e9));
+    const verdict = windowVerdict(short, profile, { ramBytes: 4e9, diskBytes: 0 });
+    expect(verdict).toMatchObject({ ok: false, code: 'RESOURCE_INSUFFICIENT' });
+    expect(verdict.detail).toContain('ram 1.86 GiB available');
+    expect(verdict.detail).toContain('4.73 GiB needed');
+    expect(stableWindow(short, profile, { ramBytes: 4e9, diskBytes: 0 })).toBe(false);
+  });
+
+  it('stops charging for a beta stack whose owner process is gone', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'soty-reservation-'));
+    try {
+      const record = (ownerPid: number) =>
+        JSON.stringify({
+          schemaVersion: 1,
+          ownerPid,
+          stackStarted: true,
+          reservation: { ramBytes: 3221225472, diskBytes: 8589934592 }
+        });
+      // This process is alive by definition, so its claim still stands.
+      await writeFile(join(directory, 'beta-service.json'), record(process.pid));
+      expect(await readResidentReservations(directory)).toMatchObject({ ramBytes: 3221225472 });
+      // A pid above the platform's maximum has never existed. The record is a
+      // receipt that outlived its effect, and three phantom gigabytes on a
+      // sixteen-gigabyte machine is the difference between running and waiting
+      // for memory that was never taken.
+      await writeFile(join(directory, 'beta-service.json'), record(4_194_304));
+      expect(await readResidentReservations(directory)).toEqual({ ramBytes: 0, diskBytes: 0 });
+      // Naming no owner is an unprovable claim, not a disproved one.
+      await writeFile(
+        join(directory, 'beta-service.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          stackStarted: true,
+          reservation: { ramBytes: 3221225472, diskBytes: 8589934592 }
+        })
+      );
+      expect(await readResidentReservations(directory)).toMatchObject({ ramBytes: 3221225472 });
+    } finally {
+      await removeTemporaryDirectory(directory);
+    }
+  });
+
   it('terminates only owned interruptible work after two critical samples', () => {
     const samples = [{ pressure: 'critical' }, { pressure: 'critical' }];
     expect(pressureDecision(samples, { owned: true, interruptible: true })).toEqual({

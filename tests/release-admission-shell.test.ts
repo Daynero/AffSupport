@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { expect } from 'vitest';
-import { itRequiring, requirePlatform } from './support/requires.js';
+import { allOf, itRequiring, requireBinaries, requirePlatform } from './support/requires.js';
 
 /**
  * These cases drive the release runner against a real filesystem: POSIX file
@@ -9,7 +9,17 @@ import { itRequiring, requirePlatform } from './support/requires.js';
  * they would never run there anyway, because a release is cut on the owner's
  * Mac and Windows artifacts come back from CI.
  */
-const posixReleaseHost = requirePlatform('darwin', 'linux');
+/**
+ * The shell is part of the requirement, not part of the platform.
+ *
+ * The script under test is zsh, which every Mac has and a Linux CI image does
+ * not. Asking only for the platform let the case run on a runner with no zsh,
+ * where `spawnSync` returns a null status because nothing was ever spawned, and
+ * the assertion read `expected null to be +0` -- a sentence about the image,
+ * dressed as a sentence about admission. It blocked a release on a Windows
+ * installer that had nothing to do with it.
+ */
+const posixReleaseHost = allOf(requirePlatform('darwin', 'linux'), await requireBinaries('zsh'));
 
 itRequiring(
   posixReleaseHost,

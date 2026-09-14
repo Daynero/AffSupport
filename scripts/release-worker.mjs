@@ -14,6 +14,11 @@ import { enqueueHandoff } from './lib/release/handoff.mjs';
 import { loadSnapshot, runDirectory, saveSnapshot } from './lib/release/store.mjs';
 import { activeBinding } from './lib/release/bindings.mjs';
 import { createWorkerAdmission, installedProbeFrom } from './lib/release/worker-admission.mjs';
+import {
+  adoptWorktree,
+  createOwnedWorktree,
+  provisionWorktree
+} from './lib/release/adapters/git-worktree.mjs';
 
 /**
  * The process that actually performs a release.
@@ -44,6 +49,28 @@ export function workerReady(runId) {
 }
 
 /**
+ * A cancellation is a decision, not a note to be written over.
+ *
+ * `cancel` marks the run and returns; the worker keeps going, finishes whatever
+ * it was doing, and saves its own state on top -- so a cancelled release
+ * reported itself as blocked a second later, enqueued a repair job nobody
+ * asked for, and carried on holding the machine until somebody sent it a
+ * signal by hand. Twice, tonight.
+ *
+ * Every write the worker makes goes through here, and every write first reads
+ * what is on disk. A run somebody cancelled stays cancelled, and the worker
+ * learns about it at the next thing it tries to record.
+ *
+ * @returns {Promise<{cancelled: boolean, run: object}>}
+ */
+async function persist(run) {
+  const persisted = await loadSnapshot(run.runId).catch(() => null);
+  if (persisted?.state === 'cancelled') return { cancelled: true, run: persisted };
+  await saveSnapshot(run);
+  return { cancelled: false, run };
+}
+
+/**
  * Runs one step: journal first, then the effect, then the journal again.
  *
  * The order is the whole recovery story. An entry written before the effect
@@ -54,6 +81,10 @@ export function workerReady(runId) {
  */
 async function performStep({ stepId, run, journal, adapter, snapshot }) {
   const step = stepDefinition(stepId);
+  // Asked before the effect, because "it was already running" is not a reason
+  // to start the next one.
+  if ((await loadSnapshot(run.runId).catch(() => null))?.state === 'cancelled')
+    return { ok: false, error: { code: 'RELEASE_CANCELLED', subject: 'the run was cancelled' } };
   await journal.append('step_started', { stepId, resourceClass: step.resourceClass });
   const started = Date.now();
   let result;
@@ -69,8 +100,10 @@ async function performStep({ stepId, run, journal, adapter, snapshot }) {
   });
   if (result?.ok) {
     const advanced = completeStep(startStep(snapshot.current, stepId), stepId);
-    snapshot.current = advanced;
-    await saveSnapshot(advanced);
+    const stored = await persist(advanced);
+    snapshot.current = stored.run;
+    if (stored.cancelled)
+      return { ok: false, error: { code: 'RELEASE_CANCELLED', subject: 'the run was cancelled' } };
     await journal.snapshot(advanced);
   }
   return result;
@@ -155,8 +188,7 @@ export async function runWorker({
       waitReason: event.reason,
       nextCheckAt: new Date(event.nextCheckAt).toISOString()
     };
-    snapshot.current = waiting;
-    await saveSnapshot(waiting);
+    snapshot.current = (await persist(waiting)).run;
   });
 
   try {
@@ -174,8 +206,7 @@ export async function runWorker({
         if (event.phase !== 'not_declared') return;
         await journal.append('step_not_declared', { stepId: event.stepId });
         const advanced = completeStep(startStep(snapshot.current, event.stepId), event.stepId);
-        snapshot.current = advanced;
-        await saveSnapshot(advanced);
+        snapshot.current = (await persist(advanced)).run;
         await journal.snapshot(advanced);
       }
     });
@@ -186,8 +217,10 @@ export async function runWorker({
           : { ...snapshot.current, state: 'running' },
         'blocked'
       );
-      snapshot.current = blocked;
-      await saveSnapshot(blocked);
+      const stored = await persist(blocked);
+      snapshot.current = stored.run;
+      // Nobody is asked to repair a release somebody stopped on purpose.
+      if (stored.cancelled) return { ok: false, state: 'cancelled', failedStep: result.failedStep };
       await journal.snapshot(blocked);
       await handOffFailure({
         directory,
@@ -236,15 +269,60 @@ if (invokedDirectly) {
       ? await import(pathToFileURL(process.env.SOTY_RELEASE_STEP_ADAPTER).href)
       : await import('./lib/release/step-adapter.mjs');
     let adapter;
+    let worktree = null;
     try {
-      adapter = await createStepAdapter({
+      const identity = {
         runId,
         version: snapshot.version ?? process.env.SOTY_RELEASE_VERSION,
         sourceSha: snapshot.sourceSha,
         binding: activeBinding(),
         backendPlan,
         allowRemote: process.env.SOTY_RELEASE_DRY_RUN !== '1'
+      };
+      // Identity first, and deliberately before anything exists: a run with no
+      // version has no release to perform, and a checkout made for it would be a
+      // directory nobody asked for and nobody removes.
+      adapter = await createStepAdapter(identity);
+      /**
+       * Every step runs against the commit this release names, not against
+       * whatever the checkout happens to hold.
+       *
+       * The module for this was written and tested and never called, so the
+       * runner declared a `sourceSha` and then built the working tree. On a
+       * repository where somebody is working in parallel — which is the case
+       * this whole feature exists for — that ships their unfinished work under a
+       * version verified without it. It came within one step of doing exactly
+       * that.
+       *
+       * The worker keeps its own directory: the journal, the snapshot and the
+       * run state stay where `status` can find them. Only the steps move.
+       */
+      // A run that failed kept its checkout on purpose; a resume takes it back
+      // rather than rebuilding everything the first attempt already produced.
+      const record = path.join(runDirectory(runId), 'worktree.json');
+      worktree =
+        (await adoptWorktree({
+          cwd: process.cwd(),
+          sourceSha: snapshot.sourceSha,
+          directory: await readFile(record, 'utf8')
+            .then(text => JSON.parse(text).directory)
+            .catch(() => null)
+        })) ?? (await createOwnedWorktree({ cwd: process.cwd(), sourceSha: snapshot.sourceSha }));
+      await writeFile(
+        record,
+        `${JSON.stringify({ directory: worktree.directory, sourceSha: worktree.sourceSha }, null, 2)}\n`,
+        { mode: 0o600 }
+      );
+      const provisioning = await provisionWorktree({
+        cwd: process.cwd(),
+        directory: worktree.directory
       });
+      process.stdout.write(
+        `release-worker ${'adopted' in worktree ? 'resuming in' : 'building in'} ${worktree.directory} ` +
+          `at ${worktree.sourceSha.slice(0, 12)} ` +
+          `(provisioned: ${provisioning.provisioned.join(', ') || 'nothing'})\n`
+      );
+      adapter = await createStepAdapter({ ...identity, cwd: worktree.directory });
     } catch (error) {
       // A run whose frozen identity or destination cannot be resolved has
       // nothing it may legitimately do. Saying so is the honest outcome;
@@ -268,6 +346,9 @@ if (invokedDirectly) {
         process.exitCode = result.ok ? 0 : 1;
       } finally {
         admission.stop();
+        // Left in place when the run did not finish: a resumed release wants the
+        // same checkout, and a worktree is cheap next to a rebuild.
+        if (worktree && process.exitCode === 0) await worktree.remove().catch(() => {});
       }
     }
   }

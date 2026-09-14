@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.1.0",
-  "buildNumber": "63",
-  "buildId": "1.1.0+63",
+  "version": "1.1.1",
+  "buildNumber": "64",
+  "buildId": "1.1.1+64",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-09-06T17:39:24.000Z",
+  "publishedAt": "2026-09-13T16:28:18.000Z",
   "summary": {
-    "en": "The Video Stitcher, a rebuilt Team workspace with accounts, tags and task dates, the redesigned compressor and landing optimizer, and a two-factor notebook.",
-    "uk": "Video Stitcher, перебудований Team workspace з акаунтами, тегами й датами завдань, оновлені компресор і оптимізатор лендингів, а також нотатник двофакторних кодів."
+    "en": "Team workspace keeps what you were doing: dragged progress, tag and date edits, and a Drive authorization that returns where it started. The download page offers the installer your machine can run.",
+    "uk": "Team workspace більше не втрачає зроблене: перетягнутий прогрес, теги й дати, а авторизація Drive повертає туди, звідки почалась. Сторінка завантаження пропонує той інсталятор, який ваша машина запустить."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.1.0/Soty-v1.1.0-macOS-arm64.dmg",
-      "sha256": "a3ef0a88e1a343617ce0db20493d25cdfcffd17fe89458e042a4ceff16c4f628"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.1.1/Soty-v1.1.1-macOS-arm64.dmg",
+      "sha256": "1c8415b4b42b0c5ec48cd7d4b51c5365659ccc874c391c66794709c6482be326"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.1.0/Soty-v1.1.0-Windows-x64.exe",
-      "sha256": "96fd905c0ea278fff550955441d577438c4816451b81ac5851689ec25f8ae376"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.1.1/Soty-v1.1.1-Windows-x64.exe",
+      "sha256": "0b01509095fec85fd54b6becd5b2bbe5a550c4ab1621cac2a712145ce226c6f2"
     }
   },
   "toolRequirements": {
@@ -43,5 +43,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "DIU3qAnwsEe_i0SROvQsvkIPR8kkGwklno-kseXjuvb8ubzQBz3G4n_mAWVXPKosO_8w89kyt-9D96YUGfPN8w"
+  "signature": "PCPWytktmsgAx26vGe2BqBY4sxhXW2B87t1TYYR6K7QkvRDbITGyW54fvIdUJDKDsbqZpdez-MzBn9KagvxQ5Q"
 }

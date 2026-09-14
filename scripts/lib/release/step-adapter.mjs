@@ -7,8 +7,44 @@ import { stepDefinition } from './steps.mjs';
 import { applyBackendPlan } from './adapters/backend.mjs';
 import { rehearseBackendBeta } from './adapters/backend-beta.mjs';
 import { createSupabaseBackendAdapter } from './adapters/supabase-backend.mjs';
+import { commitKnownFiles, promoteBeta, remoteBetaSha } from './adapters/git.mjs';
 
 const exec = promisify(execFile);
+
+/** The one file a release rewrites after its artifacts exist. */
+const MANIFEST_PATH = 'apps/web/public/.well-known/wishly/stable.json';
+
+/**
+ * The committed half of the release environment.
+ *
+ * The runbook opens by telling a person to `set -a` and source these two files,
+ * and everything after that assumes they did. An agent driving the same sequence
+ * has no shell that was ever sourced into, so `package:mac` stopped on the first
+ * thing it needs -- `PUBLIC_SITE_ORIGIN` -- with the runbook's own error message.
+ * A requirement that lives in prose is not installed.
+ *
+ * They are read from the checkout being released, not from this one, and they
+ * win over the surrounding shell: the origin baked into an artifact should come
+ * from the commit that artifact is built from, not from what somebody exported
+ * an hour ago. Both files are tracked and hold no secrets -- origins, a port, a
+ * public key, and the web client's publishable values.
+ */
+const RELEASE_ENV_FILES = Object.freeze(['config/production.env', 'apps/web/.env.production']);
+
+function releaseEnvironment(cwd) {
+  const loaded = {};
+  for (const relative of RELEASE_ENV_FILES) {
+    const file = path.join(cwd, relative);
+    if (!existsSync(file)) continue;
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/u.exec(line);
+      if (!match) continue;
+      loaded[match[1]] = match[2].trim().replace(/^(['"])(.*)\1$/u, '$2');
+    }
+  }
+  return loaded;
+}
+
 
 /**
  * The step adapter: what each registry step actually does.
@@ -103,23 +139,105 @@ const npm = (...args) => ['npm', 'run', ...args];
  * person to go and look it up. The correlation is the source SHA plus the
  * dispatch time: a run older than the dispatch belongs to somebody else.
  */
-async function findWorkflowRun({ cwd, workflow, sourceSha, dispatchedAt }) {
-  const { stdout } = await exec(
-    'gh',
-    ['run', 'list', '--workflow', workflow, '--limit', '10', '--json',
-     'databaseId,headSha,createdAt,status,conclusion'],
-    { cwd, shell: false }
+/**
+ * Which of the workflow's runs is ours.
+ *
+ * It matched on `headSha`, and a dispatched run's head is the *ref it was
+ * dispatched on*, never the commit it was asked to check out. That is the same
+ * thing only when the release is the tip of `main` -- true of the last release
+ * by accident, false of any release cut while development continues, which is
+ * the case this runner exists for. So the dispatch succeeded, the build ran, and
+ * the lookup returned nothing: `EFFECT_AMBIGUOUS`, a live Windows build nobody
+ * was watching, and a release stopped for want of a name it already had.
+ *
+ * The workflow puts `release_id` in its own run name for exactly this purpose.
+ * Correlating on it identifies the run we caused and no other, on any ref. The
+ * head-sha match is kept as a fallback for runs started by a push, which carry
+ * no release id.
+ */
+/**
+ * Asking GitHub which runs exist, without that question being fatal.
+ *
+ * It is a read, so retrying it is free, and a release should not end because one
+ * TLS handshake timed out on the way to an API -- which is exactly how one
+ * attempt at this release ended. Only errors that read as transient are
+ * retried; "not a git repository" is an answer, not a hiccup, and waiting nine
+ * seconds to hear it again helps nobody.
+ *
+ * An exhausted lookup returns null rather than throwing. Before a dispatch that
+ * means "nothing to adopt, go ahead"; after one it means the effect is
+ * ambiguous, which is the truth and is what the step already says.
+ */
+const TRANSIENT = /timeout|timed out|TLS|handshake|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT|502|503|rate limit/iu;
+
+async function listWorkflowRuns({ cwd, workflow }) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const { stdout } = await exec(
+        'gh',
+        ['run', 'list', '--workflow', workflow, '--limit', '10', '--json',
+         'databaseId,headSha,createdAt,status,conclusion,displayTitle'],
+        { cwd, shell: false }
+      );
+      return JSON.parse(stdout);
+    } catch (error) {
+      if (attempt === 2 || !TRANSIENT.test(messageOf(error))) return null;
+      await new Promise(resolve => setTimeout(resolve, 3000 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
+async function findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt }) {
+  const listed = await listWorkflowRuns({ cwd, workflow });
+  if (!listed) return null;
+  const runs = listed.filter(
+    candidate => Date.parse(candidate.createdAt) >= dispatchedAt - 60_000
   );
-  const candidates = JSON.parse(stdout)
-    .filter(candidate => candidate.headSha === sourceSha)
-    .filter(candidate => Date.parse(candidate.createdAt) >= dispatchedAt - 60_000)
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  // The workflow names itself "Windows <release id> publish|build-only", so the
+  // two dispatches one release makes are told apart as well as one release is
+  // told from another.
+  const mine = candidate =>
+    candidate.displayTitle?.includes(releaseId) &&
+    candidate.displayTitle.endsWith(publish ? 'publish' : 'build-only');
+  const candidates = (
+    releaseId && runs.some(mine) ? runs.filter(mine) : runs.filter(candidate => candidate.headSha === sourceSha)
+  ).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   return candidates[0] ?? null;
 }
 
 async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releaseId, publish }) {
   const workflow = 'release-windows.yml';
   const dispatchedAt = Date.now();
+
+  /**
+   * A run already under way for this release is the one to watch.
+   *
+   * The release id names one dispatch of one release, so a run carrying it was
+   * caused by this step and no other. Dispatching a second one would not be a
+   * retry: the workflow serialises on a concurrency group, so the duplicate
+   * would queue behind the build already running and the release would wait out
+   * both. Adopting it is the same rule `publish` already applies to a release
+   * tag that exists -- evidence the effect happened, not a reason to repeat it.
+   *
+   * A run that failed or was cancelled is not adopted; that one does need doing
+   * again.
+   */
+  const started = await findWorkflowRun({
+    cwd,
+    workflow,
+    sourceSha,
+    releaseId,
+    publish,
+    dispatchedAt: 0
+  });
+  if (started && !['failure', 'cancelled', 'timed_out'].includes(started.conclusion ?? ''))
+    return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(started.databaseId)], {
+      cwd,
+      env,
+      admission
+    });
+
   try {
     await exec(
       'gh',
@@ -132,7 +250,7 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
   }
   // The dispatch may have started a run even if finding it fails, so a lookup
   // failure is ambiguous rather than a clean "nothing happened".
-  const found = await findWorkflowRun({ cwd, workflow, sourceSha, dispatchedAt });
+  const found = await findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt });
   if (!found)
     return fail('EFFECT_AMBIGUOUS', `dispatched ${workflow} for ${sourceSha} but no run was found`);
   return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(found.databaseId)], {
@@ -209,8 +327,10 @@ export async function createStepAdapter({
   const dmg = path.join('release', `Soty-v${version}-macOS-arm64.dmg`);
   const exe = path.join('release', 'windows', `download-${version}`, `Soty-v${version}-Windows-x64.exe`);
   // The binding travels into every child, so a sandbox release reaches sandbox
-  // destinations without any command here naming one.
-  const childEnv = { ...env, SOTY_RELEASE_RUN_ID: runId };
+  // destinations without any command here naming one. The release environment is
+  // read out of the checkout being released rather than out of whichever shell
+  // started the run.
+  const childEnv = { ...env, ...releaseEnvironment(cwd), SOTY_RELEASE_RUN_ID: runId };
 
   const steps = {
     /**
@@ -299,7 +419,12 @@ export async function createStepAdapter({
         .catch(() => null);
       if (!existing) {
         try {
-          await exec('gh', ['release', 'create', `v${version}`, dmg, '--title', `Soty v${version}`, '--notes-file', 'RELEASE_NOTES.md'], { cwd, shell: false });
+          // `--target` is not optional. Without it `gh` creates the tag at the
+          // default branch's tip, which during a release is wherever development
+          // has got to -- so the tag would name commits the artifacts beside it
+          // were not built from, and every later question ("what shipped in
+          // 1.1.1?") would be answered with somebody else's work.
+          await exec('gh', ['release', 'create', `v${version}`, dmg, '--target', sourceSha, '--title', `Soty v${version}`, '--notes-file', 'RELEASE_NOTES.md'], { cwd, shell: false });
         } catch (error) {
           return fail('EFFECT_AMBIGUOUS', `gh release create failed: ${messageOf(error)}`);
         }
@@ -320,7 +445,49 @@ export async function createStepAdapter({
           { cwd, env: childEnv, admission });
         if (!signed.ok) return signed;
       }
-      return run('manifest', [process.execPath, 'scripts/verify-published-release.mjs'], { cwd, env: childEnv, admission });
+      const published = await run('manifest', [process.execPath, 'scripts/verify-published-release.mjs'], { cwd, env: childEnv, admission });
+      if (!published.ok) return published;
+
+      /**
+       * The signed manifest has to join the release line, not sit in a checkout.
+       *
+       * Signing rewrites `stable.json` with the digests of artifacts that did
+       * not exist when the release was prepared. Left uncommitted it makes the
+       * worktree dirty, and `deploy:web` refuses a dirty worktree -- so the
+       * release would build everything, publish everything, and then decline to
+       * ship on the grounds that it had modified itself.
+       *
+       * `commitKnownFiles` and `promoteBeta` were written for exactly this and
+       * never called from anywhere, which is why no release had reached the step
+       * that needed them. The commit moves the beta line with it, and
+       * `manifest_beta_verify` then re-packages and re-verifies at that commit:
+       * what ships is verified after the digests are recorded, not before.
+       */
+      const expectedBetaSha = await remoteBetaSha({ cwd, env: childEnv });
+      const committed = await commitKnownFiles({
+        cwd,
+        files: [MANIFEST_PATH],
+        message: `release: record ${version} artifact digests`,
+        env: childEnv
+      });
+      const manifestSha = 'sourceSha' in committed ? committed.sourceSha : null;
+      if (!committed.committed || !manifestSha) return { ok: true };
+      const promoted = await promoteBeta({
+        cwd,
+        sourceSha: manifestSha,
+        expectedBetaSha,
+        env: childEnv
+      });
+      if (!promoted.ok)
+        return fail(
+          promoted.code === 'REMOTE_NOT_FAST_FORWARD' ? 'TARGET_MISMATCH' : 'EFFECT_AMBIGUOUS',
+          `the manifest commit could not be promoted to beta: ${promoted.code}` +
+            ('subject' in promoted && promoted.subject ? ` — ${promoted.subject}` : '')
+        );
+      // The promotion gate consults the local ref before the remote one, and
+      // refs are shared with the checkout this worktree was cut from.
+      await exec('git', ['update-ref', 'refs/heads/beta', manifestSha], { cwd, shell: false });
+      return { ok: true };
     },
 
     manifest_beta_verify: async () => {
