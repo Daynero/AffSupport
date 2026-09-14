@@ -29,6 +29,25 @@ learned about the design system itself.
 | S8  | Three of the product's screens cannot render without the local agent, so no width sweep had ever reached them. Every one of them was broken at 390 — and had been before this feature.                                                                                                                                                                                                                                                               | A stub agent on the dev server (`scratchpad/mock-agent.mjs`, session-local) is what made the compressor, the transcription page and the stitcher walkable at all. The finding is not the three bugs; it is that a screen nothing can open is a screen nothing has checked. |
 | S9  | `width: auto` is not a shrinking width. An `<input>`'s auto width is intrinsic and ignores its flex parent: the transcription row's language field ran 85px past its own box under a long name, putting its chevron on its own last letter and its text under the figure beside it. The same shape in CSS Grid: an implied `auto` column sizes to its widest child's max-content, which is how one long file name made a card wider than the screen. | Where a box must give way, say so — `max-width: min(…, 100%)` on the control, `minmax(0, 1fr)` on the track. `min-width: 0` on the container does not do it.                                                                                                               |
 
+## What the redesign cost to download
+
+|                                    | Before (2026-09-07) | After    | Change               |
+| ---------------------------------- | ------------------- | -------- | -------------------- |
+| Shared chunk the document preloads | 81.6 kB             | 91.0 kB  | **+9.4 kB (+11.6%)** |
+| All assets, gzipped                | 584.7 kB            | 605.5 kB | +20.8 kB (+3.6%)     |
+| Entry chunk                        | 5.26 kB             | 5.38 kB  | +0.12 kB             |
+
+The one number worth arguing about is the first. The inventory is imported by
+every screen, so it lands in the chunk `index.html` preloads — it is paid for on
+first paint, by everyone, whether or not the screen they opened uses it. That is
+the shape of a design system: one copy of forty-five controls instead of a
+bespoke one per screen, and the trade is a larger shared chunk against smaller
+route chunks and far less duplicated CSS.
+
+`performance-baseline.json` was re-ratcheted rather than the growth reduced,
+because the growth is the feature working. It is recorded here so the next
+person to read that file knows what moved it, and can disagree.
+
 ## Deliberate deviations from the task list
 
 Three tasks named an inventory component the product's own version is better
