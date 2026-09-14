@@ -9521,6 +9521,24 @@ body:has(.public-home) {
   min-height: 40px;
   border-radius: var(--radius-sm);
 }
+/* 022: the catalog settings are free-text fields, drawn the way the space's dialogs draw
+   theirs. The description is the one multi-line field in settings, so it grows with what it
+   holds rather than keeping the 40px line. */
+.product-catalog-settings .field-group input,
+.product-catalog-settings .field-group textarea {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0 var(--space-3);
+}
+.team-space-settings .field-group textarea.product-catalog-description {
+  min-height: 96px;
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
 
 /* The invite form's container queries were resolving against the dialog, not
    against the card they live in — the panel is half the dialog's width in the

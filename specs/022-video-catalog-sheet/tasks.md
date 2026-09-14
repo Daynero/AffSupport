@@ -69,11 +69,11 @@ without settings, so building settings first makes US1 testable end to end.
 
 **Independent test**: quickstart §4.
 
-- [ ] T015 [P] [US2] Add en and uk keys to `apps/web/src/i18n.ts` for the settings tab: tab label, section title and hint, four field labels, price preview (`{price},00 USD`), validation messages (whole number 1–999999, not a web link, too long, required), saved toast, read-only note
-- [ ] T016 [US2] Write `apps/web/src/team/product-catalog/ProductCatalogSettingsSection.tsx` inside `SettingsSection`, modelled on `RestitchDefaultsSection.tsx`: load via `getProductCatalogSettings`, fields with `field-label` + `input`/`textarea`, inline validation from `limits.ts`, price preview, Save via `setProductCatalogSettings`, read-only unless `useTeam().can('manage_metadata')`, errors through `teamErrorMessageFor`
-- [ ] T017 [US2] Add `'product-catalog'` to `TEAM_SETTINGS_TABS` in `apps/web/src/team/routes.ts` and render the section for that tab in `apps/web/src/team/workspace/SpaceSettings.tsx` (client type extended the way `RestitchDefaultsClient` is)
-- [ ] T018 [P] [US2] Write `tests/product-catalog-settings-section.test.tsx` (jsdom): read-only without `manage_metadata`; `10.5`, `0`, `USD 10`, `ftp://x` refused inline and not sent; valid save sends `{ title, description, price: 10, imageLink }` and shows `10,00 USD`
-- [ ] T019 [US2] Add the few layout rules the section needs to `apps/web/src/styles.css` using the file's existing custom properties (no new raw values)
+- [X] T015 [P] [US2] Add en and uk keys to `apps/web/src/i18n.ts` for the settings tab: tab label, section title and hint, four field labels, price preview (`{price},00 USD`), validation messages (whole number 1–999999, not a web link, too long, required), saved toast, read-only note
+- [X] T016 [US2] Write `apps/web/src/team/product-catalog/ProductCatalogSettingsSection.tsx` inside `SettingsSection`, modelled on `RestitchDefaultsSection.tsx`: load via `getProductCatalogSettings`, fields with `field-label` + `input`/`textarea`, inline validation from `limits.ts`, price preview, Save via `setProductCatalogSettings`, read-only unless `useTeam().can('manage_metadata')`, errors through `teamErrorMessageFor`
+- [X] T017 [US2] Add `'product-catalog'` to `TEAM_SETTINGS_TABS` in `apps/web/src/team/routes.ts` and render the section for that tab in `apps/web/src/team/workspace/SpaceSettings.tsx` (client type extended the way `RestitchDefaultsClient` is)
+- [X] T018 [P] [US2] Write `tests/product-catalog-settings-section.test.tsx` (jsdom): read-only without `manage_metadata`; `10.5`, `0`, `USD 10`, `ftp://x` refused inline and not sent; valid save sends `{ title, description, price: 10, imageLink }` and shows `10,00 USD`
+- [X] T019 [US2] Add the few layout rules the section needs to `apps/web/src/styles.css` using the file's existing custom properties (no new raw values)
 
 **Checkpoint**: US2 works on beta (quickstart §4).
 

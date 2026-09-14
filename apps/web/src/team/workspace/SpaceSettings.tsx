@@ -15,6 +15,10 @@ import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConne
 import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
 import { TeamPreferencesSection, type TeamPreferencesClient } from './TeamPreferencesSection';
+import {
+  ProductCatalogSettingsSection,
+  type ProductCatalogSettingsClient
+} from '../product-catalog/ProductCatalogSettingsSection';
 import { SettingsSection } from './SettingsSection';
 import type { TeamSettingsTab } from '../routes';
 
@@ -30,7 +34,8 @@ export type SpaceSettingsClient = MemberManagementClient &
     leaveTeam: (teamId: string) => Promise<{ ok: true; warningCode: string }>;
   } & RestitchDefaultsClient &
   TaskLabelsSectionClient &
-  TeamPreferencesClient;
+  TeamPreferencesClient &
+  ProductCatalogSettingsClient;
 
 export function SharePreferenceSettings({
   teamId,
@@ -115,6 +120,7 @@ export function SpaceSettings({
     { id: 'members' as const, label: t('teamSettingsTabMembers') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },
     { id: 'restitch' as const, label: t('teamSettingsTabRestitch') },
+    { id: 'product-catalog' as const, label: t('teamSettingsTabProductCatalog') },
     ...(canSeeHistory ? [{ id: 'history' as const, label: t('teamSettingsTabHistory') }] : [])
   ];
   const [tab, setTab] = useState<(typeof tabs)[number]['id']>(() =>
@@ -257,6 +263,10 @@ export function SpaceSettings({
         )}
 
         {tab === 'restitch' && <RestitchDefaultsSection teamId={teamId} client={client} />}
+
+        {tab === 'product-catalog' && (
+          <ProductCatalogSettingsSection teamId={teamId} client={client} />
+        )}
 
         {tab === 'history' && (
           <TeamAuditPanel teamId={teamId} client={client} revision={revision} />

@@ -40,6 +40,11 @@ export function makeClient(overrides: Partial<TeamSpaceClient> = {}): TeamSpaceC
     setRestitchDefaults: vi.fn(),
     getMaterialRestitchPrep: vi.fn().mockResolvedValue(new Map()),
     setMaterialRestitchPrep: vi.fn(),
+    // 022 — the space's product catalog values and a video's catalog. Unset by default.
+    getProductCatalogSettings: vi.fn().mockResolvedValue(null),
+    setProductCatalogSettings: vi.fn(),
+    getProductCatalog: vi.fn().mockResolvedValue(null),
+    createProductCatalog: vi.fn(),
     // The two team-mode preferences the space settings now hold; both answer
     // with the value the server would apply by default.
     getTranscriptDeletePref: vi.fn().mockResolvedValue('ask'),

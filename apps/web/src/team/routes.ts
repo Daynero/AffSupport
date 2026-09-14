@@ -17,7 +17,14 @@ import {
 export const TEAM_SECTIONS = ['explorer', 'tasks', 'accounts', 'members'] as const;
 
 /** The settings dialog's tabs, named in the address as they are in the dialog. */
-export const TEAM_SETTINGS_TABS = ['general', 'members', 'tags', 'restitch', 'history'] as const;
+export const TEAM_SETTINGS_TABS = [
+  'general',
+  'members',
+  'tags',
+  'restitch',
+  'product-catalog',
+  'history'
+] as const;
 export type TeamSettingsTab = (typeof TEAM_SETTINGS_TABS)[number];
 export type TeamSection = (typeof TEAM_SECTIONS)[number];
 
