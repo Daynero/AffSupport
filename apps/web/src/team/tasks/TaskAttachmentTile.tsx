@@ -44,7 +44,8 @@ export interface TaskAttachmentPreviewClient {
 
 const defaultClient: TaskAttachmentPreviewClient = teamApi;
 
-type AttachmentAction = 'view' | 'download' | 'download-restitched' | 'copy-link' | 'detach';
+type AttachmentAction =
+  'view' | 'reveal' | 'download' | 'download-restitched' | 'copy-link' | 'detach';
 
 function AttachmentActionIcon({ action }: { action: AttachmentAction }) {
   if (action === 'view') {
@@ -52,6 +53,15 @@ function AttachmentActionIcon({ action }: { action: AttachmentAction }) {
       <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
         <path d="M2.2 10s2.65-4.55 7.8-4.55S17.8 10 17.8 10s-2.65 4.55-7.8 4.55S2.2 10 2.2 10Z" />
         <circle cx="10" cy="10" r="2.15" />
+      </svg>
+    );
+  }
+  if (action === 'reveal') {
+    // A folder with an arrow into it: where the file lives.
+    return (
+      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="M2.6 5.4c0-.75.6-1.35 1.35-1.35h3.3l1.6 1.8h7.2c.75 0 1.35.6 1.35 1.35v7.4c0 .75-.6 1.35-1.35 1.35H3.95c-.75 0-1.35-.6-1.35-1.35V5.4Z" />
+        <path d="M8.2 11.2h4.6m0 0-1.8-1.8m1.8 1.8L11 13" />
       </svg>
     );
   }
@@ -92,6 +102,7 @@ export function TaskAttachmentTile({
   attachment,
   client = defaultClient,
   onDetach,
+  onReveal,
   onDownloadRestitched,
   restitching = false,
   isDraft = false
@@ -100,6 +111,8 @@ export function TaskAttachmentTile({
   attachment: TeamTaskAttachmentSummary;
   client?: TaskAttachmentPreviewClient;
   onDetach?: () => void;
+  /** Open the explorer where the attached file lives, with it selected. */
+  onReveal?: () => void;
   /**
    * Download the video re-stitched, when this member may. Offered by the
    * editor, which owns the one delivery this page can run at a time; the tile
@@ -345,6 +358,18 @@ export function TaskAttachmentTile({
           >
             <AttachmentActionIcon action="view" />
           </Button>
+          {onReveal && !isDraft && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="team-task-attachment-action is-reveal"
+              title={t('teamTaskAttachmentReveal')}
+              aria-label={t('teamTaskAttachmentReveal')}
+              onClick={onReveal}
+            >
+              <AttachmentActionIcon action="reveal" />
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"

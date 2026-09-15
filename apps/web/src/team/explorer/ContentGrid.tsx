@@ -222,6 +222,7 @@ function Tile({
       className={`team-explorer-tile is-${row.kind}${selected ? ' is-selected' : ''}${
         checked ? ' is-checked' : ''
       }`}
+      data-material-id={row.id}
       aria-selected={selected}
       draggable={row.kind !== 'folder'}
       onDragStart={event => {

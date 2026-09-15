@@ -131,6 +131,7 @@ function Row({
   return (
     <li
       className={`team-explorer-row is-${row.kind}${selected ? ' is-selected' : ''}`}
+      data-material-id={row.id}
       aria-selected={selected}
       draggable={row.kind !== 'folder'}
       onDragStart={event => {

@@ -404,6 +404,48 @@ function ExplorerBody({
   });
   const sortedRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
 
+  /*
+   * A file the address names (`item`) — from "show in folder" on a search result or a task's
+   * attachment: once its folder's rows are in, it is selected and scrolled into view, once per
+   * address. A later page is fetched if the file is further down the folder.
+   */
+  const revealedItem = useRef<string | null>(null);
+  const revealItemId = query.itemId;
+  useEffect(() => {
+    if (!revealItemId) {
+      revealedItem.current = null;
+      return;
+    }
+    if (revealedItem.current === revealItemId || searching || query.trash) return;
+    if (query.folderId && explorer.nodes && !nodeOf(query.folderId)) {
+      onQueryChange({ folderId: null, itemId: revealItemId });
+      return;
+    }
+    if (currentFolderId !== (query.folderId ?? null) || page.loading) return;
+    if (!page.rows.some(row => row.id === revealItemId)) {
+      if (page.hasMore) void page.loadMore();
+      return;
+    }
+    revealedItem.current = revealItemId;
+    select(revealItemId);
+    window.requestAnimationFrame(() => {
+      Array.from(document.querySelectorAll<HTMLElement>('[data-material-id]'))
+        .find(element => element.dataset.materialId === revealItemId)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  }, [
+    currentFolderId,
+    explorer.nodes,
+    nodeOf,
+    onQueryChange,
+    page,
+    query.folderId,
+    query.trash,
+    revealItemId,
+    searching,
+    select
+  ]);
+
   /**
    * Which of the videos in view have already been looked at.
    *
@@ -505,6 +547,25 @@ function ExplorerBody({
     rememberView(next);
     onQueryChange({ view: next });
   };
+
+  /**
+   * Where a file lives: its folder opens with the file selected. A parent the tree does not know is
+   * the space root (a file directly under it has the root's Drive id as its parent).
+   */
+  const revealMaterial = useCallback(
+    (item: { id: string; parentFolderId?: string | null }) => {
+      const parent = item.parentFolderId ?? null;
+      onQueryChange({
+        q: '',
+        scope: 'folder',
+        filters: undefined,
+        trash: false,
+        folderId: parent && nodeOf(parent) ? parent : null,
+        itemId: item.id
+      });
+    },
+    [nodeOf, onQueryChange]
+  );
 
   /** Root-relative path for a search result, from the cached tree. */
   const pathFor = useCallback(
@@ -1595,6 +1656,7 @@ function ExplorerBody({
             teamId={teamId}
             client={client}
             onCreateTask={onCreateTask}
+            onReveal={revealMaterial}
             initialQuery={query.q}
             initialFilters={query.filters}
             onSearched={onSearched}

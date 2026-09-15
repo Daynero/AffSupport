@@ -57,6 +57,7 @@ export function TeamCatalog({
   teamId,
   client,
   onCreateTask,
+  onReveal,
   initialQuery,
   initialFilters,
   onSearched,
@@ -71,6 +72,7 @@ export function TeamCatalog({
   teamId: string;
   client: TeamCatalogClient;
   onCreateTask?: (asset: { id: string; name: string }) => void;
+  onReveal?: (material: CatalogMaterialItem) => void;
   /** Search state restored from the address. */
   initialQuery?: string;
   initialFilters?: CatalogSearchFilters;
@@ -262,6 +264,7 @@ export function TeamCatalog({
             });
         }}
         onCreateTask={onCreateTask}
+        onReveal={onReveal}
         onChanged={() => void catalog.refetch()}
         browseClient={client}
         page={catalog.page}

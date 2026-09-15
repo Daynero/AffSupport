@@ -1776,6 +1776,9 @@ const en = {
   teamTaskAttachmentDownload: 'Download',
   teamTaskAttachmentDownloadRestitched: 'Download re-stitched',
   teamTaskAttachmentCopyLink: 'Copy link',
+  teamTaskAttachmentReveal: 'Show on Drive',
+  teamRevealInFolder: 'Show in folder',
+  teamRevealInFolderFor: 'Show {name} in its folder',
   teamTaskAttachmentLinkCopied: 'Link copied',
   teamTaskAttachmentActionFailed: 'Could not complete this attachment action.',
 
@@ -4272,6 +4275,9 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskAttachmentDownload: 'Завантажити',
   teamTaskAttachmentDownloadRestitched: 'Завантажити з перезашивкою',
   teamTaskAttachmentCopyLink: 'Копіювати посилання',
+  teamTaskAttachmentReveal: 'Переглянути на диску',
+  teamRevealInFolder: 'Показати в папці',
+  teamRevealInFolderFor: 'Показати {name} у папці',
   teamTaskAttachmentLinkCopied: 'Посилання скопійовано',
   teamTaskAttachmentActionFailed: 'Не вдалося виконати дію з вкладенням.',
 

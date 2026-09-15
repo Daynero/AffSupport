@@ -11447,6 +11447,9 @@ body {
 }
 .team-task-attachment-actions {
   display: flex;
+  /* Six with "show on Drive": the sixth wraps on the narrowest tile rather than overflowing it. */
+  flex-wrap: wrap;
+  row-gap: 3px;
   /* Five actions now — view, download, download re-stitched, copy link,
      detach — and five 32px squares with 4px between them are wider than the
      158px tile, so the last one wrapped onto a line of its own. */
@@ -11497,6 +11500,14 @@ body {
 }
 .team-task-attachment-action.is-copy-link {
   color: #8b5cf6;
+}
+.team-task-attachment-action.is-reveal {
+  color: var(--color-accent);
+}
+.team-task-attachment-action.is-reveal:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-softer);
+  color: var(--color-accent);
 }
 .team-task-attachment-action.is-detach {
   color: var(--color-error);

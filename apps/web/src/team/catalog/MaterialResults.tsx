@@ -38,6 +38,7 @@ export function MaterialResults({
   onProcess,
   onShowProvenance,
   onCreateTask,
+  onReveal,
   onChanged,
   browseClient,
   destinationFolderId = null,
@@ -58,6 +59,8 @@ export function MaterialResults({
   onProcess: (material: CatalogMaterialItem) => void;
   onShowProvenance: (material: CatalogMaterialItem) => void;
   onCreateTask?: (material: CatalogMaterialItem) => void;
+  /** Opens the file's folder in the explorer with the file selected. */
+  onReveal?: (material: CatalogMaterialItem) => void;
   onChanged: () => void;
   /** Reads the folder tree for the row menu's destination picker. */
   browseClient: FolderPickerClient;
@@ -206,6 +209,16 @@ export function MaterialResults({
                   material.lineage.isVersion) && (
                   <Button type="button" variant="ghost" onClick={() => onShowProvenance(material)}>
                     {t('teamProvenanceTitle')}
+                  </Button>
+                )}
+                {onReveal && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label={t('teamRevealInFolderFor', { name: material.name })}
+                    onClick={() => onReveal(material)}
+                  >
+                    {t('teamRevealInFolder')}
                   </Button>
                 )}
                 {onCreateTask && material.kind === 'file' && (

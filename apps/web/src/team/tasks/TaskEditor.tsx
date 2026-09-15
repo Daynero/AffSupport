@@ -272,6 +272,38 @@ export function TaskEditor({
     onClose();
     navigateTo(href);
   };
+  /*
+   * "Show on Drive": the explorer opens the attachment's folder with the file selected. The folder
+   * comes from the catalogue search, which knows every file's parent; a file it cannot find is
+   * searched for across the space instead, so the button never leads nowhere.
+   */
+  const revealAttachment = async (attachment: TeamTaskAttachmentSummary) => {
+    const stem = attachment.name.replace(/\.[^.]+$/u, '');
+    let parentFolderId: string | null | undefined;
+    for (const query of [attachment.name, stem]) {
+      try {
+        const found = await teamApi.searchCatalog(teamId, { query, page: 1, pageSize: 100 });
+        const hit = found.items.find(item => item.id === attachment.materialId);
+        if (hit) {
+          parentFolderId = hit.parentFolderId ?? null;
+          break;
+        }
+      } catch {
+        break;
+      }
+    }
+    onClose();
+    navigateTo(
+      buildTeamRoute({
+        spaceId: teamId,
+        section: 'explorer',
+        query:
+          parentFolderId === undefined
+            ? { q: attachment.name, scope: 'space' }
+            : { folderId: parentFolderId, itemId: attachment.materialId }
+      })
+    );
+  };
   const deliverRestitched = (attachment: TeamTaskAttachmentSummary) => {
     void restitch
       .deliver({
@@ -1163,6 +1195,7 @@ export function TaskEditor({
                   client={client}
                   isDraft={attachment.id.startsWith('draft:')}
                   onDetach={canEdit ? () => stageDetach(attachment) : undefined}
+                  onReveal={() => void revealAttachment(attachment)}
                   onDownloadRestitched={
                     can('download') ? () => deliverRestitched(attachment) : undefined
                   }
