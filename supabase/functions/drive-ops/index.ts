@@ -45,6 +45,7 @@ import {
 } from '../_shared/errors.ts';
 import {
   issueTransferGrant,
+  releaseNameReservation,
   startOperation,
   transitionOperation,
   type OperationAuthority
@@ -1876,6 +1877,16 @@ async function handleProcessStart(
   const sourceClient = await driveClient(service, source.credentialId, request);
   const liveSource = await proveContext(source, sourceClient);
   requireDriveCapability(liveSource, 'canDownload');
+  // The version finalize will hold the row to is the live one bound below; a row left behind by a
+  // metadata-only change (sharing moves the version) is brought up to it first (023).
+  if (liveSource.version && liveSource.version !== source.driveVersion) {
+    await rpcValue(service, 'service_refresh_material_revision', {
+      p_material: materialId,
+      p_drive_file_id: liveSource.id,
+      p_drive_version: liveSource.version,
+      p_checksum: liveSource.checksum
+    });
+  }
   const destination = await destinationWithClient({
     request,
     service,
@@ -2564,6 +2575,17 @@ function updaterDeviceDeps(request: Request, service: RpcClient): UpdaterDeviceD
         sourceGrant: started.sourceGrant,
         finalizeGrant: started.finalizeGrant
       };
+    },
+    abandonOperation: async operationId => {
+      // An operation that already finished refuses the transition; its name is released anyway.
+      await transitionOperation({
+        service,
+        operationId,
+        state: 'failed',
+        stage: 'failed',
+        errorCode: 'LEASE_EXPIRED'
+      }).catch(() => undefined);
+      await releaseNameReservation(service, operationId);
     },
     hashHex: async value => byteaHex(await sha256(value)),
     randomToken: () => {

@@ -263,7 +263,10 @@ export class UpdaterRunner {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
     const payload: unknown = await response.json().catch(() => null);
-    if (response.ok && isRecord(payload)) return payload;
+    // drive-ops answers `{ ok: true, value }`, like every team function.
+    if (response.ok && isRecord(payload) && payload.ok === true && isRecord(payload.value)) {
+      return payload.value;
+    }
     const code =
       isRecord(payload) && isRecord(payload.error) && typeof payload.error.code === 'string'
         ? payload.error.code

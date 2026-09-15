@@ -126,3 +126,33 @@ On the running beta (vite dev on the branch), signed in as the beta tester, Ukra
 - 400 px wide: the dialog fills the screen with no horizontal overflow.
 - Two defects found and fixed here: the updater's backdrop sat on `--layer-fullbleed` (120), above the nested confirmation (`--layer-modal-nested`, 110), so Stop looked dead — it now uses `--layer-modal`; and the header chip waited for realtime after a start/stop — the dialog now calls `onChanged` so the shell re-reads at once.
 - A trashed sheet leaving the updater (T036, step 6) is proven by the SQL test rather than on the beta, which holds a single catalog.
+
+## Delivery 2 — implementation notes
+
+Branch `023-catalog-updater-restitch` (from D1's `53bff4d`), so D1 stays deployable web-only while D2
+waits for a desktop release.
+
+Deviations from the plan, and why:
+
+- **Enrolment is an RPC, not an Edge Function.** `enroll_team_updater_device` generates the secret
+  (two `gen_random_uuid()` — 244 bits) and stores `sha256` of it; nothing in the enrolment needs Drive
+  or a service key, so a function would only add a hop. `updater-devices` does not exist.
+- **The device routes live in drive-ops, not a new `updater-agent` function.** drive-ops already takes
+  grant-authenticated callers before `authorizeCaller` (`/process/output/*`), and claiming has to start
+  a process as the device's member — `handleProcessStart(request, body, service, actorId)` already takes
+  the actor. A separate function would have needed the `process-core` refactor (T040) or an HTTP hop
+  with a service secret. The handlers are in `drive-ops/updater-device.ts` behind injected deps.
+- **Cancellation deletes the job** instead of a `cancelled` state; `private.catalog_restitch_operations`
+  remembers which operations the updater started, so an output finishing after a stop is recognised
+  and retired rather than left behind.
+- **Copies have a third role, `retired`**, and one deletion queue in the worker for every used or
+  unwanted copy. A copy retired by a stop waits two minutes (longer than a round's lease), and
+  `service_complete_catalog_update` brings a retired spare back to `in_use` if the round had already
+  written its link — the sheet never points at a deleted file.
+- **A permanently deleted copy's material becomes `missing`**, as a file deleted outside the product.
+- **The runner reports discovery from the bridge result** (`TeamFileOperationResult.discovered`),
+  and drops a preparation from another detector version itself (`RESTITCH_DETECTOR_VERSION`).
+- **The runner claims only when every tool module is idle**, so the updater never slows a member's own
+  compression; one job per computer at a time (SQL-enforced too).
+- **"Video not refreshed" is not marked per sheet**; the chip turns to attention while re-stitching is
+  on and the computer is away, and the dialog shows copies ready X of N.

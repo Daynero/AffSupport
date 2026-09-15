@@ -695,6 +695,7 @@ figure where it is.
 ```sql
 drop function if exists public.clear_team_agent_balances(uuid);
 ```
+
 # Catalog progress lease and faster scheduling (20260907140000)
 
 Deploy the previous `catalog-sync` function first (it uses the unchanged legacy
@@ -795,3 +796,11 @@ drop table if exists public.team_catalog_restitch_copies;
 drop table if exists public.team_updater_devices;
 alter table public.team_product_catalogs drop column if exists current_video_link;
 ```
+
+## 20260916100000_catalog_sync_outage_guards.sql
+
+Re-apply `private.invoke_catalog_sync_worker()` from
+`20260907140000_catalog_progress_keeps_its_lease.sql`,
+`public.get_drive_connection_status(uuid)` from
+`20260801095000_team_invitation_drive_actions.sql`. This restores the silent invalid-config
+return and the mismatched connection ordering, so prefer a forward fix in production.

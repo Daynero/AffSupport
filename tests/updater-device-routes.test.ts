@@ -60,6 +60,7 @@ function setup(overrides: { claim?: unknown; start?: () => Promise<never>; bound
       overrides.start ??
         (async () => ({ operationId: 'op-1', sourceGrant: { s: 1 }, finalizeGrant: { f: 1 } }))
     ),
+    abandonOperation: vi.fn(async () => undefined),
     hashHex: vi.fn(async (value: string) => `hash(${value})`),
     randomToken: () => LEASE,
     log: vi.fn()
@@ -100,7 +101,7 @@ describe('claiming', () => {
       teamId: 'team',
       materialId: 'video',
       destinationFolderId: 'folder',
-      idempotencyKey: `updater-${JOB}-2`,
+      idempotencyKey: `updater-${JOB}-${LEASE.slice(0, 16)}`,
       toolId: 'restitch',
       outputName: 'clip.final restitched 4.mp4',
       conflictMode: 'keep_both',
@@ -123,6 +124,16 @@ describe('claiming', () => {
         finalizeGrant: { f: 1 }
       }
     });
+  });
+
+  it('closes the operations lapsed leases left open before starting again', async () => {
+    const { deps } = setup({ claim: { ...claimed, openOperationIds: ['op-old', 'op-older'] } });
+    await claimRestitchJob(deps, headers(), { deviceId: DEVICE });
+    expect(deps.abandonOperation).toHaveBeenCalledWith('op-old');
+    expect(deps.abandonOperation).toHaveBeenCalledWith('op-older');
+    expect(vi.mocked(deps.abandonOperation).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deps.startProcess).mock.invocationCallOrder[0]!
+    );
   });
 
   it('answers nothing to do', async () => {

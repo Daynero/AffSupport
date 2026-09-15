@@ -338,7 +338,8 @@ export function CatalogUpdaterDialog({
             teamId={teamId}
             state={updater.state}
             restitch={restitch}
-            disabled={!mayRun || busy}
+            // Until the first reads land, the effect above would overwrite a tick made meanwhile.
+            disabled={!mayRun || busy || selected === null}
             client={client}
             agentClient={agentClient}
             onRestitchChange={setRestitch}

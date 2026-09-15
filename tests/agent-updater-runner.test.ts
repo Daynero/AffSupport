@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +9,7 @@ import {
   type UpdaterCredential
 } from '../apps/agent/src/team-bridge/updater-credential.js';
 import { UpdaterRunner } from '../apps/agent/src/team-bridge/updater-runner.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
  * Feature 023, delivery 2: the desktop app as a space's re-stitching computer — where its secret
@@ -50,11 +51,13 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.useRealTimers();
-  await rm(dir, { recursive: true, force: true });
+  await removeTemporaryDirectory(dir);
 });
 
+/** As drive-ops answers: `{ ok: true, value }` on success, `{ ok: false, error }` otherwise. */
 function json(value: unknown, status = 200) {
-  return new Response(JSON.stringify(value), {
+  const body = status < 400 ? { ok: true, value } : { ok: false, ...(value as object) };
+  return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' }
   });

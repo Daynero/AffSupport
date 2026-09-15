@@ -36,6 +36,8 @@ export interface UpdaterDeviceDeps {
   rpc(name: string, parameters: Record<string, unknown>): Promise<unknown>;
   /** drive-ops' own `process/start`, run as `actorId`. */
   startProcess(actorId: string, body: Record<string, unknown>): Promise<ProcessGrants>;
+  /** Fails an operation a lapsed lease left open and releases the name it reserved. */
+  abandonOperation(operationId: string): Promise<void>;
   /** SHA-256 as the `\x…` hex a bytea parameter takes. */
   hashHex(value: string): Promise<string>;
   /** 32 random bytes, base64url without padding. */
@@ -48,6 +50,7 @@ export interface ClaimedRestitchJob {
   teamId: string;
   actorId: string;
   attempt: number;
+  openOperationIds: string[];
   videoMaterialId: string;
   videoName: string;
   destinationFolderId: string | null;
@@ -107,6 +110,9 @@ export function parseClaimedRestitchJob(value: unknown): ClaimedRestitchJob | nu
     teamId,
     actorId,
     attempt,
+    openOperationIds: Array.isArray(value.openOperationIds)
+      ? value.openOperationIds.filter((id): id is string => typeof id === 'string')
+      : [],
     videoMaterialId,
     videoName,
     destinationFolderId: text('destinationFolderId'),
@@ -183,13 +189,21 @@ export async function claimRestitchJob(
     return { job: null };
   }
 
+  for (const operationId of job.openOperationIds) {
+    await deps.abandonOperation(operationId).catch(error => {
+      const code = error instanceof TeamFunctionError ? error.code : 'UNKNOWN';
+      deps.log('[updater-device] earlier operation left open', `${operationId} ${code}`);
+    });
+  }
+
   let grants: ProcessGrants;
   try {
     grants = await deps.startProcess(job.actorId, {
       teamId: job.teamId,
       materialId: job.videoMaterialId,
       destinationFolderId: job.destinationFolderId,
-      idempotencyKey: `updater-${job.jobId}-${job.attempt}`,
+      // Unique per lease: a job is created afresh after every spare, so its attempt count repeats.
+      idempotencyKey: `updater-${job.jobId}-${lease.slice(0, 16)}`,
       toolId: RESTITCH_TOOL_ID,
       outputName: restitchedCopyName(job.videoName, job.updateCount),
       conflictMode: 'keep_both',

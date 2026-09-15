@@ -425,6 +425,34 @@ describe('spares', () => {
   }, 60_000);
 });
 
+describe('a source whose Drive version moved without its bytes', () => {
+  it('takes the live version only when the checksum is the one on record', async () => {
+    const video = await material('shared.mp4', 'video', 'video/mp4');
+    await harness.root(`update public.team_materials set checksum = 'abc' where id = $1`, [video]);
+    const drive = (
+      await harness.root<{ drive_file_id: string }>(
+        'select drive_file_id from public.team_materials where id = $1',
+        [video]
+      )
+    )[0]!.drive_file_id;
+    const refresh = async (version: string, checksum: string) =>
+      (
+        await harness.root<{ ok: boolean }>(
+          'select public.service_refresh_material_revision($1, $2, $3, $4) as ok',
+          [video, drive, version, checksum]
+        )
+      )[0]!.ok;
+    expect(await refresh('9', 'other')).toBe(false);
+    expect(await refresh('9', 'abc')).toBe(true);
+    expect(await refresh('9', 'abc')).toBe(false);
+    const row = await harness.root<{ drive_version: string }>(
+      'select drive_version from public.team_materials where id = $1',
+      [video]
+    );
+    expect(row[0]!.drive_version).toBe('9');
+  }, 60_000);
+});
+
 describe('rounds', () => {
   it('swaps the sheet to the spare, retires the copy used before, and asks for the next spare', async () => {
     const { sheet } = await catalog('swap');
