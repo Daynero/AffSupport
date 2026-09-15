@@ -16,14 +16,19 @@ import { buildXlsx } from '../_shared/xlsx.ts';
  * one update on, a few at a time, until the time budget is spent. A sheet that fails is retried
  * on its own back-off and never holds the others; a sheet whose lease was lost is left to whoever
  * holds it now. Everything outside this file — the database, Drive, the clock — arrives as deps.
+ *
+ * With re-stitching (delivery 2) a sheet whose spare copy is ready is written with the spare's link,
+ * and the completion swaps the copies; without a ready spare it keeps the copy it points at. Copies
+ * the database has retired are then deleted for good — only those, by the ids it hands out.
  */
 
 const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const CLAIM_LIMIT = 10;
 const LEASE_SECONDS = 60;
 const PARALLEL = 3;
+const RETIRED_LIMIT = 10;
 
-export type UpdaterDrive = Pick<GoogleDriveClient, 'updateConvertedFile'>;
+export type UpdaterDrive = Pick<GoogleDriveClient, 'updateConvertedFile' | 'deleteFile'>;
 
 export interface ClaimedCatalog {
   catalogId: string;
@@ -36,6 +41,16 @@ export interface ClaimedCatalog {
   driveFileId: string;
   resourceKey: string | null;
   credentialId: string;
+  /** The in-use re-stitched copy's link, when the sheet points at one. */
+  currentVideoLink: string | null;
+  /** The spare to swap to at this update, when one is ready. */
+  spare: { materialId: string; link: string } | null;
+}
+
+export interface RetiredCopy {
+  materialId: string;
+  driveFileId: string;
+  credentialId: string;
 }
 
 export interface CatalogUpdaterDeps {
@@ -43,9 +58,12 @@ export interface CatalogUpdaterDeps {
   openRounds(): Promise<number>;
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
-  complete(catalogId: string, updateCount: number): Promise<boolean>;
+  complete(catalogId: string, updateCount: number, swappedCopy: string | null): Promise<boolean>;
   retry(catalogId: string, errorCode: string, nextAttemptAt: Date): Promise<boolean>;
   markNeedsReauth(credentialId: string): Promise<void>;
+  claimRetired(limit: number): Promise<unknown[]>;
+  /** `deleted` false records one more failed try; the database gives up after five. */
+  forgetCopy(materialId: string, deleted: boolean): Promise<boolean>;
   now(): number;
   log(message: string, detail: string): void;
 }
@@ -56,6 +74,7 @@ export interface TickSummary {
   updated: number;
   failed: number;
   skipped: number;
+  deletedCopies: number;
 }
 
 function text(value: unknown): string | null {
@@ -80,6 +99,8 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
   const driveFileId = text(row.drive_file_id);
   const credentialId = text(row.credential_id);
   const price = settings ? wholeNumber(settings.price) : null;
+  const spareMaterialId = text(row.spare_material_id);
+  const spareLink = text(row.spare_link);
   if (
     !catalogId ||
     attempts === null ||
@@ -113,8 +134,20 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     },
     driveFileId,
     resourceKey: text(row.resource_key),
-    credentialId
+    credentialId,
+    currentVideoLink: text(row.current_video_link),
+    spare: spareMaterialId && spareLink ? { materialId: spareMaterialId, link: spareLink } : null
   };
+}
+
+export function parseRetiredCopy(row: unknown): RetiredCopy | null {
+  if (!isRecord(row)) return null;
+  const materialId = text(row.material_id);
+  const driveFileId = text(row.drive_file_id);
+  const credentialId = text(row.credential_id);
+  return materialId && driveFileId && credentialId
+    ? { materialId, driveFileId, credentialId }
+    : null;
 }
 
 function codeOf(error: unknown): string {
@@ -138,7 +171,8 @@ async function updateOne(
           videoLink: item.videoLink,
           productCount: item.productCount
         },
-        updateCount: nextCount
+        updateCount: nextCount,
+        videoLinkOverride: item.spare?.link ?? item.currentVideoLink
       })
     });
     await drive.updateConvertedFile({
@@ -148,7 +182,7 @@ async function updateOne(
       targetMimeType: SPREADSHEET_MIME_TYPE,
       bytes
     });
-    if (await deps.complete(item.catalogId, nextCount)) {
+    if (await deps.complete(item.catalogId, nextCount, item.spare?.materialId ?? null)) {
       summary.updated += 1;
     } else {
       // The sheet was written, but someone else holds the lease now; they will write the same IDs.
@@ -172,7 +206,14 @@ export async function runCatalogUpdaterTick(
   options: { budgetMs: number }
 ): Promise<TickSummary> {
   const startedAt = deps.now();
-  const summary: TickSummary = { rounds: 0, claimed: 0, updated: 0, failed: 0, skipped: 0 };
+  const summary: TickSummary = {
+    rounds: 0,
+    claimed: 0,
+    updated: 0,
+    failed: 0,
+    skipped: 0,
+    deletedCopies: 0
+  };
   summary.rounds = await deps.openRounds();
 
   while (deps.now() - startedAt < options.budgetMs) {
@@ -204,6 +245,22 @@ export async function runCatalogUpdaterTick(
       }
     });
     await Promise.all(runners);
+  }
+
+  if (deps.now() - startedAt < options.budgetMs) {
+    for (const row of await deps.claimRetired(RETIRED_LIMIT)) {
+      const copy = parseRetiredCopy(row);
+      if (!copy) continue;
+      try {
+        const drive = await deps.driveFor(copy.credentialId);
+        await drive.deleteFile(copy.driveFileId);
+        await deps.forgetCopy(copy.materialId, true);
+        summary.deletedCopies += 1;
+      } catch (error) {
+        deps.log('[catalog-updater] copy not deleted', `${copy.materialId} ${codeOf(error)}`);
+        await deps.forgetCopy(copy.materialId, false).catch(() => false);
+      }
+    }
   }
   return summary;
 }
