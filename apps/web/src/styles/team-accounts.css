@@ -1538,7 +1538,7 @@
   color: var(--color-text-muted);
 }
 
-.team-accounts-empty .button {
+.team-accounts-empty .soty-button {
   margin-top: var(--space-2);
 }
 
@@ -2014,7 +2014,7 @@ button.team-task-agent-chip.is-selected {
   gap: var(--space-2);
 }
 
-.team-task-agent-run-editor .button {
+.team-task-agent-run-editor .soty-button {
   min-height: 32px;
   padding-inline: var(--space-3);
   font-size: var(--text-caption);

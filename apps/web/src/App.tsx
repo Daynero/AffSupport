@@ -792,7 +792,7 @@ export default function CompressorPage() {
             /* An empty queue is filled by choosing files, so the state carries
                the same control the intake above it does (FR-021). */
             <EmptyState
-              className="empty-state"
+              className="soty-empty-state"
               title={t('queueEmpty')}
               description={t('queueEmptyBody')}
               action={
@@ -1167,9 +1167,9 @@ function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics
 
 function ToastRegion({ toasts }: { toasts: ToastMessage[] }) {
   return (
-    <div className="toast-region" aria-live="polite" aria-atomic="false">
+    <div className="soty-toast-region" aria-live="polite" aria-atomic="false">
       {toasts.map(toast => (
-        <div className={`toast toast-${toast.tone}`} key={toast.id}>
+        <div className={`soty-toast toast-${toast.tone}`} key={toast.id}>
           {toast.text}
         </div>
       ))}

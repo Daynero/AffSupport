@@ -417,7 +417,7 @@ function FpsControl({
             : `${choice} FPS`}
       </span>
       <Collapse fast open={choice === 'custom' && !valid && custom !== ''}>
-        <span className="field-error">
+        <span className="soty-field-error">
           {t('invalidFrameRate', { min: FRAME_RATE_MIN, max: FRAME_RATE_MAX })}
         </span>
       </Collapse>
@@ -514,7 +514,7 @@ function ResolutionControl({
             : `${choice}p`}
       </span>
       <Collapse fast open={choice === 'custom' && !valid && custom !== ''}>
-        <span className="field-error">
+        <span className="soty-field-error">
           {t('invalidResolution', { min: RESOLUTION_MIN, max: RESOLUTION_MAX })}
         </span>
       </Collapse>

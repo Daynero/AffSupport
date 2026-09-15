@@ -550,7 +550,7 @@ function RowLanguage({
   if (job.languageProbing && !detected) {
     return (
       <span className="transcription-row-language is-probing">
-        <span className="spinner" aria-hidden="true" />
+        <span className="soty-spinner" aria-hidden="true" />
         {t('transcriptionLanguageProbing')}
       </span>
     );

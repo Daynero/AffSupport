@@ -90,6 +90,13 @@
 і він падає на сирому значенні; список винятків (`config/design-token-exemptions.json`)
 порожній і має таким лишатись.
 
+Утиліта Tailwind — це теж спосіб написати значення, тож на неї той самий
+паркан: `node scripts/check-tailwind-classes.mjs` падає на довільному
+значенні в дужках (`bg-[#fff]`, `rounded-[10px]`, `duration-[250ms]`) і на
+щаблі палітри, який не є однією з семи ролей Soty. Дозволені утиліти —
+тільки ті, що читають токен: `bg-primary`, `text-ink-muted`, `rounded-lg`,
+`duration-base`.
+
 - **Ролі кольору** (7): `primary` (медовий — єдина дія, заради якої існує
   екран), `secondary` (фіолет — фірмовий акцент), `success`, `info`,
   `warning`, `error`, `neutral`. Кожна роль дає `--color-<role>-solid`,
@@ -115,29 +122,39 @@
 
 ## Інвентар компонентів
 
-`apps/web/src/components/ui/` — сорок п'ять компонентів; екран бере їх
-звідти, а не винаходить свій. Повний контракт —
-`specs/021-design-system-redesign/contracts/components.md`, живий показ —
-маршрут `/design` (тільки в dev-збірці).
+`apps/web/src/components/ui/` — інвентар компонентів; екран бере їх звідти,
+а не винаходить свій. Усередині це **HeroUI v3** (React Aria + Tailwind v4),
+вдягнений у тему Soty: змінні бібліотеки визначені з наших токенів, а не
+навпаки. Назви, пропси й словник `color` × `variant` × `size` лишилися ті самі,
+що й до переходу, тож екран не знає, що під ним змінилося.
+
+Повний контракт — `specs/024-heroui-workspace/contracts/components.md`
+(попередній, до переходу на HeroUI, лишається в
+`specs/021-design-system-redesign/contracts/components.md` як історія),
+живий показ — маршрут `/design` (тільки в dev-збірці).
 
 - `Button`, `IconButton` — `color` × `variant` (`solid`/`outline`/`soft`/
   `subtle`/`ghost`/`link`) × `size` (`xs`–`xl`).
 - `Badge`, `Chip`, `Card`, `Separator`, `Alert`.
 - Поля: `FormField`, `Input`, `InputNumber`, `InputTags`, `Select`,
-  `Textarea`.
+  `SelectMenu` (з пошуком), `SearchField`, `Textarea`.
 - Вибір: `Checkbox`, `RadioGroup` (зокрема варіант `pictos` — це саме та
   picto-група, що описана вище), `SegmentedControl`, `Slider`, `Switch`.
-- Стан: `Empty`, `Progress`, `Skeleton`, `Spinner`, `Tooltip`.
-- Шари: `Modal`, `Drawer`, `Popover`, `DropdownMenu` — **один** стек на
-  весь продукт (`useDialogBehaviour`): Escape отримує найглибша поверхня,
-  фокус повертається на тригер, сторінка блокує прокрутку рівно доти,
-  доки відкрито хоч один діалог, а прив'язана до якоря поверхня
+- Стан: `Empty`, `Progress`, `Skeleton`, `Spinner`, `Tooltip`, `Kbd`.
+- Шари: `Modal`, `Drawer`, `Popover`, `DropdownMenu`, `ContextMenu` — **один**
+  стек на весь продукт, і його тримає React Aria: Escape отримує найглибша
+  поверхня, фокус повертається на тригер, сторінка блокує прокрутку рівно
+  доти, доки відкрито хоч один діалог, а прив'язана до якоря поверхня
   портується в `body`, щоб її не обрізав ряд чи панель.
-- Навігація: `Breadcrumb`, `Link`, `Pagination`, `Tabs`.
-- Дані: `Table` і його клітинки, `Tree`, `Timeline`, `Accordion`, `User`.
+- Навігація: `Breadcrumb`, `Link`, `Pagination`, `Tabs`, `Toolbar`.
+- Дати: `Calendar`, `RangeCalendar`, `DatePicker`, `DateField` — один
+  календар на весь продукт, з клавіатурою по днях, тижнях, місяцях і роках.
+- Дані: `Table` і його клітинки, `Tree`, `Timeline`, `Accordion`, `User`,
+  `ScrollShadow`.
 - П'ять патернів стану: `EmptyState`, `LoadingState`, `ErrorState`,
-  `PermissionState`, `ConfirmDialog`, плюс `SelectionBar`. Екран не
-  вигадує свій порожній чи помилковий стан — він бере патерн.
+  `PermissionState`, `ConfirmDialog`, плюс `SelectionBar`, `CommandPalette`
+  і `ShortcutSheet`. Екран не вигадує свій порожній чи помилковий стан — він
+  бере патерн.
 
 ## Правила, що діють скрізь
 

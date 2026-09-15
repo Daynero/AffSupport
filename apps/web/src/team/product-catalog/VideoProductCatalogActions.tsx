@@ -84,7 +84,7 @@ export function VideoProductCatalogActions({
             {t('productCatalogCopyLinkShort')}
           </Button>
           <a
-            className="button button-secondary"
+            className="soty-button button-secondary"
             href={catalog.sheetUrl}
             target="_blank"
             rel="noopener noreferrer"

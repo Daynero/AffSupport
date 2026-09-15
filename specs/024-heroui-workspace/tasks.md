@@ -1,5 +1,5 @@
 ---
-description: "Task list for 024 — the team workspace on HeroUI"
+description: 'Task list for 024 — the team workspace on HeroUI'
 ---
 
 # Tasks: The team workspace on HeroUI
@@ -28,27 +28,27 @@ against the matching checkpoint in [quickstart.md](./quickstart.md).
 
 **Purpose**: make the decision legitimate, then install it. Nothing visual changes here.
 
-- [ ] T001 Amend Principle VI in `.specify/memory/constitution.md` per research D8 — the token
+- [x] T001 Amend Principle VI in `.specify/memory/constitution.md` per research D8 — the token
       layer is the only source of values, the inventory the only source of controls, utilities
       the only way to write new style, theming stays CSS custom properties + `data-theme`. Bump
       2.0.0 → 3.0.0 with a Sync Impact Report in the file's header comment.
-- [ ] T002 [P] Restate the amended rule in `CLAUDE.md` ("Anything visual goes through the design
+- [x] T002 [P] Restate the amended rule in `CLAUDE.md` ("Anything visual goes through the design
       system") and in `AGENTS.md` wherever the one-global-stylesheet rule is repeated.
-- [ ] T003 [P] Rewrite the Токени and Інвентар компонентів sections of `docs/DESIGN.md` for the
+- [x] T003 [P] Rewrite the Токени and Інвентар компонентів sections of `docs/DESIGN.md` for the
       new mechanism, keeping every product rule — icon size, picto groups, inline fields,
       validation, one primary per surface — verbatim. Those rules do not change.
-- [ ] T004 Add exact-pinned dependencies to `apps/web/package.json`: `@heroui/react` 3.2.5,
+- [x] T004 Add exact-pinned dependencies to `apps/web/package.json`: `@heroui/react` 3.2.5,
       `@heroui/styles` 3.2.5, `react-aria` 3.52.1, `react-aria-components` 1.21.1,
       `@react-aria/i18n` 3.13.1, `@react-aria/ssr` 3.10.1, `@react-aria/utils` 3.34.1,
       `@internationalized/date` 3.12.4; dev: `tailwindcss` 4.3.1, `@tailwindcss/vite` 4.3.1. No
       caret, no `latest`.
-- [ ] T005 Add `tailwindcss()` to `plugins` in `apps/web/vite.config.ts`, and a `heroui` group to
+- [x] T005 Add `tailwindcss()` to `plugins` in `apps/web/vite.config.ts`, and a `heroui` group to
       `build.rollupOptions.output.manualChunks` beside `react` and `supabase`.
-- [ ] T006 [P] Record the new dependency tree and its licences in `THIRD_PARTY_NOTICES.md` —
+- [x] T006 [P] Record the new dependency tree and its licences in `THIRD_PARTY_NOTICES.md` —
       HeroUI MIT, the React Aria packages Apache-2.0.
-- [ ] T007 [P] Run `node scripts/audit-dependencies.mjs`; resolve or date-stamp anything it
+- [x] T007 [P] Run `node scripts/audit-dependencies.mjs`; resolve or date-stamp anything it
       blocks on.
-- [ ] T008 Build once and record the **before** weight — total, entry and largest gzipped chunk —
+- [x] T008 Build once and record the **before** weight — total, entry and largest gzipped chunk —
       into `specs/024-heroui-workspace/findings.md` as a stub. T143 needs a number to compare
       against, and after Phase 3 it is no longer obtainable.
 
@@ -60,38 +60,42 @@ against the matching checkpoint in [quickstart.md](./quickstart.md).
 
 **⚠️ No user story work begins until this phase is complete.**
 
-- [ ] T009 Create `apps/web/src/styles/tailwind.css` per `contracts/theme-bridge.md` half 2:
-      `@layer theme, base, soty, components, utilities;`, Tailwind's theme and utilities imported
-      **without preflight**, `@import '@heroui/styles'`, the `dark` custom variant bound to
-      `[data-theme='dark']`, and the `@theme inline` block.
-- [ ] T010 Put the existing sheets in the `soty` layer where they are imported in
-      `apps/web/src/main.tsx`, with `tailwind.css` first in the chain.
-- [ ] T011 Add the HeroUI variable block to `apps/web/src/styles/tokens.css` per
+- [x] T009 Create `apps/web/src/styles/index.css` — the one stylesheet entry. It declares the
+      ladder `@layer theme, base, soty-legacy, components, utilities, soty;`, imports Tailwind and
+      `@heroui/styles`, binds the `dark` variant to `[data-theme='dark']`, and holds the
+      `@theme inline` block. Create `apps/web/src/styles/skin.css` for the `soty` layer.
+- [x] T010 Import every pre-024 sheet into `layer(soty-legacy)` from `styles/index.css`, and make
+      `apps/web/src/main.tsx` import that one file instead of eight.
+- [x] T011 Add the HeroUI variable block to `apps/web/src/styles/tokens.css` per
       `contracts/theme-bridge.md` half 1 — light and dark, every right-hand side a Soty token,
       `--field-border-width: 1px` as the one deliberate override of the library's look.
-- [ ] T012 Reconcile stacking. React Aria portals to `body` with its own stacking; the product
+- [x] T012 Reconcile stacking. React Aria portals to `body` with its own stacking; the product
       has a sixteen-rung `--layer-*` ladder. Map HeroUI's overlays onto it so a toast still sits
       above a modal and a nested confirm above its parent's backdrop — the exact failure that hid
       the updater's stop confirmation in feature 023.
-- [ ] T013 Reconcile the bases. `@heroui/styles` ships its own `base.css` and `scrollbar.css`;
-      the product has `apps/web/src/styles/base.css`. Decide per rule which survives and record
-      it in a comment at the top of `tailwind.css`.
-- [ ] T014 Make HeroUI's animations obey `prefers-reduced-motion` — the library pulls
+- [x] T013 Reconcile the bases. `@heroui/styles` ships its own `base.css` and `scrollbar.css`;
+      the product has `apps/web/src/styles/base.css`. Decide which survives and record the
+      reasoning at the top of `styles/index.css`.
+- [x] T014 Make HeroUI's animations obey `prefers-reduced-motion` — the library pulls
       `tw-animate-css`, and the product's rule is that everything collapses to 1 ms except the
       spinner, which slows to `--motion-spin-reduced`.
-- [ ] T015 Write `tests/theme-bridge.test.ts`: every variable the installed `@heroui/styles`
+- [x] T015 Write `tests/theme-bridge.test.ts`: every variable the installed `@heroui/styles`
       reads is defined by the bridge; no literal on any right-hand side; light and dark differ
       per role; `@theme` is declared `inline`; preflight is not imported.
-- [ ] T016 Write `scripts/check-tailwind-classes.mjs` per research D6 — fail on an arbitrary
+- [x] T016 Write `scripts/check-tailwind-classes.mjs` per research D6 — fail on an arbitrary
       value in a utility (`bg-[…]`, `rounded-[…]`, `duration-[…]`, `text-[…]`) and on a palette
       step that is not a Soty role, anywhere under `apps/web/src`. Local `fail()` → stderr +
       exit 1, human confirmation line on success, per the script conventions.
-- [ ] T017 Register the new gate in `scripts/verify-all.mjs` beside `design-tokens` and `styles`.
-- [ ] T018 Confirm `node scripts/check-design-tokens.mjs` still passes untouched and that
+- [x] T017 Register the new gate in `scripts/verify-all.mjs` beside `design-tokens` and `styles`.
+- [x] T018 Confirm `node scripts/check-design-tokens.mjs` still passes untouched and that
       `config/design-token-exemptions.json` is still empty — if it is not, the bridge leaked a
-      literal. Add `styles/tailwind.css` to the temp-copy set in
-      `tests/design-token-contract.test.ts`.
-- [ ] T019 Add a `foundation` section to `apps/web/src/dev/DesignSystemPage.tsx` rendering a bare
+      literal.
+- [x] T019a Rename the twelve class names this product shares with HeroUI's component base
+      classes — `button`, `card`, `checkbox`, `empty-state`, `field-error`, `pagination`,
+      `progress-bar`, `skeleton`, `spinner`, `toast`, `toast-region`, `tooltip` — to a `soty-`
+      prefix across components, stylesheets and the tests that select on them. Without it the
+      library's base rules and this product's pre-021 rules fight over the same elements.
+- [x] T019 Add a `foundation` section to `apps/web/src/dev/DesignSystemPage.tsx` rendering a bare
       HeroUI control beside its inventory counterpart, so the bridge is visible before any
       component is migrated.
 
@@ -133,7 +137,7 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       `FOCUSABLE_SELECTOR`; add `ContextMenu`; keep "a popover that opens a dialog must not
       close" as a prop.
 - [ ] T029 [US2] Collapse the two dialog implementations into one: `apps/web/src/components/
-      Modal.tsx` goes, and its 38 call sites across 32 team files move to the inventory's
+    Modal.tsx` goes, and its 38 call sites across 32 team files move to the inventory's
       `Modal`.
 - [ ] T030 [US2] `Breadcrumb`, `Link`, `Pagination`, `Tabs` onto HeroUI in
       `apps/web/src/components/ui/Navigation.tsx` — one keyboard behaviour for both tab strips,
@@ -514,18 +518,18 @@ The first draft was complete against the spec and incomplete against the reposit
 tasks were added after re-reading the working tree, because each named work that would otherwise
 have surfaced mid-implementation as a surprise:
 
-| Added | Why it was missing |
-|---|---|
-| T008, and T143's tie to it | The before-weight is unobtainable once Phase 3 lands, and T143 needs it. |
-| T012 | React Aria portals to `body`; the product has a sixteen-rung z-ladder. Feature 023 already lost a confirmation dialog under a backdrop once. |
-| T013 | `@heroui/styles` ships its own base and scrollbar sheets that nobody had decided about. |
-| T014 | The library pulls `tw-animate-css`; the product's reduced-motion rule is absolute. |
-| T029 | Two dialog implementations, 38 call sites. The draft migrated one and left the other. |
-| T036 | `InstantTips`, `useAnchoredLayer` and `useCompactToolbar` are three bespoke solutions to problems React Aria solves; leaving them would keep two tooltip systems. |
-| T041 | 73 of 113 DOM test files render components the swap changes. This is a large task hiding inside "the tests still pass". |
-| T051 | Moving an action's call site silently moves its analytics. |
-| T078, T114, T130 | Three existing suites and one browser-measured gate are coupled to markup this feature rewrites — including `check-accounts-layout.mjs`, whose invariant must keep holding. |
-| T096 | FR-044 and quickstart Checkpoint 5 both require a 500-row folder to stay usable; no task delivered it. |
-| T098, T099 | The palette had a component but no data sources and no address. |
-| T101 | A hand-written shortcut list drifts; deriving the sheet from the bindings is the only version that stays true. |
-| T136 | A migration this size introduces strings everywhere; the compile-checked keys catch the missing ones only if someone sweeps. |
+| Added                      | Why it was missing                                                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T008, and T143's tie to it | The before-weight is unobtainable once Phase 3 lands, and T143 needs it.                                                                                                    |
+| T012                       | React Aria portals to `body`; the product has a sixteen-rung z-ladder. Feature 023 already lost a confirmation dialog under a backdrop once.                                |
+| T013                       | `@heroui/styles` ships its own base and scrollbar sheets that nobody had decided about.                                                                                     |
+| T014                       | The library pulls `tw-animate-css`; the product's reduced-motion rule is absolute.                                                                                          |
+| T029                       | Two dialog implementations, 38 call sites. The draft migrated one and left the other.                                                                                       |
+| T036                       | `InstantTips`, `useAnchoredLayer` and `useCompactToolbar` are three bespoke solutions to problems React Aria solves; leaving them would keep two tooltip systems.           |
+| T041                       | 73 of 113 DOM test files render components the swap changes. This is a large task hiding inside "the tests still pass".                                                     |
+| T051                       | Moving an action's call site silently moves its analytics.                                                                                                                  |
+| T078, T114, T130           | Three existing suites and one browser-measured gate are coupled to markup this feature rewrites — including `check-accounts-layout.mjs`, whose invariant must keep holding. |
+| T096                       | FR-044 and quickstart Checkpoint 5 both require a 500-row folder to stay usable; no task delivered it.                                                                      |
+| T098, T099                 | The palette had a component but no data sources and no address.                                                                                                             |
+| T101                       | A hand-written shortcut list drifts; deriving the sheet from the bindings is the only version that stays true.                                                              |
+| T136                       | A migration this size introduces strings everywhere; the compile-checked keys catch the missing ones only if someone sweeps.                                                |

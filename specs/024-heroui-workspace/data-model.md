@@ -14,35 +14,35 @@ registry row), so that no surface has to widen its query to offer an action. Thi
 discipline `RowMaterial` already follows and the reason file actions escaped the search results
 once before.
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `string` | the material id |
-| `teamId` | `string` | |
-| `name` | `string` | |
-| `kind` | `MaterialKind` | `folder` decides most `applies` answers |
-| `category` | `string \| null` | `video`, `landing`, `image`, … — decides "make" |
-| `fileExtension` | `string \| null` | |
-| `sizeBytes` | `number \| null` | |
-| `parentFolderId` | `string \| null` | null when the surface does not know it |
-| `trashed` | `boolean` | |
-| `availability` | `'ready' \| 'pending' \| 'trashed' \| 'missing' \| 'unavailable'` | a task attachment's own word, `'ready'` elsewhere |
-| `transcriptIngestState` | `TranscriptIngestState \| undefined` | gates "edit text" |
-| `driveVersion` | `string \| null` | re-stitch delivery needs it |
-| `companions` | `MaterialCompanions` | §3 |
+| Field                   | Type                                                              | Notes                                             |
+| ----------------------- | ----------------------------------------------------------------- | ------------------------------------------------- |
+| `id`                    | `string`                                                          | the material id                                   |
+| `teamId`                | `string`                                                          |                                                   |
+| `name`                  | `string`                                                          |                                                   |
+| `kind`                  | `MaterialKind`                                                    | `folder` decides most `applies` answers           |
+| `category`              | `string \| null`                                                  | `video`, `landing`, `image`, … — decides "make"   |
+| `fileExtension`         | `string \| null`                                                  |                                                   |
+| `sizeBytes`             | `number \| null`                                                  |                                                   |
+| `parentFolderId`        | `string \| null`                                                  | null when the surface does not know it            |
+| `trashed`               | `boolean`                                                         |                                                   |
+| `availability`          | `'ready' \| 'pending' \| 'trashed' \| 'missing' \| 'unavailable'` | a task attachment's own word, `'ready'` elsewhere |
+| `transcriptIngestState` | `TranscriptIngestState \| undefined`                              | gates "edit text"                                 |
+| `driveVersion`          | `string \| null`                                                  | re-stitch delivery needs it                       |
+| `companions`            | `MaterialCompanions`                                              | §3                                                |
 
 ## 2. `ActionContext` — where the offer is being made
 
-| Field | Type | Notes |
-|---|---|---|
-| `host` | `ActionHost` | `'explorer-row' \| 'explorer-tile' \| 'explorer-detail' \| 'search-result' \| 'task-attachment' \| 'updater-row' \| 'selection' \| 'palette'` |
-| `permissions` | `TeamPermissions` | the caller's, as the space already computes them |
-| `isOwner` | `boolean` | colour tags are owner-only today |
-| `currentFolderId` | `string \| null` | the folder an upload or a paste would land in |
-| `agentConnected` | `boolean` | the local app is paired and new enough |
-| `storageConnected` | `boolean` | Drive is connected and healthy |
-| `restitchConfigured` | `boolean` | the space has re-stitch defaults |
-| `catalogSettingsReady` | `boolean` | the space has product-catalog defaults |
-| `selectionSize` | `number` | 1 unless `host === 'selection'` |
+| Field                  | Type              | Notes                                                                                                                                         |
+| ---------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `host`                 | `ActionHost`      | `'explorer-row' \| 'explorer-tile' \| 'explorer-detail' \| 'search-result' \| 'task-attachment' \| 'updater-row' \| 'selection' \| 'palette'` |
+| `permissions`          | `TeamPermissions` | the caller's, as the space already computes them                                                                                              |
+| `isOwner`              | `boolean`         | colour tags are owner-only today                                                                                                              |
+| `currentFolderId`      | `string \| null`  | the folder an upload or a paste would land in                                                                                                 |
+| `agentConnected`       | `boolean`         | the local app is paired and new enough                                                                                                        |
+| `storageConnected`     | `boolean`         | Drive is connected and healthy                                                                                                                |
+| `restitchConfigured`   | `boolean`         | the space has re-stitch defaults                                                                                                              |
+| `catalogSettingsReady` | `boolean`         | the space has product-catalog defaults                                                                                                        |
+| `selectionSize`        | `number`          | 1 unless `host === 'selection'`                                                                                                               |
 
 `host` exists so an action can decline where it is meaningless (`detach` outside a task,
 `show in folder` inside the folder it lives in) — **not** so a host can have a different list.
@@ -53,28 +53,28 @@ That equality is what `tests/material-action-surfaces.test.tsx` asserts.
 
 Companions are shown on the material itself wherever it appears (FR-020), never buried.
 
-| Field | Type | Notes |
-|---|---|---|
-| `productCatalog` | `{ id, name, link, productCount, updatedAt } \| null` | feature 022 |
-| `transcript` | `{ id, state, variant } \| null` | feature 012 |
-| `restitched` | `{ preparedFor: string \| null } \| null` | prepared against a drive version |
+| Field            | Type                                                  | Notes                            |
+| ---------------- | ----------------------------------------------------- | -------------------------------- |
+| `productCatalog` | `{ id, name, link, productCount, updatedAt } \| null` | feature 022                      |
+| `transcript`     | `{ id, state, variant } \| null`                      | feature 012                      |
+| `restitched`     | `{ preparedFor: string \| null } \| null`             | prepared against a drive version |
 
 A companion that exists turns its "make" action into an "open / copy link / remake" trio on the
 material's detail surface, and adds one line to the row.
 
 ## 4. `MaterialAction` — one entry of the registry
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `MaterialActionId` | a closed union; the analytics name and the test key |
-| `group` | `'open' \| 'get' \| 'make' \| 'organise' \| 'remove'` | fixed order, in that order |
-| `order` | `number` | within the group |
-| `labelKey` | `TranslationKey` | never a literal string |
-| `icon` | `LucideIcon` | 20 px, stroke 1.75, as the design rules require |
-| `destructive` | `boolean` | forces the group to `remove` and the separation rule |
-| `inlinePriority` | `number \| null` | `null` = menu only. The three highest per host go inline |
-| `applies` | `(m: MaterialRef, c: ActionContext) => boolean` | false ⇒ **absent**, never disabled |
-| `available` | `(m: MaterialRef, c: ActionContext) => Availability` | §5 |
+| Field            | Type                                                  | Notes                                                    |
+| ---------------- | ----------------------------------------------------- | -------------------------------------------------------- |
+| `id`             | `MaterialActionId`                                    | a closed union; the analytics name and the test key      |
+| `group`          | `'open' \| 'get' \| 'make' \| 'organise' \| 'remove'` | fixed order, in that order                               |
+| `order`          | `number`                                              | within the group                                         |
+| `labelKey`       | `TranslationKey`                                      | never a literal string                                   |
+| `icon`           | `LucideIcon`                                          | 20 px, stroke 1.75, as the design rules require          |
+| `destructive`    | `boolean`                                             | forces the group to `remove` and the separation rule     |
+| `inlinePriority` | `number \| null`                                      | `null` = menu only. The three highest per host go inline |
+| `applies`        | `(m: MaterialRef, c: ActionContext) => boolean`       | false ⇒ **absent**, never disabled                       |
+| `available`      | `(m: MaterialRef, c: ActionContext) => Availability`  | §5                                                       |
 
 ## 5. `Availability` — the third state the product did not have
 
@@ -85,17 +85,17 @@ type Availability = { ok: true } | { ok: false; reason: UnavailableReason };
 `UnavailableReason` is a closed union of machine codes, mapped to sentences by the one existing
 mapper in `team/errors.ts`:
 
-| Reason | Shown as (one line, under the item) | Carries |
-|---|---|---|
-| `NO_PERMISSION` | your role cannot do this | — |
-| `AGENT_REQUIRED` | the Soty app is not running | the open/install action |
-| `AGENT_UPDATE_REQUIRED` | the Soty app is too old | the update action |
-| `STORAGE_DISCONNECTED` | the space's Drive is not connected | settings link, owner only |
-| `CATALOG_SETTINGS_MISSING` | the space has no catalog defaults yet | settings link |
-| `RESTITCH_UNCONFIGURED` | the space has no re-stitch settings yet | settings link |
-| `NOT_READY` | the file is still being prepared | — |
-| `TRASHED` | the file is in the trash | restore |
-| `MISSING` | the file is no longer on the Drive | detach / remove |
+| Reason                     | Shown as (one line, under the item)     | Carries                   |
+| -------------------------- | --------------------------------------- | ------------------------- |
+| `NO_PERMISSION`            | your role cannot do this                | —                         |
+| `AGENT_REQUIRED`           | the Soty app is not running             | the open/install action   |
+| `AGENT_UPDATE_REQUIRED`    | the Soty app is too old                 | the update action         |
+| `STORAGE_DISCONNECTED`     | the space's Drive is not connected      | settings link, owner only |
+| `CATALOG_SETTINGS_MISSING` | the space has no catalog defaults yet   | settings link             |
+| `RESTITCH_UNCONFIGURED`    | the space has no re-stitch settings yet | settings link             |
+| `NOT_READY`                | the file is still being prepared        | —                         |
+| `TRASHED`                  | the file is in the trash                | restore                   |
+| `MISSING`                  | the file is no longer on the Drive      | detach / remove           |
 
 The rule the product did not have before: **absent ≠ unavailable**. A folder can never be
 catalogued, so the item is not there. A video whose Drive is disconnected can be catalogued
@@ -105,11 +105,15 @@ tomorrow, so the item is there with one line saying why not today.
 
 ```ts
 interface MaterialActionList {
-  inline: ResolvedAction[];   // at most four, by inlinePriority, ok-only
-  groups: ActionGroup[];      // open · get · make · organise · remove
+  inline: ResolvedAction[]; // at most four, by inlinePriority, ok-only
+  groups: ActionGroup[]; // open · get · make · organise · remove
   count: number;
 }
-interface ResolvedAction { action: MaterialAction; availability: Availability; run(): Promise<void>; }
+interface ResolvedAction {
+  action: MaterialAction;
+  availability: Availability;
+  run(): Promise<void>;
+}
 ```
 
 Produced by `useMaterialActionList(material, context)`. A group with no resolved action is
@@ -135,15 +139,15 @@ Not a TypeScript type; a CSS contract, specified in
 
 ## 9. `PaletteEntry` — a thing reachable by name
 
-| Field | Type | Notes |
-|---|---|---|
-| `kind` | `'space' \| 'folder' \| 'material' \| 'task' \| 'account' \| 'command'` | |
-| `id` | `string` | |
-| `title` | `string` | what is matched and shown |
-| `subtitle` | `string \| null` | folder path, account name, task status |
-| `icon` | `LucideIcon` | |
-| `go` | `() => void` | navigate to it |
-| `actions` | `ResolvedAction[]` | for a material, the §6 list; for a task, its safe bulk set |
+| Field      | Type                                                                    | Notes                                                      |
+| ---------- | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `kind`     | `'space' \| 'folder' \| 'material' \| 'task' \| 'account' \| 'command'` |                                                            |
+| `id`       | `string`                                                                |                                                            |
+| `title`    | `string`                                                                | what is matched and shown                                  |
+| `subtitle` | `string \| null`                                                        | folder path, account name, task status                     |
+| `icon`     | `LucideIcon`                                                            |                                                            |
+| `go`       | `() => void`                                                            | navigate to it                                             |
+| `actions`  | `ResolvedAction[]`                                                      | for a material, the §6 list; for a task, its safe bulk set |
 
 ## 10. What is not modelled here
 

@@ -61,38 +61,38 @@ function AccountPageSkeleton({ t }: { t: Translate }) {
     <div className="account-skeleton" role="status" aria-label={t('loading')}>
       <Card className="account-card profile-card" aria-hidden="true">
         <div className="profile-summary">
-          <span className="skeleton skeleton-avatar" />
+          <span className="soty-skeleton skeleton-avatar" />
           <div>
-            <span className="skeleton skeleton-line skeleton-line-lg" />
-            <span className="skeleton skeleton-line" />
+            <span className="soty-skeleton skeleton-line skeleton-line-lg" />
+            <span className="soty-skeleton skeleton-line" />
           </div>
         </div>
         <div className="account-form-grid">
           <div className="field skeleton-field-block">
-            <span className="skeleton skeleton-line skeleton-line-sm" />
-            <span className="skeleton skeleton-field" />
+            <span className="soty-skeleton skeleton-line skeleton-line-sm" />
+            <span className="soty-skeleton skeleton-field" />
           </div>
           <div className="field skeleton-field-block">
-            <span className="skeleton skeleton-line skeleton-line-sm" />
-            <span className="skeleton skeleton-field" />
+            <span className="soty-skeleton skeleton-line skeleton-line-sm" />
+            <span className="soty-skeleton skeleton-field" />
           </div>
         </div>
-        <span className="skeleton skeleton-line skeleton-line-wide" />
-        <span className="skeleton skeleton-button" />
+        <span className="soty-skeleton skeleton-line skeleton-line-wide" />
+        <span className="soty-skeleton skeleton-button" />
       </Card>
       <Card className="account-card" aria-hidden="true">
-        <span className="skeleton skeleton-line skeleton-line-lg" />
+        <span className="soty-skeleton skeleton-line skeleton-line-lg" />
         <div className="account-details skeleton-details">
           <div>
-            <span className="skeleton skeleton-line skeleton-line-sm" />
-            <span className="skeleton skeleton-line" />
+            <span className="soty-skeleton skeleton-line skeleton-line-sm" />
+            <span className="soty-skeleton skeleton-line" />
           </div>
           <div>
-            <span className="skeleton skeleton-line skeleton-line-sm" />
-            <span className="skeleton skeleton-line" />
+            <span className="soty-skeleton skeleton-line skeleton-line-sm" />
+            <span className="soty-skeleton skeleton-line" />
           </div>
         </div>
-        <span className="skeleton skeleton-button" />
+        <span className="soty-skeleton skeleton-button" />
       </Card>
     </div>
   );

@@ -52,7 +52,7 @@ npm run build -w @video-compressor/web      # type errors only surface here
 2. Walk the screens **outside** the team workspace — compressor, transcription, stitcher, auth,
    landing viewer — and find them working and visually coherent. They were not edited; they
    inherited.
-3. `tests/ui-consistency.test.tsx` passes unchanged. If it passes *vacuously* — check that the
+3. `tests/ui-consistency.test.tsx` passes unchanged. If it passes _vacuously_ — check that the
    adapters still emit markers; an empty signature is a silent failure.
 4. Keyboard: open a menu, a dialog inside it, press Escape twice — the inner surface closes
    first, focus returns to each trigger.

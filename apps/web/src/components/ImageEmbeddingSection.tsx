@@ -244,7 +244,9 @@ export function ImageEmbeddingSection({
                           <span>{t('millisecondsUnit')}</span>
                         </div>
                         <Collapse fast open={!customStartMsValid}>
-                          <span className="field-error">{t('invalidCustomStartDuration')}</span>
+                          <span className="soty-field-error">
+                            {t('invalidCustomStartDuration')}
+                          </span>
                         </Collapse>
                       </>
                     )}
@@ -339,7 +341,7 @@ export function ImageEmbeddingSection({
                     )}
                   </div>
                   <Collapse fast open={!customTimeValid}>
-                    <span className="field-error">{t('invalidCustomDuration')}</span>
+                    <span className="soty-field-error">{t('invalidCustomDuration')}</span>
                   </Collapse>
                   <span className="optimal-summary">
                     {`${t('duration')}: `}
@@ -685,7 +687,7 @@ export function ImageDropArea({
       </div>
       <div className="image-grid-error" aria-live="polite">
         {errorKey && (
-          <strong className="field-error" role="alert">
+          <strong className="soty-field-error" role="alert">
             {t(errorKey)}
           </strong>
         )}

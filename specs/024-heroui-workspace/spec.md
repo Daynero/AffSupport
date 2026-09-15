@@ -61,7 +61,7 @@ one, and the next step always available where you are standing.**
 
 ---
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Finish the job where you are standing (Priority: P1)
 
@@ -95,7 +95,7 @@ shows the catalog on the attachment.
 4. **Given** a video with no catalog and a disconnected Drive, **When** they open the actions,
    **Then** "Product catalog" explains in one line why it cannot run now, rather than being an
    inert grey item.
-5. **Given** a search result, a folder row, a grid tile and a task attachment for the *same*
+5. **Given** a search result, a folder row, a grid tile and a task attachment for the _same_
    file, **When** each one's actions are opened, **Then** the action list, its order, its
    grouping and its wording are identical.
 
@@ -108,7 +108,7 @@ is HeroUI wearing Soty's skin: Soty's colours, radii, type ramp, motion and dark
 HeroUI's behaviour and accessibility.
 
 **Why this priority**: It is the foundation the rest stands on, and it is the half of the
-request that is about how the product *looks*. Nothing else can be built cleanly while a third
+request that is about how the product _looks_. Nothing else can be built cleanly while a third
 of the controls are hand-rolled.
 
 **Independent Test**: Open `/design`, see every HeroUI-backed component in every Soty variant,
@@ -135,7 +135,7 @@ disagrees with it.
 ### User Story 3 - A task you can actually work in (Priority: P1)
 
 The task editor stops being one long form with two save models. It becomes a working surface:
-what the task *is* on one side, what the task *is about* — its materials, its accounts, its
+what the task _is_ on one side, what the task _is about_ — its materials, its accounts, its
 tags — on the other, with attachments above the fold and every change saved as it is made.
 
 **Why this priority**: Tasks are where the performer lives. The editor is the densest screen in
@@ -357,7 +357,7 @@ per surface, no state told by colour alone, and no empty state that is only a se
 
 ---
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements — foundation
 
@@ -567,7 +567,7 @@ per surface, no state told by colour alone, and no empty state that is only a se
 
 ---
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

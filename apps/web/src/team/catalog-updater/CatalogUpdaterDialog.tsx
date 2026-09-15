@@ -385,7 +385,7 @@ export function CatalogUpdaterDialog({
               </div>
             )}
             {customMode && customInterval === null && (
-              <span className="field-error">{t('catalogUpdaterIntervalInvalid')}</span>
+              <span className="soty-field-error">{t('catalogUpdaterIntervalInvalid')}</span>
             )}
           </div>
           <div className="team-updater-restitch">

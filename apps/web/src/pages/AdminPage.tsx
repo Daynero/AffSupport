@@ -668,7 +668,7 @@ export default function AdminPage() {
                 }
               />
             )}
-            <div className="pagination">
+            <div className="soty-pagination">
               <Button
                 disabled={page === 0}
                 onClick={() => setPage(value => Math.max(0, value - 1))}
@@ -808,36 +808,36 @@ function AdminPageSkeleton({ t }: { t: Translate }) {
     <div className="admin-skeleton" role="status" aria-label={t('loading')}>
       <Card as="div" className="admin-card support-goal-admin-card" aria-hidden="true">
         <div className="admin-card-heading">
-          <span className="skeleton skeleton-line skeleton-line-lg" />
-          <span className="skeleton skeleton-line skeleton-line-sm" />
+          <span className="soty-skeleton skeleton-line skeleton-line-lg" />
+          <span className="soty-skeleton skeleton-line skeleton-line-sm" />
         </div>
-        <span className="skeleton skeleton-field" />
-        <span className="skeleton skeleton-line skeleton-line-wide" />
+        <span className="soty-skeleton skeleton-field" />
+        <span className="soty-skeleton skeleton-line skeleton-line-wide" />
       </Card>
       <section className="metric-grid" aria-hidden="true">
         {overviewKeys.map(key => (
           <Card as="div" className="metric-card" key={key}>
-            <span className="skeleton skeleton-line skeleton-line-sm" />
-            <span className="skeleton skeleton-metric" />
+            <span className="soty-skeleton skeleton-line skeleton-line-sm" />
+            <span className="soty-skeleton skeleton-metric" />
           </Card>
         ))}
       </section>
       <Card as="div" className="admin-card activity-card" aria-hidden="true">
         <div className="admin-card-heading">
-          <span className="skeleton skeleton-line skeleton-line-lg" />
-          <span className="skeleton skeleton-line" />
+          <span className="soty-skeleton skeleton-line skeleton-line-lg" />
+          <span className="soty-skeleton skeleton-line" />
         </div>
-        <span className="skeleton skeleton-chart" />
+        <span className="soty-skeleton skeleton-chart" />
       </Card>
       <div className="admin-split-grid" aria-hidden="true">
         {['usage', 'versions'].map(section => (
           <Card as="div" className="admin-card breakdown-card" key={section}>
-            <span className="skeleton skeleton-line skeleton-line-lg" />
+            <span className="soty-skeleton skeleton-line skeleton-line-lg" />
             <div className="skeleton-list">
               {[0, 1, 2, 3].map(row => (
                 <div className="skeleton-list-row" key={row}>
-                  <span className="skeleton skeleton-line skeleton-line-wide" />
-                  <span className="skeleton skeleton-line skeleton-line-sm" />
+                  <span className="soty-skeleton skeleton-line skeleton-line-wide" />
+                  <span className="soty-skeleton skeleton-line skeleton-line-sm" />
                 </div>
               ))}
             </div>
@@ -846,24 +846,24 @@ function AdminPageSkeleton({ t }: { t: Translate }) {
       </div>
       <Card as="div" className="admin-card users-card" aria-hidden="true">
         <div className="admin-card-heading users-heading">
-          <span className="skeleton skeleton-line skeleton-line-lg" />
-          <span className="skeleton skeleton-button" />
+          <span className="soty-skeleton skeleton-line skeleton-line-lg" />
+          <span className="soty-skeleton skeleton-button" />
         </div>
         <div className="admin-filters">
           {['search', 'consent', 'status'].map(field => (
             <div className="field skeleton-field-block" key={field}>
-              <span className="skeleton skeleton-line skeleton-line-sm" />
-              <span className="skeleton skeleton-field" />
+              <span className="soty-skeleton skeleton-line skeleton-line-sm" />
+              <span className="soty-skeleton skeleton-field" />
             </div>
           ))}
-          <span className="skeleton skeleton-button" />
+          <span className="soty-skeleton skeleton-button" />
         </div>
         <div className="admin-table-wrap skeleton-table">
           {[0, 1, 2, 3, 4].map(row => (
             <div className="skeleton-table-row" key={row}>
-              <span className="skeleton skeleton-line skeleton-line-wide" />
-              <span className="skeleton skeleton-line" />
-              <span className="skeleton skeleton-line skeleton-line-sm" />
+              <span className="soty-skeleton skeleton-line skeleton-line-wide" />
+              <span className="soty-skeleton skeleton-line" />
+              <span className="soty-skeleton skeleton-line skeleton-line-sm" />
             </div>
           ))}
         </div>

@@ -1,15 +1,24 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 2.0.0
-Rationale: Explicitly redefine release validation by phase and permit the canonical
-manifest-only descendant commit. MAJOR because this replaces prior unconditional
-manifest/version and tag/deploy-commit equality requirements.
-Requested by the maintainer on 2026-09-09 through delegated approval to resolve
-feature 020's analysis findings. This is a working-tree amendment; no PR merge or
-repository ratification is claimed by this edit.
+Version change: 2.0.0 → 3.0.0
+Rationale: Redefine Principle VI's styling mechanism. The web app adopts a component
+library (HeroUI v3, on React Aria and Tailwind v4) and a utility layer in place of
+"one global stylesheet" and "className strings against styles.css". MAJOR because a
+principle is redefined, not merely expanded.
 
-Principles retained (II amended):
+The discipline VI existed to protect is unchanged and is restated explicitly: one
+token layer as the only source of values, one component inventory as the only source
+of controls, and theming through CSS custom properties + data-theme. What changes is
+how a screen writes style and where a control comes from.
+
+Requested by the maintainer on 2026-09-16 for feature 024 (the team workspace on
+HeroUI), after an audit found the bespoke system had grown a third of its buttons,
+two calendars, two menu implementations, two dialog implementations and two
+generations of Button outside the inventory in a single cycle. This is a working-tree
+amendment; no PR merge or repository ratification is claimed by this edit.
+
+Principles retained (VI amended):
   I.   Type-Safe Contracts, Validated at the Boundary
   II.  One Source of Truth for the Release & Protocol Contract
   III. Security and Least Privilege by Construction
@@ -17,14 +26,14 @@ Principles retained (II amended):
   V.   Consistent HTTP API & Error Conventions
   VI.  Frontend Composition & State Discipline
 
-Sections modified: Principle II; Development Workflow release/deploy gating.
+Sections modified: Principle VI.
 Added/removed sections: none. Governance procedure unchanged.
 
-Dependent feature 020 artifacts require synchronization with this amendment.
-Templates consume the constitution at runtime; no template edits required.
+Dependent artifacts synchronized in the same change: CLAUDE.md, AGENTS.md,
+docs/DESIGN.md. Templates consume the constitution at runtime; no template edits
+required. Prior amendment (2.0.0, Principle II and release gating) retained verbatim.
 
-Deferred placeholders: none. Original adoption date retained. Ordinary amendment
-review/merge remains required before production use; no extra per-release approval added.
+Deferred placeholders: none. Original adoption date retained.
 -->
 
 # Soty (local-video-compressor) Constitution
@@ -170,8 +179,8 @@ guard; leaving a background promise rejection outside the `logError` chain.
 
 ### VI. Frontend Composition & State Discipline
 
-The web app is 100% functional components with hand-rolled routing, one global stylesheet,
-and no data-fetching library — keep new code inside these established seams.
+The web app is 100% functional components with hand-rolled routing, one component inventory,
+one token layer, and no data-fetching library — keep new code inside these established seams.
 
 - Global stores use the context idiom: `createContext<T | null>(null)`, a `useX()` hook that
   throws if used outside its provider, and an `XContextOverride` for tests. Read i18n via
@@ -182,15 +191,28 @@ and no data-fetching library — keep new code inside these established seams.
   `getSupabaseClient()` handling `{ data, error }` explicitly. Live state is SSE via a
   single subscribe-and-reconnect path, not polling.
 - Emit telemetry with `analytics.track(typedName, props)` where the name is a constrained
-  union and props are typed per event. Style with `className` strings against `styles.css`
-  and theme via CSS custom properties + `data-theme`; reserve inline `style` for computed
-  values. Keep `any` out of `src` (the tree is currently `any`-free — keep it that way).
+  union and props are typed per event. Keep `any` out of `src` (the tree is currently
+  `any`-free — keep it that way).
+- **Anything visual comes from the inventory, and every value from the token layer.** A screen
+  takes its control from `apps/web/src/components/ui/` instead of writing one, and names a
+  token from `apps/web/src/styles/tokens.css` instead of writing a colour, radius, type step or
+  duration. That token file is the only place in the product allowed to spell a value, and its
+  exemption list is empty. The inventory is implemented on **HeroUI v3** (React Aria +
+  Tailwind v4) and is themed *from* the token layer, never the reverse: the library wears
+  Soty's skin. New style is written as utilities against that token-derived theme; a
+  screen-level stylesheet is a debt a screen keeps only until its migration deletes it.
+  Theming stays CSS custom properties + `data-theme`, and inline `style` stays reserved for
+  computed values. Enforced by `scripts/check-design-tokens.mjs` (no literal in CSS),
+  `scripts/check-tailwind-classes.mjs` (no literal in a utility) and
+  `tests/ui-consistency.test.tsx` (one role, one appearance).
 
 **How NOT to do it:** growing 1,000+-line multi-responsibility files (the existing
 `TranscriptTextModal.tsx` / `i18n.ts` are debts, not templates); copy-pasting the
 SSE + toast + error-handling boilerplate into a new page instead of extracting a shared
 hook; prop-drilling `t` through a component chain; stringly-typed error branches on
-`error.message === 'PAIRING_REQUIRED'` typos; pinning deps to `"latest"`.
+`error.message === 'PAIRING_REQUIRED'` typos; pinning deps to `"latest"`; writing a bespoke
+control beside one the inventory already has; spelling a value in a utility
+(`bg-[#fff]`, `rounded-[10px]`, `duration-200`) now that a utility can spell one.
 
 ## Additional Constraints: Stack, Tooling & Code Style
 
@@ -272,4 +294,4 @@ precedents to extend (each anti-pattern above marks one such debt).
   Spec Kit templates under `.specify/` provide operational detail and MUST stay consistent
   with these principles.
 
-**Version**: 2.0.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-09-09
+**Version**: 3.0.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-09-16

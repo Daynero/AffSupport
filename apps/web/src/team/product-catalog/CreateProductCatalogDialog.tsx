@@ -187,7 +187,7 @@ export function CreateProductCatalogDialog({
               </Button>
             )}
             <a
-              className="button button-secondary"
+              className="soty-button button-secondary"
               href={shown.sheetUrl}
               target="_blank"
               rel="noopener noreferrer"

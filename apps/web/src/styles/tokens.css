@@ -489,6 +489,101 @@
 }
 
 /* ============================================================
+   The theme bridge (024) — HeroUI wears Soty's skin
+
+   HeroUI v3 is themed entirely by CSS custom properties. So the library is not
+   configured anywhere; it is fed this product's tokens, here, once.
+
+   Written once rather than twice because every right-hand side is a Soty role,
+   and the roles themselves are redefined under `[data-theme='dark']` above —
+   so the bridge inherits the flip for free. A second dark copy would be a
+   second place to forget.
+
+   This block is deliberately unlayered, which puts it above the library's own
+   `@layer theme`. That is the whole of its authority: whatever HeroUI's default
+   theme says, this says last.
+   ============================================================ */
+:root {
+  /* Surfaces and ink */
+  --background: var(--color-neutral-bg);
+  --foreground: var(--color-neutral-text);
+  --surface: var(--color-neutral-surface);
+  --surface-foreground: var(--color-neutral-text);
+  --surface-secondary: var(--color-neutral-surface-subtle);
+  --surface-secondary-foreground: var(--color-neutral-text);
+  --surface-tertiary: var(--color-neutral-surface-muted);
+  --surface-tertiary-foreground: var(--color-neutral-text);
+  --overlay: var(--color-neutral-surface-raised);
+  --overlay-foreground: var(--color-neutral-text);
+  --muted: var(--color-neutral-text-muted);
+  --border: var(--color-neutral-border);
+  --separator: var(--color-neutral-border);
+  --backdrop: var(--color-overlay-backdrop);
+  --default: var(--color-neutral-surface-subtle);
+  --default-foreground: var(--color-neutral-text);
+  --default-soft: var(--color-neutral-surface-subtle);
+  --default-soft-foreground: var(--color-neutral-text);
+
+  /* The one action a surface exists for. HeroUI calls it accent; this product
+     calls it primary, and it is honey. */
+  --accent: var(--color-primary-solid);
+  --accent-foreground: var(--color-primary-on-solid);
+  --accent-hover: var(--color-primary-hover);
+  --accent-soft: var(--color-primary-soft);
+  --accent-soft-foreground: var(--color-primary-text);
+  --accent-soft-hover: var(--color-primary-softer);
+
+  /* Status. The library's `danger` is this product's `error`; the bridge is the
+     only file in which both names appear. */
+  --success: var(--color-success-solid);
+  --success-foreground: var(--color-success-on-solid);
+  --success-soft: var(--color-success-soft);
+  --success-soft-foreground: var(--color-success-text);
+  --warning: var(--color-warning-solid);
+  --warning-foreground: var(--color-warning-on-solid);
+  --warning-soft: var(--color-warning-soft);
+  --warning-soft-foreground: var(--color-warning-text);
+  --danger: var(--color-error-solid);
+  --danger-foreground: var(--color-error-on-solid);
+  --danger-soft: var(--color-error-soft);
+  --danger-soft-foreground: var(--color-error-text);
+
+  --focus: var(--color-focus-ring);
+  --link: var(--color-secondary-text);
+
+  /* Fields. The one place the library's default look is overruled rather than
+     recoloured: HeroUI ships borderless fields, and a dense working tool needs
+     to see where a field ends. */
+  --field-background: var(--color-neutral-surface);
+  --field-foreground: var(--color-neutral-text);
+  --field-placeholder: var(--color-neutral-text-muted);
+  --field-border: var(--color-neutral-border);
+  --field-border-width: 1px;
+  --field-radius: var(--radius-md);
+
+  /* Stacking. The library has two rungs; this product has sixteen, and they
+     are the reason a nested confirmation stays above its parent's backdrop.
+     Naming them here is what keeps the library inside the product's ladder
+     instead of beside it. */
+  --z-index-overlay: var(--layer-modal);
+  --z-index-toast: var(--layer-toast);
+
+  /* Geometry, motion and depth */
+  --radius: var(--radius-md);
+  --border-width: 1px;
+  --ring-offset-width: 2px;
+  --spacing: var(--space-1);
+  --surface-shadow: var(--shadow-md);
+  --overlay-shadow: var(--shadow-menu);
+  --field-shadow: var(--shadow-sm);
+
+  /* The library's own shimmer, spoken in this product's terms. It reads this
+     variable directly, so reduced motion can switch it off by name rather than
+     by overriding a keyframe. */
+  --skeleton-animation: shimmer;
+}
+
+/* ============================================================
    Reduced motion — one place, so a new transition inherits the
    behaviour rather than having to opt into it.
    ============================================================ */

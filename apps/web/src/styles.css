@@ -588,7 +588,7 @@ a {
   line-height: 1.55;
 }
 
-.team-workspace-launcher-card > .button {
+.team-workspace-launcher-card > .soty-button {
   flex: 0 0 auto;
 }
 
@@ -599,7 +599,7 @@ a {
 }
 
 /* Shared card surface; per-card modifiers add their unique traits. */
-.card {
+.soty-card {
   padding: var(--space-6);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -653,11 +653,11 @@ a {
   gap: 12px;
 }
 
-.tool-action-row:has(> .button:only-child) {
+.tool-action-row:has(> .soty-button:only-child) {
   justify-content: flex-end;
 }
 
-.tool-card .tool-action-row /* `.button` already sets both of these where it is defined; this repeat was
+.tool-card .tool-action-row /* `.soty-button` already sets both of these where it is defined; this repeat was
    added during a touch-target pass and changes nothing. The two rules that do
    reduce a button's height — the job actions and the update notice — are more
    specific and win regardless of order, so removing this affects nothing at
@@ -707,7 +707,7 @@ a {
 .tool-readiness.beta {
   color: var(--color-action-hover);
 }
-.button.is-disabled {
+.soty-button.is-disabled {
   opacity: 0.58;
   pointer-events: none;
 }
@@ -857,7 +857,7 @@ a {
 /* ============================================================
    Buttons
    ============================================================ */
-.button {
+.soty-button {
   position: relative;
   display: inline-flex;
   min-height: 44.2px;
@@ -880,11 +880,11 @@ a {
     transform var(--dur-micro) var(--ease-standard);
 }
 
-.button:active:not(:disabled) {
+.soty-button:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-.button:disabled {
+.soty-button:disabled {
   opacity: 0.46;
   cursor: not-allowed;
 }
@@ -961,13 +961,13 @@ a {
 /* Loading keeps the button width stable: the label turns transparent
    while a centered spinner overlays it and a soft sheen sweeps across —
    a restrained "working" signal that never shifts the layout. */
-.button.is-loading {
+.soty-button.is-loading {
   color: transparent;
   overflow: hidden;
   --button-sheen: color-mix(in srgb, var(--color-white) 24%, transparent);
 }
 
-.button.is-loading::after {
+.soty-button.is-loading::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -986,7 +986,7 @@ a {
   --button-sheen: color-mix(in srgb, var(--color-error) 20%, transparent);
 }
 
-.button.is-loading .button-spinner {
+.soty-button.is-loading .button-spinner {
   position: absolute;
   inset: 0;
   display: grid;
@@ -1255,12 +1255,12 @@ a {
   transition: background var(--dur-control) var(--ease-standard);
 }
 
-.checkbox.feature-switch input:checked + .checkbox-mark {
+.soty-checkbox.feature-switch input:checked + .checkbox-mark {
   border: 0;
   background: var(--color-accent);
 }
 
-.checkbox.feature-switch .checkbox-mark::after {
+.soty-checkbox.feature-switch .checkbox-mark::after {
   position: absolute;
   top: 50%;
   left: 2.5px;
@@ -1275,18 +1275,18 @@ a {
   transition: transform var(--dur-control) var(--ease-standard);
 }
 
-.checkbox.feature-switch input:checked + .checkbox-mark::after {
+.soty-checkbox.feature-switch input:checked + .checkbox-mark::after {
   width: 15px;
   height: 15px;
   border: 0;
   transform: translateY(-50%) translateX(16px);
 }
 
-.checkbox.feature-switch:active .checkbox-mark::after {
+.soty-checkbox.feature-switch:active .checkbox-mark::after {
   transform: translateY(-50%) scale(0.94);
 }
 
-.checkbox.feature-switch:active input:checked + .checkbox-mark::after {
+.soty-checkbox.feature-switch:active input:checked + .checkbox-mark::after {
   transform: translateY(-50%) translateX(16px) scale(0.94);
 }
 
@@ -1475,7 +1475,7 @@ a {
   transform: translateY(0) scale(1);
 }
 
-.image-drop-inline-error .field-error {
+.image-drop-inline-error .soty-field-error {
   line-height: 1.35;
   text-align: center;
 }
@@ -1720,7 +1720,7 @@ input.is-invalid {
   background: var(--color-error-soft);
 }
 
-.field-error {
+.soty-field-error {
   color: var(--color-error);
   font-size: var(--text-lg);
 }
@@ -1965,15 +1965,15 @@ input.is-invalid {
 .drop-zone.is-dragging .drop-icon,
 .drop-zone:hover:not(.is-disabled) strong,
 .drop-zone.is-dragging strong,
-.drop-zone:hover:not(.is-disabled) span:not(.drop-icon):not(.spinner),
-.drop-zone.is-dragging span:not(.drop-icon):not(.spinner) {
+.drop-zone:hover:not(.is-disabled) span:not(.drop-icon):not(.soty-spinner),
+.drop-zone.is-dragging span:not(.drop-icon):not(.soty-spinner) {
   /* Fully opaque, fully saturated honey — no wash on the type itself. */
   color: var(--honey-400);
   opacity: 1;
 }
 .drop-zone .drop-icon,
 .drop-zone strong,
-.drop-zone span:not(.drop-icon):not(.spinner) {
+.drop-zone span:not(.drop-icon):not(.soty-spinner) {
   transition: color var(--dur-control) var(--ease-standard);
 }
 
@@ -1995,7 +1995,7 @@ input.is-invalid {
   font-size: var(--text-3xl);
 }
 
-.drop-zone span:not(.drop-icon):not(.spinner) {
+.drop-zone span:not(.drop-icon):not(.soty-spinner) {
   color: var(--color-text-muted);
   font-size: var(--text-xl);
 }
@@ -2216,7 +2216,7 @@ input.is-invalid {
   justify-content: flex-end;
 }
 
-.job-actions .button {
+.job-actions .soty-button {
   min-height: 44.2px;
   padding: 0 15.6px;
   font-size: inherit;
@@ -2440,7 +2440,7 @@ input.is-invalid {
   animation-delay: var(--motion-slow);
 }
 
-.skeleton {
+.soty-skeleton {
   display: inline-block;
   border-radius: var(--radius-sm);
   background: linear-gradient(
@@ -2456,7 +2456,7 @@ input.is-invalid {
 /* Loading placeholders for the account/admin pages. They copy the loaded
    layout's geometry (cards, fields, chart, table rows), so data replaces
    them without layout shift; .content-appear crossfades the swap. Under
-   reduced motion the shimmer freezes (global .skeleton override) and the
+   reduced motion the shimmer freezes (global .soty-skeleton override) and the
    placeholders simply stay static. */
 .skeleton-line {
   display: inline-block;
@@ -2648,7 +2648,7 @@ input.is-invalid {
 /* ============================================================
    Checkbox
    ============================================================ */
-.checkbox {
+.soty-checkbox {
   position: relative;
   display: inline-flex;
   min-width: 18px;
@@ -2658,7 +2658,7 @@ input.is-invalid {
   cursor: pointer;
 }
 
-.checkbox input {
+.soty-checkbox input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2680,12 +2680,12 @@ input.is-invalid {
     background var(--dur-micro) var(--ease-standard);
 }
 
-.checkbox input:checked + .checkbox-mark {
+.soty-checkbox input:checked + .checkbox-mark {
   border-color: var(--color-accent);
   background: var(--color-accent);
 }
 
-.checkbox input:checked + .checkbox-mark::after {
+.soty-checkbox input:checked + .checkbox-mark::after {
   width: 8px;
   height: 4px;
   border-bottom: 2px solid var(--color-on-accent);
@@ -2694,17 +2694,17 @@ input.is-invalid {
   transform: translateY(-1px) rotate(-45deg);
 }
 
-.checkbox input:focus-visible + .checkbox-mark {
+.soty-checkbox input:focus-visible + .checkbox-mark {
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
-.checkbox input:disabled + .checkbox-mark {
+.soty-checkbox input:disabled + .checkbox-mark {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.empty-state {
+.soty-empty-state {
   display: grid;
   min-height: 120px;
   place-content: center;
@@ -2957,7 +2957,7 @@ input.is-invalid {
   gap: var(--space-3);
 }
 
-.release-update-actions .button {
+.release-update-actions .soty-button {
   min-height: 34px;
   padding: 7px 12px;
   font-size: var(--text-xl);
@@ -2999,7 +2999,7 @@ input.is-invalid {
   }
 }
 
-.toast-region {
+.soty-toast-region {
   position: fixed;
   z-index: var(--layer-tooltip);
   right: var(--space-4);
@@ -3010,7 +3010,7 @@ input.is-invalid {
   pointer-events: none;
 }
 
-.toast {
+.soty-toast {
   padding: 10px 12px;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
@@ -3033,7 +3033,7 @@ input.is-invalid {
   border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border));
 }
 
-.spinner {
+.soty-spinner {
   display: inline-block;
   width: 20px;
   height: 20px;
@@ -3278,7 +3278,7 @@ input.is-invalid {
     padding: 20px;
   }
 
-  .team-workspace-launcher-card > .button {
+  .team-workspace-launcher-card > .soty-button {
     width: 100%;
   }
 
@@ -3514,7 +3514,7 @@ input.is-invalid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .launcher .onboarding-panel > .inline-actions .button,
+  .launcher .onboarding-panel > .inline-actions .soty-button,
   .launcher .blocking-message .inline-actions,
   .launcher .blocking-message .ui-button {
     width: 100%;
@@ -3555,7 +3555,7 @@ input.is-invalid {
     flex-direction: column;
   }
 
-  .tool-action-row .button {
+  .tool-action-row .soty-button {
     min-height: 42px;
     width: 100%;
   }
@@ -3573,7 +3573,7 @@ input.is-invalid {
     height: 60px;
   }
 
-  .selected-image > .spinner {
+  .selected-image > .soty-spinner {
     display: none;
   }
 
@@ -3617,7 +3617,7 @@ input.is-invalid {
   }
 
   .progress-track.is-flowing > span,
-  .skeleton,
+  .soty-skeleton,
   .soty-loader .ribbon-top,
   .soty-loader .ribbon-bottom,
   .soty-loader .ribbon-center,
@@ -3862,7 +3862,7 @@ body:has(.public-home) {
   margin-top: calc(var(--space-6) * 1.5);
 }
 
-.public-home-actions .button {
+.public-home-actions .soty-button {
   min-height: 96px;
   padding: 0 48px;
   border-radius: var(--radius-sm);
@@ -4739,7 +4739,7 @@ body:has(.public-home) {
   gap: var(--space-4);
 }
 
-.platform-download-actions .button {
+.platform-download-actions .soty-button {
   width: 100%;
 }
 
@@ -4773,7 +4773,7 @@ body:has(.public-home) {
   padding-top: 4px;
 }
 
-.local-app-modal > .inline-actions .button {
+.local-app-modal > .inline-actions .soty-button {
   width: 100%;
   min-height: 44.2px;
   padding-inline: 12px;
@@ -4782,7 +4782,7 @@ body:has(.public-home) {
   box-shadow: none;
 }
 
-.local-app-modal > .inline-actions .button:hover {
+.local-app-modal > .inline-actions .soty-button:hover {
   border-color: var(--color-border-strong);
   background: var(--color-surface-muted);
   box-shadow: none;
@@ -4836,7 +4836,7 @@ body:has(.public-home) {
   gap: var(--space-4);
 }
 
-.lock-actions .button {
+.lock-actions .soty-button {
   width: 100%;
 }
 
@@ -5338,14 +5338,14 @@ body:has(.public-home) {
   flex: none;
 }
 
-.pagination {
+.soty-pagination {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
 }
 
-.pagination span {
+.soty-pagination span {
   color: var(--color-text-muted);
   font-size: var(--text-xl);
   font-variant-numeric: tabular-nums;
@@ -5554,7 +5554,7 @@ body:has(.public-home) {
     flex-direction: column;
   }
 
-  .public-home-actions .button {
+  .public-home-actions .soty-button {
     justify-content: center;
     width: 100%;
     min-height: 72px;
@@ -5719,7 +5719,7 @@ body:has(.public-home) {
   justify-content: center;
 }
 
-.landing-switch-column .checkbox strong {
+.landing-switch-column .soty-checkbox strong {
   font-size: var(--text-xl);
   font-weight: 600;
 }
@@ -5941,7 +5941,7 @@ body:has(.public-home) {
   gap: var(--space-2);
 }
 
-.landing-batch-actions .button {
+.landing-batch-actions .soty-button {
   min-height: 34px;
   padding-inline: 11px;
   font-size: var(--text-xl);
@@ -5965,7 +5965,7 @@ body:has(.public-home) {
     display: none;
   }
 
-  .landing-batch-actions .button {
+  .landing-batch-actions .soty-button {
     width: 38px;
     min-width: 38px;
     flex: 0 0 auto;
@@ -6984,7 +6984,7 @@ body:has(.public-home) {
     padding-left: 0;
   }
 
-  .landing-batch-actions .button {
+  .landing-batch-actions .soty-button {
     width: 100%;
   }
 
@@ -8053,7 +8053,7 @@ body:has(.public-home) {
   .team-invite-form {
     grid-template-columns: minmax(12rem, 1fr) minmax(9rem, 0.5fr);
   }
-  .team-invite-form > .button {
+  .team-invite-form > .soty-button {
     grid-column: 1 / -1;
     justify-self: start;
   }
@@ -8062,7 +8062,7 @@ body:has(.public-home) {
   .team-invite-form {
     grid-template-columns: minmax(14rem, 1fr) minmax(9rem, 0.4fr) auto;
   }
-  .team-invite-form > .button {
+  .team-invite-form > .soty-button {
     grid-column: auto;
     justify-self: stretch;
   }
@@ -8095,11 +8095,11 @@ body:has(.public-home) {
   overflow-wrap: anywhere;
 }
 .team-invitation-list li > .team-delivery-state,
-.team-invitation-list li > .button {
+.team-invitation-list li > .soty-button {
   flex: 0 0 auto;
 }
-.team-invitation-list li > .button,
-.team-inline-actions > .button {
+.team-invitation-list li > .soty-button,
+.team-inline-actions > .soty-button {
   min-width: max-content;
 }
 .team-drive-panel,
@@ -8119,10 +8119,10 @@ body:has(.public-home) {
   min-width: 0;
 }
 
-.team-folder-trail .button {
+.team-folder-trail .soty-button {
   padding-inline: var(--space-2);
 }
-.team-folder-trail .button:disabled {
+.team-folder-trail .soty-button:disabled {
   opacity: 1;
   color: var(--color-text);
   cursor: default;
@@ -8203,7 +8203,7 @@ body:has(.public-home) {
 .team-restitch-prepare-actions {
   min-width: 0;
 }
-.team-restitch-prepare-actions > .button {
+.team-restitch-prepare-actions > .soty-button {
   min-width: 0;
   white-space: normal;
   text-align: center;
@@ -8797,7 +8797,7 @@ button,
   min-height: 44.2px;
 }
 
-.button {
+.soty-button {
   min-height: 44.2px;
   padding-inline: var(--space-4);
 }
@@ -9127,7 +9127,7 @@ button,
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.team-catalog-chips .button {
+.team-catalog-chips .soty-button {
   min-height: 32px;
   padding: 4px 10px;
   font-size: var(--text-caption);
@@ -9243,7 +9243,7 @@ button,
 /* Search results carry the row actions inline at caption weight rather than
    as four full-height buttons stacked under every hit. The "…" that extends
    them sits in the same row, at the same weight. */
-.team-catalog-material-actions > .button {
+.team-catalog-material-actions > .soty-button {
   min-height: 32px;
   padding-block: 0;
   font-size: var(--text-label);
@@ -9489,14 +9489,14 @@ button,
   .team-catalog-results > li {
     grid-template-columns: minmax(0, 1fr);
   }
-  .team-space-lobby-header .button,
-  .team-space-shell-utilities .button,
-  .team-space-settings-header .button,
-  .team-create-actions .button,
+  .team-space-lobby-header .soty-button,
+  .team-space-shell-utilities .soty-button,
+  .team-space-settings-header .soty-button,
+  .team-create-actions .soty-button,
   .team-create-actions .ui-button,
-  .team-dialog-actions .button,
-  .team-catalog-material-actions .button,
-  .team-material-action-buttons .button {
+  .team-dialog-actions .soty-button,
+  .team-catalog-material-actions .soty-button,
+  .team-material-action-buttons .soty-button {
     width: 100%;
   }
   .team-space-shell-utilities,
@@ -9515,7 +9515,7 @@ button,
     flex-wrap: wrap;
     align-items: center;
   }
-  .team-catalog-material-actions .button {
+  .team-catalog-material-actions .soty-button {
     width: auto;
   }
   .team-preview-backdrop {
@@ -9915,8 +9915,8 @@ body {
   height: 6px;
 }
 
-.job-row-actions .button,
-.landing-batch-actions .button {
+.job-row-actions .soty-button,
+.landing-batch-actions .soty-button {
   min-height: 44.2px;
   padding-inline: var(--space-4);
   font-size: inherit;
@@ -10595,7 +10595,7 @@ body {
      158px tile, so the last one wrapped onto a line of its own. */
   gap: 3px;
 }
-.team-task-attachment-action.button {
+.team-task-attachment-action.soty-button {
   /* Fixed squares, not flex-stretched: a card with three actions was giving
      wider (rectangular) buttons than one with four. min-height:0 clears the
      44px tap target that stretched them taller than they are wide. 28px is
@@ -10627,7 +10627,7 @@ body {
 /* Neutral at rest; the two consequential actions carry their meaning in colour
    even before hover — download reads green, detach reads red — so a person
    picks them out at a glance. */
-.team-task-attachment-action.button {
+.team-task-attachment-action.soty-button {
   border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
@@ -10789,7 +10789,7 @@ body {
   background: var(--color-surface-muted);
   padding: 6px;
 }
-.team-task-picker-path-action.button {
+.team-task-picker-path-action.soty-button {
   min-height: 30px;
   padding-inline: var(--space-2);
   font-size: var(--text-micro);
@@ -11104,7 +11104,7 @@ body {
   color: var(--color-warning);
 }
 
-.creative-library-card-primary-actions .button {
+.creative-library-card-primary-actions .soty-button {
   min-width: 0;
   flex: 1 1 0;
 }
@@ -11190,9 +11190,9 @@ body {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
-.creative-library-card .creative-library-card-more-actions .button,
-.creative-library-card .creative-library-text-actions .button,
-.creative-library-card .creative-library-share-actions .button,
+.creative-library-card .creative-library-card-more-actions .soty-button,
+.creative-library-card .creative-library-text-actions .soty-button,
+.creative-library-card .creative-library-share-actions .soty-button,
 .creative-library-card .creative-library-card-more-actions .ui-button,
 .creative-library-card .creative-library-text-actions .ui-button,
 .creative-library-card .creative-library-share-actions .ui-button {
@@ -11293,7 +11293,7 @@ body {
    catalog rows, library cards and the share menu. Soft tinted fill + tinted
    border + saturated icon/text, matching the task-attachment action pattern.
    Icons carry no fill and inherit each button's colour via currentColor. --- */
-.team-media-action.button {
+.team-media-action.soty-button {
   gap: 6px;
   border-width: 1px;
   white-space: normal;
@@ -11406,7 +11406,7 @@ body {
 .creative-library-card-primary-actions {
   flex-wrap: wrap;
 }
-.creative-library-card-primary-actions .button {
+.creative-library-card-primary-actions .soty-button {
   min-width: 0;
   flex: 1 1 120px;
   min-height: 38px;
@@ -11444,7 +11444,7 @@ body {
   }
 
   .creative-library-heading-actions,
-  .creative-library-heading-actions .button {
+  .creative-library-heading-actions .soty-button {
     width: 100%;
   }
   .team-batch,
@@ -11497,7 +11497,7 @@ body {
   align-self: start;
 }
 
-.team-landing-tile-shell > .button {
+.team-landing-tile-shell > .soty-button {
   min-width: 0;
   max-width: 100%;
   width: 100%;
@@ -11989,7 +11989,7 @@ button.team-landing-tile:hover {
 }
 
 /* Team-mode toast stack (010). Kept separate from the compressor page's
-   `.toast-region` while that surface still owns its local `addToast`; the two
+   `.soty-toast-region` while that surface still owns its local `addToast`; the two
    converge when the compressor migrates onto ToastProvider. This stack sits on
    --layer-toast, above every dialog, because a dialog's own Undo has to stay
    reachable while the dialog is up. */
@@ -12273,7 +12273,7 @@ button.team-landing-tile:hover {
    Menu rows are also shorter than standalone buttons — a 44px control repeated
    six times is a wall, not a list — and wrap rather than spill. */
 .team-row-menu-panel .team-material-action-buttons > button,
-.team-row-menu-panel .team-material-action-buttons > .button {
+.team-row-menu-panel .team-material-action-buttons > .soty-button {
   min-height: 36px;
   justify-content: flex-start;
   padding-block: var(--space-1);
@@ -13134,7 +13134,7 @@ button.team-landing-tile:hover {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-  .team-explorer-toolbar-actions > .button,
+  .team-explorer-toolbar-actions > .soty-button,
   .team-explorer-toolbar-actions > .team-explorer-process-menu {
     flex: 0 1 auto;
   }
@@ -13612,12 +13612,12 @@ button.team-landing-tile:hover {
   flex-direction: column;
   align-items: stretch;
 }
-.team-explorer-pane .creative-library-text-actions > .button {
+.team-explorer-pane .creative-library-text-actions > .soty-button {
   justify-content: center;
   border: 1px solid var(--color-border);
   padding: var(--space-2) var(--space-3);
 }
-.team-explorer-pane .creative-library-text-actions > .button:hover:not(:disabled) {
+.team-explorer-pane .creative-library-text-actions > .soty-button:hover:not(:disabled) {
   border-color: var(--purple-300);
 }
 
@@ -14660,7 +14660,7 @@ input[type='number'] {
 .drop-zone strong {
   color: var(--color-text);
 }
-.drop-zone span:not(.drop-icon):not(.spinner) {
+.drop-zone span:not(.drop-icon):not(.soty-spinner) {
   color: var(--color-text-muted);
 }
 
@@ -14699,8 +14699,8 @@ input[type='number'] {
 :root:not([data-theme='dark']) .drop-zone .drop-icon,
 :root[data-theme='light'] .drop-zone strong,
 :root:not([data-theme='dark']) .drop-zone strong,
-:root[data-theme='light'] .drop-zone span:not(.drop-icon):not(.spinner),
-:root:not([data-theme='dark']) .drop-zone span:not(.drop-icon):not(.spinner) {
+:root[data-theme='light'] .drop-zone span:not(.drop-icon):not(.soty-spinner),
+:root:not([data-theme='dark']) .drop-zone span:not(.drop-icon):not(.soty-spinner) {
   color: var(--color-text-muted);
 }
 :root[data-theme='light'] .drop-zone strong,
@@ -14752,12 +14752,12 @@ input[type='number'] {
 }
 .drop-zone.is-ok .drop-icon,
 .drop-zone.is-ok strong,
-.drop-zone.is-ok span:not(.drop-icon):not(.spinner) {
+.drop-zone.is-ok span:not(.drop-icon):not(.soty-spinner) {
   color: var(--green-300);
 }
 .drop-zone.is-fail .drop-icon,
 .drop-zone.is-fail strong,
-.drop-zone.is-fail span:not(.drop-icon):not(.spinner) {
+.drop-zone.is-fail span:not(.drop-icon):not(.soty-spinner) {
   color: var(--red-300);
 }
 
@@ -14837,7 +14837,7 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-3);
 }
-.batch-toolbar .batch-progress-heading .progress-bar,
+.batch-toolbar .batch-progress-heading .soty-progress-bar,
 .batch-toolbar .batch-progress-heading > :first-child {
   flex: 1;
   min-width: 0;
@@ -15108,7 +15108,7 @@ input[type='number'] {
   min-width: 228px;
   max-width: 280px;
 }
-.job-side .job-actions .button {
+.job-side .job-actions .soty-button {
   justify-content: flex-start;
   gap: 10px;
   width: 100%;
@@ -15157,7 +15157,7 @@ input[type='number'] {
   width: auto;
   margin-left: auto;
 }
-.job-progress-panel .job-actions .button {
+.job-progress-panel .job-actions .soty-button {
   width: auto;
   min-height: 38px;
 }
@@ -15274,7 +15274,7 @@ input[type='number'] {
 .metadata-settings {
   align-self: center;
 }
-.metadata-settings .checkbox strong {
+.metadata-settings .soty-checkbox strong {
   font-size: var(--text-xl);
   font-weight: 600;
 }
@@ -15620,7 +15620,7 @@ input[type='number'] {
 
 /* Pause and cancel sit centred in the progress panel — the left-aligned card
    stack rule does not apply to them. */
-.job-progress-panel .job-actions .button {
+.job-progress-panel .job-actions .soty-button {
   justify-content: center;
 }
 /* The source metrics end exactly where the outcome grid does: the panel adds

@@ -40,7 +40,7 @@ export default function PublicHomePage() {
           <p className="public-hero-copy prose">{t('publicHomeDescription')}</p>
           <div className="public-home-actions">
             <a
-              className="button button-primary"
+              className="soty-button button-primary"
               href="/login"
               onClick={event => internalLink(event, '/login')}
             >

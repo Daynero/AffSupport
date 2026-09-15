@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Button as HeroButton } from '@heroui/react/button';
+import { Input as HeroInput } from '@heroui/react/input';
+import { Switch as HeroSwitch } from '@heroui/react/switch';
 import {
   Accordion,
   Alert,
@@ -78,7 +81,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function DesignSystemPage() {
-  const [tab, setTab] = useState<'buttons' | 'forms' | 'data' | 'overlays'>('buttons');
+  const [tab, setTab] = useState<'foundation' | 'buttons' | 'forms' | 'data' | 'overlays'>(
+    'foundation'
+  );
   const [segment, setSegment] = useState<'all' | 'free'>('all');
   const [radio, setRadio] = useState<'optimal' | 'custom'>('optimal');
   const [picto, setPicto] = useState<'fit' | 'fill' | 'blur'>('fit');
@@ -108,12 +113,68 @@ export default function DesignSystemPage() {
         onChange={setTab}
         label="Sections"
         items={[
+          { id: 'foundation', label: 'Foundation' },
           { id: 'buttons', label: 'Buttons and badges' },
           { id: 'forms', label: 'Forms' },
           { id: 'data', label: 'Data' },
           { id: 'overlays', label: 'Overlays and feedback' }
         ]}
       />
+
+      {tab === 'foundation' && (
+        <>
+          <Section title="The theme bridge">
+            <p className="prose">
+              Left of each pair is HeroUI with nothing done to it; right is the inventory. They
+              should agree on the honey, the radius, the border and the focus ring, because the
+              library is reading this product&rsquo;s tokens rather than its own defaults. Where
+              they disagree, the bridge is missing a variable — not the component.
+            </p>
+            <Row title="Button">
+              <HeroButton variant="primary">HeroUI</HeroButton>
+              <Button color="primary" variant="solid">
+                Inventory
+              </Button>
+              <HeroButton variant="secondary">HeroUI</HeroButton>
+              <Button color="neutral" variant="outline">
+                Inventory
+              </Button>
+              <HeroButton variant="danger">HeroUI</HeroButton>
+              <Button color="error" variant="solid">
+                Inventory
+              </Button>
+            </Row>
+            <Row title="Field">
+              <HeroInput aria-label="HeroUI field" placeholder="HeroUI" />
+              <Input aria-label="Inventory field" placeholder="Inventory" />
+            </Row>
+            <Row title="Switch">
+              <HeroSwitch aria-label="HeroUI switch" />
+              <Switch
+                checked={switched}
+                onChange={event => setSwitched(event.currentTarget.checked)}
+                label="Inventory"
+              />
+            </Row>
+          </Section>
+          <Section title="Colour roles">
+            <Row title="Solid">
+              {UI_COLORS.map(color => (
+                <Badge key={color} color={color} variant="solid">
+                  {color}
+                </Badge>
+              ))}
+            </Row>
+            <Row title="Soft">
+              {UI_COLORS.map(color => (
+                <Badge key={color} color={color} variant="soft">
+                  {color}
+                </Badge>
+              ))}
+            </Row>
+          </Section>
+        </>
+      )}
 
       {tab === 'buttons' && (
         <>

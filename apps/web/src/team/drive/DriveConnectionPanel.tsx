@@ -306,7 +306,7 @@ export function DriveConnectionPanel({
         </Button>
       )}
       {!connected && !rootMissing && authorizationUrl && !authorized && (
-        <a className="button button-primary" href={authorizationUrl} rel="noreferrer">
+        <a className="soty-button button-primary" href={authorizationUrl} rel="noreferrer">
           {t('teamDriveAuthorize')}
         </a>
       )}
@@ -361,7 +361,7 @@ export function DriveConnectionPanel({
               connection; the button alone fetched the address and showed
               nothing, because the link lived in the not-connected branch. */}
           {client.startDriveOAuth && authorizationUrl && !authorized ? (
-            <a className="button button-primary" href={authorizationUrl} rel="noreferrer">
+            <a className="soty-button button-primary" href={authorizationUrl} rel="noreferrer">
               {t('teamDriveAuthorize')}
             </a>
           ) : (

@@ -1868,7 +1868,7 @@
    ============================================================ */
 
 /* Buttons — the seven dialects, brought to one geometry (cleared by C1–C14). */
-.button {
+.soty-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1888,10 +1888,10 @@
     color var(--motion-fast) var(--ease-out-curve),
     transform var(--motion-fast) var(--ease-out-curve);
 }
-.button:active:not(:disabled) {
+.soty-button:active:not(:disabled) {
   transform: scale(var(--press-scale));
 }
-.button:disabled {
+.soty-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }

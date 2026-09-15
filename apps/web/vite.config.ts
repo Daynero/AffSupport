@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { PRODUCTION_SITE_ORIGIN } from '../../packages/shared/src/release';
 
 function currentRevision() {
@@ -25,7 +26,7 @@ function siteOriginPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), siteOriginPlugin()],
+  plugins: [react(), tailwindcss(), siteOriginPlugin()],
   envDir: '../..',
   define: { 'import.meta.env.VITE_WEB_REVISION': JSON.stringify(currentRevision()) },
   server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:43117' } },
@@ -34,7 +35,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         /**
-         * Keep the two heavy dependencies out of whatever chunk happens to
+         * Keep the heavy dependencies out of whatever chunk happens to
          * reference them first.
          *
          * Without this the bundler attaches a shared dependency to an arbitrary
@@ -48,6 +49,12 @@ export default defineConfig({
           if (!id.includes('node_modules')) return undefined;
           if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/u.test(id)) return 'react';
           if (id.includes('@supabase')) return 'supabase';
+          // The component inventory is imported by every screen, so the library
+          // behind it would otherwise land in whichever route chunk got there
+          // first and be re-downloaded by the next one.
+          if (/[\\/]node_modules[\\/](@heroui|react-aria|react-aria-components|@react-aria|@react-stately|@react-types|@internationalized|tailwind-variants|tailwind-merge)[\\/]/u.test(id)) {
+            return 'heroui';
+          }
           return undefined;
         }
       }

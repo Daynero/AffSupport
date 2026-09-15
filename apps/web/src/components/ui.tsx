@@ -120,7 +120,7 @@ export const Button = forwardRef<
       ref={ref}
       {...props}
       disabled={disabled || loading}
-      className={`button button-${variant} ${loading ? 'is-loading' : ''} ${className}`.trim()}
+      className={`soty-button button-${variant} ${loading ? 'is-loading' : ''} ${className}`.trim()}
     >
       {children}
       {loading && (
@@ -249,7 +249,7 @@ export function Checkbox({
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
   return (
-    <label className={`checkbox ${className}`.trim()}>
+    <label className={`soty-checkbox ${className}`.trim()}>
       <input {...props} type="checkbox" />
       <span className="checkbox-mark" aria-hidden="true" />
       <span>{label}</span>
@@ -291,7 +291,7 @@ export function ProgressBar({
 }
 
 export function Spinner({ small = false }: { small?: boolean }) {
-  return <span className={`spinner ${small ? 'spinner-small' : ''}`} aria-hidden="true" />;
+  return <span className={`soty-spinner ${small ? 'spinner-small' : ''}`} aria-hidden="true" />;
 }
 
 /** Soty conversion loader: three ribbons calmly compress into one.

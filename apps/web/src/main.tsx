@@ -2,14 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Root from './Root';
 import { consumePairingToken } from './api/pairing-token';
-import './styles/tokens.css';
-import './styles/base.css';
-import './styles/components.css';
-import './styles.css';
-import './styles/team-accounts.css';
-import './styles/team-tasks.css';
-import './styles/transcription.css';
-import './styles/landing-viewer.css';
+// One entry, because the order the sheets load in is a cascade decision and it
+// belongs in a cascade file. `styles/index.css` declares the layer ladder and
+// imports every sheet into its place; see the comment at the top of it.
+import './styles/index.css';
 
 document.documentElement.dataset.appBoot = '2026-08-09.1';
 

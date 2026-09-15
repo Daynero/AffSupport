@@ -74,7 +74,7 @@ describe('account page loading skeleton', () => {
     expect(screen.getByText('Your account')).toBeTruthy();
     expect(screen.getByRole('status')).toBeTruthy();
     expect(container.querySelectorAll('.account-card').length).toBe(2);
-    expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(8);
+    expect(container.querySelectorAll('.soty-skeleton').length).toBeGreaterThan(8);
     // No real form controls yet.
     expect(screen.queryByLabelText('Display name')).toBeNull();
     expect(container.querySelector('main')?.getAttribute('aria-busy')).toBe('true');
@@ -97,7 +97,7 @@ describe('admin page loading skeleton', () => {
     expect(container.querySelector('.activity-card .skeleton-chart')).toBeTruthy();
     expect(container.querySelectorAll('.breakdown-card').length).toBe(2);
     expect(container.querySelectorAll('.skeleton-table-row').length).toBe(5);
-    expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(30);
+    expect(container.querySelectorAll('.soty-skeleton').length).toBeGreaterThan(30);
   });
 
   it('crossfades the loaded dashboard in place of the skeleton', async () => {

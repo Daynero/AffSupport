@@ -20,38 +20,38 @@ different value per theme.
 
 ### Base surfaces and ink
 
-| HeroUI variable | Soty source |
-|---|---|
-| `--background` | `--color-neutral-bg` |
-| `--foreground` | `--color-neutral-text` |
-| `--surface` | `--color-neutral-surface` |
-| `--surface-foreground` | `--color-neutral-text` |
-| `--surface-secondary` | `--color-neutral-surface-subtle` |
-| `--surface-tertiary` | `--color-neutral-surface-muted` |
-| `--overlay` | `--color-neutral-surface-raised` |
-| `--overlay-foreground` | `--color-neutral-text` |
-| `--muted` | `--color-neutral-text-muted` |
-| `--border` | `--color-neutral-border` |
-| `--separator` | `--color-neutral-border` |
-| `--backdrop` | `--color-overlay-backdrop` |
-| `--default` | `--color-neutral-surface-subtle` |
-| `--default-foreground` | `--color-neutral-text` |
+| HeroUI variable        | Soty source                      |
+| ---------------------- | -------------------------------- |
+| `--background`         | `--color-neutral-bg`             |
+| `--foreground`         | `--color-neutral-text`           |
+| `--surface`            | `--color-neutral-surface`        |
+| `--surface-foreground` | `--color-neutral-text`           |
+| `--surface-secondary`  | `--color-neutral-surface-subtle` |
+| `--surface-tertiary`   | `--color-neutral-surface-muted`  |
+| `--overlay`            | `--color-neutral-surface-raised` |
+| `--overlay-foreground` | `--color-neutral-text`           |
+| `--muted`              | `--color-neutral-text-muted`     |
+| `--border`             | `--color-neutral-border`         |
+| `--separator`          | `--color-neutral-border`         |
+| `--backdrop`           | `--color-overlay-backdrop`       |
+| `--default`            | `--color-neutral-surface-subtle` |
+| `--default-foreground` | `--color-neutral-text`           |
 
 ### Roles
 
-| HeroUI variable | Soty source | Note |
-|---|---|---|
-| `--accent` | `--color-primary-solid` | honey: the one action a surface exists for |
-| `--accent-foreground` | `--color-primary-on-solid` | |
-| `--accent-hover` | `--color-primary-hover` | replaces HeroUI's `color-mix` guess with the product's own step |
-| `--accent-soft` | `--color-primary-soft` | |
-| `--accent-soft-foreground` | `--color-primary-text` | |
-| `--accent-soft-hover` | `--color-primary-softer` | |
-| `--success` / `-foreground` / `-soft` / `-soft-foreground` | `--color-success-solid` / `-on-solid` / `-soft` / `-text` | |
-| `--warning` / … | `--color-warning-*` | |
-| `--danger` / … | `--color-error-*` | HeroUI calls it danger; Soty calls it error. The bridge is the only place both names appear |
-| `--focus` | `--color-focus-ring` | violet, as everywhere else |
-| `--link` | `--color-secondary-text` | |
+| HeroUI variable                                            | Soty source                                               | Note                                                                                        |
+| ---------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `--accent`                                                 | `--color-primary-solid`                                   | honey: the one action a surface exists for                                                  |
+| `--accent-foreground`                                      | `--color-primary-on-solid`                                |                                                                                             |
+| `--accent-hover`                                           | `--color-primary-hover`                                   | replaces HeroUI's `color-mix` guess with the product's own step                             |
+| `--accent-soft`                                            | `--color-primary-soft`                                    |                                                                                             |
+| `--accent-soft-foreground`                                 | `--color-primary-text`                                    |                                                                                             |
+| `--accent-soft-hover`                                      | `--color-primary-softer`                                  |                                                                                             |
+| `--success` / `-foreground` / `-soft` / `-soft-foreground` | `--color-success-solid` / `-on-solid` / `-soft` / `-text` |                                                                                             |
+| `--warning` / …                                            | `--color-warning-*`                                       |                                                                                             |
+| `--danger` / …                                             | `--color-error-*`                                         | HeroUI calls it danger; Soty calls it error. The bridge is the only place both names appear |
+| `--focus`                                                  | `--color-focus-ring`                                      | violet, as everywhere else                                                                  |
+| `--link`                                                   | `--color-secondary-text`                                  |                                                                                             |
 
 **Soty's `secondary` role has no HeroUI counterpart.** Violet is this product's identity colour
 — navigation, selection, links, focus — and HeroUI has one accent. It is exposed to components as
@@ -60,13 +60,13 @@ a Tailwind utility (`text-secondary`, `bg-secondary-soft`) through half 2, and t
 
 ### Fields
 
-| HeroUI variable | Soty source |
-|---|---|
-| `--field-background` | `--color-neutral-surface` |
-| `--field-foreground` | `--color-neutral-text` |
+| HeroUI variable       | Soty source                  |
+| --------------------- | ---------------------------- |
+| `--field-background`  | `--color-neutral-surface`    |
+| `--field-foreground`  | `--color-neutral-text`       |
 | `--field-placeholder` | `--color-neutral-text-muted` |
-| `--field-border` | `--color-neutral-border` |
-| `--field-radius` | `var(--radius-md)` |
+| `--field-border`      | `--color-neutral-border`     |
+| `--field-radius`      | `var(--radius-md)`           |
 
 HeroUI ships `--field-border-width: 0px` — borderless fields. Soty's fields have a border, so the
 bridge sets `--field-border-width: 1px`. This is the one place the library's default look is
@@ -74,15 +74,15 @@ overruled rather than recoloured, and it is deliberate: a dense working tool nee
 
 ### Geometry and motion
 
-| HeroUI variable | Soty source | Note |
-|---|---|---|
-| `--radius` | `--radius-md` | HeroUI derives the rest from it |
-| `--border-width` | `1px` | matches the product |
-| `--ring-offset-width` | `2px` | the product's one focus ring |
-| `--disabled-opacity` | `0.5` | unchanged |
-| `--spacing` | `4px` | Tailwind's spacing step equals Soty's `--space-1` |
-| `--tooltip-delay` / `--tooltip-close-delay` | the product's existing delay-group values | |
-| `--skeleton-animation` | `shimmer`, `none` under reduced motion | |
+| HeroUI variable                                            | Soty source                                     | Note                                                                                        |
+| ---------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `--radius`                                                 | `--radius-md`                                   | HeroUI derives the rest from it                                                             |
+| `--border-width`                                           | `1px`                                           | matches the product                                                                         |
+| `--ring-offset-width`                                      | `2px`                                           | the product's one focus ring                                                                |
+| `--disabled-opacity`                                       | `0.5`                                           | unchanged                                                                                   |
+| `--spacing`                                                | `4px`                                           | Tailwind's spacing step equals Soty's `--space-1`                                           |
+| `--tooltip-delay` / `--tooltip-close-delay`                | the product's existing delay-group values       |                                                                                             |
+| `--skeleton-animation`                                     | `shimmer`, `none` under reduced motion          |                                                                                             |
 | `--surface-shadow` / `--overlay-shadow` / `--field-shadow` | `--shadow-md` / `--shadow-menu` / `--shadow-sm` | the product separates surfaces by tint, not elevation, so these are its own quieter shadows |
 
 ### What the bridge must not do

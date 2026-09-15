@@ -172,7 +172,7 @@ function MaterialRowMenuContent({
       {prompt === null && (
         <div className="team-material-action-buttons">
           {isFolder && permissions.upload && (
-            <label className="button button-secondary">
+            <label className="soty-button button-secondary">
               {folderUploadLabel ?? t('teamFileUpload')}
               <input
                 type="file"
