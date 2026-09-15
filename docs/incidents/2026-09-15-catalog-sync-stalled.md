@@ -1,7 +1,7 @@
 # 2026-09-15 — the catalog sync worker stopped, nothing indexes
 
-**Status: mitigated in production; worker healthy and both spaces are actively indexing. The
-durable migration is not yet applied to production — see "Still open" below.**
+**Status: resolved. Root cause fixed, the durable migration is applied to production, and the
+repository and production agree.**
 
 ## Execution update — 2026-09-15 16:15 Kyiv
 
@@ -39,28 +39,37 @@ proof while the scans were still walking their live Drive trees:
 The durable migration and regression test are in
 `20260916100000_catalog_sync_outage_guards.sql` / `team-sync-claim-sql.test.ts`.
 
-### Still open — production and this repository disagree
+### Closed — released to production 2026-09-15 17:30 Kyiv
 
-Checked 2026-09-15 16:44 Kyiv with `node scripts/verify-production-config.mjs --json`: migration
-`20260916100000` is **not applied to production**. Production is running the hand-replaced
-`private.claim_catalog_sync_jobs` and nothing else from that file, so two of its three guards are
-repo-only:
+`release:backend-apply` from 023-catalog-updater at 62a60c6 applied all three migrations,
+`20260916100000` among them, and redeployed eleven functions. `node
+scripts/verify-production-config.mjs --json` now returns `{"ok": true, "failures": []}`: production
+and this repository agree, and the hand patch is backed by a migration again.
 
-- `private.invoke_catalog_sync_worker()` in production still returns `null` silently when the Vault
-  configuration is invalid, and still POSTs on every 10-second tick even when no job is runnable.
-  The migration makes the first raise into `cron.job_run_details` and skips the second — which also
-  removes most of the ~259k monthly edge-function invocations the idle cron was spending.
-- `public.get_drive_connection_status` in production still orders by `created_at` while
-  `get_team_storage_health` orders by `connected_at`, so the two can still name different
-  connections for a space that has more than one live row.
+The worker survived the swap. `upserted` events per minute across the apply (14:30:25 UTC):
+14:29 = 44, 14:30 = 17, 14:31 = 37, 14:32 = 45. The dip is the swap itself — roughly 26 seconds
+with no upserts, between 14:30:34 and 14:31:00, while the function redeployed and
+`private.claim_catalog_sync_jobs` was replaced under it. One 0-second-old event on the first
+sample afterwards proves the whole chain live: pg_cron → `net.http_post` → catalog-sync →
+`service_claim_catalog_sync_jobs` → `private.claim_catalog_sync_jobs` → Drive → upsert.
 
-Applying the migration is safe — all three are `create or replace`, and its claim function is the
-logic already running in production. It needs a backend release (`npm run release:backend-plan`
-then `release:backend-apply`); until then, do not assume production matches this repository.
+Two corrections to what this document claimed before the release, both found by reading
+`20260907140000` rather than trusting the diff:
 
-Independent verification of the mitigation, same timestamp: 30–100 `upserted` events per minute,
-newest five seconds old; DreamTeam at 1006 files / 190 folders indexed, up from zero.
-The regression test passes locally: `tests/team-sync-claim-sql.test.ts`, 7/7.
+- The "skip the POST when no job is runnable" guard and the cap of three concurrent leases were
+  **already present** in `20260907140000`. `20260916100000` only adds the `attempts < 1000` filter
+  and turns the silent invalid-config `return null` into a `raise exception`. The idle cron was
+  therefore never spending an invocation every ten seconds, and this migration saves no meaningful
+  egress. The earlier claim in this file that it removes ~259k monthly invocations was wrong.
+- The egress overage that triggered the Pro upgrade is thus not explained by the cron. Whatever
+  consumed 7.5 GB on the Free plan is still unidentified; the breakdown in Reports → Egress is
+  still worth reading.
+
+Still watching after the release: the upsert rate on DreamTeam's first scan fell from ~36/min at
+14:33 to ~3-4/min by 14:40, while still advancing (6543 → 6577 files, 830 → 834 folders). Nothing
+in this migration touches throughput of a healthy job, and health does not report
+`waiting_provider`, so the most likely cause is the shape of the remaining tree rather than the
+release. Worth a look if it does not recover.
 
 Written for an agent with Supabase Dashboard / Management API access. Everything below the
 "Already established" line is measured fact — do not spend time re-deriving it.
