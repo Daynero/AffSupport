@@ -20,8 +20,13 @@ import {
   useCatalogUpdater,
   type CatalogUpdaterClient
 } from './useCatalogUpdater';
+import {
+  RestitchDevicePicker,
+  type RestitchAgentClient,
+  type RestitchDeviceClient
+} from './RestitchDevicePicker';
 
-export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
+export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient, RestitchDeviceClient {
   saveCatalogUpdater: (
     teamId: string,
     input: { catalogIds: string[]; interval: CatalogUpdaterInterval; restitch: boolean }
@@ -39,11 +44,13 @@ const defaultClient: CatalogUpdaterDialogClient = teamApi;
 export function CatalogUpdaterDialog({
   teamId,
   client = defaultClient,
+  agentClient,
   onClose,
   onChanged
 }: {
   teamId: string;
   client?: CatalogUpdaterDialogClient;
+  agentClient?: RestitchAgentClient;
   onClose: () => void;
   /** Called after a start, save or stop, so the chip outside the dialog reads the new state. */
   onChanged?: () => void;
@@ -60,6 +67,7 @@ export function CatalogUpdaterDialog({
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [interval, setIntervalChoice] = useState<CatalogUpdaterInterval>('1h');
+  const [restitch, setRestitch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const selectAllRef = useRef<HTMLSpanElement>(null);
@@ -72,6 +80,7 @@ export function CatalogUpdaterDialog({
     if (selected !== null || !registry.rows || !updater.state) return;
     setSelected(new Set(registry.rows.filter(row => row.inUpdater).map(row => row.catalogId)));
     setIntervalChoice(updater.state.interval);
+    setRestitch(updater.state.restitch);
   }, [registry.rows, selected, updater.state]);
 
   const rows = registry.rows ?? [];
@@ -114,7 +123,7 @@ export function CatalogUpdaterDialog({
       await client.saveCatalogUpdater(teamId, {
         catalogIds: liveChosen,
         interval,
-        restitch: false
+        restitch
       });
       push({
         tone: 'success',
@@ -325,10 +334,19 @@ export function CatalogUpdaterDialog({
             ]}
             onChange={setIntervalChoice}
           />
-          <div className="team-updater-restitch">
-            <Checkbox checked={false} disabled readOnly label={t('catalogUpdaterRestitch')} />
-            <small>{t('catalogUpdaterRestitchSoon')}</small>
-          </div>
+          <RestitchDevicePicker
+            teamId={teamId}
+            state={updater.state}
+            restitch={restitch}
+            disabled={!mayRun || busy}
+            client={client}
+            agentClient={agentClient}
+            onRestitchChange={setRestitch}
+            onEnrolled={() => {
+              updater.reload();
+              onChanged?.();
+            }}
+          />
         </div>
         <div className="team-dialog-actions">
           {reason && <p className="field-hint team-updater-reason">{reason}</p>}

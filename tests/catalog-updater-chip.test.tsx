@@ -21,6 +21,7 @@ const running: CatalogUpdaterState = {
   catalogCount: 3,
   failingCount: 0,
   spareReadyCount: null,
+  device: null,
   serverNow: new Date(NOW).toISOString()
 };
 
@@ -84,6 +85,30 @@ describe('the updater chip', () => {
     expect(link.className).toContain('ui-chip-warn');
     expect(link.textContent).toContain('needs attention');
     expect(link.textContent).toContain('1 catalog');
+  });
+});
+
+describe('the chip while re-stitching', () => {
+  it('counts the ready copies', () => {
+    renderChip({
+      ...running,
+      restitch: true,
+      spareReadyCount: 2,
+      device: { id: 'd', label: 'Mac', online: true, tooOld: false, lastSeenAt: null }
+    });
+    const link = screen.getByRole('link');
+    expect(link.textContent).toContain('copies 2/3');
+    expect(link.className).toContain('ui-chip-busy');
+  });
+
+  it('asks for attention when the re-stitching computer is away', () => {
+    renderChip({
+      ...running,
+      restitch: true,
+      spareReadyCount: 0,
+      device: { id: 'd', label: 'Mac', online: false, tooOld: false, lastSeenAt: null }
+    });
+    expect(screen.getByRole('link').className).toContain('ui-chip-warn');
   });
 });
 

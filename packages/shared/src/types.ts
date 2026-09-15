@@ -50,6 +50,7 @@ export {
   releaseManifestSigningPayload,
   teamPosterFrameSupported,
   teamProcessPauseSupported,
+  teamUpdaterRestitchSupported,
   toolContractCompatible,
   MIN_POWER_CONTRACT,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,

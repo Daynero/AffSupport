@@ -228,7 +228,37 @@ export interface CatalogUpdaterState {
   catalogCount: number;
   failingCount: number;
   spareReadyCount: number | null;
+  /** The space's re-stitching computer (023, delivery 2), when one is enrolled. */
+  device: CatalogUpdaterDevice | null;
   serverNow: string;
+}
+
+export interface CatalogUpdaterDevice {
+  id: string;
+  label: string;
+  online: boolean;
+  tooOld: boolean;
+  lastSeenAt: string | null;
+}
+
+function catalogUpdaterDeviceFrom(value: unknown): CatalogUpdaterDevice | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof row.label !== 'string' ||
+    typeof row.online !== 'boolean' ||
+    typeof row.tooOld !== 'boolean'
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    label: row.label,
+    online: row.online,
+    tooOld: row.tooOld,
+    lastSeenAt: typeof row.lastSeenAt === 'string' ? row.lastSeenAt : null
+  };
 }
 
 function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
@@ -255,6 +285,7 @@ function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
     catalogCount: row.catalogCount,
     failingCount: row.failingCount,
     spareReadyCount: typeof row.spareReadyCount === 'number' ? row.spareReadyCount : null,
+    device: catalogUpdaterDeviceFrom(row.device),
     serverNow: row.serverNow
   };
 }
@@ -1810,6 +1841,32 @@ export const teamApi = {
     const parsed = catalogUpdaterStateFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed;
+  },
+
+  /** Makes this computer the space's re-stitching computer; the secret is returned once (023). */
+  async enrollUpdaterDevice(
+    teamId: string,
+    input: { label: string; build: string; contracts: Record<string, number> }
+  ): Promise<{ deviceId: string; secret: string }> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('enroll_team_updater_device', {
+        p_team: teamId,
+        p_label: input.label,
+        p_build: input.build,
+        p_contracts: input.contracts
+      })
+    );
+    throwRpc(error);
+    const row = asRecord(data);
+    if (
+      !row ||
+      typeof row.deviceId !== 'string' ||
+      typeof row.secret !== 'string' ||
+      !/^[0-9a-f]{64}$/u.test(row.secret)
+    ) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { deviceId: row.deviceId, secret: row.secret };
   },
 
   async stopCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {

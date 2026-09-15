@@ -65,6 +65,7 @@ const stopped: CatalogUpdaterState = {
   catalogCount: 0,
   failingCount: 0,
   spareReadyCount: null,
+  device: null,
   serverNow: new Date().toISOString()
 };
 
@@ -98,11 +99,35 @@ function client(
     listTeamProductCatalogs: vi.fn().mockResolvedValue(rows),
     saveCatalogUpdater: vi.fn().mockResolvedValue({ ...running, interval: '1w' }),
     stopCatalogUpdater: vi.fn().mockResolvedValue(stopped),
+    enrollUpdaterDevice: vi
+      .fn()
+      .mockResolvedValue({ deviceId: 'device-1', secret: 'd'.repeat(64) }),
     ...overrides
   };
 }
 
-function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
+type AgentClient = NonNullable<Parameters<typeof CatalogUpdaterDialog>[0]['agentClient']>;
+
+const noAgent = (): AgentClient => ({
+  readUpdaterAgent: vi.fn().mockResolvedValue(null),
+  enrollUpdaterAgent: vi.fn()
+});
+
+const thisAgent = (enrolled: { teamId: string; deviceId: string } | null = null): AgentClient => ({
+  readUpdaterAgent: vi.fn().mockResolvedValue({
+    label: 'Studio Mac',
+    build: '140',
+    toolContracts: { teamWorkspace: 2, teamUpdaterRestitch: 1 },
+    enrolled
+  }),
+  enrollUpdaterAgent: vi.fn().mockResolvedValue(undefined)
+});
+
+function renderDialog(
+  api: DialogClient,
+  team: TeamContextSnapshot = owned,
+  agentClient: AgentClient = noAgent()
+) {
   const onClose = vi.fn();
   const onChanged = vi.fn();
   render(
@@ -111,6 +136,7 @@ function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
         <CatalogUpdaterDialog
           teamId={TEAM_ID}
           client={api}
+          agentClient={agentClient}
           onClose={onClose}
           onChanged={onChanged}
         />
@@ -189,12 +215,85 @@ describe('starting, saving and stopping', () => {
     expect(await screen.findByText('Updater started')).toBeTruthy();
   });
 
-  it('keeps re-stitching unavailable until the desktop update', async () => {
+  it('keeps re-stitching unavailable without a computer that can do it', async () => {
     renderDialog(client([row('1', 'polo.mp4')], stopped));
     await screen.findByText('polo.mp4');
     const restitch = screen.getByLabelText(/Re-stitch videos/) as HTMLInputElement;
     expect(restitch.disabled).toBe(true);
-    expect(screen.getByText('Needs the next Soty desktop update.')).toBeTruthy();
+    expect(screen.getByText('Needs an up-to-date Soty app on this computer.')).toBeTruthy();
+  });
+
+  it('makes this computer the re-stitcher when re-stitching is turned on, then starts with it', async () => {
+    const api = client([row('1', 'polo.mp4')], stopped);
+    const agent = thisAgent();
+    const { onChanged } = renderDialog(api, owned, agent);
+    await screen.findByText('polo.mp4');
+    const restitch = screen.getByLabelText(/Re-stitch videos/) as HTMLInputElement;
+    await waitFor(() => expect(restitch.disabled).toBe(false));
+    fireEvent.click(restitch);
+    await waitFor(() =>
+      expect(api.enrollUpdaterDevice).toHaveBeenCalledWith(TEAM_ID, {
+        label: 'Studio Mac',
+        build: '140',
+        contracts: { teamWorkspace: 2, teamUpdaterRestitch: 1 }
+      })
+    );
+    await waitFor(() =>
+      expect(agent.enrollUpdaterAgent).toHaveBeenCalledWith({
+        teamId: TEAM_ID,
+        deviceId: 'device-1',
+        secret: 'd'.repeat(64)
+      })
+    );
+    expect(onChanged).toHaveBeenCalled();
+    await waitFor(() => expect(restitch.checked).toBe(true));
+    fireEvent.click(box('polo.mp4'));
+    fireEvent.click(startButton());
+    await waitFor(() =>
+      expect(api.saveCatalogUpdater).toHaveBeenCalledWith(
+        TEAM_ID,
+        expect.objectContaining({ restitch: true })
+      )
+    );
+  });
+
+  it('uses the computer already there without enrolling again, and offers this one instead', async () => {
+    const withDevice: CatalogUpdaterState = {
+      ...stopped,
+      device: { id: 'other', label: 'Office PC', online: true, tooOld: false, lastSeenAt: null }
+    };
+    const api = client([row('1', 'polo.mp4')], withDevice);
+    renderDialog(api, owned, thisAgent({ teamId: TEAM_ID, deviceId: 'mine' }));
+    expect(await screen.findByText(/Re-stitching: Office PC/)).toBeTruthy();
+    expect(screen.getByText(/online/)).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Use this computer' })).toBeTruthy();
+    fireEvent.click(screen.getByLabelText(/Re-stitch videos/));
+    await waitFor(() =>
+      expect((screen.getByLabelText(/Re-stitch videos/) as HTMLInputElement).checked).toBe(true)
+    );
+    expect(api.enrollUpdaterDevice).not.toHaveBeenCalled();
+  });
+
+  it('shows a running re-stitch with its computer and the copies ready', async () => {
+    const restitching: CatalogUpdaterState = {
+      ...running,
+      restitch: true,
+      catalogCount: 2,
+      spareReadyCount: 1,
+      device: { id: 'mine', label: 'Studio Mac', online: false, tooOld: false, lastSeenAt: null }
+    };
+    renderDialog(
+      client([row('1', 'polo.mp4', { inUpdater: true })], restitching),
+      owned,
+      thisAgent({ teamId: TEAM_ID, deviceId: 'mine' })
+    );
+    await screen.findByText('polo.mp4');
+    await waitFor(() =>
+      expect((screen.getByLabelText(/Re-stitch videos/) as HTMLInputElement).checked).toBe(true)
+    );
+    expect(await screen.findByText(/\(this computer\) · offline/)).toBeTruthy();
+    expect(screen.getByText('Copies ready: 1 of 2')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Use this computer' })).toBeNull();
   });
 
   it('opens a running updater with its catalogs ticked and its interval', async () => {

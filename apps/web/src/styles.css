@@ -18185,6 +18185,9 @@ input[type='number'] {
 .team-updater-restitch small {
   flex-basis: 100%;
 }
+.team-updater-restitch .team-updater-attention {
+  color: var(--color-warning);
+}
 .team-updater-header > div {
   flex: 1 1 16rem;
   min-width: 0;

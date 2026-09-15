@@ -257,6 +257,7 @@ as $$
     ) end,
     'device', (
       select jsonb_build_object(
+        'id', device.id,
         'label', device.label,
         'online', private.updater_device_online(device),
         'tooOld', not private.restitch_contract_ok(device.tool_contracts),

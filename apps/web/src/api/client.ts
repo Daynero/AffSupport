@@ -33,6 +33,7 @@ import {
   parseTeamFileOperationResult,
   teamPosterFrameSupported,
   teamProcessPauseSupported,
+  teamUpdaterRestitchSupported,
   toolContractCompatible
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
@@ -738,6 +739,51 @@ export async function cancelTeamLibraryAgentProcess(attemptId: string): Promise<
  * glyph, which is where it was before. The grant is the one minted for reading
  * the file; the agent hands the picture straight to the cloud with it.
  */
+/** This computer as the catalog updater's re-stitcher (023): what the dialog needs to offer it. */
+export interface UpdaterAgentStatus {
+  label: string;
+  build: string;
+  toolContracts: Record<string, number>;
+  enrolled: { teamId: string; deviceId: string } | null;
+}
+
+/** Null when no agent answers or the agent is too old to re-stitch for the updater. */
+export async function readUpdaterAgent(): Promise<UpdaterAgentStatus | null> {
+  try {
+    const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+    const contracts = health.toolContracts ?? {};
+    if (!teamUpdaterRestitchSupported(contracts)) return null;
+    const value = await request<{ label?: unknown; enrolled?: unknown }>(
+      '/api/team/updater',
+      'GET'
+    );
+    const enrolled =
+      value.enrolled && typeof value.enrolled === 'object'
+        ? (value.enrolled as { teamId?: unknown; deviceId?: unknown })
+        : null;
+    return {
+      label: typeof value.label === 'string' && value.label ? value.label : 'Soty',
+      build: typeof health.buildNumber === 'string' ? health.buildNumber : '',
+      toolContracts: { ...contracts } as Record<string, number>,
+      enrolled:
+        enrolled && typeof enrolled.teamId === 'string' && typeof enrolled.deviceId === 'string'
+          ? { teamId: enrolled.teamId, deviceId: enrolled.deviceId }
+          : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Hands the freshly issued secret straight to this computer's app; it is kept nowhere else. */
+export async function enrollUpdaterAgent(input: {
+  teamId: string;
+  deviceId: string;
+  secret: string;
+}): Promise<void> {
+  await requestBody('/api/team/updater/enroll', { ...input, cloudBaseUrl: teamCloudBaseUrl() });
+}
+
 export async function requestTeamPosterFrame(input: {
   materialId: string;
   grant: TeamTransferGrant;

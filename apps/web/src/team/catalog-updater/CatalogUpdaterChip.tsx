@@ -31,7 +31,10 @@ export function CatalogUpdaterChip({
     );
   }
 
-  const attention = state.failingCount > 0;
+  // A re-stitching computer that is away does not stop the updater, but its spares stop coming.
+  const deviceAway =
+    state.restitch && (!state.device || !state.device.online || state.device.tooOld);
+  const attention = state.failingCount > 0 || deviceAway;
   const catalogs = t(catalogCountKey(language, state.catalogCount), { count: state.catalogCount });
   return (
     <a
@@ -48,6 +51,14 @@ export function CatalogUpdaterChip({
         dueLabel={t('catalogUpdaterChipDue')}
       />
       <span>{catalogs}</span>
+      {state.restitch && state.spareReadyCount !== null && (
+        <span>
+          {t('catalogUpdaterChipSpares', {
+            ready: state.spareReadyCount,
+            count: state.catalogCount
+          })}
+        </span>
+      )}
       {attention && <span>{t('catalogUpdaterChipAttention')}</span>}
     </a>
   );

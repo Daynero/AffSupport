@@ -2070,6 +2070,14 @@ export type Database = {
         Args: { p_team: string };
         Returns: Json;
       };
+      enroll_team_updater_device: {
+        Args: { p_team: string; p_label: string; p_build: string; p_contracts: Json };
+        Returns: Json;
+      };
+      revoke_team_updater_device: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
       get_material_product_catalog: {
         Args: { p_team: string; p_video: string };
         Returns: {
