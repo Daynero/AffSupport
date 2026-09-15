@@ -759,3 +759,11 @@ alter table public.team_product_catalogs
   drop column if exists last_updated_at,
   drop column if exists update_count;
 ```
+
+## 20260916070000_refresh_material_revision.sql
+
+Processes on a file whose Drive version moved without its bytes go back to failing at finalize.
+
+```sql
+drop function if exists public.service_refresh_material_revision(uuid, text, text, text);
+```

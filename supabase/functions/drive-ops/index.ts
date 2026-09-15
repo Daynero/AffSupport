@@ -1848,6 +1848,16 @@ async function handleProcessStart(
   const sourceClient = await driveClient(service, source.credentialId, request);
   const liveSource = await proveContext(source, sourceClient);
   requireDriveCapability(liveSource, 'canDownload');
+  // The version finalize will hold the row to is the live one bound below; a row left behind by a
+  // metadata-only change (sharing by link moves the version) is brought up to it first.
+  if (liveSource.version && liveSource.version !== source.driveVersion) {
+    await rpcValue(service, 'service_refresh_material_revision', {
+      p_material: materialId,
+      p_drive_file_id: liveSource.id,
+      p_drive_version: liveSource.version,
+      p_checksum: liveSource.checksum
+    });
+  }
   const destination = await destinationWithClient({
     request,
     service,
