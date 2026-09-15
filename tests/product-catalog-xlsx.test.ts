@@ -60,7 +60,7 @@ describe('the workbook', () => {
       videoLink: 'https://drive.google.com/file/d/v/view?usp=sharing',
       count: 3
     });
-    const files = await unzip(buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows }));
+    const files = await unzip(await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows }));
     expect([...files.keys()].sort()).toEqual(
       [
         '[Content_Types].xml',
@@ -89,7 +89,7 @@ describe('the workbook', () => {
       videoLink: 'https://drive.google.com/file/d/v/view?usp=sharing',
       count: 2
     });
-    const files = await unzip(buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows }));
+    const files = await unzip(await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows }));
     const sheet = files.get('xl/worksheets/sheet1.xml')!;
     const strings = files.get('xl/sharedStrings.xml')!;
     expect(sheet).not.toContain('<f');
@@ -103,7 +103,7 @@ describe('the workbook', () => {
 
   it('preserves leading spaces and drops characters XML cannot hold', async () => {
     const files = await unzip(
-      buildXlsx({
+      await buildXlsx({
         sheetName: 'x',
         rows: [
           [
@@ -118,20 +118,36 @@ describe('the workbook', () => {
     expect(strings).toContain('<t>ab</t>');
   });
 
-  it('stays small at 400 products with a description at its limit', () => {
+  it('stays small at 400 products with a description at its limit', async () => {
     const rows = buildProductCatalogRows({
       settings: { ...settings, description: 'd'.repeat(9999) },
       sourceLink: `https://a.test/?${'q'.repeat(2000)}`,
       videoLink: 'https://drive.google.com/file/d/v/view?usp=sharing',
       count: 400
     });
-    const bytes = buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows });
+    const bytes = await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows });
     expect(bytes.byteLength).toBeLessThan(1024 * 1024);
   });
 
-  it('refuses a sheet name a workbook cannot have', () => {
-    expect(() => buildXlsx({ sheetName: 'a/b', rows: [] })).toThrow(RangeError);
-    expect(() => buildXlsx({ sheetName: 'x'.repeat(32), rows: [] })).toThrow(RangeError);
+  it('refuses a sheet name a workbook cannot have', async () => {
+    await expect(buildXlsx({ sheetName: 'a/b', rows: [] })).rejects.toThrow(RangeError);
+    await expect(buildXlsx({ sheetName: 'x'.repeat(32), rows: [] })).rejects.toThrow(RangeError);
+  });
+});
+
+describe('compression', () => {
+  it('deflates the repeated rows of a 100-product catalog to a fraction of their size', async () => {
+    const rows = buildProductCatalogRows({
+      settings,
+      sourceLink: 'https://offer.example.com/landing?sub1=campaign&sub2=creative',
+      videoLink:
+        'https://drive.google.com/file/d/1RdbRc-VO-rZ4wMyosplF3yo4zw6AT_5i/view?usp=sharing',
+      count: 100
+    });
+    const bytes = await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows });
+    expect(bytes.byteLength).toBeLessThan(40 * 1024);
+    const files = await unzip(bytes);
+    expect(files.get('xl/worksheets/sheet1.xml')).toContain('<row r="102">');
   });
 });
 

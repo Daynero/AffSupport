@@ -6,8 +6,9 @@
  * a shared string or a number — and there is no `<f>` element anywhere, so nothing a person typed
  * can be evaluated.
  *
- * Why stored (uncompressed) ZIP entries: no dependency, and the size does not need it — shared
- * strings already collapse the rows, which repeat the same title, description and links.
+ * Why DEFLATE entries (023): the catalog updater uploads every selected sheet at every round, and a
+ * stored 100-product workbook was 114 KB of almost the same row over and over. The platform's own
+ * `CompressionStream` does it without a dependency; an entry that would not shrink stays stored.
  */
 
 export type XlsxCell = { t: 'string'; v: string } | { t: 'number'; v: number };
@@ -111,37 +112,50 @@ function stringUses(rows: readonly (readonly XlsxCell[])[]): number {
 
 interface ZipEntry {
   name: Uint8Array;
-  data: Uint8Array;
+  /** What is written: the deflated bytes, or the original when deflating did not help. */
+  body: Uint8Array;
+  method: 0 | 8;
+  size: number;
   crc: number;
   offset: number;
 }
 
-function zipStored(
+async function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data as Uint8Array<ArrayBuffer>])
+    .stream()
+    .pipeThrough(new CompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function zipFiles(
   files: ReadonlyArray<{ name: string; data: Uint8Array }>
-): Uint8Array<ArrayBuffer> {
+): Promise<Uint8Array<ArrayBuffer>> {
   const entries: ZipEntry[] = [];
   const chunks: Uint8Array[] = [];
   let offset = 0;
   for (const file of files) {
     const name = encoder.encode(file.name);
     const crc = crc32(file.data);
+    const deflated = await deflateRaw(file.data);
+    const method = deflated.length < file.data.length ? 8 : 0;
+    const body = method === 8 ? deflated : file.data;
     const header = new Uint8Array(30 + name.length);
     const view = new DataView(header.buffer);
     view.setUint32(0, 0x04034b50, true);
     view.setUint16(4, 20, true); // version needed
     view.setUint16(6, 0x0800, true); // UTF-8 names
-    view.setUint16(8, 0, true); // stored
+    view.setUint16(8, method, true); // 0 stored, 8 deflated
     view.setUint16(10, 0, true); // time
     view.setUint16(12, 0x21, true); // date: 1980-01-01
     view.setUint32(14, crc, true);
-    view.setUint32(18, file.data.length, true);
+    view.setUint32(18, body.length, true);
     view.setUint32(22, file.data.length, true);
     view.setUint16(26, name.length, true);
     view.setUint16(28, 0, true);
     header.set(name, 30);
-    entries.push({ name, data: file.data, crc, offset });
-    chunks.push(header, file.data);
-    offset += header.length + file.data.length;
+    entries.push({ name, body, method, size: file.data.length, crc, offset });
+    chunks.push(header, body);
+    offset += header.length + body.length;
   }
   const centralStart = offset;
   for (const entry of entries) {
@@ -151,12 +165,12 @@ function zipStored(
     view.setUint16(4, 20, true); // version made by
     view.setUint16(6, 20, true); // version needed
     view.setUint16(8, 0x0800, true);
-    view.setUint16(10, 0, true);
+    view.setUint16(10, entry.method, true);
     view.setUint16(12, 0, true);
     view.setUint16(14, 0x21, true);
     view.setUint32(16, entry.crc, true);
-    view.setUint32(20, entry.data.length, true);
-    view.setUint32(24, entry.data.length, true);
+    view.setUint32(20, entry.body.length, true);
+    view.setUint32(24, entry.size, true);
     view.setUint16(28, entry.name.length, true);
     view.setUint16(30, 0, true); // extra
     view.setUint16(32, 0, true); // comment
@@ -187,10 +201,10 @@ function zipStored(
   return out;
 }
 
-export function buildXlsx(input: {
+export async function buildXlsx(input: {
   sheetName: string;
   rows: readonly (readonly XlsxCell[])[];
-}): Uint8Array<ArrayBuffer> {
+}): Promise<Uint8Array<ArrayBuffer>> {
   if (!/^[^\\/?*[\]:]{1,31}$/u.test(input.sheetName)) {
     throw new RangeError('sheet name is not a valid worksheet name');
   }
@@ -251,5 +265,5 @@ export function buildXlsx(input: {
         '</styleSheet>'
     }
   ];
-  return zipStored(files.map(file => ({ name: file.name, data: encoder.encode(file.xml) })));
+  return zipFiles(files.map(file => ({ name: file.name, data: encoder.encode(file.xml) })));
 }

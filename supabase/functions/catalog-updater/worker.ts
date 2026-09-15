@@ -129,7 +129,7 @@ async function updateOne(
   const nextCount = item.updateCount + 1;
   try {
     const drive = await deps.driveFor(item.credentialId);
-    const bytes = buildXlsx({
+    const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       rows: rebuildCatalogRows({
         record: {

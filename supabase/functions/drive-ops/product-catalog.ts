@@ -279,7 +279,7 @@ export async function createProductCatalog(
   }
   try {
     await deps.markRunning(authority.operationId);
-    const bytes = buildXlsx({
+    const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       rows: buildProductCatalogRows({
         settings,
