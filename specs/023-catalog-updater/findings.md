@@ -126,3 +126,29 @@ On the running beta (vite dev on the branch), signed in as the beta tester, Ukra
 - 400 px wide: the dialog fills the screen with no horizontal overflow.
 - Two defects found and fixed here: the updater's backdrop sat on `--layer-fullbleed` (120), above the nested confirmation (`--layer-modal-nested`, 110), so Stop looked dead — it now uses `--layer-modal`; and the header chip waited for realtime after a start/stop — the dialog now calls `onChanged` so the shell re-reads at once.
 - A trashed sheet leaving the updater (T036, step 6) is proven by the SQL test rather than on the beta, which holds a single catalog.
+
+## Re-stitching from an open tab (web-only) — 2026-09-15
+
+The owner asked for re-stitching without an app update. The released app (1.1.1) already re-stitches a
+team video through `/api/team/process` with the ordinary grants (the `restitch` delegate behind "download
+re-stitched"), so the desktop runner and the device secret were replaced by the member's open tab:
+
+- `20260916120000_catalog_updater_restitch_web.sql` — the delivery-2 schema without devices: jobs are
+  leased by a member (`lease_owner`), one lease per member and space, `private.can(…, 'process', …)`
+  re-checked on claim and heartbeat; copies, the swap at a round and the deletion queue unchanged.
+- `drive-ops/updater-restitch.ts` — `/updater/claim|heartbeat|complete` behind the member's JWT;
+  `handleProcessStart` as that member; lapsed operations closed; a lease-unique process key.
+- `useRestitchPreparer` in the workspace shell — while the updater runs with re-stitching, the member may
+  process and the app is connected: claim every 30 s, hand the process to the app, heartbeat every 25 s,
+  cancel on `cancel`, report the outcome. A preparation from another file version or detector is dropped
+  (`usablePrep`). With no such tab, rounds move the IDs and keep the video.
+- The catalog workbook is DEFLATEd: 114 KB → 15 KB for 100 products, 421 KB → 44 KB for 400.
+
+Beta (agent built from this branch — no agent change since 1.1.1): ticked re-stitch in the dialog and
+started; the open tab prepared "restitched 6" → forced round → IDs +, column Z on the copy → the tab
+prepared "restitch 7" → forced round → the used copy deleted (`missing`), "Готових копій: 1 з 1" in the
+dialog → tab closed → forced round: update 8, IDs 4029…4032, the video link unchanged. Every update
+wrote the deflated workbook; Drive converted it in place as before.
+
+The device-based variant stays on `023-catalog-updater-restitch` for a later desktop release; its
+schema was removed from the beta database by hand (never `db reset`) before applying this one.
