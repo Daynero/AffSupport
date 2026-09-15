@@ -48,6 +48,14 @@ export function CatalogUpdaterChip({
         dueLabel={t('catalogUpdaterChipDue')}
       />
       <span>{catalogs}</span>
+      {state.restitch && state.spareReadyCount !== null && (
+        <span>
+          {t('catalogUpdaterChipSpares', {
+            ready: state.spareReadyCount,
+            count: state.catalogCount
+          })}
+        </span>
+      )}
       {attention && <span>{t('catalogUpdaterChipAttention')}</span>}
     </a>
   );

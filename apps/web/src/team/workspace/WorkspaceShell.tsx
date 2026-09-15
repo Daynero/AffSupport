@@ -17,6 +17,7 @@ import { SettingsDialog } from './SettingsDialog';
 import { CatalogUpdaterChip } from '../catalog-updater/CatalogUpdaterChip';
 import { CatalogUpdaterDialog } from '../catalog-updater/CatalogUpdaterDialog';
 import { useCatalogUpdater } from '../catalog-updater/useCatalogUpdater';
+import { useRestitchPreparer } from '../catalog-updater/useRestitchPreparer';
 import { MembersSection } from './MembersSection';
 import { SpaceSwitcher } from './SpaceSwitcher';
 import { RealtimeChip } from './RealtimeChip';
@@ -117,7 +118,7 @@ export function WorkspaceShell({
   query?: TeamRouteQuery;
 }) {
   const { t } = useI18n();
-  const { activeTeam, teams, revision } = useTeam();
+  const { activeTeam, teams, revision, can } = useTeam();
   const agent = useOptionalAgent();
   const connectedToDrive = activeTeam?.connectionState === 'connected';
   /**
@@ -263,6 +264,15 @@ export function WorkspaceShell({
 
   // The updater's state for the chip beside the settings link (023); the dialog reads its own.
   const catalogUpdater = useCatalogUpdater(teamId);
+  // With re-stitching on, this tab lends the connected Soty app to the updater's spare copies (023).
+  const restitchPreparer = useRestitchPreparer({
+    teamId,
+    enabled:
+      catalogUpdater.state?.state === 'running' &&
+      catalogUpdater.state.restitch &&
+      can('process') &&
+      agent?.teamWorkspaceAvailable === true
+  });
 
   /** An explorer address that keeps the current folder and view. */
   const explorerRoute = useCallback(
@@ -559,6 +569,7 @@ export function WorkspaceShell({
           {query?.updater && (
             <CatalogUpdaterDialog
               teamId={teamId}
+              preparing={restitchPreparer.preparing}
               onClose={() => navigateTo(explorerRoute({ updater: false }))}
               onChanged={catalogUpdater.reload}
             />

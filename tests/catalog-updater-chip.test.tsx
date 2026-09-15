@@ -87,6 +87,13 @@ describe('the updater chip', () => {
   });
 });
 
+describe('the chip while re-stitching', () => {
+  it('counts the ready copies', () => {
+    renderChip({ ...running, restitch: true, spareReadyCount: 2 });
+    expect(screen.getByRole('link').textContent).toContain('copies 2/3');
+  });
+});
+
 describe('formatRemaining', () => {
   it.each([
     [0, '0:00:00'],

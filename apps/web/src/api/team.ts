@@ -15,6 +15,7 @@ import {
   parseTeamPreviewResult,
   parseTeamProcessStartResult,
   parseTeamTransferGrant,
+  type TeamTransferGrant,
   parseTeamUploadSession,
   parseLibraryJobClaim,
   parseLibraryJobFinalize,
@@ -217,6 +218,46 @@ export interface CatalogRegistryRow {
 }
 
 export type CatalogUpdaterInterval = '1h' | '1d' | '1w';
+
+/** A spare copy to prepare, as drive-ops hands it to a member's tab (023). */
+export interface RestitchClaim {
+  jobId: string;
+  leaseToken: string;
+  operationId: string;
+  toolId: 'restitch';
+  videoMaterialId: string;
+  videoDriveVersion: string | null;
+  options: { defaults: unknown; prepared: unknown };
+  sourceGrant: TeamTransferGrant;
+  finalizeGrant: TeamTransferGrant;
+}
+
+function restitchClaimGuard(value: unknown): value is { job: RestitchClaim | null } {
+  const row = asRecord(value);
+  if (!row || !('job' in row)) return false;
+  if (row.job === null) return true;
+  const job = asRecord(row.job);
+  return (
+    !!job &&
+    typeof job.jobId === 'string' &&
+    typeof job.leaseToken === 'string' &&
+    typeof job.operationId === 'string' &&
+    job.toolId === 'restitch' &&
+    typeof job.videoMaterialId === 'string' &&
+    (job.videoDriveVersion === null || typeof job.videoDriveVersion === 'string') &&
+    !!asRecord(job.options) &&
+    !!asRecord(job.sourceGrant) &&
+    !!asRecord(job.finalizeGrant)
+  );
+}
+
+function cancelGuard(value: unknown): value is { cancel: boolean } {
+  return typeof asRecord(value)?.cancel === 'boolean';
+}
+
+function recordedGuard(value: unknown): value is { recorded: boolean } {
+  return typeof asRecord(value)?.recorded === 'boolean';
+}
 
 /** 023 — the space's catalog updater, as the chip and the dialog show it. */
 export interface CatalogUpdaterState {
@@ -1810,6 +1851,40 @@ export const teamApi = {
     const parsed = catalogUpdaterStateFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed;
+  },
+
+  /** The next spare copy this member's computer should prepare, or null (023). */
+  async claimRestitchJob(teamId: string): Promise<RestitchClaim | null> {
+    const value = await invokeTeamFunction(
+      'drive-ops/updater/claim',
+      { teamId },
+      restitchClaimGuard
+    );
+    return value.job;
+  },
+
+  /** Keeps the lease; true means the updater no longer wants this copy. */
+  async heartbeatRestitchJob(jobId: string, leaseToken: string): Promise<boolean> {
+    const value = await invokeTeamFunction(
+      'drive-ops/updater/heartbeat',
+      { jobId, leaseToken },
+      cancelGuard
+    );
+    return value.cancel;
+  },
+
+  async completeRestitchJob(input: {
+    jobId: string;
+    leaseToken: string;
+    outcome: 'finalized' | 'failed';
+    errorCode: string | null;
+  }): Promise<boolean> {
+    const value = await invokeTeamFunction(
+      'drive-ops/updater/complete',
+      { ...input },
+      recordedGuard
+    );
+    return value.recorded;
   },
 
   async stopCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {

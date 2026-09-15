@@ -39,11 +39,14 @@ const defaultClient: CatalogUpdaterDialogClient = teamApi;
 export function CatalogUpdaterDialog({
   teamId,
   client = defaultClient,
+  preparing = false,
   onClose,
   onChanged
 }: {
   teamId: string;
   client?: CatalogUpdaterDialogClient;
+  /** This tab is preparing a re-stitched copy right now. */
+  preparing?: boolean;
   onClose: () => void;
   /** Called after a start, save or stop, so the chip outside the dialog reads the new state. */
   onChanged?: () => void;
@@ -60,6 +63,7 @@ export function CatalogUpdaterDialog({
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [interval, setIntervalChoice] = useState<CatalogUpdaterInterval>('1h');
+  const [restitch, setRestitch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const selectAllRef = useRef<HTMLSpanElement>(null);
@@ -72,6 +76,7 @@ export function CatalogUpdaterDialog({
     if (selected !== null || !registry.rows || !updater.state) return;
     setSelected(new Set(registry.rows.filter(row => row.inUpdater).map(row => row.catalogId)));
     setIntervalChoice(updater.state.interval);
+    setRestitch(updater.state.restitch);
   }, [registry.rows, selected, updater.state]);
 
   const rows = registry.rows ?? [];
@@ -114,7 +119,7 @@ export function CatalogUpdaterDialog({
       await client.saveCatalogUpdater(teamId, {
         catalogIds: liveChosen,
         interval,
-        restitch: false
+        restitch
       });
       push({
         tone: 'success',
@@ -326,8 +331,23 @@ export function CatalogUpdaterDialog({
             onChange={setIntervalChoice}
           />
           <div className="team-updater-restitch">
-            <Checkbox checked={false} disabled readOnly label={t('catalogUpdaterRestitch')} />
-            <small>{t('catalogUpdaterRestitchSoon')}</small>
+            <Checkbox
+              checked={restitch}
+              // Until the first reads land, the effect above would overwrite a tick made meanwhile.
+              disabled={!mayRun || busy || selected === null}
+              onChange={event => setRestitch(event.target.checked)}
+              label={t('catalogUpdaterRestitch')}
+            />
+            <small>{t('catalogUpdaterRestitchHint')}</small>
+            {running && updater.state?.restitch && updater.state.spareReadyCount !== null && (
+              <small>
+                {t('catalogUpdaterSparesReady', {
+                  ready: updater.state.spareReadyCount,
+                  count: updater.state.catalogCount
+                })}
+              </small>
+            )}
+            {preparing && <small>{t('catalogUpdaterPreparingHere')}</small>}
           </div>
         </div>
         <div className="team-dialog-actions">

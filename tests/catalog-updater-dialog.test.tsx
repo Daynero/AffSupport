@@ -189,12 +189,49 @@ describe('starting, saving and stopping', () => {
     expect(await screen.findByText('Updater started')).toBeTruthy();
   });
 
-  it('keeps re-stitching unavailable until the desktop update', async () => {
-    renderDialog(client([row('1', 'polo.mp4')], stopped));
+  it('starts with re-stitching when it is ticked, and says how copies are prepared', async () => {
+    const api = client([row('1', 'polo.mp4')], stopped);
+    renderDialog(api);
     await screen.findByText('polo.mp4');
+    expect(screen.getByText(/Copies are prepared while Soty is open/)).toBeTruthy();
     const restitch = screen.getByLabelText(/Re-stitch videos/) as HTMLInputElement;
-    expect(restitch.disabled).toBe(true);
-    expect(screen.getByText('Needs the next Soty desktop update.')).toBeTruthy();
+    await waitFor(() => expect(restitch.disabled).toBe(false));
+    fireEvent.click(restitch);
+    fireEvent.click(box('polo.mp4'));
+    fireEvent.click(startButton());
+    await waitFor(() =>
+      expect(api.saveCatalogUpdater).toHaveBeenCalledWith(
+        TEAM_ID,
+        expect.objectContaining({ restitch: true })
+      )
+    );
+  });
+
+  it('shows the copies ready while re-stitching runs, and when this computer is preparing one', async () => {
+    const restitching: CatalogUpdaterState = {
+      ...running,
+      restitch: true,
+      catalogCount: 2,
+      spareReadyCount: 1
+    };
+    render(
+      <TeamProvider initialTeams={[owned]} realtime={false}>
+        <ToastProvider>
+          <CatalogUpdaterDialog
+            teamId={TEAM_ID}
+            client={client([row('1', 'polo.mp4', { inUpdater: true })], restitching)}
+            preparing
+            onClose={vi.fn()}
+          />
+        </ToastProvider>
+      </TeamProvider>
+    );
+    await screen.findByText('polo.mp4');
+    await waitFor(() =>
+      expect((screen.getByLabelText(/Re-stitch videos/) as HTMLInputElement).checked).toBe(true)
+    );
+    expect(screen.getByText('Copies ready: 1 of 2')).toBeTruthy();
+    expect(screen.getByText('This computer is preparing a copy now.')).toBeTruthy();
   });
 
   it('opens a running updater with its catalogs ticked and its interval', async () => {
