@@ -776,3 +776,32 @@ Re-apply `private.invoke_catalog_sync_worker()` from
 `public.get_drive_connection_status(uuid)` from
 `20260801095000_team_invitation_drive_actions.sql`. This restores the silent invalid-config
 return and the mismatched connection ordering, so prefer a forward fix in production.
+
+## 20260916120000_catalog_updater_restitch_web.sql
+
+Feature 023: re-stitched copies prepared by an open Soty tab. Turn re-stitching off in every updater
+first (`update public.team_catalog_updaters set restitch = false`) and let the worker delete the
+retired copies, or they stay in Drive as ordinary materials; the copy each sheet points at stays.
+Then re-apply the delivery-1 definitions of `save_team_catalog_updater`, `stop_team_catalog_updater`,
+`private.catalog_updater_state`, `private.invoke_catalog_updater_worker`,
+`service_claim_catalog_updater_items(text, integer, integer)` and
+`service_complete_catalog_update(uuid, text, integer)` from `20260915140000_catalog_updater.sql` after
+the drops below.
+
+```sql
+drop function if exists public.service_forget_restitch_copy(uuid, boolean);
+drop function if exists public.service_claim_retired_restitch_copies(integer);
+drop function if exists public.service_complete_catalog_update(uuid, text, integer, uuid);
+drop function if exists public.service_claim_catalog_updater_items(text, integer, integer);
+drop function if exists public.service_record_restitch_output(uuid, uuid, text, text);
+drop function if exists public.service_complete_restitch_job(uuid, uuid, bytea, text, text);
+drop function if exists public.service_heartbeat_restitch_job(uuid, uuid, bytea, integer);
+drop function if exists public.service_bind_restitch_job_operation(uuid, bytea, uuid);
+drop function if exists public.service_claim_restitch_job(uuid, uuid, bytea, integer);
+drop function if exists private.retire_restitch_spares(uuid, uuid[]);
+drop function if exists private.queue_restitch_jobs(uuid);
+drop table if exists private.catalog_restitch_operations;
+drop table if exists private.catalog_restitch_jobs;
+drop table if exists public.team_catalog_restitch_copies;
+alter table public.team_product_catalogs drop column if exists current_video_link;
+```

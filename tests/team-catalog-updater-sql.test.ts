@@ -236,14 +236,13 @@ describe('saving and stopping', () => {
     });
   }, 60_000);
 
-  it('refuses a viewer, an empty list, a foreign catalog, a strange interval and re-stitching', async () => {
+  it('refuses a viewer, an empty list, a foreign catalog and a strange interval', async () => {
     const { sheet } = await catalog('refusals');
     const foreign = await catalog('foreign', otherTeamId);
     await expect(save([sheet], '1h', false, VIEWER)).rejects.toThrow(/PERMISSION_DENIED/);
     await expect(save([])).rejects.toThrow(/INVALID_INPUT/);
     await expect(save([foreign.sheet])).rejects.toThrow(/INVALID_INPUT/);
     await expect(save([sheet], '2h')).rejects.toThrow(/INVALID_INPUT/);
-    await expect(save([sheet], '1h', true)).rejects.toThrow(/INVALID_INPUT/);
   }, 60_000);
 
   it('starts one interval ahead, keeps the due time when only the list changes, resets it on a new interval', async () => {
