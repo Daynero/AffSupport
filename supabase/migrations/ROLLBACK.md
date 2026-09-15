@@ -767,3 +767,12 @@ Processes on a file whose Drive version moved without its bytes go back to faili
 ```sql
 drop function if exists public.service_refresh_material_revision(uuid, text, text, text);
 ```
+
+## 20260916100000_catalog_sync_outage_guards.sql
+
+Re-apply `private.invoke_catalog_sync_worker()` from
+`20260907140000_catalog_progress_keeps_its_lease.sql`,
+`private.claim_catalog_sync_jobs(text, integer, integer)` from that same migration, and
+`public.get_drive_connection_status(uuid)` from
+`20260801095000_team_invitation_drive_actions.sql`. This restores the silent invalid-config
+return and the mismatched connection ordering, so prefer a forward fix in production.
