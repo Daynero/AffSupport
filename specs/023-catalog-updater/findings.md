@@ -156,3 +156,42 @@ Deviations from the plan, and why:
   compression; one job per computer at a time (SQL-enforced too).
 - **"Video not refreshed" is not marked per sheet**; the chip turns to attention while re-stitching is
   on and the computer is away, and the dialog shows copies ready X of N.
+
+### Beta proof of delivery 2 (T050) — 2026-09-15
+
+Beta stack from `023-catalog-updater-restitch` (agent build 64, `teamUpdaterRestitch: 1`), the test catalog
+"Db3_1_compressed_3" (4 products), space defaults set to stitch a 3-second end screen from an image
+uploaded to the beta agent's library.
+
+- Dialog, re-stitch ticked with no computer: the page enrolled this computer ("MacBook-Air-Roman
+  (цей комп’ютер) · на зв’язку"), the agent stored the secret, Start sent `restitch: true`; "Готових копій:
+  0 з 1".
+- The agent claimed the job, re-stitched the video and uploaded it; finalize made it the spare, shared by
+  link, and the inspection was stored (prep, detector 2).
+- Forced round: IDs 2007…2010 (+2006, update 4), column Z → the spare's link; the spare became in use and
+  the next job was queued at once.
+- Second spare "restitched 5", forced round: update 5, Z → "restitched 5", the copy used before is
+  `missing` in the catalog and **not found in Drive** (deleted, not trashed). The in-use copy opens signed
+  out.
+- Stop from the dialog while the third copy was finishing: it arrived as `retired`, was deleted two
+  minutes later; the in-use copy and the sheet's links stayed.
+- Not run on the beta: the computer going offline (step 5) — covered by the SQL and runner tests.
+
+Found and fixed on the beta (`ce89e81`):
+
+1. The runner read `job` from the top of drive-ops' answer, which is `{ ok, value }`; the fakes in its
+   test had the same wrong shape. Every claim looked empty, the lease lapsed, the operation stayed open.
+2. That open operation kept its name reserved: the retry failed `NAME_CONFLICT`. Claims now close every
+   still-running operation the updater started for the catalog before starting another.
+3. The process idempotency key was `updater-<job>-<attempt>`; a job is recreated after every spare, so
+   attempts repeat — `WRONG_STATE`. The key now carries the lease.
+4. **`SOURCE_CHANGED` at finalize for an unchanged video.** 022 shares the video by link, which moves its
+   Drive version; the catalog row kept the old one, the process bound the live one, and finalize compared
+   the row. `handleProcessStart` now refreshes a row whose checksum matches the live file
+   (`service_refresh_material_revision`). **This also affects member-started processes on any video that
+   has a 022 catalog, in production today**, unless catalog sync has since caught the version up.
+5. Ticking re-stitch before the dialog's first read landed was overwritten by the initial-state effect; the
+   option now waits for it.
+
+Leftovers: the four failed uploads before fix 4 ("… restitched 4.mp4" … "(4)") sit in Drive next to the
+test video, outside the catalog (operations in `reconcile_required`).

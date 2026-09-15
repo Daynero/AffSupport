@@ -149,7 +149,7 @@ scan written files for control characters.
 ### Web
 
 - [x] T049 [US5] Write `apps/web/src/team/catalog-updater/RestitchDevicePicker.tsx` and wire the "Re-stitch video" checkbox in `CatalogUpdaterDialog.tsx`: enroll this computer (web → `updater-devices/enroll` → agent enroll route), show computer label, online, too-old; chip shows "ready X/N"; en/uk keys; tests in `tests/catalog-updater-dialog.test.tsx` and `tests/catalog-updater-chip.test.tsx`
-- [ ] T050 [US5] Beta validation with a packaged agent per quickstart D2 steps 1–6; record in `findings.md`
+- [x] T050 [US5] Beta validation with a packaged agent per quickstart D2 steps 1–6; record in `findings.md`
 
 ---
 
