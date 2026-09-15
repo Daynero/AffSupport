@@ -86,8 +86,42 @@
       // The colours follow the theme the bootstrap above already chose, and the
       // text follows the browser's language, because this screen used to be
       // dark-only and Ukrainian-only regardless of either (FR-057).
+      //
+      // A reload alone does not heal a poisoned cache. During a deploy the host
+      // can answer a module that has not reached its edge yet with the app's
+      // HTML, and the browser keeps that answer for hours; every reload then
+      // fails on the same file. So before reloading, every module the page
+      // names is fetched again past the cache, which replaces the bad copy.
       (function () {
         var recoveryKey = 'soty.boot-recovery.v1';
+
+        function refetchModules(done) {
+          var nodes = document.querySelectorAll(
+            'script[type="module"][src], link[rel="modulepreload"][href]'
+          );
+          var pending = [];
+          for (var i = 0; i < nodes.length; i += 1) {
+            var href = nodes[i].src || nodes[i].href;
+            if (typeof fetch === 'function' && href) {
+              pending.push(
+                fetch(href, { cache: 'reload', credentials: 'same-origin' }).catch(function () {})
+              );
+            }
+          }
+          var finished = false;
+          function finish() {
+            if (finished) return;
+            finished = true;
+            done();
+          }
+          window.setTimeout(finish, 5000);
+          if (pending.length && typeof Promise === 'function') {
+            Promise.all(pending).then(finish, finish);
+          } else {
+            finish();
+          }
+        }
+
         window.setTimeout(function () {
           var root = document.getElementById('root');
           if (!root || root.childElementCount > 0) {
@@ -100,9 +134,11 @@
           try {
             if (!sessionStorage.getItem(recoveryKey)) {
               sessionStorage.setItem(recoveryKey, '1');
-              var url = new URL(window.location.href);
-              url.searchParams.set('boot-recovery', Date.now().toString(36));
-              window.location.replace(url.toString());
+              refetchModules(function () {
+                var url = new URL(window.location.href);
+                url.searchParams.set('boot-recovery', Date.now().toString(36));
+                window.location.replace(url.toString());
+              });
               return;
             }
           } catch (e) {}
@@ -155,7 +191,10 @@
           button.style.fontWeight = '700';
           button.style.cursor = 'pointer';
           button.addEventListener('click', function () {
-            location.reload();
+            button.disabled = true;
+            refetchModules(function () {
+              location.reload();
+            });
           });
 
           box.appendChild(heading);
