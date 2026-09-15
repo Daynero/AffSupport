@@ -33,6 +33,9 @@ verify_jwt = false
 [functions.catalog-sync]
 verify_jwt = false
 
+[functions.catalog-updater]
+verify_jwt = false
+
 [functions.drive-transfer]
 verify_jwt = false
 

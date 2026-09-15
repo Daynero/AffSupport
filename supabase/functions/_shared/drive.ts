@@ -456,6 +456,58 @@ export class GoogleDriveClient {
     return metadata;
   }
 
+  /**
+   * Rewrites an existing converted file in place (023): the same file id, so the same link, with
+   * new contents converted on the way in — a catalog sheet whose product IDs moved on. The
+   * returned id and type are checked, because a sheet that silently became another file would
+   * leave the ad platforms reading a link that no longer changes.
+   */
+  async updateConvertedFile(input: {
+    fileId: string;
+    resourceKey?: string | null;
+    sourceMimeType: string;
+    targetMimeType: string;
+    bytes: Uint8Array<ArrayBuffer>;
+  }): Promise<DriveFileMetadata> {
+    if (input.fileId.length < 1) {
+      throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    }
+    if (input.bytes.byteLength > 10 * 1024 * 1024) {
+      throw new TeamFunctionError('TOO_LARGE', { retryable: false });
+    }
+    const boundary = `soty-${crypto.randomUUID()}`;
+    const encoder = new TextEncoder();
+    const head = encoder.encode(
+      `--${boundary}\r\ncontent-type: application/json; charset=utf-8\r\n\r\n` +
+        JSON.stringify({ mimeType: input.targetMimeType }) +
+        `\r\n--${boundary}\r\ncontent-type: ${input.sourceMimeType}\r\n\r\n`
+    );
+    const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
+    const body = new Uint8Array(new ArrayBuffer(head.length + input.bytes.length + tail.length));
+    body.set(head, 0);
+    body.set(input.bytes, head.length);
+    body.set(tail, head.length + input.bytes.length);
+
+    const url = new URL(
+      `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(input.fileId)}`
+    );
+    url.searchParams.set('uploadType', 'multipart');
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', FILE_FIELDS);
+    if (input.resourceKey) url.searchParams.set('resourceKey', input.resourceKey);
+    const response = await this.#request(url, {
+      method: 'PATCH',
+      headers: { 'content-type': `multipart/related; boundary=${boundary}` },
+      body,
+      signal: AbortSignal.timeout(60_000)
+    });
+    const metadata = parseMetadata(await response.json().catch(() => null));
+    if (!metadata || metadata.id !== input.fileId || metadata.mimeType !== input.targetMimeType) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    return metadata;
+  }
+
   async listAnyonePermissions(fileId: string): Promise<Array<{ id: string; role: string }>> {
     const url = new URL(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`

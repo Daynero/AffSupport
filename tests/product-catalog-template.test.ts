@@ -199,3 +199,15 @@ describe('names and links', () => {
     );
   });
 });
+
+describe('the updater leaves 022 alone (023)', () => {
+  it('still numbers a fresh catalog from 1 once the updater module is loaded', async () => {
+    await import('../supabase/functions/_shared/catalog-updater.js');
+    const rows = buildProductCatalogRows({ settings, sourceLink, videoLink, count: 3 });
+    expect([3, 4, 5].map(row => cellAt(rows, 'A', row))).toEqual([
+      { t: 'number', v: 1 },
+      { t: 'number', v: 2 },
+      { t: 'number', v: 3 }
+    ]);
+  });
+});

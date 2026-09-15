@@ -67,3 +67,17 @@ should start from.
 - Feature 022 kept `packages/shared/src` untouched to stay web-only; 023's re-stitching part cannot,
   so plan it as two deliveries: (1) registry + updater + ID updates (server + web), (2) re-stitching
   with the desktop release.
+
+## T004 — in-place rewrite proven on real Drive (2026-09-15)
+
+On the beta's real Google Drive, `GoogleDriveClient.updateConvertedFile` (multipart PATCH,
+`uploadType=multipart`, metadata `{ mimeType: 'application/vnd.google-apps.spreadsheet' }`, XLSX body)
+rewrote a 022 catalog in place:
+
+- the Drive file id and `webViewLink` were unchanged; the file stayed a native Google Sheet;
+- Drive's `version` moved (13 → 15), nothing else about the file did;
+- the signed-out CSV export showed column A as `501…504`, and every other cell as 022 wrote it;
+- a second run with offset 0 restored the sheet exactly.
+
+Research R4 stands; the Sheets API fallback is not needed. Script (scratchpad, not committed) used the
+real `_shared/drive.ts`, `credentials.ts`, `product-catalog.ts`, `xlsx.ts` modules through `tsx`.
