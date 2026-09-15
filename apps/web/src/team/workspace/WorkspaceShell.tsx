@@ -560,6 +560,7 @@ export function WorkspaceShell({
             <CatalogUpdaterDialog
               teamId={teamId}
               onClose={() => navigateTo(explorerRoute({ updater: false }))}
+              onChanged={catalogUpdater.reload}
             />
           )}
 

@@ -7,7 +7,7 @@ import type {
 } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button, SegmentedControl } from '../../components/ui';
+import { Button, Checkbox, IconButton, SegmentedControl } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { catalogSelectedCountKey, useI18n } from '../../i18n';
@@ -39,11 +39,14 @@ const defaultClient: CatalogUpdaterDialogClient = teamApi;
 export function CatalogUpdaterDialog({
   teamId,
   client = defaultClient,
-  onClose
+  onClose,
+  onChanged
 }: {
   teamId: string;
   client?: CatalogUpdaterDialogClient;
   onClose: () => void;
+  /** Called after a start, save or stop, so the chip outside the dialog reads the new state. */
+  onChanged?: () => void;
 }) {
   const { t, language } = useI18n();
   const { push } = useToasts();
@@ -59,7 +62,7 @@ export function CatalogUpdaterDialog({
   const [interval, setIntervalChoice] = useState<CatalogUpdaterInterval>('1h');
   const [busy, setBusy] = useState(false);
   const [confirmingStop, setConfirmingStop] = useState(false);
-  const selectAllRef = useRef<HTMLInputElement>(null);
+  const selectAllRef = useRef<HTMLSpanElement>(null);
 
   const running = updater.state?.state === 'running';
 
@@ -78,9 +81,8 @@ export function CatalogUpdaterDialog({
   const allShownChosen = shown.length > 0 && shownChosen === shown.length;
 
   useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = shownChosen > 0 && !allShownChosen;
-    }
+    const input = selectAllRef.current?.querySelector('input');
+    if (input) input.indeterminate = shownChosen > 0 && !allShownChosen;
   }, [allShownChosen, shownChosen]);
 
   const toggle = (catalogId: string) =>
@@ -120,6 +122,7 @@ export function CatalogUpdaterDialog({
       });
       updater.reload();
       registry.reload();
+      onChanged?.();
     } catch (error) {
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
@@ -136,6 +139,7 @@ export function CatalogUpdaterDialog({
       setSelected(new Set());
       updater.reload();
       registry.reload();
+      onChanged?.();
     } catch (error) {
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
@@ -224,19 +228,14 @@ export function CatalogUpdaterDialog({
             </button>
           )}
         </label>
-        <label className="team-updater-select-all">
-          <span className="team-explorer-row-check team-explorer-check">
-            <input
-              ref={selectAllRef}
-              type="checkbox"
-              checked={allShownChosen}
-              disabled={!mayRun || shown.length === 0}
-              onChange={toggleShown}
-            />
-            <span />
-          </span>
-          <span>{t('catalogUpdaterSelectAll')}</span>
-        </label>
+        <span ref={selectAllRef} className="team-updater-select-all">
+          <Checkbox
+            checked={allShownChosen}
+            disabled={!mayRun || shown.length === 0}
+            onChange={toggleShown}
+            label={t('catalogUpdaterSelectAll')}
+          />
+        </span>
         <span className="team-updater-selected" aria-live="polite">
           {t(catalogSelectedCountKey(language, liveChosen.length), { count: liveChosen.length })}
         </span>
@@ -300,15 +299,12 @@ export function CatalogUpdaterDialog({
                   >
                     <ExternalLink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   </a>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={t('catalogUpdaterCopyFor', { name: row.name })}
-                    title={t('catalogUpdaterCopyFor', { name: row.name })}
+                  <IconButton
+                    label={t('catalogUpdaterCopyFor', { name: row.name })}
                     onClick={() => void copy(row)}
                   >
                     <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </button>
+                  </IconButton>
                 </div>
               </li>
             ))}
@@ -329,11 +325,10 @@ export function CatalogUpdaterDialog({
             ]}
             onChange={setIntervalChoice}
           />
-          <label className="team-updater-restitch">
-            <input type="checkbox" checked={false} disabled readOnly />
-            <span>{t('catalogUpdaterRestitch')}</span>
+          <div className="team-updater-restitch">
+            <Checkbox checked={false} disabled readOnly label={t('catalogUpdaterRestitch')} />
             <small>{t('catalogUpdaterRestitchSoon')}</small>
-          </label>
+          </div>
         </div>
         <div className="team-dialog-actions">
           {reason && <p className="field-hint team-updater-reason">{reason}</p>}

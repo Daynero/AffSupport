@@ -113,3 +113,16 @@ cleared it.
 - The chip is always present: a plain "Catalog updater" link while stopped, the busy/warn chip while running, so the header does not jump when the updater starts (T031 allowed either).
 - Checkboxes reuse `.team-explorer-row-check.team-explorer-check` (the list-row variant); the bare `.team-explorer-check` is positioned for tiles.
 - The countdown's server offset is taken per state read (`serverNow − Date.now()`); the chip test proves a 30 s skew moves the countdown by 30 s.
+
+### Beta proof of the UI (T028, T036) — 2026-09-15
+
+On the running beta (vite dev on the branch), signed in as the beta tester, Ukrainian UI:
+
+- Header while stopped: "Оновлювач каталогів" link before "Налаштування простору". It opens `?updater=1`; Close returns to the explorer address.
+- Registry: the one catalog on the beta, "Db3_1_compressed_3.mp4 · Офер1 · Товарів: 4 · Створено … · Оновлено …". Search "Db3", "Вибрати всі показані", 1 година, Запустити → toast "Оновлювач запущено", status "Працює · наступне оновлення через 0:59:58", badge "В оновлювачі".
+- Header while running: "Оновлювач 0:59:16 1 каталог", counting down.
+- Forced round (`next_run_at` moved to now + 5 s in SQL): within ~5 s the cron worker set `update_count` 3 and the published sheet's ID column read 1504…1507 (+1503 = 500·3 + 3), after 501… and 1002… earlier.
+- Stop → nested confirmation → "Не запущено"; the header chip turned back into the plain link immediately; `state = stopped`, `next_run_at` null, 0 items.
+- 400 px wide: the dialog fills the screen with no horizontal overflow.
+- Two defects found and fixed here: the updater's backdrop sat on `--layer-fullbleed` (120), above the nested confirmation (`--layer-modal-nested`, 110), so Stop looked dead — it now uses `--layer-modal`; and the header chip waited for realtime after a start/stop — the dialog now calls `onChanged` so the shell re-reads at once.
+- A trashed sheet leaving the updater (T036, step 6) is proven by the SQL test rather than on the beta, which holds a single catalog.

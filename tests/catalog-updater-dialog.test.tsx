@@ -104,14 +104,20 @@ function client(
 
 function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
   const onClose = vi.fn();
+  const onChanged = vi.fn();
   render(
     <TeamProvider initialTeams={[team]} realtime={false}>
       <ToastProvider>
-        <CatalogUpdaterDialog teamId={TEAM_ID} client={api} onClose={onClose} />
+        <CatalogUpdaterDialog
+          teamId={TEAM_ID}
+          client={api}
+          onClose={onClose}
+          onChanged={onChanged}
+        />
       </ToastProvider>
     </TeamProvider>
   );
-  return { onClose };
+  return { onClose, onChanged };
 }
 
 const startButton = () => screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement;
@@ -212,7 +218,7 @@ describe('starting, saving and stopping', () => {
 
   it('stops only after confirming', async () => {
     const api = client([row('1', 'polo.mp4', { inUpdater: true })], running);
-    renderDialog(api);
+    const { onChanged } = renderDialog(api);
     await screen.findByText('polo.mp4');
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     const confirm = await screen.findByRole('dialog', { name: 'Stop the updater?' });
@@ -220,6 +226,7 @@ describe('starting, saving and stopping', () => {
     fireEvent.click(within(confirm).getByRole('button', { name: 'Stop' }));
     await waitFor(() => expect(api.stopCatalogUpdater).toHaveBeenCalledWith(TEAM_ID));
     expect(await screen.findByText('Updater stopped')).toBeTruthy();
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
   it('shows the server refusal', async () => {

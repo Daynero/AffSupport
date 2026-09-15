@@ -18046,7 +18046,8 @@ input[type='number'] {
 /* Catalog updater (023): a full-screen dialog over the explorer, and its chip in the header. */
 .team-updater-backdrop {
   position: fixed;
-  z-index: var(--layer-fullbleed);
+  /* The modal layer, not the full-bleed one: the stop confirmation opens nested above it. */
+  z-index: var(--layer-modal);
   inset: 0;
   display: grid;
   place-items: center;
@@ -18095,9 +18096,6 @@ input[type='number'] {
 }
 .team-updater-select-all {
   display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  cursor: pointer;
 }
 .team-updater-selected {
   color: var(--color-text-muted);
@@ -18150,6 +18148,22 @@ input[type='number'] {
   display: inline-flex;
   gap: var(--space-1);
 }
+.team-updater-row-actions .icon-button {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.team-updater-row-actions .icon-button:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-accent);
+}
+.team-updater-row-actions .icon-button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
 .team-updater-footer {
   justify-content: space-between;
   border-top: 1px solid var(--color-border);
@@ -18167,6 +18181,13 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
+}
+.team-updater-restitch small {
+  flex-basis: 100%;
+}
+.team-updater-header > div {
+  flex: 1 1 16rem;
+  min-width: 0;
 }
 .team-updater-footer .team-dialog-actions {
   flex-wrap: wrap;

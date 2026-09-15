@@ -92,7 +92,7 @@ scan written files for control characters.
 - [x] T025 [US2] Add the selection and start controls to `CatalogUpdaterDialog.tsx`: per-row checkboxes (`team-explorer-check` style), "select all matching" checkbox for the filtered rows with indeterminate state, "N selected", footer with `SegmentedControl` (1 hour / 1 day / 1 week), a disabled "Re-stitch video" checkbox with the note that it needs the desktop app update (D1), Start disabled with a reason when nothing is selected or without `can('process')`; after start, the header shows the countdown to the first round
 - [x] T026 [P] [US2] Add en/uk keys for selection, intervals, re-stitch note, start/save/stop, reasons, running status to `apps/web/src/i18n.ts`
 - [x] T027 [P] [US2] Extend `tests/catalog-updater-dialog.test.tsx`: select-all selects only filtered rows; Start disabled with no selection and for a viewer; Start sends `{ catalogIds, interval: '1h', restitch: false }`
-- [ ] T028 [US2] Beta validation per quickstart §3–5 steps 1–5 (in place, same links, `501…` then `1002…`); record results in `findings.md`
+- [x] T028 [US2] Beta validation per quickstart §3–5 steps 1–5 (in place, same links, `501…` then `1002…`); record results in `findings.md`
 
 ---
 
@@ -118,7 +118,7 @@ scan written files for control characters.
 
 - [x] T034 [US4] In `CatalogUpdaterDialog.tsx`, when running: preselect catalogs in the updater, "Save changes" (calls save; interval change restarts the countdown), "Stop" behind a confirmation modal (`nested`), and per-catalog failure text from `lastUpdateError`
 - [x] T035 [P] [US4] Extend `tests/catalog-updater-dialog.test.tsx`: running state preselects; save sends the new list; stop confirms then calls stop and the chip disappears
-- [ ] T036 [US4] Beta validation per quickstart §5 steps 6–7 (a trashed sheet leaves the updater; stop ends rounds)
+- [x] T036 [US4] Beta validation per quickstart §5 steps 6–7 (a trashed sheet leaves the updater; stop ends rounds)
 
 ---
 
