@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Copy, ExternalLink, Search, X } from 'lucide-react';
+import { Copy, ExternalLink, Search, Timer, X } from 'lucide-react';
 import type {
   CatalogRegistryRow,
   CatalogUpdaterInterval,
@@ -7,7 +7,7 @@ import type {
 } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button, Checkbox, IconButton, SegmentedControl } from '../../components/ui';
+import { Button, Checkbox, IconButton } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { catalogSelectedCountKey, useI18n } from '../../i18n';
@@ -20,6 +20,7 @@ import {
   useCatalogUpdater,
   type CatalogUpdaterClient
 } from './useCatalogUpdater';
+import { customIntervalFromHours, isUpdaterPreset } from './limits';
 
 export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
   saveCatalogUpdater: (
@@ -63,6 +64,10 @@ export function CatalogUpdaterDialog({
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [interval, setIntervalChoice] = useState<CatalogUpdaterInterval>('1h');
+  // The hours field while "own interval" is chosen; a preset clears the choice, not the text.
+  const [customMode, setCustomMode] = useState(false);
+  const [customHours, setCustomHours] = useState('');
+  const customInterval = customIntervalFromHours(customHours);
   const [restitch, setRestitch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmingStop, setConfirmingStop] = useState(false);
@@ -76,6 +81,10 @@ export function CatalogUpdaterDialog({
     if (selected !== null || !registry.rows || !updater.state) return;
     setSelected(new Set(registry.rows.filter(row => row.inUpdater).map(row => row.catalogId)));
     setIntervalChoice(updater.state.interval);
+    if (!isUpdaterPreset(updater.state.interval)) {
+      setCustomMode(true);
+      setCustomHours(updater.state.interval.slice(0, -1));
+    }
     setRestitch(updater.state.restitch);
   }, [registry.rows, selected, updater.state]);
 
@@ -110,7 +119,8 @@ export function CatalogUpdaterDialog({
 
   // Only catalogs that still exist count: a ticked catalog that disappeared is not sent.
   const liveChosen = rows.filter(row => chosen.has(row.catalogId)).map(row => row.catalogId);
-  const canSubmit = mayRun && liveChosen.length > 0 && !busy;
+  const chosenInterval = customMode ? customInterval : interval;
+  const canSubmit = mayRun && liveChosen.length > 0 && !busy && chosenInterval !== null;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -118,7 +128,7 @@ export function CatalogUpdaterDialog({
     try {
       await client.saveCatalogUpdater(teamId, {
         catalogIds: liveChosen,
-        interval,
+        interval: chosenInterval!,
         restitch
       });
       push({
@@ -319,17 +329,65 @@ export function CatalogUpdaterDialog({
 
       <footer className="team-updater-footer">
         <div className="team-updater-options">
-          <SegmentedControl
-            label={t('catalogUpdaterIntervalLabel')}
-            value={interval}
-            disabled={!mayRun || busy}
-            options={[
-              { value: '1h', label: t('catalogUpdaterInterval1h') },
-              { value: '1d', label: t('catalogUpdaterInterval1d') },
-              { value: '1w', label: t('catalogUpdaterInterval1w') }
-            ]}
-            onChange={setIntervalChoice}
-          />
+          <div className="team-updater-interval">
+            <div
+              className="fit-mode-pictos"
+              role="group"
+              aria-label={t('catalogUpdaterIntervalLabel')}
+            >
+              {(
+                [
+                  ['1h', t('catalogUpdaterInterval1h')],
+                  ['1d', t('catalogUpdaterInterval1d')],
+                  ['1w', t('catalogUpdaterInterval1w')]
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`is-labeled${!customMode && interval === value ? ' is-selected' : ''}`}
+                  disabled={!mayRun || busy}
+                  aria-pressed={!customMode && interval === value}
+                  onClick={() => {
+                    setCustomMode(false);
+                    setIntervalChoice(value);
+                  }}
+                >
+                  <span>{label}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className={customMode ? 'is-selected' : ''}
+                disabled={!mayRun || busy}
+                data-tip={t('catalogUpdaterIntervalCustom')}
+                aria-label={t('catalogUpdaterIntervalCustom')}
+                aria-pressed={customMode}
+                onClick={() => setCustomMode(true)}
+              >
+                <Timer size={20} strokeWidth={1.75} />
+              </button>
+            </div>
+            {customMode && (
+              <div className="custom-duration-input">
+                <input
+                  className={`time-input ${customHours && !customInterval ? 'is-invalid' : ''}`}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="6"
+                  value={customHours}
+                  disabled={!mayRun || busy}
+                  aria-label={t('catalogUpdaterIntervalHours')}
+                  aria-invalid={customInterval === null}
+                  onChange={event => setCustomHours(event.target.value)}
+                />
+                <span>{t('catalogUpdaterHoursUnit')}</span>
+              </div>
+            )}
+            {customMode && customInterval === null && (
+              <span className="field-error">{t('catalogUpdaterIntervalInvalid')}</span>
+            )}
+          </div>
           <div className="team-updater-restitch">
             <Checkbox
               checked={restitch}

@@ -117,6 +117,7 @@ import {
   type MaterialRestitchPrep,
   type TeamRestitchDefaults
 } from '@video-compressor/shared';
+import { parseUpdaterInterval, type UpdaterInterval } from '../team/catalog-updater/limits';
 import type { Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
@@ -217,7 +218,7 @@ export interface CatalogRegistryRow {
   lastUpdateError: string | null;
 }
 
-export type CatalogUpdaterInterval = '1h' | '1d' | '1w';
+export type CatalogUpdaterInterval = UpdaterInterval;
 
 /** A spare copy to prepare, as drive-ops hands it to a member's tab (023). */
 export interface RestitchClaim {
@@ -277,7 +278,7 @@ function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
   if (
     !row ||
     (row.state !== 'running' && row.state !== 'stopped') ||
-    !['1h', '1d', '1w'].includes(String(row.interval)) ||
+    parseUpdaterInterval(row.interval) === null ||
     typeof row.restitch !== 'boolean' ||
     (row.nextRunAt !== null && typeof row.nextRunAt !== 'string') ||
     (row.startedAt !== null && typeof row.startedAt !== 'string') ||

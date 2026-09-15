@@ -16,12 +16,25 @@ import {
 } from './product-catalog.ts';
 
 export const UPDATER_INTERVALS = { '1h': 3_600, '1d': 86_400, '1w': 604_800 } as const;
-export type UpdaterInterval = keyof typeof UPDATER_INTERVALS;
+export type UpdaterPreset = keyof typeof UPDATER_INTERVALS;
+/** A preset, or an interval of the updater's own in whole hours: `'6h'`. */
+export type UpdaterInterval = UpdaterPreset | `${number}h`;
+export const CUSTOM_INTERVAL_MAX_HOURS = 720;
+
+const CUSTOM_INTERVAL = /^[1-9][0-9]{0,2}h$/u;
 
 export function parseUpdaterInterval(value: unknown): UpdaterInterval | null {
-  return typeof value === 'string' && Object.hasOwn(UPDATER_INTERVALS, value)
-    ? (value as UpdaterInterval)
+  if (typeof value !== 'string') return null;
+  if (Object.hasOwn(UPDATER_INTERVALS, value)) return value as UpdaterPreset;
+  return CUSTOM_INTERVAL.test(value) && Number(value.slice(0, -1)) <= CUSTOM_INTERVAL_MAX_HOURS
+    ? (value as `${number}h`)
     : null;
+}
+
+export function updaterIntervalSeconds(interval: UpdaterInterval): number {
+  return Object.hasOwn(UPDATER_INTERVALS, interval)
+    ? UPDATER_INTERVALS[interval as UpdaterPreset]
+    : Number(interval.slice(0, -1)) * 3_600;
 }
 
 /**

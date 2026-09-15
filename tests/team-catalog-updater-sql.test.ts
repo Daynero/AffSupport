@@ -242,7 +242,9 @@ describe('saving and stopping', () => {
     await expect(save([sheet], '1h', false, VIEWER)).rejects.toThrow(/PERMISSION_DENIED/);
     await expect(save([])).rejects.toThrow(/INVALID_INPUT/);
     await expect(save([foreign.sheet])).rejects.toThrow(/INVALID_INPUT/);
-    await expect(save([sheet], '2h')).rejects.toThrow(/INVALID_INPUT/);
+    for (const strange of ['2d', '0h', '06h', '721h', 'h', '1.5h']) {
+      await expect(save([sheet], strange)).rejects.toThrow(/INVALID_INPUT/);
+    }
   }, 60_000);
 
   it('starts one interval ahead, keeps the due time when only the list changes, resets it on a new interval', async () => {
@@ -262,6 +264,18 @@ describe('saving and stopping', () => {
     expect(
       Date.parse(intervalChanged.nextRunAt!) - Date.parse(intervalChanged.serverNow)
     ).toBeGreaterThan(86_000_000);
+  }, 60_000);
+
+  it('runs on an interval of its own, in whole hours up to 720', async () => {
+    const { sheet } = await catalog('custom-interval');
+    const six = await save([sheet], '6h');
+    expect(six.interval).toBe('6h');
+    expect(Date.parse(six.nextRunAt!) - Date.parse(six.serverNow)).toBeGreaterThan(21_590_000);
+    expect(Date.parse(six.nextRunAt!) - Date.parse(six.serverNow)).toBeLessThanOrEqual(21_600_500);
+    const month = await save([sheet], '720h');
+    expect(Date.parse(month.nextRunAt!) - Date.parse(month.serverNow)).toBeGreaterThan(
+      2_591_000_000
+    );
   }, 60_000);
 
   it('stops: no due time, no catalogs', async () => {

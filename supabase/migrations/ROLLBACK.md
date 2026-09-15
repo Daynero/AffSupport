@@ -805,3 +805,15 @@ drop table if exists private.catalog_restitch_jobs;
 drop table if exists public.team_catalog_restitch_copies;
 alter table public.team_product_catalogs drop column if exists current_video_link;
 ```
+
+## 20260916130000_catalog_updater_custom_interval.sql
+
+Move every custom interval back to a preset first
+(`update public.team_catalog_updaters set update_interval = '1d' where update_interval not in ('1h', '1d', '1w')`),
+then restore the preset-only rule and function body from `20260915140000_catalog_updater.sql`:
+
+```sql
+alter table public.team_catalog_updaters drop constraint if exists team_catalog_updaters_interval_check;
+alter table public.team_catalog_updaters
+  add constraint team_catalog_updaters_interval_check check (update_interval in ('1h', '1d', '1w'));
+```

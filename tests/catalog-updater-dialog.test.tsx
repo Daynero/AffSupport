@@ -177,7 +177,7 @@ describe('starting, saving and stopping', () => {
     expect(startButton().disabled).toBe(true);
     expect(screen.getByText('Select at least one catalog.')).toBeTruthy();
     fireEvent.click(box('shirt.mp4'));
-    fireEvent.click(screen.getByRole('radio', { name: '1 week' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 week' }));
     fireEvent.click(startButton());
     await waitFor(() =>
       expect(api.saveCatalogUpdater).toHaveBeenCalledWith(TEAM_ID, {
@@ -187,6 +187,40 @@ describe('starting, saving and stopping', () => {
       })
     );
     expect(await screen.findByText('Updater started')).toBeTruthy();
+  });
+
+  it('starts on an own interval in whole hours, and refuses one out of range', async () => {
+    const api = client([row('1', 'polo.mp4')], stopped);
+    renderDialog(api);
+    await screen.findByText('polo.mp4');
+    fireEvent.click(box('polo.mp4'));
+    fireEvent.click(screen.getByRole('button', { name: 'Own interval' }));
+    const hours = screen.getByLabelText('Hours between updates');
+    fireEvent.change(hours, { target: { value: '721' } });
+    expect(screen.getByText('Enter whole hours from 1 to 720.')).toBeTruthy();
+    expect(startButton().disabled).toBe(true);
+    fireEvent.change(hours, { target: { value: '6' } });
+    expect(startButton().disabled).toBe(false);
+    fireEvent.click(startButton());
+    await waitFor(() =>
+      expect(api.saveCatalogUpdater).toHaveBeenCalledWith(
+        TEAM_ID,
+        expect.objectContaining({ interval: '6h' })
+      )
+    );
+  });
+
+  it('opens a running updater on its own interval with the hours filled in', async () => {
+    renderDialog(
+      client([row('1', 'polo.mp4', { inUpdater: true })], { ...running, interval: '36h' })
+    );
+    await screen.findByText('polo.mp4');
+    await waitFor(() =>
+      expect((screen.getByLabelText('Hours between updates') as HTMLInputElement).value).toBe('36')
+    );
+    expect(screen.getByRole('button', { name: 'Own interval' }).getAttribute('aria-pressed')).toBe(
+      'true'
+    );
   });
 
   it('starts with re-stitching when it is ticked, and says how copies are prepared', async () => {
@@ -240,7 +274,7 @@ describe('starting, saving and stopping', () => {
     await screen.findByText('polo.mp4');
     await waitFor(() => expect(box('polo.mp4').checked).toBe(true));
     expect(box('shirt.mp4').checked).toBe(false);
-    expect(screen.getByRole('radio', { name: '1 day' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('button', { name: '1 day' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByText(/Running · next update in/)).toBeTruthy();
     fireEvent.click(box('shirt.mp4'));
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
