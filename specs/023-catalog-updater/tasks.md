@@ -140,11 +140,11 @@ scan written files for control characters.
 
 ### Agent (desktop release)
 
-- [ ] T044 [US5] Add `teamUpdaterRestitch: 1` to `AGENT_TOOL_CONTRACTS` and `teamUpdaterRestitchSupported()` in `packages/shared/src/release.ts` (not `WEB_TOOL_REQUIREMENTS`); rebuild shared
-- [ ] T045 [US5] Write `apps/agent/src/team-bridge/updater-credential.ts` (0600 JSON in `applicationSupportRoot()`, `{ deviceId, secret, cloudBaseUrl }`, never logged) and the enroll/unenroll routes in `apps/agent/src/team-bridge/routes.ts` (session token + entitlement gated)
-- [ ] T046 [US5] Write `apps/agent/src/team-bridge/updater-runner.ts`: poll claim every 30–60 s with jitter while enrolled, entitled, `acceptingNewTasks()` and idle; back off on network errors; run `TeamProcessBridge.process({ toolId: 'restitch', … })`; heartbeat every 25 s, cancel on `cancel: true` or lost lease; complete with outcome and `discovered`; count in the team module's `busy()` and `shutdown()`; register in `apps/agent/src/index.ts`
-- [ ] T047 [US5] In `apps/agent/src/team-bridge/process.ts` pass the delegate's `discovered` through; in `apps/agent/src/team-bridge/restitch.ts` keep `STITCH_IMAGE_UNAVAILABLE` as its own reason
-- [ ] T048 [P] [US5] Write `tests/agent-updater-runner.test.ts` (mkdtemp store, mocked fetch and bridge): no claim when not enrolled/busy/draining; claim → process → complete; cancel on heartbeat; credential file mode 0600
+- [x] T044 [US5] Add `teamUpdaterRestitch: 1` to `AGENT_TOOL_CONTRACTS` and `teamUpdaterRestitchSupported()` in `packages/shared/src/release.ts` (not `WEB_TOOL_REQUIREMENTS`); rebuild shared
+- [x] T045 [US5] Write `apps/agent/src/team-bridge/updater-credential.ts` (0600 JSON in `applicationSupportRoot()`, `{ deviceId, secret, cloudBaseUrl }`, never logged) and the enroll/unenroll routes in `apps/agent/src/team-bridge/routes.ts` (session token + entitlement gated)
+- [x] T046 [US5] Write `apps/agent/src/team-bridge/updater-runner.ts`: poll claim every 30–60 s with jitter while enrolled, entitled, `acceptingNewTasks()` and idle; back off on network errors; run `TeamProcessBridge.process({ toolId: 'restitch', … })`; heartbeat every 25 s, cancel on `cancel: true` or lost lease; complete with outcome and `discovered`; count in the team module's `busy()` and `shutdown()`; register in `apps/agent/src/index.ts`
+- [x] T047 [US5] In `apps/agent/src/team-bridge/process.ts` pass the delegate's `discovered` through; in `apps/agent/src/team-bridge/restitch.ts` keep `STITCH_IMAGE_UNAVAILABLE` as its own reason
+- [x] T048 [P] [US5] Write `tests/agent-updater-runner.test.ts` (mkdtemp store, mocked fetch and bridge): no claim when not enrolled/busy/draining; claim → process → complete; cancel on heartbeat; credential file mode 0600
 
 ### Web
 

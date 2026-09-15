@@ -27,6 +27,7 @@ import type { CreativeLibraryProcessBridge } from '../team-bridge/library.js';
 import type { TeamPreviewBridge } from '../team-bridge/preview.js';
 import type { TeamProcessBridge } from '../team-bridge/process.js';
 import type { RestitchPrepareBridge } from '../team-bridge/restitch-prepare.js';
+import type { UpdaterRunner } from '../team-bridge/updater-runner.js';
 import type { TeamPosterBridge } from '../team-bridge/poster.js';
 import type { StitchQueue } from '../stitcher/queue.js';
 import { registerStitcherRoutes } from '../stitcher/routes.js';
@@ -107,6 +108,8 @@ export interface ToolModulesDeps {
     landings: TeamLandingRenderBridge;
     library: CreativeLibraryProcessBridge;
     restitch: RestitchPrepareBridge;
+    updater: UpdaterRunner;
+    computerLabel: () => string;
     events: EventChannel<TeamOperationEvent>;
   };
 }
@@ -222,6 +225,8 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           landings: teamWorkspace.landings,
           library: teamWorkspace.library,
           restitch: teamWorkspace.restitch,
+          updater: teamWorkspace.updater,
+          computerLabel: teamWorkspace.computerLabel,
           events: teamWorkspace.events,
           acceptingNewTasks: ctx.acceptingNewTasks
         }),
@@ -232,12 +237,15 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         teamWorkspace.download.busy() ||
         teamWorkspace.landings.busy() ||
         teamWorkspace.library.busy() ||
-        teamWorkspace.restitch.busy(),
+        teamWorkspace.restitch.busy() ||
+        teamWorkspace.updater.busy(),
       // Cancellation belongs to whichever tool is doing the work; the bridge holds nothing
       // to stop. Reported as "no such run" rather than pretended away.
       cancel: async () => false,
       cancelAll: async () => 0,
       shutdown: async () => {
+        // First: it would otherwise claim new work while the bridges below wind down.
+        await teamWorkspace.updater.shutdown();
         await teamWorkspace.restitch.shutdown();
         await teamWorkspace.poster.shutdown();
         await teamWorkspace.library.shutdown();

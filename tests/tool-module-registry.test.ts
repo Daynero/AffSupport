@@ -38,6 +38,8 @@ function stubDeps() {
       landings: { busy, shutdown },
       library: { busy, shutdown },
       restitch: { busy, shutdown },
+      updater: { busy, shutdown },
+      computerLabel: () => 'Test computer',
       events: {}
     }
   };

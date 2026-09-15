@@ -239,6 +239,12 @@ export interface TeamFileOperationResult {
    * tool, and from agents that predate this.
    */
   sourceLanguage?: string;
+  /**
+   * What the run had to work out about its source and is worth keeping — a re-stitch's inspection
+   * (015). Carried, never interpreted, by the bridge; the catalog updater's computer reports it
+   * back so the next run skips the inspection (023).
+   */
+  discovered?: unknown;
 }
 
 export type TeamDownloadGrantResult =

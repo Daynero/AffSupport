@@ -19,6 +19,8 @@ import type { TeamPreviewBridge, TeamPreviewTransferRequest } from './preview.js
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
 import type { RestitchPrepareBridge, RestitchPrepareRequest } from './restitch-prepare.js';
 import type { TeamPosterBridge, TeamPosterRequest } from './poster.js';
+import { parseUpdaterCredential } from './updater-credential.js';
+import type { UpdaterRunner } from './updater-runner.js';
 
 export interface TeamBridgeRoutesDeps {
   preview: TeamPreviewBridge;
@@ -28,6 +30,9 @@ export interface TeamBridgeRoutesDeps {
   landings: TeamLandingRenderBridge;
   library: CreativeLibraryProcessBridge;
   restitch: RestitchPrepareBridge;
+  updater: UpdaterRunner;
+  /** This computer's name as the updater dialog shows it. */
+  computerLabel: () => string;
   events: EventChannel<TeamOperationEvent>;
   acceptingNewTasks: () => boolean;
 }
@@ -42,6 +47,8 @@ export function registerTeamBridgeRoutes(
     landings,
     library,
     restitch,
+    updater,
+    computerLabel,
     events,
     acceptingNewTasks
   }: TeamBridgeRoutesDeps
@@ -135,6 +142,25 @@ export function registerTeamBridgeRoutes(
       return { canceled: true };
     }
   );
+
+  /*
+   * The catalog updater's re-stitching computer (023). The web enrols this computer with the
+   * server and hands the secret straight here; nothing reads it back — the status says only
+   * whether, and for which space, this computer is enrolled.
+   */
+  app.get('/api/team/updater', async () => ({ label: computerLabel(), ...updater.status() }));
+
+  app.post<{ Body?: unknown }>('/api/team/updater/enroll', async (request, reply) => {
+    const credential = parseUpdaterCredential(request.body);
+    if (!credential) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    await updater.enroll(credential);
+    return { label: computerLabel(), ...updater.status() };
+  });
+
+  app.post('/api/team/updater/unenroll', async () => {
+    await updater.unenroll();
+    return { label: computerLabel(), ...updater.status() };
+  });
 
   app.post<{ Body?: unknown }>('/api/team/process', async (request, reply) => {
     if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });

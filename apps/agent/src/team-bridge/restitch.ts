@@ -224,8 +224,14 @@ export function createRestitchDelegate(
       bodies
     });
     if (!produced.ok) {
+      // A screen picture this computer does not have is its own problem with its own fix — add the
+      // picture here — and the catalog updater's computer reports it as such (023).
       throw new Error(
-        produced.error === 'STITCH_CANCELLED' ? 'PROCESS_CANCELED' : 'PROCESS_FAILED'
+        produced.error === 'STITCH_CANCELLED'
+          ? 'PROCESS_CANCELED'
+          : produced.error === 'STITCH_IMAGE_UNAVAILABLE'
+            ? 'STITCH_IMAGE_UNAVAILABLE'
+            : 'PROCESS_FAILED'
       );
     }
     const output = await stat(produced.stagedPath);

@@ -364,6 +364,8 @@ export class TeamProcessBridge {
       );
       throwIfAborted(controller.signal);
       const sourceLanguage = output.sourceLanguage;
+      // Carried, not read: what a re-stitch had to inspect goes back to whoever asked (023).
+      const discovered = output.discovered;
 
       this.#events.update(request.operationId, {
         stage: 'finalizing',
@@ -383,7 +385,11 @@ export class TeamProcessBridge {
           errorCode: result.state === 'canceled' ? 'PROCESS_CANCELED' : 'PROCESS_FAILED'
         });
       }
-      return sourceLanguage ? { ...result, sourceLanguage } : result;
+      return {
+        ...result,
+        ...(sourceLanguage ? { sourceLanguage } : {}),
+        ...(discovered !== undefined ? { discovered } : {})
+      };
     } catch (error) {
       const canceled = controller.signal.aborted;
       // Debug (013): the generic PROCESS_FAILED hid every real upload error;

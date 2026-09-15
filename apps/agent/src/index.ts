@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { AGENT_TOOL_CONTRACTS } from '@video-compressor/shared';
 import type {
   AgentEvent,
   AgentEventType,
@@ -62,6 +64,8 @@ import { createTranslator } from './translation/translator.js';
 import { defaultQualityForInstalledModels, whisperAvailable } from './whisper/tools.js';
 import { sweepAbandonedTempDirectories } from './whisper/transcriber.js';
 import { pathGrants } from './files/path-grants.js';
+import { UpdaterCredentialStore } from './team-bridge/updater-credential.js';
+import { UpdaterRunner } from './team-bridge/updater-runner.js';
 
 // Persisted across restarts on purpose: a per-boot token silently unpairs
 // every browser that already holds one (see server/session-token.ts).
@@ -464,6 +468,24 @@ const teamRestitchPrepareBridge = new RestitchPrepareBridge({
   transfer: teamTransfer,
   events: teamOperationEvents
 });
+/*
+ * 023 — this computer as a space's catalog-updater re-stitcher, once a member enrols it. It only
+ * claims work while the app is entitled, not draining for an update, and every tool is idle, so a
+ * member's own compression is never slowed down by the updater's spares.
+ */
+const updaterRunner = new UpdaterRunner({
+  store: new UpdaterCredentialStore(
+    path.join(applicationSupportRoot(), 'catalog-updater-device.json')
+  ),
+  bridge: teamProcessBridge,
+  canWork: () =>
+    queue.acceptingNewTasks() &&
+    (!entitlementGate.enforced || entitlementGate.status().entitled) &&
+    !modules.some(module => module.busy()),
+  build: config.buildNumber,
+  contracts: AGENT_TOOL_CONTRACTS,
+  log: (message, detail) => console.error(message, detail ?? '')
+});
 const teamLandingRenderBridge = new TeamLandingRenderBridge({
   preview: teamPreviewBridge,
   events: teamOperationEvents
@@ -489,9 +511,15 @@ const modules = createToolModules({
     landings: teamLandingRenderBridge,
     library: creativeLibraryProcessBridge,
     restitch: teamRestitchPrepareBridge,
+    updater: updaterRunner,
+    computerLabel: () =>
+      hostname()
+        .replace(/\.local$/u, '')
+        .slice(0, 120) || 'Soty',
     events: teamEvents
   }
 });
+void updaterRunner.start();
 
 /**
  * Stops accepting new work across every tool, then exits only after the

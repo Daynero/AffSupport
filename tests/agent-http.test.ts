@@ -42,6 +42,8 @@ import {
 import { TeamProcessBridge } from '../apps/agent/src/team-bridge/process.js';
 import { TeamPosterBridge } from '../apps/agent/src/team-bridge/poster.js';
 import { TeamTransferClient } from '../apps/agent/src/team-bridge/transfer.js';
+import { UpdaterCredentialStore } from '../apps/agent/src/team-bridge/updater-credential.js';
+import { UpdaterRunner } from '../apps/agent/src/team-bridge/updater-runner.js';
 import { optimalSettings } from './helpers.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
@@ -236,6 +238,14 @@ async function makeServer(options: { entitlementPublicKey?: string } = {}) {
         landings: teamLandingRenderBridge,
         library: creativeLibraryProcessBridge,
         restitch: teamRestitchPrepareBridge,
+        updater: new UpdaterRunner({
+          store: new UpdaterCredentialStore(path.join(dir, 'catalog-updater-device.json')),
+          bridge: teamProcessBridge,
+          canWork: () => false,
+          build: 'test',
+          contracts: {}
+        }),
+        computerLabel: () => 'Test computer',
         events: teamEvents
       }
     }),
@@ -318,6 +328,49 @@ describe('agent HTTP surface', () => {
     });
     expect(malformedTeamCatalog.statusCode).toBe(400);
     expect(malformedTeamCatalog.json()).toEqual({ error: 'INVALID_INPUT' });
+  });
+
+  it('enrols this computer for the catalog updater only with a session and a well-formed secret (023)', async () => {
+    const app = await makeServer();
+    const headers = { 'x-session-token': TOKEN, 'content-type': 'application/json' };
+    const credential = {
+      teamId: '23300000-0000-4000-8000-000000000001',
+      deviceId: '23300000-0000-4000-8000-000000000002',
+      secret: 'c'.repeat(64),
+      cloudBaseUrl: 'https://project.supabase.co/functions/v1/drive-ops'
+    };
+    expect((await app.inject({ url: '/api/team/updater' })).statusCode).toBe(401);
+    const initial = await app.inject({ url: '/api/team/updater', headers });
+    expect(initial.json()).toEqual({ label: 'Test computer', enrolled: null, working: false });
+
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/api/team/updater/enroll',
+      headers,
+      payload: { ...credential, cloudBaseUrl: 'https://evil.test/steal' }
+    });
+    expect(refused.statusCode).toBe(400);
+
+    const enrolled = await app.inject({
+      method: 'POST',
+      url: '/api/team/updater/enroll',
+      headers,
+      payload: credential
+    });
+    expect(enrolled.json()).toEqual({
+      label: 'Test computer',
+      enrolled: { teamId: credential.teamId, deviceId: credential.deviceId },
+      working: false
+    });
+    expect(enrolled.body).not.toContain(credential.secret);
+
+    const off = await app.inject({
+      method: 'POST',
+      url: '/api/team/updater/unenroll',
+      headers,
+      payload: {}
+    });
+    expect(off.json().enrolled).toBeNull();
   });
 
   it('builds and serves a landing preview catalogue through authenticated routes', async () => {
