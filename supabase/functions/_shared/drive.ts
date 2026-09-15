@@ -508,6 +508,35 @@ export class GoogleDriveClient {
     return metadata;
   }
 
+  /**
+   * Deletes a file for good — not a trash (023, re-stitched copies the updater has used).
+   *
+   * The only permanent delete in the product. Its one caller passes ids the database recorded as
+   * the updater's own retired copies, never a material id from a request. A file already gone
+   * counts as deleted.
+   */
+  async deleteFile(fileId: string): Promise<{ deleted: boolean }> {
+    if (fileId.length < 1) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`);
+    url.searchParams.set('supportsAllDrives', 'true');
+    let response: Response;
+    try {
+      response = await this.#fetch(url, {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${this.#accessToken}` },
+        signal: AbortSignal.timeout(15_000)
+      });
+    } catch {
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+    }
+    if (response.status === 404) return { deleted: false };
+    if (response.ok) return { deleted: true };
+    if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
+    if (response.status === 403) throw new TeamFunctionError('PERMISSION_DENIED');
+    if (response.status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+    throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: response.status >= 500 });
+  }
+
   async listAnyonePermissions(fileId: string): Promise<Array<{ id: string; role: string }>> {
     const url = new URL(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`

@@ -60,6 +60,14 @@ import {
 } from './product-catalog.ts';
 import { SPREADSHEET_MIME_TYPE } from '../_shared/product-catalog.ts';
 import {
+  claimRestitchJob,
+  completeRestitchJob,
+  heartbeatRestitchJob,
+  recordRestitchOutput,
+  RESTITCH_CONTRACT_VERSION,
+  type UpdaterDeviceDeps
+} from './updater-device.ts';
+import {
   isRecord,
   parseBoundedString,
   parseEnum,
@@ -148,7 +156,13 @@ const TOOL_RULES: Readonly<
     contractVersion: 2,
     outputMimeType: 'application/zip'
   },
-  imageEmbedding: { categories: ['video'], contractVersion: 2, outputMimeType: 'video/mp4' }
+  imageEmbedding: { categories: ['video'], contractVersion: 2, outputMimeType: 'video/mp4' },
+  // 023 (delivery 2): the catalog updater's spare copies, started by the re-stitching computer.
+  restitch: {
+    categories: ['video'],
+    contractVersion: RESTITCH_CONTRACT_VERSION,
+    outputMimeType: 'video/mp4'
+  }
 };
 
 function clients(request: Request): { caller: RpcClient; service: RpcClient } {
@@ -1062,6 +1076,20 @@ async function handleUploadFinalize(
       // still holding the name the video expects, so the next run was written
       // as "name (2).txt" and the folder stopped matching what Soty showed.
       await trashRetiredCompanions(client, linked);
+    }
+    // 023: a re-stitched copy the updater asked for becomes the catalog's spare. Best-effort like
+    // the transcript link: the file is committed either way, and an unrecorded copy is prepared again.
+    if (resultMaterialId && operation.kind === 'process' && operation.toolId === 'restitch') {
+      await recordRestitchOutput(
+        {
+          drive: client,
+          rpc: (name, parameters) => rpcValue(service, name, parameters),
+          log: (message, detail) => console.error(message, detail)
+        },
+        { operationId, materialId: resultMaterialId, driveFileId: result.id }
+      ).catch(error => {
+        console.error('[finalize] restitch copy not recorded', mapUnknownError(error).code);
+      });
     }
     return committed;
   } catch (error) {
@@ -2526,6 +2554,29 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
   return deps;
 }
 
+function updaterDeviceDeps(request: Request, service: RpcClient): UpdaterDeviceDeps {
+  return {
+    rpc: (name, parameters) => rpcValue(service, name, parameters),
+    startProcess: async (actorId, body) => {
+      const started = await handleProcessStart(request, body, service, actorId);
+      return {
+        operationId: started.operationId,
+        sourceGrant: started.sourceGrant,
+        finalizeGrant: started.finalizeGrant
+      };
+    },
+    hashHex: async value => byteaHex(await sha256(value)),
+    randomToken: () => {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      return btoa(String.fromCharCode(...bytes))
+        .replaceAll('+', '-')
+        .replaceAll('/', '_')
+        .replace(/=+$/u, '');
+    },
+    log: (message, detail) => console.error(message, detail)
+  };
+}
+
 function routePath(url: URL) {
   const marker = '/drive-ops';
   const index = url.pathname.lastIndexOf(marker);
@@ -2555,6 +2606,24 @@ Deno.serve(async request => {
           ? await handleProcessOutputStart(request, parsed.value, configured.service)
           : await handleProcessOutputFinalize(request, parsed.value, configured.service);
       return successResponse(value, cors, path.endsWith('/start') ? 202 : 200);
+    }
+
+    // 023: the re-stitching computer authenticates with its device secret, not a member's session.
+    if (
+      path === '/updater/claim' ||
+      path === '/updater/heartbeat' ||
+      path === '/updater/complete'
+    ) {
+      const parsed = await parseJsonBody(request);
+      if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+      const deps = updaterDeviceDeps(request, configured.service);
+      const value =
+        path === '/updater/claim'
+          ? await claimRestitchJob(deps, request.headers, parsed.value)
+          : path === '/updater/heartbeat'
+            ? await heartbeatRestitchJob(deps, request.headers, parsed.value)
+            : await completeRestitchJob(deps, request.headers, parsed.value);
+      return successResponse(value, cors);
     }
 
     const { userId } = await authorizeCaller(request, configured.service);

@@ -102,11 +102,12 @@ Deno.serve(async request => {
           }
           return drive;
         },
-        complete: async (catalogId, updateCount) =>
+        complete: async (catalogId, updateCount, swappedCopy) =>
           (await rpcValue(service, 'service_complete_catalog_update', {
             p_item: catalogId,
             p_worker: workerId,
-            p_update_count: updateCount
+            p_update_count: updateCount,
+            p_swapped_copy: swappedCopy
           })) === true,
         retry: async (catalogId, errorCode, nextAttemptAt) =>
           (await rpcValue(service, 'service_retry_catalog_update', {
@@ -120,6 +121,17 @@ Deno.serve(async request => {
             p_credential: credentialId
           });
         },
+        claimRetired: async limit => {
+          const rows = await rpcValue(service, 'service_claim_retired_restitch_copies', {
+            p_limit: limit
+          });
+          return Array.isArray(rows) ? rows : [];
+        },
+        forgetCopy: async (materialId, deleted) =>
+          (await rpcValue(service, 'service_forget_restitch_copy', {
+            p_material: materialId,
+            p_deleted: deleted
+          })) === true,
         now: () => Date.now(),
         log: (message, detail) => console.error(message, detail)
       },

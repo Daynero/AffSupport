@@ -759,3 +759,39 @@ alter table public.team_product_catalogs
   drop column if exists last_updated_at,
   drop column if exists update_count;
 ```
+
+## 20260916090000_catalog_updater_restitch.sql
+
+Feature 023, delivery 2: re-stitched copies behind the catalogs. Stop every updater's re-stitching
+first (`update public.team_catalog_updaters set restitch = false`), and let the worker delete the
+retired copies, or they stay in Drive as ordinary materials. Sheets keep pointing at the copy in use,
+which is also left in Drive. Then re-apply the delivery-1 definitions of
+`save_team_catalog_updater`, `stop_team_catalog_updater`, `private.catalog_updater_state`,
+`private.invoke_catalog_updater_worker`, `service_claim_catalog_updater_items(text, integer, integer)`
+and `service_complete_catalog_update(uuid, text, integer)` from `20260915140000_catalog_updater.sql`
+after the drops below.
+
+```sql
+drop function if exists public.service_forget_restitch_copy(uuid, boolean);
+drop function if exists public.service_claim_retired_restitch_copies(integer);
+drop function if exists public.service_complete_catalog_update(uuid, text, integer, uuid);
+drop function if exists public.service_claim_catalog_updater_items(text, integer, integer);
+drop function if exists public.service_record_restitch_output(uuid, uuid, text, text);
+drop function if exists public.service_complete_restitch_job(uuid, bytea, uuid, bytea, text, text, jsonb);
+drop function if exists public.service_heartbeat_restitch_job(uuid, bytea, uuid, bytea, integer);
+drop function if exists public.service_bind_restitch_job_operation(uuid, bytea, uuid);
+drop function if exists public.service_claim_restitch_job(uuid, bytea, text, jsonb, bytea, integer);
+drop function if exists private.authenticate_updater_device(uuid, bytea, text, jsonb);
+drop function if exists public.revoke_team_updater_device(uuid);
+drop function if exists public.enroll_team_updater_device(uuid, text, text, jsonb);
+drop function if exists private.retire_restitch_spares(uuid, uuid[]);
+drop function if exists private.queue_restitch_jobs(uuid);
+drop function if exists private.updater_device_online(public.team_updater_devices);
+drop function if exists private.active_updater_device(uuid);
+drop function if exists private.restitch_contract_ok(jsonb);
+drop table if exists private.catalog_restitch_operations;
+drop table if exists private.catalog_restitch_jobs;
+drop table if exists public.team_catalog_restitch_copies;
+drop table if exists public.team_updater_devices;
+alter table public.team_product_catalogs drop column if exists current_video_link;
+```

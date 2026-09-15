@@ -36,13 +36,13 @@ function claimedRow(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function sheetIds(bytes: Uint8Array): Promise<number[]> {
-  const sheet = await new Promise<string>((resolve, reject) => {
+function zipEntry(bytes: Uint8Array, name: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
     yauzl.fromBuffer(Buffer.from(bytes), { lazyEntries: true }, (error, zip) => {
       if (error || !zip) return reject(error);
       zip.readEntry();
       zip.on('entry', entry => {
-        if (entry.fileName !== 'xl/worksheets/sheet1.xml') return zip.readEntry();
+        if (entry.fileName !== name) return zip.readEntry();
         zip.openReadStream(entry, (streamError, stream) => {
           if (streamError || !stream) return reject(streamError);
           const chunks: Buffer[] = [];
@@ -52,6 +52,10 @@ async function sheetIds(bytes: Uint8Array): Promise<number[]> {
       });
     });
   });
+}
+
+async function sheetIds(bytes: Uint8Array): Promise<number[]> {
+  const sheet = await zipEntry(bytes, 'xl/worksheets/sheet1.xml');
   return [...sheet.matchAll(/<c r="A(\d+)"><v>(\d+)<\/v><\/c>/gu)].map(match => Number(match[2]));
 }
 
@@ -61,6 +65,8 @@ function setup(
     failFor?: Record<string, TeamFunctionError>;
     completeFalse?: string[];
     clockStepMs?: number;
+    retired?: unknown[];
+    deleteFails?: string[];
   } = {}
 ) {
   const batches = [...(options.batches ?? [[claimedRow('a'), claimedRow('b')]])];
@@ -73,6 +79,10 @@ function setup(
       if (failure) throw failure;
       written.push({ fileId: input.fileId, bytes: input.bytes });
       return {} as never;
+    }),
+    deleteFile: vi.fn(async (fileId: string) => {
+      if ((options.deleteFails ?? []).includes(fileId)) throw new TeamFunctionError('RATE_LIMITED');
+      return { deleted: true };
     })
   };
   const deps: CatalogUpdaterDeps = {
@@ -86,6 +96,8 @@ function setup(
     complete: vi.fn(async (id: string) => !(options.completeFalse ?? []).includes(id)),
     retry: vi.fn(async () => true),
     markNeedsReauth: vi.fn(async () => undefined),
+    claimRetired: vi.fn(async () => options.retired ?? []),
+    forgetCopy: vi.fn(async () => true),
     now: () => clock,
     log: vi.fn()
   };
@@ -102,8 +114,8 @@ describe('a tick', () => {
     const byFile = Object.fromEntries(written.map(entry => [entry.fileId, entry.bytes]));
     expect(await sheetIds(byFile['drive-a']!)).toEqual([501, 502, 503]);
     expect(await sheetIds(byFile['drive-b']!)).toEqual([1504, 1505, 1506]);
-    expect(deps.complete).toHaveBeenCalledWith('a', 1);
-    expect(deps.complete).toHaveBeenCalledWith('b', 3);
+    expect(deps.complete).toHaveBeenCalledWith('a', 1, null);
+    expect(deps.complete).toHaveBeenCalledWith('b', 3, null);
   });
 
   it('retries only the sheet that failed, with its back-off, and still updates the others', async () => {
@@ -155,6 +167,71 @@ describe('a tick', () => {
     expect(summary).toMatchObject({ claimed: 1, updated: 1 });
     expect(written.map(entry => entry.fileId)).toEqual(['drive-b']);
     expect(deps.retry).toHaveBeenCalledWith('a', 'INVALID_RESPONSE', expect.any(Date));
+  });
+});
+
+describe('re-stitched copies', () => {
+  const strings = async (bytes: Uint8Array) => zipEntry(bytes, 'xl/sharedStrings.xml');
+
+  it('writes the spare link and swaps to it; without a spare keeps the copy in use', async () => {
+    const { deps, written } = setup({
+      batches: [
+        [
+          claimedRow('a', {
+            current_video_link: 'https://drive.google.com/file/d/old/view',
+            spare_material_id: 'spare-a',
+            spare_link: 'https://drive.google.com/file/d/spare/view'
+          }),
+          claimedRow('b', { current_video_link: 'https://drive.google.com/file/d/inuse/view' }),
+          claimedRow('c')
+        ]
+      ]
+    });
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    const byFile = Object.fromEntries(written.map(entry => [entry.fileId, entry.bytes]));
+    const a = await strings(byFile['drive-a']!);
+    expect(a).toContain('https://drive.google.com/file/d/spare/view');
+    expect(a).not.toContain('file/d/old/view');
+    expect(await strings(byFile['drive-b']!)).toContain(
+      'https://drive.google.com/file/d/inuse/view'
+    );
+    expect(await strings(byFile['drive-c']!)).toContain('file/d/video/view');
+    expect(deps.complete).toHaveBeenCalledWith('a', 1, 'spare-a');
+    expect(deps.complete).toHaveBeenCalledWith('b', 1, null);
+  });
+
+  it('ignores a spare without a link', () => {
+    expect(
+      parseClaimedCatalog(claimedRow('a', { spare_material_id: 'spare-a', spare_link: null }))
+        ?.spare
+    ).toBeNull();
+  });
+
+  it('deletes only the retired copies it was handed, and records a failed try', async () => {
+    const { deps, drive } = setup({
+      batches: [[]],
+      retired: [
+        { material_id: 'm1', drive_file_id: 'f1', credential_id: 'cred' },
+        { material_id: 'm2', drive_file_id: 'f2', credential_id: 'cred' },
+        { material_id: 'm3' }
+      ],
+      deleteFails: ['f2']
+    });
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary.deletedCopies).toBe(1);
+    expect(drive.deleteFile.mock.calls.map(call => call[0])).toEqual(['f1', 'f2']);
+    expect(deps.forgetCopy).toHaveBeenCalledWith('m1', true);
+    expect(deps.forgetCopy).toHaveBeenCalledWith('m2', false);
+  });
+
+  it('leaves deletions for the next tick when the budget is spent', async () => {
+    const { deps } = setup({
+      batches: [[claimedRow('a')], []],
+      clockStepMs: 9000,
+      retired: [{ material_id: 'm1', drive_file_id: 'f1', credential_id: 'cred' }]
+    });
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.claimRetired).not.toHaveBeenCalled();
   });
 });
 
