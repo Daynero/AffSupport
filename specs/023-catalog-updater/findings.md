@@ -81,3 +81,15 @@ rewrote a 022 catalog in place:
 
 Research R4 stands; the Sheets API fallback is not needed. Script (scratchpad, not committed) used the
 real `_shared/drive.ts`, `credentials.ts`, `product-catalog.ts`, `xlsx.ts` modules through `tsx`.
+
+## Implementation notes (D1)
+
+- **Tick every 10 seconds, 12 live leases, 3 sheets in parallel per invocation** — not the plan's
+  "1 minute, 3 leases". At one minute and three leases a hundred catalogs would take about half an
+  hour, past SC-001's five minutes. Idle ticks stay free: the invoker returns before any HTTP call
+  when no updater is due and no retry is waiting (same shape as catalog-sync's 10-second tick).
+- The updater's interval column is `update_interval` (`interval` is a SQL type name); the RPC payload
+  still calls it `interval`.
+- Updater-level changes write a `team_catalog_events` row with `event_kind = 'sync_state'` and no
+  material; per-sheet updates write `upserted` for the sheet. The web's existing listener refetches on
+  either.

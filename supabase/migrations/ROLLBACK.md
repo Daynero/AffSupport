@@ -728,3 +728,34 @@ alter table public.team_materials
     or (companion_of is not null and companion_kind in ('transcript'))
   );
 ```
+
+## 20260915140000_catalog_updater.sql
+
+Feature 023, delivery 1: the catalog updater. Unschedule the worker first so no round runs while the
+schema goes away. Sheets already updated keep their shifted IDs; nothing in Drive needs undoing.
+
+```sql
+select cron.unschedule(job.jobid) from cron.job as job where job.jobname = 'wishly-catalog-updater';
+drop function if exists private.invoke_catalog_updater_worker();
+drop function if exists private.catalog_updater_endpoint(text);
+drop function if exists public.service_retry_catalog_update(uuid, text, text, timestamptz);
+drop function if exists public.service_complete_catalog_update(uuid, text, integer);
+drop function if exists public.service_claim_catalog_updater_items(text, integer, integer);
+drop function if exists private.claim_catalog_updater_items(text, integer, integer);
+drop function if exists public.service_open_catalog_updater_rounds();
+drop function if exists public.stop_team_catalog_updater(uuid);
+drop function if exists public.save_team_catalog_updater(uuid, uuid[], text, boolean);
+drop function if exists public.get_team_catalog_updater(uuid);
+drop function if exists public.list_team_product_catalogs(uuid);
+drop function if exists private.catalog_updater_state(uuid);
+drop function if exists private.catalog_updater_interval(text);
+drop function if exists private.live_product_catalogs(uuid);
+drop table if exists public.team_catalog_updater_items;
+drop table if exists public.team_catalog_updaters;
+alter table public.team_product_catalogs
+  drop constraint if exists team_product_catalogs_update_error_check,
+  drop constraint if exists team_product_catalogs_update_count_check,
+  drop column if exists last_update_error,
+  drop column if exists last_updated_at,
+  drop column if exists update_count;
+```
