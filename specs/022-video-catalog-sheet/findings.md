@@ -104,6 +104,16 @@ web update, without a full release?". The spec stays free of implementation; thi
   video's rename returns; closing the page within those seconds leaves the sheet unrenamed. This is
   the transcript's existing behaviour, not new to catalogs.
 
+## After the production deploy (2026-09-15)
+
+- **A web deploy does not reach the agent's local page.** The desktop agent serves its own bundled
+  copy of the web build at `http://127.0.0.1:<port>/` (`/local` in `apps/agent/src/server/app.ts`,
+  `webRoot` = the app's `web/dist`). Safari cannot reach the loopback agent from
+  `https://soty.pp.ua`, so Safari users are sent to that local copy — which is the 1.1.1 build and
+  has no catalog. The feature is live on `https://soty.pp.ua` for everyone; the local page gets it
+  with the next desktop release. SC-007 ("reaches all users with the web update") holds only for
+  the hosted site.
+
 ## Rollout path (no desktop release)
 
 1. Additive migration(s): widen `companion_kind`, catalog metadata (pasted link, product count),
