@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TeamTaskStatus } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { TaskStatusIcon, taskStatusLabel } from './TaskStatusControl';
-import { localDateValue, type TaskDateFilter, type TaskStatusFilter } from './useTasks';
+import {
+  activeQuickRange,
+  localDateValue,
+  quickRangeValue,
+  type QuickRange,
+  type TaskDateFilter,
+  type TaskStatusFilter
+} from './useTasks';
 
 /**
  * The day-grid helpers, shared with the task editor's own date field: one
@@ -97,45 +104,6 @@ export function calendarWeekdays(language: 'en' | 'uk'): string[] {
 }
 
 const statuses: readonly TaskStatusFilter[] = ['todo', 'in_progress', 'done', 'all'];
-
-/**
- * The ranges people actually ask for, one press each. The calendar answers
- * everything else, but reaching it for "today" was four interactions for the
- * commonest question there is.
- */
-type QuickRange = 'today' | 'yesterday' | 'month' | 'all';
-
-function quickRangeValue(range: Exclude<QuickRange, 'all'>, now: Date): TaskDateFilter {
-  if (range === 'today') {
-    const today = localDateValue(now);
-    return { kind: 'range', from: today, to: today };
-  }
-  if (range === 'yesterday') {
-    const yesterday = localDateValue(
-      new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12)
-    );
-    return { kind: 'range', from: yesterday, to: yesterday };
-  }
-  // The whole month, first to last: a task can be dated ahead of today (017),
-  // and "This month" that stopped at today would hide the half of the month a
-  // person plans in.
-  return {
-    kind: 'range',
-    from: localDateValue(new Date(now.getFullYear(), now.getMonth(), 1, 12)),
-    to: localDateValue(new Date(now.getFullYear(), now.getMonth() + 1, 0, 12))
-  };
-}
-
-function activeQuickRange(value: TaskDateFilter, now: Date): QuickRange | null {
-  if (value.kind === 'all') return 'all';
-  for (const range of ['today', 'yesterday', 'month'] as const) {
-    const candidate = quickRangeValue(range, now);
-    if (candidate.kind === 'range' && candidate.from === value.from && candidate.to === value.to) {
-      return range;
-    }
-  }
-  return null;
-}
 
 export function TaskDateFilterControl({
   value,

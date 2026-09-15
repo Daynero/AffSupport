@@ -25,6 +25,7 @@ import { navigateTo } from '../../lib/navigation';
 import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
 import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
 import { TaskProgressScale } from './TaskProgressScale';
+import { useCoalescedWrite } from './useCoalescedWrite';
 import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagsEditor, type TaskAgentTagsClient } from './TaskAgentTags';
 import { TaskLabelsEditor, type TaskLabelsEditorClient } from './TaskLabelsEditor';
@@ -893,6 +894,23 @@ export function TaskEditor({
     void save();
   };
 
+  /*
+   * Progress is saved the moment it is let go, like the status — not held for "Save". It carries the
+   * scale it was set on, and is not held to the copy's `updatedAt`: one field, last writer wins.
+   */
+  const progressWriter = useCoalescedWrite<{ progressValue: number; progressMax: number }>({
+    write: async value => {
+      const response = await client.updateTask(teamId, task.id, value);
+      setTask(current => ({
+        ...response,
+        attachmentCount: current.attachmentCount,
+        agents: current.agents
+      }));
+      onChanged({ ...response, attachmentCount, agents: task.agents });
+    },
+    onError: () => setError('write')
+  });
+
   const saveStatus = async (next: TeamTaskSummary['status']) => {
     if (!canEdit || next === status || savingStatus || saving) return;
     const previousTask = task;
@@ -1092,6 +1110,9 @@ export function TaskEditor({
               disabled={!canEdit}
               label={t('teamTaskProgressScale')}
               onChange={setProgressValue}
+              onCommit={next => {
+                if (canEdit) progressWriter.send({ progressValue: next, progressMax });
+              }}
             />
             <label>
               <span>{t('teamTaskDescription')}</span>

@@ -15,6 +15,7 @@ import { TaskAccountFilter } from './TaskAccountFilter';
 import { TaskAssigneeFilter } from './TaskAssigneeFilter';
 import { TaskLabelFilter } from './TaskLabelFilter';
 import { TaskSortControl } from './TaskSortControl';
+import { persistedViewKey, usePersistedState } from '../persistedView';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
@@ -68,6 +69,19 @@ function sourceMaterialIds(source: TaskSourceAsset | null): string[] {
   return [...new Set(candidateIds.filter(id => typeof id === 'string' && id.length > 0))];
 }
 
+function parseTaskAccountScope(value: unknown): TaskAccountScope | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'all') return { kind: 'all' };
+  if (record.kind === 'account' && typeof record.accountId === 'string') {
+    return { kind: 'account', accountId: record.accountId };
+  }
+  if (record.kind === 'agent' && typeof record.agentRowId === 'string') {
+    return { kind: 'agent', agentRowId: record.agentRowId };
+  }
+  return null;
+}
+
 export function TaskSpace({
   teamId,
   client = defaultClient,
@@ -98,7 +112,11 @@ export function TaskSpace({
    * from the Accounts tab lands narrowed and Back widens it again; mounted on
    * its own it is local state, like the open task.
    */
-  const [localScope, setLocalScope] = useState<TaskAccountScope>({ kind: 'all' });
+  const [localScope, setLocalScope] = usePersistedState<TaskAccountScope>(
+    persistedViewKey(teamId, 'tasks.scope'),
+    { kind: 'all' },
+    parseTaskAccountScope
+  );
   const scope = onScopeChange ? (scopeProp ?? { kind: 'all' }) : localScope;
   const setScope = onScopeChange ?? setLocalScope;
   const tasks = useTasks({ teamId, revision, scope, client });
@@ -403,7 +421,7 @@ export function TaskSpace({
               })
             }
             onOpen={() => setOpenTask(task)}
-            onUpdate={patch => tasks.update(task, patch)}
+            onUpdate={patch => tasks.update(task, patch, { checkVersion: false })}
           />
         ))}
       </div>

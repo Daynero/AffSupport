@@ -817,3 +817,8 @@ alter table public.team_catalog_updaters drop constraint if exists team_catalog_
 alter table public.team_catalog_updaters
   add constraint team_catalog_updaters_interval_check check (update_interval in ('1h', '1d', '1w'));
 ```
+
+## 20260916140000_task_conflict_answers_at_once.sql
+
+Re-apply `public.update_team_task` from `20260905160000_team_task_date.sql` (the same body with the
+stale-copy refusal raised as SQLSTATE 40001).
