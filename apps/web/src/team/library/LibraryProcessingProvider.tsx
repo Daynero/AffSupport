@@ -430,20 +430,69 @@ export function LibraryProcessingProvider({
           progress: 5,
           stage: 'preparing'
         });
-        const started = await client.startProcess({
-          teamId,
-          materialId: job.sourceMaterialId,
-          toolId: toolForKind(job.kind),
-          optionsSummary: { requirementId: job.requirementId, variant: job.variant },
-          destinationFolderId: context.destinationFolderId,
-          outputName: outputName(job, context),
-          conflictMode: 'cancel',
-          idempotencyKey: `library.process.${job.attemptId}`,
-          agentContractVersion: 1,
-          toolContractVersion
-        });
+        const resultName = outputName(job, context);
+        let started: Awaited<ReturnType<ProcessLibraryClient['startProcess']>>;
+        try {
+          started = await client.startProcess({
+            teamId,
+            materialId: job.sourceMaterialId,
+            toolId: toolForKind(job.kind),
+            optionsSummary: { requirementId: job.requirementId, variant: job.variant },
+            destinationFolderId: context.destinationFolderId,
+            outputName: resultName,
+            conflictMode: 'cancel',
+            idempotencyKey: `library.process.${job.attemptId}`,
+            agentContractVersion: 1,
+            toolContractVersion
+          });
+        } catch (error) {
+          /*
+           * The name is already taken, and it is almost certainly taken by this
+           * job's own earlier output: `<source>.transcript.<version>.txt` names
+           * exactly one (source, version) pair, so a file wearing it *is* the
+           * result of this requirement. A run that uploaded the file and was cut
+           * off before it could finalize leaves precisely that — the work done,
+           * the requirement still pending, and the name gone forever. Failing
+           * here made those materials unprocessable for good: every retry asked
+           * for the same name and was refused by the file it had produced
+           * itself.
+           */
+          if (safeErrorCode(error) !== 'NAME_CONFLICT') throw error;
+          const existing = await client.findMaterialByName(
+            teamId,
+            context.destinationFolderId,
+            resultName
+          );
+          if (!existing) throw error;
+          const adopted = await client.finalizeLibraryJob({
+            teamId,
+            attemptId: job.attemptId,
+            agentInstanceId: instanceId,
+            leaseToken: job.leaseToken,
+            resultMaterialId: existing,
+            sourceVersion: job.sourceVersion,
+            idempotencyKey: `library.result.${job.attemptId}`
+          });
+          if (adopted.state === 'accepted') {
+            counts.done += 1;
+            setDone(value => value + 1);
+          } else {
+            counts.skipped += 1;
+            setSkipped(value => value + 1);
+          }
+          continue;
+        }
         operationId = started.operationId;
         control.current.operationId = operationId;
+        /*
+         * A lost lease is worth noticing at once. The heartbeat used to swallow
+         * its own failure, so a run whose lease had lapsed kept transcribing for
+         * minutes, uploaded the result, and only found out at the finalize —
+         * which then refused it. That left the file in the folder with nothing
+         * pointing at it, and its name is the one the next attempt needs.
+         * Stopping the work here is what keeps that from happening again.
+         */
+        let leaseLost = false;
         heartbeat = window.setInterval(() => {
           void client
             .heartbeatLibraryJob({
@@ -454,7 +503,10 @@ export function LibraryProcessingProvider({
               progress: 35,
               stage: 'processing'
             })
-            .catch(() => undefined);
+            .catch(() => {
+              leaseLost = true;
+              void agent.cancel(job.attemptId).catch(() => undefined);
+            });
         }, HEARTBEAT_MS);
         const processed = await agent.process({
           operationId,
@@ -470,6 +522,7 @@ export function LibraryProcessingProvider({
           finalizeGrant: started.finalizeGrant,
           options: optionsForJob(job)
         });
+        if (leaseLost) throw new Error('WRONG_STATE');
         if (processed.state !== 'succeeded' || !processed.materialId) {
           throw new Error('PROCESS_FAILED');
         }
