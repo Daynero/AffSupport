@@ -238,9 +238,12 @@ video (the one in the sheet and the spare).
   sheet, at the same link — rewriting every product ID and, when a fresh re-stitched copy is ready,
   every video link; every other cell keeps its value from the template and the catalog's creation.
 - **FR-008**: Product IDs after an update MUST be unique within the sheet and MUST NOT repeat any ID
-  the sheet has had before. The rule is [NEEDS CLARIFICATION: which ID rule — the owner's "add 500 to
-  every ID each update" (1…100 → 501…600 → 1001…1100), or "update number × 1000 + row" (1001…1100,
-  2001…2100, 3001…3100), which also shows how many updates a sheet has had].
+  the sheet has had before. Rule (owner, 2026-09-15): the _k_-th update adds `500 + (k − 1)` to every
+  ID — +500 on the first update, +501 on the second, +502 on the third, and so on — so the step
+  itself changes and the sequence does not read as a fixed pattern. A 100-product sheet goes
+  1…100 → 501…600 → 1002…1101 → 1504…1603. Row order is kept: the row that had the smallest ID
+  still does. Because every step is at least 500 and a sheet has at most 400 products, no ID can
+  repeat.
 - **FR-009**: Overdue updates MUST run once, not once per missed interval; the next due time is then
   one interval after the update that ran.
 - **FR-010**: A failed update of one catalog MUST be retried and MUST NOT delay or block the others;

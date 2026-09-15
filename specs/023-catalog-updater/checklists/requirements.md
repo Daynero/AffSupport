@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,8 +31,8 @@
 
 ## Notes
 
-- One open marker: FR-008, the ID rule — the owner proposed "+500 per update" and asked for
-  alternatives.
+- FR-008 resolved by the owner: the k-th update adds 500 + (k − 1) to every ID (+500, +501, +502…),
+  so the step does not read as a fixed pattern.
 - "What already exists and constrains this feature" names product facts (where re-stitching runs,
   that the server can schedule) because they decide what can ship without a desktop release; code
   references are left to the plan.
