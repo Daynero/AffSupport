@@ -155,10 +155,10 @@ scan written files for control characters.
 
 ## Phase 8: Polish & delivery
 
-- [ ] T051 Prettier + ESLint on changed files; `nice -n 15 npx tsc -b apps/web`; `nice -n 15 npx tsc -p tsconfig.check.json --noEmit` (one at a time)
-- [ ] T052 Focused tests from quickstart §1 plus existing tests touching `WorkspaceShell`, `routes`, `i18n`, `team-product-catalog-sql` — in batches, single fork
-- [ ] T053 [P] Update `specs/023-catalog-updater/findings.md` and mark tasks
-- [ ] T054 Commit per phase and push `023-catalog-updater` only (never `beta`/`main` without the owner)
+- [x] T051 Prettier + ESLint on changed files; `nice -n 15 npx tsc -b apps/web`; `nice -n 15 npx tsc -p tsconfig.check.json --noEmit` (one at a time)
+- [x] T052 Focused tests from quickstart §1 plus existing tests touching `WorkspaceShell`, `routes`, `i18n`, `team-product-catalog-sql` — in batches, single fork
+- [x] T053 [P] Update `specs/023-catalog-updater/findings.md` and mark tasks
+- [x] T054 Commit per phase and push `023-catalog-updater` only (never `beta`/`main` without the owner)
 - [ ] T055 **Owner-confirmed only** — D1 rollout like 022 (fast-forward `beta`, packaged beta verify, backend plan including the new function and migration, backend apply, `deploy:web` via an agent with production permission); D2 rollout with the next desktop release
 
 ---
