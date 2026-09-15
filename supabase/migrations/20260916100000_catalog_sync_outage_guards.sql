@@ -4,6 +4,80 @@
 --
 -- Forward-only. Reverse steps are in ROLLBACK.md.
 
+-- A job at the schema's attempt ceiling used to be selected first and then
+-- incremented to 1001. The check violation rolled back the whole claim, so one
+-- exhausted historical job blocked every fresh scan behind it.
+create or replace function private.claim_catalog_sync_jobs(
+  p_worker text,
+  p_limit integer default 5,
+  p_lease_seconds integer default 60
+)
+returns setof private.catalog_sync_jobs
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  slots integer;
+begin
+  if not pg_catalog.pg_try_advisory_xact_lock(71101400) then
+    return;
+  end if;
+
+  update private.catalog_sync_jobs as job
+  set state = 'failed',
+      lease_owner = null,
+      lease_expires_at = null,
+      last_error_code = 'RETRY_EXHAUSTED',
+      completed_at = pg_catalog.clock_timestamp(),
+      updated_at = pg_catalog.clock_timestamp()
+  from public.team_drive_connections as connection
+  where connection.id = job.connection_id
+    and connection.state <> 'detached'
+    and job.attempts >= 1000
+    and (
+      job.state in ('pending', 'retry')
+      or (job.state = 'leased' and job.lease_expires_at <= pg_catalog.clock_timestamp())
+    );
+
+  select greatest(0, 3 - count(*)::integer) into slots
+  from private.catalog_sync_jobs
+  where state = 'leased' and lease_expires_at > pg_catalog.clock_timestamp();
+  if slots = 0 then
+    return;
+  end if;
+
+  return query
+  with candidates as (
+    select job.id
+    from private.catalog_sync_jobs as job
+    join public.team_drive_connections as connection on connection.id = job.connection_id
+    where job.attempts < 1000
+      and (
+        job.state in ('pending', 'retry')
+        or (job.state = 'leased' and job.lease_expires_at <= pg_catalog.clock_timestamp())
+      )
+      and job.next_attempt_at <= pg_catalog.clock_timestamp()
+      and connection.state <> 'detached'
+    order by job.next_attempt_at, job.created_at
+    for update of job skip locked
+    limit least(greatest(p_limit, 1), slots)
+  )
+  update private.catalog_sync_jobs as job
+  set state = 'leased',
+      lease_owner = p_worker,
+      lease_expires_at = pg_catalog.clock_timestamp()
+        + pg_catalog.make_interval(secs => least(greatest(p_lease_seconds, 10), 300)),
+      next_attempt_at = pg_catalog.clock_timestamp()
+        + pg_catalog.make_interval(secs => least(greatest(p_lease_seconds, 10), 300)),
+      attempts = job.attempts + 1,
+      updated_at = pg_catalog.clock_timestamp()
+  from candidates
+  where job.id = candidates.id
+  returning job.*;
+end;
+$$;
+
 create or replace function private.invoke_catalog_sync_worker()
 returns bigint
 language plpgsql
@@ -20,6 +94,7 @@ begin
     from private.catalog_sync_jobs as job
     join public.team_drive_connections as connection on connection.id = job.connection_id
     where connection.state <> 'detached'
+      and job.attempts < 1000
       and job.next_attempt_at <= pg_catalog.clock_timestamp()
       and (
         job.state in ('pending', 'retry')

@@ -66,6 +66,56 @@ afterAll(async () => {
 });
 
 describe('claim_catalog_sync_jobs', () => {
+  it('retires an exhausted job instead of letting it block fresh work', async () => {
+    const exhaustedTeam = await harness.asUser<{ id: string }>(
+      OWNER,
+      'select id from public.create_team($1)',
+      ['Claim exhaustion']
+    );
+    const credential = await harness.root<{ id: string }>(
+      `select id from private.google_drive_credentials where connected_by = $1 limit 1`,
+      [OWNER]
+    );
+    const connection = await harness.root<{ id: string }>(
+      `insert into public.team_drive_connections
+         (team_id, credential_id, root_folder_id, root_folder_name, drive_kind, state, connected_at)
+       values ($1, $2, 'exhausted-root', 'Exhausted', 'my_drive', 'connected', now())
+       returning id`,
+      [exhaustedTeam[0]!.id, credential[0]!.id]
+    );
+    const exhausted = await harness.root<{ id: string }>(
+      `insert into private.catalog_sync_jobs
+         (connection_id, phase, state, attempts, next_attempt_at, created_at)
+       values ($1, 'incremental', 'pending', 1000, now() - interval '1 hour', now() - interval '1 hour')
+       returning id`,
+      [connection[0]!.id]
+    );
+    const fresh = await harness.root<{ id: string }>(
+      `insert into private.catalog_sync_jobs
+         (connection_id, phase, state, attempts, next_attempt_at)
+       values ($1, 'reconcile', 'pending', 0, now() - interval '30 minutes')
+       returning id`,
+      [connection[0]!.id]
+    );
+
+    const claimed = await harness.root<{ id: string }>(
+      `select id from private.claim_catalog_sync_jobs('worker-exhaustion', 1, 60)`
+    );
+    expect(claimed).toEqual([{ id: fresh[0]!.id }]);
+    expect(
+      await harness.root<{ state: string; last_error_code: string }>(
+        `select state, last_error_code from private.catalog_sync_jobs where id = $1`,
+        [exhausted[0]!.id]
+      )
+    ).toEqual([{ state: 'failed', last_error_code: 'RETRY_EXHAUSTED' }]);
+    await harness.root(
+      `update private.catalog_sync_jobs
+       set state = 'succeeded', lease_owner = null, lease_expires_at = null, completed_at = now()
+       where id = $1`,
+      [fresh[0]!.id]
+    );
+  });
+
   it('hands a one-job worker the live connection, not the detached one ahead of it', async () => {
     const claimed = await harness.root<{ id: string; state: string }>(
       `select id, state from private.claim_catalog_sync_jobs('worker-1', 1, 60)`

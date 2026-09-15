@@ -801,6 +801,7 @@ alter table public.team_product_catalogs drop column if exists current_video_lin
 
 Re-apply `private.invoke_catalog_sync_worker()` from
 `20260907140000_catalog_progress_keeps_its_lease.sql`,
+`private.claim_catalog_sync_jobs(text, integer, integer)` from that same migration, and
 `public.get_drive_connection_status(uuid)` from
 `20260801095000_team_invitation_drive_actions.sql`. This restores the silent invalid-config
 return and the mismatched connection ordering, so prefer a forward fix in production.
