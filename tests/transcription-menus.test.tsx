@@ -25,10 +25,13 @@ describe('export menu', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'transcriptionExportOptions' }));
     const menu = screen.getByRole('menu');
-    // Portalled: the card that would clip it is not an ancestor.
+    // Portalled: the card that would clip it is not an ancestor. The surface
+    // the shared popover draws is what sits on the body and carries the
+    // placement; the menu is its content (021, T064).
     expect(container.contains(menu)).toBe(false);
-    expect(menu.parentElement).toBe(document.body);
-    expect(menu.style.position).toBe('fixed');
+    const surface = menu.closest('.ui-popover') as HTMLElement;
+    expect(surface.parentElement).toBe(document.body);
+    expect(surface.style.position).toBe('fixed');
     const items = screen.getAllByRole('menuitem');
     // txt for the transcript only; the timed formats and the translation groups are off.
     expect(items.filter(item => !(item as HTMLButtonElement).disabled)).toHaveLength(1);
@@ -152,7 +155,9 @@ describe('language combobox', () => {
     fireEvent.focus(input);
     const listbox = screen.getByRole('listbox');
     expect(container.contains(listbox)).toBe(false);
-    expect(listbox.style.position).toBe('fixed');
+    const surface = listbox.closest('.ui-popover') as HTMLElement;
+    expect(surface.parentElement).toBe(document.body);
+    expect(surface.style.position).toBe('fixed');
     fireEvent.change(input, { target: { value: 'zzz' } });
     expect(screen.queryAllByRole('option')).toHaveLength(0);
     expect(listbox.textContent).toBe('Нічого не знайдено');
@@ -184,8 +189,13 @@ describe('batch copy menu', () => {
     const dialog = screen.getByRole('dialog');
     const radios = Array.from(dialog.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
     expect(radios.length).toBeGreaterThanOrEqual(4);
-    // The scope group's other choice: the one not checked.
-    const otherScope = radios.find(radio => radio.name.endsWith('-scope') && !radio.checked);
+    // The scope group's other choice: the one not checked. The group is the
+    // first fieldset — the radios' `name` is the shared component's generated
+    // id now, which is an implementation detail rather than a handle.
+    const scopeGroup = dialog.querySelector('fieldset')!;
+    const otherScope = Array.from(
+      scopeGroup.querySelectorAll<HTMLInputElement>('input[type="radio"]')
+    ).find(radio => !radio.checked);
     fireEvent.click(otherScope!);
     expect(onScopeChange).toHaveBeenCalledWith('selected');
     view.rerender(

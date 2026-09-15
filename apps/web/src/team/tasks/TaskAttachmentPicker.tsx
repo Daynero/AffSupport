@@ -10,6 +10,7 @@ import {
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { EmptyState, ErrorState, LoadingState } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 
 export interface TaskAttachmentCandidate {
@@ -297,12 +298,15 @@ export function TaskAttachmentPicker({
                 </nav>
               </div>
             )}
-            {(loading || searching) && <p aria-live="polite">{t('teamTaskLoadingPickable')}</p>}
-            {error && <p className="team-inline-error">{t('teamTaskSearchFailed')}</p>}
+            {(loading || searching) && (
+              <LoadingState shape="row" count={5} label={t('teamTaskLoadingPickable')} />
+            )}
+            {error && <ErrorState message={t('teamTaskSearchFailed')} />}
             {!loading && !searching && !error && shown.length === 0 && (
-              <p className="team-task-picker-empty">
-                {found === null ? t('teamTaskFolderEmpty') : t('teamTaskSearchEmpty')}
-              </p>
+              <EmptyState
+                size="sm"
+                title={found === null ? t('teamTaskFolderEmpty') : t('teamTaskSearchEmpty')}
+              />
             )}
             {!loading && !searching && !error && shown.length > 0 && (
               <ul className="team-task-picker-results team-task-picker-folder-results">

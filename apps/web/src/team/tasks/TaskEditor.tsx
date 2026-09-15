@@ -10,7 +10,17 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  ErrorState,
+  FormField,
+  IconButton,
+  Input,
+  Progress,
+  Select
+} from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import {
   attachTaskMaterialsInChunks,
@@ -34,6 +44,8 @@ import { useToasts } from '../../components/toast';
 import { uploadTeamFile } from '../catalog/material-actions-client';
 import { classifyMaterial } from '@video-compressor/shared';
 import { teamErrorMessageFor } from '../errors';
+import { PermissionState, Textarea } from '../../components/ui/index';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export interface TaskEditorClient
   extends
@@ -970,6 +982,10 @@ export function TaskEditor({
         <div className="team-task-editor">
           <form className="team-dialog-form" onSubmit={saveFromSubmit}>
             <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
+            {/* A viewer sees a dialog of dead fields and no reason for it. The
+                fields stay — reading them is the point — and the boundary is
+                said once, at the top, in the product's own words (FR-004). */}
+            {!canEdit && <PermissionState message={t('teamTaskReadOnly')} />}
             <section className="team-task-editor-status" aria-labelledby="team-task-status-title">
               <span id="team-task-status-title">{t('teamTaskStatus')}</span>
               <TaskStatusControl
@@ -1014,9 +1030,8 @@ export function TaskEditor({
                 onLabelsChange?.(next);
               }}
             />
-            <label>
-              <span>{t('teamTaskTitle')}</span>
-              <input
+            <FormField label={t('teamTaskTitle')} htmlFor="team-task-title" required>
+              <Input
                 id="team-task-title"
                 value={title}
                 maxLength={160}
@@ -1030,27 +1045,33 @@ export function TaskEditor({
                 }}
                 onChange={event => setTitle(event.target.value)}
               />
-            </label>
+            </FormField>
             <div className="team-task-editor-meta">
-              <label className="team-task-assignee-field">
-                <span>{t('teamTaskAssignee')}</span>
-                <select
+              <FormField
+                className="team-task-assignee-field"
+                label={t('teamTaskAssignee')}
+                htmlFor="team-task-assignee"
+              >
+                <Select
+                  id="team-task-assignee"
                   value={assigneeId}
                   disabled={!canEdit}
+                  placeholder={t('teamTaskUnassigned')}
+                  options={members.map(member => ({
+                    value: member.userId,
+                    label: member.displayName ?? member.email ?? member.userId
+                  }))}
                   onChange={event => setAssigneeId(event.target.value)}
-                >
-                  <option value="">{t('teamTaskUnassigned')}</option>
-                  {members.map(member => (
-                    <option key={member.userId} value={member.userId}>
-                      {member.displayName ?? member.email ?? member.userId}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="team-task-progress-max-field">
-                <span>{t('teamTaskProgressMax')}</span>
+                />
+              </FormField>
+              <FormField
+                className="team-task-progress-max-field"
+                label={t('teamTaskProgressMax')}
+                htmlFor="team-task-progress-max"
+              >
                 <div className="team-task-progress-max-input">
-                  <input
+                  <Input
+                    id="team-task-progress-max"
                     inputMode="numeric"
                     type="number"
                     min={1}
@@ -1064,12 +1085,11 @@ export function TaskEditor({
                     }}
                   />
                   {canEdit && defaultMax !== null && progressMax !== defaultMax && (
-                    <button
-                      type="button"
+                    <IconButton
                       className="team-task-progress-max-save"
+                      size="sm"
+                      label={t('teamTaskProgressMaxSaveDefault')}
                       disabled={savingDefaultMax}
-                      title={t('teamTaskProgressMaxSaveDefault')}
-                      aria-label={t('teamTaskProgressMaxSaveDefault')}
                       onClick={async () => {
                         setSavingDefaultMax(true);
                         try {
@@ -1099,10 +1119,10 @@ export function TaskEditor({
                           strokeLinejoin="round"
                         />
                       </svg>
-                    </button>
+                    </IconButton>
                   )}
                 </div>
-              </label>
+              </FormField>
             </div>
             <TaskProgressScale
               value={progressValue}
@@ -1114,9 +1134,9 @@ export function TaskEditor({
                 if (canEdit) progressWriter.send({ progressValue: next, progressMax });
               }}
             />
-            <label>
-              <span>{t('teamTaskDescription')}</span>
-              <textarea
+            <FormField label={t('teamTaskDescription')} htmlFor="team-task-description">
+              <Textarea
+                id="team-task-description"
                 className="team-task-description-input"
                 rows={12}
                 value={note}
@@ -1124,22 +1144,28 @@ export function TaskEditor({
                 disabled={!canEdit}
                 onChange={event => setNote(event.target.value)}
               />
-            </label>
+            </FormField>
             {error && (
-              <p className="team-inline-error">
-                {t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
-              </p>
+              <ErrorState
+                message={t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
+              />
             )}
             {canEdit && (
               <div className="team-dialog-actions">
-                <Button type="submit" variant="primary" loading={saving} disabled={savingStatus}>
+                <Button
+                  type="submit"
+                  color="primary"
+                  variant="solid"
+                  loading={saving}
+                  disabled={savingStatus}
+                >
                   {t('teamTaskSave')}
                 </Button>
                 {/* Deleting a task was the one lifecycle step with no way to
                     take it — a finished or mistaken task stayed on the board
                     forever (finding R1). */}
                 {onDelete && (
-                  <Button type="button" variant="danger" onClick={() => setConfirmingDelete(true)}>
+                  <Button color="error" variant="soft" onClick={() => setConfirmingDelete(true)}>
                     {t('teamTaskDelete')}
                   </Button>
                 )}
@@ -1203,10 +1229,13 @@ export function TaskEditor({
                     : t('teamTaskAttachmentsHint')}
                 </p>
               </div>
-              <span>{t('teamTaskAttachmentsCount', { count: attachmentCount })}</span>
+              <Badge size="sm">{t('teamTaskAttachmentsCount', { count: attachmentCount })}</Badge>
             </div>
 
-            {loading && <p aria-live="polite">{t('teamTaskLoadingAttachments')}</p>}
+            {/* The shape of what is coming, so the list does not jump when it
+                lands — and the sentence stays, because a bare shimmer is
+                indistinguishable from a stuck screen. */}
+            {loading && <LabeledSkeleton label="teamTaskLoadingAttachments" rows={2} />}
             <div className="team-task-attachment-grid">
               {visibleAttachments.map(attachment => (
                 <TaskAttachmentTile
@@ -1239,22 +1268,12 @@ export function TaskEditor({
                         <small>{t('teamTaskAttachmentUploadingLabel')}</small>
                       </div>
                     </div>
-                    <span
+                    <Progress
                       className="team-task-attachment-progress"
-                      role="progressbar"
-                      aria-label={t('teamTaskAttachmentUploading', { name: item.name })}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={
-                        item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0
-                      }
-                    >
-                      <span
-                        style={{
-                          width: `${item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0}%`
-                        }}
-                      />
-                    </span>
+                      size="xs"
+                      label={t('teamTaskAttachmentUploading', { name: item.name })}
+                      value={item.total > 0 ? (item.sent / item.total) * 100 : 0}
+                    />
                   </div>
                 </div>
               ))}
@@ -1269,8 +1288,8 @@ export function TaskEditor({
             </div>
             {persistedAttachments.length < task.attachmentCount && (
               <Button
-                type="button"
-                variant="secondary"
+                color="neutral"
+                variant="outline"
                 loading={loadingMore}
                 onClick={() => void loadMore()}
               >
@@ -1292,10 +1311,10 @@ export function TaskEditor({
             <h2 id="team-task-unsaved-title">{t('teamTaskUnsavedTitle')}</h2>
             <p>{t('teamTaskUnsavedDescription')}</p>
             <div className="team-dialog-actions">
-              <Button type="button" variant="ghost" onClick={discardAndClose}>
+              <Button color="neutral" variant="ghost" onClick={discardAndClose}>
                 {t('teamTaskCloseWithoutSaving')}
               </Button>
-              <Button type="button" variant="primary" loading={saving} onClick={() => void save()}>
+              <Button color="primary" variant="solid" loading={saving} onClick={() => void save()}>
                 {t('teamTaskSave')}
               </Button>
             </div>
@@ -1303,34 +1322,20 @@ export function TaskEditor({
         </Modal>
       )}
       {confirmingDelete && onDelete && (
-        <Modal
+        <ConfirmDialog
           nested
-          labelledBy="team-task-delete-title"
-          onClose={() => setConfirmingDelete(false)}
-          size="sm"
-        >
-          <div className="team-task-unsaved-confirmation">
-            <h2 id="team-task-delete-title">{t('teamTaskDeleteConfirmTitle')}</h2>
-            {/* Names what goes and what stays: the files stay. */}
-            <p>{t('teamTaskDeleteConfirmBody')}</p>
-            <div className="team-dialog-actions">
-              <Button
-                type="button"
-                variant="danger"
-                loading={deleting}
-                onClick={() => {
-                  setDeleting(true);
-                  void onDelete(task).finally(() => setDeleting(false));
-                }}
-              >
-                {t('teamTaskDelete')}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setConfirmingDelete(false)}>
-                {t('teamCancel')}
-              </Button>
-            </div>
-          </div>
-        </Modal>
+          title={t('teamTaskDeleteConfirmTitle')}
+          /* Names what goes and what stays: the files stay. */
+          body={t('teamTaskDeleteConfirmBody')}
+          confirmLabel={t('teamTaskDelete')}
+          cancelLabel={t('teamCancel')}
+          busy={deleting}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() => {
+            setDeleting(true);
+            void onDelete(task).finally(() => setDeleting(false));
+          }}
+        />
       )}
     </>
   );

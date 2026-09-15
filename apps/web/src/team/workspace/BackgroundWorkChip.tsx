@@ -21,7 +21,7 @@ export function BackgroundWorkChip({ onOpen }: { onOpen: () => void }) {
   return (
     <button
       type="button"
-      className="ui-chip ui-chip-busy team-background-chip"
+      className="ui-chip ui-chip-busy ui-color-info team-background-chip"
       aria-label={t('teamBatchChipOpen', { done: batch.done, total })}
       onClick={onOpen}
     >

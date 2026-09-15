@@ -7,7 +7,7 @@
  * is not decoration: it is the heading somebody will paste into a payment run.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import {
   sortTeamTaskLabels,
@@ -18,6 +18,7 @@ import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskLabelChip } from '../labels/TaskLabelChip';
 import { TaskLabelMenu } from '../labels/TaskLabelMenu';
+import { Popover } from '../../components/ui/index';
 
 export function AgentLabels({
   labels,
@@ -42,25 +43,6 @@ export function AgentLabels({
   const trigger = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const attached = new Set(labels.map(label => label.id));
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      setOpen(false);
-      trigger.current?.focus();
-    };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('keydown', escape, true);
-    return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('keydown', escape, true);
-    };
-  }, [open]);
 
   // Nothing at all for a viewer with nothing to show: an empty row of buttons
   // down the list is work waiting for someone who cannot do it.
@@ -91,7 +73,18 @@ export function AgentLabels({
           <Plus size={13} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </button>
       )}
-      {open && canEdit && (
+      <Popover
+        open={open && canEdit}
+        onClose={() => {
+          setOpen(false);
+          trigger.current?.focus();
+        }}
+        anchor={root}
+        placement="bottom-start"
+        frequent
+        label={t('teamAgentLabelsLabel')}
+        className="team-task-label-menu-popover"
+      >
         <TaskLabelMenu
           labels={available}
           selectedIds={attached}
@@ -109,7 +102,7 @@ export function AgentLabels({
             trigger.current?.focus();
           }}
         />
-      )}
+      </Popover>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { TeamContextSnapshot } from '../../api/team';
 import { useI18n } from '../../i18n';
+import { Progress } from '../../components/ui/index';
 import {
   completeTeamOnboardingFlow,
   startTeamOnboardingFlow,
@@ -101,6 +102,9 @@ export function CreateSpaceWizard({
         <p className="team-create-progress" aria-live="polite">
           {t('teamCreateStepProgress', { current: stepNumber, total: 2 })}
         </p>
+        {/* The line above already says which step this is; the bar is the same
+            fact drawn, so it is not announced a second time. */}
+        <Progress decorative value={(stepNumber / 2) * 100} size="xs" />
       </header>
 
       {step.kind === 'name' ? (

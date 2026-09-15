@@ -537,7 +537,7 @@ export function AccountGroup({
             </Button>
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               data-cancel="true"
               onClick={() => setConfirming(false)}
             >

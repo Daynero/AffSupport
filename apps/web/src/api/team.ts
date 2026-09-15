@@ -3145,6 +3145,28 @@ export const teamApi = {
     return row as unknown as LibraryProcessingContext;
   },
 
+  /**
+   * The id of the material already carrying `name` in that folder, if any.
+   *
+   * Scoped to the one folder and matched exactly: the search is a prefix search
+   * over the space, so the page it returns is filtered down to the file whose
+   * name is the one asked for rather than one that merely starts with it.
+   */
+  async findMaterialByName(
+    teamId: string,
+    destinationFolderId: string,
+    name: string
+  ): Promise<string | null> {
+    const wanted = name.normalize('NFC');
+    const response = await teamApi.searchCatalog(
+      teamId,
+      { query: wanted, page: 1, pageSize: 50 },
+      { parentFolderId: destinationFolderId }
+    );
+    const match = response.items.find(item => item.name.normalize('NFC') === wanted);
+    return match?.id ?? null;
+  },
+
   async claimLibraryJob(input: LibraryJobClaimRequest): Promise<LibraryJobClaimEnvelope> {
     const normalized = parseLibraryJobClaim(input);
     if (!normalized) throw new TeamApiError('INVALID_INPUT', false);

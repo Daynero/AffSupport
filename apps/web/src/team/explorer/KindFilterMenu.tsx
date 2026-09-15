@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { TeamMaterialRowKind } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
+import { DropdownMenu } from '../../components/ui/index';
 import { KIND_LABEL } from './rowKinds';
 
 const FILTER_KINDS: TeamMaterialRowKind[] = [
@@ -16,6 +17,9 @@ const FILTER_KINDS: TeamMaterialRowKind[] = [
  * The kind filter as a "Тип" dropdown (011), the way a drive puts it: one
  * button, a menu of kinds, the chosen ones summarised on the button with a way
  * to clear them. Folders are never filtered — they are how you move around.
+ *
+ * The menu is the inventory's (021, T091); the kinds are a set rather than a
+ * choice, so each one is a checkbox and picking one does not close it.
  */
 export function KindFilterMenu({
   kinds,
@@ -26,24 +30,7 @@ export function KindFilterMenu({
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && ref.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  const trigger = useRef<HTMLButtonElement | null>(null);
 
   const toggle = (kind: TeamMaterialRowKind) =>
     onChange(kinds.includes(kind) ? kinds.filter(item => item !== kind) : [...kinds, kind]);
@@ -56,8 +43,9 @@ export function KindFilterMenu({
         : t('teamExplorerFilterTypeCount', { count: kinds.length });
 
   return (
-    <div className="team-explorer-filter" ref={ref}>
+    <div className="team-explorer-filter">
       <button
+        ref={trigger}
         type="button"
         className={`team-explorer-filter-button${kinds.length > 0 ? ' is-active' : ''}`}
         aria-expanded={open}
@@ -80,25 +68,21 @@ export function KindFilterMenu({
           ✕
         </button>
       )}
-      {open && (
-        <div className="team-explorer-menu" role="menu">
-          {FILTER_KINDS.map(kind => (
-            <button
-              key={kind}
-              type="button"
-              role="menuitemcheckbox"
-              aria-checked={kinds.includes(kind)}
-              className={`team-explorer-menu-item${kinds.includes(kind) ? ' is-checked' : ''}`}
-              onClick={() => toggle(kind)}
-            >
-              <span className="team-explorer-menu-check" aria-hidden="true">
-                {kinds.includes(kind) ? '✓' : ''}
-              </span>
-              {t(KIND_LABEL[kind])}
-            </button>
-          ))}
-        </div>
-      )}
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={trigger}
+        placement="bottom-start"
+        selection="multiple"
+        closeOnSelect={false}
+        label={t('teamExplorerFilterType')}
+        items={FILTER_KINDS.map(kind => ({
+          id: kind,
+          label: t(KIND_LABEL[kind]),
+          checked: kinds.includes(kind),
+          onSelect: () => toggle(kind)
+        }))}
+      />
     </div>
   );
 }

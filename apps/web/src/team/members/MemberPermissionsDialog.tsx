@@ -131,7 +131,11 @@ export function MemberPermissionsDialog({
           </label>
         </fieldset>
         <p className="team-drive-warning">{t('teamDriveIndependentAcl')}</p>
-        {error && <p className="team-inline-error">{error}</p>}
+        {error && (
+          <p className="team-inline-error" role="alert">
+            {error}
+          </p>
+        )}
         <div className="team-dialog-actions">
           <Button type="button" variant="ghost" onClick={onClose}>
             {t('teamCancel')}

@@ -135,7 +135,8 @@ describe('dialog width ladder', () => {
   // through `size` — one fewer place a width can be invented.
   it.each([
     ['.windows-coming-soon-modal', '--dialog-sm'],
-    ['.confirm-dialog', '--dialog-sm'],
+    // `.confirm-dialog` left with the dead-rule pass (021, T150): confirmations
+    // are the shared pattern now, and it takes its width from `size="sm"`.
     ['.transcript-modal', '--dialog-xl'],
     ['.team-preview-dialog', '--dialog-wide'],
     ['.landing-compare-modal', '--dialog-wide'],

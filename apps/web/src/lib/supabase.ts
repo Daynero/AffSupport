@@ -1,11 +1,22 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { publicConfig } from './config';
+import { createMockSupabaseClient } from '../dev/mock-supabase';
 import type { Database } from './database.types';
 
 let client: SupabaseClient<Database> | null = null;
 
 export function getSupabaseClient(): SupabaseClient<Database> | null {
   if (!publicConfig.ok) return null;
+  /*
+   * A development server can answer from memory instead of from a database
+   * (021). `import.meta.env.DEV` is a compile-time constant, so this branch —
+   * and the module behind it — is dropped from a production build rather than
+   * merely unreachable in one.
+   */
+  if (import.meta.env.DEV && import.meta.env.VITE_MOCK_DATA === 'true') {
+    client ??= createMockSupabaseClient() as SupabaseClient<Database>;
+    return client;
+  }
   if (!client) {
     client = createClient<Database>(
       publicConfig.value.supabaseUrl,

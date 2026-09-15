@@ -21,6 +21,7 @@ import {
 } from '../product-catalog/ProductCatalogSettingsSection';
 import { SettingsSection } from './SettingsSection';
 import type { TeamSettingsTab } from '../routes';
+import { Tabs } from '../../components/ui/index';
 
 export interface SharePreferenceSettingsClient {
   resetLibrarySharePreference: (teamId: string) => Promise<boolean>;
@@ -154,40 +155,14 @@ export function SpaceSettings({
          * in the product — were squeezed into half its width, where their labels
          * broke mid-word. Each subject gets the dialog's full width now.
          */}
-        <div
+        <Tabs
           className="team-space-tabs team-settings-tabs"
-          role="tablist"
-          aria-label={t('teamSettingsTabsLabel')}
-        >
-          {tabs.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              id={`team-settings-tab-${item.id}`}
-              aria-selected={tab === item.id}
-              aria-controls={`team-settings-panel-${item.id}`}
-              tabIndex={tab === item.id ? 0 : -1}
-              className={`team-space-tab${tab === item.id ? ' is-active' : ''}`}
-              onKeyDown={event => {
-                const at = tabs.findIndex(other => other.id === tab);
-                const go = (index: number) => {
-                  event.preventDefault();
-                  const next = tabs[(index + tabs.length) % tabs.length]!;
-                  setTab(next.id);
-                  document.getElementById(`team-settings-tab-${next.id}`)?.focus();
-                };
-                if (event.key === 'ArrowRight') go(at + 1);
-                else if (event.key === 'ArrowLeft') go(at - 1);
-                else if (event.key === 'Home') go(0);
-                else if (event.key === 'End') go(tabs.length - 1);
-              }}
-              onClick={() => setTab(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+          label={t('teamSettingsTabsLabel')}
+          value={tab}
+          onChange={setTab}
+          panelId={id => `team-settings-panel-${id}`}
+          items={tabs.map(item => ({ id: item.id, label: item.label }))}
+        />
       </div>
 
       <div
@@ -197,7 +172,7 @@ export function SpaceSettings({
         className={`team-space-settings-grid${tab === 'members' ? '' : ' is-single'}`}
         role="tabpanel"
         id={`team-settings-panel-${tab}`}
-        aria-labelledby={`team-settings-tab-${tab}`}
+        aria-labelledby={`tab-${tab}`}
       >
         {tab === 'general' && (
           <>
@@ -347,7 +322,7 @@ function LeaveSpacePanel({
             <Button type="button" variant="danger" loading={busy} onClick={() => void leave()}>
               {t('teamLeaveAction')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
+            <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
               {t('teamCancel')}
             </Button>
           </div>

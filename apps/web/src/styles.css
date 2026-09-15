@@ -1,108 +1,16 @@
 /* ============================================================
-   Soty design tokens
-   Purple leads attention; most surfaces stay neutral.
+   Screen-level variables that are not design tokens
+
+   The token layer lives in styles/tokens.css (021) — every colour, including
+   the tag palette and the tint steps. What is left here is layout geometry
+   this product measures in its own terms: shell widths, dialog widths, the
+   header's height.
    ============================================================ */
 :root {
   --ui-cache-generation: 2;
   color-scheme: light;
 
-  /* Soty brand — purple scale (design-tokens.json primitives) */
-  --purple-50: #f5f1ff;
-  --purple-100: #ece5ff;
-  --purple-200: #d9ccff;
-  --purple-300: #bca7f7;
-  --purple-400: #9b7aee;
-  --purple-500: #7c59e0;
-  --purple-600: #6842d9;
-  --purple-700: #5532b8;
-  --purple-800: #42288f;
-  --purple-900: #2d1b62;
-  --purple-950: #191033;
-
-  /* Soty honey — primary action, active progress, honey material */
-  --honey-50: #fff8e5;
-  --honey-100: #ffefbd;
-  --honey-200: #ffdd7a;
-  --honey-300: #ffc83d;
-  --honey-400: #ffb51b;
-  --honey-500: #f5a318;
-  --honey-600: #d98508;
-  --honey-700: #ad6605;
-  --honey-800: #804a0b;
-  --honey-900: #55310a;
-  --honey-950: #2d1a05;
-
-  /* Neutral — purple-tinted canvas, surfaces, text, borders */
-  --color-bg: #f7f4fa;
-  --color-surface: #ffffff;
-  /* What floats above a panel: a menu, a popover, a control laid over a
-     thumbnail. On the light theme the panel is already white, so this is the
-     same white and the border and shadow do the lifting. On dark they cannot —
-     a shadow is black on black — so the surface itself steps up. */
-  --color-surface-raised: #ffffff;
-  --color-surface-subtle: #fbf9fd;
-  --color-surface-muted: #eeeaf1;
-  /* Tinted surface steps below subtle: gradient stops and washed panels */
-  --color-surface-2: #fbf9fd;
-  --color-surface-3: #f7f4fa;
-  --color-text: #211a2c;
-  --color-text-muted: #6c6173;
-  /* Text/icons on purple accent fills and dark media overlays */
-  --color-on-accent: #ffffff;
-  --color-border: #ded8e2;
-  --color-border-strong: #c7becf;
-
-  /* Brand roles — purple leads identity, structure, nav, focus, links, secondary */
-  --color-accent: var(--purple-600);
-  --color-accent-hover: var(--purple-700);
-  --color-accent-active: var(--purple-800);
-  --color-accent-soft: var(--purple-100);
-  --color-accent-softer: var(--purple-50);
-  --color-focus: var(--purple-400);
-
-  /* Honey action roles — the single primary CTA + active progress only */
-  --color-action: var(--honey-500);
-  --color-action-hover: var(--honey-600);
-  --color-action-active: var(--honey-700);
-  --color-action-soft: var(--honey-50);
-  --color-on-action: var(--honey-950);
-
-  /* Gradients stay within one family (no purple-to-orange) */
-  --gradient-brand: linear-gradient(90deg, #6842d9 0%, #7c59e0 55%, #9b7aee 100%);
-  --gradient-progress: linear-gradient(90deg, #f5a318 0%, #ffb51b 100%);
-
-  /* Task-tag palette (018). Nine hues a team can tell apart at chip size, each
-     as a fill for the dot and a wash for the pill; they are labels, not
-     states, so they stay clear of the semantic roles above. */
-  --task-tag-purple: #7c59e0;
-  --task-tag-blue: #2f6fd0;
-  --task-tag-teal: #0f8b8d;
-  --task-tag-green: #2c8a52;
-  --task-tag-honey: #c98a06;
-  --task-tag-orange: #d1600f;
-  --task-tag-red: #c23b30;
-  --task-tag-pink: #c2418b;
-  --task-tag-slate: #5f6b7a;
-
-  /* Semantic colors stay non-purple */
-  --color-success: #18794e;
-  --color-success-soft: #eaf7f0;
-  --color-warning: #9a6700;
-  --color-warning-soft: #fff7db;
-  --color-error: #b42318;
-  --color-error-soft: #fff0ee;
-
   /* Spacing, radius, shadows */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
 
   /* Global page-header geometry. Every full-page topbar uses these values so
      controls stay on the same axes while navigating between public, auth,
@@ -163,52 +71,15 @@
 
      Toasts sit above every dialog on purpose: an Undo offered by a dialog's own
      action must stay reachable while that dialog is up. */
-  --layer-popover: 80;
-  --layer-modal: 100;
-  --layer-modal-nested: 110;
-  --layer-fullbleed: 120;
-  --layer-toast: 130;
 
   /* The lower half of the same scale, added when fifty-three raw z-index
      declarations were moved onto it. The values above were already chosen and
      documented; these fill in what sits below a popover, in the order the raw
      numbers already implied — so nothing moved relative to anything else. */
-  --layer-beneath: -1;
-  --layer-base: 0;
-  --layer-raised: 1;
-  --layer-content: 2;
-  --layer-sticky: 10;
-  --layer-header: 20;
-  --layer-dropdown: 30;
-  --layer-overlay: 40;
-  --layer-preview: 50;
-  --layer-tooltip: 90;
-  --layer-top: 140;
-
-  /* Ink tints (the rgba(36,27,58,α) family) and overlays */
-  --tint-soft: rgba(36, 27, 58, 0.06);
-  --tint-medium: rgba(36, 27, 58, 0.14);
-  --tint-strong: rgba(36, 27, 58, 0.24);
-  --overlay-backdrop: rgb(36 27 58 / 42%);
 
   /* Shadow scale; menu/raise stay as aliases for existing call sites */
-  --shadow-sm: 0 1px 2px var(--tint-soft);
-  --shadow-md: 0 2px 6px rgba(36, 27, 58, 0.12);
-  --shadow-lg: 0 12px 32px var(--tint-medium);
-  --shadow-xl: 0 24px 80px var(--tint-strong);
-  --shadow-menu: var(--shadow-lg);
-  --shadow-raise: var(--shadow-md);
 
   /* Motion system */
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
-  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
-  --dur-micro: 130ms;
-  --dur-control: 180ms;
-  --dur-pop: 160ms;
-  --dur-section: 260ms;
-  --dur-layout: 300ms;
-  --dur-complete: 450ms;
 
   font-family:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
@@ -408,12 +279,6 @@ a {
   backdrop-filter: blur(12px);
 }
 
-.soty-logo {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 /*
  * The bar gives way in a fixed order as the window narrows, instead of
  * overflowing off its own right edge.
@@ -425,18 +290,6 @@ a {
  * the pill itself; the connection chip, the language switch and the account
  * menu are what remain, because those are what a person needs.
  */
-@media (max-width: 1100px) {
-  .support-trigger .support-trigger-label {
-    display: none;
-  }
-}
-
-@media (max-width: 960px) {
-  .support-trigger {
-    display: none;
-  }
-}
-
 /* Whatever remains may shrink rather than push its neighbours off the edge. */
 .topbar-actions > * {
   min-width: 0;
@@ -481,7 +334,7 @@ a {
   height: 46px;
   width: auto;
   object-fit: contain;
-  transition: opacity 520ms cubic-bezier(0.65, 0, 0.35, 1);
+  transition: opacity var(--motion-slow) var(--ease-in-out-curve);
 }
 .soty-wordmark-img-dark {
   opacity: 0;
@@ -540,7 +393,7 @@ a {
   min-height: 37px;
   padding: 0 11.5px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-accent-hover);
   font-size: var(--text-xl);
   font-weight: 700;
@@ -574,18 +427,10 @@ a {
 }
 
 .support-trigger-amount {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3.45px;
-  padding: 2.3px 8px;
-  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
-  border-radius: 999px;
-  color: var(--color-text);
   background: var(--color-surface);
   font-size: var(--text-xl);
   font-weight: 750;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .support-trigger-amount span {
@@ -593,23 +438,13 @@ a {
   font-weight: 500;
 }
 
+/* The bar itself is the shared Progress; the trigger only says where it sits. */
 .support-trigger-progress {
   position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
-  height: 3px;
-  background: color-mix(in srgb, var(--honey-800) 18%, transparent);
-}
-
-.support-trigger-progress i {
-  display: block;
-  width: 0;
-  height: 100%;
-  border-radius: 0 999px 999px 0;
-  background: var(--honey-700);
-  box-shadow: 0 0 4px color-mix(in srgb, var(--honey-700) 28%, transparent);
-  transition: width var(--dur-section) var(--ease-standard);
+  border-radius: 0;
 }
 
 .support-trigger.is-complete {
@@ -618,8 +453,24 @@ a {
   background: var(--color-success-soft);
 }
 
-.support-trigger.is-complete .support-trigger-progress i {
-  background: var(--color-success);
+/*
+ * The narrow-window ladder, declared after the component it narrows.
+ *
+ * It used to sit above it, and a media query adds no specificity: the
+ * unconditional `display: inline-flex` below simply won, so the pill stayed on
+ * a phone and kept squeezing the bar it was supposed to leave — which is the
+ * exact failure the ladder was written for.
+ */
+@media (max-width: 1100px) {
+  .support-trigger .support-trigger-label {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .support-trigger {
+    display: none;
+  }
 }
 
 /* Product launcher */
@@ -662,7 +513,7 @@ a {
   width: max-content;
   margin: 0 auto;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
   font-size: var(--text-xl);
@@ -673,7 +524,7 @@ a {
   max-width: 100%;
   margin: 0 auto;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
   font-size: var(--text-xl);
@@ -817,7 +668,7 @@ a {
   width: 52px;
   height: 52px;
   place-items: center;
-  border-radius: 13px;
+  border-radius: var(--radius-lg);
   color: var(--purple-600);
   background: linear-gradient(145deg, var(--purple-50), var(--purple-200));
 }
@@ -833,14 +684,7 @@ a {
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
 }
-.soon-badge {
-  padding: 5.75px 10.35px;
-  border-radius: 999px;
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-  font-size: var(--text-lg);
-  font-weight: 700;
-}
+
 .tool-copy {
   flex: 1;
   padding: 24px 0;
@@ -879,10 +723,6 @@ a {
   flex: 0 0 auto;
 }
 
-.soty-wordmark {
-  letter-spacing: -0.01em;
-}
-
 .topbar-actions,
 .inline-actions,
 .selection-actions,
@@ -906,7 +746,7 @@ a {
   display: inline-flex;
   padding: 2.3px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-surface-muted);
 }
 
@@ -915,7 +755,7 @@ a {
   height: 31px;
   padding: 0 9.2px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   background: transparent;
   cursor: pointer;
@@ -928,7 +768,7 @@ a {
   color: var(--color-text);
 }
 
-.language-switch button.is-active {
+.language-switch button.is-selected {
   color: var(--color-accent-hover);
   background: var(--color-surface);
   box-shadow: 0 1px 2px var(--tint-soft);
@@ -942,7 +782,7 @@ a {
   gap: 8px;
   min-height: 32px;
   padding: 0 11.5px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
   font-size: var(--text-xl);
@@ -975,7 +815,7 @@ a {
 
 /* One short pulse when the connection is established, then rest. */
 .connection-connected i {
-  animation: connect-pulse 900ms var(--ease-enter) 1;
+  animation: connect-pulse var(--motion-slow) var(--ease-enter) 1;
 }
 
 .connection-pairing_required,
@@ -1055,17 +895,17 @@ a {
   border-color: color-mix(in srgb, var(--color-action-hover) 70%, transparent);
   color: var(--color-on-action);
   background: linear-gradient(180deg, var(--color-action) 0%, var(--color-action-hover) 100%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 40%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-white) 40%, transparent);
 }
 
 .button-primary:hover:not(:disabled) {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-action) 90%, #fff) 0%,
+    color-mix(in srgb, var(--color-action) 90%, var(--color-white)) 0%,
     var(--color-action-hover) 100%
   );
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 40%),
+    inset 0 1px 0 color-mix(in srgb, var(--color-white) 40%, transparent),
     var(--shadow-raise);
   transform: translateY(-1px);
 }
@@ -1124,7 +964,7 @@ a {
 .button.is-loading {
   color: transparent;
   overflow: hidden;
-  --button-sheen: rgba(255, 255, 255, 0.24);
+  --button-sheen: color-mix(in srgb, var(--color-white) 24%, transparent);
 }
 
 .button.is-loading::after {
@@ -1184,10 +1024,9 @@ a {
 .job-row,
 .result-summary,
 .onboarding-panel,
+/* The shared Alert, with the larger corner the launcher's panels have. */
 .blocking-message {
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
 }
 
 .settings-panel {
@@ -1260,10 +1099,6 @@ a {
   grid-column: 1 / -1;
 }
 
-.settings-row {
-  display: contents;
-}
-
 .settings-primary-row {
   /* One shared 3-column grid: every row's labels start on the same
      vertical lines, so the whole panel reads as one organism. */
@@ -1290,7 +1125,7 @@ a {
   align-items: center;
   padding: 0 8px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   background: var(--color-surface-subtle);
   font-size: var(--text-lg);
@@ -1336,10 +1171,6 @@ a {
 
 .custom-column-primary > .segmented {
   justify-content: space-between;
-}
-
-.rate-value-field {
-  min-width: 0;
 }
 
 /* Smooth expand/collapse without layout jumps. Content stays mounted:
@@ -1418,7 +1249,7 @@ a {
 .feature-switch .checkbox-mark {
   width: 36px;
   height: 20px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 0;
   background: var(--color-border-strong);
   transition: background var(--dur-control) var(--ease-standard);
@@ -1437,7 +1268,7 @@ a {
   height: 15px;
   border: 0;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-white);
   box-shadow: 0 1px 2px var(--tint-strong);
   content: '';
   transform: translateY(-50%);
@@ -1600,8 +1431,8 @@ a {
 }
 
 .image-drop-zone.has-error {
-  border-color: color-mix(in srgb, var(--color-error, #d64545) 58%, var(--color-border));
-  background: color-mix(in srgb, var(--color-error, #d64545) 6%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-error) 58%, var(--color-border));
+  background: color-mix(in srgb, var(--color-error) 6%, var(--color-surface));
 }
 
 .image-drop-zone.has-image {
@@ -1618,13 +1449,6 @@ a {
   cursor: not-allowed;
 }
 
-.empty-image-drop {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  text-align: center;
-}
-
 .image-drop-message {
   display: grid;
   position: absolute;
@@ -1633,9 +1457,9 @@ a {
   justify-items: center;
   gap: 4px;
   transition:
-    opacity 480ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 480ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity var(--motion-slow) cubic-bezier(0.22, 1, 0.36, 1),
+    transform var(--motion-slow) cubic-bezier(0.22, 1, 0.36, 1),
+    filter var(--motion-slow) cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform, filter;
 }
 
@@ -1643,14 +1467,6 @@ a {
   opacity: 0;
   filter: blur(1px);
   transform: translateY(-2px) scale(0.99);
-}
-
-.image-drop-inline-error {
-  padding: 8px;
-  opacity: 0;
-  filter: blur(1px);
-  transform: translateY(2px) scale(0.99);
-  pointer-events: none;
 }
 
 .image-drop-inline-error.is-visible {
@@ -1669,15 +1485,6 @@ a {
   font-size: var(--text-lg);
 }
 
-.image-drop-icon {
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-  transition: transform var(--dur-control) var(--ease-standard);
-}
-
 /* The intake glyph rides the action fill: no plate, ink of the button text. */
 .drop-icon {
   display: inline-flex;
@@ -1687,22 +1494,9 @@ a {
   transition: transform var(--dur-control) var(--ease-standard);
 }
 
-.image-drop-icon {
-  width: 30px;
-  height: 30px;
-  font-size: var(--text-7xl);
-}
-
 .image-drop-zone.is-dragging .image-drop-icon,
 .drop-zone.is-dragging .drop-icon {
   transform: translateY(-2px) scale(1.06);
-}
-
-.selected-image {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  animation: fade-rise var(--dur-control) var(--ease-enter);
 }
 
 .selected-image-tile {
@@ -1728,9 +1522,9 @@ a {
   max-width: calc(100% - 8px);
   overflow: hidden;
   padding: 2px 5px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--color-on-accent);
-  background: rgba(24, 17, 38, 0.66);
+  background: color-mix(in srgb, var(--purple-950) 66%, transparent);
   font-size: var(--text-md);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
@@ -1752,9 +1546,9 @@ a {
   padding: 0;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  color: #2d2638;
-  background: rgba(255, 255, 255, 0.82);
+  border-radius: var(--radius-md);
+  color: var(--grey-800);
+  background: color-mix(in srgb, var(--color-white) 82%, transparent);
   box-shadow: 0 1px 4px var(--tint-medium);
   backdrop-filter: blur(5px);
 }
@@ -1771,19 +1565,6 @@ a {
   object-fit: cover;
 }
 
-.selected-image-actions {
-  display: flex;
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  gap: 3px;
-  padding: 2px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.68);
-  box-shadow: 0 1px 4px var(--tint-medium);
-  backdrop-filter: blur(5px);
-}
-
 .selected-image-action {
   display: grid;
   box-sizing: border-box;
@@ -1795,37 +1576,19 @@ a {
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--color-text);
   background: transparent;
   cursor: pointer;
   line-height: 0;
 }
 
-.selected-image-action-icon {
-  display: block;
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.25;
-}
-
 .selected-image-action:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--color-white) 82%, transparent);
 }
 
 .selected-image-action.is-delete:hover:not(:disabled) {
-  color: var(--color-error, #d64545);
-}
-
-.selected-image-size {
-  color: var(--color-text-muted);
-  font-size: var(--text-lg);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+  color: var(--color-error);
 }
 
 .final-duration-field {
@@ -1962,13 +1725,6 @@ input.is-invalid {
   font-size: var(--text-lg);
 }
 
-.compound-control,
-.range-number-control {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(84px, 0.45fr);
-  gap: var(--space-2);
-}
-
 .custom-settings .compound-control:not(.has-custom-input) {
   max-width: 360px;
   grid-template-columns: minmax(0, 1fr);
@@ -1976,10 +1732,6 @@ input.is-invalid {
 
 .custom-settings .compound-control.has-custom-input {
   max-width: 480px;
-}
-
-.range-number-control {
-  align-items: center;
 }
 
 .range-number-control input[type='range'] {
@@ -2017,7 +1769,7 @@ input.is-invalid {
   /* The frame hugs the toggle — no wide side gutters (owner). */
   padding: 3px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-surface-muted);
 }
 
@@ -2038,7 +1790,7 @@ input.is-invalid {
   max-width: 100%;
   padding: 3px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-surface-muted);
   isolation: isolate;
 }
@@ -2049,7 +1801,7 @@ input.is-invalid {
   top: 3px;
   left: 0;
   height: calc(100% - 6px);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
   box-shadow: 0 1px 3px var(--tint-medium);
   transition:
@@ -2064,7 +1816,7 @@ input.is-invalid {
   min-height: 30px;
   padding: 0 11px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   background: transparent;
   cursor: pointer;
@@ -2277,20 +2029,6 @@ input.is-invalid {
   flex-wrap: wrap;
 }
 
-.compress-blocked-reason {
-  align-self: center;
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
-}
-
-.selected-count {
-  padding: 0 6px;
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .batch-progress {
   display: grid;
   gap: var(--space-2);
@@ -2308,15 +2046,6 @@ input.is-invalid {
   text-align: right;
 }
 
-.batch-counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px var(--space-4);
-  color: var(--color-text-muted);
-  font-size: var(--text-lg);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ============================================================
    Progress bars — brand gradient, calm motion while active
    ============================================================ */
@@ -2324,7 +2053,7 @@ input.is-invalid {
   position: relative;
   height: 6px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
 }
 
@@ -2334,7 +2063,16 @@ input.is-invalid {
   border-radius: inherit;
   background: var(--gradient-progress);
   background-size: 200% 100%;
-  transition: width 240ms var(--ease-standard);
+}
+
+/* Scaled, not resized: animating `width` re-lays out the row on every frame,
+   and a queue of forty rows makes that visible. The indeterminate bar keeps
+   its own transform, so it is left out of this. */
+.progress-track:not(.is-indeterminate) > span {
+  width: 100%;
+  transform: scaleX(var(--progress-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--motion-base) var(--ease-standard);
 }
 
 /* The gradient drifts only while work is really happening. */
@@ -2424,7 +2162,7 @@ input.is-invalid {
   align-items: center;
   gap: 6px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
   font-size: var(--text-lg);
@@ -2485,14 +2223,6 @@ input.is-invalid {
   animation: fade-in var(--dur-control) var(--ease-enter);
 }
 
-.job-progress {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
 .job-progress-meta {
   display: flex;
   min-width: 76px;
@@ -2543,7 +2273,7 @@ input.is-invalid {
 .transcription-loader .wave-bar {
   transform-box: fill-box;
   transform-origin: center;
-  animation: transcription-wave 0.9s ease-in-out infinite alternate;
+  animation: transcription-wave var(--motion-slow) ease-in-out infinite alternate;
 }
 
 .transcription-loader .wave-bar:nth-child(2) {
@@ -2556,13 +2286,6 @@ input.is-invalid {
 
 .transcription-loader .wave-bar:nth-child(4) {
   animation-delay: -0.75s;
-}
-
-.job-comparison {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
-  margin-top: var(--space-3);
 }
 
 .media-panel {
@@ -2710,16 +2433,16 @@ input.is-invalid {
 }
 
 .soty-dots i:nth-child(2) {
-  animation-delay: 0.18s;
+  animation-delay: var(--motion-base);
 }
 
 .soty-dots i:nth-child(3) {
-  animation-delay: 0.36s;
+  animation-delay: var(--motion-slow);
 }
 
 .skeleton {
   display: inline-block;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: linear-gradient(
     100deg,
     var(--color-surface-muted) 40%,
@@ -2728,11 +2451,6 @@ input.is-invalid {
   );
   background-size: 220% 100%;
   animation: shimmer 1.8s linear infinite;
-}
-
-.skeleton-size {
-  width: 84px;
-  height: 16px;
 }
 
 /* Loading placeholders for the account/admin pages. They copy the loaded
@@ -2885,14 +2603,6 @@ input.is-invalid {
   border-top: 1px solid color-mix(in srgb, var(--color-success) 18%, var(--color-border));
 }
 
-.embedding-summary {
-  display: grid;
-  gap: 5px;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  font-size: var(--text-lg);
-}
-
 .embedding-summary > strong {
   color: var(--color-text-muted);
   font-size: var(--text-md);
@@ -2917,18 +2627,6 @@ input.is-invalid {
   white-space: nowrap;
 }
 
-.job-error {
-  display: grid;
-  gap: 6px;
-  margin-top: var(--space-2);
-  padding: 9px 11px;
-  border-radius: var(--radius-sm);
-  color: var(--color-error);
-  background: var(--color-error-soft);
-  font-size: var(--text-xl);
-  animation: fade-rise var(--dur-control) var(--ease-enter);
-}
-
 .job-error summary {
   cursor: pointer;
   font-weight: 650;
@@ -2941,7 +2639,7 @@ input.is-invalid {
   padding: 8px;
   border-radius: var(--radius-sm);
   color: var(--color-text);
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--color-white) 65%, transparent);
   font-size: var(--text-md);
   white-space: pre-wrap;
   word-break: break-word;
@@ -2975,7 +2673,7 @@ input.is-invalid {
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--color-border-strong);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
   transition:
     border-color var(--dur-micro) var(--ease-standard),
@@ -3103,35 +2801,12 @@ input.is-invalid {
 }
 
 .media-action-failed .media-action-status {
-  color: var(--color-error, #d64545);
+  color: var(--color-error);
 }
 
 .blocking-message {
-  display: flex;
   align-items: center;
-  gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-}
-
-.blocking-message > div:not(.inline-actions) {
-  display: grid;
-  flex: 1;
-  gap: 2px;
-}
-
-.blocking-message span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-}
-
-.blocking-warning {
-  border-color: color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
-  background: var(--color-warning-soft);
-}
-
-.blocking-error {
-  border-color: color-mix(in srgb, var(--color-error) 30%, var(--color-border));
-  background: var(--color-error-soft);
 }
 
 .onboarding-panel {
@@ -3156,7 +2831,7 @@ input.is-invalid {
    person it guessed wrong about goes, without competing for attention. */
 .onboarding-alternative {
   margin: calc(var(--space-2) * -1) 0 0;
-  font-size: 0.9rem;
+  font-size: var(--text-label);
 }
 
 /* Quiet "still looking" indicator so background reconnect attempts pulse gently
@@ -3187,7 +2862,7 @@ input.is-invalid {
 }
 
 .agent-search.is-active .agent-search-dot {
-  animation-duration: 0.9s;
+  animation-duration: var(--motion-slow);
 }
 
 .installation-help {
@@ -3236,7 +2911,7 @@ input.is-invalid {
   align-self: start;
   width: 34px;
   height: 34px;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   color: var(--color-on-accent);
   background: var(--gradient-brand);
   box-shadow: 0 6px 16px color-mix(in srgb, var(--color-accent) 28%, transparent);
@@ -3367,7 +3042,7 @@ input.is-invalid {
   border-top-color: currentColor;
   border-radius: 50%;
   color: var(--color-accent);
-  animation: spin 0.8s linear infinite;
+  animation: spin var(--motion-slow) linear infinite;
 }
 
 .spinner-small {
@@ -3418,10 +3093,13 @@ input.is-invalid {
   }
 }
 
+/* The one entrance an anchored surface gets: it grows from its trigger's
+   corner rather than from nothing (FR-026). 0.95 is the figure the inventory's
+   own `ui-surface-in` uses, and two numbers for one motion is one too many. */
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(-4px);
+    transform: scale(0.95);
   }
 }
 
@@ -3643,11 +3321,6 @@ input.is-invalid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .settings-row {
-    display: grid;
-    gap: 6px;
-  }
-
   .custom-settings {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3709,7 +3382,7 @@ input.is-invalid {
     width: 100%;
   }
 
-  .primary-actions .button-primary {
+  .primary-actions .ui-button--solid {
     flex: 1;
   }
 
@@ -3721,7 +3394,7 @@ input.is-invalid {
     width: auto;
   }
 
-  .batch-toolbar-row .primary-actions .button-primary {
+  .batch-toolbar-row .primary-actions .ui-button {
     flex: 0 0 auto;
   }
 
@@ -3732,10 +3405,6 @@ input.is-invalid {
   .job-actions {
     grid-column: 2;
     justify-content: flex-start;
-  }
-
-  .job-comparison {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .result-summary {
@@ -3751,8 +3420,7 @@ input.is-invalid {
     flex-wrap: wrap;
   }
 
-  .launcher .blocking-message > .inline-actions,
-  .launcher .blocking-message > .button {
+  .launcher .blocking-message .ui-alert-action {
     margin-left: 40px;
   }
 }
@@ -3763,10 +3431,6 @@ input.is-invalid {
   }
 
   .topbar-lead {
-    gap: var(--space-2);
-  }
-
-  .soty-logo {
     gap: var(--space-2);
   }
 
@@ -3852,12 +3516,11 @@ input.is-invalid {
 
   .launcher .onboarding-panel > .inline-actions .button,
   .launcher .blocking-message .inline-actions,
-  .launcher .blocking-message .button {
+  .launcher .blocking-message .ui-button {
     width: 100%;
   }
 
-  .launcher .blocking-message > .inline-actions,
-  .launcher .blocking-message > .button {
+  .launcher .blocking-message .ui-alert-action {
     margin-left: 0;
   }
 
@@ -3901,17 +3564,8 @@ input.is-invalid {
     justify-content: flex-start;
   }
 
-  .compound-control,
-  .range-number-control {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .media-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .selected-image {
-    grid-template-columns: 68px minmax(0, 1fr);
   }
 
   .selected-image img {
@@ -3923,7 +3577,7 @@ input.is-invalid {
     display: none;
   }
 
-  .batch-toolbar .button {
+  .batch-toolbar .ui-button {
     min-height: 36px;
   }
 
@@ -4032,7 +3686,11 @@ input.is-invalid {
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 50%, rgb(255 255 255 / 88%) 0 23%, transparent 55%),
+    radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--color-white) 88%, transparent) 0 23%,
+      transparent 55%
+    ),
     linear-gradient(
       145deg,
       var(--color-surface-subtle) 0%,
@@ -4050,7 +3708,11 @@ input.is-invalid {
   overflow: clip;
   isolation: isolate;
   background:
-    radial-gradient(circle at 50% 18%, rgb(255 255 255 / 92%) 0 18%, transparent 50%),
+    radial-gradient(
+      circle at 50% 18%,
+      color-mix(in srgb, var(--color-white) 92%, transparent) 0 18%,
+      transparent 50%
+    ),
     linear-gradient(
       145deg,
       var(--color-surface-subtle) 0%,
@@ -4208,49 +3870,24 @@ body:has(.public-home) {
   text-decoration: none;
 }
 
-.public-home-points {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
-  margin: calc(var(--space-6) * 1.5) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
 .public-home-points li {
   padding: 8px 12px;
-  border: 1px solid rgb(117 87 232 / 16%);
-  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--purple-500) 16%, transparent);
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   font-size: var(--text-2xl);
   font-weight: 650;
   background: color-mix(in srgb, var(--color-surface) 84%, transparent);
 }
 
-.public-feature-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
 .public-feature-grid article {
   min-height: 250px;
   padding: 28px;
-  border: 1px solid rgb(117 87 232 / 13%);
-  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--purple-500) 13%, transparent);
+  border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--color-surface) 88%, transparent);
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(16px);
-}
-
-.public-feature-number {
-  display: block;
-  margin-bottom: 56px;
-  color: var(--color-accent);
-  font-size: var(--text-xl);
-  font-weight: 750;
-  letter-spacing: 0.08em;
 }
 
 .public-feature-grid h2,
@@ -4266,28 +3903,10 @@ body:has(.public-home) {
   line-height: 1.65;
 }
 
-.public-drive-section {
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: 64px;
-  padding: 44px;
-  border: 1px solid rgb(117 87 232 / 16%);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
-  box-shadow: 0 20px 60px rgb(67 48 113 / 9%);
-}
-
 .public-drive-section h2 {
   max-width: 420px;
   margin-top: var(--space-3);
   font-size: clamp(38.87px, 3vw, 53.82px);
-}
-
-.public-drive-copy {
-  display: grid;
-  align-content: center;
-  gap: var(--space-4);
-  margin: 0;
 }
 
 .public-footer {
@@ -4337,7 +3956,7 @@ body:has(.public-home) {
 
 .login-accent {
   position: absolute;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   filter: blur(1px);
   opacity: 0.64;
   pointer-events: none;
@@ -4347,7 +3966,7 @@ body:has(.public-home) {
 .login-accent::after {
   position: absolute;
   inset: 18%;
-  border: 1px solid rgb(117 87 232 / 16%);
+  border: 1px solid color-mix(in srgb, var(--purple-500) 16%, transparent);
   border-radius: inherit;
   content: '';
 }
@@ -4401,10 +4020,10 @@ body:has(.public-home) {
   min-height: 470px;
   margin: 0 0 62px;
   padding: 36px;
-  border: 1px solid rgb(117 87 232 / 14%);
-  border-radius: 20px;
-  background: rgb(255 255 255 / 88%);
-  box-shadow: 0 24px 70px rgb(67 48 113 / 12%);
+  border: 1px solid color-mix(in srgb, var(--purple-500) 14%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--color-white) 88%, transparent);
+  box-shadow: 0 24px 70px color-mix(in srgb, var(--purple-900) 12%, transparent);
   backdrop-filter: blur(18px);
 }
 
@@ -4433,10 +4052,10 @@ body:has(.public-home) {
   width: min(100%, 402px);
   min-height: 50px;
   padding: 4px 12px;
-  border: 1px solid #747775;
-  border-radius: 9px;
-  color: #1f1f1f;
-  background: #fff;
+  border: 1px solid var(--google-border);
+  border-radius: var(--radius-md);
+  color: var(--google-text);
+  background: var(--color-white);
   font-size: var(--text-4xl);
   font-weight: 600;
   cursor: pointer;
@@ -4447,8 +4066,8 @@ body:has(.public-home) {
 }
 
 .google-sign-in:hover:not(:disabled) {
-  background: #f8faff;
-  box-shadow: 0 2px 6px rgb(60 64 67 / 18%);
+  background: var(--google-surface-hover);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--google-ink) 18%, transparent);
 }
 
 .google-sign-in:active:not(:disabled) {
@@ -4491,29 +4110,6 @@ body:has(.public-home) {
   text-underline-offset: 2px;
 }
 
-.inline-alert {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  font-size: var(--text-2xl);
-}
-
-.inline-alert-error {
-  border: 1px solid color-mix(in srgb, var(--color-error) 22%, transparent);
-  color: var(--color-error);
-  background: var(--color-error-soft);
-}
-
-.inline-alert-success {
-  border: 1px solid color-mix(in srgb, var(--color-success) 22%, transparent);
-  color: var(--color-success);
-  background: var(--color-success-soft);
-}
-
 .user-avatar {
   flex: 0 0 auto;
   display: grid;
@@ -4521,8 +4117,10 @@ body:has(.public-home) {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
   border-radius: 50%;
-  color: var(--purple-700);
-  background: var(--purple-100);
+  /* The role, not two fixed steps: the pair has to flip with the theme, and it
+     did not — 1.76:1 in dark, for a letter 33px tall. */
+  color: var(--color-secondary-text);
+  background: var(--color-secondary-soft);
   font-weight: 750;
   letter-spacing: -0.02em;
 }
@@ -4562,7 +4160,7 @@ body:has(.public-home) {
   min-height: 40px;
   padding: 3px 8px 3px 3px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-text);
   background: transparent;
   cursor: pointer;
@@ -4610,11 +4208,10 @@ body:has(.public-home) {
   transform: translateY(-1px);
 }
 
+/* Placed by the component (021): portalled to the body and flipped when the
+   window is short. What is left here is what it looks like. */
 .user-menu-popover {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 8px);
-  right: 0;
   display: grid;
   width: 248px;
   padding: var(--space-2);
@@ -4622,8 +4219,17 @@ body:has(.public-home) {
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
-  animation: menu-pop var(--dur-pop) var(--ease-enter);
+  /* No entrance: this is opened many times an hour, and the rule about
+     frequency is in docs/DESIGN-PRINCIPLES.md. It used to name `menu-pop`,
+     which no `@keyframes` ever declared — so it already did not animate, it
+     just did not say so. */
   transform-origin: top right;
+}
+
+/* The list, between the popover surface and its entries so the arrow-key walk
+   has something to own. */
+.user-menu-items {
+  display: contents;
 }
 
 .user-menu-identity {
@@ -4645,7 +4251,7 @@ body:has(.public-home) {
   font-size: var(--text-xl);
 }
 
-.user-menu-popover > button {
+.user-menu-items > button {
   width: 100%;
   padding: 9px var(--space-3);
   border: 0;
@@ -4656,8 +4262,8 @@ body:has(.public-home) {
   cursor: pointer;
 }
 
-.user-menu-popover > button:hover,
-.user-menu-popover > button:focus-visible {
+.user-menu-items > button:hover,
+.user-menu-items > button:focus-visible {
   background: var(--color-surface-muted);
 }
 
@@ -4796,7 +4402,7 @@ body:has(.public-home) {
 .onboarding-language-options button {
   min-height: 38px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   background: transparent;
   cursor: pointer;
@@ -4860,7 +4466,7 @@ body:has(.public-home) {
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   color: var(--color-accent);
   background: var(--color-accent-soft);
 }
@@ -4875,13 +4481,8 @@ body:has(.public-home) {
 
 .support-goal-card {
   position: relative;
-  display: grid;
   overflow: hidden;
   gap: var(--space-4);
-  padding: var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
   box-shadow: var(--shadow-md);
 }
 
@@ -4907,7 +4508,7 @@ body:has(.public-home) {
 .support-goal-heading > span {
   padding: 5px 8px;
   border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
   font-size: var(--text-lg);
@@ -4999,30 +4600,6 @@ body:has(.public-home) {
   white-space: nowrap;
 }
 
-.support-goal-progress {
-  position: relative;
-  overflow: hidden;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--color-surface-muted);
-}
-
-.support-goal-progress > span {
-  position: relative;
-  display: block;
-  width: 0;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--gradient-brand);
-  transition: width var(--dur-section) var(--ease-standard);
-}
-
-/* Decorative shine/knob retired — the bar reads cleaner as a flat fill. */
-.support-goal-progress > span::before,
-.support-goal-progress > span i {
-  display: none;
-}
-
 .support-goal-note {
   color: var(--color-text-muted, var(--color-text-muted));
   font-size: var(--text-lg);
@@ -5033,14 +4610,8 @@ body:has(.public-home) {
   border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
 }
 
-.support-goal-card.is-complete .support-goal-heading > span,
 .support-goal-card.is-complete .support-goal-percent > strong {
   color: var(--color-success);
-}
-
-.support-goal-card.is-complete .support-goal-progress > span {
-  background: var(--color-success);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--color-success) 40%, transparent);
 }
 
 .support-section {
@@ -5101,7 +4672,7 @@ body:has(.public-home) {
   height: 120px;
   padding: 8px;
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--color-white);
   box-shadow: 0 1px 4px var(--tint-medium);
 }
 
@@ -5129,21 +4700,7 @@ body:has(.public-home) {
 }
 
 .support-copy {
-  flex-shrink: 0;
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  font-size: var(--text-xl);
-  font-weight: 600;
-  background: var(--color-surface);
-  cursor: pointer;
-}
-
-.support-copy:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  flex: none;
 }
 
 .support-form {
@@ -5151,45 +4708,12 @@ body:has(.public-home) {
   gap: var(--space-3);
 }
 
-.support-field {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.support-field > span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-  font-weight: 650;
-}
-
-.support-field textarea,
-.support-field input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  font: inherit;
-  background: var(--color-surface);
-  resize: vertical;
-  transition:
-    border-color var(--dur-control) var(--ease-standard),
-    box-shadow var(--dur-control) var(--ease-standard);
-}
-
-.support-field textarea:focus,
-.support-field input:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
-  outline: 0;
-}
-
-.support-form .button-primary {
+.support-form .ui-button {
   justify-self: start;
 }
 
 .support-error {
-  color: var(--color-error, #d64545);
+  color: var(--color-error);
   font-size: var(--text-xl);
 }
 
@@ -5221,7 +4745,7 @@ body:has(.public-home) {
 
 .platform-install-notice {
   margin: 14px 0 0;
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   line-height: 1.45;
   color: var(--color-text-muted);
   text-align: center;
@@ -5273,13 +4797,13 @@ body:has(.public-home) {
   width: 62px;
   height: 62px;
   place-items: center;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: var(--color-accent-soft);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 
 .local-app-mark .soty-mark {
-  border-radius: 13px;
+  border-radius: var(--radius-lg);
   transform: translateX(2px);
 }
 
@@ -5430,12 +4954,6 @@ body:has(.public-home) {
   outline: 0;
 }
 
-.field-help {
-  margin-top: calc(var(--space-4) * -1);
-  padding-left: 28px;
-  color: var(--color-text-muted);
-}
-
 .profile-card > .button-primary {
   justify-self: start;
 }
@@ -5499,21 +5017,6 @@ body:has(.public-home) {
   color: var(--color-accent-hover);
 }
 
-.confirm-dialog {
-  width: min(calc(100% - 32px), var(--dialog-sm));
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  color: var(--color-text);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-xl);
-}
-
-.confirm-dialog::backdrop {
-  background: var(--overlay-backdrop);
-  backdrop-filter: blur(4px);
-}
-
 .confirm-dialog form {
   display: grid;
   gap: var(--space-5);
@@ -5535,26 +5038,7 @@ body:has(.public-home) {
 }
 
 .admin-range {
-  display: flex;
-  padding: 3px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-}
-
-.admin-range button {
-  min-height: 34px;
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: 7px;
-  color: var(--color-text-muted);
-  background: transparent;
-  cursor: pointer;
-}
-
-.admin-range button.is-active {
-  color: var(--color-text);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-raise);
+  flex: none;
 }
 
 .admin-page {
@@ -5713,7 +5197,7 @@ body:has(.public-home) {
 .chart-legend i {
   width: 8px;
   height: 8px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .legend-users {
@@ -5745,9 +5229,12 @@ body:has(.public-home) {
 
 .activity-bar {
   width: 42%;
+  height: 100%;
   min-height: 1px;
-  border-radius: 3px 3px 0 0;
-  transition: height var(--dur-layout) var(--ease-standard);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  transform: scaleY(var(--fill-ratio, 0));
+  transform-origin: center bottom;
+  transition: transform var(--dur-layout) var(--ease-standard);
 }
 
 .events-bar {
@@ -5809,57 +5296,46 @@ body:has(.public-home) {
   gap: var(--space-3);
 }
 
+/* The dashboard's three listings are the inventory's Table; what belongs to
+   this screen is the frame around them and the row padding a report wants. */
+.admin-table {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.admin-table .ui-table-header,
+.admin-table .ui-table-row {
+  padding-inline: 12px;
+  gap: 0 var(--space-4);
+  white-space: nowrap;
+}
+
+.admin-table .ui-table-header {
+  background: var(--color-surface-subtle);
+}
+
+/* The columns carry pixel floors, so a long address ellipsizes rather than
+   pushing the status and the action off the card; below the sum of the floors
+   the table scrolls sideways in its own frame rather than taking the page
+   with it. */
+.admin-users-table {
+  --admin-users-floor: 900px;
+}
+
+.admin-users-table .ui-table-header,
+.admin-users-table .ui-table-row {
+  min-width: var(--admin-users-floor);
+}
+
 .admin-table-wrap {
   overflow: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
-.admin-table-wrap table {
-  width: 100%;
-  border-collapse: collapse;
-  white-space: nowrap;
-}
-
-.admin-table-wrap th,
-.admin-table-wrap td {
-  padding: 11px 12px;
-  border-bottom: 1px solid var(--color-border);
-  text-align: left;
-}
-
-.admin-table-wrap th {
-  position: sticky;
-  z-index: var(--layer-raised);
-  top: 0;
-  color: var(--color-text-muted);
-  background: var(--color-surface-subtle);
-  font-size: var(--text-lg);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.admin-table-wrap tbody tr:last-child td {
-  border-bottom: 0;
-}
-
 .account-status {
-  display: inline-flex;
-  padding: 3px 7px;
-  border-radius: 999px;
-  font-size: var(--text-lg);
-  font-weight: 650;
-}
-
-.account-status.status-active {
-  color: var(--color-success);
-  background: var(--color-success-soft);
-}
-
-.account-status.status-blocked,
-.account-status.status-deleted {
-  color: var(--color-error);
-  background: var(--color-error-soft);
+  flex: none;
 }
 
 .pagination {
@@ -5884,8 +5360,8 @@ body:has(.public-home) {
   position: sticky;
   z-index: var(--layer-sticky);
   top: 0;
-  border-bottom: 1px solid rgb(228 225 236 / 80%);
-  background: rgb(250 249 253 / 86%);
+  border-bottom: 1px solid color-mix(in srgb, var(--grey-300) 80%, transparent);
+  background: color-mix(in srgb, var(--grey-100) 86%, transparent);
   backdrop-filter: blur(16px);
 }
 
@@ -5902,6 +5378,17 @@ body:has(.public-home) {
   padding: 54px 0 80px;
 }
 
+/*
+ * A grid item's floor is `min-content`, so one long word in one section made
+ * every section 404px wide inside a 358px column and the page scrolled
+ * sideways on a phone. The floor is the column.
+ */
+.legal-content > *,
+.legal-content section > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .legal-content > header {
   display: grid;
   gap: var(--space-2);
@@ -5912,6 +5399,15 @@ body:has(.public-home) {
 .legal-content h1 {
   font-size: var(--text-16xl);
   letter-spacing: -0.025em;
+  /* At display size a single long word is wider than a phone, and the page
+     scrolled sideways to reach the rest of it. */
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .legal-content h1 {
+    font-size: var(--text-8xl);
+  }
 }
 
 .legal-content > header p,
@@ -5956,13 +5452,6 @@ body:has(.public-home) {
   overflow-wrap: anywhere;
 }
 
-.legal-warning {
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  color: var(--color-warning) !important;
-  background: var(--color-warning-soft);
-}
-
 .legal-nav {
   display: flex;
   flex-wrap: wrap;
@@ -5986,22 +5475,8 @@ body:has(.public-home) {
     padding: 24px 0;
   }
 
-  .public-feature-grid,
-  .public-drive-section {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .public-feature-grid article {
     min-height: auto;
-  }
-
-  .public-feature-number {
-    margin-bottom: 32px;
-  }
-
-  .public-drive-section {
-    gap: var(--space-5);
-    padding: 30px;
   }
 
   .login-card {
@@ -6087,14 +5562,10 @@ body:has(.public-home) {
     font-size: var(--text-5xl);
   }
 
-  .public-home-points {
-    margin-top: var(--space-4);
-  }
-
   .login-card {
     width: calc(100vw - 24px);
     margin-bottom: 20px;
-    border-radius: 16px;
+    border-radius: var(--radius-xl);
   }
 
   .login-copy h1 {
@@ -6303,7 +5774,7 @@ body:has(.public-home) {
 
 .landing-batch-card.is-completed {
   border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border));
-  animation: landing-complete-in 620ms var(--ease-enter);
+  animation: landing-complete-in var(--motion-slow) var(--ease-enter);
 }
 
 .landing-batch-card.is-completed::before {
@@ -6313,10 +5784,15 @@ body:has(.public-home) {
   bottom: 0;
   left: -25%;
   width: 24%;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 72%), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-white) 72%, transparent),
+    transparent
+  );
   content: '';
   pointer-events: none;
-  animation: landing-success-sweep 760ms var(--ease-enter) both;
+  animation: landing-success-sweep var(--motion-slow) var(--ease-enter) both;
 }
 
 .landing-batch-header {
@@ -6360,7 +5836,7 @@ body:has(.public-home) {
   height: 48px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 13px;
+  border-radius: var(--radius-lg);
   color: var(--color-accent-hover);
   background: var(--color-accent-soft);
   transition:
@@ -6551,9 +6027,9 @@ body:has(.public-home) {
 
 .landing-total-saving {
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-success);
-  background: rgb(255 255 255 / 72%);
+  background: color-mix(in srgb, var(--color-white) 72%, transparent);
   font-size: var(--text-xl);
   font-weight: 700;
 }
@@ -6744,7 +6220,7 @@ body:has(.public-home) {
   bottom: 0;
   left: 50%;
   width: 2px;
-  background: rgb(255 255 255 / 92%);
+  background: color-mix(in srgb, var(--color-white) 92%, transparent);
   box-shadow: 0 0 0 1px var(--tint-strong);
   transform: translateX(-1px);
 }
@@ -6756,8 +6232,8 @@ body:has(.public-home) {
   width: 9px;
   height: 16px;
   border: 1px solid var(--tint-strong);
-  border-radius: 6px;
-  background: #fff;
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
   box-shadow: 0 2px 5px var(--tint-medium);
   content: '';
   transform: translate(-50%, -50%);
@@ -6906,7 +6382,7 @@ body:has(.public-home) {
 .landing-asset-filters button {
   padding: 4px 10px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -6972,7 +6448,7 @@ body:has(.public-home) {
   display: grid;
   place-items: center;
   padding: var(--space-5);
-  background: rgb(24 18 39 / 72%);
+  background: color-mix(in srgb, var(--purple-950) 72%, transparent);
   backdrop-filter: blur(9px);
   animation: fade-in var(--dur-section) var(--ease-enter);
 }
@@ -6983,10 +6459,10 @@ body:has(.public-home) {
   max-height: calc(100dvh - 40px);
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 18%);
-  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--color-white) 18%, transparent);
+  border-radius: var(--radius-xl);
   background: var(--color-surface);
-  box-shadow: 0 32px 100px rgb(15 10 28 / 48%);
+  box-shadow: 0 32px 100px color-mix(in srgb, var(--grey-950) 48%, transparent);
   animation: landing-compare-in var(--dur-layout) var(--ease-enter);
 }
 
@@ -7012,23 +6488,10 @@ body:has(.public-home) {
   gap: var(--space-2);
 }
 
+/* The shared icon button, with the outline it carries over a photograph. */
 .landing-compare-zoom {
-  display: inline-flex;
-  width: 38px;
-  height: 38px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
+  border-color: var(--color-border);
   color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.landing-compare-zoom:hover,
-.landing-compare-zoom[aria-pressed='true'] {
-  border-color: var(--color-accent);
-  color: var(--color-text);
 }
 
 /* The hint line keeps its room whether or not it has words, so the picture below it does not
@@ -7049,29 +6512,11 @@ body:has(.public-home) {
 }
 
 .landing-compare-close {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
   font-size: var(--text-11xl);
   line-height: 1;
-  cursor: pointer;
-  transition:
-    color var(--dur-control) var(--ease-standard),
-    background var(--dur-control) var(--ease-standard),
-    transform var(--dur-control) var(--ease-standard);
-}
-
-.landing-compare-close:hover {
-  color: var(--color-text);
-  background: var(--color-border);
-  transform: rotate(5deg) scale(1.04);
 }
 
 .landing-compare-viewport {
@@ -7082,9 +6527,19 @@ body:has(.public-home) {
   place-items: center;
   padding: var(--space-4);
   background:
-    linear-gradient(45deg, rgb(255 255 255 / 3%) 25%, transparent 25%) 0 0 / 18px 18px,
-    linear-gradient(-45deg, rgb(255 255 255 / 3%) 25%, transparent 25%) 0 9px / 18px 18px,
-    #17131f;
+    linear-gradient(
+        45deg,
+        color-mix(in srgb, var(--color-white) 3%, transparent) 25%,
+        transparent 25%
+      )
+      0 0 / 18px 18px,
+    linear-gradient(
+        -45deg,
+        color-mix(in srgb, var(--color-white) 3%, transparent) 25%,
+        transparent 25%
+      )
+      0 9px / 18px 18px,
+    var(--grey-950);
 }
 
 /*
@@ -7103,7 +6558,7 @@ body:has(.public-home) {
   max-width: 100%;
   overflow: hidden;
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 40px rgb(0 0 0 / 38%);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--color-black) 38%, transparent);
   user-select: none;
 }
 
@@ -7189,11 +6644,22 @@ body:has(.public-home) {
 
 /* The one-off nudge that shows the divider is draggable. */
 .landing-compare-stage.is-nudging .landing-compare-before-layer {
-  transition: clip-path 420ms var(--ease-standard);
+  transition: clip-path var(--motion-slow) var(--ease-standard);
 }
 
+/* `left` positions the divider; only the nudge moves it on its own, and it
+   does that with a transform so the stage is not re-laid out mid-hint. */
 .landing-compare-stage.is-nudging .landing-compare-divider {
-  transition: left 420ms var(--ease-standard);
+  animation: compare-nudge var(--motion-slow) var(--ease-standard) both;
+}
+
+@keyframes compare-nudge {
+  from {
+    transform: translateX(-14px);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 .landing-compare-before-layer {
@@ -7209,18 +6675,13 @@ body:has(.public-home) {
   object-fit: fill;
 }
 
+/* A Badge, placed over the picture: the two solid colours read on any photo,
+   and the blur keeps the edge off whatever is behind it. */
 .landing-compare-label {
   position: absolute;
   z-index: var(--layer-raised);
   top: 12px;
-  padding: 5px 9px;
-  border: 1px solid rgb(255 255 255 / 22%);
-  border-radius: 999px;
-  color: var(--color-on-accent);
-  background: rgb(24 18 39 / 62%);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
-  font-size: var(--text-lg);
-  font-weight: 750;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-black) 18%, transparent);
   pointer-events: none;
   backdrop-filter: blur(5px);
 }
@@ -7240,8 +6701,8 @@ body:has(.public-home) {
   bottom: 0;
   left: var(--compare-position);
   width: 2px;
-  background: #fff;
-  box-shadow: 0 0 0 1px rgb(24 18 39 / 24%);
+  background: var(--color-white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--purple-950) 24%, transparent);
   pointer-events: none;
   transform: translateX(-1px);
 }
@@ -7252,10 +6713,10 @@ body:has(.public-home) {
   left: 50%;
   width: 42px;
   height: 42px;
-  border: 1px solid rgb(24 18 39 / 16%);
+  border: 1px solid color-mix(in srgb, var(--purple-950) 16%, transparent);
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 5px 18px rgb(0 0 0 / 28%);
+  background: var(--color-white);
+  box-shadow: 0 5px 18px color-mix(in srgb, var(--color-black) 28%, transparent);
   content: '';
   transform: translate(-50%, -50%);
 }
@@ -7326,20 +6787,18 @@ body:has(.public-home) {
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-md);
-  color: #fff;
-  background: rgb(24 18 39 / 82%);
-  box-shadow: 0 8px 30px rgb(0 0 0 / 30%);
+  color: var(--color-white);
+  background: color-mix(in srgb, var(--purple-950) 82%, transparent);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--color-black) 30%, transparent);
   backdrop-filter: blur(6px);
 }
 
-.landing-preview-loading.is-error {
+/* The failure is the shared error alert, centred over the viewport it replaces. */
+.landing-preview-error {
+  position: absolute;
   max-width: 360px;
-  color: #fff;
-  text-align: center;
-}
-
-.landing-preview-loading.is-error .button {
-  justify-self: center;
+  place-self: center;
+  box-shadow: var(--shadow-lg);
 }
 
 .landing-compare-footer {
@@ -7371,7 +6830,7 @@ body:has(.public-home) {
    result. Three equal fragments with the point at the end is what this was. */
 .landing-compare-saving {
   padding: 5px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-success);
   background: var(--color-success-soft);
   font-size: var(--text-3xl);
@@ -7586,90 +7045,29 @@ body:has(.public-home) {
    Semantic tokens flip; the purple brand brightens so accents
    keep contrast against deep indigo surfaces.
    ============================================================ */
-:root[data-theme='dark'] {
-  color-scheme: dark;
-
-  /* Neutral — deepest Soty neutral, never pure black */
-  --color-bg: #120f17;
-  --color-surface: #1c1725;
-  --color-surface-subtle: #171220;
-  --color-surface-muted: #241d2f;
-  --color-surface-2: #1c1725;
-  --color-surface-3: #171220;
-  /* Two steps above the panel it opens over, which is the only thing that
-     separates them when the shadow has nothing to fall on. */
-  --color-surface-raised: #2b2338;
-  --color-text: #f6f2f8;
-  --color-text-muted: #b8adbe;
-  --color-border: #382f43;
-  --color-border-strong: #51435e;
-
-  /* Brand roles — purple */
-  /* Lightened from #8a67e8, which measured 4.33:1 against the dark surface
-     where WCAG asks for 4.5:1 on body text — a link that read as slightly dim
-     to a sighted user and failed outright for anyone who needs the contrast.
-     This is 5.35:1 and keeps the hue. */
-  --color-accent: #9b7aee;
-  --color-accent-hover: #9b7aee;
-  --color-accent-active: #6842d9;
-  --color-accent-soft: color-mix(in srgb, #9b7aee 22%, transparent);
-  --color-accent-softer: color-mix(in srgb, #9b7aee 12%, transparent);
-  --color-focus: #bca7f7;
-
-  /* Honey action roles — brighter honey reads on the dark canvas */
-  --color-action: #ffb51b;
-  --color-action-hover: #f5a318;
-  --color-action-active: #d98508;
-  --color-action-soft: color-mix(in srgb, #ffb51b 16%, transparent);
-  --color-on-action: #2d1a05;
-
-  --gradient-brand: linear-gradient(90deg, #6842d9 0%, #8a67e8 55%, #9b7aee 100%);
-  --gradient-progress: linear-gradient(90deg, #ffb51b 0%, #f5a318 100%);
-
-  /* Task tags: the same nine hues, lifted so a chip reads on the dark canvas */
-  --task-tag-purple: #a98bf2;
-  --task-tag-blue: #6ba5ee;
-  --task-tag-teal: #3cc3c0;
-  --task-tag-green: #61cc8c;
-  --task-tag-honey: #f2c14e;
-  --task-tag-orange: #f0925a;
-  --task-tag-red: #f4776a;
-  --task-tag-pink: #ec84bd;
-  --task-tag-slate: #9aa6b5;
-
-  --color-success: #56d597;
-  --color-success-soft: color-mix(in srgb, #56d597 15%, transparent);
-  --color-warning: #f2c14e;
-  --color-warning-soft: color-mix(in srgb, #f2c14e 15%, transparent);
-  --color-error: #f4776a;
-  --color-error-soft: color-mix(in srgb, #f4776a 15%, transparent);
-
-  /* Shadow scale flips to black; menu/raise aliases resolve through it */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
-  --shadow-xl: 0 24px 80px rgba(0, 0, 0, 0.6);
-}
-
 /* Hardcoded light surfaces that tokens don't reach */
 :root[data-theme='dark'] .selected-image-actions {
-  background: rgba(27, 22, 48, 0.72);
+  background: color-mix(in srgb, var(--purple-950) 72%, transparent);
 }
 :root[data-theme='dark'] .selected-image-action:hover:not(:disabled) {
-  background: rgba(40, 32, 66, 0.9);
+  background: color-mix(in srgb, var(--purple-950) 90%, transparent);
 }
 :root[data-theme='dark'] .selected-image-size {
-  background: rgba(27, 22, 48, 0.7);
+  background: color-mix(in srgb, var(--purple-950) 70%, transparent);
 }
 :root[data-theme='dark'] .landing-total-saving {
   background: color-mix(in srgb, var(--color-success) 20%, transparent);
 }
 :root[data-theme='dark'] .landing-success-metrics > div {
-  background: rgba(36, 29, 60, 0.72);
+  background: color-mix(in srgb, var(--purple-950) 72%, transparent);
 }
 :root[data-theme='dark'] .login-page {
   background:
-    radial-gradient(circle at 50% 45%, rgba(120, 92, 220, 0.28) 0 22%, transparent 55%),
+    radial-gradient(
+      circle at 50% 45%,
+      color-mix(in srgb, var(--purple-500) 28%, transparent) 0 22%,
+      transparent 55%
+    ),
     linear-gradient(
       145deg,
       var(--color-surface-3) 0%,
@@ -7679,7 +7077,11 @@ body:has(.public-home) {
 }
 :root[data-theme='dark'] .public-home {
   background:
-    radial-gradient(circle at 50% 18%, rgba(120, 92, 220, 0.26) 0 18%, transparent 50%),
+    radial-gradient(
+      circle at 50% 18%,
+      color-mix(in srgb, var(--purple-500) 26%, transparent) 0 18%,
+      transparent 50%
+    ),
     linear-gradient(
       145deg,
       var(--color-surface-3) 0%,
@@ -7690,37 +7092,37 @@ body:has(.public-home) {
 :root[data-theme='dark'] .accent-one {
   background: radial-gradient(
     circle at 38% 42%,
-    rgba(139, 109, 246, 0.4) 0%,
-    rgba(98, 66, 208, 0.18) 52%,
+    color-mix(in srgb, var(--purple-400) 40%, transparent) 0%,
+    color-mix(in srgb, var(--purple-600) 18%, transparent) 52%,
     transparent 73%
   );
 }
 :root[data-theme='dark'] .accent-two {
   background: radial-gradient(
     circle at 54% 38%,
-    rgba(170, 128, 245, 0.32) 0%,
-    rgba(76, 50, 168, 0.16) 48%,
+    color-mix(in srgb, var(--purple-300) 32%, transparent) 0%,
+    color-mix(in srgb, var(--purple-700) 16%, transparent) 48%,
     transparent 72%
   );
 }
 :root[data-theme='dark'] .login-card {
-  border-color: rgba(139, 109, 246, 0.22);
-  background: rgba(27, 22, 48, 0.86);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  border-color: color-mix(in srgb, var(--purple-400) 22%, transparent);
+  background: color-mix(in srgb, var(--purple-950) 86%, transparent);
+  box-shadow: 0 24px 70px color-mix(in srgb, var(--color-black) 50%, transparent);
 }
 :root[data-theme='dark'] .legal-topbar {
-  border-bottom-color: rgba(46, 39, 72, 0.8);
-  background: rgba(22, 17, 42, 0.86);
+  border-bottom-color: color-mix(in srgb, var(--purple-900) 80%, transparent);
+  background: color-mix(in srgb, var(--purple-950) 86%, transparent);
 }
 /* Google keeps its brand-mandated dark variant */
 :root[data-theme='dark'] .google-sign-in {
-  border-color: #8e918f;
-  color: #e3e3e3;
-  background: #131314;
+  border-color: var(--google-border);
+  color: var(--google-text);
+  background: var(--google-surface);
 }
 :root[data-theme='dark'] .google-sign-in:hover:not(:disabled) {
-  background: #1e1f20;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  background: var(--google-surface-hover);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-black) 50%, transparent);
 }
 /* QR must stay on a light plate to remain scannable (the purple scale is
    not theme-flipped, so this stays light in dark mode) */
@@ -7769,7 +7171,7 @@ body:has(.public-home) {
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 50%;
-  color: #f2a93c;
+  color: var(--honey-400);
   background: var(--color-surface-muted);
   cursor: pointer;
   overflow: visible;
@@ -7787,7 +7189,7 @@ body:has(.public-home) {
   height: var(--app-header-control-icon-size);
 }
 :root[data-theme='dark'] .theme-toggle {
-  color: #d3c4ff;
+  color: var(--purple-200);
   background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface-muted));
   border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
 }
@@ -7803,7 +7205,11 @@ body:has(.public-home) {
   inset: -5px;
   z-index: var(--layer-beneath);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(242, 169, 60, 0.55), transparent 68%);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--honey-400) 55%, transparent),
+    transparent 68%
+  );
   opacity: 0;
   transform: scale(0.5);
   pointer-events: none;
@@ -7816,7 +7222,11 @@ body:has(.public-home) {
   transform: scale(1);
 }
 :root[data-theme='dark'] .theme-toggle__halo {
-  background: radial-gradient(circle, rgba(150, 123, 249, 0.6), transparent 68%);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--purple-400) 60%, transparent),
+    transparent 68%
+  );
 }
 
 .theme-toggle__icon {
@@ -7884,10 +7294,10 @@ body:has(.public-home) {
   z-index: var(--layer-top);
 }
 :root.is-theming::view-transition-old(theme-toggle) {
-  animation: theme-toggle-out 0.5s var(--ease-standard) both;
+  animation: theme-toggle-out var(--motion-slow) var(--ease-standard) both;
 }
 :root.is-theming::view-transition-new(theme-toggle) {
-  animation: theme-toggle-in 0.5s var(--ease-standard) both;
+  animation: theme-toggle-in var(--motion-slow) var(--ease-standard) both;
 }
 @keyframes theme-toggle-out {
   to {
@@ -7912,22 +7322,12 @@ body:has(.public-home) {
   max-width: 420px;
 }
 
-.batch-toolbar-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
 .batch-toolbar-info strong {
-  font-size: 0.95rem;
+  font-size: var(--text-label);
 }
 .batch-toolbar-info span {
   color: var(--color-text-muted);
-  font-size: 0.82rem;
-}
-.batch-toolbar-actions {
-  display: flex;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  font-size: var(--text-caption);
 }
 
 .transcription-copy-menu {
@@ -7948,7 +7348,7 @@ body:has(.public-home) {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   color: var(--color-text);
   background: var(--color-surface-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   line-height: 1;
   cursor: pointer;
 }
@@ -7956,11 +7356,11 @@ body:has(.public-home) {
 .transcription-copy-toggle[aria-expanded='true'] {
   background: var(--color-surface);
 }
+/* Placed by the component now (021): it is portalled to the body so the
+   toolbar cannot clip it, and it flips above the trigger when the window is
+   short. What is left here is what it looks like. */
 .transcription-copy-popover {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 8px);
-  right: 0;
   display: grid;
   gap: var(--space-2);
   width: 250px;
@@ -7982,7 +7382,7 @@ body:has(.public-home) {
 .transcription-copy-popover legend {
   padding: 0 0 4px;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -7990,7 +7390,7 @@ body:has(.public-home) {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 0.88rem;
+  font-size: var(--text-label);
   cursor: pointer;
 }
 
@@ -8004,7 +7404,7 @@ body:has(.public-home) {
   border-radius: var(--radius-md);
   background: var(--color-error-soft);
   color: var(--color-error);
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
 }
 
 /* One-time model download gate */
@@ -8027,11 +7427,11 @@ body:has(.public-home) {
   flex: 1 1 320px;
 }
 .transcription-model-gate-body strong {
-  font-size: 0.95rem;
+  font-size: var(--text-label);
 }
 .transcription-model-gate-body span {
   color: var(--color-text-muted);
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
 }
 .transcription-model-gate .progress-track {
   margin-top: 4px;
@@ -8048,15 +7448,12 @@ body:has(.public-home) {
   justify-content: space-between;
   gap: var(--space-3);
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .transcription-model-gate-actions {
   display: flex;
   gap: var(--space-2);
   flex: none;
-}
-.transcription-model-error {
-  color: var(--color-error) !important;
 }
 .transcription-confirm-modal .inline-actions {
   margin-top: var(--space-4);
@@ -8068,7 +7465,7 @@ body:has(.public-home) {
   gap: var(--space-2);
   margin-top: var(--space-3);
   color: var(--color-text-muted);
-  font-size: 0.84rem;
+  font-size: var(--text-caption);
   line-height: 1.45;
 }
 .transcription-gemma-consent input {
@@ -8121,7 +7518,7 @@ body:has(.public-home) {
 }
 .transcript-modal-header h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--text-body);
   overflow-wrap: anywhere;
 }
 .transcript-modal-header p {
@@ -8129,27 +7526,13 @@ body:has(.public-home) {
   display: flex;
   gap: var(--space-3);
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
 }
+/* The shared icon button, on the viewer's own quiet plate. */
 .transcript-modal-close {
   flex: none;
-  width: 32px;
-  height: 32px;
-  border: none;
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
-  color: var(--color-text);
-  font-size: 1.2rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: background var(--dur-control) var(--ease-standard);
-}
-.transcript-modal-close:hover {
-  background: var(--color-surface-subtle);
-}
-.transcript-modal-close:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
 }
 .transcript-modal-empty {
   margin: auto;
@@ -8212,7 +7595,7 @@ body:has(.public-home) {
 }
 .transcript-column-title {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--text-label);
 }
 .transcript-column-scroll {
   flex: 1 1 auto;
@@ -8269,33 +7652,12 @@ body:has(.public-home) {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+/* The list lives on the body now (021, T062) — one home, so its rules are in
+   one place: `.transcript-language-listbox` in styles/transcription.css. */
 .transcript-language-combobox ul {
-  position: absolute;
-  z-index: var(--layer-content);
-  inset: calc(100% + 4px) 0 auto;
-  max-height: 240px;
   margin: 0;
-  padding: 4px;
-  overflow-y: auto;
+  padding: 0;
   list-style: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
-}
-.transcript-language-combobox li {
-  padding: 7px 8px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  cursor: pointer;
-}
-.transcript-language-combobox li.is-active,
-.transcript-language-combobox li:hover {
-  background: var(--color-accent-softer);
-}
-.transcript-language-combobox li.is-empty {
-  color: var(--color-text-muted);
-  cursor: default;
 }
 .transcript-translation-status {
   display: flex;
@@ -8305,7 +7667,7 @@ body:has(.public-home) {
   border-bottom: 1px solid var(--color-border);
   background: var(--color-accent-softer);
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .transcript-translation-status.is-error {
   background: var(--color-warning-soft);
@@ -8322,7 +7684,7 @@ body:has(.public-home) {
   align-items: center;
   gap: var(--space-2);
 }
-.transcript-translation-progress-row .progress-track {
+.transcript-translation-progress-row .ui-progress {
   flex: 1;
   min-width: 0;
 }
@@ -8378,7 +7740,7 @@ body:has(.public-home) {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: contain;
-  background: #000;
+  background: var(--color-black);
   border-radius: var(--radius-md);
 }
 .transcript-player.audio-only .transcript-preview-media {
@@ -8412,12 +7774,12 @@ body:has(.public-home) {
   place-items: center;
   width: 46px;
   height: 46px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-accent-soft) 78%, transparent);
   box-shadow: 0 10px 28px color-mix(in srgb, var(--color-accent) 40%, transparent);
 }
 .transcript-audio-mark .soty-mark {
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 .transcript-audio-bars {
   display: flex;
@@ -8429,7 +7791,7 @@ body:has(.public-home) {
   display: block;
   width: 4px;
   height: 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-text) 70%, var(--color-accent));
   animation: transcript-audio-wave 1.1s ease-in-out infinite alternate;
   animation-play-state: paused;
@@ -8461,21 +7823,8 @@ body:has(.public-home) {
   padding: 7px 2px 0;
 }
 .transcript-player-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 0;
   border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
 }
-.transcript-player-icon:hover {
-  background: var(--color-surface-muted);
-}
-.transcript-player-icon:focus-visible,
 .transcript-player-controls input:focus-visible,
 .transcript-player-controls select:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -8483,12 +7832,8 @@ body:has(.public-home) {
 }
 .transcript-player-time {
   color: var(--color-text-muted);
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
   white-space: nowrap;
-}
-.transcript-player-seek,
-.transcript-player-volume input {
-  accent-color: var(--color-accent);
 }
 .transcript-player-seek {
   width: 100%;
@@ -8498,15 +7843,8 @@ body:has(.public-home) {
   align-items: center;
   gap: 4px;
 }
-.transcript-player-volume input {
+.transcript-player-volume .ui-slider {
   width: 58px;
-}
-.transcript-player-rate select {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 4px;
-  background: var(--color-surface);
-  color: var(--color-text);
 }
 .transcript-preview-status {
   display: flex;
@@ -8589,10 +7927,7 @@ body:has(.public-home) {
   justify-content: space-between;
   gap: var(--space-2) var(--space-3);
 }
-.team-workspace-header {
-  margin-bottom: var(--space-6);
-  align-items: flex-end;
-}
+
 .team-workspace-header h1,
 .team-panel h2,
 .team-dialog-form h2 {
@@ -8601,7 +7936,7 @@ body:has(.public-home) {
 .team-workspace-eyebrow {
   margin: 0 0 var(--space-1);
   color: var(--color-accent);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -8612,7 +7947,7 @@ body:has(.public-home) {
   display: grid;
   gap: var(--space-1);
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
 }
 .team-switcher select,
 .team-dialog-form input,
@@ -8626,16 +7961,42 @@ body:has(.public-home) {
   color: var(--color-text);
   padding: 0 var(--space-3);
 }
+/*
+ * …except a control from the inventory, which dresses itself. The four rules
+ * above are for the raw `<label>`, `<input>` and `<select>` the dialogs that
+ * have not migrated yet still write — and this stylesheet loads after the
+ * inventory, so at equal specificity they would otherwise win: the field's
+ * required star dropped to a line of its own, and the chevron of a Select sat
+ * on top of the last letter of its own value.
+ */
+.team-dialog-form .ui-field-label,
+.team-invite-form .ui-field-label {
+  display: flex;
+}
+.team-dialog-form .ui-input input,
+.team-invite-form .ui-input input {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.team-dialog-form .ui-select select,
+.team-invite-form .ui-select select {
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-6) 0 var(--space-3);
+  border-radius: var(--radius-sm);
+}
 .team-connection-badge,
 .team-delivery-state {
   display: inline-flex;
   align-items: center;
   min-height: 26px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 3px 10px;
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -8655,16 +8016,7 @@ body:has(.public-home) {
   background: var(--color-warning-soft);
   color: var(--color-warning);
 }
-.team-workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(300px, 0.8fr) minmax(380px, 1.2fr);
-  gap: var(--space-5);
-  align-items: start;
-}
-.team-workspace-column {
-  display: grid;
-  gap: var(--space-5);
-}
+
 .team-panel,
 .team-empty-state {
   min-width: 0;
@@ -8727,38 +8079,13 @@ body:has(.public-home) {
   background: color-mix(in srgb, var(--color-warning-soft) 70%, transparent);
   color: var(--color-text-muted);
   padding: var(--space-3);
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
 }
 .team-inline-success {
   margin: var(--space-3) 0 0;
   color: var(--color-success);
-  font-size: 0.88rem;
+  font-size: var(--text-label);
   font-weight: 650;
-}
-.team-invitation-list,
-.team-member-list,
-.team-audit-list,
-.team-folder-browser ul,
-.team-material-list,
-.team-invitation-inbox ul {
-  display: grid;
-  gap: var(--space-2);
-  list-style: none;
-  margin: var(--space-4) 0 0;
-  padding: 0;
-}
-.team-invitation-list li,
-.team-member-list li,
-.team-audit-list li,
-.team-folder-browser li,
-.team-material-list li,
-.team-invitation-inbox li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-2);
 }
 .team-invitation-list li {
   flex-wrap: wrap;
@@ -8774,28 +8101,6 @@ body:has(.public-home) {
 .team-invitation-list li > .button,
 .team-inline-actions > .button {
   min-width: max-content;
-}
-.team-invitation-list li > *,
-.team-member-list li > *,
-.team-audit-list li > *,
-.team-folder-browser li > *,
-.team-material-list li > *,
-.team-invitation-inbox li > * {
-  min-width: 0;
-}
-.team-invitation-list strong,
-.team-member-list strong,
-.team-audit-list span,
-.team-folder-browser span,
-.team-material-list strong,
-.team-invitation-inbox strong {
-  overflow-wrap: anywhere;
-}
-.team-invitation-list li > :first-child,
-.team-material-list li > :first-child,
-.team-invitation-inbox li > :first-child {
-  min-width: 0;
-  margin-right: auto;
 }
 .team-drive-panel,
 .team-drive-confirmation,
@@ -8813,15 +8118,7 @@ body:has(.public-home) {
   gap: var(--space-1);
   min-width: 0;
 }
-.team-folder-crumb-group {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
-}
-.team-folder-crumb-separator {
-  color: var(--color-text-muted);
-}
+
 .team-folder-trail .button {
   padding-inline: var(--space-2);
 }
@@ -8830,9 +8127,7 @@ body:has(.public-home) {
   color: var(--color-text);
   cursor: default;
 }
-.team-folder-select-current {
-  justify-self: start;
-}
+
 /* The folder name takes the row and pushes the drive-kind label to the end,
    leaving the select control at a predictable position in every row. */
 .team-folder-browser li > .team-folder-open {
@@ -8845,10 +8140,7 @@ body:has(.public-home) {
 .team-folder-browser li > .team-folder-select {
   flex: 0 0 auto;
 }
-.team-folder-empty {
-  margin: 0;
-  color: var(--color-text-muted);
-}
+
 /* Shown only where invitation mail is deliberately not delivered, so the link
    has to be readable and selectable in full rather than truncated. */
 .team-invitation-link {
@@ -8868,16 +8160,6 @@ body:has(.public-home) {
   width: 100%;
   font-family: var(--font-family-mono, monospace);
 }
-.team-drive-confirmation {
-  margin-top: var(--space-3);
-  border-radius: var(--radius-lg);
-  background: var(--color-accent-softer);
-  padding: var(--space-4);
-}
-.team-material-list small,
-.team-folder-browser small {
-  margin-left: auto;
-}
 .team-dialog-form {
   display: grid;
   gap: var(--space-4);
@@ -8893,6 +8175,12 @@ body:has(.public-home) {
   background: var(--color-error-soft);
   color: var(--color-error);
   padding: var(--space-3);
+}
+/* One line while a folder is being walked: the spinner beside the sentence. */
+.team-batch-scanning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 /* The same shape as the inline error, in the colour of something that is not
    wrong — a request waiting its turn rather than a failure. */
@@ -9002,12 +8290,7 @@ body:has(.public-home) {
   justify-items: center;
   text-align: center;
 }
-.team-space-lobby-empty-copy {
-  display: grid;
-  gap: var(--space-3);
-  justify-items: center;
-  max-width: 32rem;
-}
+
 /*
  * "This space is unavailable" is a screen a stranger reaches from a shared
  * link, so it is dressed like the rest of the product rather than left as a
@@ -9022,15 +8305,7 @@ body:has(.public-home) {
   background: color-mix(in oklab, var(--purple-900) 55%, var(--color-surface));
   text-align: center;
 }
-.team-space-no-access-icon {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--color-accent) 18%, transparent);
-  color: var(--color-accent);
-}
+
 .team-space-no-access-card h1 {
   font-size: var(--text-8xl);
 }
@@ -9041,7 +8316,7 @@ body:has(.public-home) {
 :root[data-theme='light'] .team-space-no-access-card,
 :root:not([data-theme='dark']) .team-space-no-access-card {
   border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
-  background: color-mix(in oklab, var(--color-accent) 8%, #fff);
+  background: color-mix(in oklab, var(--color-accent) 8%, var(--color-white));
 }
 
 .team-space-card-grid {
@@ -9073,21 +8348,21 @@ body:has(.public-home) {
 .team-space-card-role {
   margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
 }
 .team-space-card-hint {
   margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
 }
 .team-space-card-action {
   flex: none;
   max-width: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 4px 12px;
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -9109,53 +8384,29 @@ body:has(.public-home) {
   gap: var(--space-5);
   min-width: 0;
 }
+.team-create-wizard-header {
+  display: grid;
+  gap: var(--space-2);
+}
 .team-create-wizard-header h1 {
   margin: 0;
 }
 .team-create-progress {
   margin: var(--space-1) 0 0;
   color: var(--color-accent);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
-.team-create-step,
-.team-create-step-copy,
-.team-create-field {
-  display: grid;
-  gap: var(--space-2);
-}
+/* The step is a Card; only its gap and its shadow are the wizard's own. */
 .team-create-step {
   gap: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
   box-shadow: var(--shadow-sm);
-  padding: var(--space-5);
-  min-width: 0;
 }
-.team-create-step-copy h2 {
-  margin: 0;
-}
-.team-create-step-copy p,
 .team-create-hint,
 .team-create-resume-name {
   margin: 0;
   color: var(--color-text-muted);
-}
-.team-create-field span {
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
-}
-.team-create-field input {
-  width: 100%;
-  min-width: 0;
-  min-height: 42px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: 0 var(--space-3);
 }
 .team-create-actions {
   display: flex;
@@ -9200,7 +8451,7 @@ body:has(.public-home) {
 }
 .team-space-shell-utility-link {
   padding: 6px var(--space-2);
-  font-size: 0.9375rem;
+  font-size: var(--text-label);
   color: var(--color-text-muted);
   text-decoration: none;
   border-radius: var(--radius-sm);
@@ -9225,9 +8476,9 @@ body:has(.public-home) {
   border-bottom: 1px solid var(--color-border);
   scrollbar-width: thin;
 }
-.team-space-tab {
+.team-space-tabs .ui-tab {
   padding: var(--space-2) var(--space-3);
-  font-size: 0.9375rem;
+  font-size: var(--text-label);
   font-weight: 500;
   color: var(--color-text-muted);
   white-space: nowrap;
@@ -9237,10 +8488,10 @@ body:has(.public-home) {
      than stacking a second line under it. */
   margin-bottom: -1px;
 }
-.team-space-tab:hover {
+.team-space-tabs .ui-tab:hover {
   color: var(--color-text);
 }
-.team-space-tab.is-active {
+.team-space-tabs .ui-tab.is-selected {
   color: var(--color-accent);
   border-bottom-color: var(--color-accent);
 }
@@ -9262,58 +8513,7 @@ body:has(.public-home) {
   color: var(--color-text);
   padding: var(--space-3) var(--space-4);
 }
-.team-sync-progress-panel {
-  background: var(--color-surface-subtle);
-}
-.team-sync-progress-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.team-sync-progress-heading {
-  font-weight: 600;
-}
-.team-sync-progress-spinner {
-  width: 14px;
-  height: 14px;
-  flex: none;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
-  border-top-color: var(--color-accent);
-  animation: sync-spin 700ms linear infinite;
-}
-.team-sync-progress-bar {
-  position: relative;
-  height: 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
-  overflow: hidden;
-}
-.team-sync-progress-bar-fill {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 40%;
-  border-radius: 999px;
-  background: var(--color-accent);
-  animation: sync-indeterminate 1.4s var(--ease-standard, ease) infinite;
-}
-.team-sync-progress-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
-.team-sync-progress-updated {
-  font-variant-numeric: tabular-nums;
-}
-.team-sync-progress-note {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
+
 @keyframes sync-spin {
   to {
     transform: rotate(360deg);
@@ -9333,15 +8533,6 @@ body:has(.public-home) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .team-sync-progress-spinner {
-    animation: none;
-  }
-  .team-sync-progress-bar-fill {
-    animation: none;
-    left: 0;
-    width: 100%;
-    opacity: 0.5;
-  }
 }
 /* Wider than every other dialog, because it holds the re-stitch editor — a
    workbench of toggles, ranges and image wells that was being asked to fit in
@@ -9399,26 +8590,24 @@ body:has(.public-home) {
   scrollbar-width: thin;
   scroll-snap-type: x proximity;
 }
-.team-settings-tabs .team-space-tab {
+.team-settings-tabs .ui-tab {
   flex: none;
-  scroll-snap-align: start;
-}
-.team-settings-tabs .team-space-tab {
   min-height: 0;
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
   cursor: pointer;
+  scroll-snap-align: start;
 }
-.team-settings-tabs .team-space-tab:hover {
+.team-settings-tabs .ui-tab:hover {
   background: transparent;
   color: var(--color-text);
 }
-.team-settings-tabs .team-space-tab.is-active {
+.team-settings-tabs .ui-tab.is-selected {
   border-bottom-color: var(--color-accent);
 }
-.team-settings-tabs .team-space-tab:focus-visible {
+.team-settings-tabs .ui-tab:focus-visible {
   outline: 3px solid var(--color-focus);
   outline-offset: -3px;
 }
@@ -9446,19 +8635,23 @@ body:has(.public-home) {
   box-shadow: none;
 }
 
-.settings-section-heading {
+.settings-section-heading,
+.settings-section .ui-card-heading {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
 }
-.settings-section-heading > svg {
+.settings-section-heading > svg,
+.settings-section .ui-card-icon {
+  display: inline-flex;
   flex: none;
   color: var(--color-accent);
 }
 /* The largest thing in its panel, which is what a heading is for: the labels
    below it are captions and read like captions. */
-.settings-section-heading h2 {
+.settings-section-heading h2,
+.settings-section .ui-card-title {
   min-width: 0;
   margin: 0;
   font-size: var(--text-5xl);
@@ -9466,7 +8659,8 @@ body:has(.public-home) {
 }
 /* Where the compressor keeps its summary — the one line that says what this
    panel is currently set to. */
-.settings-section-aside {
+.settings-section-aside,
+.settings-section .ui-card-aside {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -9477,7 +8671,8 @@ body:has(.public-home) {
   font-size: var(--text-lg);
   font-weight: 650;
 }
-.settings-section-note {
+.settings-section-note,
+.settings-section .ui-card-description {
   max-width: 74ch;
   color: var(--color-text-muted);
   font-size: var(--text-lg);
@@ -9610,7 +8805,6 @@ button,
 .theme-toggle,
 .icon-button,
 .modal-close,
-.transcript-modal-close,
 .transcript-match-help {
   width: 44.2px;
   height: 44.2px;
@@ -9711,11 +8905,11 @@ button,
 .team-audit-result {
   display: inline-flex;
   width: fit-content;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
   padding: 3px 9px;
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
   font-weight: 700;
 }
 .team-role-badge.is-owner,
@@ -9791,7 +8985,7 @@ button,
   margin: 0;
   padding: var(--space-3) 0;
   color: var(--color-text-muted);
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
   line-height: 1.4;
 }
 .team-role-guide dl > div + div dt,
@@ -9819,7 +9013,7 @@ button,
 .team-permission-grid legend {
   padding-inline: var(--space-2);
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-weight: 700;
 }
 .team-permission-grid label,
@@ -9841,12 +9035,12 @@ button,
   background: var(--color-warning-soft);
   color: var(--color-text);
   padding: var(--space-3);
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
 }
 .team-audit-list time,
 .team-audit-list code {
   color: var(--color-text-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
 }
 .team-catalog {
   display: grid;
@@ -9860,7 +9054,7 @@ button,
   display: grid;
   gap: var(--space-1);
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 /* The fold itself: a control, at the weight of the toolbar's own buttons. */
 .team-catalog-filter-summary {
@@ -9896,8 +9090,10 @@ button,
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
-.team-catalog-search input,
-.team-catalog-filters select {
+/* Both are the inventory's controls now (021), so the border and the ground
+   belong to the wrapper and the native element inside it is bare. */
+.team-catalog-search .ui-input,
+.team-catalog-filters .ui-select {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--color-border);
@@ -9905,6 +9101,13 @@ button,
   background: var(--color-surface);
   color: var(--color-text);
   padding-inline: var(--space-3);
+}
+.team-catalog-search .ui-input input,
+.team-catalog-filters .ui-select select {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
 }
 .team-catalog-filters {
   display: grid;
@@ -9927,7 +9130,7 @@ button,
 .team-catalog-chips .button {
   min-height: 32px;
   padding: 4px 10px;
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
 }
 .team-catalog-result-heading {
   display: flex;
@@ -10003,22 +9206,22 @@ button,
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
   color: var(--color-accent);
-  font-size: 1.1rem;
+  font-size: var(--text-body);
 }
 .team-catalog-material-type {
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .team-catalog-material-main > span,
 .team-catalog-material-main > small {
   color: var(--color-text-muted);
 }
 .team-catalog-markers span {
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
   padding: 3px 8px;
-  font-size: 0.7rem;
+  font-size: var(--text-micro);
 }
 .team-catalog-material-metadata:empty,
 .team-catalog-material-statuses:empty {
@@ -10043,7 +9246,7 @@ button,
 .team-catalog-material-actions > .button {
   min-height: 32px;
   padding-block: 0;
-  font-size: 0.9rem;
+  font-size: var(--text-label);
 }
 
 .team-catalog-results li > * {
@@ -10056,7 +9259,7 @@ button,
   display: grid;
   place-items: center;
   padding: var(--space-5);
-  background: color-mix(in oklab, #07111f 72%, transparent);
+  background: color-mix(in oklab, var(--grey-950) 72%, transparent);
 }
 .team-preview-dialog {
   display: grid;
@@ -10100,7 +9303,7 @@ button,
 }
 .landing-full-view[data-landing-scheme='dark'] .team-landing-preview iframe {
   color-scheme: dark;
-  background: #090b10;
+  background: var(--grey-950);
 }
 .landing-full-view .team-landing-preview iframe,
 .landing-full-view .team-landing-preview-fallback {
@@ -10112,12 +9315,12 @@ button,
   transform-origin: top center;
 }
 .landing-full-view[data-landing-scheme='dark'] .team-landing-cached {
-  background: #090b10;
+  background: var(--grey-950);
 }
 .team-landing-cached {
   overflow: hidden;
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--color-white);
 }
 .team-landing-cached img {
   display: block;
@@ -10138,7 +9341,7 @@ button,
 }
 .team-preview-heading p {
   color: var(--color-text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -10160,7 +9363,7 @@ button,
   max-height: 70vh;
   border: 0;
   border-radius: var(--radius-md);
-  background: #05070a;
+  background: var(--grey-950);
   object-fit: contain;
 }
 /* A picture or a clip fits the dialog whole: the dialog is capped at
@@ -10181,12 +9384,22 @@ button,
 }
 .team-landing-preview iframe {
   min-height: min(68vh, 720px);
-  background: #fff;
+  background: var(--color-white);
 }
-.team-preview-safety-note,
 .team-preview-boundary {
   color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
+}
+/* The note is the shared Alert; one line of it, over a page it is about. */
+.team-preview-safety-note {
+  padding-block: var(--space-2);
+}
+/* The wait beside its spinner, in the two places a preview has to fetch. */
+.team-preview-waiting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
 }
 .team-transcript-preview,
 .team-archive-preview,
@@ -10236,15 +9449,6 @@ button,
 }
 
 @media (max-width: 860px) {
-  .team-workspace-header,
-  .team-workspace-header-actions,
-  .team-switcher {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .team-workspace-grid {
-    grid-template-columns: 1fr;
-  }
   .team-catalog-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -10289,6 +9493,7 @@ button,
   .team-space-shell-utilities .button,
   .team-space-settings-header .button,
   .team-create-actions .button,
+  .team-create-actions .ui-button,
   .team-dialog-actions .button,
   .team-catalog-material-actions .button,
   .team-material-action-buttons .button {
@@ -10328,14 +9533,6 @@ button,
   }
 }
 
-.team-material-actions {
-  display: grid;
-  gap: var(--space-3);
-  width: 100%;
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
-}
 .team-material-action-buttons,
 .team-dialog-actions,
 .team-file-conflict > div {
@@ -10363,7 +9560,7 @@ button,
   display: grid;
   gap: var(--space-2);
   color: var(--color-text-muted);
-  font-size: 0.86rem;
+  font-size: var(--text-caption);
 }
 .team-material-inline-form input,
 .team-text-editor textarea,
@@ -10434,10 +9631,10 @@ button,
 .team-provenance-relation {
   width: fit-content;
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
-  font-size: 0.74rem;
+  font-size: var(--text-caption);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -10473,7 +9670,7 @@ button,
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-subtle);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .transcript-match.is-empty {
   opacity: 0.6;
@@ -10484,7 +9681,7 @@ button,
 }
 .transcript-match-bar {
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: linear-gradient(90deg, var(--color-success), var(--color-warning));
   position: relative;
 }
@@ -10498,11 +9695,10 @@ button,
   width: 4px;
   height: 15px;
   border: 2px solid var(--color-surface);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-text);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--color-black) 25%, transparent);
   transform: translate(-50%, -50%);
-  transition: left var(--dur-control) var(--ease-standard);
 }
 .transcript-match-value {
   white-space: nowrap;
@@ -10510,12 +9706,12 @@ button,
 }
 .ts-selected {
   background: color-mix(in oklab, var(--ts-selection-color, var(--color-success)) 30%, transparent);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 .ts-active:not(.ts-selected) {
   background: color-mix(in oklab, var(--color-accent) 42%, transparent);
   color: var(--color-text);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 .ts-active {
   box-shadow: inset 0 -0.2em 0 color-mix(in oklab, var(--color-accent) 90%, transparent);
@@ -10533,7 +9729,7 @@ button,
   align-self: center;
   margin: 0 0 0 var(--space-3);
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
 }
 @media (max-width: 900px) {
   .transcript-match {
@@ -10584,14 +9780,14 @@ button,
   transform-box: fill-box;
   transform-origin: center;
   transition:
-    transform 240ms ease-out,
-    filter 240ms ease-out;
+    transform var(--motion-base) ease-out,
+    filter var(--motion-base) ease-out;
 }
 .soty-cell.is-lit {
-  filter: drop-shadow(0 0 4px rgb(255 190 80 / 45%));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--honey-300) 45%, transparent));
 }
 :root[data-theme='dark'] .soty-cell.is-lit {
-  filter: drop-shadow(0 0 6px rgb(255 175 45 / 72%));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--honey-400) 72%, transparent));
 }
 
 /* Scene colours — light default */
@@ -10602,28 +9798,28 @@ button,
   fill: none;
 }
 .hc-grid {
-  stroke: #ffd780;
+  stroke: var(--amber-300);
   stroke-opacity: 0.32;
-  transition: stroke 520ms ease;
+  transition: stroke var(--motion-slow) ease;
 }
 .soty-cell.t-field {
   fill: none;
 }
 .soty-cell.t-bright {
   fill: url(#brightL);
-  stroke: #fff2cc;
+  stroke: var(--amber-100);
   stroke-opacity: 0.45;
   stroke-width: 1;
 }
 .soty-cell.t-a {
   fill: url(#fillA);
-  stroke: #e89a2a;
+  stroke: var(--amber-650);
   stroke-opacity: 0.3;
   stroke-width: 1;
 }
 .soty-cell.t-b {
   fill: url(#fillB);
-  stroke: #e89a2a;
+  stroke: var(--amber-650);
   stroke-opacity: 0.3;
   stroke-width: 1;
 }
@@ -10645,19 +9841,19 @@ button,
   fill: url(#pool3);
 }
 :root[data-theme='dark'] .hc-grid {
-  stroke: #8a74da;
+  stroke: var(--purple-400);
   stroke-opacity: 0.2;
 }
 :root[data-theme='dark'] .soty-cell.t-bright {
   fill: url(#brightD);
-  stroke: #ffebac;
+  stroke: var(--amber-200);
   stroke-opacity: 0.55;
   stroke-width: 1.2;
 }
 :root[data-theme='dark'] .soty-cell.t-a,
 :root[data-theme='dark'] .soty-cell.t-b {
   fill: url(#raise);
-  stroke: #6e57c2;
+  stroke: var(--purple-600);
   stroke-opacity: 0.42;
   stroke-width: 1;
 }
@@ -10676,7 +9872,7 @@ button,
 
 /* Electric "bug" traces — one long glowing spark crawls each conduit */
 .soty-trace-layer > g {
-  stroke: #eafcff;
+  stroke: var(--ice-50);
   stroke-opacity: 0.45;
 }
 .soty-trace {
@@ -10686,7 +9882,7 @@ button,
   animation-timing-function: linear;
   animation-iteration-count: infinite;
   animation-fill-mode: both;
-  filter: drop-shadow(0 0 2.5px rgb(69 214 255 / 50%));
+  filter: drop-shadow(0 0 2.5px color-mix(in srgb, var(--color-info-solid) 50%, transparent));
 }
 .soty-trace.is-rev {
   animation-direction: reverse;
@@ -10719,12 +9915,6 @@ body {
   height: 6px;
 }
 
-.transcription-language-select {
-  min-height: 44.2px;
-  padding: 10px 40px 10px 14px;
-  line-height: 1.3;
-}
-
 .job-row-actions .button,
 .landing-batch-actions .button {
   min-height: 44.2px;
@@ -10755,21 +9945,10 @@ body {
   border-style: dashed;
 }
 
+/* The shared Progress, squared off to match the tile's own corners. */
 .team-task-attachment-progress {
-  display: block;
-  overflow: hidden;
-  height: 4px;
   margin-top: 6px;
-  border-radius: 2px;
-  background: var(--color-surface-muted);
-}
-
-.team-task-attachment-progress > span {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  background: var(--color-accent);
-  transition: width var(--dur-control) var(--ease-standard);
+  border-radius: var(--radius-sm);
 }
 
 /* Dropping files on a task (011): the section itself is the target, so the
@@ -10854,7 +10033,7 @@ body {
   height: 24px;
   margin-left: -31px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -10863,17 +10042,21 @@ body {
   background: var(--color-surface-muted);
   color: var(--color-text);
 }
+/* Placed by the component (021): portalled past the filter row and flipped
+   when the window is short. */
 .task-date-filter-popover {
-  position: absolute;
-  z-index: var(--layer-sticky);
-  top: calc(100% + 8px);
-  left: 0;
+  z-index: var(--layer-popover);
   width: min(304px, calc(100vw - 32px));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-lg);
   padding: var(--space-3);
+}
+/* The listbox, between the popover surface and its options so the arrow-key
+   walk has something to own. */
+.task-account-filter-listbox {
+  display: contents;
 }
 .task-calendar-heading {
   display: flex;
@@ -10912,7 +10095,7 @@ body {
 .task-calendar-weekdays {
   margin-bottom: 4px;
   color: var(--color-text-muted);
-  font-size: 0.68rem;
+  font-size: var(--text-micro);
   text-align: center;
 }
 .task-calendar-days button {
@@ -10946,7 +10129,7 @@ body {
 .task-date-filter-popover > p {
   margin: var(--space-2) 0 0;
   color: var(--color-text-muted);
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
   line-height: 1.35;
 }
 .task-status-filter {
@@ -10961,7 +10144,7 @@ body {
   align-items: center;
   gap: 6px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--color-text-muted);
   padding: 0 10px;
@@ -11023,9 +10206,9 @@ body {
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition:
-    border-color 140ms ease,
-    box-shadow 140ms ease,
-    transform 140ms ease;
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    transform var(--motion-fast) ease;
 }
 .team-task-card:hover {
   border-color: color-mix(in oklab, var(--color-accent) 42%, var(--color-border));
@@ -11037,18 +10220,18 @@ body {
   outline-offset: 2px;
 }
 .team-task-card[data-status='todo'] {
-  border-color: color-mix(in oklab, #94a3b8 44%, var(--color-border));
+  border-color: color-mix(in oklab, var(--slate-500) 44%, var(--color-border));
 }
 .team-task-card[data-status='in_progress'] {
-  border-color: color-mix(in oklab, #eab308 52%, var(--color-border));
+  border-color: color-mix(in oklab, var(--amber-500) 52%, var(--color-border));
   box-shadow:
-    0 0 0 1px color-mix(in oklab, #eab308 15%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--amber-500) 15%, transparent),
     var(--shadow-sm);
 }
 .team-task-card[data-status='done'] {
-  border-color: color-mix(in oklab, #16a34a 58%, var(--color-border));
+  border-color: color-mix(in oklab, var(--green-600) 58%, var(--color-border));
   box-shadow:
-    0 0 0 1px color-mix(in oklab, #16a34a 16%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--green-600) 16%, transparent),
     var(--shadow-sm);
 }
 .team-task-card h3 {
@@ -11057,24 +10240,22 @@ body {
   min-height: 2.75em;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  font-size: 1rem;
+  font-size: var(--text-body);
   line-height: 1.35;
 }
-.team-task-card-heading {
-  min-height: 32px;
-}
+
 .team-task-assignee {
   overflow: hidden;
   max-width: 52%;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .team-task-card-description {
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: 0.83rem;
+  font-size: var(--text-caption);
   line-height: 1.45;
 }
 .team-task-card-description p {
@@ -11086,12 +10267,12 @@ body {
   overflow-wrap: anywhere;
 }
 .team-task-card-description > span {
-  color: color-mix(in oklab, var(--color-text-muted) 72%, transparent);
+  color: var(--color-text-muted);
 }
 .team-task-card-footer {
   min-height: 22px;
   color: var(--color-text-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
 }
 .team-task-card-error {
   overflow: hidden;
@@ -11105,7 +10286,7 @@ body {
   width: fit-content;
   gap: 3px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
   padding: 3px;
 }
@@ -11115,7 +10296,7 @@ body {
   align-items: center;
   gap: 6px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
   padding: 0 9px;
   cursor: pointer;
@@ -11125,21 +10306,21 @@ body {
   box-shadow: var(--shadow-sm);
 }
 .team-task-status-option.is-selected.is-todo {
-  background: color-mix(in oklab, #94a3b8 27%, var(--color-surface));
+  background: color-mix(in oklab, var(--slate-500) 27%, var(--color-surface));
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, #94a3b8 72%, var(--color-border)),
+    inset 0 0 0 1px color-mix(in oklab, var(--slate-500) 72%, var(--color-border)),
     var(--shadow-sm);
 }
 .team-task-status-option.is-selected.is-in_progress {
-  background: color-mix(in oklab, #eab308 24%, var(--color-surface));
+  background: color-mix(in oklab, var(--amber-500) 24%, var(--color-surface));
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, #eab308 82%, var(--color-border)),
+    inset 0 0 0 1px color-mix(in oklab, var(--amber-500) 82%, var(--color-border)),
     var(--shadow-sm);
 }
 .team-task-status-option.is-selected.is-done {
-  background: color-mix(in oklab, #16a34a 25%, var(--color-surface));
+  background: color-mix(in oklab, var(--green-600) 25%, var(--color-surface));
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, #16a34a 78%, var(--color-border)),
+    inset 0 0 0 1px color-mix(in oklab, var(--green-600) 78%, var(--color-border)),
     var(--shadow-sm);
 }
 .team-task-status-option:disabled {
@@ -11152,7 +10333,7 @@ body {
 }
 .team-task-status-option span {
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   font-weight: 650;
 }
 .team-task-status-option.is-selected span {
@@ -11172,16 +10353,16 @@ body {
   --task-progress-position: 0%;
   position: relative;
   height: 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   /* Two flat colours meeting at the knob, no blend: what is done (left of the
      handle) reads green, what is left to do reads red, and the boundary sits
      exactly under the handle rather than in a wash of amber. */
   background: linear-gradient(
     90deg,
-    #16a34a 0 var(--task-progress-position),
-    #dc2626 var(--task-progress-position) 100%
+    var(--green-600) 0 var(--task-progress-position),
+    var(--red-600) var(--task-progress-position) 100%
   );
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, #000 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-black) 16%, transparent);
   cursor: pointer;
   touch-action: none;
 }
@@ -11209,11 +10390,11 @@ body {
   place-items: center;
   transform: translate(-50%, -50%);
   border: 3px solid var(--color-surface);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-text);
   color: var(--color-surface);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 28%);
-  font-size: 0.72rem;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-black) 28%, transparent);
+  font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
   font-weight: 750;
   pointer-events: none;
@@ -11224,10 +10405,6 @@ body {
 .team-task-progress-scale.is-disabled .team-task-progress-track {
   cursor: default;
 }
-.team-task-editor label {
-  display: grid;
-  gap: var(--space-1);
-}
 .team-task-editor-status {
   display: flex;
   align-items: center;
@@ -11237,7 +10414,7 @@ body {
 .team-task-editor-status > span {
   flex: 0 0 auto;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-weight: 650;
 }
 .team-task-editor-meta {
@@ -11246,6 +10423,8 @@ body {
   flex-wrap: wrap;
   gap: var(--space-3);
 }
+/* Two fields on one line, each as wide as it needs: the label beside the
+   control rather than over it, because this row is read across. */
 .team-task-editor .team-task-assignee-field,
 .team-task-editor .team-task-progress-max-field {
   display: flex;
@@ -11254,28 +10433,16 @@ body {
   align-items: center;
   gap: var(--space-2);
 }
-.team-task-editor .team-task-assignee-field > span,
-.team-task-editor .team-task-progress-max-field > span {
+.team-task-editor .team-task-assignee-field > .ui-field-label,
+.team-task-editor .team-task-progress-max-field > .ui-field-label {
   flex: 0 0 auto;
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
-  font-weight: 650;
 }
-.team-task-editor .team-task-assignee-field select,
-.team-task-editor .team-task-progress-max-field input {
-  width: auto;
+.team-task-editor .team-task-assignee-field .ui-select,
+.team-task-editor .team-task-progress-max-field .ui-input {
   max-width: min(320px, 64vw);
-  min-height: 32px;
-  border-width: 0 0 1px;
-  border-radius: 0;
-  background: transparent;
-  padding: 0 26px 0 0;
-  color: var(--color-text);
 }
-.team-task-editor .team-task-progress-max-field input {
+.team-task-editor .team-task-progress-max-field .ui-input {
   width: 74px;
-  max-width: 74px;
-  padding: 0 2px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -11285,34 +10452,9 @@ body {
   gap: var(--space-2);
 }
 .team-task-progress-max-save {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-height: 0;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-accent);
-  cursor: pointer;
-  transition:
-    color var(--dur-micro) var(--ease-standard),
-    border-color var(--dur-micro) var(--ease-standard);
-}
-.team-task-progress-max-save:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: color-mix(in oklab, var(--color-accent) 15%, var(--color-surface));
-}
-.team-task-progress-max-save:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.team-task-editor .team-task-assignee-field select:focus-visible,
-.team-task-editor .team-task-progress-max-field input:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
 }
 .team-task-editor .team-task-progress-scale {
   padding: 2px 17px;
@@ -11331,8 +10473,7 @@ body {
  * keep the last line of text out from under it.
  */
 .team-task-editor .team-task-description-input,
-.team-text-editor textarea,
-.support-field textarea {
+.team-text-editor textarea {
   padding-bottom: 22px;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><g stroke='%23c7becf' stroke-width='2' stroke-linecap='round'><path d='M26 10 10 26'/><path d='M26 17 17 26'/><path d='M26 24 24 26'/></g></svg>");
   background-repeat: no-repeat;
@@ -11340,8 +10481,7 @@ body {
   background-size: 28px 28px;
 }
 .team-task-editor .team-task-description-input::-webkit-resizer,
-.team-text-editor textarea::-webkit-resizer,
-.support-field textarea::-webkit-resizer {
+.team-text-editor textarea::-webkit-resizer {
   background-color: transparent;
   background-image: none;
 }
@@ -11353,13 +10493,13 @@ body {
 .team-task-picker-heading p {
   margin-top: 3px;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   line-height: 1.4;
 }
 .team-task-attachments-heading > span {
   flex: 0 0 auto;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
 }
 .team-task-attachment-grid {
   display: grid;
@@ -11408,7 +10548,7 @@ body {
   padding: var(--space-2);
   color: var(--color-text-muted);
   text-align: center;
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
 }
 .team-task-attachment-caption {
   display: grid;
@@ -11436,12 +10576,12 @@ body {
 .team-task-attachment-caption small {
   margin-top: 2px;
   color: var(--color-text-muted);
-  font-size: 0.7rem;
+  font-size: var(--text-micro);
   text-transform: capitalize;
 }
 .team-task-attachment-draft {
   color: var(--color-accent) !important;
-  font-size: 0.64rem !important;
+  font-size: var(--text-micro) !important;
   font-weight: 700;
   text-transform: none !important;
 }
@@ -11493,13 +10633,13 @@ body {
   color: var(--color-text-muted);
 }
 .team-task-attachment-action.is-view {
-  color: #3b82f6;
+  color: var(--action-view);
 }
 .team-task-attachment-action.is-download {
-  color: #0f9f8f;
+  color: var(--action-download);
 }
 .team-task-attachment-action.is-copy-link {
-  color: #8b5cf6;
+  color: var(--action-copy);
 }
 .team-task-attachment-action.is-reveal {
   color: var(--color-accent);
@@ -11513,19 +10653,19 @@ body {
   color: var(--color-error);
 }
 .team-task-attachment-action.is-view:hover:not(:disabled) {
-  border-color: #3b82f6;
-  background: color-mix(in oklab, #3b82f6 17%, var(--color-surface));
-  color: #3b82f6;
+  border-color: var(--action-view);
+  background: color-mix(in oklab, var(--action-view) 17%, var(--color-surface));
+  color: var(--action-view);
 }
 .team-task-attachment-action.is-download:hover:not(:disabled) {
-  border-color: #0f9f8f;
-  background: color-mix(in oklab, #0f9f8f 17%, var(--color-surface));
-  color: #0f9f8f;
+  border-color: var(--action-download);
+  background: color-mix(in oklab, var(--action-download) 17%, var(--color-surface));
+  color: var(--action-download);
 }
 .team-task-attachment-action.is-copy-link:hover:not(:disabled) {
-  border-color: #8b5cf6;
-  background: color-mix(in oklab, #8b5cf6 17%, var(--color-surface));
-  color: #8b5cf6;
+  border-color: var(--action-copy);
+  background: color-mix(in oklab, var(--action-copy) 17%, var(--color-surface));
+  color: var(--action-copy);
 }
 .team-task-attachment-action.is-copy-link.is-copied {
   border-color: var(--color-success);
@@ -11538,7 +10678,7 @@ body {
 }
 .team-task-attachment-action-error {
   color: var(--color-error);
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
   line-height: 1.3;
 }
 .team-task-attachment-viewer {
@@ -11555,7 +10695,7 @@ body {
   width: 100%;
   max-height: min(72vh, 720px);
   border-radius: var(--radius-md);
-  background: #05070a;
+  background: var(--grey-950);
   object-fit: contain;
 }
 .team-task-attachment-add {
@@ -11593,7 +10733,7 @@ body {
   width: 34px;
   height: 34px;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in oklab, var(--color-accent) 15%, var(--color-surface));
   color: var(--color-accent);
 }
@@ -11607,11 +10747,11 @@ body {
 }
 .team-task-attachment-add strong {
   color: var(--color-text);
-  font-size: 0.88rem;
+  font-size: var(--text-label);
 }
 .team-task-attachment-add small {
   max-width: 18ch;
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
   line-height: 1.3;
 }
 .team-task-picker-dialog,
@@ -11635,7 +10775,7 @@ body {
 .team-task-picker-dialog-heading small {
   max-width: 28ch;
   color: var(--color-text-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
   line-height: 1.35;
   text-align: right;
 }
@@ -11652,7 +10792,7 @@ body {
 .team-task-picker-path-action.button {
   min-height: 30px;
   padding-inline: var(--space-2);
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
 }
 .team-task-picker-path-action svg {
   width: 14px;
@@ -11683,7 +10823,7 @@ body {
   color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 0.74rem;
+  font-size: var(--text-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -11736,7 +10876,7 @@ body {
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -11771,11 +10911,6 @@ body {
   white-space: nowrap;
 }
 
-.team-task-picker-empty {
-  margin: 0;
-  color: var(--color-text-muted);
-  text-align: center;
-}
 .team-task-picker-results.team-task-picker-folder-results {
   max-height: min(42vh, 360px);
 }
@@ -11813,10 +10948,10 @@ body {
   width: 28px;
   height: 28px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-surface-muted);
   color: var(--color-accent);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
 }
 .team-task-picker-item-type svg {
   width: 16px;
@@ -11831,13 +10966,13 @@ body {
   width: 20px;
   height: 20px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
-  color: #22c55e;
+  color: var(--green-500);
 }
 .team-task-picker-results button.is-selected .team-task-picker-check {
-  border-color: #22c55e;
-  background: color-mix(in oklab, #22c55e 14%, transparent);
+  border-color: var(--green-500);
+  background: color-mix(in oklab, var(--green-500) 14%, transparent);
 }
 .team-task-picker-results button.is-attached {
   cursor: default;
@@ -11856,7 +10991,7 @@ body {
 .team-task-picker-item-copy small {
   margin-top: 2px;
   color: var(--color-text-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-caption);
 }
 .team-task-picker-dialog-actions {
   margin-top: var(--space-1);
@@ -11913,20 +11048,7 @@ body {
   gap: var(--space-4);
   min-width: 0;
 }
-.creative-library-heading,
-.creative-library-heading-actions,
-.creative-library-selection,
-.creative-library-card-title,
-.creative-library-card-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.creative-library-heading,
-.creative-library-selection {
-  justify-content: space-between;
-  flex-wrap: wrap;
-}
+
 .creative-library-selection > div {
   display: flex;
   flex-wrap: wrap;
@@ -11937,97 +11059,21 @@ body {
 .creative-library-card-state {
   margin: 0;
 }
-.creative-library-heading-hint {
-  max-width: 58ch;
-  margin-top: var(--space-1) !important;
-  color: var(--color-text-muted);
-  font-size: 0.86rem;
-  line-height: 1.45;
-}
-.creative-library-heading-actions,
-.creative-library-card-actions {
-  flex-wrap: wrap;
-}
-.creative-library-selection {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-  padding: var(--space-2) var(--space-3);
-}
-.creative-library-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-3);
-}
-.creative-library-card {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-}
+
 .creative-library-card.is-selected {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-accent) 20%, transparent);
 }
-.creative-library-card-preview {
-  aspect-ratio: 16 / 9;
-  position: relative;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: var(--space-2);
-  width: 100%;
-  overflow: hidden;
-  border: 0;
-  padding: 0;
-  background:
-    radial-gradient(
-      circle at 30% 20%,
-      color-mix(in oklab, var(--color-accent) 20%, transparent),
-      transparent 48%
-    ),
-    var(--color-surface-muted);
-  color: var(--color-text-muted);
-  font: inherit;
-  text-align: inherit;
-  cursor: pointer;
-}
-.creative-library-card-preview:focus-visible {
-  outline: 3px solid var(--color-accent);
-  outline-offset: -3px;
-}
-.creative-library-card-preview:disabled {
-  cursor: default;
-}
-.creative-library-card-preview-media {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity var(--dur-micro) var(--ease-standard);
-}
+
 .creative-library-card-preview[data-preview-state='ready'] .creative-library-card-preview-media {
   opacity: 1;
 }
-.creative-library-card-preview-fallback {
-  z-index: var(--layer-raised);
-  display: grid;
-  justify-items: center;
-  gap: var(--space-2);
-  max-width: calc(100% - var(--space-4));
-  transition: opacity var(--dur-micro) var(--ease-standard);
-}
+
 .creative-library-card-preview[data-preview-state='ready'] .creative-library-card-preview-fallback {
   opacity: 0;
 }
 .creative-library-card-preview-fallback > span {
-  font-size: 2rem;
+  font-size: var(--text-display);
 }
 .creative-library-card-preview-fallback small {
   max-width: calc(100% - var(--space-4));
@@ -12035,80 +11081,34 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.creative-library-card-preview-cta {
-  position: absolute;
-  right: var(--space-2);
-  bottom: var(--space-2);
-  z-index: var(--layer-raised);
-  border-radius: 999px;
-  background: color-mix(in oklab, #000 68%, transparent);
-  padding: 4px 9px;
-  color: #fff;
-  font-size: 0.76rem;
-  line-height: 1.2;
-}
-.creative-library-card-body {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-}
-.creative-library-card-title {
-  min-width: 0;
-}
+
 .creative-library-card-title strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.creative-library-card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+
 .creative-library-card-tags span {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
   padding: 3px 8px;
   color: var(--color-text-muted);
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
   white-space: nowrap;
 }
-.creative-library-card-tags .creative-library-card-needs-metadata {
-  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface-muted));
-  color: var(--color-text);
-}
-.creative-library-card-state {
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
-}
+
 .creative-library-card-state[data-placement-state='unplaced'] {
   color: var(--color-warning);
 }
-.creative-library-card-primary-actions {
-  display: flex;
-  gap: var(--space-2);
-}
+
 .creative-library-card-primary-actions .button {
   min-width: 0;
   flex: 1 1 0;
 }
-.creative-library-card-more-actions {
-  display: grid;
-  gap: var(--space-2);
-  padding-top: var(--space-1);
-  border-top: 1px solid var(--color-border);
-}
-.creative-library-empty {
-  display: grid;
-  justify-items: start;
-  gap: var(--space-3);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-}
+
 .creative-library-upload {
   min-width: min(760px, 80vw);
 }
@@ -12179,7 +11179,7 @@ body {
   flex-wrap: wrap;
   gap: var(--space-1);
 }
-.creative-library-share-actions .team-inline-error {
+.creative-library-share-actions .ui-alert {
   flex-basis: 100%;
 }
 .creative-library-card .creative-library-card-more-actions,
@@ -12192,32 +11192,21 @@ body {
 }
 .creative-library-card .creative-library-card-more-actions .button,
 .creative-library-card .creative-library-text-actions .button,
-.creative-library-card .creative-library-share-actions .button {
+.creative-library-card .creative-library-share-actions .button,
+.creative-library-card .creative-library-card-more-actions .ui-button,
+.creative-library-card .creative-library-text-actions .ui-button,
+.creative-library-card .creative-library-share-actions .ui-button {
   min-width: 0;
   max-width: 100%;
   min-height: 36px;
   width: 100%;
   box-sizing: border-box;
   padding: 6px 10px;
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   line-height: 1.2;
   text-align: center;
   white-space: normal;
   overflow-wrap: anywhere;
-}
-.creative-library-share-remember {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.creative-library-text-actions select {
-  max-width: 100%;
-  min-height: 36px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: var(--space-1) var(--space-2);
 }
 .creative-library-text-viewer {
   display: grid;
@@ -12286,7 +11275,7 @@ body {
   padding: var(--space-3);
 }
 .team-batch-counts strong {
-  font-size: 1.5rem;
+  font-size: var(--text-title);
 }
 .team-batch-counts span,
 .team-batch-progress small {
@@ -12324,9 +11313,9 @@ body {
   stroke: none;
 }
 .team-media-action.is-preview {
-  border-color: color-mix(in oklab, #3b82f6 35%, var(--color-border));
-  background: color-mix(in oklab, #3b82f6 10%, var(--color-surface));
-  color: #2563eb;
+  border-color: color-mix(in oklab, var(--action-view) 35%, var(--color-border));
+  background: color-mix(in oklab, var(--action-view) 10%, var(--color-surface));
+  color: var(--action-view-text);
 }
 .team-media-action.is-task {
   border-color: color-mix(in oklab, var(--color-accent) 38%, var(--color-border));
@@ -12334,19 +11323,19 @@ body {
   color: var(--color-accent);
 }
 .team-media-action.is-copy-link {
-  border-color: color-mix(in oklab, #8b5cf6 35%, var(--color-border));
-  background: color-mix(in oklab, #8b5cf6 10%, var(--color-surface));
-  color: #7c3aed;
+  border-color: color-mix(in oklab, var(--action-copy) 35%, var(--color-border));
+  background: color-mix(in oklab, var(--action-copy) 10%, var(--color-surface));
+  color: var(--action-copy-text);
 }
 .team-media-action.is-open {
-  border-color: color-mix(in oklab, #0891b2 35%, var(--color-border));
-  background: color-mix(in oklab, #0891b2 10%, var(--color-surface));
-  color: #0e7490;
+  border-color: color-mix(in oklab, var(--action-open) 35%, var(--color-border));
+  background: color-mix(in oklab, var(--action-open) 10%, var(--color-surface));
+  color: var(--action-open-text);
 }
 .team-media-action.is-download {
-  border-color: color-mix(in oklab, #0f9f8f 35%, var(--color-border));
-  background: color-mix(in oklab, #0f9f8f 10%, var(--color-surface));
-  color: #0f766e;
+  border-color: color-mix(in oklab, var(--action-download) 35%, var(--color-border));
+  background: color-mix(in oklab, var(--action-download) 10%, var(--color-surface));
+  color: var(--action-download-text);
 }
 .team-media-action.is-transcribe {
   border-color: color-mix(in oklab, var(--color-warning) 40%, var(--color-border));
@@ -12354,56 +11343,28 @@ body {
   color: var(--color-warning);
 }
 .team-media-action.is-preview:hover:not(:disabled) {
-  border-color: #3b82f6;
-  background: color-mix(in oklab, #3b82f6 17%, var(--color-surface));
+  border-color: var(--action-view);
+  background: color-mix(in oklab, var(--action-view) 17%, var(--color-surface));
 }
 .team-media-action.is-task:hover:not(:disabled) {
   border-color: var(--color-accent);
   background: color-mix(in oklab, var(--color-accent) 18%, var(--color-surface));
 }
 .team-media-action.is-copy-link:hover:not(:disabled) {
-  border-color: #8b5cf6;
-  background: color-mix(in oklab, #8b5cf6 17%, var(--color-surface));
+  border-color: var(--action-copy);
+  background: color-mix(in oklab, var(--action-copy) 17%, var(--color-surface));
 }
 .team-media-action.is-open:hover:not(:disabled) {
-  border-color: #0891b2;
-  background: color-mix(in oklab, #0891b2 17%, var(--color-surface));
+  border-color: var(--action-open);
+  background: color-mix(in oklab, var(--action-open) 17%, var(--color-surface));
 }
 .team-media-action.is-download:hover:not(:disabled) {
-  border-color: #0f9f8f;
-  background: color-mix(in oklab, #0f9f8f 17%, var(--color-surface));
+  border-color: var(--action-download);
+  background: color-mix(in oklab, var(--action-download) 17%, var(--color-surface));
 }
 .team-media-action.is-transcribe:hover:not(:disabled) {
   border-color: var(--color-warning);
   background: color-mix(in oklab, var(--color-warning) 18%, var(--color-surface));
-}
-
-/* Catalog list (View A): let each file row's actions wrap and align right so a
-   long name plus three actions never spills past the panel. */
-.team-material-browser .team-material-list li {
-  flex-wrap: wrap;
-}
-/* The name takes the row, so every row's action group starts at the same place
-   and the category reads as a real column. Without this the base list rule
-   splits the free space between two auto margins, and the actions land at a
-   different x in every row -- the ragged look the catalog had. */
-.team-material-browser .team-material-list li > :first-child {
-  flex: 1 1 12rem;
-  margin-right: 0;
-}
-.team-material-browser .team-material-list small {
-  flex: 0 0 5rem;
-  margin-left: var(--space-3);
-  text-align: right;
-}
-.team-material-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-1);
-  flex: 0 0 auto;
-  margin-left: auto;
 }
 
 /* Library card (View B): a larger, stylised selection cell overlaid on the tile,
@@ -12414,28 +11375,7 @@ body {
 .creative-library-card[data-selectable='true'] {
   cursor: pointer;
 }
-.creative-library-card-select {
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-2);
-  z-index: var(--layer-raised);
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 2px solid var(--color-border-strong);
-  border-radius: 10px;
-  background: color-mix(in oklab, var(--color-surface) 82%, transparent);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(4px);
-  color: transparent;
-  cursor: pointer;
-  transition:
-    border-color var(--dur-micro) var(--ease-standard),
-    background var(--dur-micro) var(--ease-standard),
-    color var(--dur-micro) var(--ease-standard);
-}
+
 .creative-library-card-select input {
   position: absolute;
   inset: 0;
@@ -12454,17 +11394,11 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.creative-library-card-select:hover {
-  border-color: var(--color-accent);
-}
+
 .creative-library-card-select.is-selected {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-on-accent);
-}
-.creative-library-card-select:has(input:focus-visible) {
-  outline: 3px solid var(--color-focus);
-  outline-offset: 2px;
 }
 
 /* Primary card actions: allow wrap + text reflow so labels never clip against
@@ -12477,7 +11411,7 @@ body {
   flex: 1 1 120px;
   min-height: 38px;
   padding: 6px 10px;
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   line-height: 1.2;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -12499,27 +11433,8 @@ body {
   border-bottom: 1px solid var(--color-border);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
-.creative-library-selection-lead {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.creative-library-selection-count {
-  color: var(--color-text-muted);
-  font-size: 0.86rem;
-}
 
 @media (max-width: 720px) {
-  .creative-library-toolbar {
-    position: static;
-    margin: 0;
-    padding: 0;
-    background: none;
-    backdrop-filter: none;
-    border-bottom: 0;
-    border-radius: 0;
-  }
   .creative-library-upload {
     min-width: 0;
   }
@@ -12527,9 +11442,7 @@ body {
   .creative-library-upload-items li {
     grid-template-columns: minmax(0, 1fr);
   }
-  .creative-library-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+
   .creative-library-heading-actions,
   .creative-library-heading-actions .button {
     width: 100%;
@@ -12578,33 +11491,12 @@ body {
   flex-direction: column;
   gap: var(--space-3, 12px);
 }
-.team-landings-gallery-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.team-landings-count {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-.team-landings-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-3, 12px);
-}
+
 .team-landings-grid > li {
   min-width: 0;
   align-self: start;
 }
-.team-landing-tile-shell {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-2, 8px);
-}
+
 .team-landing-tile-shell > .button {
   min-width: 0;
   max-width: 100%;
@@ -12616,74 +11508,21 @@ body {
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.team-landings-empty,
-.team-landings-state {
-  position: static;
-  display: grid;
-  min-height: 9rem;
-  place-items: center;
-  padding: var(--space-5, 24px);
-  text-align: center;
-  color: var(--color-text-muted);
-}
-.team-landing-tile {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  max-width: 100%;
-  gap: 8px;
-  width: 100%;
-  padding: 8px;
-  box-sizing: border-box;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  text-align: left;
-  color: var(--color-text);
-  cursor: default;
-}
+
 button.team-landing-tile {
   cursor: pointer;
 }
 button.team-landing-tile:hover {
   border-color: var(--color-accent);
 }
-.team-landing-tile-thumb {
-  display: block;
-  min-width: 0;
-  aspect-ratio: 16 / 10;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--color-surface-muted);
-}
+
 .team-landing-tile-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.team-landing-tile-chip {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.team-landing-tile-name {
-  min-width: 0;
-  max-width: 100%;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.team-landing-tile-state {
-  min-width: 0;
-  max-width: 100%;
-  font-size: 0.8125rem;
-  color: var(--color-text-muted);
-}
-.team-landing-tile-error .team-landing-tile-state {
-  color: var(--color-error);
-}
+
 .landing-viewer-controls {
   display: flex;
   flex-wrap: wrap;
@@ -12700,36 +11539,8 @@ button.team-landing-tile:hover {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.team-landings-discovery {
-  display: grid;
-  gap: var(--space-3, 12px);
-}
-.team-landings-recovery {
-  margin: 0;
-  border: 1px solid color-mix(in srgb, var(--color-warning, #b7791f) 50%, var(--color-border));
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-warning, #b7791f) 10%, var(--color-surface));
-  color: var(--color-text);
-  padding: var(--space-3, 12px);
-  line-height: 1.45;
-}
-.team-landings-heading-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: var(--space-2, 8px);
-}
-.team-landings-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3, 12px);
-}
+
 @media (max-width: 720px) {
-  .team-landings-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .landing-viewer-controls {
     align-items: stretch;
   }
@@ -12747,7 +11558,7 @@ button.team-landing-tile:hover {
   border: 1px dashed var(--color-border-strong);
   border-radius: 0.5rem;
   color: var(--color-text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   line-height: 1.45;
 }
 
@@ -12758,11 +11569,11 @@ button.team-landing-tile:hover {
   transform: translateX(-50%);
   z-index: var(--layer-tooltip);
   padding: 0.2rem 0.7rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--color-border-strong);
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: 0.7rem;
+  font-size: var(--text-micro);
   font-weight: 700;
   letter-spacing: 0.14em;
   pointer-events: none;
@@ -12784,16 +11595,10 @@ button.team-landing-tile:hover {
 
 /* ── Local Agent power throttle ─────────────────────────────────────────── */
 
-@property --power-level-color {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #7c59e0;
-}
-
 .power-throttle {
   position: relative;
   display: inline-flex;
-  transition: --power-level-color 180ms var(--ease-standard);
+  transition: --power-level-color var(--motion-base) var(--ease-standard);
 }
 
 /* Matches the theme toggle's footprint so the header cluster stays even. */
@@ -12842,7 +11647,7 @@ button.team-landing-tile:hover {
   place-items: center;
   border-radius: 50%;
   background: var(--power-level-color, var(--color-accent));
-  color: #fff;
+  color: var(--color-white);
   font-size: var(--text-2xs);
   font-weight: 600;
   line-height: 1;
@@ -12861,7 +11666,7 @@ button.team-landing-tile:hover {
   width: 244px;
   padding: 18px 20px 20px;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   background:
     radial-gradient(
       circle at 50% 26%,
@@ -12869,7 +11674,7 @@ button.team-landing-tile:hover {
       transparent 48%
     ),
     var(--color-surface);
-  box-shadow: 0 22px 54px rgb(0 0 0 / 24%);
+  box-shadow: 0 22px 54px color-mix(in srgb, var(--color-black) 24%, transparent);
 }
 
 .power-panel__heading {
@@ -12916,7 +11721,7 @@ button.team-landing-tile:hover {
 .power-panel__error {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--color-error, #d2453f);
+  color: var(--color-error);
   text-align: center;
 }
 
@@ -12926,27 +11731,20 @@ button.team-landing-tile:hover {
   margin: 6px 0 0;
   font-size: var(--text-sm);
   line-height: 1.4;
-  color: var(--color-text-muted, #6b7280);
-}
-
-.embedding-duration-note {
-  margin: 6px 0 0;
-  font-size: var(--text-sm);
-  line-height: 1.4;
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted);
 }
 
 .estimate-growth-warning {
   margin: 0 0 8px;
   font-size: var(--text-sm);
   line-height: 1.4;
-  color: var(--color-text-muted, #8a5a00);
+  color: var(--color-text-muted);
 }
 
 .power-panel__pending {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--color-text-muted, #6b7280);
+  color: var(--color-text-muted);
   text-align: center;
 }
 
@@ -12982,7 +11780,7 @@ button.team-landing-tile:hover {
   order: 2;
   width: 8px;
   height: 2px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-text-muted) 45%, transparent);
 }
 
@@ -13000,14 +11798,14 @@ button.team-landing-tile:hover {
   flex: 0 0 58px;
   width: 58px;
   height: 190px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
   cursor: ns-resize;
   touch-action: none;
 }
 
 .power-lever__track:focus-visible {
-  outline: 2px solid var(--color-accent, #7557e8);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -13021,7 +11819,7 @@ button.team-landing-tile:hover {
   position: absolute;
   left: 50%;
   width: 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -13032,7 +11830,7 @@ button.team-landing-tile:hover {
   border: 1px solid color-mix(in srgb, var(--color-border) 88%, transparent);
   background: color-mix(in srgb, var(--color-surface-muted) 90%, transparent);
   box-shadow:
-    inset 0 2px 5px rgb(0 0 0 / 18%),
+    inset 0 2px 5px color-mix(in srgb, var(--color-black) 18%, transparent),
     0 0 0 5px color-mix(in srgb, var(--color-border) 12%, transparent);
 }
 
@@ -13041,11 +11839,11 @@ button.team-landing-tile:hover {
   height: calc((100% - 40px) * var(--power-travel));
   background: linear-gradient(
     to top,
-    color-mix(in srgb, var(--power-level-color) 82%, #000),
-    color-mix(in srgb, var(--power-level-color) 78%, #fff)
+    color-mix(in srgb, var(--power-level-color) 82%, var(--color-black)),
+    color-mix(in srgb, var(--power-level-color) 78%, var(--color-white))
   );
   box-shadow:
-    inset 3px 0 5px rgb(255 255 255 / 24%),
+    inset 3px 0 5px color-mix(in srgb, var(--color-white) 24%, transparent),
     0 0 18px color-mix(in srgb, var(--power-level-color) 52%, transparent);
 }
 
@@ -13057,15 +11855,15 @@ button.team-landing-tile:hover {
   height: 40px;
   display: grid;
   place-items: center;
-  border: 2px solid color-mix(in srgb, var(--power-level-color) 70%, #fff);
+  border: 2px solid color-mix(in srgb, var(--power-level-color) 70%, var(--color-white));
   border-radius: 50%;
   background: linear-gradient(
     145deg,
-    color-mix(in srgb, var(--power-level-color) 70%, #fff),
-    color-mix(in srgb, var(--power-level-color) 86%, #000)
+    color-mix(in srgb, var(--power-level-color) 70%, var(--color-white)),
+    color-mix(in srgb, var(--power-level-color) 86%, var(--color-black))
   );
   box-shadow:
-    0 6px 16px rgb(0 0 0 / 28%),
+    0 6px 16px color-mix(in srgb, var(--color-black) 28%, transparent),
     0 0 0 4px color-mix(in srgb, var(--power-level-color) 15%, transparent),
     0 0 22px color-mix(in srgb, var(--power-level-color) 45%, transparent);
   pointer-events: none;
@@ -13075,9 +11873,9 @@ button.team-landing-tile:hover {
 }
 
 .power-lever__track:hover .power-lever__thumb {
-  border-color: color-mix(in srgb, var(--power-level-color) 58%, #fff);
+  border-color: color-mix(in srgb, var(--power-level-color) 58%, var(--color-white));
   box-shadow:
-    0 7px 18px rgb(0 0 0 / 30%),
+    0 7px 18px color-mix(in srgb, var(--color-black) 30%, transparent),
     0 0 0 6px color-mix(in srgb, var(--power-level-color) 18%, transparent),
     0 0 28px color-mix(in srgb, var(--power-level-color) 58%, transparent);
 }
@@ -13085,11 +11883,11 @@ button.team-landing-tile:hover {
 .power-lever__thumb-icon {
   width: 19px;
   height: 19px;
-  stroke: color-mix(in srgb, var(--power-level-color) 28%, #000);
+  stroke: color-mix(in srgb, var(--power-level-color) 28%, var(--color-black));
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 1px 0 rgb(255 255 255 / 26%));
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--color-white) 26%, transparent));
 }
 
 .power-readout,
@@ -13114,11 +11912,11 @@ button.team-landing-tile:hover {
   gap: var(--space-1);
   align-items: center;
   padding: 2px var(--space-2);
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
   line-height: 1.5;
   white-space: nowrap;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
 }
@@ -13144,7 +11942,7 @@ button.team-landing-tile:hover {
   border: 2px solid color-mix(in srgb, currentcolor 30%, transparent);
   border-top-color: currentcolor;
   border-radius: 50%;
-  animation: spin 900ms linear infinite;
+  animation: spin var(--motion-slow) linear infinite;
 }
 
 /* Labeled skeleton — the contract bans a bare "…", so a placeholder always
@@ -13157,7 +11955,7 @@ button.team-landing-tile:hover {
 }
 
 .ui-skeleton-label {
-  font-size: 0.8125rem;
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
 }
 
@@ -13246,7 +12044,7 @@ button.team-landing-tile:hover {
 
 .ui-toast-text {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: var(--text-label);
   line-height: 1.4;
 }
 
@@ -13254,14 +12052,17 @@ button.team-landing-tile:hover {
   height: 3px;
   overflow: hidden;
   background: var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
 }
 .ui-toast-progress span {
   display: block;
+  width: 100%;
   height: 100%;
   background: var(--color-accent);
   border-radius: inherit;
-  transition: width var(--dur-pop) var(--ease-enter);
+  transform: scaleX(var(--fill-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-pop) var(--ease-enter);
 }
 
 .ui-toast-controls {
@@ -13274,7 +12075,7 @@ button.team-landing-tile:hover {
 .ui-toast-action {
   padding: 4px var(--space-2);
   font: inherit;
-  font-size: 0.875rem;
+  font-size: var(--text-label);
   font-weight: 600;
   color: var(--color-accent);
   white-space: nowrap;
@@ -13291,7 +12092,7 @@ button.team-landing-tile:hover {
 .ui-toast-dismiss {
   padding: 0 var(--space-1);
   font: inherit;
-  font-size: 1.125rem;
+  font-size: var(--text-section);
   line-height: 1;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -13348,11 +12149,9 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
 }
 
+/* Placed by the component (021). */
 .team-space-switcher-menu {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + var(--space-1));
-  left: 0;
   width: max(240px, 100%);
   max-height: 60vh;
   padding: var(--space-2);
@@ -13374,7 +12173,7 @@ button.team-landing-tile:hover {
 .team-space-switcher-label {
   padding: var(--space-1) var(--space-2);
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-muted);
@@ -13387,7 +12186,7 @@ button.team-landing-tile:hover {
   align-items: baseline;
   justify-content: space-between;
   padding: var(--space-2);
-  font-size: 0.9375rem;
+  font-size: var(--text-label);
   color: var(--color-text);
   text-decoration: none;
   border-radius: var(--radius-sm);
@@ -13407,7 +12206,7 @@ button.team-landing-tile:hover {
 
 .team-space-switcher-state {
   flex: 0 0 auto;
-  font-size: 0.75rem;
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
 }
 
@@ -13422,16 +12221,12 @@ button.team-landing-tile:hover {
   position: relative;
 }
 
-.team-row-menu-panel {
-  position: absolute;
+/* Placed by the component (021): the shared popover portals it out of the row
+   — which clips it — and opens it over the trigger when the row is near the
+   bottom of the window. The surface is the popover's; this is its content. */
+.team-row-menu-popover {
   z-index: var(--layer-popover);
-  top: calc(100% + var(--space-1));
-  right: 0;
-}
-/* Opened over the trigger, for a row near the bottom of the window. */
-.team-row-menu-panel.is-above {
-  top: auto;
-  bottom: calc(100% + var(--space-1));
+  padding: 0;
 }
 .team-row-menu-panel {
   /* The panel takes the width its longest item needs, between a floor that
@@ -13504,7 +12299,7 @@ button.team-landing-tile:hover {
   gap: var(--space-1);
   align-items: center;
   margin-bottom: var(--space-3);
-  font-size: 0.8125rem;
+  font-size: var(--text-caption);
 }
 
 .team-folder-picker-trail button {
@@ -13558,7 +12353,7 @@ button.team-landing-tile:hover {
 }
 
 .team-field-label {
-  font-size: 0.875rem;
+  font-size: var(--text-label);
   color: var(--color-text-muted);
 }
 
@@ -13568,7 +12363,7 @@ button.team-landing-tile:hover {
   align-items: center;
   justify-content: center;
   margin-top: var(--space-4);
-  font-size: 0.875rem;
+  font-size: var(--text-label);
 }
 
 /* The access check happens over a dimmed backdrop, so its caption sits above
@@ -13588,7 +12383,7 @@ button.team-landing-tile:hover {
 .team-space-card-discard {
   padding: var(--space-1) var(--space-2);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
   cursor: pointer;
   background: none;
@@ -13609,14 +12404,14 @@ button.team-landing-tile:hover {
 }
 
 .team-invitation-identity span {
-  font-size: 0.8125rem;
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
 }
 
 /* Trash view (010 US5). */
 .team-trash-note {
   margin: 0 0 var(--space-4);
-  font-size: 0.875rem;
+  font-size: var(--text-label);
   color: var(--color-text-muted);
 }
 
@@ -13635,11 +12430,13 @@ button.team-landing-tile:hover {
 /* Its own columns: the explorer's row is built for a checkbox, a kind, a size
    and a menu, and the trash has none of those. Borrowing the chrome without
    the template pushed the restore button past the row's own right edge. */
-.team-trash-list .team-explorer-row {
+.team-trash-list.team-explorer-rows .ui-table-header,
+.team-trash-list.team-explorer-rows .ui-table-row {
   grid-template-columns: auto minmax(0, 1fr) minmax(0, 12rem) auto;
 }
 @container (max-width: 620px) {
-  .team-trash-list .team-explorer-row {
+  .team-trash-list.team-explorer-rows .ui-table-header,
+  .team-trash-list.team-explorer-rows .ui-table-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .team-trash-list .team-explorer-row-date {
@@ -13654,13 +12451,13 @@ button.team-landing-tile:hover {
 }
 /* The explorer's rows are 40px controls; the trash borrows their chrome, so its
    restore reads as the same rhythm rather than a shorter row. */
-.team-trash-list .team-explorer-row-actions .button {
+.team-trash-list .team-explorer-row-actions .ui-button {
   min-height: 40px;
   padding-block: 0;
 }
 
 .team-trash-identity span {
-  font-size: 0.8125rem;
+  font-size: var(--text-caption);
   color: var(--color-text-muted);
 }
 
@@ -13918,9 +12715,13 @@ button.team-landing-tile:hover {
   background: var(--color-surface-muted);
   color: var(--color-text);
 }
-.team-explorer-breadcrumb-folded .team-explorer-menu {
-  left: 0;
-  right: auto;
+.team-explorer-breadcrumb-folded /* The menus' own element inside the shared popover surface; it takes no space
+   of its own. */
+.team-explorer-menu-items {
+  display: contents;
+}
+
+.team-explorer-menu {
   min-width: max-content;
   max-width: min(320px, calc(100vw - 2 * var(--space-4)));
 }
@@ -13965,18 +12766,20 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
   margin: 0;
 }
-.team-explorer-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.team-explorer-row {
+/*
+ * The folder's listing is the inventory's Table (T089). What is left here is
+ * what a folder's columns are — the card chrome each row used to carry is the
+ * table's own ruling now, which is also what made the list read as a table
+ * before it was one.
+ */
+.team-explorer-rows .ui-table-row {
   /* One press selects, two open — so the whole row is the target and says so. */
   cursor: pointer;
-  display: grid;
+  min-height: 44px;
+  padding: var(--space-1) var(--space-2);
+}
+.team-explorer-rows .ui-table-header,
+.team-explorer-rows .ui-table-row {
   /* One column per child — checkbox, name, kind, size, actions — because the
      row auto-placed into a second line otherwise, which read as a broken
      table: the name sat mid-row and the size wrapped under the checkbox. The
@@ -13999,12 +12802,9 @@ button.team-landing-tile:hover {
      gives way under pressure — the name takes everything left. */
   grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
   gap: 0;
-  align-items: center;
-  min-height: 44px;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+}
+.team-explorer-rows .ui-table-header {
+  padding-inline: var(--space-2);
 }
 /* The name is a label now, not a target. It was a button — a violet,
    underlined strip that lit up across most of the row — so the row itself
@@ -14099,31 +12899,31 @@ button.team-landing-tile:hover {
 }
 .team-tag-dot.is-red,
 .team-tag-swatch.is-red {
-  --team-tag-color: #ff5f56;
+  --team-tag-color: var(--team-tag-red);
 }
 .team-tag-dot.is-orange,
 .team-tag-swatch.is-orange {
-  --team-tag-color: #ffa023;
+  --team-tag-color: var(--team-tag-orange);
 }
 .team-tag-dot.is-yellow,
 .team-tag-swatch.is-yellow {
-  --team-tag-color: #ffe14d;
+  --team-tag-color: var(--team-tag-yellow);
 }
 .team-tag-dot.is-green,
 .team-tag-swatch.is-green {
-  --team-tag-color: #4cd964;
+  --team-tag-color: var(--team-tag-green);
 }
 .team-tag-dot.is-blue,
 .team-tag-swatch.is-blue {
-  --team-tag-color: #2f9bff;
+  --team-tag-color: var(--team-tag-blue);
 }
 .team-tag-dot.is-purple,
 .team-tag-swatch.is-purple {
-  --team-tag-color: #cc6bff;
+  --team-tag-color: var(--team-tag-purple);
 }
 .team-tag-dot.is-grey,
 .team-tag-swatch.is-grey {
-  --team-tag-color: #b6b6bd;
+  --team-tag-color: var(--team-tag-grey);
 }
 .team-tag-dot.is-button {
   cursor: pointer;
@@ -14152,11 +12952,10 @@ button.team-landing-tile:hover {
   z-index: 3;
 }
 
+/* Placed by the component (021): a row clips what spills past its edge, so the
+   swatches open on the body beside the dot that summoned them. */
 .team-tag-menu {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 6px);
-  right: 0;
   display: grid;
   gap: 6px;
   padding: 8px;
@@ -14164,6 +12963,10 @@ button.team-landing-tile:hover {
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
   box-shadow: var(--shadow-md);
+}
+/* The menu's own element inside the surface; it takes no space of its own. */
+.team-tag-menu-items {
+  display: contents;
 }
 .team-tag-swatches {
   display: flex;
@@ -14226,7 +13029,8 @@ button.team-landing-tile:hover {
   container-type: inline-size;
 }
 @container (max-width: 680px) {
-  .team-explorer-row {
+  .team-explorer-rows .ui-table-header,
+  .team-explorer-rows .ui-table-row {
     grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   }
   .team-explorer-row-date {
@@ -14239,7 +13043,8 @@ button.team-landing-tile:hover {
    "Транс…" and "17.2 …". The icon already says what kind a row is; a size cut
    in half says nothing. */
 @container (max-width: 620px) {
-  .team-explorer-row {
+  .team-explorer-rows .ui-table-header,
+  .team-explorer-rows .ui-table-row {
     grid-template-columns: auto minmax(0, 1fr) auto auto;
   }
   .team-explorer-row-kind {
@@ -14247,7 +13052,8 @@ button.team-landing-tile:hover {
   }
 }
 @container (max-width: 400px) {
-  .team-explorer-row {
+  .team-explorer-rows .ui-table-header,
+  .team-explorer-rows .ui-table-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .team-explorer-row-meta {
@@ -14262,19 +13068,13 @@ button.team-landing-tile:hover {
 .team-connect-acl-note {
   color: var(--color-text-muted);
 }
-.team-selection-list ul {
-  list-style: none;
-  margin: var(--space-2) 0;
+.team-selection-chips {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.team-selection-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   gap: var(--space-2);
+  list-style: none;
 }
 @media (max-width: 1023px) {
   .team-explorer {
@@ -14370,7 +13170,7 @@ button.team-landing-tile:hover {
   display: inline-flex;
   margin-left: auto;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
   padding: 2px;
   gap: 2px;
@@ -14381,8 +13181,12 @@ button.team-landing-tile:hover {
   justify-content: center;
   width: 34px;
   height: 30px;
+  min-height: 0;
+  /* The shared control pads for a word; this one holds an icon, and the
+     inherited padding left the glyph a 2px column to draw in. */
+  padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -14390,7 +13194,7 @@ button.team-landing-tile:hover {
 .team-explorer-view-toggle button:hover {
   color: var(--color-text);
 }
-.team-explorer-view-toggle button[aria-pressed='true'] {
+.team-explorer-view-toggle button.is-selected {
   background: var(--color-surface);
   color: var(--color-text);
   box-shadow: var(--shadow-sm);
@@ -14494,8 +13298,8 @@ button.team-landing-tile:hover {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: color-mix(in srgb, #000 55%, transparent);
-  color: #fff;
+  background: color-mix(in srgb, var(--color-black) 55%, transparent);
+  color: var(--color-white);
   pointer-events: none;
 }
 .team-explorer-tile-play svg {
@@ -14527,8 +13331,11 @@ button.team-landing-tile:hover {
    there: written flat, this also caught the tile's checkbox, which carries both
    classes, and put it back in the flow. Every tile then held a forty-pixel band
    of nothing between its picture and its caption, with the box landing on the
-   file name when it appeared. */
-.team-explorer-row-check.team-explorer-check {
+   file name when it appeared. The row's box is now a child of its own table
+   cell, so the two are told apart by where they sit rather than by a pair of
+   classes on one element — and this element is still the positioned ancestor
+   the hidden input measures itself against. */
+.team-explorer-row-check > .team-explorer-check {
   position: relative;
   display: grid;
   place-items: center;
@@ -14594,7 +13401,7 @@ button.team-landing-tile:hover {
   content: '';
   width: 12px;
   height: 7px;
-  border: 2px solid var(--color-on-accent, #fff);
+  border: 2px solid var(--color-on-accent, var(--color-white));
   border-top: 0;
   border-right: 0;
   transform: translateY(-1px) rotate(-45deg);
@@ -14717,7 +13524,7 @@ button.team-landing-tile:hover {
 }
 .team-explorer-tile-date {
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
 }
 .team-explorer-tile-caption {
   display: flex;
@@ -14750,10 +13557,6 @@ button.team-landing-tile:hover {
 }
 .team-explorer-tile-render.is-failed {
   color: var(--color-error);
-}
-.team-explorer-row.is-selected {
-  border-color: var(--color-accent);
-  background: var(--color-accent-softer);
 }
 /* The file's own card, and read as one: the same corner, the same surface and a little more
    room to breathe than a tile, because this is the thing being looked at rather than one of
@@ -14828,7 +13631,7 @@ button.team-landing-tile:hover {
 .team-explorer-pane-transcript-title {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -14958,7 +13761,7 @@ button.team-landing-tile:hover {
   min-height: 34px;
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
@@ -14985,7 +13788,7 @@ button.team-landing-tile:hover {
   width: 30px;
   height: 30px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface);
   color: var(--color-text-muted);
   cursor: pointer;
@@ -14994,10 +13797,9 @@ button.team-landing-tile:hover {
   color: var(--color-text);
   border-color: var(--color-accent);
 }
+/* Placed by the component (021): portalled past the toolbar and flipped when
+   the window is short. */
 .team-explorer-menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  left: 0;
   z-index: var(--layer-popover);
   min-width: 220px;
   padding: var(--space-1);
@@ -15009,15 +13811,7 @@ button.team-landing-tile:hover {
   background: var(--color-surface-raised);
   box-shadow: var(--shadow-lg);
 }
-.team-explorer-menu-heading {
-  margin: 0;
-  padding: var(--space-2) var(--space-3) var(--space-1);
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+
 .team-explorer-menu-item {
   display: flex;
   align-items: center;
@@ -15057,10 +13851,7 @@ button.team-landing-tile:hover {
   color: var(--color-accent);
   font-weight: 600;
 }
-.team-explorer-menu-check {
-  width: 16px;
-  color: var(--color-accent);
-}
+
 .team-explorer-kinds,
 .team-explorer-scope {
   display: flex;
@@ -15070,7 +13861,7 @@ button.team-landing-tile:hover {
 .team-explorer-kind-chip,
 .team-explorer-scope button {
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface);
   color: var(--color-text-muted);
   font: inherit;
@@ -15309,12 +14100,12 @@ button.team-landing-tile:hover {
 .task-quick-range {
   min-height: 32px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface);
   color: var(--color-text-muted);
   padding: 0 var(--space-3);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   cursor: pointer;
 }
@@ -15324,7 +14115,7 @@ button.team-landing-tile:hover {
 .task-quick-range.is-active {
   border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
   background: var(--color-accent-softer);
-  color: var(--color-accent-active);
+  color: var(--color-accent-text);
 }
 
 /* The list row's kind glyph, at text size. */
@@ -15348,15 +14139,6 @@ button.team-landing-tile:hover {
   margin-right: 6px;
   vertical-align: -3px;
   color: var(--color-accent);
-}
-
-.team-companion-delete-remember {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: var(--space-3) 0;
-  color: var(--color-text-muted);
-  cursor: pointer;
 }
 
 /* Folder batch processing (015): one action per row, its scope beside it. */
@@ -15439,19 +14221,7 @@ button.team-landing-tile:hover {
   white-space: nowrap;
 }
 .team-process-panel-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
   color: var(--color-text-muted);
-  cursor: pointer;
-  padding: var(--space-1);
-}
-.team-process-panel-toggle:hover {
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-border) 40%, transparent);
 }
 .team-process-panel-detail,
 .team-process-panel-phase {
@@ -15473,45 +14243,13 @@ button.team-landing-tile:hover {
   align-items: center;
   gap: var(--space-2);
 }
-.team-process-panel-actions > .button {
-  /* Every action carries the same chrome: a bare word beside a boxed one reads as a label,
-     not a button. */
-  border: 1px solid var(--color-border);
-  padding: var(--space-1) var(--space-3);
-  white-space: nowrap;
-}
-.team-process-panel-actions > .button:hover {
-  border-color: var(--color-border-strong);
-}
-/* The way out reads like one, without being torn out of the row. */
-.team-process-panel-stop {
-  color: var(--color-error);
-  border-color: color-mix(in srgb, var(--color-error) 40%, transparent) !important;
-}
-.team-process-panel-stop:hover {
-  background: color-mix(in srgb, var(--color-error) 12%, transparent);
-  border-color: color-mix(in srgb, var(--color-error) 60%, transparent) !important;
+/* Every action carries the same chrome: a bare word beside a boxed one reads as
+   a label, not a button. The colour is the button's own role — the way out is
+   the red one, and it stays inside the row rather than being torn out of it. */
+.team-process-panel-actions > .ui-button {
+  border-color: var(--ui-border);
 }
 
-.team-transcribe-queue {
-  position: fixed;
-  right: var(--space-4);
-  bottom: var(--space-4);
-  z-index: var(--layer-overlay);
-  display: grid;
-  gap: var(--space-2);
-  width: min(340px, calc(100vw - 2 * var(--space-4)));
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: 0 12px 32px color-mix(in oklab, #000 35%, transparent);
-}
-.team-transcribe-queue-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
 /* Specific enough to beat the one-line clipping the panel's paragraphs share:
    the file name above is meant to be cut, this sentence is the answer to "is my
    machine still busy?" and has to be readable whole. */
@@ -15532,11 +14270,11 @@ button.team-landing-tile:hover {
 /* Embedding image tiles: click toggles the image in/out of the random pick. */
 .selected-image-tile.is-active {
   /* A quiet luxe glow: a whisper of an outline, light spreading softly. */
-  outline: 1px solid color-mix(in oklab, #34c759 55%, transparent);
+  outline: 1px solid color-mix(in oklab, var(--green-450) 55%, transparent);
   outline-offset: 0;
   box-shadow:
-    0 0 10px 1px color-mix(in oklab, #34c759 45%, transparent),
-    0 0 26px 8px color-mix(in oklab, #34c759 16%, transparent);
+    0 0 10px 1px color-mix(in oklab, var(--green-450) 45%, transparent),
+    0 0 26px 8px color-mix(in oklab, var(--green-450) 16%, transparent);
   cursor: pointer;
 }
 .selected-image-tile.is-inactive {
@@ -15545,7 +14283,7 @@ button.team-landing-tile:hover {
   /* The veil must cover the tile to its rounded edge — no bright rim. */
   overflow: hidden;
   /* A thin red frame says "excluded" at a glance. */
-  outline: 1px solid color-mix(in oklab, #ff6b6b 75%, transparent);
+  outline: 1px solid color-mix(in oklab, var(--red-400) 75%, transparent);
   outline-offset: -1px;
 }
 /* Centred thin caption over the veil. */
@@ -15557,7 +14295,7 @@ button.team-landing-tile:hover {
   display: grid;
   place-items: center;
   padding: 0 4px;
-  color: #ff9b9b;
+  color: var(--red-300);
   font-size: var(--text-lg);
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -15575,7 +14313,7 @@ button.team-landing-tile:hover {
   position: absolute;
   inset: 0;
   /* A 20% gray veil across the whole tile; the delete button rides above. */
-  background: color-mix(in oklab, #808080 20%, transparent);
+  background: color-mix(in oklab, var(--slate-600) 20%, transparent);
   border-radius: inherit;
   pointer-events: none;
   z-index: 1;
@@ -15583,28 +14321,17 @@ button.team-landing-tile:hover {
 .selected-image-tile .selected-image-action {
   z-index: 3;
 }
-.selected-image-off {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  z-index: 1;
-  pointer-events: none;
-}
+
 .selected-image-off svg {
   width: 100%;
   height: 100%;
-  stroke: color-mix(in oklab, #fff 60%, transparent);
+  stroke: color-mix(in oklab, var(--color-white) 60%, transparent);
   /* Thicker, rounded cross. */
   stroke-width: 2.6;
   stroke-linecap: round;
   fill: none;
 }
-.output-suffix-field {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
+
 .output-suffix-field span {
   color: var(--color-text-muted);
   font-size: 0.85em;
@@ -15655,7 +14382,7 @@ button.team-landing-tile:hover {
   place-items: center;
 }
 .image-drop-message.is-minimal .image-drop-icon {
-  font-size: 30px;
+  font-size: var(--text-display);
 }
 
 /* Shared pictogram base: icons speak, the words live in tooltips. */
@@ -15701,12 +14428,7 @@ button.team-landing-tile:hover {
   display: grid;
   gap: var(--space-3);
 }
-.team-compress-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.team-compress-suffix input {
+.team-compress-suffix .ui-input {
   width: 160px;
 }
 .team-compress-destination {
@@ -15715,11 +14437,7 @@ button.team-landing-tile:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
-}
-.team-compress-destination label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  justify-items: start;
 }
 
 /* The name-ending sits on its own tidy row, flush with the control above. */
@@ -15849,11 +14567,11 @@ input[type='number'] {
 }
 .crf-gradient {
   accent-color: var(--color-accent);
-  background: linear-gradient(to right, #34c759 0%, #ff6b6b 100%);
+  background: linear-gradient(to right, var(--green-450) 0%, var(--red-400) 100%);
   width: 100%;
   min-width: 120px;
   height: 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   appearance: none;
   -webkit-appearance: none;
   outline-offset: 4px;
@@ -15863,7 +14581,7 @@ input[type='number'] {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-white);
   border: 2px solid var(--color-accent);
   cursor: pointer;
 }
@@ -15871,7 +14589,7 @@ input[type='number'] {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-white);
   border: 2px solid var(--color-accent);
   cursor: pointer;
 }
@@ -15894,7 +14612,7 @@ input[type='number'] {
 /* The gem doubles in size while the CRF slider is dragged, shrinking back on
    release — the pixelation it shows is the point of the gesture. */
 .fit-mode-pictos button {
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-fast) ease;
 }
 .fit-mode-pictos button.is-zoomed {
   transform: scale(1.35);
@@ -16022,25 +14740,25 @@ input[type='number'] {
    not as a bright card dropped onto it. */
 .drop-zone.is-ok,
 .drop-zone.is-ok:hover {
-  border-color: #2f9e56;
-  color: #6fe08f;
-  background: color-mix(in oklab, #06301a 62%, var(--color-surface));
+  border-color: var(--green-700);
+  color: var(--green-300);
+  background: color-mix(in oklab, var(--green-950) 62%, var(--color-surface));
 }
 .drop-zone.is-fail,
 .drop-zone.is-fail:hover {
-  border-color: #b34343;
-  color: #ff9b9b;
-  background: color-mix(in oklab, #360a0a 62%, var(--color-surface));
+  border-color: var(--red-700);
+  color: var(--red-300);
+  background: color-mix(in oklab, var(--red-950) 62%, var(--color-surface));
 }
 .drop-zone.is-ok .drop-icon,
 .drop-zone.is-ok strong,
 .drop-zone.is-ok span:not(.drop-icon):not(.spinner) {
-  color: #6fe08f;
+  color: var(--green-300);
 }
 .drop-zone.is-fail .drop-icon,
 .drop-zone.is-fail strong,
 .drop-zone.is-fail span:not(.drop-icon):not(.spinner) {
-  color: #ff9b9b;
+  color: var(--red-300);
 }
 
 /* Nested settings blocks share the deeper green of the custom section. */
@@ -16089,7 +14807,8 @@ input[type='number'] {
   background: transparent;
   box-shadow: none;
 }
-.batch-toolbar .batch-progress .progress-track {
+.batch-toolbar .batch-progress .progress-track,
+.batch-toolbar .batch-progress .ui-progress {
   flex: 1;
 }
 .batch-toolbar .batch-progress-value {
@@ -16097,13 +14816,15 @@ input[type='number'] {
   font-size: var(--text-lg);
 }
 .batch-toolbar .batch-progress.progress-track,
-.batch-toolbar .progress-track {
+.batch-toolbar .progress-track,
+.batch-toolbar .ui-progress {
   height: 3px;
   min-height: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
 }
-.batch-toolbar .progress-track > span {
-  border-radius: 999px;
+.batch-toolbar .progress-track > span,
+.batch-toolbar .ui-progress-fill {
+  border-radius: var(--radius-full);
 }
 /* Chip line sits on the same baseline as the buttons. */
 .batch-chips {
@@ -16149,14 +14870,16 @@ input[type='number'] {
   font-weight: 600;
   white-space: nowrap;
 }
+/* The role's *text* shade, not a step of the palette chosen by eye: amber-600
+   and green-400 came to 2.88:1 and 3.41:1 on white. */
 .batch-chip.is-processing {
-  color: #ff8c1a;
+  color: var(--color-warning-text);
 }
 .batch-chip.is-done {
-  color: #4ade6a;
+  color: var(--color-success-text);
 }
 .batch-chip.is-failed {
-  color: #ff4d4d;
+  color: var(--color-error-text);
 }
 /* The progress row keeps the bar; its plain counters are now the chips. */
 .batch-toolbar .batch-counts {
@@ -16229,7 +14952,7 @@ input[type='number'] {
   height: 20px;
   border-width: 1.5px;
   border-color: color-mix(in oklab, var(--honey-500) 70%, transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--honey-400);
 }
@@ -16247,7 +14970,7 @@ input[type='number'] {
   /* Same surface as the file cards, with a slightly brighter hairline than
      they carry — the way the settings panel is outlined. */
   border: 1px solid color-mix(in oklab, var(--color-text) 18%, transparent);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
 .batch-toolbar-row {
@@ -16264,26 +14987,26 @@ input[type='number'] {
   padding-left: 24px;
 }
 /* Every action in the bar shares one size and radius. */
-.batch-toolbar .primary-actions .button {
+.batch-toolbar .primary-actions .ui-button {
   min-height: 44px;
   padding: 0 24px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: var(--text-2xl);
 }
 .batch-toolbar .batch-chip {
   font-size: var(--text-2xl);
   font-weight: 500;
 }
-.batch-toolbar .selection-actions .checkbox span:last-child,
+.batch-toolbar .selection-actions .ui-checkbox-label,
 .batch-toolbar .selection-actions button {
   font-size: var(--text-2xl);
   font-weight: 500;
 }
-.batch-toolbar .selection-actions .checkbox strong {
+.batch-toolbar .selection-actions .ui-checkbox-label strong {
   font-weight: 500;
 }
 /* Text-only selection actions. */
-.batch-toolbar .selection-actions .button,
+.batch-toolbar .selection-actions .ui-button,
 .batch-toolbar .selection-actions button {
   padding: 0 2px;
   border: none;
@@ -16295,41 +15018,11 @@ input[type='number'] {
   color: var(--color-text);
   background: transparent;
 }
-/* Primary: filled orange gradient with white type. */
-.batch-toolbar .primary-actions .button-primary {
-  border: none;
-  border-radius: 10px;
-  color: #fff;
-  background: linear-gradient(180deg, #fb8b1e 0%, #f2740c 100%);
-  box-shadow: none;
+/* The three looks the reference painted by hand — a filled primary, an
+   outlined destructive and a quiet neutral — are the inventory's solid, soft
+   and ghost now. What is left is the weight this bar's actions carry. */
+.batch-toolbar .primary-actions .ui-button {
   font-weight: 700;
-}
-.batch-toolbar .primary-actions .button-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ff9a33 0%, #fb8b1e 100%);
-}
-/* Destructive: outlined red on a transparent field. */
-.batch-toolbar .primary-actions .button-danger {
-  border: 1px solid color-mix(in oklab, #ff6b6b 55%, transparent);
-  border-radius: 10px;
-  color: #ff7a6b;
-  background: transparent;
-  font-weight: 700;
-}
-.batch-toolbar .primary-actions .button-danger:hover:not(:disabled) {
-  border-color: #ff6b6b;
-  background: color-mix(in oklab, #ff6b6b 12%, transparent);
-}
-/* Neutral action: quiet outline, white type. */
-.batch-toolbar .primary-actions .button-ghost {
-  border: 1px solid color-mix(in oklab, var(--color-text) 16%, transparent);
-  border-radius: 10px;
-  color: var(--color-text);
-  background: transparent;
-  font-weight: 700;
-}
-.batch-toolbar .primary-actions .button-ghost:hover:not(:disabled) {
-  border-color: color-mix(in oklab, var(--color-text) 30%, transparent);
-  background: color-mix(in oklab, var(--color-text) 6%, transparent);
 }
 
 /* ============================================================
@@ -16371,13 +15064,13 @@ input[type='number'] {
    the body does not cover. */
 .job-row[data-state='processing'],
 .job-row[data-state='queued'] {
-  background-color: #3b82f6;
+  background-color: var(--action-view);
 }
 .job-row[data-state='completed'] {
-  background-color: #22c55e;
+  background-color: var(--green-500);
 }
 .job-row[data-state='failed'] {
-  background-color: #ef4444;
+  background-color: var(--red-500);
 }
 .job-row[data-state='cancelled'],
 .job-row[data-state='interrupted'],
@@ -16385,7 +15078,7 @@ input[type='number'] {
 .job-row[data-state='analyzing'] {
   /* A solid light grey, not a translucent wash, so the rail reads the same
      over every background. */
-  background-color: #9aa0aa;
+  background-color: var(--slate-400);
 }
 .job-main {
   display: grid;
@@ -16422,7 +15115,7 @@ input[type='number'] {
   min-width: 0;
   min-height: 42px;
   padding: 0 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   white-space: nowrap;
 }
 /* Running: the progress panel owns the right side, cancel sits inline. */
@@ -16432,11 +15125,11 @@ input[type='number'] {
   gap: 10px;
   padding: 14px 16px;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface-subtle);
 }
 .job-progress-title {
-  color: #ff8c1a;
+  color: var(--amber-600);
 }
 .job-progress-line {
   display: flex;
@@ -16474,7 +15167,7 @@ input[type='number'] {
   height: 20px;
   border-width: 1.5px;
   border-color: color-mix(in oklab, var(--honey-500) 70%, transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--honey-400);
 }
@@ -16509,16 +15202,16 @@ input[type='number'] {
 .job-row .status-processing,
 .job-row .status-queued,
 .job-row .status-analyzing {
-  color: #7cb2ff;
-  background: color-mix(in oklab, #3b82f6 20%, transparent);
+  color: var(--sky-300);
+  background: color-mix(in oklab, var(--action-view) 20%, transparent);
 }
 .job-row .status-completed {
-  color: #4ade6a;
-  background: color-mix(in oklab, #22c55e 18%, transparent);
+  color: var(--green-400);
+  background: color-mix(in oklab, var(--green-500) 18%, transparent);
 }
 .job-row .status-failed {
-  color: #ff6b6b;
-  background: color-mix(in oklab, #ef4444 18%, transparent);
+  color: var(--red-400);
+  background: color-mix(in oklab, var(--red-500) 18%, transparent);
 }
 .job-row .status-cancelled,
 .job-row .status-ready,
@@ -16659,27 +15352,30 @@ input[type='number'] {
   width: 96px;
   height: 4px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
 }
 .estimate-bar > span {
   display: block;
+  width: 100%;
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-accent);
-  transition: width var(--dur-control) var(--ease-standard);
+  transform: scaleX(var(--fill-ratio, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-control) var(--ease-standard);
 }
 
 /* Each card carries a faint wash of its rail colour. */
 .job-row[data-state='processing']::before,
 .job-row[data-state='queued']::before {
-  background: color-mix(in oklab, #3b82f6 15%, var(--color-surface));
+  background: color-mix(in oklab, var(--action-view) 15%, var(--color-surface));
 }
 .job-row[data-state='completed']::before {
-  background: color-mix(in oklab, #22c55e 14%, var(--color-surface));
+  background: color-mix(in oklab, var(--green-500) 14%, var(--color-surface));
 }
 .job-row[data-state='failed']::before {
-  background: color-mix(in oklab, #ef4444 8%, var(--color-surface));
+  background: color-mix(in oklab, var(--red-500) 8%, var(--color-surface));
 }
 .job-row[data-state='cancelled']::before,
 .job-row[data-state='interrupted']::before {
@@ -16699,33 +15395,45 @@ input[type='number'] {
 .job-progress-panel .job-actions {
   flex-wrap: nowrap;
 }
+/* On a phone the running panel's line is a size, an elapsed time and two
+   controls, and it does not fit: it wrapped off the left edge of its own card,
+   taking "175 MB → ~49.6 MB" with it. It wraps onto two lines instead. */
+@media (max-width: 560px) {
+  .job-progress-panel .job-progress-meta {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .job-progress-panel .job-actions {
+    margin-left: 0;
+  }
+}
 
 /* Card actions share the toolbar's palette: filled orange for the run/repeat
    action, outlined red for delete, quiet outlines for the rest. */
 .job-side .job-actions .button-primary,
 .job-progress-panel .job-actions .button-primary {
   border: none;
-  color: #fff;
-  background: linear-gradient(180deg, #fb8b1e 0%, #f2740c 100%);
+  color: var(--color-white);
+  background: linear-gradient(180deg, var(--amber-550) 0%, var(--amber-700) 100%);
   box-shadow: none;
   font-weight: 700;
 }
 .job-side .job-actions .button-primary:hover:not(:disabled),
 .job-progress-panel .job-actions .button-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ff9a33 0%, #fb8b1e 100%);
+  background: linear-gradient(180deg, var(--amber-400) 0%, var(--amber-550) 100%);
 }
 
 /* When the bar runs out of room the three actions drop their words and become
    square icon buttons — compress, delete, sweep. Their labels stay as instant
    hints (title → data-tip) so nothing is lost. */
-.batch-toolbar .primary-actions .button {
+.batch-toolbar .primary-actions .ui-button {
   gap: 10px;
 }
 /* Set by App when the row measures as overflowing. */
 .batch-toolbar-row.is-compact .primary-actions .action-label {
   display: none;
 }
-.batch-toolbar-row.is-compact .primary-actions .button {
+.batch-toolbar-row.is-compact .primary-actions .ui-button {
   /* A fixed square, and it must not grow: something further down the sheet gives buttons a
      flex-grow on narrow screens, and a growing button in a `nowrap` row pushes the row off
      the side of the screen instead of shrinking to its icon. */
@@ -16736,13 +15444,20 @@ input[type='number'] {
   justify-content: center;
 }
 
-/* Narrow windows: the card's two columns stack instead of squeezing. */
+/* Narrow windows: the card's two columns stack instead of squeezing.
+ *
+ * `.job-side` is `display: contents`, so its panels are the card's own grid
+ * items — and the running panel asks for column 2. With one column declared
+ * that request made an implicit second one, which took the width and left the
+ * file's name a fifteen-pixel sliver on a phone. Everything spans the single
+ * column here instead. */
 @media (max-width: 1180px) {
   .job-row {
     grid-template-columns: minmax(0, 1fr);
   }
-  .job-side {
-    grid-template-columns: minmax(0, 1fr) auto;
+  .job-row > .job-main,
+  .job-row .job-side > * {
+    grid-column: 1 / -1;
   }
 }
 
@@ -16753,15 +15468,30 @@ input[type='number'] {
 }
 .batch-toolbar-row.is-compact-chips .batch-chips {
   gap: 14px;
+  /* The strip's own inset goes with its words: at the last stage the bar is
+     four square buttons, three numbers and a checkbox, and 24px of padding
+     between two of them is what pushed the last button off a phone. */
+  padding-left: 0;
+}
+.batch-toolbar-row.is-compact-chips {
+  gap: var(--space-3);
+  /* Last resort, and only once every group has already shrunk: a bar with one
+     action more than the compressor's four (transcription adds Copy finished)
+     still does not fit a phone, and a wrapped line is better than a control
+     off the edge of the screen. */
+  flex-wrap: wrap;
+}
+.batch-toolbar-row.is-compact-chips .primary-actions {
+  margin-left: auto;
 }
 
 /* Third stage: the selection group keeps its checkbox and drops its words, so a
    phone-width window still shows every control instead of pushing the last group off
    the edge of the page. The checkbox stays named for assistive technology. */
-.batch-toolbar-row .selection-actions.is-compact .button {
+.batch-toolbar-row .selection-actions.is-compact .ui-button {
   display: none;
 }
-.batch-toolbar-row .selection-actions.is-compact .checkbox strong {
+.batch-toolbar-row .selection-actions.is-compact .ui-checkbox-label strong {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -16914,7 +15644,7 @@ input[type='number'] {
   /* The dark violet slab of the dark theme turns into a pale one here, so the
      heading and its summary stay readable. */
   border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
-  background: color-mix(in oklab, var(--color-accent) 8%, #fff);
+  background: color-mix(in oklab, var(--color-accent) 8%, var(--color-white));
 }
 /* The same correction the compressor's own panel needs: the dark violet slab
    becomes a pale one here, or the heading sits dark-on-dark. */
@@ -16923,7 +15653,7 @@ input[type='number'] {
 :root[data-theme='light'] .team-space-settings .team-panel,
 :root:not([data-theme='dark']) .team-space-settings .team-panel {
   border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
-  background: color-mix(in oklab, var(--color-accent) 8%, #fff);
+  background: color-mix(in oklab, var(--color-accent) 8%, var(--color-white));
 }
 :root[data-theme='light'] .settings-primary-row,
 :root:not([data-theme='dark']) .settings-primary-row,
@@ -16932,7 +15662,7 @@ input[type='number'] {
 :root[data-theme='light'] .settings-panel .image-embedding-panel,
 :root:not([data-theme='dark']) .settings-panel .image-embedding-panel {
   border-color: color-mix(in oklab, var(--color-accent) 22%, transparent);
-  background: #fff;
+  background: var(--color-white);
 }
 /* Selection is unmistakable: a filled honey box with a white check. */
 :root[data-theme='light'] .job-header .checkbox-mark,
@@ -16948,17 +15678,17 @@ input[type='number'] {
 :root:not([data-theme='dark']) .batch-toolbar .select-all-box input:checked + .checkbox-mark {
   border-color: var(--honey-600);
   background: var(--honey-500);
-  color: #fff;
+  color: var(--color-white);
 }
 /* No violet-blue halo around cards — a soft neutral lift instead. */
 :root[data-theme='light'] .job-row,
 :root:not([data-theme='dark']) .job-row {
-  box-shadow: 0 1px 3px rgb(36 27 58 / 8%);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--grey-900) 8%, transparent);
 }
 :root[data-theme='light'] .job-row.is-selected,
 :root:not([data-theme='dark']) .job-row.is-selected {
   border-color: transparent;
-  box-shadow: 0 1px 3px rgb(36 27 58 / 8%);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--grey-900) 8%, transparent);
 }
 :root[data-theme='light'] .job-row.is-selected::before,
 :root:not([data-theme='dark']) .job-row.is-selected::before {
@@ -16969,15 +15699,15 @@ input[type='number'] {
 :root:not([data-theme='dark']) .job-row[data-state='processing']::before,
 :root[data-theme='light'] .job-row[data-state='queued']::before,
 :root:not([data-theme='dark']) .job-row[data-state='queued']::before {
-  background: color-mix(in oklab, #3b82f6 7%, #fff);
+  background: color-mix(in oklab, var(--action-view) 7%, var(--color-white));
 }
 :root[data-theme='light'] .job-row[data-state='completed']::before,
 :root:not([data-theme='dark']) .job-row[data-state='completed']::before {
-  background: color-mix(in oklab, #22c55e 7%, #fff);
+  background: color-mix(in oklab, var(--green-500) 7%, var(--color-white));
 }
 :root[data-theme='light'] .job-row[data-state='failed']::before,
 :root:not([data-theme='dark']) .job-row[data-state='failed']::before {
-  background: color-mix(in oklab, #ef4444 6%, #fff);
+  background: color-mix(in oklab, var(--red-500) 6%, var(--color-white));
 }
 :root[data-theme='light'] .job-row[data-state='cancelled']::before,
 :root:not([data-theme='dark']) .job-row[data-state='cancelled']::before,
@@ -16985,21 +15715,11 @@ input[type='number'] {
 :root:not([data-theme='dark']) .job-row[data-state='ready']::before,
 :root[data-theme='light'] .job-row[data-state='interrupted']::before,
 :root:not([data-theme='dark']) .job-row[data-state='interrupted']::before {
-  background: #fff;
+  background: var(--color-white);
 }
-/* Status counters keep their meaning but stop glowing on white. */
-:root[data-theme='light'] .batch-chip.is-processing,
-:root:not([data-theme='dark']) .batch-chip.is-processing {
-  color: #c2620a;
-}
-:root[data-theme='light'] .batch-chip.is-done,
-:root:not([data-theme='dark']) .batch-chip.is-done {
-  color: #1f7a3d;
-}
-:root[data-theme='light'] .batch-chip.is-failed,
-:root:not([data-theme='dark']) .batch-chip.is-failed {
-  color: #c53030;
-}
+/* Status counters keep their meaning but stop glowing on white — the light
+   theme used to darken them by hand here, which is what the role's text shade
+   is for, and by hand they landed at 2.88:1 and 3.41:1. */
 
 /* Each gallery sits on its own light slab, the same one the settings rows
    use — so the tiles read as a group rather than floating on the panel. */
@@ -17012,7 +15732,7 @@ input[type='number'] {
 :root[data-theme='light'] .settings-panel .image-columns > .image-column,
 :root:not([data-theme='dark']) .settings-panel .image-columns > .image-column {
   border-color: color-mix(in oklab, var(--color-accent) 20%, transparent);
-  background: #fff;
+  background: var(--color-white);
 }
 /* The divider between the two galleries is redundant once each has a slab. */
 .image-columns > * + *::before {
@@ -17089,7 +15809,7 @@ input[type='number'] {
 }
 
 .stitch-note.is-error {
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
 }
 
 /* "No screen" is a choice, so it is a tile like the photographs beside it —
@@ -17126,21 +15846,8 @@ input[type='number'] {
   gap: var(--space-3);
 }
 
-.stitch-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-}
-
-.stitch-row-detail {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
 .stitch-row[data-state='failed'] .stitch-row-detail {
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
 }
 
 /* ===========================================================================
@@ -17327,11 +16034,11 @@ input[type='number'] {
   display: inline-flex;
 }
 
+/* Placed by the component (021): portalled out of the row and flipped upward
+   near the bottom of the window, which the two rules below used to do by hand
+   for the last rows of the table. */
 .tfa-menu {
-  position: absolute;
   z-index: var(--layer-dropdown);
-  top: calc(100% + var(--space-2));
-  left: 0;
   display: grid;
   min-width: 210px;
   padding: var(--space-1);
@@ -17339,18 +16046,6 @@ input[type='number'] {
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
-}
-
-.tfa-menu-right,
-.tfa-cell-actions .tfa-menu {
-  right: 0;
-  left: auto;
-}
-
-/* The last rows' menus would open below the fold; they open upward instead. */
-.tfa-table tbody tr:nth-last-child(-n + 2) .tfa-cell-actions .tfa-menu {
-  top: auto;
-  bottom: calc(100% + var(--space-2));
 }
 
 .tfa-menu button {
@@ -17378,7 +16073,7 @@ input[type='number'] {
 }
 
 .tfa-menu .tfa-menu-danger {
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
 }
 
 /* --- A code for a key that is not stored ----------------------------------- */
@@ -17439,7 +16134,7 @@ input[type='number'] {
 }
 
 .tfa-quick-error {
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
   font-size: var(--text-sm);
 }
 
@@ -17462,7 +16157,7 @@ input[type='number'] {
   color: var(--color-accent);
   cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 1.15rem;
+  font-size: var(--text-section);
   font-weight: 600;
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
@@ -17504,8 +16199,8 @@ input[type='number'] {
 
 .tfa-code-digits {
   white-space: nowrap;
-  transition: filter 0.25s var(--ease-standard);
-  animation: tfa-code-in 0.4s var(--ease-standard);
+  transition: filter var(--motion-base) var(--ease-standard);
+  animation: tfa-code-in var(--motion-slow) var(--ease-standard);
 }
 
 @keyframes tfa-code-in {
@@ -17546,7 +16241,7 @@ input[type='number'] {
      bar gives way before the number does. */
   min-width: 84px;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
   overflow: hidden;
 }
@@ -17557,7 +16252,7 @@ input[type='number'] {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--color-accent);
   animation: tfa-drain 30s linear infinite;
 }
@@ -17881,8 +16576,8 @@ input[type='number'] {
 }
 
 .tfa-cell-actions .tfa-danger:hover {
-  background: color-mix(in srgb, var(--color-danger, #e5484d) 14%, transparent);
-  color: var(--color-danger, #e5484d);
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
+  color: var(--color-error);
 }
 
 @media (hover: none) {
@@ -17898,8 +16593,8 @@ input[type='number'] {
 }
 
 .tfa-cell-actions .tfa-reject {
-  border: 1px solid color-mix(in srgb, var(--color-danger, #e5484d) 55%, var(--color-border));
-  color: var(--color-danger, #e5484d);
+  border: 1px solid color-mix(in srgb, var(--color-error) 55%, var(--color-border));
+  color: var(--color-error);
 }
 
 .tfa-bulk-delete {
@@ -17907,10 +16602,10 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-danger, #e5484d) 45%, var(--color-border));
+  border: 1px solid color-mix(in srgb, var(--color-error) 45%, var(--color-border));
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
   cursor: pointer;
   font-size: var(--text-xs);
   letter-spacing: normal;
@@ -17960,7 +16655,7 @@ input[type='number'] {
 .tfa-edit-error {
   display: block;
   margin-top: var(--space-1);
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
   font-size: var(--text-sm);
   letter-spacing: normal;
   text-align: left;
@@ -18014,7 +16709,7 @@ input[type='number'] {
 
 .tfa-notice-error,
 .tfa-notice-error strong {
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
 }
 
 .tfa-clock-warning {

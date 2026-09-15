@@ -8,6 +8,7 @@ import { applyBackendPlan } from './adapters/backend.mjs';
 import { rehearseBackendBeta } from './adapters/backend-beta.mjs';
 import { createSupabaseBackendAdapter } from './adapters/supabase-backend.mjs';
 import { commitKnownFiles, promoteBeta, remoteBetaSha } from './adapters/git.mjs';
+import { retryDelay } from './retry.mjs';
 
 const exec = promisify(execFile);
 
@@ -182,7 +183,12 @@ async function listWorkflowRuns({ cwd, workflow }) {
       return JSON.parse(stdout);
     } catch (error) {
       if (attempt === 2 || !TRANSIENT.test(messageOf(error))) return null;
-      await new Promise(resolve => setTimeout(resolve, 3000 * (attempt + 1)));
+      // The backoff policy is `retry.mjs`, which was written for exactly this
+      // and had no caller -- the same shape as every other defect this release
+      // turned up, and one I walked straight into by hand-rolling a fixed delay
+      // here first. Jitter matters against an API that rate-limits: three
+      // clients backing off in lockstep arrive together.
+      await new Promise(resolve => setTimeout(resolve, retryDelay(attempt + 1, { baseMs: 1500, maxMs: 8000 })));
     }
   }
   return null;
@@ -248,9 +254,29 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
   } catch (error) {
     return fail('ACCESS_UNAVAILABLE', `gh workflow run failed: ${messageOf(error)}`);
   }
-  // The dispatch may have started a run even if finding it fails, so a lookup
-  // failure is ambiguous rather than a clean "nothing happened".
-  const found = await findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt });
+  /**
+   * The run exists a moment after the dispatch returns, not at it.
+   *
+   * `gh workflow run` reports that GitHub accepted the request; creating the run
+   * is asynchronous, and for the first few seconds `gh run list` does not show
+   * it. Looking once, immediately, is therefore a coin toss -- and it landed
+   * badly on a release whose Windows build was already compiling: the step
+   * declared the effect ambiguous while the effect was on screen.
+   *
+   * So the step waits for the run it just asked for, up to a minute. A dispatch
+   * that produced nothing at all still ends as ambiguous, which is the honest
+   * answer: the request was accepted and nothing can be found.
+   *
+   * Deliberately not `retry.mjs`: nothing here failed. This is waiting for
+   * something expected to appear, and that module's policy -- five attempts,
+   * growing delays -- is for a call that went wrong, not for a fact that has
+   * not arrived yet.
+   */
+  let found = null;
+  for (let attempt = 0; attempt < 10 && !found; attempt += 1) {
+    if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 6000));
+    found = await findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt });
+  }
   if (!found)
     return fail('EFFECT_AMBIGUOUS', `dispatched ${workflow} for ${sourceSha} but no run was found`);
   return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(found.databaseId)], {
@@ -272,7 +298,7 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
  *   binding: {bindingId: string, kind: string},
  *   backendPlan?: {changes: readonly object[]} | null,
  *   backendAdapter?: object | null,
- *   journal?: {flush: (receipt: object) => Promise<void>} | null,
+ *   journal?: {append: (type: string, payload: unknown) => Promise<unknown>} | null,
  *   admission?: object | null,
  *   allowRemote?: boolean
  * }} options
@@ -429,6 +455,15 @@ export async function createStepAdapter({
           return fail('EFFECT_AMBIGUOUS', `gh release create failed: ${messageOf(error)}`);
         }
       }
+      // The tag exists on GitHub the moment the release does; it exists here
+      // only if somebody fetches it. `deploy:web` requires it locally -- a
+      // deployment must be able to name the artifacts it is advertising -- so a
+      // release that created its own tag and never brought it home stopped one
+      // step from shipping, with the tag visible in a browser.
+      await exec('git', ['fetch', '--no-tags', 'origin', `refs/tags/v${version}:refs/tags/v${version}`], {
+        cwd,
+        shell: false
+      }).catch(() => {});
       return dispatchAndWatch('publish', { cwd, env: childEnv, admission, sourceSha, releaseId, publish: true });
     },
 
@@ -464,14 +499,24 @@ export async function createStepAdapter({
        * what ships is verified after the digests are recorded, not before.
        */
       const expectedBetaSha = await remoteBetaSha({ cwd, env: childEnv });
-      const committed = await commitKnownFiles({
+      await commitKnownFiles({
         cwd,
         files: [MANIFEST_PATH],
         message: `release: record ${version} artifact digests`,
         env: childEnv
       });
-      const manifestSha = 'sourceSha' in committed ? committed.sourceSha : null;
-      if (!committed.committed || !manifestSha) return { ok: true };
+      /**
+       * The commit may already exist, and the promotion may still be owed.
+       *
+       * A first attempt that committed the manifest and then failed to push
+       * leaves the checkout ahead of `beta` with nothing left to commit. Keying
+       * the promotion off "did I just commit" then skips it forever, and the
+       * release ends with a beta line that does not contain what shipped. What
+       * matters is where the two refs are, not which attempt moved them.
+       */
+      const { stdout: headSha } = await exec('git', ['rev-parse', 'HEAD'], { cwd, shell: false });
+      const manifestSha = headSha.trim();
+      if (manifestSha === expectedBetaSha) return { ok: true };
       const promoted = await promoteBeta({
         cwd,
         sourceSha: manifestSha,
@@ -501,7 +546,32 @@ export async function createStepAdapter({
       if (!resolvedBackendAdapter || !journal)
         return fail('ACCESS_UNAVAILABLE', 'no backend adapter or journal is configured');
       try {
-        const result = await applyBackendPlan({ binding, plan: backendPlan, sourceSha, adapter: resolvedBackendAdapter, journal });
+        const result = await applyBackendPlan({
+          binding,
+          plan: backendPlan,
+          sourceSha,
+          adapter: resolvedBackendAdapter,
+          /**
+           * The receipt sink `applyBackendPlan` has always asked for.
+           *
+           * It writes one receipt per change before making it -- "a crash after
+           * this line is interpretable" -- through a method called `flush` that
+           * nothing in this repository implemented. Declared in two JSDoc blocks
+           * and provided nowhere, so the step that applies a release to the
+           * production database failed on `journal.flush is not a function`,
+           * having first proved every digest and compatibility check and
+           * touched nothing.
+           *
+           * The run journal is the durable record this run already keeps, and
+           * its `append` fsyncs, which is what flushing a receipt before an
+           * irreversible write is for.
+           */
+          journal: {
+            flush: async receipt => {
+              await journal.append('backend_receipt', receipt);
+            }
+          }
+        });
         return result.ok ? { ok: true } : fail('GATE_FAILED', 'backend apply did not complete');
       } catch (error) {
         return fail(codeOf(error) ?? 'GATE_FAILED', messageOf(error));

@@ -24,6 +24,7 @@ import {
 import type { Language } from '../i18n';
 import { elapsedMilliseconds, stoppable, timerState } from '../queue-ui';
 import { Button, Checkbox, ProgressBar, Spinner, StatusBadge, type Translate } from './ui';
+import { fillRatio } from './ui/index';
 
 /** Keep in sync with --dur-complete in styles.css: the estimate → result
  * morph (row-track transition + size count-up) runs on this clock. */
@@ -368,7 +369,9 @@ function EstimatePanel({
               <span>{t('estimatedSaving', { value: saving })}</span>
             )}
           </div>
-          {saving !== null && saving < 0 && <p className="inline-warning">{t('largerEstimate')}</p>}
+          {saving !== null && saving < 0 && (
+            <p className="inline-warning ui-color-warning">{t('largerEstimate')}</p>
+          )}
         </>
       ) : (
         <div className="estimate-state">
@@ -380,12 +383,9 @@ function EstimatePanel({
                   did. */}
               <span className="estimate-bar" aria-hidden="true">
                 <span
-                  style={{
-                    width: `${Math.round(
-                      (job.estimateProgress.completed / Math.max(1, job.estimateProgress.total)) *
-                        100
-                    )}%`
-                  }}
+                  style={fillRatio(
+                    (job.estimateProgress.completed / Math.max(1, job.estimateProgress.total)) * 100
+                  )}
                 />
               </span>
               <small>
@@ -451,7 +451,9 @@ function ResultPanel({
             happened. `keptOriginalReason` has had no writer since. */}
         {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
         {saving !== null && saving < 0 && (
-          <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>
+          <span className="warning-text ui-color-warning">
+            {t('largerActual', { value: Math.abs(saving) })}
+          </span>
         )}
       </div>
       <MediaGrid
@@ -552,9 +554,12 @@ function JobActions({
           </Button>
         </>
       )}
+      {/* Secondary, not primary: the surface here is the page, and its one
+          primary action is the toolbar's — a queue of forty rows each raising
+          its own filled button leaves nothing leading anywhere (FR-022). */}
       {job.status === 'ready' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action('/api/queue/start', 'POST', { ids: [job.id] })}
         >
@@ -564,7 +569,7 @@ function JobActions({
       )}
       {job.status === 'completed' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/repeat`)}
         >
@@ -574,7 +579,7 @@ function JobActions({
       )}
       {isSettled(COMPRESSION_LIFECYCLE, job.status) && job.status !== 'completed' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/retry`)}
         >

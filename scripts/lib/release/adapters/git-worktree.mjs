@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 const exec = promisify(execFile);
 
-const ALLOWED_ENV = Object.freeze(['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'CI']);
+const ALLOWED_ENV = Object.freeze(['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'CI', 'SOTY_RELEASE_GH']);
 
 export async function assertFastForward({ cwd, baseRef, candidateSha }) {
   try { await exec('git', ['merge-base', '--is-ancestor', baseRef, candidateSha], { cwd }); return { ok: true }; }
@@ -69,7 +69,21 @@ export async function adoptWorktree({ cwd, sourceSha, directory, env = process.e
       .split('\n')
       .filter(line => line.startsWith('worktree '))
       .map(line => line.slice('worktree '.length));
-    if (!registered.some(entry => path.resolve(entry) === path.resolve(directory))) return null;
+    // Compared as real paths, not resolved ones. `mkdtemp` in the system
+    // temporary directory answers `/var/folders/...` and git answers
+    // `/private/var/folders/...` for the same directory, because `/var` is a
+    // symlink on macOS -- so a string comparison says "not a worktree of this
+    // repository" about the worktree this repository just made, and the release
+    // builds a second one beside the first, complete with a second copy of the
+    // dependency closure and none of the artifacts.
+    const sameDirectory = candidate => {
+      try {
+        return realpathSync(candidate) === realpathSync(directory);
+      } catch {
+        return false;
+      }
+    };
+    if (!registered.some(sameDirectory)) return null;
     await exec('git', ['merge-base', '--is-ancestor', frozen.sourceSha, 'HEAD'], {
       cwd: directory,
       env: worktreeEnv
@@ -282,7 +296,29 @@ export async function promoteBeta({ cwd, sourceSha, expectedBetaSha, env = proce
   try {
     await exec(
       'git',
-      ['push', '--no-verify', `--force-with-lease=refs/heads/beta:${expectedBetaSha}`, 'origin', `${frozen.sourceSha}:refs/heads/beta`],
+      [
+        // Appended after whatever the checkout already configures, so the
+        // keychain is still asked first and this only answers when it does not.
+        //
+        // The worker is a detached process: it has no controlling terminal and
+        // no window session, so `osxkeychain` finds nothing and git falls back
+        // to prompting for a username on a terminal that does not exist --
+        // "could not read Username: Device not configured", at the end of a
+        // release that had already published both installers. `gh` reads its
+        // own token and demonstrably works here; every other remote call this
+        // release makes goes through it.
+        '-c',
+        // Absolute, because the helper runs through a shell whose PATH in a
+        // detached process is not the owner's -- `gh: command not found`, at the
+        // end of a release that had already published both installers. The
+        // installer records where it is, after running it.
+        `credential.helper=!${worktreeEnv.SOTY_RELEASE_GH ?? 'gh'} auth git-credential`,
+        'push',
+        '--no-verify',
+        `--force-with-lease=refs/heads/beta:${expectedBetaSha}`,
+        'origin',
+        `${frozen.sourceSha}:refs/heads/beta`
+      ],
       { cwd, env: worktreeEnv }
     );
   } catch (error) {

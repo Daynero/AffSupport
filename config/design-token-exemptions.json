@@ -1,0 +1,4 @@
+{
+  "$comment": "Design-token exemptions (021). The list is empty: every stylesheet reads its colours, radii, type steps and durations off styles/tokens.css, and nothing animates a layout property. An entry here is a debt with a reason and an owning task \u2014 the check fails on anything it does not cover, so adding one is a deliberate act.",
+  "exemptions": []
+}

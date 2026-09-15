@@ -1,6 +1,13 @@
 import type { ReactNode } from 'react';
-import { Spinner } from '../../components/ui';
+import { EmptyState, Spinner } from '../../components/ui/index';
 
+/**
+ * The gallery's empty, searching and failed states (021, T070).
+ *
+ * It kept its own markup for the same four parts the shared pattern has, so it
+ * is that pattern now with its class carried through — the viewer's stylesheet
+ * still dresses it, and the shape is the one every other empty state uses.
+ */
 export function GalleryEmpty({
   icon,
   title,
@@ -15,13 +22,12 @@ export function GalleryEmpty({
   action?: ReactNode;
 }) {
   return (
-    <div className="lv-empty">
-      <span className="lv-empty-icon" aria-hidden="true">
-        {busy ? <Spinner /> : icon}
-      </span>
-      <strong>{title}</strong>
-      {body && <p>{body}</p>}
-      {action}
-    </div>
+    <EmptyState
+      className="lv-empty"
+      icon={busy ? <Spinner /> : icon}
+      title={title}
+      description={body ?? undefined}
+      action={action}
+    />
   );
 }

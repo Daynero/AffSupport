@@ -17,6 +17,7 @@ import { openFolderPicker, pickerConfig, type PickFolders } from '../storage/loa
 import { SelectionList, selectionModeEnabled } from '../storage/SelectionList';
 import { rememberDriveAuthorization } from './authorizationReturn';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { Badge } from '../../components/ui/index';
 
 type SafeConnectionStatus = Partial<DriveConnectionStatus> & {
   state: DriveConnectionStatus['state'];
@@ -279,7 +280,21 @@ export function DriveConnectionPanel({
       title={t('teamDriveTitle')}
       /* The connection's state belongs on the title line, the way the compressor keeps its
          summary there: it is the one thing a person opens this panel to read. */
-      aside={<span className={`team-connection-badge is-${status.state}`}>{badge}</span>}
+      aside={
+        <Badge
+          color={
+            status.state === 'connected'
+              ? 'success'
+              : status.state === 'needs_reauth' || status.state === 'unavailable'
+                ? 'warning'
+                : status.state === 'root_missing'
+                  ? 'error'
+                  : 'neutral'
+          }
+        >
+          {badge}
+        </Badge>
+      }
       description={status.rootFolderName}
       className="team-drive-panel"
     >
@@ -303,7 +318,9 @@ export function DriveConnectionPanel({
 
       {rootMissing && (
         <div className="team-inline-actions">
-          <p className="team-inline-error">{t('teamDriveRootMissingBody')}</p>
+          <p className="team-inline-error" role="alert">
+            {t('teamDriveRootMissingBody')}
+          </p>
           {client.restoreRoot && (
             <Button type="button" variant="primary" loading={busy} onClick={() => void restore()}>
               {t('teamDriveRestoreRoot')}
@@ -388,17 +405,22 @@ export function DriveConnectionPanel({
         )}
 
       {resyncQueued && <p role="status">{t('teamDriveResyncQueued')}</p>}
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       {confirmingDetach && (
         <Modal labelledBy={detachTitleId} size="sm" onClose={() => setConfirmingDetach(false)}>
           <h3 id={detachTitleId}>{t('teamDriveDetachConfirmTitle')}</h3>
           {/* States what everyone loses, and what is untouched. */}
           <p>{t('teamDriveDetachConfirmBody')}</p>
           <div className="team-dialog-actions">
+            {/* The verb names the consequence, not the gesture (FR-020). */}
             <Button type="button" variant="danger" onClick={() => void detach()}>
-              {t('teamDriveDetach')}
+              {t('teamDriveDetachAction')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirmingDetach(false)}>
+            <Button type="button" variant="secondary" onClick={() => setConfirmingDetach(false)}>
               {t('teamCancel')}
             </Button>
           </div>

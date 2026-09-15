@@ -5,6 +5,7 @@ import { Button, ProgressBar, type Translate } from '../components/ui';
 import { formatSize } from '../format';
 import type { Language } from '../i18n';
 import { GemmaConsent } from './GemmaConsent';
+import { Alert } from '../components/ui/index';
 
 /**
  * The translation column when there is no translator: what it costs, the consent, the
@@ -46,18 +47,24 @@ export function TranslatorNotice({
   }
   return (
     <div className="transcript-translation-notice">
-      <p className="transcript-translation-notice-lead">
+      <p className="transcript-translation-notice-lead prose">
         {t('transcriptionTranslatorIntro', {
           size: formatSize(translatorModel.sizeBytes || 2_500_000_000, language)
         })}
       </p>
       <GemmaConsent checked={accepted} onChange={setAccepted} t={t} />
       {translatorModel.error && (
-        <p className="transcription-model-error">
+        <Alert
+          className="transcription-model-error"
+          color="error"
+          variant="soft"
+          live="alert"
+          title={t('statusFailed')}
+        >
           {translatorModel.error === 'MODEL_SOURCE_NOT_CONFIGURED'
             ? t('transcriptionTranslatorNotConfigured')
             : t('transcriptionTranslationFailed')}
-        </p>
+        </Alert>
       )}
       {/* Pinned to the bottom of the column while the rest scrolls: a button cut in half by
           the fold read as a bug, not as "scroll for more". The hint sits above the button
@@ -91,5 +98,8 @@ export function TranslatorNotice({
  * plainly is cheaper than a person discovering it after shipping.
  */
 export function TranslationCaveat({ t }: { t: Translate }) {
-  return <p className="transcript-translation-caveat">{t('transcriptionTranslationCaveat')}</p>;
+  // `prose` caps the measure at 70ch: this is a sentence to read, not a label.
+  return (
+    <p className="transcript-translation-caveat prose">{t('transcriptionTranslationCaveat')}</p>
+  );
 }

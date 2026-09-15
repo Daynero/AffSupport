@@ -1,7 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { Card } from '../components/Card';
-import { Button, type Translate } from '../components/ui';
+import { type Translate } from '../components/ui';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  FormField,
+  Input,
+  PermissionState,
+  Progress,
+  SegmentedControl,
+  Select,
+  Table,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  fillRatio
+} from '../components/ui/index';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
 import type { AdminUserRow, Json, MarketingExportRow, SupportGoalRow } from '../lib/database.types';
@@ -245,10 +264,15 @@ export default function AdminPage() {
   }, [load]);
 
   if (!isAdmin) {
+    /*
+     * A boundary, not a failure: this page is for one role and the reader is
+     * not in it. The shared permission note says so in the product's own voice
+     * rather than in a heading that reads like an error page (FR-004).
+     */
     return (
       <main className={`admin-forbidden page-container${entering ? ' page-enter' : ''}`}>
         <h2>{t('adminForbiddenTitle')}</h2>
-        <p>{t('adminForbiddenBody')}</p>
+        <PermissionState message={t('adminForbiddenBody')} />
       </main>
     );
   }
@@ -329,28 +353,31 @@ export default function AdminPage() {
           <h2>{t('adminTitle')}</h2>
           <p>{t('adminSubtitle')}</p>
         </div>
-        <div className="admin-range" aria-label={t('dateRange')}>
-          {([7, 30, 90] as const).map(value => (
-            <button
-              type="button"
-              key={value}
-              className={range === value ? 'is-active' : ''}
-              aria-pressed={range === value}
-              onClick={() => setRange(value)}
-            >
-              {t(`range${value}` as TranslationKey)}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          className="admin-range"
+          size="sm"
+          label={t('dateRange')}
+          value={String(range)}
+          options={([7, 30, 90] as const).map(value => ({
+            value: String(value),
+            label: t(`range${value}` as TranslationKey)
+          }))}
+          onChange={value => setRange(Number(value) as 7 | 30 | 90)}
+        />
       </header>
 
       {error && (
-        <div className="inline-alert inline-alert-error" role="alert">
+        <Alert
+          color="error"
+          live="alert"
+          action={
+            <Button size="sm" color="neutral" variant="outline" onClick={() => void load()}>
+              {t('retry')}
+            </Button>
+          }
+        >
           {t('adminError')}
-          <Button variant="ghost" onClick={() => void load()}>
-            {t('retry')}
-          </Button>
-        </div>
+        </Alert>
       )}
 
       {loading && !overview ? (
@@ -378,30 +405,29 @@ export default function AdminPage() {
               </div>
             </div>
             {teamWorkspaceWaitlist.length ? (
-              <div className="admin-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t('email')}</th>
-                      <th>{t('joined')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamWorkspaceWaitlist.map(entry => (
-                      <tr key={entry.user_id}>
-                        <td>{entry.email}</td>
-                        <td>
-                          {new Date(entry.created_at).toLocaleString(
-                            language === 'uk' ? 'uk-UA' : 'en-US'
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table
+                size="sm"
+                className="admin-table"
+                columns="minmax(0, 2fr) minmax(0, 1fr)"
+                aria-labelledby="team-waitlist-heading"
+              >
+                <TableHeader>
+                  <TableHeaderCell>{t('email')}</TableHeaderCell>
+                  <TableHeaderCell>{t('joined')}</TableHeaderCell>
+                </TableHeader>
+                {teamWorkspaceWaitlist.map(entry => (
+                  <TableRow key={entry.user_id}>
+                    <TableCell>{entry.email}</TableCell>
+                    <TableCell>
+                      {new Date(entry.created_at).toLocaleString(
+                        language === 'uk' ? 'uk-UA' : 'en-US'
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </Table>
             ) : (
-              <p className="admin-empty">{t('adminTeamWaitlistEmpty')}</p>
+              <EmptyState className="admin-empty" size="sm" title={t('adminTeamWaitlistEmpty')} />
             )}
           </Card>
 
@@ -413,30 +439,33 @@ export default function AdminPage() {
               </div>
             </div>
             {windowsAppWaitlist.length ? (
-              <div className="admin-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t('email')}</th>
-                      <th>{t('joined')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {windowsAppWaitlist.map(entry => (
-                      <tr key={entry.user_id}>
-                        <td>{entry.email}</td>
-                        <td>
-                          {new Date(entry.created_at).toLocaleString(
-                            language === 'uk' ? 'uk-UA' : 'en-US'
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table
+                size="sm"
+                className="admin-table"
+                columns="minmax(0, 2fr) minmax(0, 1fr)"
+                aria-labelledby="windows-waitlist-heading"
+              >
+                <TableHeader>
+                  <TableHeaderCell>{t('email')}</TableHeaderCell>
+                  <TableHeaderCell>{t('joined')}</TableHeaderCell>
+                </TableHeader>
+                {windowsAppWaitlist.map(entry => (
+                  <TableRow key={entry.user_id}>
+                    <TableCell>{entry.email}</TableCell>
+                    <TableCell>
+                      {new Date(entry.created_at).toLocaleString(
+                        language === 'uk' ? 'uk-UA' : 'en-US'
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </Table>
             ) : (
-              <p className="admin-empty">{t('adminWindowsWaitlistEmpty')}</p>
+              <EmptyState
+                className="admin-empty"
+                size="sm"
+                title={t('adminWindowsWaitlistEmpty')}
+              />
             )}
           </Card>
 
@@ -485,7 +514,12 @@ export default function AdminPage() {
           <Card className="admin-card users-card" aria-labelledby="users-heading">
             <div className="admin-card-heading users-heading">
               <h3 id="users-heading">{t('latestUsers')}</h3>
-              <Button loading={exporting} onClick={() => void exportConsent()}>
+              <Button
+                color="neutral"
+                variant="outline"
+                loading={exporting}
+                onClick={() => void exportConsent()}
+              >
                 {exporting ? t('exporting') : t('exportConsent')}
               </Button>
             </div>
@@ -497,95 +531,142 @@ export default function AdminPage() {
                 setSearch(searchInput.trim());
               }}
             >
-              <label className="field search-field">
-                <span>{t('searchEmail')}</span>
-                <input value={searchInput} onChange={event => setSearchInput(event.target.value)} />
-              </label>
-              <label className="field">
-                <span>{t('consent')}</span>
-                <select
+              <FormField
+                className="search-field"
+                label={t('searchEmail')}
+                htmlFor="admin-search-email"
+              >
+                <Input
+                  id="admin-search-email"
+                  type="search"
+                  value={searchInput}
+                  onChange={event => setSearchInput(event.target.value)}
+                />
+              </FormField>
+              <FormField label={t('consent')} htmlFor="admin-consent-filter">
+                <Select
+                  id="admin-consent-filter"
                   value={consentFilter}
+                  placeholder={t('allConsent')}
+                  options={[
+                    { value: 'true', label: t('consented') },
+                    { value: 'false', label: t('notConsented') }
+                  ]}
                   onChange={event => {
                     setPage(0);
                     setConsentFilter(event.target.value);
                   }}
-                >
-                  <option value="">{t('allConsent')}</option>
-                  <option value="true">{t('consented')}</option>
-                  <option value="false">{t('notConsented')}</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>{t('accountStatus')}</span>
-                <select
+                />
+              </FormField>
+              <FormField label={t('accountStatus')} htmlFor="admin-status-filter">
+                <Select
+                  id="admin-status-filter"
                   value={statusFilter}
+                  placeholder={t('allStatuses')}
+                  options={[
+                    { value: 'active', label: t('activeStatus') },
+                    { value: 'blocked', label: t('blockedStatus') },
+                    { value: 'deleted', label: t('deletedStatus') }
+                  ]}
                   onChange={event => {
                     setPage(0);
                     setStatusFilter(event.target.value);
                   }}
-                >
-                  <option value="">{t('allStatuses')}</option>
-                  <option value="active">{t('activeStatus')}</option>
-                  <option value="blocked">{t('blockedStatus')}</option>
-                  <option value="deleted">{t('deletedStatus')}</option>
-                </select>
-              </label>
-              <Button type="submit" variant="primary">
+                />
+              </FormField>
+              <Button type="submit" color="primary" variant="solid">
                 {t('search')}
               </Button>
             </form>
 
             {users.length ? (
-              <div className="admin-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t('email')}</th>
-                      <th>{t('displayName')}</th>
-                      <th>{t('joined')}</th>
-                      <th>{t('lastActive')}</th>
-                      <th>{t('consent')}</th>
-                      <th>{t('accountStatus')}</th>
-                      <th>{t('actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(row => (
-                      <tr key={row.id}>
-                        <td>{row.email ?? t('notAvailable')}</td>
-                        <td>{row.display_name ?? '—'}</td>
-                        <td>
-                          {new Date(row.created_at).toLocaleDateString(
+              <Table
+                size="sm"
+                stickyHeader
+                className="admin-table admin-users-table"
+                columns="minmax(200px, 2fr) minmax(140px, 1.4fr) auto auto auto auto auto"
+                aria-labelledby="users-heading"
+              >
+                <TableHeader>
+                  <TableHeaderCell>{t('email')}</TableHeaderCell>
+                  <TableHeaderCell>{t('displayName')}</TableHeaderCell>
+                  <TableHeaderCell>{t('joined')}</TableHeaderCell>
+                  <TableHeaderCell>{t('lastActive')}</TableHeaderCell>
+                  <TableHeaderCell>{t('consent')}</TableHeaderCell>
+                  <TableHeaderCell>{t('accountStatus')}</TableHeaderCell>
+                  <TableHeaderCell>{t('actions')}</TableHeaderCell>
+                </TableHeader>
+                {users.map(row => (
+                  <TableRow key={row.id}>
+                    <TableCell>{row.email ?? t('notAvailable')}</TableCell>
+                    <TableCell>{row.display_name ?? '—'}</TableCell>
+                    <TableCell>
+                      {new Date(row.created_at).toLocaleDateString(
+                        language === 'uk' ? 'uk-UA' : 'en-US'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {row.last_seen_at
+                        ? new Date(row.last_seen_at).toLocaleDateString(
                             language === 'uk' ? 'uk-UA' : 'en-US'
-                          )}
-                        </td>
-                        <td>
-                          {row.last_seen_at
-                            ? new Date(row.last_seen_at).toLocaleDateString(
-                                language === 'uk' ? 'uk-UA' : 'en-US'
-                              )
-                            : t('never')}
-                        </td>
-                        <td>{row.marketing_consent ? t('consented') : t('notConsented')}</td>
-                        <td>
-                          <span className={`account-status status-${row.account_status}`}>
-                            {t(statusKey(row.account_status))}
-                          </span>
-                        </td>
-                        <td>
-                          {row.id !== user?.id && row.account_status !== 'deleted' && (
-                            <Button variant="ghost" onClick={() => void changeStatus(row)}>
-                              {t(row.account_status === 'blocked' ? 'unblockUser' : 'blockUser')}
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          )
+                        : t('never')}
+                    </TableCell>
+                    <TableCell>
+                      {row.marketing_consent ? t('consented') : t('notConsented')}
+                    </TableCell>
+                    <TableCell>
+                      {/* The state is the badge's colour role, so "blocked" and
+                          "deleted" are the same red the rest of the product
+                          uses for a stop. */}
+                      <Badge
+                        size="xs"
+                        color={row.account_status === 'active' ? 'success' : 'error'}
+                        className="account-status"
+                      >
+                        {t(statusKey(row.account_status))}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {row.id !== user?.id && row.account_status !== 'deleted' && (
+                        <Button
+                          size="sm"
+                          color="neutral"
+                          variant="ghost"
+                          onClick={() => void changeStatus(row)}
+                        >
+                          {t(row.account_status === 'blocked' ? 'unblockUser' : 'blockUser')}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </Table>
             ) : (
-              <div className="admin-empty">{t('adminEmpty')}</div>
+              /* Nothing matched: the filters are what emptied the table, so
+                 clearing them is the action rather than a sentence about it. */
+              <EmptyState
+                className="admin-empty"
+                title={t('adminEmpty')}
+                action={
+                  (search || consentFilter || statusFilter) && (
+                    <Button
+                      type="button"
+                      color="neutral"
+                      variant="outline"
+                      onClick={() => {
+                        setSearchInput('');
+                        setSearch('');
+                        setConsentFilter('');
+                        setStatusFilter('');
+                        setPage(0);
+                      }}
+                    >
+                      {t('adminClearFilters')}
+                    </Button>
+                  )
+                }
+              />
             )}
             <div className="pagination">
               <Button
@@ -636,7 +717,11 @@ function SupportGoalAdminCard({
           <h3 id="support-goal-admin-title">{t('adminSupportGoalTitle')}</h3>
           <p>{t('adminSupportGoalSubtitle')}</p>
         </div>
-        {goal && <span className="account-status status-active">{t('activeStatus')}</span>}
+        {goal && (
+          <Badge size="xs" color="success" className="account-status">
+            {t('activeStatus')}
+          </Badge>
+        )}
       </div>
 
       {goal && progress ? (
@@ -648,17 +733,13 @@ function SupportGoalAdminCard({
             </div>
             <b>{progress.displayPercent}%</b>
           </div>
-          <div
-            className="support-goal-progress"
-            role="progressbar"
-            aria-label={t('supportGoalProgressLabel')}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={progress.displayPercent}
-            aria-valuetext={t('supportGoalRaisedOf', { raised, target })}
-          >
-            <span style={{ width: `${progress.visualPercent}%` }} />
-          </div>
+          <Progress
+            value={progress.visualPercent}
+            color={progress.complete ? 'success' : 'primary'}
+            size="sm"
+            label={t('supportGoalProgressLabel')}
+            valueText={t('supportGoalRaisedOf', { raised, target })}
+          />
           <form
             className="support-goal-admin-form"
             onSubmit={event => {
@@ -666,19 +747,20 @@ function SupportGoalAdminCard({
               onSave();
             }}
           >
-            <label className="field">
-              <span>{t('adminSupportGoalCollected')}</span>
-              <input
+            <FormField label={t('adminSupportGoalCollected')} htmlFor="support-goal-amount">
+              <Input
+                id="support-goal-amount"
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
                 value={amount}
+                invalid={state === 'invalid'}
                 onChange={event => onAmountChange(event.target.value)}
                 aria-describedby="support-goal-amount-hint"
               />
-            </label>
+            </FormField>
             <div className="support-goal-admin-actions">
-              <Button type="submit" variant="primary" loading={saving}>
+              <Button type="submit" color="primary" variant="solid" loading={saving}>
                 {saving ? t('saving') : t('adminSupportGoalSave')}
               </Button>
               {state === 'saved' && (
@@ -709,10 +791,10 @@ function SupportGoalAdminCard({
             </time>
           </div>
         </>
+      ) : state === 'error' ? (
+        <ErrorState className="admin-empty" message={t('adminSupportGoalError')} />
       ) : (
-        <p className="admin-empty">
-          {state === 'error' ? t('adminSupportGoalError') : t('adminSupportGoalUnavailable')}
-        </p>
+        <EmptyState className="admin-empty" size="sm" title={t('adminSupportGoalUnavailable')} />
       )}
     </Card>
   );
@@ -808,11 +890,11 @@ function ActivityChart({ data }: { data: DailyActivity[] }) {
         >
           <span
             className="activity-bar events-bar"
-            style={{ height: `${(day.event_count / maximum) * 100}%` }}
+            style={fillRatio((day.event_count / maximum) * 100)}
           />
           <span
             className="activity-bar users-bar"
-            style={{ height: `${(day.active_users / maximum) * 100}%` }}
+            style={fillRatio((day.active_users / maximum) * 100)}
           />
           <time dateTime={day.activity_date}>
             {new Date(`${day.activity_date}T00:00:00Z`).getUTCDate()}

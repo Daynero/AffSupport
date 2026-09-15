@@ -1,0 +1,2121 @@
+/* ============================================================
+   The inventory's styles (021, T029)
+
+   One section per component family, in the order the inventory lists them.
+   Every value here comes from styles/tokens.css — this file declares no raw
+   colour, duration, radius or type step, and scripts/check-design-tokens.mjs
+   holds it to that.
+
+   Naming: `ui-<component>`, `ui-<component>--<variant|size>`, `is-<state>`.
+   ============================================================ */
+
+/* ============================================================
+   Button
+   ============================================================ */
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-weight: var(--weight-label);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    border-color var(--motion-fast) var(--ease-out-curve),
+    color var(--motion-fast) var(--ease-out-curve),
+    transform var(--motion-fast) var(--ease-out-curve);
+}
+
+.ui-button:disabled,
+.ui-button.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Tactile: a press is felt rather than watched. Reduced motion sets the scale
+   token to 1, so this rule needs no media query of its own. */
+.ui-button:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+
+.ui-button--xs {
+  min-height: var(--control-height-xs);
+  padding: var(--control-padding-xs);
+  font-size: var(--text-micro);
+  gap: var(--space-1);
+}
+.ui-button--sm {
+  min-height: var(--control-height-sm);
+  padding: var(--control-padding-sm);
+  font-size: var(--text-caption);
+}
+.ui-button--md {
+  min-height: var(--control-height-md);
+  padding: var(--control-padding-md);
+  font-size: var(--text-label);
+}
+.ui-button--lg {
+  min-height: var(--control-height-lg);
+  padding: var(--control-padding-lg);
+  font-size: var(--text-body);
+}
+.ui-button--xl {
+  min-height: var(--control-height-xl);
+  padding: var(--control-padding-xl);
+  font-size: var(--text-body);
+  border-radius: var(--radius-lg);
+}
+
+.ui-button.is-block {
+  width: 100%;
+}
+
+.ui-button.is-square {
+  padding: 0;
+  aspect-ratio: 1;
+}
+
+.ui-button.is-loading .ui-button-label,
+.ui-button.is-loading .ui-button-leading,
+.ui-button.is-loading .ui-button-trailing {
+  visibility: hidden;
+}
+
+.ui-button-spinner {
+  position: absolute;
+  display: grid;
+  place-items: center;
+}
+
+.ui-button.is-loading {
+  position: relative;
+}
+
+.ui-button-leading,
+.ui-button-trailing {
+  display: inline-flex;
+  flex: none;
+}
+
+.ui-button-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* --- Button variants, resolved through the colour role -------------------- */
+.ui-button--solid {
+  color: var(--ui-on-solid);
+  background: var(--ui-solid);
+  border-color: var(--ui-solid);
+}
+.ui-button--solid:hover:not(:disabled) {
+  background: var(--ui-hover);
+  border-color: var(--ui-hover);
+}
+
+.ui-button--outline {
+  color: var(--ui-text);
+  background: transparent;
+  border-color: var(--ui-border);
+}
+.ui-button--outline:hover:not(:disabled) {
+  background: var(--ui-softer);
+  border-color: var(--ui-solid);
+}
+
+.ui-button--soft {
+  color: var(--ui-text);
+  background: var(--ui-soft);
+  border-color: transparent;
+}
+.ui-button--soft:hover:not(:disabled) {
+  background: var(--ui-soft);
+  border-color: var(--ui-border);
+}
+
+.ui-button--subtle {
+  color: var(--ui-text);
+  background: var(--ui-softer);
+  border-color: var(--ui-border);
+}
+.ui-button--subtle:hover:not(:disabled) {
+  background: var(--ui-soft);
+}
+
+.ui-button--ghost {
+  color: var(--ui-text);
+  background: transparent;
+  border-color: transparent;
+}
+.ui-button--ghost:hover:not(:disabled) {
+  background: var(--ui-softer);
+}
+
+.ui-button--link {
+  min-height: 0;
+  padding: 0;
+  color: var(--ui-text);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+}
+.ui-button--link:hover:not(:disabled) {
+  text-decoration-color: currentcolor;
+}
+
+/* ============================================================
+   Colour roles — one place, read by every component above and below.
+   A component asks for `ui-color-error` and gets the five variables its
+   variants need; adding a role is adding one block here.
+   ============================================================ */
+.ui-color-primary {
+  --ui-solid: var(--color-primary-solid);
+  --ui-hover: var(--color-primary-hover);
+  --ui-active: var(--color-primary-active);
+  --ui-soft: var(--color-primary-soft);
+  --ui-softer: var(--color-primary-softer);
+  --ui-border: var(--color-primary-border);
+  --ui-text: var(--color-primary-text);
+  --ui-on-solid: var(--color-primary-on-solid);
+}
+.ui-color-secondary {
+  --ui-solid: var(--color-secondary-solid);
+  --ui-hover: var(--color-secondary-hover);
+  --ui-active: var(--color-secondary-active);
+  --ui-soft: var(--color-secondary-soft);
+  --ui-softer: var(--color-secondary-softer);
+  --ui-border: var(--color-secondary-border);
+  --ui-text: var(--color-secondary-text);
+  --ui-on-solid: var(--color-secondary-on-solid);
+}
+.ui-color-success {
+  --ui-solid: var(--color-success-solid);
+  --ui-hover: var(--color-success-solid);
+  --ui-active: var(--color-success-solid);
+  --ui-soft: var(--color-success-soft);
+  --ui-softer: var(--color-success-soft);
+  --ui-border: var(--color-success-border);
+  --ui-text: var(--color-success-text);
+  --ui-on-solid: var(--color-success-on-solid);
+}
+.ui-color-info {
+  --ui-solid: var(--color-info-solid);
+  --ui-hover: var(--color-info-solid);
+  --ui-active: var(--color-info-solid);
+  --ui-soft: var(--color-info-soft);
+  --ui-softer: var(--color-info-soft);
+  --ui-border: var(--color-info-border);
+  --ui-text: var(--color-info-text);
+  --ui-on-solid: var(--color-info-on-solid);
+}
+.ui-color-warning {
+  --ui-solid: var(--color-warning-solid);
+  --ui-hover: var(--color-warning-solid);
+  --ui-active: var(--color-warning-solid);
+  --ui-soft: var(--color-warning-soft);
+  --ui-softer: var(--color-warning-soft);
+  --ui-border: var(--color-warning-border);
+  --ui-text: var(--color-warning-text);
+  --ui-on-solid: var(--color-warning-on-solid);
+}
+.ui-color-error {
+  --ui-solid: var(--color-error-solid);
+  --ui-hover: var(--color-error-solid);
+  --ui-active: var(--color-error-solid);
+  --ui-soft: var(--color-error-soft);
+  --ui-softer: var(--color-error-soft);
+  --ui-border: var(--color-error-border);
+  --ui-text: var(--color-error-text);
+  --ui-on-solid: var(--color-error-on-solid);
+}
+.ui-color-neutral {
+  --ui-solid: var(--color-neutral-surface-muted);
+  --ui-hover: var(--color-neutral-surface-muted);
+  --ui-active: var(--color-neutral-surface-muted);
+  --ui-soft: var(--color-neutral-surface-muted);
+  --ui-softer: var(--color-neutral-surface-subtle);
+  --ui-border: var(--color-neutral-border-strong);
+  --ui-text: var(--color-neutral-text);
+  --ui-on-solid: var(--color-neutral-text);
+}
+
+/* ============================================================
+   Icon button — the plate grows, the icon never shrinks (docs/DESIGN.md)
+   ============================================================ */
+.ui-icon-button {
+  display: inline-grid;
+  place-items: center;
+  /* The plate's size is the whole point of this control, so it states both:
+     the element defaults gave it a 44px floor and 6px of side padding, which
+     left a 20px glyph a 10px column inside a 24px `xs` plate. */
+  min-height: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ui-text);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    color var(--motion-fast) var(--ease-out-curve);
+}
+.ui-icon-button--xs {
+  width: var(--control-height-xs);
+  height: var(--control-height-xs);
+}
+.ui-icon-button--sm {
+  width: var(--icon-plate-tile);
+  height: var(--icon-plate-tile);
+}
+.ui-icon-button--md {
+  width: var(--icon-plate-row-width);
+  height: var(--icon-plate-row-height);
+}
+.ui-icon-button--lg {
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+}
+.ui-icon-button:hover:not(:disabled) {
+  background: var(--ui-softer);
+  color: var(--color-neutral-text);
+}
+.ui-icon-button.is-pressed {
+  background: var(--ui-soft);
+  border-color: var(--ui-border);
+}
+.ui-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ============================================================
+   Badge and Chip
+   ============================================================ */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  font-weight: var(--weight-label);
+  white-space: nowrap;
+}
+.ui-badge--xs {
+  min-height: var(--control-height-xs);
+  padding: 0 var(--space-2);
+  font-size: var(--text-micro);
+}
+.ui-badge--sm {
+  min-height: 26px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-caption);
+}
+.ui-badge--md {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  font-size: var(--text-label);
+}
+.ui-badge--solid {
+  color: var(--ui-on-solid);
+  background: var(--ui-solid);
+}
+.ui-badge--soft {
+  color: var(--ui-text);
+  background: var(--ui-soft);
+}
+.ui-badge--subtle {
+  color: var(--ui-text);
+  background: var(--ui-softer);
+}
+.ui-badge--outline {
+  color: var(--ui-text);
+  border-color: var(--ui-border);
+}
+.ui-badge-leading {
+  display: inline-flex;
+}
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  font-weight: var(--weight-label);
+}
+.ui-chip--xs {
+  min-height: var(--control-height-xs);
+  padding: 0 var(--space-2);
+  font-size: var(--text-micro);
+}
+.ui-chip--sm {
+  min-height: 26px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-caption);
+}
+.ui-chip--soft {
+  color: var(--ui-text);
+  background: var(--ui-soft);
+}
+.ui-chip--subtle {
+  color: var(--ui-text);
+  background: var(--ui-softer);
+}
+.ui-chip--outline {
+  color: var(--ui-text);
+  border-color: var(--ui-border);
+}
+/* Selected is never colour alone: the border and the fill change together. */
+.ui-chip.is-selected {
+  border-color: var(--ui-solid);
+  background: var(--ui-soft);
+}
+/* Faded to 0.55 this failed AA in both themes — a label nobody could read is
+   not a disabled state, it is a missing one. The chip keeps the neutral muted
+   role and loses its colour instead, which says "not available" without
+   saying it in a whisper. */
+.ui-chip.is-disabled {
+  border-color: transparent;
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-neutral-text-muted);
+  cursor: not-allowed;
+}
+.ui-chip-press {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ui-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-chip-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.ui-chip-remove:hover {
+  opacity: 1;
+}
+.ui-chip-remove svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* ============================================================
+   Card — three roles, one anatomy
+   ============================================================ */
+.ui-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ui-card--surface {
+  padding: var(--space-5);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-neutral-surface);
+}
+/* The compressor's slab: a violet-tinted ground under an accent outline, which
+   is what a group of controls has looked like since the beginning. */
+.ui-card--panel {
+  padding: var(--space-4);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--color-secondary-soft) 55%, var(--color-neutral-surface));
+}
+.ui-card--section {
+  padding: var(--space-4);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--color-secondary-soft) 40%, var(--color-neutral-surface));
+}
+.ui-card.is-interactive {
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-out-curve);
+}
+.ui-card.is-interactive:hover {
+  border-color: var(--color-secondary-border);
+}
+.ui-card.is-selected {
+  border-color: var(--color-secondary-solid);
+}
+.ui-card-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ui-card-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-secondary-solid);
+}
+.ui-card-title {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-heading);
+}
+.ui-card-aside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-emphasis);
+}
+.ui-card-description {
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+
+.ui-separator {
+  border: 0;
+  background: var(--color-neutral-border);
+}
+.ui-separator--horizontal {
+  width: 100%;
+  height: 1px;
+}
+.ui-separator--vertical {
+  width: 1px;
+  align-self: stretch;
+}
+.ui-separator.is-labelled {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: auto;
+  background: none;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+.ui-separator.is-labelled::before,
+.ui-separator.is-labelled::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-neutral-border);
+}
+
+/* ============================================================
+   Alert
+   ============================================================ */
+.ui-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+.ui-alert--soft {
+  color: var(--ui-text);
+  background: var(--ui-soft);
+}
+.ui-alert--subtle {
+  color: var(--color-neutral-text);
+  background: var(--ui-softer);
+  border-color: var(--ui-border);
+}
+.ui-alert--outline {
+  color: var(--ui-text);
+  border-color: var(--ui-border);
+}
+.ui-alert-icon {
+  display: inline-flex;
+  flex: none;
+}
+.ui-alert-body {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ui-alert-title {
+  font-weight: var(--weight-label);
+}
+.ui-alert-text {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+.ui-alert-action {
+  margin-left: auto;
+  flex: none;
+}
+
+/* ============================================================
+   Fields
+   ============================================================ */
+.ui-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.ui-field-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-emphasis);
+}
+.ui-field-required {
+  color: var(--color-error-text);
+}
+.ui-field-hint {
+  display: inline-flex;
+  color: var(--color-neutral-text-muted);
+}
+.ui-field-help {
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+/* Only after an invalid entry, never on a field that has just been opened
+   (docs/DESIGN.md). The component decides when; this is how it looks. */
+.ui-field-error {
+  margin: 0;
+  color: var(--color-error-text);
+  font-size: var(--text-caption);
+}
+
+.ui-input {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text);
+  transition:
+    border-color var(--motion-fast) var(--ease-out-curve),
+    box-shadow var(--motion-fast) var(--ease-out-curve);
+}
+.ui-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+}
+.ui-input--xs {
+  min-height: var(--control-height-xs);
+  font-size: var(--text-micro);
+}
+.ui-input--sm {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-caption);
+}
+.ui-input--md {
+  min-height: var(--control-height-md);
+  font-size: var(--text-label);
+}
+.ui-input--lg {
+  min-height: var(--control-height-lg);
+  font-size: var(--text-body);
+}
+.ui-input--xl {
+  min-height: var(--control-height-xl);
+  font-size: var(--text-body);
+}
+/* The inline custom value: 72–150px, never the width of its column. */
+.ui-input.is-narrow {
+  width: 96px;
+}
+.ui-input:focus-within {
+  border-color: var(--color-secondary-solid);
+  box-shadow: 0 0 0 3px var(--color-secondary-softer);
+}
+.ui-input.is-invalid {
+  border-color: var(--color-error-solid);
+}
+.ui-input.is-disabled {
+  opacity: 0.6;
+}
+.ui-input-leading,
+.ui-input-trailing {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-neutral-text-muted);
+}
+/* The unit lives outside the border, as muted text beside the field. */
+.ui-input-with-suffix {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ui-input-suffix {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+.ui-input-number {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.ui-input-step {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+}
+.ui-input-step:hover:not(:disabled) {
+  border-color: var(--color-neutral-border-strong);
+  color: var(--color-neutral-text);
+}
+
+.ui-textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  resize: vertical;
+}
+.ui-textarea:focus {
+  border-color: var(--color-secondary-solid);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-secondary-softer);
+}
+.ui-textarea.is-invalid {
+  border-color: var(--color-error-solid);
+}
+
+.ui-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+}
+.ui-select select {
+  width: 100%;
+  min-width: 0;
+  padding: 0 var(--space-6) 0 var(--space-3);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text);
+  appearance: none;
+  cursor: pointer;
+}
+.ui-select--xs select {
+  min-height: var(--control-height-xs);
+  font-size: var(--text-micro);
+}
+.ui-select--sm select {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-caption);
+}
+.ui-select--md select {
+  min-height: var(--control-height-md);
+  font-size: var(--text-label);
+}
+.ui-select--lg select {
+  min-height: var(--control-height-lg);
+  font-size: var(--text-body);
+}
+.ui-select select:focus {
+  border-color: var(--color-secondary-solid);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-secondary-softer);
+}
+.ui-select-chevron {
+  position: absolute;
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  color: var(--color-neutral-text-muted);
+  pointer-events: none;
+}
+.ui-select-chevron svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+.ui-input-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+}
+.ui-input-tags input {
+  flex: 1 1 120px;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+}
+.ui-input-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+  font-size: var(--text-caption);
+}
+.ui-input-tag-remove {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ============================================================
+   Choice
+   ============================================================ */
+.ui-checkbox,
+.ui-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+.ui-checkbox input,
+.ui-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.ui-checkbox-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    border-color var(--motion-fast) var(--ease-out-curve);
+}
+.ui-checkbox input:checked + .ui-checkbox-mark {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-solid);
+}
+.ui-checkbox input:checked + .ui-checkbox-mark::after {
+  content: '';
+  width: 10px;
+  height: 6px;
+  border: 2px solid var(--color-secondary-on-solid);
+  border-top: 0;
+  border-right: 0;
+  transform: rotate(-45deg) translateY(-1px);
+}
+.ui-checkbox input:indeterminate + .ui-checkbox-mark::after {
+  content: '';
+  width: 10px;
+  height: 2px;
+  border: 0;
+  background: var(--color-secondary-on-solid);
+  transform: none;
+}
+.ui-checkbox input:focus-visible + .ui-checkbox-mark {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.ui-checkbox.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ui-switch-track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 38px;
+  height: 22px;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+  transition: background-color var(--motion-fast) var(--ease-out-curve);
+}
+.ui-switch-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--motion-fast) var(--ease-out-curve);
+}
+.ui-switch input:checked + .ui-switch-track {
+  background: var(--color-secondary-solid);
+}
+.ui-switch input:checked + .ui-switch-track .ui-switch-thumb {
+  transform: translateX(16px);
+}
+.ui-switch input:focus-visible + .ui-switch-track {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.ui-segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
+}
+.ui-segmented button {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  font-weight: var(--weight-label);
+  cursor: pointer;
+  /* A segment is switched many times an hour: no transition (frequent action). */
+}
+.ui-segmented--xs button {
+  min-height: var(--control-height-xs);
+  padding: 0 var(--space-2);
+  font-size: var(--text-micro);
+}
+.ui-segmented--sm button {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  font-size: var(--text-caption);
+}
+.ui-segmented--md button {
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-4);
+  font-size: var(--text-label);
+}
+.ui-segmented button.is-selected {
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Picto group — docs/DESIGN.md, to the pixel. */
+.ui-pictos {
+  display: inline-flex;
+  gap: 6px;
+  width: fit-content;
+  padding: 4px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+}
+.ui-pictos.is-single {
+  padding: 0;
+  border-color: transparent;
+}
+.ui-pictos button {
+  display: inline-grid;
+  place-items: center;
+  width: var(--icon-plate-row-width);
+  height: var(--icon-plate-row-height);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+}
+.ui-pictos button.is-labeled {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+}
+.ui-pictos button:hover:not(:disabled) {
+  color: var(--color-neutral-text);
+}
+/* `is-selected`, never `is-active` — there is no such class in this system. */
+.ui-pictos button.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: color-mix(in srgb, var(--color-secondary-solid) 16%, transparent);
+  color: var(--color-secondary-text);
+}
+.ui-pictos button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.ui-pictos-summary {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+.ui-radio-group {
+  display: grid;
+  gap: var(--space-2);
+}
+.ui-radio-group--cards {
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+.ui-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.ui-radio.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-softer);
+}
+.ui-radio input {
+  margin-top: 3px;
+}
+.ui-radio-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ui-radio-label {
+  font-weight: var(--weight-label);
+}
+.ui-radio-description {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+.ui-slider {
+  width: 100%;
+  accent-color: var(--color-secondary-solid);
+}
+
+/* ============================================================
+   Feedback
+   ============================================================ */
+.ui-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+.ui-empty--sm {
+  padding: var(--space-4) var(--space-3);
+}
+.ui-empty--lg {
+  padding: var(--space-6);
+  min-height: 40vh;
+  align-content: center;
+}
+.ui-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  background: var(--color-secondary-softer);
+  color: var(--color-secondary-solid);
+}
+.ui-empty-title {
+  font-size: var(--text-section);
+  font-weight: var(--weight-heading);
+}
+.ui-empty-description {
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+.ui-empty-action {
+  margin-top: var(--space-2);
+}
+
+.ui-skeleton-group {
+  display: grid;
+  gap: var(--space-2);
+}
+.ui-skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-neutral-surface-muted) 0%,
+    var(--color-neutral-surface-subtle) 50%,
+    var(--color-neutral-surface-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: ui-skeleton-sheen var(--motion-slow) var(--ease-linear) infinite;
+}
+.ui-skeleton--text {
+  height: 12px;
+}
+.ui-skeleton--row {
+  height: var(--control-height-md);
+}
+.ui-skeleton--block {
+  height: 96px;
+}
+.ui-skeleton--tile {
+  aspect-ratio: 16 / 10;
+}
+.ui-skeleton--circle {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+}
+@keyframes ui-skeleton-sheen {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton {
+    animation: none;
+  }
+}
+
+.ui-progress {
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+}
+.ui-progress--xs {
+  height: 4px;
+}
+.ui-progress--sm {
+  height: 6px;
+}
+.ui-progress--md {
+  height: 8px;
+}
+.ui-progress .ui-progress-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--ui-solid);
+  /* Scaled, not resized: animating `width` forces layout on every frame, and a
+     progress bar animates for as long as the work runs. */
+  transform: scaleX(calc(var(--ui-progress-ratio, 0)));
+  transform-origin: left center;
+  transition: transform var(--motion-base) var(--ease-out-curve);
+}
+.ui-progress.is-indeterminate .ui-progress-fill {
+  width: 40%;
+  animation: ui-progress-slide var(--motion-slow) var(--ease-in-out-curve) infinite alternate;
+}
+@keyframes ui-progress-slide {
+  from {
+    transform: translateX(-40%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-progress.is-indeterminate .ui-progress-fill {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
+.ui-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, currentcolor 25%, transparent);
+  border-top-color: currentcolor;
+  border-radius: var(--radius-full);
+  animation: ui-spin var(--motion-spin) var(--ease-linear) infinite;
+}
+.ui-spinner--md {
+  width: 18px;
+  height: 18px;
+}
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.ui-tooltip {
+  position: absolute;
+  left: 50%;
+  z-index: var(--layer-tooltip);
+  max-width: 280px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface-raised);
+  color: var(--color-neutral-text);
+  box-shadow: var(--shadow-menu);
+  font-size: var(--text-caption);
+  white-space: normal;
+  pointer-events: none;
+  animation: ui-tooltip-in var(--motion-fast) var(--ease-out-curve);
+}
+.ui-tooltip--top {
+  bottom: calc(100% + var(--space-1));
+  transform: translateX(-50%);
+}
+.ui-tooltip--bottom {
+  top: calc(100% + var(--space-1));
+  transform: translateX(-50%);
+}
+/* Within a delay group the neighbours open at once and without motion. */
+.ui-tooltip.is-instant {
+  animation: none;
+}
+@keyframes ui-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.95);
+  }
+}
+
+/* ============================================================
+   Overlay
+   ============================================================ */
+.ui-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--color-overlay-backdrop);
+  animation: ui-fade-in var(--motion-base) var(--ease-out-curve);
+}
+.ui-overlay.is-nested {
+  z-index: var(--layer-modal-nested);
+}
+@keyframes ui-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.ui-modal {
+  display: grid;
+  gap: var(--space-4);
+  width: min(100%, var(--ui-modal-width, 560px));
+  max-height: calc(100vh - var(--space-6) * 2);
+  padding: var(--space-5);
+  overflow: auto;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-neutral-surface-raised);
+  box-shadow: var(--shadow-lg);
+  /* From 0.95, never from nothing (docs/DESIGN-PRINCIPLES.md). */
+  animation: ui-surface-in var(--motion-base) var(--ease-out-curve);
+}
+.ui-modal--xs {
+  --ui-modal-width: 380px;
+}
+.ui-modal--sm {
+  --ui-modal-width: 460px;
+}
+.ui-modal--md {
+  --ui-modal-width: 620px;
+}
+.ui-modal--lg {
+  --ui-modal-width: 880px;
+}
+.ui-modal--xl {
+  --ui-modal-width: 1100px;
+}
+.ui-modal.is-full {
+  --ui-modal-width: calc(100vw - var(--space-6) * 2);
+  max-height: calc(100vh - var(--space-6) * 2);
+}
+.ui-modal-header h2 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+.ui-modal-body {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.ui-modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+@keyframes ui-surface-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.ui-modal--drawer {
+  align-self: stretch;
+  justify-self: start;
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  max-height: none;
+  height: 100%;
+}
+.ui-modal--drawer-right {
+  justify-self: end;
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+}
+
+.ui-popover {
+  position: absolute;
+  z-index: var(--layer-popover);
+  min-width: 200px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-raised);
+  box-shadow: var(--shadow-menu);
+  transform-origin: top left;
+  animation: ui-surface-in var(--motion-fast) var(--ease-out-curve);
+}
+.ui-popover--bottom-end,
+.ui-popover--top-end {
+  right: 0;
+  transform-origin: top right;
+}
+.ui-popover--top-start,
+.ui-popover--top-end {
+  bottom: 100%;
+  transform-origin: bottom left;
+}
+/* Opened dozens of times an hour: no animation at all. */
+.ui-popover.is-frequent {
+  animation: none;
+}
+
+.ui-menu {
+  padding: var(--space-1);
+}
+.ui-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  text-align: left;
+  cursor: pointer;
+}
+.ui-menu-item:hover:not(:disabled) {
+  background: var(--color-neutral-surface-muted);
+}
+.ui-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.ui-menu-item.is-destructive {
+  color: var(--color-error-text);
+}
+.ui-menu-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-neutral-text-muted);
+}
+.ui-menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-menu-trailing {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+.ui-menu-separator {
+  display: block;
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--color-neutral-border);
+}
+/* The question a run of radio items answers. Quiet: it is a label, not a row
+   anyone can press. */
+.ui-menu-heading {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ui-menu-heading:first-child {
+  padding-top: var(--space-1);
+}
+/* A fixed gutter for the tick, so the labels of a radio group line up whether
+   or not any of them is the current answer. */
+.ui-menu-check {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  width: 14px;
+  color: var(--color-primary-text);
+}
+.ui-menu-item.is-checked {
+  font-weight: 650;
+}
+
+/* ============================================================
+   Navigation
+   ============================================================ */
+.ui-tabs {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.ui-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--color-neutral-text-muted);
+  font-weight: var(--weight-emphasis);
+  cursor: pointer;
+}
+.ui-tabs--sm .ui-tab {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--text-caption);
+}
+.ui-tabs--md .ui-tab {
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-3);
+  font-size: var(--text-label);
+}
+.ui-tabs--underline .ui-tab {
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+.ui-tabs--underline .ui-tab.is-selected {
+  border-bottom-color: var(--color-secondary-solid);
+  color: var(--color-neutral-text);
+}
+.ui-tabs--pill .ui-tab {
+  border-radius: var(--radius-full);
+}
+.ui-tabs--pill .ui-tab.is-selected {
+  background: var(--color-secondary-soft);
+  color: var(--color-neutral-text);
+}
+.ui-tab-badge {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+  font-size: var(--text-micro);
+}
+
+.ui-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+.ui-breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ui-breadcrumb button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-breadcrumb button:hover {
+  color: var(--color-secondary-text);
+}
+.ui-breadcrumb [aria-current='page'] {
+  color: var(--color-neutral-text);
+  font-weight: var(--weight-label);
+}
+
+.ui-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-secondary-text);
+}
+.ui-link--standalone {
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+}
+
+.ui-pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ui-pagination button {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-neutral-text);
+  cursor: pointer;
+}
+.ui-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.ui-pagination-position {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* ============================================================
+   Data
+   ============================================================ */
+.ui-table {
+  display: grid;
+  min-width: 0;
+}
+.ui-table-header,
+.ui-table-row {
+  display: grid;
+  grid-template-columns: var(--ui-table-columns, 1fr);
+  align-items: center;
+  gap: 0 var(--space-3);
+  min-width: 0;
+}
+.ui-table--xs .ui-table-row {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-caption);
+}
+.ui-table--sm .ui-table-row {
+  min-height: var(--control-height-md);
+  font-size: var(--text-label);
+}
+.ui-table--md .ui-table-row {
+  min-height: var(--control-height-lg);
+  font-size: var(--text-body);
+}
+.ui-table-header {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-neutral-border);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-heading);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ui-table.is-sticky .ui-table-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-sticky);
+  background: var(--color-neutral-surface);
+}
+.ui-table-row {
+  border-top: 1px solid var(--color-neutral-border);
+}
+/* A row is hovered hundreds of times an hour: colour change, no transition. */
+.ui-table-row.is-interactive:hover {
+  background: var(--color-neutral-surface-subtle);
+  cursor: pointer;
+}
+.ui-table-row.is-selected {
+  background: var(--color-secondary-softer);
+}
+.ui-table-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-accordion {
+  display: grid;
+  gap: var(--space-2);
+}
+.ui-accordion-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height-md);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-neutral-text);
+  font-weight: var(--weight-label);
+  text-align: left;
+  cursor: pointer;
+}
+.ui-accordion-title {
+  min-width: 0;
+}
+.ui-accordion-aside {
+  margin-left: auto;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+.ui-accordion-chevron {
+  display: inline-flex;
+  color: var(--color-neutral-text-muted);
+  transition: transform var(--motion-fast) var(--ease-out-curve);
+}
+.ui-accordion-item.is-open .ui-accordion-chevron {
+  transform: rotate(180deg);
+}
+.ui-accordion-chevron svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+.ui-tree,
+.ui-tree [role='group'] {
+  display: grid;
+}
+/* The row is the treeitem: one tab stop for the tree, arrows inside it. */
+.ui-tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: var(--control-height-sm);
+  padding-left: calc(var(--ui-tree-depth, 0) * var(--space-4));
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ui-tree-row.is-selected {
+  background: var(--color-secondary-soft);
+}
+.ui-tree-row.is-drop-target {
+  outline: 2px dashed var(--color-secondary-solid);
+}
+.ui-tree-twisty {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--color-neutral-text-muted);
+}
+.ui-tree-twisty svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  transition: transform var(--motion-fast) var(--ease-out-curve);
+}
+.ui-tree-twisty.is-open svg {
+  transform: rotate(90deg);
+}
+.ui-tree-label {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.ui-tree-name,
+.ui-tree-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-tree-description {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+}
+.ui-tree-icon {
+  display: inline-flex;
+  flex: none;
+}
+.ui-tree-meta {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+.ui-timeline {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ui-timeline-entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.ui-timeline-marker {
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-border-strong);
+}
+.ui-timeline-entry.is-success .ui-timeline-marker {
+  background: var(--color-success-solid);
+}
+.ui-timeline-entry.is-warning .ui-timeline-marker {
+  background: var(--color-warning-solid);
+}
+.ui-timeline-entry.is-error .ui-timeline-marker {
+  background: var(--color-error-solid);
+}
+.ui-timeline-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ui-timeline-detail,
+.ui-timeline-meta {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+.ui-user {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ui-user-copy {
+  display: grid;
+  min-width: 0;
+}
+.ui-user-name {
+  overflow: hidden;
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-user-meta {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* ============================================================
+   Patterns
+   ============================================================ */
+.ui-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-md);
+  background: var(--color-secondary-softer);
+}
+.ui-selection-count {
+  font-weight: var(--weight-label);
+}
+.ui-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-right: auto;
+}
+
+/* ============================================================
+   The demo surface (development only)
+
+   Layout for /design. It styles nothing the product uses — it only arranges
+   the inventory so a regression is visible at a glance.
+   ============================================================ */
+/* The brand's honeycomb field is behind every route, which is right for the
+   product and wrong here: a gallery of colour roles cannot be judged over an
+   orange field. The demo lays its own ground over it. */
+.ds-page {
+  position: relative;
+  z-index: var(--layer-raised);
+  display: grid;
+  /* Rows size to their content: a grid that fills the viewport stretches its
+     last sections instead, which made every card look padded. */
+  align-content: start;
+  gap: var(--space-6);
+  width: 100%;
+  min-height: 100dvh;
+  padding-block: var(--space-6);
+  padding-inline: max(var(--space-6), calc((100% - 1200px) / 2));
+  background: var(--color-neutral-bg);
+}
+.ds-header {
+  display: grid;
+  gap: var(--space-2);
+}
+.ds-section {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-neutral-surface);
+}
+.ds-section-title {
+  margin: 0;
+  font-size: var(--text-section);
+}
+.ds-row {
+  display: grid;
+  gap: var(--space-2);
+}
+.ds-row-title {
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-heading);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ds-row-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.ds-row-body > * {
+  min-width: 0;
+}
+.ds-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ============================================================
+   Legacy class bridge (021)
+
+   Fourteen screen groups cannot migrate in one change, and until they do the
+   product would show two generations of the same control side by side. So the
+   pre-021 classes are re-expressed here in terms of the inventory: the same
+   tokens, the same geometry, the same states.
+
+   It is loaded *before* styles.css, so it is a floor rather than an override:
+   where a pre-021 rule still declares a property, that rule wins and the screen
+   looks exactly as it does today; where it declares nothing, the value now comes
+   from a token instead of from the browser. As each group migrates, its old
+   rules are deleted and the screen lands on this floor — which is why the
+   migration can be a deletion rather than a rewrite.
+
+   This is a bridge, not a home. Each block names the group that clears it.
+   Nothing new may use these names.
+   ============================================================ */
+
+/* Buttons — the seven dialects, brought to one geometry (cleared by C1–C14). */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+  padding: var(--control-padding-md);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    border-color var(--motion-fast) var(--ease-out-curve),
+    color var(--motion-fast) var(--ease-out-curve),
+    transform var(--motion-fast) var(--ease-out-curve);
+}
+.button:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* The outline pills three screens each invented separately: the run button in
+   accounts, the fold-all control, and the empty-state door added in 020. One
+   shape now, which is what they were always trying to be. */
+.team-agent-run-add,
+.team-accounts-fold-all,
+.team-empty-action,
+.team-accounts-money-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--color-secondary-text);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-emphasis);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    border-color var(--motion-fast) var(--ease-out-curve);
+}
+.team-agent-run-add:hover:not(:disabled),
+.team-accounts-fold-all:hover:not(:disabled),
+.team-empty-action:hover,
+.team-accounts-money-fold:hover:not(:disabled) {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-softer);
+}
+
+/* Inline notices — four shapes for one job (cleared by C1–C14). */
+.inline-alert,
+.team-inline-error,
+.team-inline-note,
+.team-test-mode-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+.inline-alert-error,
+.team-inline-error {
+  color: var(--color-error-text);
+  background: var(--color-error-soft);
+}
+.inline-alert-success {
+  color: var(--color-success-text);
+  background: var(--color-success-soft);
+}
+.team-inline-note {
+  color: var(--color-neutral-text);
+  background: var(--color-neutral-surface-subtle);
+  border-color: var(--color-neutral-border);
+}
+.team-test-mode-note {
+  color: var(--color-warning-text);
+  background: var(--color-warning-soft);
+}
+
+/* Empty states — the shape the Empty component draws (cleared by C1–C14). */
+.team-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+.team-empty-state > p {
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* Panels — the compressor's slab and the team panel were different answers to
+   the same question (cleared by C3, C8–C14). */
+.settings-panel,
+.settings-section,
+.team-panel {
+  border-radius: var(--radius-lg);
+}
+
+/* The product's own status badge (cleared by C3/C5/C6 as its screens migrate).
+   It keeps its anatomy — a loader while work runs, a check when it is done —
+   and takes its colour from the role the component now declares. */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 26px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  color: var(--ui-text);
+  background: var(--ui-soft);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+  white-space: nowrap;
+}
+
+/* Invitation delivery state (cleared by C13). Same pill, colour by role. */
+.team-delivery-state {
+  color: var(--ui-text);
+  background: var(--ui-soft);
+}
+
+/* Dialog action rows (cleared by C1–C14). Every dialog in the product ends in
+   one of these; they disagreed on direction, gap and alignment. The safe action
+   sits at the end of the reading flow, where the eye lands last. */
+.team-dialog-actions,
+.settings-section-actions,
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Picker lists (cleared by C9–C11). Three pickers, one row. */
+.team-task-picker-results {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+}
+.team-task-picker-results button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height-lg);
+  padding: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-neutral-text);
+  text-align: left;
+  cursor: pointer;
+}
+.team-task-picker-results button:hover:not(:disabled) {
+  background: var(--color-neutral-surface-subtle);
+}
+.team-task-picker-results button.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-softer);
+}
+
+/* Tab strips (cleared by C8, C13). Four of them, one active treatment. */
+.team-space-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--color-neutral-text-muted);
+  font-weight: var(--weight-emphasis);
+  cursor: pointer;
+}
+.team-space-tab.is-active {
+  border-bottom-color: var(--color-secondary-solid);
+  color: var(--color-neutral-text);
+}
+
+/* Icon plates (cleared by C9, C12). docs/DESIGN.md: 30×30 on tiles, 44×38 in
+   rows, and the plate grows before the icon shrinks. */
+.icon-button,
+.team-agent-action {
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    color var(--motion-fast) var(--ease-out-curve);
+}
+.icon-button:hover:not(:disabled),
+.team-agent-action:hover:not(:disabled) {
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-neutral-text);
+}
+
+/* Toasts (cleared by C2). The layout stays where it is; the colour comes from
+   the role the component now declares, so the four tones stop being four
+   hand-picked palettes. */
+.ui-toast {
+  border-color: var(--ui-border);
+  color: var(--color-neutral-text);
+}
+.ui-toast .ui-toast-text {
+  color: inherit;
+}
+
+/* ============================================================
+   Measure (021, T157 — FR-023)
+
+   A paragraph is read, so it gets a measure. Applied where prose actually
+   lives — a dialog's body, a card's description, an alert, an empty state —
+   and not to every `p` in the product: a paragraph inside a table cell or a
+   chip is a label, and capping it there would leave a ragged column.
+   ============================================================ */
+.modal > p,
+.team-dialog-form > p,
+.ui-card-description,
+.ui-alert-text,
+.ui-empty-description {
+  max-width: var(--measure);
+}

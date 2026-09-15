@@ -19,6 +19,7 @@ import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { Download, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
 import { Button } from '../../components/ui';
+import { Popover, SegmentedControl } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import {
@@ -1310,6 +1311,18 @@ function ExplorerBody({
   };
 
   const trash = query.trash;
+  /*
+   * An empty folder is resolved by putting something in it, so the empty state
+   * offers the same control the toolbar does rather than describing it. A
+   * member who may not upload gets the sentence without a door, which is the
+   * permission rule: absent or explained, never present and dead.
+   */
+  const emptyUploadAction =
+    permissions?.upload && !trash ? (
+      <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}>
+        {t('teamExplorerAddFiles')}
+      </Button>
+    ) : undefined;
 
   // `/` opens the search from anywhere on the folder screen (FR-027). The
   // search bar binds the same key once it is mounted; before that there was
@@ -1462,30 +1475,27 @@ function ExplorerBody({
             />
           )}
           {!trash && (
-            <div
+            /* A choice of two, told as one: it was a pair of `aria-pressed`
+               toggles, which says "this button is down" twice rather than
+               "this is the one of two that is chosen" (021, T088). */
+            <SegmentedControl<'list' | 'grid'>
               className="team-explorer-view-toggle"
-              role="group"
-              aria-label={t('teamExplorerViewLabel')}
-            >
-              <button
-                type="button"
-                aria-pressed={view === 'list'}
-                aria-label={t('teamExplorerViewList')}
-                title={t('teamExplorerViewList')}
-                onClick={() => setView('list')}
-              >
-                <ListViewIcon />
-              </button>
-              <button
-                type="button"
-                aria-pressed={view === 'grid'}
-                aria-label={t('teamExplorerViewGrid')}
-                title={t('teamExplorerViewGrid')}
-                onClick={() => setView('grid')}
-              >
-                <GridViewIcon />
-              </button>
-            </div>
+              label={t('teamExplorerViewLabel')}
+              value={view}
+              onChange={setView}
+              options={[
+                {
+                  value: 'list',
+                  label: <ListViewIcon />,
+                  title: t('teamExplorerViewList')
+                },
+                {
+                  value: 'grid',
+                  label: <GridViewIcon />,
+                  title: t('teamExplorerViewGrid')
+                }
+              ]}
+            />
           )}
         </div>
       </div>
@@ -1703,6 +1713,7 @@ function ExplorerBody({
                 actions={actions}
                 sort={sort}
                 tagging={tagging}
+                emptyAction={emptyUploadAction}
               />
             ) : (
               <ContentList
@@ -1711,6 +1722,7 @@ function ExplorerBody({
                 actions={actions}
                 sort={sort}
                 tagging={tagging}
+                emptyAction={emptyUploadAction}
               />
             )}
           </div>
@@ -2055,26 +2067,6 @@ function ProcessMenu({
     run();
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && box.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-        button.current?.focus();
-      }
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
   // A menu that says `role="menu"` promises arrow keys; Tab alone was all it
   // had, and the first item never took focus when the menu opened.
   useEffect(() => {
@@ -2137,9 +2129,21 @@ function ProcessMenu({
       >
         {t('teamExplorerProcess')}
       </Button>
-      {open && (
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          button.current?.focus();
+        }}
+        anchor={box}
+        placement="bottom-start"
+        frequent
+        label={t('teamExplorerProcessScope')}
+        surface="none"
+        className="team-explorer-menu"
+      >
         <div
-          className="team-explorer-menu"
+          className="team-explorer-menu-items"
           role="menu"
           aria-label={t('teamExplorerProcessScope')}
           ref={list}
@@ -2187,7 +2191,7 @@ function ProcessMenu({
             </button>
           )}
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

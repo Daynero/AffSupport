@@ -21,6 +21,18 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STYLESHEET = path.join(root, 'apps/web/src/styles.css');
+/*
+ * The layers the browser loads before the screen stylesheet, in that order: the
+ * token layer and the inventory's own sheet, which is where the `--ui-*`
+ * properties a colour role sets are declared. The checker's default run reads
+ * all of them; a copy made for a probe has to be the same files, or every token
+ * in it reads as undefined — which is what happened the first time a screen
+ * rule asked a migrated button for its border colour.
+ */
+const LAYERS = [
+  path.join(root, 'apps/web/src/styles/tokens.css'),
+  path.join(root, 'apps/web/src/styles/components.css')
+];
 const CHECKER = path.join(root, 'scripts/verify-styles.mjs');
 
 /** Runs the checker against a stylesheet of our own, never the committed one. */
@@ -51,17 +63,18 @@ afterEach(() => {
  * the stylesheet two lines long. A test that mutates the working tree is a test
  * that can destroy it.
  */
-function stylesheetWith(rule: string): string {
+function stylesheetWith(rule = ''): string {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'wishly-tokens-'));
   scratchDirectories.push(directory);
   const copy = path.join(directory, 'styles.css');
-  writeFileSync(copy, `${readFileSync(STYLESHEET, 'utf8')}\n${rule}\n`);
+  const layers = LAYERS.map(file => readFileSync(file, 'utf8')).join('\n');
+  writeFileSync(copy, `${layers}\n${readFileSync(STYLESHEET, 'utf8')}\n${rule}\n`);
   return copy;
 }
 
 describe('the style checker', () => {
   it('passes on the stylesheet as committed', () => {
-    expect(run(STYLESHEET).ok).toBe(true);
+    expect(run(stylesheetWith()).ok).toBe(true);
   });
 
   it('catches a property that is referenced and never defined', () => {

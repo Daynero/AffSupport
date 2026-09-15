@@ -1,0 +1,598 @@
+/*
+ * A registered custom property, declared here because this is the only file
+ * allowed to write a literal — and `@property` requires one. `initial-value`
+ * must be computationally independent, so a `var()` there is invalid CSS: the
+ * browser drops the registration silently and the production minifier refuses
+ * the whole stylesheet. It is the power lever's colour, animated as a colour
+ * rather than swapped as a class, which is what registering it buys.
+ */
+@property --power-level-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #7c59e0;
+}
+
+/* ============================================================
+   The token layer (021)
+
+   Every colour, type step, space, radius, shadow, duration, easing and layer
+   in the product resolves to something declared here. A screen that needs a
+   value this file does not have changes this file first.
+
+   Three rules, enforced by scripts/check-design-tokens.mjs:
+
+     1. Both themes, always. A token with a value in one theme only is a bug.
+     2. Names carry meaning, not appearance: --color-primary-solid, never
+        --color-violet-600. The raw hues below are the palette the roles are
+        built from and are not referenced anywhere else.
+     3. No screen declares a raw colour, duration, radius or font-size.
+
+   Legacy aliases live at the bottom: every custom property the old stylesheet
+   uses is redefined in terms of a role, so an unmigrated screen reads from
+   this system without being touched.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Palette (private) --------------------------------------------------
+     The only place a hex literal is allowed. Roles below are built from these;
+     nothing outside this file may name a hue. */
+  --purple-50: #f5f1ff;
+  --purple-100: #ece5ff;
+  --purple-200: #d9ccff;
+  --purple-300: #bca7f7;
+  --purple-400: #9b7aee;
+  --purple-500: #7c59e0;
+  --purple-600: #6842d9;
+  --purple-700: #5532b8;
+  --purple-800: #42288f;
+  --purple-900: #2d1b62;
+  --purple-950: #191033;
+
+  --honey-50: #fff8e6;
+  --honey-100: #ffefc2;
+  --honey-200: #ffe08a;
+  --honey-300: #ffcf52;
+  --honey-400: #ffbf2b;
+  --honey-500: #f5a318;
+  --honey-600: #d98508;
+  --honey-700: #b36a06;
+  --honey-800: #8a5205;
+  --honey-900: #5c3603;
+  --honey-950: #2d1a05;
+
+  --grey-50: #f7f4fa;
+  --grey-100: #fbf9fd;
+  --grey-200: #eeeaf1;
+  --grey-300: #ded8e2;
+  --grey-400: #c7becf;
+  --grey-500: #9a90a5;
+  --grey-600: #6c6173;
+  --grey-700: #4a4154;
+  --grey-800: #332b3d;
+  --grey-900: #211a2c;
+  --grey-950: #120f17;
+
+  /* ---- Status hues --------------------------------------------------------
+     The greens, reds and ambers the product signals with. The roles above are
+     built to be read as text and as fills; these are the brighter steps the
+     screens reach for when the signal has to carry across a dark canvas — an
+     agent that is live, a run that failed, a queue that is throttled. Kept as
+     a scale so the contrast audit has one place to work. */
+  --green-300: #6fe08f;
+  --green-400: #4ade6a;
+  --green-450: #34c759;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #2f9e56;
+  --green-950: #06301a;
+
+  --red-300: #ff9b9b;
+  --red-350: #ff7a6b;
+  --red-400: #ff6b6b;
+  --red-450: #ff5f56;
+  --red-500: #ef4444;
+  --red-550: #ff4d4d;
+  --red-600: #dc2626;
+  --red-700: #b34343;
+  --red-950: #360a0a;
+
+  --amber-100: #fff2cc;
+  --amber-200: #ffebac;
+  --amber-300: #ffd780;
+  --amber-400: #ff9a33;
+  --amber-450: #ffa023;
+  --amber-500: #eab308;
+  --amber-550: #fb8b1e;
+  --amber-600: #ff8c1a;
+  --amber-650: #e89a2a;
+  --amber-700: #f2740c;
+
+  --slate-400: #9aa0aa;
+  --slate-500: #94a3b8;
+  --slate-600: #808080;
+  --sky-300: #7cb2ff;
+  --ice-50: #eafcff;
+
+  /* ---- Identity hues ------------------------------------------------------
+     Not roles: a repeated action keeps its own colour so the eye finds it in a
+     row of six (view, open, download, copy). They never stand in for success
+     or error, and nothing reads meaning off them. */
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --teal-500: #0f9f8f;
+  --teal-700: #0f766e;
+  --cyan-600: #0891b2;
+  --cyan-800: #0e7490;
+  --violet-500: #8b5cf6;
+  --violet-600: #7c3aed;
+
+  --action-view: var(--blue-500);
+  --action-view-text: var(--blue-600);
+  --action-open: var(--cyan-600);
+  --action-open-text: var(--cyan-800);
+  --action-download: var(--teal-500);
+  --action-download-text: var(--teal-700);
+  --action-copy: var(--violet-500);
+  --action-copy-text: var(--violet-600);
+
+  /* The wash over the part of a line that answered a search. Honey at a share
+     that stays readable under the row's own text in both themes. */
+  --color-highlight: color-mix(in srgb, var(--color-primary-solid) 40%, transparent);
+
+  /* ---- Team tag palette (012) ---------------------------------------------
+     Seven hues a person picks by hand. Like the task tags, they are labels,
+     not states. */
+  --team-tag-red: #ff5f56;
+  --team-tag-orange: #ffa023;
+  --team-tag-yellow: #ffe14d;
+  --team-tag-green: #4cd964;
+  --team-tag-blue: #2f9bff;
+  --team-tag-purple: #cc6bff;
+  --team-tag-grey: #b6b6bd;
+
+  /* Absolute white and black. Not roles — the two ends every wash, scrim and
+     shadow is mixed from. Named here so that no other stylesheet has to spell
+     a colour of its own to say "a quarter of white over this". */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* ---- Colour roles: primary ---------------------------------------------
+     The one action a surface exists for. Honey — which is what
+     `.button-primary` has been since the beginning; naming it `primary` only
+     makes the rule sayable. */
+  --color-primary-solid: var(--honey-500);
+  --color-primary-hover: var(--honey-600);
+  --color-primary-active: var(--honey-700);
+  --color-primary-soft: var(--honey-100);
+  --color-primary-softer: var(--honey-50);
+  --color-primary-border: color-mix(in oklab, var(--honey-600) 32%, transparent);
+  --color-primary-text: var(--honey-800);
+  --color-primary-on-solid: var(--honey-950);
+
+  /* ---- Colour roles: secondary -------------------------------------------
+     Violet: identity, navigation, selection, links and focus. Everything the
+     product does that is not "press this one button". */
+  --color-secondary-solid: var(--purple-600);
+  --color-secondary-hover: var(--purple-700);
+  --color-secondary-active: var(--purple-800);
+  --color-secondary-soft: var(--purple-100);
+  --color-secondary-softer: var(--purple-50);
+  --color-secondary-border: color-mix(in oklab, var(--purple-600) 30%, transparent);
+  --color-secondary-text: var(--purple-700);
+  --color-secondary-on-solid: #ffffff;
+
+  /* ---- Colour roles: status ----------------------------------------------- */
+  --color-success-solid: #18794e;
+  --color-success-soft: #eaf7f0;
+  --color-success-border: color-mix(in oklab, #18794e 30%, transparent);
+  --color-success-text: #126340;
+  --color-success-on-solid: #ffffff;
+
+  --color-info-solid: #2563c4;
+  --color-info-soft: #e8f0fd;
+  --color-info-border: color-mix(in oklab, #2563c4 30%, transparent);
+  --color-info-text: #1d4f9e;
+  --color-info-on-solid: #ffffff;
+
+  --color-warning-solid: #9a6700;
+  --color-warning-soft: #fff7db;
+  --color-warning-border: color-mix(in oklab, #9a6700 32%, transparent);
+  --color-warning-text: #7d5300;
+  --color-warning-on-solid: #ffffff;
+
+  --color-error-solid: #b42318;
+  --color-error-soft: #fff0ee;
+  --color-error-border: color-mix(in oklab, #b42318 30%, transparent);
+  --color-error-text: #91190f;
+  --color-error-on-solid: #ffffff;
+
+  /* ---- Colour roles: neutral ---------------------------------------------- */
+  --color-neutral-bg: var(--grey-50);
+  --color-neutral-surface: #ffffff;
+  --color-neutral-surface-raised: #ffffff;
+  --color-neutral-surface-subtle: var(--grey-100);
+  --color-neutral-surface-muted: var(--grey-200);
+  --color-neutral-border: var(--grey-300);
+  --color-neutral-border-strong: var(--grey-400);
+  --color-neutral-text: var(--grey-900);
+  --color-neutral-text-muted: var(--grey-600);
+  --color-neutral-on-solid: #ffffff;
+
+  --color-focus-ring: var(--purple-400);
+  --color-overlay-backdrop: rgba(18, 15, 23, 0.38);
+
+  /* ---- Type ramp ----------------------------------------------------------
+     Seven steps, each with a role. The values are the product's existing,
+     deliberately tight ladder — this is a dense working tool, not a page. */
+  --text-display: 1.8688rem;
+  --text-title: 1.495rem;
+  --text-section: 1.3081rem;
+  --text-body: 1.0281rem;
+  --text-label: 0.9344rem;
+  --text-caption: 0.8413rem;
+  --text-micro: 0.6875rem;
+
+  --weight-body: 400;
+  --weight-label: 600;
+  --weight-emphasis: 650;
+  --weight-heading: 700;
+
+  --leading-heading: 1.2;
+  --leading-body: 1.45;
+  --leading-caption: 1.35;
+
+  /* No paragraph runs wider than this, whatever its container does. */
+  --measure: 70ch;
+
+  /* ---- Space -------------------------------------------------------------- */
+  --space-0: 0;
+  --space-px: 1px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* ---- Radius -------------------------------------------------------------
+     An outer container's radius is twice its inner's (docs/DESIGN-PRINCIPLES.md):
+     a --radius-md control sits correctly inside a --radius-xl card. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-full: 999px;
+
+  /* ---- Brand gradients ----------------------------------------------------
+     One family each: violet for identity, honey for work in flight. A gradient
+     that crosses families reads as two things at once. */
+  --gradient-brand: linear-gradient(90deg, #6842d9 0%, #7c59e0 55%, #9b7aee 100%);
+  --gradient-progress: linear-gradient(90deg, #f5a318 0%, #ffb51b 100%);
+
+  /* ---- Task-tag palette (018) ---------------------------------------------
+     Nine hues a team can tell apart at chip size. They are labels a person
+     chose, not states the product decided, so they stay clear of the seven
+     roles and never stand in for one. */
+  --task-tag-purple: #7c59e0;
+  --task-tag-blue: #2f6fd0;
+  --task-tag-teal: #0f8b8d;
+  --task-tag-green: #2c8a52;
+  --task-tag-honey: #c98a06;
+  --task-tag-orange: #d1600f;
+  --task-tag-red: #c23b30;
+  --task-tag-pink: #c2418b;
+  --task-tag-slate: #5f6b7a;
+
+  /* ---- Ink tints ----------------------------------------------------------
+     Three steps of the page's own ink, for washes that must stay readable over
+     whatever surface they land on. */
+  --tint-soft: rgba(36, 27, 58, 0.06);
+  --tint-medium: rgba(36, 27, 58, 0.14);
+  --tint-strong: rgba(36, 27, 58, 0.24);
+
+  /* ---- Shadow -------------------------------------------------------------
+     Used sparingly: this product separates surfaces by tint, not elevation. */
+  --shadow-sm: 0 1px 2px rgba(33, 26, 44, 0.08);
+  --shadow-md: 0 4px 14px rgba(33, 26, 44, 0.1);
+  --shadow-lg: 0 16px 40px rgba(33, 26, 44, 0.14);
+  --shadow-menu: 0 12px 32px rgba(33, 26, 44, 0.16);
+  /* The one place elevation is literal: a rendered page floating on the
+     viewer's canvas, which is a sheet of paper and reads as one. */
+  --shadow-stage: 0 18px 60px rgba(0, 0, 0, 0.36);
+
+  /* ---- Third-party brand --------------------------------------------------
+     Google dictates the colours of its sign-in button; they are its mark, not
+     a role of ours, so they are named rather than mapped onto one. */
+  --google-surface: var(--color-white);
+  --google-surface-hover: #f8faff;
+  --google-border: #747775;
+  --google-text: #1f1f1f;
+  --google-ink: #3c4043;
+
+  /* ---- Material ground ----------------------------------------------------
+     A rendered landing, a preview thumbnail and a transcript page are the
+     customer's own artefact, not our surface: they stay on paper in both
+     themes, because inverting someone else's page is lying about it. */
+  --color-paper: var(--color-white);
+  --color-on-paper: #10111a;
+
+  /* ---- Account identity ---------------------------------------------------
+     An account's colour is derived from its id (`teamAccountHue`), so the hue
+     is data and only the two lightness settings are design. They live here
+     with the rest of the palette rather than in the accounts sheet. */
+  --team-account-colour-dark: hsl(var(--team-account-hue, 265) 62% 66%);
+  --team-account-colour-light: hsl(var(--team-account-hue, 265) 52% 42%);
+
+  /* ---- Motion -------------------------------------------------------------
+     300ms is a ceiling, not a default (docs/DESIGN-PRINCIPLES.md). Custom
+     curves, because the built-in CSS keywords are weak. ease-out for entering
+     and leaving; ease-in-out only for something already on screen. */
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --motion-slow: 300ms;
+  --ease-out-curve: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-curve: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-linear: linear;
+
+  /* Interactive feedback: a press is felt, not watched. */
+  --press-scale: 0.97;
+
+  /* The one exception to the ceiling: a spinner is not a transition a person
+     waits through, it is the signal that work is still running. Under reduced
+     motion it slows to this rather than stopping, because a stopped spinner and
+     a hung request look identical. */
+  --motion-spin: 700ms;
+  --motion-spin-reduced: 1200ms;
+
+  /* ---- Layers -------------------------------------------------------------
+     One ladder, in the order things actually sit. Two rules decide the top of
+     it: a full-bleed viewer opens over a dialog (a preview raised from one
+     used to render underneath it), and a toast stays reachable above whatever
+     raised it — including that viewer, which is where an Undo has to be
+     pressable from. */
+  --layer-beneath: -1;
+  --layer-base: 0;
+  --layer-raised: 1;
+  --layer-content: 2;
+  --layer-sticky: 10;
+  --layer-header: 20;
+  --layer-dropdown: 30;
+  --layer-popover: 40;
+  --layer-overlay: 50;
+  --layer-modal: 60;
+  --layer-modal-nested: 70;
+  --layer-preview: 80;
+  --layer-fullbleed: 90;
+  --layer-tooltip: 100;
+  --layer-toast: 110;
+  --layer-top: 120;
+
+  /* ---- Control geometry ---------------------------------------------------
+     The five sizes every interactive component answers to. `md` is the
+     product's long-standing 44px floor; `xs`/`sm` are what dense surfaces
+     (the accounts table, explorer rows) use instead of one-off heights. */
+  --control-height-xs: 24px;
+  --control-height-sm: 30px;
+  --control-height-md: 38px;
+  --control-height-lg: 44px;
+  --control-height-xl: 52px;
+
+  --control-padding-xs: 0 8px;
+  --control-padding-sm: 0 10px;
+  --control-padding-md: 0 14px;
+  --control-padding-lg: 0 18px;
+  --control-padding-xl: 0 22px;
+
+  /* docs/DESIGN.md: 20px is the comfortable icon. If it is tight, grow the
+     plate — never shrink the icon. */
+  --icon-size: 20px;
+  --icon-size-sm: 16px;
+  --icon-stroke: 1.75;
+  --icon-plate-tile: 30px;
+  --icon-plate-row-width: 44px;
+  --icon-plate-row-height: 38px;
+}
+
+/* ============================================================
+   Dark theme — the product's primary
+   ============================================================ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-primary-solid: #ffb51b;
+  --color-primary-hover: var(--honey-500);
+  --color-primary-active: var(--honey-600);
+  --color-primary-soft: color-mix(in srgb, #ffb51b 16%, transparent);
+  --color-primary-softer: color-mix(in srgb, #ffb51b 9%, transparent);
+  --color-primary-border: color-mix(in oklab, #ffb51b 40%, transparent);
+  --color-primary-text: var(--honey-300);
+  --color-primary-on-solid: var(--honey-950);
+
+  --color-secondary-solid: var(--purple-400);
+  --color-secondary-hover: var(--purple-300);
+  --color-secondary-active: var(--purple-500);
+  --color-secondary-soft: color-mix(in srgb, var(--purple-400) 22%, transparent);
+  --color-secondary-softer: color-mix(in srgb, var(--purple-400) 12%, transparent);
+  --color-secondary-border: color-mix(in oklab, var(--purple-400) 45%, transparent);
+  --color-secondary-text: var(--purple-300);
+  --color-secondary-on-solid: #17102b;
+
+  --color-success-solid: #56d597;
+  --color-success-soft: color-mix(in srgb, #56d597 15%, transparent);
+  --color-success-border: color-mix(in oklab, #56d597 38%, transparent);
+  --color-success-text: #56d597;
+  --color-success-on-solid: #06251a;
+
+  --color-info-solid: #6ba5ee;
+  --color-info-soft: color-mix(in srgb, #6ba5ee 15%, transparent);
+  --color-info-border: color-mix(in oklab, #6ba5ee 38%, transparent);
+  --color-info-text: #6ba5ee;
+  --color-info-on-solid: #0a1d33;
+
+  --color-warning-solid: #f2c14e;
+  --color-warning-soft: color-mix(in srgb, #f2c14e 15%, transparent);
+  --color-warning-border: color-mix(in oklab, #f2c14e 38%, transparent);
+  --color-warning-text: #f2c14e;
+  --color-warning-on-solid: #2b1f04;
+
+  --color-error-solid: #f4776a;
+  --color-error-soft: color-mix(in srgb, #f4776a 15%, transparent);
+  --color-error-border: color-mix(in oklab, #f4776a 38%, transparent);
+  --color-error-text: #f4776a;
+  --color-error-on-solid: #2d0c08;
+
+  --color-neutral-bg: #120f17;
+  --color-neutral-surface: #1c1725;
+  --color-neutral-surface-raised: #2b2338;
+  --color-neutral-surface-subtle: #171220;
+  --color-neutral-surface-muted: #241d2f;
+  --color-neutral-border: #382f43;
+  --color-neutral-border-strong: #51435e;
+  --color-neutral-text: #f6f2f8;
+  --color-neutral-text-muted: #b8adbe;
+  --color-neutral-on-solid: #120f17;
+
+  --color-focus-ring: var(--purple-300);
+  --color-overlay-backdrop: rgba(0, 0, 0, 0.62);
+
+  --gradient-brand: linear-gradient(90deg, #6842d9 0%, #8a67e8 55%, #9b7aee 100%);
+  --gradient-progress: linear-gradient(90deg, #ffb51b 0%, #f5a318 100%);
+
+  /* The same nine hues, lifted so a chip reads on the dark canvas. */
+  --task-tag-purple: #a98bf2;
+  --task-tag-blue: #6ba5ee;
+  --task-tag-teal: #3cc3c0;
+  --task-tag-green: #61cc8c;
+  --task-tag-honey: #f2c14e;
+  --task-tag-orange: #f0925a;
+  --task-tag-red: #f4776a;
+  --task-tag-pink: #ec84bd;
+  --task-tag-slate: #9aa6b5;
+
+  /* Ink on a dark canvas is light: the same three steps, inverted. */
+  --tint-soft: rgba(255, 255, 255, 0.06);
+  --tint-medium: rgba(255, 255, 255, 0.12);
+  --tint-strong: rgba(255, 255, 255, 0.2);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+  --shadow-menu: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-stage: 0 18px 60px rgba(0, 0, 0, 0.6);
+  /* Google's dark button, from the same guidelines. */
+  --google-surface: #131314;
+  --google-surface-hover: #1e1f20;
+  --google-border: #8e918f;
+  --google-text: #e3e3e3;
+}
+
+/* ============================================================
+   Reduced motion — one place, so a new transition inherits the
+   behaviour rather than having to opt into it.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 1ms;
+    --motion-base: 1ms;
+    --motion-slow: 1ms;
+    --motion-spin: var(--motion-spin-reduced);
+    --press-scale: 1;
+  }
+}
+
+/* ============================================================
+   Legacy aliases (T008)
+
+   Every custom property the pre-021 stylesheet uses, redefined in terms of a
+   role. Unmigrated screens keep working and read from the system immediately;
+   as each screen group migrates, its aliases stop being referenced and can be
+   deleted. Nothing new may use these names.
+   ============================================================ */
+:root {
+  /* Surfaces and text */
+  --color-bg: var(--color-neutral-bg);
+  --color-surface: var(--color-neutral-surface);
+  --color-surface-raised: var(--color-neutral-surface-raised);
+  --color-surface-subtle: var(--color-neutral-surface-subtle);
+  --color-surface-muted: var(--color-neutral-surface-muted);
+  --color-surface-2: var(--color-neutral-surface-subtle);
+  --color-surface-3: var(--color-neutral-bg);
+  --color-text: var(--color-neutral-text);
+  --color-text-muted: var(--color-neutral-text-muted);
+  --color-border: var(--color-neutral-border);
+  --color-border-strong: var(--color-neutral-border-strong);
+
+  /* Accent — violet — is the secondary role: identity, navigation, selection */
+  --color-accent: var(--color-secondary-solid);
+  /*
+   * The accent as *text*, which is a different shade from the accent as a
+   * fill. The contrast sweep found three screens using the solid for a label
+   * sitting on a soft accent wash — 4.26:1 in dark, just under AA — because
+   * `--color-accent` was the only accent name a rule could reach for.
+   */
+  --color-accent-text: var(--color-secondary-text);
+  --color-accent-hover: var(--color-secondary-hover);
+  --color-accent-active: var(--color-secondary-active);
+  --color-accent-soft: var(--color-secondary-soft);
+  --color-accent-softer: var(--color-secondary-softer);
+  --color-on-accent: var(--color-secondary-on-solid);
+  --color-focus: var(--color-focus-ring);
+
+  /* Action — honey — is the primary role: the one button a surface exists for */
+  --color-action: var(--color-primary-solid);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
+  --color-action-soft: var(--color-primary-soft);
+  --color-on-action: var(--color-primary-on-solid);
+
+  /* Status: the old names carried both the solid and the text role */
+  --color-success: var(--color-success-solid);
+  --color-warning: var(--color-warning-solid);
+  --color-error: var(--color-error-solid);
+
+  --overlay-backdrop: var(--color-overlay-backdrop);
+
+  /* Type: seventeen steps collapse onto seven. The mapping rounds to the
+     nearest role rather than preserving every intermediate size — that
+     proliferation is the thing this feature exists to end. */
+  --text-2xs: var(--text-micro);
+  --text-xs: var(--text-micro);
+  --text-sm: var(--text-caption);
+  --text-base: var(--text-caption);
+  --text-md: var(--text-label);
+  --text-lg: var(--text-body);
+  --text-xl: var(--text-body);
+  --text-2xl: var(--text-body);
+  --text-3xl: var(--text-section);
+  --text-4xl: var(--text-section);
+  --text-5xl: var(--text-title);
+  --text-6xl: var(--text-title);
+  --text-7xl: var(--text-title);
+  --text-8xl: var(--text-display);
+  --text-9xl: var(--text-display);
+  --text-10xl: var(--text-display);
+  --text-11xl: var(--text-display);
+  --text-12xl: var(--text-display);
+  --text-13xl: var(--text-display);
+  --text-14xl: var(--text-display);
+  --text-15xl: var(--text-display);
+  --text-16xl: var(--text-display);
+  --text-17xl: var(--text-display);
+
+  /* Motion: four durations, two of them over the ceiling, become three. */
+  --dur-micro: var(--motion-fast);
+  --dur-control: var(--motion-fast);
+  --dur-pop: var(--motion-base);
+  --dur-section: var(--motion-base);
+  --dur-layout: var(--motion-slow);
+  --dur-complete: var(--motion-slow);
+  --ease-standard: var(--ease-out-curve);
+  --ease-enter: var(--ease-out-curve);
+  --ease-exit: var(--ease-out-curve);
+
+  /* Shadow aliases the old sheet still names */
+  --shadow-xl: var(--shadow-lg);
+  --shadow-raise: var(--shadow-md);
+}

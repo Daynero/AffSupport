@@ -1,7 +1,7 @@
 {
-  "note": "Gzipped size of the built web assets after the team workspace was split at its route and section boundaries. The total includes every on-demand workspace surface, while the authenticated shell is 11 kB gzip and no team feature is loaded for ordinary tools. Ratcheted with a small tolerance by tests/performance-budgets.test.ts.",
-  "measured_at": "2026-09-07",
-  "total_gzip_bytes": 584744,
-  "entry_gzip_bytes": 5259,
-  "largest_gzip_bytes": 81571
+  "note": "Gzipped size of the built web assets after the 021 design-system redesign. The shared chunk the document preloads is the number that moved: 81.6 kB → 91.0 kB, because the component inventory is now one copy every screen imports instead of a bespoke control per screen. The total moved 584.7 kB → 605.5 kB (+3.6%), the entry is unchanged at ~5.3 kB, and no team feature is loaded for ordinary tools. Ratcheted with a small tolerance by tests/performance-budgets.test.ts.",
+  "measured_at": "2026-09-14",
+  "total_gzip_bytes": 605534,
+  "entry_gzip_bytes": 5376,
+  "largest_gzip_bytes": 91012
 }

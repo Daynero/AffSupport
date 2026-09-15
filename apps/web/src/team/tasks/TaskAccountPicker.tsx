@@ -28,6 +28,7 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { agentCountKey, freeCountKey } from '../accounts/plural';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
+import { EmptyState, ErrorState, LoadingState } from '../../components/ui/index';
 
 export interface TaskAccountPickerClient {
   listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
@@ -202,27 +203,28 @@ export function TaskAccountPicker({
           </nav>
         )}
 
-        {loading && <p aria-live="polite">{t('teamAccountsLoading')}</p>}
-        {error && <p className="team-inline-error">{t('teamAccountsLoadFailed')}</p>}
+        {loading && <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />}
+        {error && <ErrorState message={t('teamAccountsLoadFailed')} />}
         {!loading && !error && accounts.length === 0 && (
-          <div className="team-task-picker-empty">
-            <p>{t('teamTaskAccountPickerEmpty')}</p>
-            {/* Named by where it goes: accounts are made on their own tab, not
-                in the settings dialog. */}
-            <SpaceSettingsLink
-              target={{ kind: 'section', section: 'accounts' }}
-              label={t('teamSectionAccounts')}
-            />
-          </div>
+          <EmptyState
+            size="sm"
+            title={t('teamTaskAccountPickerEmpty')}
+            /* Named by where it goes: accounts are made on their own tab, not
+               in the settings dialog. */
+            action={
+              <SpaceSettingsLink
+                target={{ kind: 'section', section: 'accounts' }}
+                label={t('teamSectionAccounts')}
+              />
+            }
+          />
         )}
 
         {!loading &&
           !error &&
           !openAccount &&
           accounts.length > 0 &&
-          shownAccounts.length === 0 && (
-            <p className="team-task-picker-empty">{t('teamAccountsEmptyFree')}</p>
-          )}
+          shownAccounts.length === 0 && <EmptyState size="sm" title={t('teamAccountsEmptyFree')} />}
 
         {/* Step one: the accounts, each with what is inside it. */}
         {!loading && !error && !openAccount && shownAccounts.length > 0 && (
@@ -274,11 +276,14 @@ export function TaskAccountPicker({
         {!loading && !error && openAccount && (
           <>
             {shownAgents.length === 0 && (
-              <p className="team-task-picker-empty">
-                {openAccount.agents.length === 0
-                  ? t('teamAccountAgentsNone')
-                  : t('teamAccountsEmptyFree')}
-              </p>
+              <EmptyState
+                size="sm"
+                title={
+                  openAccount.agents.length === 0
+                    ? t('teamAccountAgentsNone')
+                    : t('teamAccountsEmptyFree')
+                }
+              />
             )}
             {shownAgents.length > 0 && (
               <ul className="team-task-picker-results">

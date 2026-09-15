@@ -14,8 +14,12 @@ name: production-heartbeat
 
 on:
   schedule:
-    # Ten minutes is the compromise between noticing quickly and GitHub's own
-    # scheduling jitter, which routinely delays a cron by several minutes.
+    # Ten minutes is what this asks for. It is not what it gets: measured over
+    # a day on this repository, GitHub started these runs two to five hours
+    # apart. Scheduled workflows are best-effort and deprioritised, and no
+    # setting here changes that -- so read this as "a few times a day", and do
+    # not believe an outage would be noticed within ten minutes. Noticing
+    # quickly needs something that is not GitHub's cron.
     - cron: '*/10 * * * *'
   workflow_dispatch:
 

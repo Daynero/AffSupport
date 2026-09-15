@@ -41,6 +41,7 @@ import {
   type RestitchPreparationState
 } from '../restitch/useRestitchPreparation';
 import { SettingsSection } from './SettingsSection';
+import { Alert, PermissionState, RadioGroup } from '../../components/ui/index';
 
 export interface RestitchDefaultsClient {
   getRestitchDefaults: (teamId: string) => Promise<TeamRestitchDefaults | null>;
@@ -190,33 +191,40 @@ export function RestitchDefaultsSection({
 
       {/* Read rather than hidden: a member who cannot change this can still see what the
           space does, which is what they need in order to ask for it to change. */}
-      {!editable && <p className="team-inline-note">{t('teamRestitchReadOnly')}</p>}
-      {!connected && <p className="team-inline-note">{t('teamRestitchAgentMissing')}</p>}
+      {/* A boundary, not a failure: the neutral note, said once. */}
+      {!editable && (
+        <PermissionState className="team-inline-note" message={t('teamRestitchReadOnly')} />
+      )}
+      {/* A condition that stops the panel working, not a note about it: it is
+          announced, and it carries the role's colour and its icon. */}
+      {!connected && (
+        <Alert className="team-inline-note" color="warning" variant="soft">
+          {t('teamRestitchAgentMissing')}
+        </Alert>
+      )}
 
       <div className="field-group">
         <div className="field-label">
           <span>{t('teamRestitchOperation')}</span>
         </div>
-        <div className="fit-mode-pictos" role="radiogroup" aria-label={t('teamRestitchOperation')}>
-          {(['restitch', 'stitch', 'unstitch'] as const).map(value => {
+        {/* The compressor's picto group, taken from the inventory rather than
+            written again (021, T125). */}
+        <RadioGroup
+          className="fit-mode-pictos"
+          variant="pictos"
+          label={t('teamRestitchOperation')}
+          value={operation}
+          disabled={!editable}
+          onChange={setOperation}
+          options={(['restitch', 'stitch', 'unstitch'] as const).map(value => {
             const Icon = value === 'restitch' ? Replace : value === 'stitch' ? Plus : Eraser;
-            return (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                className={operation === value ? 'is-selected' : ''}
-                data-tip={t(OPERATION_KEYS[value])}
-                aria-label={t(OPERATION_KEYS[value])}
-                aria-checked={operation === value}
-                disabled={!editable}
-                onClick={() => setOperation(value)}
-              >
-                <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-            );
+            return {
+              value,
+              label: t(OPERATION_KEYS[value]),
+              icon: <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            };
           })}
-        </div>
+        />
         {/* The chosen option, named — the group below this one does exactly
             this, and without it these are three unlabelled pictograms. */}
         <p className="field-hint">{t(OPERATION_KEYS[operation])}</p>
@@ -268,7 +276,7 @@ export function RestitchDefaultsSection({
 
       {editable && (
         <div className="team-restitch-prepare">
-          <p className="team-inline-note">{t('teamRestitchPrepareExplain')}</p>
+          <p className="team-inline-note prose">{t('teamRestitchPrepareExplain')}</p>
           {/* One reason at a time. Two "first do this" lines side by side make neither of them
               the next step. */}
           {!driveConnected ? (

@@ -687,7 +687,7 @@ describe('accounts and agents', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Delete v31?')).toBeTruthy();
     expect(within(dialog).getByText('Its 2 agents and their runs go with it.')).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete the account' }));
     await waitFor(() =>
       expect(api.deleteAccount).toHaveBeenCalledWith({ teamId: TEAM_ID, accountId: V31 })
     );
@@ -1068,13 +1068,13 @@ describe('the money on an agent', () => {
     const { unmount } = render(client(accounts));
     await waitForGroups();
 
-    const table = () => document.querySelector('.team-accounts-table')!;
-    expect(table().className).not.toContain('is-money-folded');
-    await user.click(screen.getByRole('button', { name: 'Hide money and balances' }));
     // The cells stay in the grid and empty through CSS — taking them out of the
-    // DOM would slide every later cell one track left — so the state is the
-    // table's class, and the caption now offers the way back.
-    expect(table().className).toContain('is-money-folded');
+    // DOM would slide every later cell one track left — so the state is read
+    // where a person reads it: off the control that holds it.
+    const fold = () => screen.getByRole('button', { name: /money and balances$/ });
+    expect(fold().getAttribute('aria-expanded')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Hide money and balances' }));
+    expect(fold().getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByRole('button', { name: 'Show money and balances' })).toBeTruthy();
 
     // Remembered per space, like the account fold beside it.
@@ -1082,7 +1082,7 @@ describe('the money on an agent', () => {
     render(client(fixture()));
     await waitForGroups();
     expect(screen.getByRole('button', { name: 'Show money and balances' })).toBeTruthy();
-    expect(document.querySelector('.team-accounts-table')!.className).toContain('is-money-folded');
+    expect(fold().getAttribute('aria-expanded')).toBe('false');
   });
 
   it('closes the tag list on the choice itself', async () => {

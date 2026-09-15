@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { ProgressBar } from '../../components/ui';
+import { Button, IconButton, Progress } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 
@@ -63,11 +63,11 @@ export function ProcessPanel({
     >
       <div className="team-process-panel-head">
         <strong className="team-process-panel-title">{title}</strong>
-        <button
-          type="button"
+        <IconButton
           className="team-process-panel-toggle"
+          size="sm"
+          label={t(collapsed ? 'teamProcessExpand' : 'teamProcessCollapse')}
           aria-expanded={!collapsed}
-          aria-label={t(collapsed ? 'teamProcessExpand' : 'teamProcessCollapse')}
           data-tip={t(collapsed ? 'teamProcessExpand' : 'teamProcessCollapse')}
           onClick={() => setCollapsed(current => !current)}
         >
@@ -76,11 +76,13 @@ export function ProcessPanel({
           ) : (
             <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           )}
-        </button>
+        </IconButton>
       </div>
 
-      {/* Kept mounted while collapsed so the bar is the one thing a strip still shows. */}
-      <ProgressBar value={progress} active={active} label={title} />
+      {/* Kept mounted while collapsed so the bar is the one thing a strip still
+          shows. Held work goes grey: a honey bar that is not moving reads as
+          stuck, and this one is waiting on purpose. */}
+      <Progress value={progress} label={title} size="sm" color={active ? 'primary' : 'neutral'} />
 
       {!collapsed && (
         <>
@@ -91,26 +93,23 @@ export function ProcessPanel({
             {actions
               .filter(action => !action.destructive)
               .map(action => (
-                <button
-                  key={action.label}
-                  type="button"
-                  className="button button-ghost"
-                  onClick={action.run}
-                >
+                <Button key={action.label} color="neutral" variant="ghost" onClick={action.run}>
                   {action.label}
-                </button>
+                </Button>
               ))}
+            {/* The one that abandons the work says so in its colour as well. */}
             {actions
               .filter(action => action.destructive)
               .map(action => (
-                <button
+                <Button
                   key={action.label}
-                  type="button"
-                  className="button button-ghost team-process-panel-stop"
+                  color="error"
+                  variant="ghost"
+                  className="team-process-panel-stop"
                   onClick={action.run}
                 >
                   {action.label}
-                </button>
+                </Button>
               ))}
           </div>
         </>

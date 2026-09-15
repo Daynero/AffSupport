@@ -1,6 +1,5 @@
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useAnchoredLayer } from '../components/useAnchoredLayer';
+import { Popover } from '../components/ui/index';
 import type { Language } from '../i18n';
 import { languageDisplayName } from './language';
 
@@ -34,7 +33,6 @@ export const LanguageCombobox = memo(function LanguageCombobox({
   pinned,
   emptyLabel,
   ariaLabelledBy,
-  portal = false,
   onChange
 }: {
   value: string;
@@ -50,7 +48,11 @@ export const LanguageCombobox = memo(function LanguageCombobox({
   emptyLabel?: string;
   /** The visible label's id, when there is one; the accessible name then follows it. */
   ariaLabelledBy?: string;
-  /** The list on the body, placed under the field: inside a list card the card clips it. */
+  /**
+   * Kept for the callers that pass it. The list is always on the body now —
+   * anchoring is what sends it there, and a list card clips anything that is
+   * not.
+   */
   portal?: boolean;
   onChange: (code: string) => void;
 }) {
@@ -58,12 +60,7 @@ export const LanguageCombobox = memo(function LanguageCombobox({
   const [open, setOpen] = useState(false);
   const field = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
-  const layerStyle = useAnchoredLayer(field, list, open && portal, {
-    matchWidth: true,
-    // A chip-sized field still needs a list wide enough to read a language name in.
-    minWidth: 220,
-    maxHeight: 240
-  });
+
   /*
    * What has been typed, or `null` for "nothing typed — show the chosen language".
    *
@@ -187,61 +184,55 @@ export const LanguageCombobox = memo(function LanguageCombobox({
           }
         }}
       />
-      {open &&
-        (portal ? (
-          createPortal(
-            <ul
-              id={listId}
-              ref={list}
-              role="listbox"
-              className="transcript-language-listbox is-portal"
-              style={layerStyle ?? undefined}
-            >
-              {filtered.length ? (
-                filtered.map((item, index) => (
-                  <li
-                    id={optionId(item.code)}
-                    key={item.code}
-                    role="option"
-                    aria-selected={item.code === value}
-                    className={`${index === activeIndex ? 'is-active' : ''}${
-                      item.pinned ? ' is-pinned' : ''
-                    }`.trim()}
-                    onPointerDown={event => event.preventDefault()}
-                    onClick={() => choose(item.code)}
-                  >
-                    {item.name}
-                  </li>
-                ))
-              ) : (
-                <li className="is-empty">{emptyLabel ?? label}</li>
-              )}
-            </ul>,
-            document.body
-          )
-        ) : (
-          <ul id={listId} ref={list} role="listbox">
-            {filtered.length ? (
-              filtered.map((item, index) => (
-                <li
-                  id={optionId(item.code)}
-                  key={item.code}
-                  role="option"
-                  aria-selected={item.code === value}
-                  className={`${index === activeIndex ? 'is-active' : ''}${
-                    item.pinned ? ' is-pinned' : ''
-                  }`.trim()}
-                  onPointerDown={event => event.preventDefault()}
-                  onClick={() => choose(item.code)}
-                >
-                  {item.name}
-                </li>
-              ))
-            ) : (
-              <li className="is-empty">{emptyLabel ?? label}</li>
-            )}
-          </ul>
-        ))}
+      {/*
+       * One list, in one of two homes. Inside a list card the card clips what
+       * spills past its edge, so there the surface is anchored — and anchoring
+       * is what sends it to the body. Elsewhere it stays where it is written.
+       */}
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          setQuery(null);
+        }}
+        /* Always anchored, which is what portals it. The list used to have a
+           second, in-place home for the viewer, where a `position: absolute`
+           list sat above the dialog's chrome; on the body it is above it
+           anyway, and one home is one set of rules. */
+        anchor={field}
+        placement="bottom-start"
+        frequent
+        matchWidth
+        /* A chip-sized field still needs a list wide enough to read a language
+           name in. */
+        minWidth={220}
+        maxHeight={240}
+        label={label}
+        surface="none"
+        className="transcript-language-listbox"
+      >
+        <ul id={listId} ref={list} role="listbox">
+          {filtered.length ? (
+            filtered.map((item, index) => (
+              <li
+                id={optionId(item.code)}
+                key={item.code}
+                role="option"
+                aria-selected={item.code === value}
+                className={`${index === activeIndex ? 'is-active' : ''}${
+                  item.pinned ? ' is-pinned' : ''
+                }`.trim()}
+                onPointerDown={event => event.preventDefault()}
+                onClick={() => choose(item.code)}
+              >
+                {item.name}
+              </li>
+            ))
+          ) : (
+            <li className="is-empty">{emptyLabel ?? label}</li>
+          )}
+        </ul>
+      </Popover>
     </div>
   );
 });

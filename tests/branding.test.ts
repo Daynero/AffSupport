@@ -112,26 +112,33 @@ describe('Soty brand identity', () => {
 
 describe('Soty design system', () => {
   const css = readFileSync('apps/web/src/styles.css', 'utf8');
+  /* Every value moved here in 021; the screen stylesheet only names them. */
+  const tokens = readFileSync('apps/web/src/styles/tokens.css', 'utf8');
 
   it('builds the palette and motion system on shared tokens', () => {
     for (const token of [
       '--purple-500: #7c59e0',
-      '--color-accent: var(--purple-600)',
+      '--color-accent: var(--color-secondary-solid)',
+      '--color-secondary-solid: var(--purple-600)',
       '--gradient-progress',
-      '--ease-standard: cubic-bezier(0.2, 0, 0, 1)',
+      '--ease-standard: var(--ease-out-curve)',
       '--dur-control',
       '--dur-section'
     ]) {
-      expect(css).toContain(token);
+      expect(tokens).toContain(token);
     }
-    // The previous blue accent must be gone.
-    expect(css).not.toMatch(/#3559c7|#2949ad|#edf2ff/i);
+    // The previous blue accent must be gone, from both files.
+    expect(`${tokens}${css}`).not.toMatch(/#3559c7|#2949ad|#edf2ff/i);
   });
 
   it('keeps semantic colors non-purple', () => {
-    expect(css).toContain('--color-success: #18794e');
-    expect(css).toContain('--color-warning: #9a6700');
-    expect(css).toContain('--color-error: #b42318');
+    expect(tokens).toContain('--color-success-solid: #18794e');
+    expect(tokens).toContain('--color-warning-solid: #9a6700');
+    expect(tokens).toContain('--color-error-solid: #b42318');
+    // And each role's alias points at its own solid rather than at a value.
+    for (const role of ['success', 'warning', 'error']) {
+      expect(tokens).toContain(`--color-${role}: var(--color-${role}-solid)`);
+    }
   });
 
   it('disables decorative loops under prefers-reduced-motion', () => {
@@ -163,7 +170,9 @@ describe('Soty design system', () => {
   });
 
   it('reserves tabular numbers for timers, progress and metrics', () => {
-    for (const selector of ['.job-timer', '.job-progress-meta', '.batch-counts']) {
+    // `.batch-counts` went with the dead-rule pass (021, T150) — nothing had
+    // rendered it for some time; the batch heading is what counts on screen now.
+    for (const selector of ['.job-timer', '.job-progress-meta', '.batch-progress-heading > span']) {
       const block = css.slice(css.indexOf(selector));
       expect(block.slice(0, block.indexOf('}'))).toContain('font-variant-numeric: tabular-nums');
     }

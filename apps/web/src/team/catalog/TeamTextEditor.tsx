@@ -98,7 +98,9 @@ export function TeamTextEditor({
         </Button>
       </div>
       {!eligible ? (
-        <p className="team-inline-error">{t('teamTextEditorTxtOnly')}</p>
+        <p className="team-inline-error" role="alert">
+          {t('teamTextEditorTxtOnly')}
+        </p>
       ) : (
         <>
           <label>
@@ -153,7 +155,7 @@ export function TeamTextEditor({
             <Button type="button" variant="danger" onClick={onClose}>
               {t('teamTextEditorDiscardAction')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirmingDiscard(false)}>
+            <Button type="button" variant="secondary" onClick={() => setConfirmingDiscard(false)}>
               {t('teamCancel')}
             </Button>
           </div>

@@ -1,5 +1,6 @@
 import { useI18n } from '../i18n';
 import { usePower } from '../lib/power';
+import { Alert } from './ui/index';
 
 /**
  * What Soty is consuming right now, in words.
@@ -79,5 +80,9 @@ export function PowerThrottleNotice() {
   const { t } = useI18n();
   const { state, status } = usePower();
   if (status !== 'ready' || !state || state.throttlingSupported) return null;
-  return <p className="power-notice">{t('powerThrottleUnsupported')}</p>;
+  return (
+    <Alert className="power-notice" color="neutral" variant="subtle" live="none">
+      {t('powerThrottleUnsupported')}
+    </Alert>
+  );
 }

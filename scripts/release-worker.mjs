@@ -8,7 +8,7 @@ import { recoverState } from './lib/release/recovery.mjs';
 import { executeReleaseFlow } from './lib/release/flow.mjs';
 import { completeStep, startStep, transition } from './lib/release/state.mjs';
 import { stepDefinition } from './lib/release/steps.mjs';
-import { startLeaseServer } from './lib/release/lease-server.mjs';
+import { startLeaseServer, leaseSocketPath } from './lib/release/lease-server.mjs';
 import { boundedDiagnostic, diagnosticFingerprint } from './lib/release/diagnostics.mjs';
 import { enqueueHandoff } from './lib/release/handoff.mjs';
 import { loadSnapshot, runDirectory, saveSnapshot } from './lib/release/store.mjs';
@@ -149,7 +149,8 @@ async function handOffFailure({ directory, runId, sourceSha, failedStep, error, 
  *   adapter: {execute: (stepId: string, run: unknown) => Promise<{ok: boolean, error?: unknown}>},
  *   backendPlan?: {changes: readonly unknown[]} | null,
  *   admission?: {withAdmission: (stepId: string, run: () => Promise<any>) => Promise<any>, setWaitReporter?: (reporter: (event: any) => Promise<void>) => void} | null,
- *   directory?: string
+ *   directory?: string,
+ *   journal?: {append: (type: string, payload: unknown) => Promise<unknown>, snapshot: (run: unknown) => Promise<unknown>, journalPath: string} | null
  * }} options
  */
 export async function runWorker({
@@ -157,9 +158,10 @@ export async function runWorker({
   adapter,
   backendPlan = null,
   admission = null,
-  directory = runDirectory(runId)
+  directory = runDirectory(runId),
+  journal: suppliedJournal = null
 }) {
-  const journal = await createJournal(directory, runId);
+  const journal = suppliedJournal ?? (await createJournal(directory, runId));
   // Anything the previous worker left behind is reconciled before this one
   // takes over; a torn final write is quarantined rather than trusted.
   const { events, quarantined } = await recoverJournal(journal.journalPath, runId);
@@ -172,7 +174,7 @@ export async function runWorker({
 
   const capability = randomBytes(CAPABILITY_BYTES).toString('hex');
   const lease = await startLeaseServer({
-    socketPath: path.join(directory, 'admit.sock'),
+    socketPath: leaseSocketPath(runId),
     capability,
     generation: recovered.generation ?? 1,
     children: new Map()
@@ -270,8 +272,30 @@ if (invokedDirectly) {
       : await import('./lib/release/step-adapter.mjs');
     let adapter;
     let worktree = null;
+    /**
+     * The journal is made here, not inside the worker loop, because the step
+     * adapter needs it as much as the loop does.
+     *
+     * `backend_apply` writes its own receipts -- one per migration and function,
+     * before and after -- and refuses outright without somewhere to write them.
+     * The adapter's `journal` parameter defaults to null and nothing ever passed
+     * one, so the step that applies the release to the production database
+     * reported `ACCESS_UNAVAILABLE` and stopped, at the end of a release that
+     * had already published both installers and moved the beta line.
+     */
+    const journal = await createJournal(runDirectory(runId), runId);
     try {
       const identity = {
+        journal,
+        // The adapter defaults to an empty environment, which is right for a
+        // test and wrong for a release: the direct git calls -- the manifest
+        // commit, the promotion -- take that environment verbatim rather than
+        // merging it over the process's, so they ran with no PATH at all. Git
+        // itself still resolved, because Node finds the binary by the parent's
+        // path, but the credential helper is a shell command and a shell with
+        // no PATH finds nothing: `gh: command not found`, after both installers
+        // were published.
+        env: process.env,
         runId,
         version: snapshot.version ?? process.env.SOTY_RELEASE_VERSION,
         sourceSha: snapshot.sourceSha,
@@ -342,7 +366,7 @@ if (invokedDirectly) {
         onWait: () => {}
       });
       try {
-        const result = await runWorker({ runId, backendPlan, adapter, admission });
+        const result = await runWorker({ runId, backendPlan, adapter, admission, journal });
         process.exitCode = result.ok ? 0 : 1;
       } finally {
         admission.stop();

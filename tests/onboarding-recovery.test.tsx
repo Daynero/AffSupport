@@ -7,6 +7,7 @@ import { markAgentSeen } from '../apps/web/src/api/client';
 import { Onboarding } from '../apps/web/src/App';
 import { translate, type TranslationKey } from '../apps/web/src/i18n';
 import { emptyQueueState } from './web-auth-helpers';
+import { expectPrimaryAction } from './support/design-system';
 
 const t = (key: TranslationKey, values?: Record<string, string | number>) =>
   translate('uk', key, values);
@@ -55,7 +56,7 @@ describe('the panel shown when the page cannot reach the Agent', () => {
     renderOnboarding('not_installed_or_not_running');
 
     const install = screen.getByRole('link', { name: 'Встановити Soty' });
-    expect(install.className).toContain('button-primary');
+    expectPrimaryAction(install);
     expect(screen.queryByRole('link', { name: 'Відкрити Soty' })).toBeNull();
   });
 
@@ -68,7 +69,7 @@ describe('the panel shown when the page cannot reach the Agent', () => {
     renderOnboarding('not_installed_or_not_running');
 
     const open = screen.getByRole('link', { name: 'Відкрити Soty' });
-    expect(open.className).toContain('button-primary');
+    expectPrimaryAction(open);
     expect(open.getAttribute('href')).toBe('http://127.0.0.1:43120/local');
     expect(screen.getByRole('heading', { name: 'Відкрийте Soty, щоб продовжити' })).toBeTruthy();
     // Never a dead end for the one person this guesses wrong about.
@@ -94,7 +95,7 @@ describe('the panel shown when the page cannot reach the Agent', () => {
     renderOnboarding('connection_blocked');
 
     const open = screen.getByRole('link', { name: 'Відкрити Soty' });
-    expect(open.className).toContain('button-primary');
+    expectPrimaryAction(open);
     expect(open.getAttribute('target')).toBeNull();
     expect(screen.getByText('Відкрийте Soty, щоб продовжити')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Спробувати знову' })).toBeTruthy();
@@ -106,7 +107,7 @@ describe('the panel shown when the page cannot reach the Agent', () => {
     renderOnboarding('entitlement_blocked');
 
     const recover = screen.getByRole('link', { name: 'Перепідключити через Soty' });
-    expect(recover.className).toContain('button-primary');
+    expectPrimaryAction(recover);
     expect(recover.getAttribute('href')).toBe(
       'http://127.0.0.1:43120/local?to=%2Ftools%2Fcompressor'
     );

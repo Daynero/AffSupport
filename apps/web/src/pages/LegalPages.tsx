@@ -244,13 +244,15 @@ function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
       <main className="legal-content">
         <header>
           <h1>{title}</h1>
-          <p>{t('lastUpdated')}</p>
+          <p className="prose">{t('lastUpdated')}</p>
         </header>
         {sections.map(section => (
           <section key={section.heading}>
             <h2>{section.heading}</h2>
             {section.paragraphs.map(paragraph => (
-              <p key={paragraph}>{paragraph}</p>
+              <p key={paragraph} className="prose">
+                {paragraph}
+              </p>
             ))}
           </section>
         ))}

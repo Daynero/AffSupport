@@ -160,6 +160,32 @@ function packagingInputsDirectory() {
   return path.join(root, 'release', newest);
 }
 
+/**
+ * Where `gh` is, as an absolute path.
+ *
+ * The release's last act is a push, and the worker that makes it is detached:
+ * no terminal, no window session, so the system keychain answers nothing and
+ * git falls back to `gh`. Which it could not find -- the helper runs through a
+ * shell whose PATH, in a detached process, is not the owner's. Recorded here
+ * after this command has run it, like everything else the runner depends on and
+ * cannot rebuild for itself.
+ */
+function githubCli() {
+  try {
+    const resolved = execFileSync('command', ['-v', 'gh'], {
+      encoding: 'utf8',
+      shell: '/bin/sh'
+    }).trim();
+    execFileSync(resolved, ['--version'], { stdio: 'pipe' });
+    return resolved;
+  } catch {
+    return fail(
+      'gh is not installed, or does not answer `gh --version`; a release publishes through it'
+    );
+  }
+}
+
+const ghPath = githubCli();
 const inputsDirectory = packagingInputsDirectory();
 const packagingEnvironment = PACKAGING_INPUTS.map(([name, relative]) => {
   const file = path.join(inputsDirectory, relative);
@@ -173,6 +199,7 @@ const environment = [
   `SOTY_RELEASE_PROBE_DIGEST=${probeDigest}`,
   `SOTY_RELEASE_BRIDGE_CONFIG=${bridgeConfigPath}`,
   ...(existsSync(runtimeApp) ? [`BETA_RUNTIME_SOURCE_APP=${runtimeApp}`] : []),
+  `SOTY_RELEASE_GH=${ghPath}`,
   ...packagingEnvironment
 ];
 writeFileSync(envPath, `${environment.join('\n')}\n`, { mode: 0o600 });

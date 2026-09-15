@@ -169,6 +169,118 @@ npm run release:backend-plan -- --out=plan.json
 `SUPABASE_SETUP.md` лишається довідником про те, що означає кожен секрет і як
 підняти проєкт з нуля; він більше не є процедурою релізу.
 
+## Реліз раннером, з нуля (читати першим)
+
+Це послідовність, якою 1.1.1 реально вийшов. Фази нижче по файлу лишаються
+описом того, ЩО відбувається всередині кроків, і ручним запасним варіантом.
+
+### 0. Раннер має бути встановлений
+
+```bash
+npm run release:install
+set -a; . release/automation/release-runner.env; set +a
+```
+
+Записує п'ять речей, яких раннер не може зібрати сам і без яких відмовляє ще на
+preflight: зонд ресурсів (збирається зі Swift-джерела й одразу запускається на
+перевірку), міст ремонту, абсолютний шлях до `gh`, сім перевірених файлів
+збірки з `release/inputs-<версія>/` і запакований рантайм для бети. Якщо чогось
+бракує — команда падає тут, а не через сорок хвилин посеред релізу.
+
+### 1. Коміт «release: prepare X.Y.Z»
+
+**Версія заморожена в джерелі. Раннер її не підіймає.** Реліз починається з
+коміту, який каже, який це реліз; без нього `package:mac` відмовить з
+«v<попередня> already exists». Що змінюється (взірець — `git show v1.1.0`):
+
+- `packages/shared/src/release.ts` — `PRODUCT_VERSION`, `BUNDLE_VERSION`,
+  `BUILD_NUMBER` (+1);
+- `package.json`, `apps/agent/package.json`, `apps/web/package.json`,
+  `packages/shared/package.json` — поле `version`, і пін
+  `"@video-compressor/shared"` у двох застосунках;
+- `package-lock.json` — ті самі версії;
+- `apps/web/public/.well-known/wishly/stable.json` — версія, `buildNumber`,
+  `buildId`, `publishedAt`, URL артефактів на новий тег, **`sha256` нулями**
+  (справжні відбитки запише крок `manifest`), короткий `summary` двома мовами;
+- `RELEASE_NOTES.md` — розділ нової версії зверху: його вміст стає тілом релізу
+  на GitHub.
+
+Далі `npm run build -w @video-compressor/shared`,
+`node scripts/sign-release-manifest.mjs`, і перевірка
+`node scripts/verify-release.mjs --mode=contract` має пройти.
+
+### 2. Звідки різати
+
+Якщо реліз — це вершина `main`, ріжте з неї. Якщо в `main` уже є робота, яка в
+реліз не йде (паралельна гілка встигла злитись), зробіть гілку `release/X.Y.Z`
+від потрібного коміту, покладіть коміт із кроку 1 на неї і поставте `beta` на
+той самий коміт. Раннер вимагає, щоб реліз містився в `beta`, і саме `beta` він
+просуває далі.
+
+### 3. Намір і запуск
+
+`release/automation/release-intent.json` — `runId` (новий UUID), `sourceSha`,
+`version`. **Новий `sourceSha` — новий `runId`.** Той самий `runId` означає
+«продовжити», а не «почати наново».
+
+```bash
+export SOTY_RELEASE_BACKEND_PLAN=release/automation/backend-plan.json   # якщо є серверні зміни
+npm run release -- preflight --intent release/automation/release-intent.json \
+  --bindings release/automation/release-bindings.json
+npm run release -- start --intent release/automation/release-intent.json
+```
+
+`start` віддає роботу відчепленому воркеру й повертається. Стежити — за
+журналом, не за терміналом:
+
+```bash
+tail -f release/automation/<runId>/journal.ndjson
+npm run release -- status <runId>
+```
+
+### 4. Коли крок упав
+
+Полагодьте причину і **запустіть `start` з тим самим наміром**. Воркер прочитає
+журнал, пропустить зроблене і візьме назад ту саму робочу копію — зібрані dmg і
+zip переживають перезапуск, Windows-збірка, яка вже йде, підхоплюється замість
+запуску другої. Нічого не перезбирається.
+
+Код кроків раннер бере з **цієї** робочої копії, а не з коміту релізу. Тому
+виправлення самого раннера діють одразу після перезапуску, без нового
+`sourceSha`. Виправлення того, що перевіряє CI (тести, воркфлоу), — навпаки:
+вони мають бути в коміті, який випускається, бо Linux-ворота викладають саме
+його.
+
+### 5. Що реліз рухає
+
+|                |                                                                         |
+| -------------- | ----------------------------------------------------------------------- |
+| тег `vX.Y.Z`   | коміт, з якого зібрані інсталятори                                      |
+| `beta`         | на крок далі: коміт `release: record X.Y.Z artifact digests`            |
+| GitHub release | dmg із локальної збірки, exe з CI                                       |
+| прод           | міграції й функції з `backend-plan.json`, кожна з квитанцією до і після |
+| Cloudflare     | зібраний бандл + той самий підписаний `stable.json`                     |
+
+Після релізу в `main` зливається **`beta`**, а не `release/X.Y.Z`: інакше в
+репозиторій потраплять нульові відбитки замість справжніх.
+
+### Чого не буде в репозиторії
+
+`VITE_GOOGLE_PICKER_API_KEY` і `VITE_GOOGLE_PROJECT_NUMBER` — змінні репозиторію
+на GitHub (Settings → Secrets and variables → Actions → Variables). Не секрети:
+обидва компілюються у видимий бандл. Але репозиторій публічний, а ключ Google у
+публічному репозиторії збирають сканери. Без них Windows-збірка зупиняється з
+названою причиною.
+
+### Гострі краї, які ще не зняті
+
+- Зонд, який перестав відповідати зовсім (усі сигнали `null`), не рахується як
+  збій вибірки — очікування може не скінчитись. Ознака: `resource_wait` з
+  `RESOURCE_SIGNAL_UNKNOWN`, що повторюється довше за хвилину.
+- `gh workflow run --ref main` бере опис воркфлоу з `main`, а не з коміту
+  релізу: правки воркфлоу мають потрапити в `main` до запуску.
+- `npm run rollback:web` жодного разу не виконувався по-справжньому.
+
 ## Реліз на дві платформи
 
 ### Canonical agent runbook
@@ -181,7 +293,8 @@ It has no model dependency for normal flow. Do not use it for production until
 G0 ratification and real sandbox acceptance evidence exist; neither has a
 bypass flag.
 
-Установка раннера (один раз на машину, не під час релізу):
+Установка раннера (один раз на машину, не під час релізу) — `npm run
+release:install`, див. розділ вище. Історично це робилось так:
 
 ```bash
 node scripts/package-release-runner.mjs --build "$PWD/release/automation/probe"

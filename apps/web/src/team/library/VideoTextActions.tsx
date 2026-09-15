@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LibraryVideoTextVariant, LibraryVideoTextVariants } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
+import { Button, DropdownMenu } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { MediaActionIcon } from './mediaActionIcons';
 
@@ -41,6 +41,8 @@ export function VideoTextActions({
   const [viewing, setViewing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [variantsOpen, setVariantsOpen] = useState(false);
+  const variantTrigger = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -88,42 +90,64 @@ export function VideoTextActions({
   if (readyVariants.length === 0) {
     return payload?.canProcess !== false ? (
       <Button
-        type="button"
+        color="neutral"
         variant="ghost"
         className="team-media-action is-transcribe"
+        leading={<MediaActionIcon kind="transcribe" />}
         onClick={onTranscribe}
       >
-        <MediaActionIcon kind="transcribe" />
-        <span>{t('creativeLibraryTranscribe')}</span>
+        {t('creativeLibraryTranscribe')}
       </Button>
     ) : null;
   }
 
+  const variantLabel = (variant: LibraryVideoTextVariant) =>
+    variant.kind === 'original'
+      ? t('creativeLibraryTextOriginal')
+      : t('creativeLibraryTextTranslation', { language: variant.language });
+
   return (
     <div className="creative-library-text-actions">
       {readyVariants.length > 1 && (
-        <select
-          aria-label={t('creativeLibraryTextVariant')}
-          value={selectedMaterialId ?? ''}
-          onChange={event => setSelectedMaterialId(event.target.value)}
-        >
-          {readyVariants.map(variant => (
-            <option key={variant.materialId} value={variant.materialId}>
-              {variant.kind === 'original'
-                ? t('creativeLibraryTextOriginal')
-                : t('creativeLibraryTextTranslation', { language: variant.language })}
-            </option>
-          ))}
-        </select>
+        <>
+          {/* One question with one answer, so the menu ticks the current one
+              and closes on the choice. */}
+          <Button
+            ref={variantTrigger}
+            color="neutral"
+            variant="outline"
+            size="sm"
+            aria-haspopup="menu"
+            aria-expanded={variantsOpen}
+            onClick={() => setVariantsOpen(current => !current)}
+          >
+            {selected ? variantLabel(selected) : t('creativeLibraryTextVariant')}
+          </Button>
+          <DropdownMenu
+            open={variantsOpen}
+            onClose={() => setVariantsOpen(false)}
+            anchor={variantTrigger}
+            label={t('creativeLibraryTextVariant')}
+            selection="single"
+            items={readyVariants.map(variant => ({
+              id: variant.materialId,
+              label: variantLabel(variant),
+              checked: variant.materialId === selectedMaterialId,
+              onSelect: () => setSelectedMaterialId(variant.materialId)
+            }))}
+          />
+        </>
       )}
-      <Button type="button" variant="ghost" disabled={!text} onClick={() => setViewing(true)}>
+      <Button color="neutral" variant="ghost" disabled={!text} onClick={() => setViewing(true)}>
         {t('creativeLibraryViewText')}
       </Button>
-      <Button type="button" variant="ghost" disabled={!text} onClick={() => void copy()}>
+      {/* Pressed often enough that a flash would become noise: the word changes
+          and nothing moves. */}
+      <Button color="neutral" variant="ghost" disabled={!text} onClick={() => void copy()}>
         {copied ? t('creativeLibraryTextCopied') : t('creativeLibraryCopyText')}
       </Button>
       {onRetranscribe && (
-        <Button type="button" variant="ghost" onClick={onRetranscribe}>
+        <Button color="neutral" variant="ghost" onClick={onRetranscribe}>
           {t('teamTranscriptRedo')}
         </Button>
       )}
@@ -138,10 +162,10 @@ export function VideoTextActions({
             <h2 id="creative-library-text-title">{t('creativeLibraryTranscriptTitle')}</h2>
             <pre>{text}</pre>
             <div className="team-dialog-actions">
-              <Button type="button" variant="secondary" onClick={() => void copy()}>
+              <Button color="neutral" variant="outline" onClick={() => void copy()}>
                 {copied ? t('creativeLibraryTextCopied') : t('creativeLibraryCopyText')}
               </Button>
-              <Button type="button" variant="primary" onClick={() => setViewing(false)}>
+              <Button color="primary" variant="solid" onClick={() => setViewing(false)}>
                 {t('creativeLibraryDone')}
               </Button>
             </div>

@@ -1,78 +1,18 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { FOCUSABLE_SELECTOR, useDialogBehaviour } from './ui/Overlay';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
 /**
- * What Tab can reach inside a dialog.
+ * The product's original dialog, kept for its API and its markup (021, T023).
  *
- * The list decides where focus goes when a dialog opens and where it wraps at
- * the end — so anything missing from it is a control a keyboard user cannot
- * reach while the dialog is up, with no way to tell why.
- *
- * Three kinds were missing, and all three appear in dialogs this application
- * actually shows: the transcript editor is a `contenteditable` region, the
- * preview dialogs mount `<video>` and `<audio>` with native controls, and
- * `<summary>` is what opens the details blocks inside the support dialog.
+ * Everything it used to do by itself — the open stack, the focus trap, the
+ * body scroll lock, Escape, focus return — now comes from `ui/Overlay`, so the
+ * two dialog implementations share one stack instead of racing each other over
+ * the same key events and the same `body.style.overflow`.
  */
-export const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'textarea:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  // An editable region is focusable without a tabindex, and `="false"` is the
-  // explicit opt-out — matching on the attribute alone would trap focus in
-  // something the author deliberately made read-only.
-  '[contenteditable]:not([contenteditable="false"])',
-  'audio[controls]',
-  'video[controls]',
-  'details > summary',
-  'iframe',
-  '[tabindex]:not([tabindex="-1"])'
-].join(', ');
-
-/**
- * Stack of currently open modal surfaces. Only the top-most modal reacts to
- * Escape and traps Tab, so nested dialogs (e.g. the Windows notice above the
- * install dialog) never fight over the same key events.
- */
-const openModals: HTMLElement[] = [];
-
-/**
- * The page's own scroll setting, held while any dialog is up.
- *
- * The lock belongs to the *stack*, not to each dialog: every dialog used to
- * save the body's overflow on its own mount and put it back on its own
- * unmount, so two overlapping dialogs closing out of order left `hidden`
- * behind — the page could not be scrolled again until a reload, with no
- * dialog on screen to explain it. Taken when the stack goes empty→one and
- * given back when it goes one→empty, the order cannot matter.
- */
-let lockedOverflow: string | null = null;
-
-function lockPageScroll(): void {
-  if (openModals.length !== 1) return;
-  lockedOverflow = document.body.style.overflow;
-  document.body.style.overflow = 'hidden';
-}
-
-function unlockPageScroll(): void {
-  if (openModals.length > 0 || lockedOverflow === null) return;
-  document.body.style.overflow = lockedOverflow;
-  lockedOverflow = null;
-}
-
-function focusableIn(surface: HTMLElement): HTMLElement[] {
-  const candidates = Array.from(surface.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    element => !element.closest('[hidden], [aria-hidden="true"], [inert]')
-  );
-  // Prefer elements that take part in layout (collapsed panels keep their
-  // controls mounted). jsdom reports no layout at all, so fall back to the
-  // attribute-based list when nothing is "visible".
-  const visible = candidates.filter(element => element.offsetParent !== null);
-  return visible.length ? visible : candidates;
-}
+export { FOCUSABLE_SELECTOR };
 
 export interface ModalProps {
   /** id of the element that labels the dialog (wired to aria-labelledby). */
@@ -164,59 +104,13 @@ export function Modal({
   children
 }: ModalProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
-  // Live values readable from the mount-only effect below.
-  const current = useRef({ onClose, closeOnEscape, initialFocus, returnFocus });
-  current.current = { onClose, closeOnEscape, initialFocus, returnFocus };
-
-  useEffect(() => {
-    const surface = surfaceRef.current;
-    if (!surface) return;
-    openModals.push(surface);
-    const previouslyFocused =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    lockPageScroll();
-
-    const focusFrame = requestAnimationFrame(() => {
-      const selector = current.current.initialFocus;
-      const target =
-        (selector ? surface.querySelector<HTMLElement>(selector) : null) ?? focusableIn(surface)[0];
-      target?.focus();
-    });
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (openModals[openModals.length - 1] !== surface) return;
-      if (event.key === 'Escape') {
-        if (!current.current.closeOnEscape || !current.current.onClose) return;
-        event.preventDefault();
-        current.current.onClose();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const focusable = focusableIn(surface);
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      const inside = active instanceof HTMLElement && surface.contains(active);
-      if (event.shiftKey && (!inside || active === first)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (!inside || active === last)) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      cancelAnimationFrame(focusFrame);
-      document.removeEventListener('keydown', onKeyDown);
-      const index = openModals.indexOf(surface);
-      if (index !== -1) openModals.splice(index, 1);
-      unlockPageScroll();
-      (current.current.returnFocus ?? previouslyFocused)?.focus();
-    };
-  }, []);
+  useDialogBehaviour({
+    surface: surfaceRef,
+    onClose,
+    closeOnEscape,
+    initialFocus,
+    returnFocus
+  });
 
   const backdropClasses = (
     bare

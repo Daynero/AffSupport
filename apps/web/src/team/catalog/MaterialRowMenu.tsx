@@ -1,9 +1,7 @@
 import {
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
-  type RefObject,
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react';
@@ -16,6 +14,7 @@ import {
   type MaterialActionsClient,
   type RowMaterial
 } from './useMaterialActions';
+import { Popover } from '../../components/ui/index';
 
 export interface MaterialRowMenuProps {
   teamId: string;
@@ -65,68 +64,7 @@ export interface MaterialRowMenuProps {
 export function MaterialRowMenu(props: MaterialRowMenuProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  /*
-   * Which way the panel opens. It always dropped downward, so on the last rows
-   * of a long list it ran past the bottom of the window — measured at 171px
-   * off-screen on a 1000px viewport, with "Перемістити в кошик" among the items
-   * nobody could reach. Bounding its height did not help: the panel was still
-   * *placed* below the fold.
-   */
-  const [above, setAbove] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    // A press anywhere outside the menu closes it, the way a menu is expected
-    // to behave; it used to stay open over the page until Escape or a choice.
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && containerRef.current?.contains(target)) return;
-      // The folder picker (and rename modal) this menu opens are portaled to the
-      // body, outside the menu's own subtree. A press inside one is not "outside
-      // the menu": closing here would unmount the menu — and the picker with it —
-      // before the picker's own click handler runs, silently cancelling the move.
-      if (target instanceof Element && target.closest('[role="dialog"], .modal-backdrop')) return;
-      setOpen(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [open]);
-
-  /*
-   * Measured after the panel is in the document, before the browser paints it:
-   * if what it needs does not fit under the trigger but does fit over it, it
-   * opens upward. Re-measured on scroll and resize, because a row that had room
-   * a moment ago may not now.
-   */
-  useLayoutEffect(() => {
-    if (!open) return;
-    const place = () => {
-      const trigger = containerRef.current;
-      const panel = panelRef.current;
-      if (!trigger || !panel) return;
-      const box = trigger.getBoundingClientRect();
-      const needed = panel.scrollHeight + 8;
-      const below = window.innerHeight - box.bottom;
-      setAbove(needed > below && box.top > below);
-    };
-    place();
-    const onChange = () => place();
-    window.addEventListener('scroll', onChange, true);
-    window.addEventListener('resize', onChange);
-    return () => {
-      window.removeEventListener('scroll', onChange, true);
-      window.removeEventListener('resize', onChange);
-    };
-  }, [open]);
 
   return (
     <div className="team-row-menu" ref={containerRef}>
@@ -139,14 +77,18 @@ export function MaterialRowMenu(props: MaterialRowMenuProps) {
       >
         {t('teamRowMenuLabel')}
       </Button>
-      {open && (
-        <MaterialRowMenuContent
-          {...props}
-          panelRef={panelRef}
-          above={above}
-          onDone={() => setOpen(false)}
-        />
-      )}
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={containerRef}
+        placement="bottom-end"
+        frequent
+        label={t('teamRowMenuOpen', { name: props.material.name })}
+        surface="none"
+        className="team-row-menu-popover"
+      >
+        <MaterialRowMenuContent {...props} onDone={() => setOpen(false)} />
+      </Popover>
     </div>
   );
 }
@@ -173,13 +115,8 @@ function MaterialRowMenuContent({
   onDownloadRestitched,
   restitchPrepared = false,
   onProductCatalog,
-  panelRef,
-  above,
   onDone
 }: MaterialRowMenuProps & {
-  panelRef: RefObject<HTMLDivElement | null>;
-  /** Opens over the trigger rather than under it; see the measurement above. */
-  above: boolean;
   onDone: () => void;
 }) {
   const { t } = useI18n();
@@ -231,12 +168,7 @@ function MaterialRowMenuContent({
   };
 
   return (
-    <div
-      className={`team-row-menu-panel${above ? ' is-above' : ''}`}
-      role="group"
-      ref={panelRef}
-      onKeyDown={onPanelKeyDown}
-    >
+    <div className="team-row-menu-panel" role="group" onKeyDown={onPanelKeyDown}>
       {prompt === null && (
         <div className="team-material-action-buttons">
           {isFolder && permissions.upload && (

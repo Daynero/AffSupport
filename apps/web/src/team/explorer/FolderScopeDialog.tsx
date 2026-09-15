@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { TeamMaterialSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
+import { Alert, Button, ErrorState, Spinner } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import type { FolderSubtree } from '../../api/team';
 
@@ -134,30 +134,33 @@ export function FolderScopeDialog({
     >
       <h2 id="team-batch-scan-title">{t(TITLE_BY_INTENT[intent], { name: folder.name })}</h2>
       {tooMany !== null && (
-        <p className="team-inline-error" role="alert">
-          {/* The count that triggered the refusal, not every file the walk saw:
-              compressing six hundred videos beside eighty landings is six
-              hundred, and saying 680 answers a question nobody asked. */}
+        /* The count that triggered the refusal, not every file the walk saw:
+           compressing six hundred videos beside eighty landings is six
+           hundred, and saying 680 answers a question nobody asked. */
+        <Alert color="error" variant="soft" live="alert">
           {t('teamBatchFolderTooMany', { count: tooMany, limit: BATCH_SCOPE_LIMIT })}
-        </p>
+        </Alert>
       )}
       {!failed && !empty && !partial && !exhausted && tooMany === null && (
         /* One read, so one line: the folder-by-folder count it used to tick
            through belonged to a walk that ran from here. */
-        <p aria-live="polite">{t('teamBatchScanningFolderOnce')}</p>
+        <p className="team-batch-scanning" aria-live="polite">
+          <Spinner />
+          {t('teamBatchScanningFolderOnce')}
+        </p>
       )}
       {exhausted && (
         /* Not a failure — the walk hit a ceiling and is saying how to get past
            it, which is a different kind of message from "this went wrong". */
-        <p className="team-inline-notice" role="status">
+        <Alert color="warning" variant="soft" live="status">
           {t('teamBatchFolderTooDeep', { count: exhausted.foldersVisited })}
-        </p>
+        </Alert>
       )}
       {partial && (
         <>
-          <p className="team-explorer-muted" role="alert">
+          <Alert color="warning" variant="soft" live="alert">
             {t('teamFolderProcessTruncated', { count: partial.foldersVisited })}
-          </p>
+          </Alert>
           <p>
             {t('teamBatchFolderFound', {
               videos: partial.videos.length,
@@ -171,18 +174,14 @@ export function FolderScopeDialog({
           {t(EMPTY_BY_INTENT[intent], { count: empty.foldersVisited })}
         </p>
       )}
-      {failed && (
-        <p className="team-inline-error" role="alert">
-          {t('teamFolderPickerFailed')}
-        </p>
-      )}
+      {failed && <ErrorState message={t('teamFolderPickerFailed')} />}
       <div className="team-dialog-actions">
         {partial && (
-          <Button type="button" variant="primary" onClick={() => resolved.current(partial)}>
+          <Button color="primary" variant="solid" onClick={() => resolved.current(partial)}>
             {t('teamBatchFolderContinue')}
           </Button>
         )}
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button color="neutral" variant="ghost" onClick={onClose}>
           {t('teamClose')}
         </Button>
       </div>

@@ -2,6 +2,7 @@ import type { TeamContextSnapshot } from '../../api/team';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
+import { PermissionState } from '../../components/ui/index';
 
 /**
  * The states worth explaining. `none` — a space whose folder was never
@@ -64,7 +65,7 @@ export function SpaceStatePanel({
           {t('teamSpaceStateOpenSettings')}
         </a>
       ) : (
-        <p className="team-space-state-hint">{t('teamSpaceStateAskOwner')}</p>
+        <PermissionState className="team-space-state-hint" message={t('teamSpaceStateAskOwner')} />
       )}
     </section>
   );

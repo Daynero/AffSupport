@@ -10,6 +10,7 @@ import {
 import { Maximize2, Pause, Play, Volume2 } from 'lucide-react';
 import { SotyMark } from '../components/SotyLogo';
 import type { Translate } from '../components/ui';
+import { IconButton, Select, Slider } from '../components/ui/index';
 
 export function formatMediaTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -189,32 +190,30 @@ export const TranscriptPlayer = forwardRef<
         </div>
       )}
       <div className="transcript-player-controls">
-        <button
-          type="button"
+        <IconButton
           className="transcript-player-icon"
+          size="sm"
+          label={playback.playing ? t('transcriptionPlayerPause') : t('transcriptionPlayerPlay')}
           onClick={toggle}
-          aria-label={
-            playback.playing ? t('transcriptionPlayerPause') : t('transcriptionPlayerPlay')
-          }
         >
           {playback.playing ? (
             <Pause size={18} strokeWidth={2} aria-hidden="true" />
           ) : (
             <Play size={18} strokeWidth={2} aria-hidden="true" />
           )}
-        </button>
+        </IconButton>
         {/* Not a live region: a clock that announces every tick can never be interrupted. */}
         <span className="transcript-player-time">
           {playback.buffering && playback.duration === 0
             ? t('transcriptionPlayerLoading')
             : `${formatMediaTime(playback.currentTime)} / ${formatMediaTime(playback.duration)}`}
         </span>
-        <input
+        <Slider
           className="transcript-player-seek"
-          type="range"
-          min="0"
+          size="sm"
+          min={0}
           max={Math.max(0, playback.duration)}
-          step="0.01"
+          step={0.01}
           value={Math.min(playback.currentTime, playback.duration || 0)}
           onChange={seek}
           onKeyDown={seekByKey}
@@ -223,11 +222,11 @@ export const TranscriptPlayer = forwardRef<
         <label className="transcript-player-volume">
           <Volume2 size={16} strokeWidth={1.75} aria-hidden="true" />
           <span className="visually-hidden">{t('transcriptionPlayerVolume')}</span>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
+          <Slider
+            size="sm"
+            min={0}
+            max={1}
+            step={0.05}
             value={playback.volume}
             aria-label={t('transcriptionPlayerVolume')}
             onChange={volume}
@@ -235,22 +234,21 @@ export const TranscriptPlayer = forwardRef<
         </label>
         <label className="transcript-player-rate">
           <span className="visually-hidden">{t('transcriptionPlayerSpeed')}</span>
-          <select value={playback.rate} onChange={rate}>
-            {RATES.map(value => (
-              <option key={value} value={value}>
-                {formatRate(value)}×
-              </option>
-            ))}
-          </select>
+          <Select
+            size="xs"
+            value={playback.rate}
+            onChange={rate}
+            options={RATES.map(value => ({ value: String(value), label: `${formatRate(value)}×` }))}
+          />
         </label>
-        <button
-          type="button"
+        <IconButton
           className="transcript-player-icon"
+          size="sm"
+          label={t('transcriptionPlayerFullscreen')}
           onClick={fullscreen}
-          aria-label={t('transcriptionPlayerFullscreen')}
         >
           <Maximize2 size={16} strokeWidth={1.75} aria-hidden="true" />
-        </button>
+        </IconButton>
       </div>
       {note && <p className="transcript-preview-note">{note}</p>}
     </div>

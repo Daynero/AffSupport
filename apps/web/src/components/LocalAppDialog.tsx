@@ -15,6 +15,7 @@ import { analytics } from '../analytics/service';
 import { Modal } from './Modal';
 import { SotyMark } from './SotyLogo';
 import { Button } from './ui';
+import { ErrorState } from './ui/index';
 
 export default function LocalAppDialog({
   tool,
@@ -111,13 +112,17 @@ export default function LocalAppDialog({
   };
 
   const macAction = (
-    <a className="button platform-download-button" href={macDownloadUrl} onClick={trackDownload}>
+    <a
+      className="ui-button ui-button--solid ui-button--lg ui-color-primary platform-download-button"
+      href={macDownloadUrl}
+      onClick={trackDownload}
+    >
       {t('macAppleSilicon')}
     </a>
   );
   const windowsAction = windowsDownload.available ? (
     <a
-      className="button platform-download-button"
+      className="ui-button ui-button--solid ui-button--lg ui-color-primary platform-download-button"
       href={windowsDownload.url}
       onClick={trackDownload}
     >
@@ -126,7 +131,7 @@ export default function LocalAppDialog({
   ) : (
     <button
       ref={windowsButton}
-      className="button platform-download-button"
+      className="ui-button ui-button--solid ui-button--lg ui-color-primary platform-download-button"
       type="button"
       onClick={() => {
         analytics.track('blocked_action_attempted', {
@@ -164,7 +169,10 @@ export default function LocalAppDialog({
           // One click from here is the whole remaining journey — the link
           // carries this tool along, so the Agent opens on it rather than on its
           // home screen.
-          <a className="button button-primary local-app-open" href={agentLocalUrl()}>
+          <a
+            className="ui-button ui-button--solid ui-button--md ui-color-primary local-app-open"
+            href={agentLocalUrl()}
+          >
             {t('openSoty')}
           </a>
         )}
@@ -189,7 +197,10 @@ export default function LocalAppDialog({
         )}
         <div className="inline-actions">
           {openingHelps && !installed && (
-            <a className="button button-secondary" href={agentLocalUrl()}>
+            <a
+              className="ui-button ui-button--outline ui-button--md ui-color-neutral"
+              href={agentLocalUrl()}
+            >
               {t('openSoty')}
             </a>
           )}
@@ -242,9 +253,7 @@ function WindowsComingSoonDialog({ onClose }: { onClose: () => void }) {
           {t(waitlistState === 'saved' ? 'windowsAppWaitlistSaved' : 'windowsAppWaitlist')}
         </Button>
         {waitlistState === 'error' && (
-          <p className="support-error" role="alert">
-            {t('windowsAppWaitlistError')}
-          </p>
+          <ErrorState className="support-error" message={t('windowsAppWaitlistError')} />
         )}
       </div>
     </Modal>

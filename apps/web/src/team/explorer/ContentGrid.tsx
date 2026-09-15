@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type {
   LandingRenderPointer,
   RenderArtifactRef,
@@ -6,7 +6,9 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Button } from '../../components/ui';
+import { Button, EmptyState, ErrorState } from '../../components/ui/index';
+import { ICON_STROKE } from '../../components/icons';
+import { FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { formatDate, formatSize } from '../../format';
@@ -51,7 +53,8 @@ export function ContentGrid({
   onPreview,
   actions,
   sort,
-  tagging
+  tagging,
+  emptyAction
 }: {
   client: ContentGridClient;
   /** The folder's rows, held by the shell so one listing serves everything. */
@@ -61,6 +64,12 @@ export function ContentGrid({
   sort?: ExplorerSort;
   /** Present only for the space's owner (011). */
   tagging?: TaggingProps;
+  /**
+   * The control that fills an empty folder — the shell's own Add files, since
+   * that is where the file input lives. Absent for a member who may not upload,
+   * which is the same rule as the toolbar's (FR-021, FR-004).
+   */
+  emptyAction?: ReactNode;
 }) {
   const { t } = useI18n();
   const { teamId, openFolder, selectedId, select, selectedIds, toggleSelected } = useExplorer();
@@ -124,12 +133,17 @@ export function ContentGrid({
       {page.loading && page.rows.length === 0 && (
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
       )}
-      {page.error && <p className="team-inline-error">{t('teamExplorerLoadFailed')}</p>}
+      {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
           same thing twice above a card that had collapsed to a strip. */}
       {!page.loading && !page.error && page.rows.length === 0 && (
-        <p className="team-explorer-empty">{t('teamExplorerEmpty')}</p>
+        <EmptyState
+          className="team-explorer-empty"
+          icon={<FolderOpen size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+          title={t('teamExplorerEmpty')}
+          action={emptyAction}
+        />
       )}
       <ul className="team-explorer-grid" role="list">
         {rows.map(row => (
@@ -152,8 +166,8 @@ export function ContentGrid({
       </ul>
       {page.hasMore && (
         <Button
-          type="button"
-          variant="secondary"
+          color="neutral"
+          variant="outline"
           loading={page.loading}
           onClick={() => void page.loadMore()}
         >

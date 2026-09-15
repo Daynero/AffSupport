@@ -1,6 +1,7 @@
 import type { TeamMaterialProvenanceEntry } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { EmptyState } from '../../components/ui/index';
 
 export function ProvenancePanel({
   materialId,
@@ -25,7 +26,7 @@ export function ProvenancePanel({
     return (
       <section className="team-provenance" aria-labelledby="team-provenance-title">
         <h3 id="team-provenance-title">{t('teamProvenanceTitle')}</h3>
-        <p>{t('teamProvenanceNone')}</p>
+        <EmptyState size="sm" title={t('teamProvenanceNone')} />
       </section>
     );
   }

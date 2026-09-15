@@ -1,0 +1,183 @@
+/* ============================================================
+   Base layer (021)
+
+   The reset, the element defaults, and the one focus treatment the whole
+   product uses. Nothing here styles a component; everything here is what a
+   bare element does before a component touches it.
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral-text);
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: var(--text-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--text-display);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading);
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: var(--text-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading);
+}
+
+h3 {
+  font-size: var(--text-section);
+  font-weight: var(--weight-emphasis);
+  line-height: var(--leading-heading);
+}
+
+h4 {
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  line-height: var(--leading-heading);
+}
+
+/* Prose is bounded at 70ch (docs/DESIGN-PRINCIPLES.md), but as an opt-in class
+   rather than a rule on every `p`: the product uses paragraphs inside table
+   cells, chips and status rows, where a measure cap would be wrong. Screens
+   apply `.prose` to the text that is actually read as prose. */
+.prose {
+  max-width: var(--measure);
+}
+
+/*
+ * docs/DESIGN.md: 20px is the comfortable icon, and if the space is tight the
+ * plate grows — the icon never shrinks. Without this an icon beside text is a
+ * flex item whose min-content is zero, so under pressure it collapses and the
+ * control renders empty. The explorer's view switch and the support chip both
+ * did, and neither a type nor a test could see it.
+ */
+button svg,
+a svg,
+label svg,
+[role='button'] svg,
+[role='radio'] svg,
+[role='tab'] svg,
+[class$='-field'] > svg,
+[class*='-field '] > svg {
+  flex: none;
+}
+
+small {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+
+a {
+  color: var(--color-primary-text);
+  text-decoration-color: color-mix(in srgb, currentcolor 45%, transparent);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-color: currentcolor;
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Numbers line up in columns without the browser's spinner clutter —
+   docs/DESIGN.md: values are typed, not clicked. */
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+input[type='search']::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ============================================================
+   Focus — one treatment, everywhere, never removed
+   ============================================================ */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* Screen-reader-only text, for the accessible names icon-only controls carry. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+}

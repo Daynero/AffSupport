@@ -73,7 +73,7 @@
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text-muted);
-  font-size: 0.7rem;
+  font-size: var(--text-micro);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -94,7 +94,7 @@
   min-height: 24px;
   padding: 0 10px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: inherit;
   font: inherit;
@@ -195,7 +195,12 @@
   color: var(--color-text-muted);
 }
 
+/* The field suppresses its own outline so the ring sits on the whole control
+   rather than on the bare input inside it — but it is the product's ring, not
+   a border tint: a 1px colour change is not something a keyboard user finds. */
 .team-accounts-search:focus-within {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
   border-color: var(--color-focus);
 }
 
@@ -253,7 +258,7 @@
   background: none;
   color: var(--color-text-muted);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-weight: 600;
 }
 
@@ -273,10 +278,10 @@
   flex: 0 0 auto;
   min-width: 1.4em;
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
   color: var(--color-text);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -305,7 +310,7 @@
   flex: 0 0 auto;
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-text-muted);
 }
 
@@ -338,7 +343,7 @@
   gap: 7px;
   padding: 0 12px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
   font-family: inherit;
@@ -426,7 +431,7 @@
  * all used to say what an agent belonged to.
  */
 .team-account {
-  --team-account-colour: hsl(var(--team-account-hue, 265) 62% 66%);
+  --team-account-colour: var(--team-account-colour-dark);
 }
 
 /* The head's surface: one clear step off the panel in either theme — up on
@@ -441,7 +446,7 @@
 }
 
 :root:not([data-theme='dark']) .team-account {
-  --team-account-colour: hsl(var(--team-account-hue, 265) 52% 42%);
+  --team-account-colour: var(--team-account-colour-light);
 }
 
 .team-account-head {
@@ -551,7 +556,7 @@
   max-width: 100%;
   margin: 0;
   overflow: hidden;
-  font-size: 1.1rem;
+  font-size: var(--text-body);
   font-weight: 750;
   line-height: 1.2;
   letter-spacing: 0.01em;
@@ -591,7 +596,7 @@
   min-height: 20px;
   align-items: center;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-success) 18%, transparent);
   color: var(--color-success);
   font-weight: 650;
@@ -599,7 +604,7 @@
 
 :root:not([data-theme='dark']) .team-account-meta-free {
   background: color-mix(in srgb, var(--color-success) 20%, transparent);
-  color: #0f5136;
+  color: var(--color-success-text);
 }
 
 .team-account-meta-busy {
@@ -613,8 +618,8 @@
 
 /* The part of a line that answered the search. */
 .team-accounts-mark {
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--color-action) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--color-highlight);
   color: inherit;
   padding-inline: 1px;
 }
@@ -674,12 +679,12 @@
   margin-right: var(--space-1);
   padding: 0 var(--space-3) 0 var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-accent) 8%, transparent);
   color: var(--color-accent);
   cursor: pointer;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-weight: 650;
   white-space: nowrap;
   transition:
@@ -717,7 +722,9 @@
    * two signals.
    */
   border-top: 1px solid var(--color-border);
-  transition: background-color var(--dur-control) var(--ease-standard);
+  /* No transition on the wash: a row is crossed dozens of times a minute in a
+     table this dense, and a fade behind a moving pointer reads as lag rather
+     than as polish (docs/DESIGN-PRINCIPLES.md — frequency, not taste). */
 }
 
 .team-agent-row:nth-child(even):not(.is-free) {
@@ -808,7 +815,7 @@
   align-items: center;
   color: var(--color-text);
   font-family: var(--team-font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   font-weight: 650;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -838,7 +845,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-weight: 650;
   line-height: 1;
   white-space: nowrap;
@@ -848,7 +855,7 @@
   width: 7px;
   height: 7px;
   flex: 0 0 auto;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: currentcolor;
 }
 
@@ -861,7 +868,7 @@
 }
 
 :root:not([data-theme='dark']) .team-agent-state.is-free {
-  color: #0f5136;
+  color: var(--color-success-text);
 }
 
 :root:not([data-theme='dark']) .team-agent-state.is-busy {
@@ -1000,7 +1007,7 @@
   gap: 7px;
   padding: 0 12px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -1033,11 +1040,10 @@
   color: var(--color-text);
 }
 
+/* Placed by the component (021): portalled past the toolbar that would clip it
+   and flipped when the window is short. */
 .team-accounts-marker-menu {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 6px);
-  right: 0;
   display: grid;
   min-width: 210px;
   gap: 2px;
@@ -1153,18 +1159,12 @@
   height: 28px;
 }
 
-.team-agent-runs-empty {
-  color: color-mix(in oklab, var(--color-text-muted) 60%, transparent);
-  font-size: var(--text-sm);
-  line-height: 28px;
-}
-
 /* When a run was written, beside it. The dates inside the run's own text are
    typed by hand; this one is not, so it is the quieter of the two. */
 .team-agent-run-age {
   flex: 0 0 auto;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   white-space: nowrap;
 }
 
@@ -1187,12 +1187,12 @@
   gap: 4px;
   padding: 0 10px 0 7px;
   border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-accent);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-weight: 650;
   white-space: nowrap;
   transition:
@@ -1300,12 +1300,12 @@
   gap: 5px;
   padding: 0 10px 0 8px;
   border: 1px solid color-mix(in srgb, var(--color-success) 35%, var(--color-border));
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-success);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-weight: 650;
   white-space: nowrap;
   transition:
@@ -1336,18 +1336,22 @@
   color: var(--color-text);
 }
 
+/* Placed by the component (021): a table row clips what spills past its edge,
+   so the menu opens on the body beside the trigger. */
 .team-agent-menu-list {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 4px);
-  right: 0;
   display: grid;
   min-width: 200px;
   padding: var(--space-1);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  box-shadow: var(--shadow-md, 0 12px 32px rgb(0 0 0 / 28%));
+  box-shadow: var(--shadow-menu);
+}
+
+/* The menu's own element inside the surface; it takes no space of its own. */
+.team-agent-menu-items {
+  display: contents;
 }
 
 .team-agent-menu-item {
@@ -1362,7 +1366,7 @@
   color: var(--color-text);
   cursor: pointer;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--text-label);
   text-align: left;
 }
 
@@ -1791,11 +1795,11 @@
   max-width: 100%;
   padding: 0 9px 0 7px;
   border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-surface);
   color: var(--color-text);
   font-family: var(--team-font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -1808,7 +1812,7 @@ button.team-task-agent-chip {
   cursor: pointer;
   font: inherit;
   font-family: var(--team-font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   transition:
     border-color var(--dur-control) var(--ease-standard),
@@ -1827,7 +1831,7 @@ button.team-task-agent-chip.is-selected {
   flex: 0 0 auto;
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-warning);
 }
 
@@ -1861,13 +1865,7 @@ button.team-task-agent-chip.is-selected {
 
 .team-task-accounts-label {
   color: var(--color-text-muted);
-  font-size: 0.82rem;
-}
-
-.team-task-accounts-empty {
-  color: color-mix(in oklab, var(--color-text-muted) 72%, transparent);
-  font-size: 0.85rem;
-  font-style: italic;
+  font-size: var(--text-caption);
 }
 
 /* "+ Account": the same pill as "+ Agent" in the Accounts tab. */
@@ -1878,12 +1876,12 @@ button.team-task-agent-chip.is-selected {
   gap: 5px;
   padding: 0 10px 0 7px;
   border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-accent) 8%, transparent);
   color: var(--color-accent);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-weight: 650;
   white-space: nowrap;
 }
@@ -1921,13 +1919,13 @@ button.team-task-agent-chip.is-selected {
 
 .team-task-agent-panel-state {
   color: var(--color-text-muted);
-  font-size: 0.88rem;
+  font-size: var(--text-label);
 }
 
 /* The tag in the tag's face, like every other tag on screen. */
 .team-task-agent-panel-tag {
   font-family: var(--team-font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   letter-spacing: 0.02em;
 }
 
@@ -1955,7 +1953,7 @@ button.team-task-agent-chip.is-selected {
 .team-task-agent-run-text {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   overflow-wrap: anywhere;
 }
 
@@ -1994,12 +1992,12 @@ button.team-task-agent-chip.is-selected {
   gap: 5px;
   padding: 0 10px 0 7px;
   border: 1px dashed color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-accent);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-weight: 650;
 }
 
@@ -2019,7 +2017,7 @@ button.team-task-agent-chip.is-selected {
 .team-task-agent-run-editor .button {
   min-height: 32px;
   padding-inline: var(--space-3);
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
 }
 
 .team-task-editor .team-task-agent-run-editor input {
@@ -2055,7 +2053,7 @@ button.team-task-agent-chip.is-selected {
 
 .team-task-account-picker-heading h2 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: var(--text-section);
 }
 
 /* Inside an account: a thin line saying where you are and the way back. */
@@ -2064,7 +2062,7 @@ button.team-task-agent-chip.is-selected {
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
-  font-size: 0.88rem;
+  font-size: var(--text-label);
 }
 
 .team-task-account-picker-crumb strong {
@@ -2083,7 +2081,7 @@ button.team-task-agent-chip.is-selected {
   color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--text-label);
 }
 
 .team-task-account-picker-back svg {
@@ -2106,7 +2104,7 @@ button.team-task-agent-chip.is-selected {
 .team-task-account-picker-occupancy .task-status-filter-option {
   min-height: 28px;
   padding: 0 10px;
-  font-size: 0.78rem;
+  font-size: var(--text-caption);
 }
 
 /* A floor of three rows, so the dialog does not re-centre and jump between
@@ -2118,7 +2116,7 @@ button.team-task-agent-chip.is-selected {
 
 .team-task-agent-tail {
   font-family: var(--team-font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   font-weight: 650;
   letter-spacing: 0.04em;
 }
@@ -2165,7 +2163,7 @@ button.team-task-agent-chip.is-selected {
 
 .task-account-filter-tag {
   font-family: var(--team-font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   letter-spacing: 0.02em;
 }
 
@@ -2203,7 +2201,7 @@ button.team-task-agent-chip.is-selected {
   color: var(--color-text);
   cursor: pointer;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--text-label);
   text-align: left;
 }
 
@@ -2245,7 +2243,7 @@ button.team-task-agent-chip.is-selected {
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2254,7 +2252,7 @@ button.team-task-agent-chip.is-selected {
   margin: 0;
   padding: var(--space-2);
   color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
 }
 
 /* --- Links back from the Accounts tab --------------------------------------- */
@@ -2265,10 +2263,10 @@ button.team-task-agent-chip.is-selected {
   align-items: center;
   min-height: 24px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  color: var(--color-accent);
-  font-size: 0.76rem;
+  color: var(--color-accent-text);
+  font-size: var(--text-caption);
   font-weight: 650;
   text-decoration: none;
   white-space: nowrap;
@@ -2344,7 +2342,7 @@ button.team-task-agent-chip.is-selected {
 
 .team-agent-money-caption {
   color: var(--color-text-muted);
-  font-size: 0.62rem;
+  font-size: var(--text-micro);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2360,7 +2358,7 @@ button.team-task-agent-chip.is-selected {
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -2443,7 +2441,7 @@ button.team-task-agent-chip.is-selected {
 .team-agent-labels .team-task-label-chip {
   min-height: 22px;
   padding: 0 8px 0 6px;
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
 }
 
 /* The plus is the row's quietest control: an outline that fills only when it
@@ -2457,7 +2455,7 @@ button.team-task-agent-chip.is-selected {
   justify-content: center;
   padding: 0;
   border: 1px dashed var(--color-border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -2501,7 +2499,7 @@ button.team-task-agent-chip.is-selected {
 .team-accounts-footer-count {
   margin-right: auto;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2512,12 +2510,12 @@ button.team-task-agent-chip.is-selected {
   gap: 6px;
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--color-text);
   cursor: pointer;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -2544,16 +2542,16 @@ button.team-task-agent-chip.is-selected {
 .team-account-meta .team-task-label-chip.is-count {
   min-height: 22px;
   padding: 0 4px 0 6px;
-  font-size: 0.72rem;
+  font-size: var(--text-micro);
 }
 
 .team-account-meta .team-task-label-chip.is-count b {
   min-width: 18px;
   padding: 0 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   margin-left: 2px;
   background: color-mix(in srgb, var(--task-tag-color) 22%, transparent);
-  font-size: 0.7rem;
+  font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -2571,7 +2569,7 @@ button.team-task-agent-chip.is-selected {
   margin-top: var(--space-2);
   padding: 0 12px;
   border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   color: var(--color-accent);
   font-size: var(--text-lg);
   font-weight: 650;

@@ -12,6 +12,7 @@ import { Modal } from '../../components/Modal';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage } from '../errors';
+import { Alert } from '../../components/ui/index';
 
 type TeamProcessTool = 'compressor' | 'imageEmbedding' | 'transcription' | 'landingOptimizer';
 
@@ -119,9 +120,15 @@ export function ProcessMaterialDialog({
         </Button>
       </div>
 
-      {!agentCompatible && <p className="team-inline-error">{t('teamProcessAgentUpdate')}</p>}
+      {!agentCompatible && (
+        <p className="team-inline-error" role="alert">
+          {t('teamProcessAgentUpdate')}
+        </p>
+      )}
       {agentCompatible && !compatible && (
-        <p className="team-inline-error">{t('teamProcessToolUpdate')}</p>
+        <p className="team-inline-error" role="alert">
+          {t('teamProcessToolUpdate')}
+        </p>
       )}
       <label>
         {t('teamProcessTool')}
@@ -173,12 +180,19 @@ export function ProcessMaterialDialog({
       </label>
 
       {conflict && (
-        <div className="team-file-conflict" role="alert">
-          <p>{t('teamFileNameConflict')}</p>
-          <Button type="button" onClick={() => void start('keep_both')}>
-            {t('teamFileKeepBoth')}
-          </Button>
-        </div>
+        <Alert
+          className="team-file-conflict"
+          color="warning"
+          variant="soft"
+          live="alert"
+          action={
+            <Button type="button" onClick={() => void start('keep_both')}>
+              {t('teamFileKeepBoth')}
+            </Button>
+          }
+        >
+          {t('teamFileNameConflict')}
+        </Alert>
       )}
       <div className="team-dialog-actions">
         <Button

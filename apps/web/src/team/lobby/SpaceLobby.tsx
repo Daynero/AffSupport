@@ -1,4 +1,7 @@
 import type { TeamContextSnapshot } from '../../api/team';
+import { FolderPlus } from 'lucide-react';
+import { ICON_STROKE } from '../../components/icons';
+import { Empty } from '../../components/ui/index';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { SpaceCard } from './SpaceCard';
@@ -54,14 +57,22 @@ export function SpaceLobby({
           client={invitationClient}
           hideWhenEmpty
         />
-        <div className="team-space-lobby-empty-copy">
-          <h1 id="team-lobby-title">{t('teamSpaceEmptyTitle')}</h1>
-          <p>{t('teamSpaceEmptyBody')}</p>
-          <Button type="button" variant="primary" onClick={onCreate}>
-            {t('teamSpaceEmptyAction')}
-          </Button>
-        </div>
-        {error && <p className="team-inline-error">{error}</p>}
+        <Empty
+          size="lg"
+          icon={<FolderPlus size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+          title={<span id="team-lobby-title">{t('teamSpaceEmptyTitle')}</span>}
+          description={t('teamSpaceEmptyBody')}
+          action={
+            <Button type="button" color="primary" onClick={onCreate}>
+              {t('teamSpaceEmptyAction')}
+            </Button>
+          }
+        />
+        {error && (
+          <p className="team-inline-error" role="alert">
+            {error}
+          </p>
+        )}
       </section>
     );
   }
@@ -78,7 +89,11 @@ export function SpaceLobby({
         </Button>
       </header>
       <InvitationList headingId="team-lobby-invitations" client={invitationClient} hideWhenEmpty />
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       <ul className="team-space-card-grid">
         {teams.map(space => (
           <li key={space.id}>

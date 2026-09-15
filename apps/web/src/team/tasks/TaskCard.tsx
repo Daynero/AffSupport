@@ -29,6 +29,7 @@ import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagList } from './TaskAgentTags';
 import { TaskLabelChips } from '../labels/TaskLabelChip';
 import { formatTaskDate } from './TaskDateField';
+import { Card } from '../../components/ui/index';
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest('button, a, [role="slider"]'));
@@ -137,7 +138,11 @@ export function TaskCard({
   };
 
   return (
-    <article
+    /* The inventory's surface (021, T104). The whole card is the target, which
+       is what `interactive` says; the board's own class keeps its layout. */
+    <Card
+      as="article"
+      interactive
       className={`team-task-card${expanded ? ' is-expanded' : ''}`}
       data-status={status}
       tabIndex={0}
@@ -232,8 +237,12 @@ export function TaskCard({
             {task.assigneeLabelSnapshot}
           </span>
         )}
-        {failed && <span className="team-task-card-error">{t('teamTaskSaveFailed')}</span>}
+        {failed && (
+          <span className="team-task-card-error ui-color-error" role="alert">
+            {t('teamTaskSaveFailed')}
+          </span>
+        )}
       </div>
-    </article>
+    </Card>
   );
 }

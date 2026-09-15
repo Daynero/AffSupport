@@ -192,7 +192,7 @@ export function TwoFactorRow({
                 secret goes with the row. */}
             <p>{t('twoFactorDeleteBody', { name: entry.name })}</p>
             <div className="tfa-modal-actions">
-              <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
+              <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
                 {t('twoFactorCancel')}
               </Button>
               <Button type="button" variant="danger" loading={removing} onClick={confirmRemoval}>

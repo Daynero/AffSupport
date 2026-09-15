@@ -197,7 +197,11 @@ export function InvitationPanel({
           </Button>
         </form>
       )}
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       {success && (
         <p className="team-inline-success" role="status">
           {success}
@@ -226,7 +230,15 @@ export function InvitationPanel({
         {invitations.map(invitation => (
           <li key={invitation.id}>
             <span>{invitation.targetEmail}</span>
-            <span className={`team-delivery-state is-${invitation.deliveryState}`}>
+            <span
+              className={`team-delivery-state is-${invitation.deliveryState} ui-color-${
+                invitation.deliveryState === 'sent'
+                  ? 'success'
+                  : invitation.deliveryState === 'failed'
+                    ? 'error'
+                    : 'neutral'
+              }`}
+            >
               {invitation.deliveryState === 'sent'
                 ? t('teamInvitationSent')
                 : invitation.deliveryState === 'failed'

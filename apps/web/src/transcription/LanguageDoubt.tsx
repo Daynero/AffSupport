@@ -1,13 +1,12 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { HelpCircle } from 'lucide-react';
 import {
   confusableLanguages,
   TRANSCRIPTION_LANGUAGE_CODES,
   type TranscriptionJob
 } from '@video-compressor/shared';
-import { useAnchoredLayer } from '../components/useAnchoredLayer';
 import type { Translate } from '../components/ui';
+import { Popover } from '../components/ui/index';
 import type { Language } from '../i18n';
 import { languageDisplayName } from './language';
 
@@ -45,32 +44,7 @@ export function LanguageDoubt({
   const shareTrigger = useRef<HTMLButtonElement>(null);
   // Whichever of the two was pressed gets the focus back when the panel closes.
   const opener = useRef<HTMLButtonElement | null>(null);
-  const layer = useRef<HTMLDivElement>(null);
-  const panelStyle = useAnchoredLayer(anchor, layer, open, {
-    minWidth: PANEL_WIDTH,
-    // Tall enough for four readings plus the family chips; past that it scrolls.
-    maxHeight: 460
-  });
   const titleId = useId();
-
-  // Closed by a press anywhere else, including on another row's marker. Pointerdown rather
-  // than click, so the panel is gone before whatever was pressed reacts.
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (
-        anchor.current?.contains(target) ||
-        shareTrigger.current?.contains(target) ||
-        layer.current?.contains(target)
-      ) {
-        return;
-      }
-      setOpen(false);
-    };
-    document.addEventListener('pointerdown', close, true);
-    return () => document.removeEventListener('pointerdown', close, true);
-  }, [open]);
 
   const dismiss = () => {
     setOpen(false);
@@ -132,18 +106,7 @@ export function LanguageDoubt({
   };
 
   const panel = (
-    <div
-      ref={layer}
-      role="dialog"
-      aria-labelledby={titleId}
-      className="transcription-language-doubt is-portal"
-      style={panelStyle ?? undefined}
-      onKeyDown={event => {
-        if (event.key !== 'Escape') return;
-        event.stopPropagation();
-        dismiss();
-      }}
-    >
+    <div className="transcription-language-doubt-body" aria-labelledby={titleId}>
       <p id={titleId} className="transcription-language-doubt-title">
         {!measured
           ? t('transcriptionLanguageDoubtFromRun')
@@ -252,7 +215,21 @@ export function LanguageDoubt({
           {Math.round(topShare * 100)}%
         </button>
       )}
-      {open && createPortal(panel, document.body)}
+      {/* Two triggers open it, so both count as "inside" for the dismissal. */}
+      <Popover
+        open={open}
+        onClose={dismiss}
+        anchor={anchor}
+        within={[shareTrigger]}
+        placement="bottom-start"
+        minWidth={PANEL_WIDTH}
+        /* Tall enough for four readings plus the family chips; past that it scrolls. */
+        maxHeight={460}
+        label={t('transcriptionLanguageDoubt')}
+        className="transcription-language-doubt is-portal"
+      >
+        {panel}
+      </Popover>
     </>
   );
 }

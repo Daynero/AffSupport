@@ -327,10 +327,14 @@ function TranscriptPreview({
     <div className="team-transcript-preview">
       {preview.ingestState === 'pending' && <p>{t('teamPreviewTranscriptPending')}</p>}
       {preview.ingestState === 'invalid_encoding' && (
-        <p className="team-inline-error">{t('teamPreviewTranscriptInvalid')}</p>
+        <p className="team-inline-error" role="alert">
+          {t('teamPreviewTranscriptInvalid')}
+        </p>
       )}
       {preview.ingestState === 'unavailable' && (
-        <p className="team-inline-error">{t('teamPreviewTranscriptUnavailable')}</p>
+        <p className="team-inline-error" role="alert">
+          {t('teamPreviewTranscriptUnavailable')}
+        </p>
       )}
       {text !== null && <pre>{text}</pre>}
       {preview.truncated && (

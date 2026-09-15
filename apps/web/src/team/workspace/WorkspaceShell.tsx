@@ -35,6 +35,7 @@ import {
   type TeamSection
 } from '../routes';
 import type { CatalogSearchFilters } from '@video-compressor/shared';
+import { Tabs } from '../../components/ui/index';
 
 const TaskSpace = lazy(() =>
   import('../tasks/TaskSpace').then(module => ({ default: module.TaskSpace }))
@@ -452,25 +453,22 @@ export function WorkspaceShell({
             </div>
           </header>
 
-          {/* Real links, not toggles: middle-click, copy-link and Back all work, and
-          the active one is announced rather than merely coloured. */}
-          <nav className="team-space-tabs" aria-label={t('teamSectionsNavLabel')}>
-            {CONTENT_TABS.map(tab => {
-              const href = sectionRoute(tab.section);
-              const active = section === tab.section;
-              return (
-                <a
-                  key={tab.section}
-                  className={`team-space-tab${active ? ' is-active' : ''}`}
-                  href={href}
-                  aria-current={active ? 'page' : undefined}
-                  onClick={event => internalLink(event, href)}
-                >
-                  {t(tab.label)}
-                </a>
-              );
-            })}
-          </nav>
+          {/* Real links, not toggles: middle-click, copy-link and Back all work,
+          and the active one is announced rather than merely coloured. The strip
+          is the inventory's (021, T082), which grew the address variant for
+          exactly this. */}
+          <Tabs
+            className="team-space-tabs"
+            label={t('teamSectionsNavLabel')}
+            value={section}
+            onChange={next => navigateTo(sectionRoute(next))}
+            onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id))}
+            items={CONTENT_TABS.map(tab => ({
+              id: tab.section,
+              label: t(tab.label),
+              href: sectionRoute(tab.section)
+            }))}
+          />
 
           <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
             <div className="team-space-shell-body">

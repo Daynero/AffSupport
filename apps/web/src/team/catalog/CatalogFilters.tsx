@@ -9,6 +9,7 @@ import {
 import { Button } from '../../components/ui';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { Select } from '../../components/ui/index';
 
 /** The filters' own names, in the reader's language — they label the chips too. */
 const LABEL_KEYS: Record<Exclude<keyof CatalogSearchFilters, 'geo'>, TranslationKey> = {
@@ -113,20 +114,22 @@ export function CatalogFilters({
     return value;
   };
 
+  /* The inventory's Select (021, T098). The facet options and their localised
+     labels are unchanged — what goes is this file's own idea of what a select
+     looks like. */
   const select = (key: keyof CatalogSearchFilters, options: readonly string[]) => (
     <label>
       <span>{filterLabel(key)}</span>
-      <select
+      <Select
         value={filters[key][0] ?? ''}
+        placeholder={t('teamCatalogAny')}
+        options={options.map(option => ({
+          value: option,
+          label: valueLabel(key, option),
+          title: option
+        }))}
         onChange={event => onSet(key, event.target.value || null)}
-      >
-        <option value="">{t('teamCatalogAny')}</option>
-        {options.map(option => (
-          <option key={option} value={option} title={option}>
-            {valueLabel(key, option)}
-          </option>
-        ))}
-      </select>
+      />
     </label>
   );
 

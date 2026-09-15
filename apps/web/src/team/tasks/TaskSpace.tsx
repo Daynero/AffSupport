@@ -5,6 +5,7 @@ import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
+import { Empty } from '../../components/ui/index';
 import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
@@ -19,6 +20,8 @@ import { persistedViewKey, usePersistedState } from '../persistedView';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
+import { ErrorState } from '../../components/ui/index';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export type TaskSpaceClient = TasksClient &
   TaskEditorClient &
@@ -376,33 +379,35 @@ export function TaskSpace({
           <TaskSortControl value={tasks.sort} onChange={tasks.setSort} />
         )}
       </TaskDateFilterControl>
-      {error && <p className="team-inline-error">{t('teamTaskCreateFailed')}</p>}
-      {tasks.loading && tasks.tasks.length === 0 && (
-        <p aria-live="polite">{t('teamTasksLoadingList')}</p>
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {t('teamTaskCreateFailed')}
+        </p>
       )}
-      {tasks.error && <p className="team-inline-error">{t('teamTasksLoadFailed')}</p>}
+      {/* The shape of the board that is coming, so the cards do not push the
+          filters when they land — with the sentence still there, because a
+          shimmer alone is indistinguishable from a stuck screen. */}
+      {tasks.loading && tasks.tasks.length === 0 && (
+        <LabeledSkeleton label="teamTasksLoadingList" rows={3} />
+      )}
+      {tasks.error && (
+        <ErrorState className="team-inline-error" message={t('teamTasksLoadFailed')} />
+      )}
       {/* Three distinguishable answers, not one: still loading, nothing here
           at all, or nothing matching the filter in force (FR-020). */}
       {!tasks.loading && !tasks.error && tasks.tasks.length === 0 && (
-        <div className="team-empty-state">
-          {filtered ? (
-            <p>{t('teamTasksEmptyFiltered')}</p>
-          ) : (
-            <>
-              <p>{t('teamTasksEmpty')}</p>
-              {can('edit') && (
-                <Button
-                  type="button"
-                  variant="primary"
-                  loading={busy}
-                  onClick={() => void startTask()}
-                >
-                  {t('teamTasksEmptyAction')}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
+        <Empty
+          title={t(filtered ? 'teamTasksEmptyFiltered' : 'teamTasksEmpty')}
+          description={filtered ? undefined : t('teamTasksEmptyBody')}
+          action={
+            !filtered &&
+            can('edit') && (
+              <Button type="button" color="primary" loading={busy} onClick={() => void startTask()}>
+                {t('teamTasksEmptyAction')}
+              </Button>
+            )
+          }
+        />
       )}
       <div className="team-task-grid">
         {tasks.tasks.map(task => (

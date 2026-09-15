@@ -3,6 +3,7 @@ import type { TeamMaterialSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { EmptyState, ErrorState } from '../../components/ui/index';
 
 export interface FolderPickerClient {
   listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
@@ -80,12 +81,10 @@ export function FolderPicker({
           {t('teamFolderPickerLoading')}
         </p>
       )}
-      {failed && (
-        <p className="team-inline-error" role="alert">
-          {t('teamFolderPickerFailed')}
-        </p>
+      {failed && <ErrorState className="team-inline-error" message={t('teamFolderPickerFailed')} />}
+      {folders !== null && folders.length === 0 && (
+        <EmptyState size="sm" title={t('teamFolderPickerEmpty')} />
       )}
-      {folders !== null && folders.length === 0 && <p>{t('teamFolderPickerEmpty')}</p>}
 
       <ul className="team-folder-picker-list">
         {(folders ?? []).map(folder => (

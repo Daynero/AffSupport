@@ -425,7 +425,9 @@ describe('bilingual transcript modal integration', () => {
     const combobox = within(target).getByRole('combobox');
     fireEvent.focus(combobox);
     fireEvent.change(combobox, { target: { value: 'араб' } });
-    fireEvent.click(await within(target).findByRole('option', { name: /Арабська/u }));
+    // The list opens on the body (021, T062): the column that would clip it is
+    // no longer its parent.
+    fireEvent.click(await screen.findByRole('option', { name: /Арабська/u }));
     await waitFor(() => expect(target.getAttribute('aria-busy')).toBe('true'));
     // The previous translation stays fully readable while the new target is
     // translating — segments stream in progressively, no blur overlay.

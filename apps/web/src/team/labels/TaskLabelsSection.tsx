@@ -33,6 +33,7 @@ import { agentCountKey, taskCountKey } from '../accounts/plural';
 import { TaskLabelChip, TaskLabelColorPicker } from './TaskLabelChip';
 import { useTaskLabels, type TaskLabelsClient } from './useTaskLabels';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { EmptyState } from '../../components/ui/index';
 
 export type TaskLabelsSectionClient = TaskLabelsClient;
 
@@ -179,7 +180,11 @@ export function TaskLabelsSection({
       )}
       {/* Said where it becomes true, not as a warning nobody near the limit
           needs to read. */}
-      {full && <p className="team-inline-error">{t('teamTaskTagsFull')}</p>}
+      {full && (
+        <p className="team-inline-error" role="alert">
+          {t('teamTaskTagsFull')}
+        </p>
+      )}
 
       {labels.loading && labels.labels.length === 0 && (
         <p aria-live="polite">{t('teamTaskTagsLoading')}</p>
@@ -190,9 +195,11 @@ export function TaskLabelsSection({
           the server's own reason. A list already on screen keeps a quiet word
           that it may be out of date. */}
       {!labels.loading && labels.labels.length === 0 && (
-        <p className="team-task-labels-empty">
-          {t(agents ? 'teamAgentTagsEmpty' : 'teamTaskTagsEmpty')}
-        </p>
+        <EmptyState
+          className="team-task-labels-empty"
+          size="sm"
+          title={t(agents ? 'teamAgentTagsEmpty' : 'teamTaskTagsEmpty')}
+        />
       )}
       {labels.error && labels.labels.length > 0 && (
         <p className="team-task-labels-stale" role="status">
@@ -313,7 +320,7 @@ export function TaskLabelsSection({
             >
               {t('teamTaskTagDelete')}
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirming(null)}>
+            <Button type="button" variant="secondary" onClick={() => setConfirming(null)}>
               {t('teamCancel')}
             </Button>
           </div>

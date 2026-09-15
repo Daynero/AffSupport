@@ -21,6 +21,12 @@ import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
 
 const ProtectedSoty = lazy(() => import('./ProtectedSoty'));
+/**
+ * The inventory's demo surface (021). Development only: `import.meta.env.DEV`
+ * is a compile-time constant, so the whole branch — and the module behind it —
+ * is dropped from a production bundle rather than merely unreachable in it.
+ */
+const DesignSystemPage = import.meta.env.DEV ? lazy(() => import('./dev/DesignSystemPage')) : null;
 const PrivacyPage = lazy(() =>
   import('./pages/LegalPages').then(module => ({ default: module.PrivacyPage }))
 );
@@ -72,6 +78,13 @@ function Routes() {
         <TermsPage />
       </Suspense>
     );
+  if (path === '/design' && DesignSystemPage) {
+    return (
+      <Suspense fallback={<AuthLoadingScreen />}>
+        <DesignSystemPage />
+      </Suspense>
+    );
+  }
   if (path === '/auth/callback') return <AuthCallbackPage />;
   if (path === HANDOFF_PATH) return <AuthHandoffPage />;
   if (path === '/login') return <LoginPage />;

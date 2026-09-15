@@ -192,6 +192,15 @@ Each video shows source size, resolution, frame rate, bitrate, duration, and cod
 
 Scaling preserves aspect ratio for horizontal and vertical video, makes the calculated side even, and never upscales. Every mode produces an H.264 MP4 with yuv420p pixels and fast-start metadata.
 
+## Design
+
+The look is a system, not a per-screen decision: one token layer
+(`apps/web/src/styles/tokens.css`), one component inventory
+(`apps/web/src/components/ui/`), and one set of rules in
+[`docs/DESIGN.md`](docs/DESIGN.md), with the craft reference behind it in
+[`docs/DESIGN-PRINCIPLES.md`](docs/DESIGN-PRINCIPLES.md). A development build
+serves `/design`, where every component and variant sits side by side.
+
 ## Files, state, and safety
 
 Results use `name_compressed.mp4`, then `_compressed_2`, `_compressed_3`, and so on. FFmpeg receives `-n`, so an existing result is never overwritten. Originals are never modified or deleted.

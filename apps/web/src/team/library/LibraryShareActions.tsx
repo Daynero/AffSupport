@@ -6,11 +6,11 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage } from '../errors';
 import { MediaActionIcon } from './mediaActionIcons';
+import { Button, Checkbox, ErrorState } from '../../components/ui/index';
 
 export interface LibraryShareClient {
   getLibrarySharePreference(teamId: string): Promise<{
@@ -135,37 +135,39 @@ export function LibraryShareActions({
 
   return (
     <div className="creative-library-share-actions">
+      {/* The copy says it worked by changing its own word — no animation: this
+          is the action of the row people press most (docs/DESIGN.md). */}
       <Button
-        type="button"
+        color="neutral"
         variant="ghost"
         className="team-media-action is-copy-link"
+        leading={<MediaActionIcon kind="copy-link" />}
         loading={busy === 'copy'}
         onClick={() => void copy()}
       >
-        <MediaActionIcon kind="copy-link" />
-        <span>{copied ? t('creativeLibraryLinkCopied') : t('creativeLibraryCopyLink')}</span>
+        {copied ? t('creativeLibraryLinkCopied') : t('creativeLibraryCopyLink')}
       </Button>
       <Button
-        type="button"
+        color="neutral"
         variant="ghost"
         className="team-media-action is-open"
+        leading={<MediaActionIcon kind="open" />}
         loading={busy === 'open'}
         onClick={() => void open()}
       >
-        <MediaActionIcon kind="open" />
-        <span>{t('creativeLibraryOpenDrive')}</span>
+        {t('creativeLibraryOpenDrive')}
       </Button>
       <Button
-        type="button"
+        color="neutral"
         variant="ghost"
         className="team-media-action is-download"
+        leading={<MediaActionIcon kind="download" />}
         loading={busy === 'download'}
         onClick={() => void download()}
       >
-        <MediaActionIcon kind="download" />
-        <span>{t('creativeLibraryDownload')}</span>
+        {t('creativeLibraryDownload')}
       </Button>
-      {error && <small className="team-inline-error">{error}</small>}
+      {error && <ErrorState message={error} />}
       {confirmation && (
         <Modal
           labelledBy="creative-library-share-title"
@@ -177,24 +179,24 @@ export function LibraryShareActions({
             <h2 id="creative-library-share-title">{t('creativeLibraryShareTitle')}</h2>
             <p>{t('creativeLibrarySharePrompt')}</p>
             {!confirmation.canShare && (
-              <p className="team-inline-error">{t('creativeLibraryShareUnavailable')}</p>
-            )}
-            <label className="creative-library-share-remember">
-              <input
-                type="checkbox"
-                checked={remember}
-                disabled={!confirmation.canShare}
-                onChange={event => setRemember(event.target.checked)}
+              <ErrorState
+                className="team-inline-error"
+                message={t('creativeLibraryShareUnavailable')}
               />
-              <span>{t('creativeLibraryShareRemember')}</span>
-            </label>
+            )}
+            <Checkbox
+              label={t('creativeLibraryShareRemember')}
+              checked={remember}
+              disabled={!confirmation.canShare}
+              onChange={event => setRemember(event.target.checked)}
+            />
             <div className="team-dialog-actions">
-              <Button type="button" variant="ghost" onClick={() => setConfirmation(null)}>
+              <Button color="neutral" variant="ghost" onClick={() => setConfirmation(null)}>
                 {t('teamCancel')}
               </Button>
               <Button
-                type="button"
-                variant="primary"
+                color="primary"
+                variant="solid"
                 loading={busy === 'approve'}
                 disabled={!confirmation.canShare}
                 onClick={() => void approve()}

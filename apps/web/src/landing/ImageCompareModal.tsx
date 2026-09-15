@@ -13,7 +13,8 @@ import type { LandingAsset } from '@video-compressor/shared';
 import { formatSize } from '../format';
 import type { Language } from '../i18n';
 import { Modal } from '../components/Modal';
-import { Button, Spinner, type Translate } from '../components/ui';
+import type { Translate } from '../components/ui';
+import { Badge, ErrorState, IconButton, Spinner } from '../components/ui/index';
 import { landingPreviewPath } from '../api/client';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
@@ -221,11 +222,10 @@ export function ImageCompareModal({
         </div>
         <div className="landing-compare-tools">
           {ready && (
-            <button
-              type="button"
+            <IconButton
               className="landing-compare-zoom"
-              aria-pressed={zoomed}
-              aria-label={t(zoomed ? 'landingPreviewZoomOut' : 'landingPreviewZoomIn')}
+              label={t(zoomed ? 'landingPreviewZoomOut' : 'landingPreviewZoomIn')}
+              pressed={zoomed}
               data-tip={t(zoomed ? 'landingPreviewZoomOut' : 'landingPreviewZoomIn')}
               onClick={toggleZoom}
             >
@@ -234,16 +234,15 @@ export function ImageCompareModal({
               ) : (
                 <Maximize2 size={18} strokeWidth={1.75} aria-hidden="true" />
               )}
-            </button>
+            </IconButton>
           )}
-          <button
-            type="button"
+          <IconButton
             className="landing-compare-close"
-            aria-label={t('landingPreviewClose')}
+            label={t('landingPreviewClose')}
             onClick={onClose}
           >
             <span aria-hidden="true">×</span>
-          </button>
+          </IconButton>
         </div>
       </header>
 
@@ -288,8 +287,22 @@ export function ImageCompareModal({
           )}
           {ready && comparison && (
             <>
-              <span className="landing-compare-label is-before">{t('landingPreviewBefore')}</span>
-              <span className="landing-compare-label is-after">{t('landingPreviewAfter')}</span>
+              <Badge
+                variant="solid"
+                color="neutral"
+                size="xs"
+                className="landing-compare-label is-before"
+              >
+                {t('landingPreviewBefore')}
+              </Badge>
+              <Badge
+                variant="solid"
+                color="primary"
+                size="xs"
+                className="landing-compare-label is-after"
+              >
+                {t('landingPreviewAfter')}
+              </Badge>
               {/* The divider stays at actual size — that is where a comparison is finally
                   worth making. What changes is who gets the drag: the surface pans, and the
                   divider is moved with the arrow keys, which the range still answers to
@@ -319,16 +332,14 @@ export function ImageCompareModal({
           </div>
         )}
         {broken && (
-          <div className="landing-preview-loading is-error" role="alert">
-            <span>
-              {t(
-                timedOut && !failed && !refused ? 'landingPreviewSlow' : 'landingPreviewUnavailable'
-              )}
-            </span>
-            <Button variant="secondary" onClick={retry}>
-              {t('landingPreviewRetry')}
-            </Button>
-          </div>
+          <ErrorState
+            className="landing-preview-error"
+            message={t(
+              timedOut && !failed && !refused ? 'landingPreviewSlow' : 'landingPreviewUnavailable'
+            )}
+            onRetry={retry}
+            retryLabel={t('landingPreviewRetry')}
+          />
         )}
       </div>
 

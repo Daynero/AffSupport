@@ -6,7 +6,7 @@ import {
   type LandingDevicePreset,
   type LandingViewerPreset
 } from '@video-compressor/shared';
-import { Button, SegmentedControl } from '../../components/ui';
+import { IconButton, SegmentedControl } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 
 const DEVICE_LABELS: Record<LandingDevicePreset, TranslationKey> = {
@@ -47,23 +47,25 @@ export function LandingViewerControls({
         }))}
       />
       <div className="landing-viewer-zoom" role="group" aria-label={t('teamLandingViewerZoom')}>
-        <Button
-          type="button"
-          aria-label={`${t('teamLandingViewerZoom')} −`}
+        <IconButton
+          variant="outline"
+          size="sm"
+          label={`${t('teamLandingViewerZoom')} −`}
           disabled={preset.zoom <= LANDING_ZOOM_MIN}
           onClick={() => setZoom(preset.zoom - ZOOM_STEP)}
         >
           −
-        </Button>
+        </IconButton>
         <span className="landing-viewer-zoom-value">{Math.round(preset.zoom * 100)}%</span>
-        <Button
-          type="button"
-          aria-label={`${t('teamLandingViewerZoom')} +`}
+        <IconButton
+          variant="outline"
+          size="sm"
+          label={`${t('teamLandingViewerZoom')} +`}
           disabled={preset.zoom >= LANDING_ZOOM_MAX}
           onClick={() => setZoom(preset.zoom + ZOOM_STEP)}
         >
           +
-        </Button>
+        </IconButton>
       </div>
     </div>
   );

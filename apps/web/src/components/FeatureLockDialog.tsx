@@ -33,7 +33,7 @@ export default function FeatureLockDialog({
       labelledBy={titleId}
       onClose={onClose}
       closeLabel={t('supportClose')}
-      initialFocus=".button-primary"
+      initialFocus=".ui-color-primary, .button-primary"
     >
       <header className="lock-head">
         <span className="lock-emoji" aria-hidden="true">

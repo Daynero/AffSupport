@@ -1,4 +1,5 @@
 import { builtForEnvironment } from '../lib/config';
+import { Badge } from './ui/index';
 import { useI18n } from '../i18n';
 
 /**
@@ -18,8 +19,17 @@ export function EnvironmentBadge() {
   const { t } = useI18n();
   if (builtForEnvironment() !== 'beta') return null;
   return (
-    <div className="environment-badge" role="note" title={t('betaBadgeTitle')}>
+    /* The inventory's badge with the warning role: a build that is not
+       production says so in the colour the product uses for "look at this". */
+    <Badge
+      className="environment-badge"
+      color="warning"
+      variant="solid"
+      size="sm"
+      role="note"
+      title={t('betaBadgeTitle')}
+    >
       {t('betaBadge')}
-    </div>
+    </Badge>
   );
 }

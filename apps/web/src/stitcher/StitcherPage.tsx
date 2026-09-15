@@ -65,6 +65,8 @@ import {
   updateCompressorSettings,
   uploadScreenImage
 } from './api';
+import { RadioGroup } from '../components/ui/index';
+import { EmptyState } from '../components/ui/index';
 
 const SETTINGS_OPEN_KEY = 'wishly.stitcher.settings-open.v1';
 
@@ -401,7 +403,15 @@ export function Stitcher() {
 
       <section className="video-list" aria-label={t('stitcherQueueTitle')}>
         {jobs.length === 0 ? (
-          <p className="stitch-note">{t('stitcherQueueEmpty')}</p>
+          <EmptyState
+            className="stitch-note"
+            title={t('stitcherQueueEmpty')}
+            action={
+              <Button type="button" variant="secondary" onClick={() => void choose()}>
+                {t('chooseFiles')}
+              </Button>
+            }
+          />
         ) : (
           [...jobs].reverse().map((job, index) => (
             <StitchRow
@@ -525,44 +535,31 @@ function StitchSettingsPanel({
               <span>{t('stitcherOperation')}</span>
               <Tooltip label={t('stitcherOperationHint')}>{t('stitcherOperationHint')}</Tooltip>
             </div>
-            <div className="fit-mode-pictos" role="radiogroup" aria-label={t('stitcherOperation')}>
-              <button
-                type="button"
-                role="radio"
-                className={operation === 'restitch' ? 'is-selected' : ''}
-                data-tip={t('stitcherOpRestitch')}
-                aria-label={t('stitcherOpRestitch')}
-                aria-checked={operation === 'restitch'}
-                disabled={disabled}
-                onClick={() => onOperation('restitch')}
-              >
-                <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                role="radio"
-                className={operation === 'stitch' ? 'is-selected' : ''}
-                data-tip={t('stitcherOpStitch')}
-                aria-label={t('stitcherOpStitch')}
-                aria-checked={operation === 'stitch'}
-                disabled={disabled}
-                onClick={() => onOperation('stitch')}
-              >
-                <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                role="radio"
-                className={operation === 'unstitch' ? 'is-selected' : ''}
-                data-tip={t('stitcherOpUnstitch')}
-                aria-label={t('stitcherOpUnstitch')}
-                aria-checked={operation === 'unstitch'}
-                disabled={disabled}
-                onClick={() => onOperation('unstitch')}
-              >
-                <Eraser size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-            </div>
+            <RadioGroup
+              className="fit-mode-pictos"
+              variant="pictos"
+              label={t('stitcherOperation')}
+              value={operation}
+              disabled={disabled}
+              onChange={onOperation}
+              options={[
+                {
+                  value: 'restitch',
+                  label: t('stitcherOpRestitch'),
+                  icon: <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                },
+                {
+                  value: 'stitch',
+                  label: t('stitcherOpStitch'),
+                  icon: <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                },
+                {
+                  value: 'unstitch',
+                  label: t('stitcherOpUnstitch'),
+                  icon: <Eraser size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                }
+              ]}
+            />
             <span className="optimal-summary">{t(OPERATION_KEYS[operation])}</span>
           </div>
 
@@ -572,44 +569,38 @@ function StitchSettingsPanel({
               <Tooltip label={t('stitcherDestinationHint')}>{t('stitcherDestinationHint')}</Tooltip>
             </div>
             <div className="output-control-row">
-              <div className="fit-mode-pictos" role="radiogroup" aria-label={t('saveResults')}>
-                <button
-                  type="button"
-                  role="radio"
-                  className={settings.destination.kind === 'beside' ? 'is-selected' : ''}
-                  data-tip={t('nextToOriginals')}
-                  aria-label={t('nextToOriginals')}
-                  aria-checked={settings.destination.kind === 'beside'}
-                  disabled={disabled}
-                  onClick={() => void updateSettings({ destination: { kind: 'beside' } })}
-                >
-                  <Files size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  className={settings.destination.kind === 'folder' ? 'is-selected' : ''}
-                  data-tip={t('chooseFolder')}
-                  aria-label={t('chooseFolder')}
-                  aria-checked={settings.destination.kind === 'folder'}
-                  disabled={disabled}
-                  onClick={chooseFolder}
-                >
-                  <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  className={settings.destination.kind === 'overwrite' ? 'is-selected' : ''}
-                  data-tip={t('stitcherDestinationOverwrite')}
-                  aria-label={t('stitcherDestinationOverwrite')}
-                  aria-checked={settings.destination.kind === 'overwrite'}
-                  disabled={disabled}
-                  onClick={() => void updateSettings({ destination: { kind: 'overwrite' } })}
-                >
-                  <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </button>
-              </div>
+              <RadioGroup
+                className="fit-mode-pictos"
+                variant="pictos"
+                label={t('saveResults')}
+                value={settings.destination.kind}
+                disabled={disabled}
+                /* Choosing a folder opens the picker; the destination follows
+                   from what comes back, so a cancelled picker changes nothing. */
+                onChange={kind => {
+                  if (kind === 'folder') chooseFolder();
+                  else void updateSettings({ destination: { kind } });
+                }}
+                options={[
+                  {
+                    value: 'beside',
+                    label: t('nextToOriginals'),
+                    icon: <Files size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  },
+                  {
+                    value: 'folder',
+                    label: t('chooseFolder'),
+                    icon: (
+                      <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    )
+                  },
+                  {
+                    value: 'overwrite',
+                    label: t('stitcherDestinationOverwrite'),
+                    icon: <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  }
+                ]}
+              />
               <input
                 className="time-input suffix-input"
                 type="text"
@@ -771,13 +762,15 @@ function StitchRow({
             <>
               {/* Run first, then folder, open, delete — the compressor's order, so the same
                   action sits in the same place whatever state the file is in. */}
+              {/* Secondary: within the row this is the leading action, but the
+                  page's one primary is the toolbar's (FR-022). */}
               {job.status === 'ready' ? (
-                <Button variant="primary" disabled={disabled} onClick={onStart}>
+                <Button variant="secondary" disabled={disabled} onClick={onStart}>
                   <Play size={16} strokeWidth={1.75} aria-hidden="true" />
                   {t('stitcherStartOne')}
                 </Button>
               ) : (
-                <Button variant="primary" disabled={disabled} onClick={onRepeat}>
+                <Button variant="secondary" disabled={disabled} onClick={onRepeat}>
                   <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
                   {t(job.status === 'done' ? 'repeatCompression' : 'retry')}
                 </Button>
