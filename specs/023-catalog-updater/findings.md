@@ -93,3 +93,16 @@ real `_shared/drive.ts`, `credentials.ts`, `product-catalog.ts`, `xlsx.ts` modul
 - Updater-level changes write a `team_catalog_events` row with `event_kind = 'sync_state'` and no
   material; per-sheet updates write `upserted` for the sheet. The web's existing listener refetches on
   either.
+
+## Worker proven end to end on the beta (2026-09-15)
+
+With an updater row armed directly in the beta database for one live catalog and `next_run_at = now()`,
+the 10-second cron invoked `catalog-updater` through the derived URL and the catalog-sync secret; the
+worker rewrote the real sheet in place: IDs `1…4 → 501…504` within ~15 s, and after pulling the next
+run forward again `→ 1002…1005` within ~20 s. Price, video links (`?v=001…`) and all 31 columns
+unchanged; `update_count` 2; `next_run_at` one hour ahead. The updater was stopped afterwards.
+
+Note: a new Edge Function is only served locally after `beta:down` + `beta:up` (the edge runtime
+receives its function list at container creation). A stale `beta-up.mjs` supervisor from an earlier
+session held port 5175 and made `beta:down` refuse ("borrowed"); stopping that supervisor with TERM
+cleared it.
