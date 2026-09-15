@@ -45,6 +45,7 @@ import {
 } from '../_shared/errors.ts';
 import {
   issueTransferGrant,
+  releaseNameReservation,
   startOperation,
   transitionOperation,
   type OperationAuthority
@@ -59,6 +60,14 @@ import {
   type ProductCatalogDeps
 } from './product-catalog.ts';
 import { SPREADSHEET_MIME_TYPE } from '../_shared/product-catalog.ts';
+import {
+  claimRestitchJob,
+  completeRestitchJob,
+  heartbeatRestitchJob,
+  recordRestitchOutput,
+  RESTITCH_CONTRACT_VERSION,
+  type UpdaterRestitchDeps
+} from './updater-restitch.ts';
 import {
   isRecord,
   parseBoundedString,
@@ -148,7 +157,13 @@ const TOOL_RULES: Readonly<
     contractVersion: 2,
     outputMimeType: 'application/zip'
   },
-  imageEmbedding: { categories: ['video'], contractVersion: 2, outputMimeType: 'video/mp4' }
+  imageEmbedding: { categories: ['video'], contractVersion: 2, outputMimeType: 'video/mp4' },
+  // 023: the catalog updater's spare copies, started for a member's open tab.
+  restitch: {
+    categories: ['video'],
+    contractVersion: RESTITCH_CONTRACT_VERSION,
+    outputMimeType: 'video/mp4'
+  }
 };
 
 function clients(request: Request): { caller: RpcClient; service: RpcClient } {
@@ -1062,6 +1077,20 @@ async function handleUploadFinalize(
       // still holding the name the video expects, so the next run was written
       // as "name (2).txt" and the folder stopped matching what Soty showed.
       await trashRetiredCompanions(client, linked);
+    }
+    // 023: a re-stitched copy the updater asked for becomes the catalog's spare. Best-effort like
+    // the transcript link: the file is committed either way, and an unrecorded copy is prepared again.
+    if (resultMaterialId && operation.kind === 'process' && operation.toolId === 'restitch') {
+      await recordRestitchOutput(
+        {
+          drive: client,
+          rpc: (name, parameters) => rpcValue(service, name, parameters),
+          log: (message, detail) => console.error(message, detail)
+        },
+        { operationId, materialId: resultMaterialId, driveFileId: result.id }
+      ).catch(error => {
+        console.error('[finalize] restitch copy not recorded', mapUnknownError(error).code);
+      });
     }
     return committed;
   } catch (error) {
@@ -2536,6 +2565,40 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
   return deps;
 }
 
+function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterRestitchDeps {
+  return {
+    rpc: (name, parameters) => rpcValue(service, name, parameters),
+    startProcess: async (actorId, body) => {
+      const started = await handleProcessStart(request, body, service, actorId);
+      return {
+        operationId: started.operationId,
+        sourceGrant: started.sourceGrant,
+        finalizeGrant: started.finalizeGrant
+      };
+    },
+    abandonOperation: async operationId => {
+      // An operation that already finished refuses the transition; its name is released anyway.
+      await transitionOperation({
+        service,
+        operationId,
+        state: 'failed',
+        stage: 'failed',
+        errorCode: 'LEASE_EXPIRED'
+      }).catch(() => undefined);
+      await releaseNameReservation(service, operationId);
+    },
+    hashHex: async value => byteaHex(await sha256(value)),
+    randomToken: () => {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      return btoa(String.fromCharCode(...bytes))
+        .replaceAll('+', '-')
+        .replaceAll('/', '_')
+        .replace(/=+$/u, '');
+    },
+    log: (message, detail) => console.error(message, detail)
+  };
+}
+
 function routePath(url: URL) {
   const marker = '/drive-ops';
   const index = url.pathname.lastIndexOf(marker);
@@ -2612,6 +2675,24 @@ Deno.serve(async request => {
         productCatalogDeps(request, configured.caller, configured.service),
         body,
         userId
+      );
+    } else if (path === '/updater/claim') {
+      value = await claimRestitchJob(
+        updaterRestitchDeps(request, configured.service),
+        userId,
+        body
+      );
+    } else if (path === '/updater/heartbeat') {
+      value = await heartbeatRestitchJob(
+        updaterRestitchDeps(request, configured.service),
+        userId,
+        body
+      );
+    } else if (path === '/updater/complete') {
+      value = await completeRestitchJob(
+        updaterRestitchDeps(request, configured.service),
+        userId,
+        body
       );
     } else if (path === '/process/start') {
       value = await handleProcessStart(request, body, configured.service, userId);
