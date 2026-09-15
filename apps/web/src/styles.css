@@ -14758,6 +14758,18 @@ button.team-landing-tile:hover {
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
+  /* A sticky card taller than the window could never show its end: the page stops scrolling
+     before the card does, so on a short screen the transcript and catalog actions sat below the
+     fold with no way to reach them. The card keeps to the window and scrolls inside itself. */
+  max-height: calc(100vh - 2 * var(--space-3));
+  max-height: calc(100dvh - 2 * var(--space-3));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* In a height-capped column the pieces would otherwise shrink to fit — a squashed preview
+   instead of a scroll. Each keeps its own size. */
+.team-explorer-pane > * {
+  flex-shrink: 0;
 }
 .team-explorer-pane-visual {
   display: grid;
@@ -14886,6 +14898,9 @@ button.team-landing-tile:hover {
   }
   .team-explorer-pane {
     position: static;
+    /* Stacked under the list, the card is part of the page again and the page scrolls it. */
+    max-height: none;
+    overflow-y: visible;
   }
 }
 
