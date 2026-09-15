@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { selectedCountKey, translate, type Language } from '../apps/web/src/i18n';
+import {
+  catalogCountKey,
+  catalogSelectedCountKey,
+  selectedCountKey,
+  translate,
+  type Language
+} from '../apps/web/src/i18n';
 
 /**
  * Ukrainian has three plural forms and the application knew two.
@@ -55,5 +61,21 @@ describe('the selection count', () => {
     const few = translate('uk', 'selectedFew', { count: 2 });
     const many = translate('uk', 'selectedMany', { count: 5 });
     expect(few).not.toBe(many.replace('5', '2'));
+  });
+});
+
+describe('catalog counts in the updater (023)', () => {
+  it.each(CASES)('picks the Ukrainian catalog form for $count', ({ count, uk }) => {
+    const suffix = uk === 'one' ? 'One' : uk === 'few' ? 'Few' : 'Many';
+    expect(catalogCountKey('uk', count)).toBe(`catalogUpdaterChipCatalogs${suffix}`);
+    expect(catalogSelectedCountKey('uk', count)).toBe(`catalogUpdaterSelected${suffix}`);
+  });
+
+  it('writes one, two and five catalogs the Ukrainian way', () => {
+    expect(translate('uk', catalogCountKey('uk', 1), { count: 1 })).toBe('1 каталог');
+    expect(translate('uk', catalogCountKey('uk', 2), { count: 2 })).toBe('2 каталоги');
+    expect(translate('uk', catalogCountKey('uk', 5), { count: 5 })).toBe('5 каталогів');
+    expect(translate('en', catalogCountKey('en', 1), { count: 1 })).toBe('1 catalog');
+    expect(translate('en', catalogCountKey('en', 3), { count: 3 })).toBe('3 catalogs');
   });
 });

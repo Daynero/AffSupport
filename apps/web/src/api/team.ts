@@ -200,6 +200,98 @@ export interface ProductCatalogCreateResult {
   videoShared: boolean;
 }
 
+/** 023 — one row of the catalog registry: a live product catalog and the video it belongs to. */
+export interface CatalogRegistryRow {
+  catalogId: string;
+  name: string;
+  sheetUrl: string;
+  videoId: string;
+  videoName: string;
+  folderName: string | null;
+  productCount: number;
+  createdAt: string;
+  lastUpdatedAt: string | null;
+  updateCount: number;
+  inUpdater: boolean;
+  lastUpdateError: string | null;
+}
+
+export type CatalogUpdaterInterval = '1h' | '1d' | '1w';
+
+/** 023 — the space's catalog updater, as the chip and the dialog show it. */
+export interface CatalogUpdaterState {
+  state: 'running' | 'stopped';
+  interval: CatalogUpdaterInterval;
+  restitch: boolean;
+  nextRunAt: string | null;
+  startedAt: string | null;
+  catalogCount: number;
+  failingCount: number;
+  spareReadyCount: number | null;
+  serverNow: string;
+}
+
+function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    (row.state !== 'running' && row.state !== 'stopped') ||
+    !['1h', '1d', '1w'].includes(String(row.interval)) ||
+    typeof row.restitch !== 'boolean' ||
+    (row.nextRunAt !== null && typeof row.nextRunAt !== 'string') ||
+    (row.startedAt !== null && typeof row.startedAt !== 'string') ||
+    typeof row.catalogCount !== 'number' ||
+    typeof row.failingCount !== 'number' ||
+    typeof row.serverNow !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    state: row.state,
+    interval: row.interval as CatalogUpdaterInterval,
+    restitch: row.restitch,
+    nextRunAt: row.nextRunAt as string | null,
+    startedAt: row.startedAt as string | null,
+    catalogCount: row.catalogCount,
+    failingCount: row.failingCount,
+    spareReadyCount: typeof row.spareReadyCount === 'number' ? row.spareReadyCount : null,
+    serverNow: row.serverNow
+  };
+}
+
+function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.catalog_id !== 'string' ||
+    typeof row.name !== 'string' ||
+    typeof row.sheet_url !== 'string' ||
+    !/^https:\/\//u.test(row.sheet_url) ||
+    typeof row.video_id !== 'string' ||
+    typeof row.video_name !== 'string' ||
+    typeof row.product_count !== 'number' ||
+    typeof row.created_at !== 'string' ||
+    typeof row.update_count !== 'number' ||
+    typeof row.in_updater !== 'boolean'
+  ) {
+    return null;
+  }
+  return {
+    catalogId: row.catalog_id,
+    name: row.name,
+    sheetUrl: row.sheet_url,
+    videoId: row.video_id,
+    videoName: row.video_name,
+    folderName: typeof row.folder_name === 'string' ? row.folder_name : null,
+    productCount: row.product_count,
+    createdAt: row.created_at,
+    lastUpdatedAt: typeof row.last_updated_at === 'string' ? row.last_updated_at : null,
+    updateCount: row.update_count,
+    inUpdater: row.in_updater,
+    lastUpdateError: typeof row.last_update_error === 'string' ? row.last_update_error : null
+  };
+}
+
 function productCatalogSettingsFrom(value: unknown): ProductCatalogSettings | null {
   const row = asRecord(value);
   if (
@@ -1678,6 +1770,56 @@ export const teamApi = {
       productCount: row.product_count,
       createdAt: row.created_at
     };
+  },
+
+  async listTeamProductCatalogs(teamId: string): Promise<CatalogRegistryRow[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_product_catalogs', { p_team: teamId })
+    );
+    throwRpc(error);
+    if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data.flatMap(row => {
+      const parsed = catalogRegistryRowFrom(row);
+      return parsed ? [parsed] : [];
+    });
+  },
+
+  async getCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater', { p_team: teamId })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdaterStateFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async saveCatalogUpdater(
+    teamId: string,
+    input: { catalogIds: string[]; interval: CatalogUpdaterInterval; restitch: boolean }
+  ): Promise<CatalogUpdaterState> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('save_team_catalog_updater', {
+        p_team: teamId,
+        p_catalogs: input.catalogIds,
+        p_interval: input.interval,
+        p_restitch: input.restitch
+      })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdaterStateFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async stopCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('stop_team_catalog_updater', { p_team: teamId })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdaterStateFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
   },
 
   async getProductCatalogSettings(teamId: string): Promise<ProductCatalogSettings | null> {

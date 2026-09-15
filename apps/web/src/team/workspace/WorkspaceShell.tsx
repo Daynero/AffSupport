@@ -14,6 +14,9 @@ import { StorageChip, type StorageChipClient } from '../storage/StorageChip';
 import { useStorageHealth, type StorageHealthClient } from '../storage/useStorageHealth';
 import type { SpaceSettingsClient } from './SpaceSettings';
 import { SettingsDialog } from './SettingsDialog';
+import { CatalogUpdaterChip } from '../catalog-updater/CatalogUpdaterChip';
+import { CatalogUpdaterDialog } from '../catalog-updater/CatalogUpdaterDialog';
+import { useCatalogUpdater } from '../catalog-updater/useCatalogUpdater';
 import { MembersSection } from './MembersSection';
 import { SpaceSwitcher } from './SpaceSwitcher';
 import { RealtimeChip } from './RealtimeChip';
@@ -258,6 +261,9 @@ export function WorkspaceShell({
     setBrowserRevision(value => value + 1);
   }, [teamId]);
 
+  // The updater's state for the chip beside the settings link (023); the dialog reads its own.
+  const catalogUpdater = useCatalogUpdater(teamId);
+
   /** An explorer address that keeps the current folder and view. */
   const explorerRoute = useCallback(
     (patch: Partial<TeamRouteQuery>) =>
@@ -419,6 +425,12 @@ export function WorkspaceShell({
                   {t('teamTrashEntry')}
                 </a>
               )}
+              <CatalogUpdaterChip
+                state={catalogUpdater.state}
+                offsetMs={catalogUpdater.offsetMs}
+                href={explorerRoute({ updater: true })}
+                onNavigate={event => internalLink(event, explorerRoute({ updater: true }))}
+              />
               <a
                 className="team-space-shell-utility-link"
                 href={explorerRoute({ settings: true })}
@@ -541,6 +553,13 @@ export function WorkspaceShell({
               directAddMode={directAddMode}
               initialTab={query.settingsTab}
               onClose={() => navigateTo(explorerRoute({ settings: false, settingsTab: null }))}
+            />
+          )}
+
+          {query?.updater && (
+            <CatalogUpdaterDialog
+              teamId={teamId}
+              onClose={() => navigateTo(explorerRoute({ updater: false }))}
             />
           )}
 

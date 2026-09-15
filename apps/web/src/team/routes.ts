@@ -65,6 +65,8 @@ export interface TeamRouteQuery {
    * panel that fixes it, rather than to the dialog's front page.
    */
   settingsTab: TeamSettingsTab | null;
+  /** The catalog updater's dialog is open over the explorer (023). */
+  updater: boolean;
   /** The selected material, so a shared link opens on it. */
   itemId: string | null;
 }
@@ -144,6 +146,7 @@ export function emptyTeamRouteQuery(): TeamRouteQuery {
     trash: false,
     settings: false,
     settingsTab: null,
+    updater: false,
     itemId: null
   };
 }
@@ -253,6 +256,7 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     trash: params.get('trash') === '1',
     settings: params.get('settings') === '1',
     settingsTab: readSettingsTab(params),
+    updater: params.get('updater') === '1',
     itemId: trimmedParam(params, 'item')
   };
   const { section, query } = aliasSection(rawSection, base);
@@ -307,6 +311,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.trash) params.set('trash', '1');
     if (query.settings) params.set('settings', '1');
     if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
+    if (query.updater) params.set('updater', '1');
     if (query.itemId) params.set('item', query.itemId);
   }
   if (section === 'tasks') {

@@ -18042,3 +18042,175 @@ input[type='number'] {
     display: none;
   }
 }
+
+/* Catalog updater (023): a full-screen dialog over the explorer, and its chip in the header. */
+.team-updater-backdrop {
+  position: fixed;
+  z-index: var(--layer-fullbleed);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: var(--overlay-backdrop);
+}
+.team-updater-dialog {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, var(--dialog-wide));
+  height: min(92vh, 1000px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+.team-updater-header,
+.team-updater-toolbar,
+.team-updater-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+}
+.team-updater-header {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-border);
+}
+.team-updater-header h2 {
+  margin: 0;
+}
+.team-updater-status {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+.team-updater-countdown {
+  font-variant-numeric: tabular-nums;
+}
+.team-updater-search {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.team-updater-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+.team-updater-selected {
+  color: var(--color-text-muted);
+}
+.team-updater-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-5) var(--space-4);
+}
+.team-updater-empty {
+  margin: var(--space-5) 0;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+.team-updater-rows {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-updater-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.team-updater-row-main {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-updater-row-main strong,
+.team-updater-row-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-updater-row-main small {
+  color: var(--color-text-muted);
+}
+.team-updater-row-main .team-inline-error {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+}
+.team-updater-row-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+.team-updater-footer {
+  justify-content: space-between;
+  border-top: 1px solid var(--color-border);
+}
+.team-updater-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.team-updater-restitch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+.team-updater-footer .team-dialog-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.team-updater-reason {
+  margin: 0;
+}
+.team-updater-chip {
+  background-color: var(--color-surface);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.team-updater-chip.ui-chip-busy {
+  background-image: linear-gradient(var(--color-accent-softer), var(--color-accent-softer));
+  color: var(--color-text);
+}
+.team-updater-chip.ui-chip-busy .ui-chip-spinner {
+  color: var(--color-accent-active);
+}
+.team-updater-chip.ui-chip-warn {
+  background-image: linear-gradient(var(--color-warning-soft), var(--color-warning-soft));
+}
+@media (max-width: 720px) {
+  .team-updater-backdrop {
+    padding: 0;
+  }
+  .team-updater-dialog {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+  .team-updater-header,
+  .team-updater-toolbar,
+  .team-updater-footer {
+    padding: var(--space-3) var(--space-4);
+  }
+  .team-updater-list {
+    padding-inline: var(--space-4);
+  }
+  .team-updater-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .team-updater-badge {
+    display: none;
+  }
+}

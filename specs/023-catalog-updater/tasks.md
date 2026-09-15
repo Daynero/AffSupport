@@ -68,14 +68,14 @@ scan written files for control characters.
 
 **Independent test**: quickstart §5 steps 1 — open the dialog, find a catalog by part of its video name, open and copy.
 
-- [ ] T013 [P] [US1] Add to `apps/web/src/api/team.ts`: `CatalogRegistryRow`, `CatalogUpdaterState` types (contract) and `listTeamProductCatalogs(teamId)`, `getCatalogUpdater(teamId)` narrowing rows from `unknown`
-- [ ] T014 [P] [US1] Add `updater` to `TeamRouteQuery`, `emptyTeamRouteQuery`, `parseTeamRoute` (`updater=1`) and `buildTeamRoute` (explorer branch) in `apps/web/src/team/routes.ts`; extend `tests/team-routes.test.ts`
-- [ ] T015 [P] [US1] Add en/uk keys to `apps/web/src/i18n.ts`: dialog title, search placeholder, empty/loading/error, column labels (video, folder, products, created, updated, in updater), open/copy, plural catalog counts `catalogUpdaterCatalogsOne/Few/Many` with a `catalogCountKey` helper next to `selectedCountKey`; extend `tests/i18n-plurals.test.ts`
-- [ ] T016 [US1] Write `apps/web/src/team/catalog-updater/useCatalogRegistry.ts`: read on open, refetch on `revision` (500 ms debounce), 60 s fallback poll, client-side filter by video and catalog name (case-insensitive, trimmed)
-- [ ] T017 [US1] Write `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` (registry part): `Modal bare` with `backdropClassName="team-updater-backdrop"`, `className="team-updater-dialog"`, header (title, close), toolbar (search in the `.team-task-picker-search` style), scrolling list rows (video name, folder or "space root", products, created, last update, "in updater" badge, open link `target=_blank`, copy with toast); edge-to-edge below 720 px
-- [ ] T018 [US1] Render the dialog in `apps/web/src/team/workspace/WorkspaceShell.tsx` when `query.updater` is set (next to `SettingsDialog`), closing via `navigateTo(explorerRoute({ updater: false }))`; add an entry point "Catalog updater" link in `.team-space-shell-utilities` before the settings link (visible to `view`)
-- [ ] T019 [P] [US1] Add dialog styles to `apps/web/src/styles.css`: `.team-updater-backdrop`, `.team-updater-dialog` (grid rows header/toolbar/list/footer, width `var(--dialog-wide)`, height `min(92vh, …)`, list `overflow-y: auto`), row layout, narrow-screen full-bleed
-- [ ] T020 [P] [US1] Write `tests/catalog-updater-dialog.test.tsx` (registry): lists rows, search narrows and clearing restores, open href and copy, empty state
+- [x] T013 [P] [US1] Add to `apps/web/src/api/team.ts`: `CatalogRegistryRow`, `CatalogUpdaterState` types (contract) and `listTeamProductCatalogs(teamId)`, `getCatalogUpdater(teamId)` narrowing rows from `unknown`
+- [x] T014 [P] [US1] Add `updater` to `TeamRouteQuery`, `emptyTeamRouteQuery`, `parseTeamRoute` (`updater=1`) and `buildTeamRoute` (explorer branch) in `apps/web/src/team/routes.ts`; extend `tests/team-routes.test.ts`
+- [x] T015 [P] [US1] Add en/uk keys to `apps/web/src/i18n.ts`: dialog title, search placeholder, empty/loading/error, column labels (video, folder, products, created, updated, in updater), open/copy, plural catalog counts `catalogUpdaterCatalogsOne/Few/Many` with a `catalogCountKey` helper next to `selectedCountKey`; extend `tests/i18n-plurals.test.ts`
+- [x] T016 [US1] Write `apps/web/src/team/catalog-updater/useCatalogRegistry.ts`: read on open, refetch on `revision` (500 ms debounce), 60 s fallback poll, client-side filter by video and catalog name (case-insensitive, trimmed)
+- [x] T017 [US1] Write `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` (registry part): `Modal bare` with `backdropClassName="team-updater-backdrop"`, `className="team-updater-dialog"`, header (title, close), toolbar (search in the `.team-task-picker-search` style), scrolling list rows (video name, folder or "space root", products, created, last update, "in updater" badge, open link `target=_blank`, copy with toast); edge-to-edge below 720 px
+- [x] T018 [US1] Render the dialog in `apps/web/src/team/workspace/WorkspaceShell.tsx` when `query.updater` is set (next to `SettingsDialog`), closing via `navigateTo(explorerRoute({ updater: false }))`; add an entry point "Catalog updater" link in `.team-space-shell-utilities` before the settings link (visible to `view`)
+- [x] T019 [P] [US1] Add dialog styles to `apps/web/src/styles.css`: `.team-updater-backdrop`, `.team-updater-dialog` (grid rows header/toolbar/list/footer, width `var(--dialog-wide)`, height `min(92vh, …)`, list `overflow-y: auto`), row layout, narrow-screen full-bleed
+- [x] T020 [P] [US1] Write `tests/catalog-updater-dialog.test.tsx` (registry): lists rows, search narrows and clearing restores, open href and copy, empty state
 
 ---
 
@@ -88,10 +88,10 @@ scan written files for control characters.
 - [x] T021 [US2] Write `supabase/functions/catalog-updater/worker.ts`: `runCatalogUpdaterTick(deps, { budgetMs })` with injected deps (`openRounds`, `claimItems`, `driveFor(credentialId)`, `complete`, `retry`, `markNeedsReauth`, `now`, `log`): open rounds, claim up to 10, per item rebuild rows (`rebuildCatalogRows` with `updateCount + 1`), `buildXlsx`, `updateConvertedFile`, `complete(item, updateCount + 1)`; on error `retry` with back-off 1, 5, 15 min then 15 min; `NEEDS_REAUTH` → `markNeedsReauth`; stop claiming when the budget is spent; returns `{ rounds, claimed, updated, failed }`
 - [x] T022 [US2] Write `supabase/functions/catalog-updater/index.ts`: CORS-free `Deno.serve`, `requireNamedWorkerSecret(request)` (defaults), `requireDriveOAuthGate`, service client, deps bound to the SQL functions from T009 and a per-credential Drive client cache (`preview-warm` `driveFor` pattern, `readDriveCredential` + `refreshGoogleAccessToken`), budget 8000 ms
 - [x] T023 [P] [US2] Write `tests/catalog-updater-worker.test.ts`: round then update writes shifted IDs and calls complete with count+1; a Drive failure retries only that item and others still complete; lost lease on complete is logged, not thrown further; budget stops claiming; `NEEDS_REAUTH` marks the credential
-- [ ] T024 [P] [US2] Add `saveCatalogUpdater(teamId, { catalogIds, interval, restitch })` and `stopCatalogUpdater(teamId)` to `apps/web/src/api/team.ts`
-- [ ] T025 [US2] Add the selection and start controls to `CatalogUpdaterDialog.tsx`: per-row checkboxes (`team-explorer-check` style), "select all matching" checkbox for the filtered rows with indeterminate state, "N selected", footer with `SegmentedControl` (1 hour / 1 day / 1 week), a disabled "Re-stitch video" checkbox with the note that it needs the desktop app update (D1), Start disabled with a reason when nothing is selected or without `can('process')`; after start, the header shows the countdown to the first round
-- [ ] T026 [P] [US2] Add en/uk keys for selection, intervals, re-stitch note, start/save/stop, reasons, running status to `apps/web/src/i18n.ts`
-- [ ] T027 [P] [US2] Extend `tests/catalog-updater-dialog.test.tsx`: select-all selects only filtered rows; Start disabled with no selection and for a viewer; Start sends `{ catalogIds, interval: '1h', restitch: false }`
+- [x] T024 [P] [US2] Add `saveCatalogUpdater(teamId, { catalogIds, interval, restitch })` and `stopCatalogUpdater(teamId)` to `apps/web/src/api/team.ts`
+- [x] T025 [US2] Add the selection and start controls to `CatalogUpdaterDialog.tsx`: per-row checkboxes (`team-explorer-check` style), "select all matching" checkbox for the filtered rows with indeterminate state, "N selected", footer with `SegmentedControl` (1 hour / 1 day / 1 week), a disabled "Re-stitch video" checkbox with the note that it needs the desktop app update (D1), Start disabled with a reason when nothing is selected or without `can('process')`; after start, the header shows the countdown to the first round
+- [x] T026 [P] [US2] Add en/uk keys for selection, intervals, re-stitch note, start/save/stop, reasons, running status to `apps/web/src/i18n.ts`
+- [x] T027 [P] [US2] Extend `tests/catalog-updater-dialog.test.tsx`: select-all selects only filtered rows; Start disabled with no selection and for a viewer; Start sends `{ catalogIds, interval: '1h', restitch: false }`
 - [ ] T028 [US2] Beta validation per quickstart §3–5 steps 1–5 (in place, same links, `501…` then `1002…`); record results in `findings.md`
 
 ---
@@ -102,11 +102,11 @@ scan written files for control characters.
 
 **Independent test**: quickstart §5 step 2 — chip counts down, click reopens the dialog.
 
-- [ ] T029 [US3] Write `apps/web/src/team/catalog-updater/useCatalogUpdater.ts`: `getCatalogUpdater` on mount, on `revision` (debounced), 60 s poll; keeps `serverOffsetMs = serverNow − Date.now()` for the countdown
-- [ ] T030 [P] [US3] Write `apps/web/src/team/catalog-updater/UpdaterCountdown.tsx`: leaf component, 250 ms tick, re-sync on `visibilitychange`/`focus` (`two-factor/Countdown.tsx` pattern), `H:MM:SS` under a day and `Dd HH:MM` above, tabular numerals
-- [ ] T031 [US3] Write `apps/web/src/team/catalog-updater/CatalogUpdaterChip.tsx`: `null` when stopped; `<a className="ui-chip ui-chip-busy team-updater-chip">` (warn tone when `failingCount > 0`) with spinner, running label, `UpdaterCountdown`, plural catalog count; `href` = `explorerRoute({ updater: true })` with the in-app click handler; replace the T018 plain link with this chip while running (keep a plain "Catalog updater" link when stopped)
-- [ ] T032 [P] [US3] Chip styles in `apps/web/src/styles.css` modelled on `.team-storage-chip` / `.team-background-chip` (opaque surface, ellipsis, hover accent)
-- [ ] T033 [P] [US3] Write `tests/catalog-updater-chip.test.tsx` (fake timers): hidden when stopped; shows count and a countdown that decreases each second; warn tone when failing; link opens the updater route; re-reads on `revision`
+- [x] T029 [US3] Write `apps/web/src/team/catalog-updater/useCatalogUpdater.ts`: `getCatalogUpdater` on mount, on `revision` (debounced), 60 s poll; keeps `serverOffsetMs = serverNow − Date.now()` for the countdown
+- [x] T030 [P] [US3] Write `apps/web/src/team/catalog-updater/UpdaterCountdown.tsx`: leaf component, 250 ms tick, re-sync on `visibilitychange`/`focus` (`two-factor/Countdown.tsx` pattern), `H:MM:SS` under a day and `Dd HH:MM` above, tabular numerals
+- [x] T031 [US3] Write `apps/web/src/team/catalog-updater/CatalogUpdaterChip.tsx`: `null` when stopped; `<a className="ui-chip ui-chip-busy team-updater-chip">` (warn tone when `failingCount > 0`) with spinner, running label, `UpdaterCountdown`, plural catalog count; `href` = `explorerRoute({ updater: true })` with the in-app click handler; replace the T018 plain link with this chip while running (keep a plain "Catalog updater" link when stopped)
+- [x] T032 [P] [US3] Chip styles in `apps/web/src/styles.css` modelled on `.team-storage-chip` / `.team-background-chip` (opaque surface, ellipsis, hover accent)
+- [x] T033 [P] [US3] Write `tests/catalog-updater-chip.test.tsx` (fake timers): hidden when stopped; shows count and a countdown that decreases each second; warn tone when failing; link opens the updater route; re-reads on `revision`
 
 ---
 
@@ -116,8 +116,8 @@ scan written files for control characters.
 
 **Independent test**: quickstart §5 steps 6–7.
 
-- [ ] T034 [US4] In `CatalogUpdaterDialog.tsx`, when running: preselect catalogs in the updater, "Save changes" (calls save; interval change restarts the countdown), "Stop" behind a confirmation modal (`nested`), and per-catalog failure text from `lastUpdateError`
-- [ ] T035 [P] [US4] Extend `tests/catalog-updater-dialog.test.tsx`: running state preselects; save sends the new list; stop confirms then calls stop and the chip disappears
+- [x] T034 [US4] In `CatalogUpdaterDialog.tsx`, when running: preselect catalogs in the updater, "Save changes" (calls save; interval change restarts the countdown), "Stop" behind a confirmation modal (`nested`), and per-catalog failure text from `lastUpdateError`
+- [x] T035 [P] [US4] Extend `tests/catalog-updater-dialog.test.tsx`: running state preselects; save sends the new list; stop confirms then calls stop and the chip disappears
 - [ ] T036 [US4] Beta validation per quickstart §5 steps 6–7 (a trashed sheet leaves the updater; stop ends rounds)
 
 ---

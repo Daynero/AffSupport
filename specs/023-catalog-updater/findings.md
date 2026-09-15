@@ -106,3 +106,10 @@ Note: a new Edge Function is only served locally after `beta:down` + `beta:up` (
 receives its function list at container creation). A stale `beta-up.mjs` supervisor from an earlier
 session held port 5175 and made `beta:down` refuse ("borrowed"); stopping that supervisor with TERM
 cleared it.
+
+### D1 web UI (T013–T035)
+
+- `useCatalogRegistry` lives in `useCatalogUpdater.ts` next to `useCatalogUpdater` instead of its own file (T016): both share one refresh loop (revision debounce 500 ms, 60 s floor), and a second file would have held one call.
+- The chip is always present: a plain "Catalog updater" link while stopped, the busy/warn chip while running, so the header does not jump when the updater starts (T031 allowed either).
+- Checkboxes reuse `.team-explorer-row-check.team-explorer-check` (the list-row variant); the bare `.team-explorer-check` is positioned for tiles.
+- The countdown's server offset is taken per state read (`serverNow − Date.now()`); the chip test proves a 30 s skew moves the countdown by 30 s.

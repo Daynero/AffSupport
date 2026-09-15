@@ -242,6 +242,20 @@ describe('the old sections, as aliases (011)', () => {
     });
   });
 
+  it('opens the catalog updater over the explorer only (023)', () => {
+    const route = buildTeamRoute({
+      spaceId: 'space-1',
+      section: 'explorer',
+      query: { folderId: 'f-1', updater: true }
+    });
+    expect(route).toContain('updater=1');
+    expect(parseTeamRoute(route)).toMatchObject({ query: { folderId: 'f-1', updater: true } });
+    expect(parseTeamRoute('/team/space-1')).toMatchObject({ query: { updater: false } });
+    expect(
+      buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { updater: true } })
+    ).not.toContain('updater');
+  });
+
   it('round-trips the explorer view state through the address', () => {
     const route = buildTeamRoute({
       spaceId: 'space-1',
