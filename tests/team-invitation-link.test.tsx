@@ -132,6 +132,12 @@ describe('an invitation row', () => {
 
     await user.click(screen.getByRole('button', { name: 'More for pending@example.test' }));
     expect(await screen.findByRole('menuitem', { name: 'Resend' })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: 'Revoke' })).toBeTruthy();
+    await user.click(screen.getByRole('menuitem', { name: 'Revoke' }));
+    // The question names who it is about (024).
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Revoke the invitation for pending@example.test?'
+      })
+    ).toBeTruthy();
   });
 });

@@ -2029,9 +2029,9 @@ const en = {
   teamDriveDetachConfirmTitle: 'Disconnect Google Drive?',
   teamDriveDetachConfirmBody:
     'Everyone in this space loses access to its files here. Nothing is deleted from Google Drive, and reconnecting the same folder restores the catalog.',
-  teamInvitationRevokeConfirmTitle: 'Revoke this invitation?',
+  teamInvitationRevokeConfirmTitle: 'Revoke the invitation for {email}?',
   teamInvitationRevokeConfirmBody:
-    'The invitation link stops working for whoever holds it. You can send a new invitation afterwards.',
+    'The link in their invitation stops working. You can invite them again afterwards.',
   teamTextEditorDiscardTitle: 'Discard your edits?',
   teamTextEditorDiscardBody: 'The text you typed has not been saved and will be lost.',
   teamTextEditorDiscardAction: 'Discard edits',
@@ -4688,9 +4688,9 @@ const uk: Record<keyof typeof en, string> = {
   teamDriveDetachConfirmTitle: 'Відключити Google Drive?',
   teamDriveDetachConfirmBody:
     'Усі учасники простору втратять доступ до його файлів тут. З Google Drive нічого не видаляється, а повторне підключення тієї ж теки поверне каталог.',
-  teamInvitationRevokeConfirmTitle: 'Відкликати запрошення?',
+  teamInvitationRevokeConfirmTitle: 'Відкликати запрошення для {email}?',
   teamInvitationRevokeConfirmBody:
-    'Посилання перестане працювати для того, хто його має. Потім можна надіслати нове запрошення.',
+    'Посилання з цього запрошення перестане працювати. Потім можна запросити знову.',
   teamTextEditorDiscardTitle: 'Відкинути зміни?',
   teamTextEditorDiscardBody: 'Написаний текст не збережено — його буде втрачено.',
   teamTextEditorDiscardAction: 'Відкинути зміни',

@@ -295,8 +295,16 @@ export function InvitationPanel({
       </ul>
       {confirmingRevoke && (
         <Modal labelledBy={revokeTitleId} size="sm" onClose={() => setConfirmingRevoke(null)}>
-          <h3 id={revokeTitleId}>{t('teamInvitationRevokeConfirmTitle')}</h3>
-          {/* Names the consequence: the link stops working for whoever has it. */}
+          {/* Names who, then the consequence: "Revoke the invitation?" over a
+              list of several left the reader to remember which row they
+              pressed (024). */}
+          <h3 id={revokeTitleId}>
+            {t('teamInvitationRevokeConfirmTitle', {
+              email:
+                invitations.find(invitation => invitation.id === confirmingRevoke)?.targetEmail ??
+                ''
+            })}
+          </h3>
           <p>{t('teamInvitationRevokeConfirmBody')}</p>
           <div className="team-dialog-actions">
             <Button
