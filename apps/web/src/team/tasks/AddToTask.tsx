@@ -101,7 +101,9 @@ export function AddToTaskDialog({
   useEffect(() => {
     let live = true;
     void client
-      .listTasks({ teamId, pageSize: 200 })
+      // The server's page is at most 100 (list_team_tasks); a picker looking for
+      // the task being worked on needs the recent ones, which come first.
+      .listTasks({ teamId, pageSize: 100 })
       .then(found => {
         if (live) setTasks(found);
       })

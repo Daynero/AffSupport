@@ -71,6 +71,8 @@ describe('add to a task', () => {
     const { onClose } = open(api);
 
     const options = await screen.findAllByRole('option');
+    // Within the server's page limit, or the list never arrives.
+    expect(api.listTasks).toHaveBeenCalledWith({ teamId: TEAM_ID, pageSize: 100 });
     expect(options.map(option => option.textContent)).toEqual([
       expect.stringContaining('Transcribe TR 05/09'),
       expect.stringContaining('Catalog Leggings'),
