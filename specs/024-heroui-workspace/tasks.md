@@ -390,11 +390,11 @@ closing or losing anything.
       size, modified, folder, colour tag, companions, and the full action list. The preview is
       supplied by the host: how a thumbnail is fetched genuinely differs (the explorer holds a
       session and render pointers, a task holds its own client), but everything a reader
-      recognises the file *by* is in one place and one order.
+      recognises the file _by_ is in one place and one order.
 - [x] T087 [US5] Use it in the explorer's detail pane, replacing `PreviewPane`'s bespoke layout.
       The catalog block went with it — "Product catalog" is in the action list and its dialog
       already offers the existing one — but **the text block stays, deliberately**: it is the one
-      surface that can choose *which* text, the original or a translation. `copyText` is left
+      surface that can choose _which_ text, the original or a translation. `copyText` is left
       unwired in `PaneActions` so the pane does not also offer a one-press copy that guesses.
       A menu item that guesses is right where there is no room to ask; here there is room.
 - [ ] T088 [US5] Use it in search — the shell currently drops `has-pane` while searching; search
@@ -433,13 +433,11 @@ closing or losing anything.
 - [x] T095 [US5] Split `apps/web/src/team/explorer/ExplorerShell.tsx` so that no file in the team
       tree holds upload, clipboard, queue, restitch, tags, keyboard and view state at once.
       2,240 lines → 1,935. Two concerns left whole rather than rewritten, because every comment
-      in them records something learned the hard way:
-      - `useAgentQueue.ts` (323 lines) — one queue for everything that runs on the local app.
-        Transcribing and compressing are the same shape of job, and none of it needs to know
-        what a folder row looks like. `deliberateStop` went with it, to its only caller.
-      - `useExplorerClipboard.ts` — copy, cut and paste. Held in a ref, not state, because
-        nothing on screen changes when you press ⌘C and re-rendering five hundred rows to
-        remember four ids would be the most expensive thing a copy ever does.
+      in them records something learned the hard way: - `useAgentQueue.ts` (323 lines) — one queue for everything that runs on the local app.
+      Transcribing and compressing are the same shape of job, and none of it needs to know
+      what a folder row looks like. `deliberateStop` went with it, to its only caller. - `useExplorerClipboard.ts` — copy, cut and paste. Held in a ref, not state, because
+      nothing on screen changes when you press ⌘C and re-rendering five hundred rows to
+      remember four ids would be the most expensive thing a copy ever does.
       Upload, restitch, tags and the keyboard are still in the shell; they are more entangled
       with the folder listing than these two were, and T096 is the reason to come back.
 - [x] T096 [US5] Make a 500-row folder usable without repeated manual paging (FR-044) —
@@ -474,13 +472,24 @@ closing or losing anything.
       both writes to the address, and running the result before closing put the destination in
       the history and then the close put the old address straight back on top — Enter appeared
       to do nothing at all.
-- [ ] T100 [US6] Add the context menu to explorer rows and tiles, acting on the checked set when
-      the pointer is over a checked row, and suppressing the browser menu only there.
+- [x] T100 [US6] Add the context menu to explorer rows and tiles, suppressing the browser menu
+      only there — a right-click on the page, on a link or on selected text still belongs to the
+      browser. It opens the registry's own list, not a second shorter one: a context menu that
+      knows fewer things than the "…" beside it is a context menu people stop using. **The
+      checked-set half is not done**: acting on a selection needs the `selection` host resolved
+      over many materials, which is T058, still open.
 - [x] T101 [US6] Write `ShortcutSheet.tsx` from one registry (`shortcuts.ts`) that the bindings
       read. `formatShortcut` lives beside the table so a tooltip and the sheet spell a chord the
       same way, and `matches` is written once so no call site re-derives what "⌘" means.
-- [ ] T102 [US6] Name each shortcut in the tooltip of the control it duplicates.
-- [ ] T103 [US6] Add copy / cut / paste as menu items, not only as keystrokes.
+- [x] T102 [US6] Name each shortcut in the tooltip of the control it duplicates — from
+      `formatShortcut`, so the tooltip and the sheet spell a chord the same way. Only the search
+      control duplicates one today; the rest of the registry's bindings have no button.
+- [x] T103 [US6] Add copy / cut / paste as menu items, not only as keystrokes — they existed
+      only as ⌘C/⌘X/⌘V, which means they existed only for whoever had read the code. Explorer
+      hosts only: a paste lands in _the folder you are looking at_, and a task or a search result
+      is not a place. The registry's own rule caught the consequence — nine items under one
+      heading — so `organise` split into **organise** (what it is called) and **place** (where it
+      goes), which is a better taxonomy than the one it replaced.
 - [ ] T104 [US6] Make toolbars and selection bars collapse into a labelled overflow at narrow
       widths instead of becoming unlabelled icons.
 - [x] T105 [P] [US6] `tests/workspace-palette.test.tsx`: the palette reaches a file, a folder, a
@@ -495,24 +504,32 @@ closing or losing anything.
 
 ## Phase 9: User Story 7 — the chrome stops throwing you out (Priority: P2)
 
-- [ ] T106 [US7] Make settings, the updater and the trash open over the current section —
-      `apps/web/src/team/routes.ts` (which currently drops those params for non-explorer
-      sections) and `apps/web/src/team/workspace/WorkspaceShell.tsx` — and return to it on close.
-- [ ] T107 [US7] Make the trash reachable from every section.
+- [x] T106 [US7] Make settings, the updater and the trash open over the current section —
+      `apps/web/src/team/routes.ts` wrote those params only on an explorer address, and the
+      shell's route builder forced `section: 'explorer'` on top of that. Both now carry the open
+      section (and its task / agent / account) underneath the surface, so closing one lands
+      exactly where it was opened. The palette rides the same way.
+- [x] T107 [US7] Make the trash reachable from every section — the link is no longer
+      explorer-only, and the explorer (hidden, not unmounted) is shown wherever `trash=1` is
+      asked for, which is where a file deleted from a task actually went.
 - [ ] T108 [US7] Make Members one screen, and make every deep link land on the survivor.
 - [ ] T109 [US7] Put "New space" in the space switcher.
 - [ ] T110 [US7] Put leaving a space and transferring ownership in one place, each naming the
       other.
 - [ ] T111 [US7] Make the dialogs worth restoring addressable — batch processing, material
       preview, storage detail — and leave the rest as component state.
-- [ ] T112 [US7] Make the three header chips one component with one shape and one interaction,
+- [x] T112 [US7] Make the three header chips one component with one shape and one interaction,
       differing only in what they report; give the connection state a chip that can be pressed,
-      instead of a `<span>` that announces a problem and offers nothing.
+      instead of a `<span>` that announces a problem and offers nothing. There were four, not
+      three — storage, the updater, background work, the connection — and all four are now
+      `workspace/WorkspaceChip.tsx`. The waiting connection chip reloads the space; the disabled
+      one stays a status, because there is nothing a reader can do about it.
 - [ ] T113 [US7] Make the toast provider reach every surface that can raise one.
 - [ ] T114 [US7] Update `tests/team-routes*` and the shell tests for the new query fields and the
       section-preserving behaviour.
-- [ ] T115 [P] [US7] Test: opening each of settings / updater / trash from each section returns
-      to that section.
+- [x] T115 [P] [US7] Test: opening each of settings / updater / trash from each section returns
+      to that section — in `tests/team-routes.test.ts`, with the palette as a fourth surface.
+      The 023 assertion that pinned the updater to the explorer was the old promise, rewritten.
 
 **Checkpoint**: quickstart Checkpoint 6, items 1–3.
 

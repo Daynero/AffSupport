@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MATERIAL_ACTIONS,
+  MATERIAL_ACTION_GROUPS,
   type ActionContext,
   type ActionHost,
   type MaterialActionId,
@@ -107,9 +108,7 @@ describe('one material, every surface', () => {
       const order = resolveMaterialActions(video, context(host), everyHandler()).groups.map(
         group => group.group
       );
-      const expected = ['open', 'get', 'make', 'organise', 'remove'].filter(group =>
-        order.includes(group as never)
-      );
+      const expected = MATERIAL_ACTION_GROUPS.filter(group => order.includes(group as never));
       expect(order, host).toEqual(expected);
     }
   });

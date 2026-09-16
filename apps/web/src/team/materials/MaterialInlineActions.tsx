@@ -20,7 +20,8 @@ export function MaterialInlineActions({
   busy,
   done,
   size = 'sm',
-  className
+  className,
+  contextTarget
 }: {
   list: MaterialActionList;
   /** The material's name, for "Actions on <name>". */
@@ -37,6 +38,8 @@ export function MaterialInlineActions({
   done?: MaterialActionId | null;
   size?: 'xs' | 'sm' | 'md';
   className?: string;
+  /** An ancestor whose right-click opens the overflow (024, FR-100). */
+  contextTarget?: string;
 }) {
   const { t } = useI18n();
   if (list.count === 0) return null;
@@ -64,8 +67,21 @@ export function MaterialInlineActions({
           </IconButton>
         );
       })}
-      {hasMore && (
-        <MaterialActionMenu list={list} label={t('materialActionsFor', { name })} size={size} />
+      {/*
+       * The overflow is also the right-click menu, so the two cannot offer
+       * different things. It is rendered even when everything fits inline,
+       * where a `contextTarget` asks for it: a row with three actions still
+       * has a context menu, and hiding it there would make right-click work
+       * on some rows and not others.
+       */}
+      {(hasMore || contextTarget) && (
+        <MaterialActionMenu
+          list={list}
+          label={t('materialActionsFor', { name })}
+          size={size}
+          contextTarget={contextTarget}
+          className={hasMore ? undefined : 'ui-material-actions-hidden'}
+        />
       )}
     </div>
   );

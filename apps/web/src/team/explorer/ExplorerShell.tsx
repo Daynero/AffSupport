@@ -48,6 +48,7 @@ import { PreviewPane } from './PreviewPane';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import { useAgentQueue, type AgentQueueItem } from './useAgentQueue';
 import { useExplorerClipboard } from './useExplorerClipboard';
+import { formatShortcut, shortcutOf } from '../palette/shortcuts';
 import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import {
   BATCH_SCOPE_LIMIT,
@@ -287,6 +288,7 @@ function ExplorerBody({
   const explorer = useExplorer();
   const {
     currentFolderId,
+    openFolder,
     selectedId,
     select,
     selectedRows: selectedRowsMap,
@@ -694,6 +696,20 @@ function ExplorerBody({
   const actions: RowActionsProps | undefined = permissions
     ? {
         teamId,
+        clipboard: {
+          take: (mode, row) =>
+            clipboard.take(mode, [
+              { id: row.id, name: row.name, kind: row.kind, category: row.category }
+            ]),
+          // Offered only when there is something to paste: an action the
+          // registry cannot perform is an action the registry drops.
+          pasteInto: clipboard.has()
+            ? row => {
+                openFolder(row.driveFileId);
+                void clipboard.paste();
+              }
+            : undefined
+        },
         permissions,
         browseClient: client,
         actionsClient,
@@ -872,7 +888,6 @@ function ExplorerBody({
    * space in the new name.
    */
 
-
   /**
    * Painted first, written after: a dot that waits for a round trip before it
    * changes reads as a press that did not land, and this is the cheapest write
@@ -893,7 +908,6 @@ function ExplorerBody({
     [client, page, push, t, teamId]
   );
   const tagging = canTag ? { canTag: true as const, onSetTag: setTag } : undefined;
-
 
   const runCompressPlan = (plan: CompressPlan) => {
     const suffix = plan.suffix;
@@ -1129,6 +1143,14 @@ function ExplorerBody({
               type="button"
               variant="secondary"
               aria-pressed={searching}
+              /* The key that does the same thing, on the control that does it
+                 (024, FR-102): a shortcut nobody is told about is a shortcut
+                 only the person who wrote it uses. */
+              title={
+                searching
+                  ? undefined
+                  : `${t('teamExplorerSearchOpen')} · ${formatShortcut(shortcutOf('search')!.keys)}`
+              }
               onClick={() =>
                 searching
                   ? onQueryChange({ q: '', scope: 'folder', filters: undefined })
@@ -1457,7 +1479,9 @@ function ExplorerBody({
                   ])
               : undefined
           }
-          transcribing={queue.active ? { videoId: queue.active.id, progress: queue.activeProgress } : null}
+          transcribing={
+            queue.active ? { videoId: queue.active.id, progress: queue.activeProgress } : null
+          }
           onCreateTask={onCreateTask}
         />
       )}
@@ -1521,7 +1545,9 @@ function ExplorerBody({
         {(queue.active || queue.queued.length > 0) && (
           <ProcessPanel
             title={t(
-              queue.active?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle'
+              queue.active?.tool === 'compressor'
+                ? 'teamCompressQueueTitle'
+                : 'teamTranscribeQueueTitle'
             )}
             detail={
               queue.active
@@ -1566,7 +1592,13 @@ function ExplorerBody({
                   ]
                 : []),
               ...(queue.active
-                ? [{ label: t('teamQueueStopNow'), run: () => void queue.stopNow(), destructive: true }]
+                ? [
+                    {
+                      label: t('teamQueueStopNow'),
+                      run: () => void queue.stopNow(),
+                      destructive: true
+                    }
+                  ]
                 : [])
             ]}
           />

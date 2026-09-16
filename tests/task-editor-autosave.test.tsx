@@ -72,7 +72,7 @@ function client(over: Record<string, unknown> = {}) {
     issueDownloadGrant: vi.fn(),
     thumbnailUrl: vi.fn(),
     ...over
-  } as never;
+  };
 }
 
 function open(api: ReturnType<typeof client>, onClose = vi.fn()) {
@@ -96,7 +96,7 @@ function open(api: ReturnType<typeof client>, onClose = vi.fn()) {
           task={task()}
           members={[]}
           canEdit
-          client={api}
+          client={api as never}
           onClose={onClose}
           onChanged={vi.fn()}
         />

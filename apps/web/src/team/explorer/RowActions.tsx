@@ -28,6 +28,18 @@ import { spaceOf, type ActionContext, type MaterialRef } from '../materials/acti
  */
 export interface RowActionsProps {
   teamId: string;
+  /**
+   * Copy, cut and paste as menu items (024, FR-103).
+   *
+   * The shell owns the clipboard — a paste lands in the folder it is looking
+   * at, and it outlives every row that scrolls past — so the row is handed the
+   * two verbs rather than the state.
+   */
+  clipboard?: {
+    take: (mode: 'copy' | 'cut', row: TeamMaterialRow) => void;
+    /** Absent when there is nothing to paste; the registry drops the action. */
+    pasteInto?: (row: TeamMaterialRow) => void;
+  };
   permissions: TeamPermissions;
   browseClient: FolderPickerClient;
   actionsClient?: MaterialActionsClient;
@@ -67,6 +79,7 @@ export interface RowActionsProps {
 
 export function RowActions({
   teamId,
+  clipboard,
   permissions,
   browseClient,
   actionsClient,
@@ -128,6 +141,9 @@ export function RowActions({
 
   const list = useMaterialActionList(material, context, {
     ...host.handlers,
+    copyToClipboard: clipboard ? () => clipboard.take('copy', row) : undefined,
+    cutToClipboard: clipboard ? () => clipboard.take('cut', row) : undefined,
+    pasteInto: clipboard?.pasteInto ? () => clipboard.pasteInto?.(row) : undefined,
     open: onOpen ? () => onOpen(row) : undefined,
     createTask: onCreateTask ? () => onCreateTask(row) : undefined,
     editText: row.kind === 'transcript' && onEditText ? () => onEditText(row) : undefined,
@@ -156,7 +172,14 @@ export function RowActions({
 
   return (
     <>
-      <MaterialActionMenu list={list} label={t('materialActionsFor', { name: row.name })} />
+      {/* The same list on the "…" and on a right-click anywhere in the row or
+          the tile — where a file manager has taught everyone to look for it
+          (024, FR-100). */}
+      <MaterialActionMenu
+        list={list}
+        label={t('materialActionsFor', { name: row.name })}
+        contextTarget=".team-explorer-row, .team-explorer-tile"
+      />
       {host.dialogs}
     </>
   );

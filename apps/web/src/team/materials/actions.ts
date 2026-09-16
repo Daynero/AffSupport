@@ -2,6 +2,8 @@ import type { LucideIcon } from 'lucide-react';
 import {
   ArrowDownToLine,
   ClipboardList,
+  ClipboardPaste,
+  Copy,
   Eye,
   FileText,
   FolderOpen,
@@ -76,6 +78,9 @@ export const MATERIAL_ACTION_IDS = [
   'colourTag',
   'editMetadata',
   'uploadInto',
+  'copyToClipboard',
+  'cutToClipboard',
+  'pasteInto',
   // remove
   'detach',
   'trash',
@@ -84,7 +89,22 @@ export const MATERIAL_ACTION_IDS = [
 export type MaterialActionId = (typeof MATERIAL_ACTION_IDS)[number];
 
 /** The five groups, in the order they are always drawn. */
-export const MATERIAL_ACTION_GROUPS = ['open', 'get', 'make', 'organise', 'remove'] as const;
+/**
+ * The six, in the order they are always drawn.
+ *
+ * `place` split out of `organise` when copy, cut and paste joined (024): nine
+ * items under one heading is a list nobody reads to the end, and the two halves
+ * were answering different questions anyway — what this file is *called* and
+ * where it *goes*.
+ */
+export const MATERIAL_ACTION_GROUPS = [
+  'open',
+  'get',
+  'make',
+  'organise',
+  'place',
+  'remove'
+] as const;
 export type MaterialActionGroup = (typeof MATERIAL_ACTION_GROUPS)[number];
 
 /** Where the offer is being made. Not a licence to offer a different list. */
@@ -450,8 +470,8 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
   },
   {
     id: 'move',
-    group: 'organise',
-    order: 2,
+    group: 'place',
+    order: 1,
     labelKey: 'materialActionMove',
     icon: FolderOpen,
     inlinePriority: null,
@@ -461,7 +481,7 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
   {
     id: 'colourTag',
     group: 'organise',
-    order: 3,
+    order: 2,
     labelKey: 'materialActionColourTag',
     icon: Tags,
     inlinePriority: null,
@@ -474,7 +494,7 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     // "Make" is for the artefacts — a catalog, a transcript, a smaller copy.
     id: 'createTask',
     group: 'organise',
-    order: 4,
+    order: 3,
     labelKey: 'materialActionCreateTask',
     icon: ListPlus,
     inlinePriority: null,
@@ -484,7 +504,7 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
   {
     id: 'editMetadata',
     group: 'organise',
-    order: 5,
+    order: 4,
     labelKey: 'materialActionEditMetadata',
     icon: SquarePen,
     inlinePriority: null,
@@ -493,12 +513,55 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
   },
   {
     id: 'uploadInto',
-    group: 'organise',
-    order: 6,
+    group: 'place',
+    order: 5,
     labelKey: 'materialActionUploadInto',
     icon: Upload,
     inlinePriority: null,
     applies: isFolder,
+    available: (material, context) => all(ready(material), may(context, 'upload'))
+  },
+  /*
+   * Copy, cut and paste as things you can see (024, FR-103).
+   *
+   * They existed only as ⌘C / ⌘X / ⌘V, which meant they existed only for
+   * whoever had read the code. A file manager puts them in the menu, and the
+   * menu is where a person goes when they do not already know the answer.
+   *
+   * Explorer-only on purpose: pasting is into *the folder you are looking at*,
+   * and a task or a search result is not a place.
+   */
+  {
+    id: 'copyToClipboard',
+    group: 'place',
+    order: 2,
+    labelKey: 'materialActionCopy',
+    icon: Copy,
+    inlinePriority: null,
+    applies: (material, context) => inExplorer(context) && !material.draft,
+    available: (material, context) => all(ready(material), may(context, 'upload'))
+  },
+  {
+    id: 'cutToClipboard',
+    group: 'place',
+    order: 3,
+    labelKey: 'materialActionCut',
+    icon: Scissors,
+    inlinePriority: null,
+    applies: (material, context) => inExplorer(context) && !material.draft,
+    available: (material, context) => all(ready(material), may(context, 'edit'))
+  },
+  {
+    id: 'pasteInto',
+    group: 'place',
+    order: 4,
+    labelKey: 'materialActionPasteInto',
+    icon: ClipboardPaste,
+    inlinePriority: null,
+    // On a folder, because that is the place it lands in. The host supplies
+    // the handler only when there is something on the clipboard, and the
+    // registry drops an action nothing can perform.
+    applies: (material, context) => isFolder(material) && inExplorer(context),
     available: (material, context) => all(ready(material), may(context, 'upload'))
   },
 

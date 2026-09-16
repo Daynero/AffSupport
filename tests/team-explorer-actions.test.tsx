@@ -143,3 +143,32 @@ describe('the selection bar', () => {
     expect(bar.textContent).toContain('Move to trash');
   });
 });
+
+/**
+ * T100 — the right-click menu is the same menu (024, FR-100).
+ *
+ * The explorer had no context menu at all, which in a file manager is the
+ * first place anybody looks. It offers the registry's list, not a second
+ * shorter one — a context menu that knows fewer things than the "…" beside it
+ * is a context menu people stop using.
+ */
+describe('right-clicking a row', () => {
+  it('opens the file’s own action list, and leaves the rest of the page to the browser', async () => {
+    renderShell([video(1)]);
+    await screen.findByText('clip-1.mp4');
+    const row = document.querySelector('.team-explorer-row') as HTMLElement;
+    expect(row).toBeTruthy();
+
+    const onRow = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    row.dispatchEvent(onRow);
+    expect(onRow.defaultPrevented).toBe(true);
+    expect(await screen.findByRole('menu')).toBeTruthy();
+
+    // Off the row it is the browser's menu, as it should be: taking the
+    // right-click everywhere is how a web page starts feeling like it is
+    // holding you hostage.
+    const elsewhere = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    document.body.dispatchEvent(elsewhere);
+    expect(elsewhere.defaultPrevented).toBe(false);
+  });
+});

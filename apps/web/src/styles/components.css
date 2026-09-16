@@ -2431,3 +2431,14 @@
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-neutral-border);
 }
+
+/* An overflow that exists only to be the right-click menu: reachable by
+   assistive technology, out of the row's own layout (024). */
+.ui-material-actions-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

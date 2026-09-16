@@ -318,13 +318,22 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.kinds && query.kinds.length > 0) params.set(KINDS_PARAM, query.kinds.join(','));
     if (query.view) params.set('view', query.view);
     if (query.scope === 'space') params.set('scope', 'space');
-    if (query.trash) params.set('trash', '1');
-    if (query.settings) params.set('settings', '1');
-    if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
-    if (query.updater) params.set('updater', '1');
-    if (query.palette) params.set('palette', '1');
     if (query.itemId) params.set('item', query.itemId);
   }
+  /*
+   * Four surfaces that belong to the space, not to a section (024, FR-106).
+   *
+   * The settings, the updater, the trash and the palette were written only on
+   * an explorer address, so opening any of them from Tasks or Accounts threw
+   * you into Files — and closing one left you there. They are the space's, so
+   * they survive whatever section you were reading when you opened them, and
+   * closing one puts you back where you were.
+   */
+  if (query.trash) params.set('trash', '1');
+  if (query.settings) params.set('settings', '1');
+  if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
+  if (query.updater) params.set('updater', '1');
+  if (query.palette) params.set('palette', '1');
   if (section === 'tasks') {
     if (query.taskId) params.set('task', query.taskId);
     // One scope at a time: an agent is narrower than its account, so it wins.

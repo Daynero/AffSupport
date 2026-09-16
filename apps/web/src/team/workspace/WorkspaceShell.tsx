@@ -301,19 +301,39 @@ export function WorkspaceShell({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  /**
+   * An address for one of the space's own surfaces, over wherever you are.
+   *
+   * It used to force `section: 'explorer'`, so opening the settings, the
+   * updater or the trash from Tasks threw you into Files — and closing one
+   * left you there, looking at a folder you had not asked for (024, FR-106).
+   * The section is whatever is open; the surface rides on top of it.
+   */
   const explorerRoute = useCallback(
     (patch: Partial<TeamRouteQuery>) =>
       buildTeamRoute({
         spaceId: teamId,
-        section: 'explorer',
+        section,
         query: {
           folderId: query?.folderId ?? null,
           kinds: query?.kinds ?? [],
           view: query?.view ?? null,
+          taskId: query?.taskId ?? null,
+          agentId: query?.agentId ?? null,
+          accountId: query?.accountId ?? null,
           ...patch
         }
       }),
-    [query?.folderId, query?.kinds, query?.view, teamId]
+    [
+      query?.accountId,
+      query?.agentId,
+      query?.folderId,
+      query?.kinds,
+      query?.taskId,
+      query?.view,
+      section,
+      teamId
+    ]
   );
   /* The document-level handler is bound once; the route builder is not, so it
      is read through a ref rather than making the listener churn on every
@@ -453,19 +473,19 @@ export function WorkspaceShell({
                    of Start would touch. */
                 onOpen={() => setBatchDialogOpen(true)}
               />
-              {/* Trash and settings are views of the explorer now (011): real
-              links with their own addresses, so Back closes them and a pasted
-              link opens them. */}
-              {section === 'explorer' && (
-                <a
-                  className="team-space-shell-utility-link"
-                  href={explorerRoute({ trash: true })}
-                  aria-current={query?.trash ? 'page' : undefined}
-                  onClick={event => internalLink(event, explorerRoute({ trash: true }))}
-                >
-                  {t('teamTrashEntry')}
-                </a>
-              )}
+              {/* Trash and settings are the space's own surfaces: real links
+              with their own addresses, so Back closes them and a pasted link
+              opens them (011) — and reachable from every section rather than
+              only from Files, which is where a file you deleted from a task
+              actually went (024, FR-107). */}
+              <a
+                className="team-space-shell-utility-link"
+                href={explorerRoute({ trash: true })}
+                aria-current={query?.trash ? 'page' : undefined}
+                onClick={event => internalLink(event, explorerRoute({ trash: true }))}
+              >
+                {t('teamTrashEntry')}
+              </a>
               <CatalogUpdaterChip
                 state={catalogUpdater.state}
                 offsetMs={catalogUpdater.offsetMs}
@@ -545,13 +565,20 @@ export function WorkspaceShell({
             hidden, not unmounted — so the open folder and the selection are
             still there on return (a section change used to reset both). It
             reads its own remembered query while another section is showing. */}
-              <div hidden={section !== 'explorer' || (!browsable && Boolean(activeTeam))}>
+              {/* The trash is the explorer wearing a different list, so it is
+            shown wherever it is asked for — including from Tasks or Accounts,
+            which is where a file you deleted from a task actually went. */}
+              <div
+                hidden={
+                  (section !== 'explorer' && !query?.trash) || (!browsable && Boolean(activeTeam))
+                }
+              >
                 <ExplorerShell
                   key={`explorer:${teamId}`}
                   teamId={teamId}
                   client={client}
                   revision={revision + browserRevision}
-                  query={section === 'explorer' && query ? query : explorerQuery}
+                  query={(section === 'explorer' || query?.trash) && query ? query : explorerQuery}
                   onQueryChange={onExplorerQuery}
                   onFolderChange={onExplorerFolderChange}
                   onSearched={onSearched}
@@ -595,10 +622,10 @@ export function WorkspaceShell({
           )}
 
           {/*
-            * One way in, to anything (024, US6). In the address like the
-            * settings and the updater, so Back closes it — a surface the
-            * history does not know about is a surface Back throws you out of.
-            */}
+           * One way in, to anything (024, US6). In the address like the
+           * settings and the updater, so Back closes it — a surface the
+           * history does not know about is a surface Back throws you out of.
+           */}
           {query?.palette && (
             <PaletteHost
               teamId={teamId}

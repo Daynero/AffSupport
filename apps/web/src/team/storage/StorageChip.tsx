@@ -8,6 +8,7 @@ import { teamErrorMessageFor } from '../errors';
 import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvider';
 import type { DriveRootResult } from '../../api/team';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
+import { WorkspaceChip, type ChipTone } from '../workspace/WorkspaceChip';
 import { Button, PermissionState, uiClasses } from '../../components/ui/index';
 
 /**
@@ -103,14 +104,14 @@ export function StorageChip({
 
   /* The chip's colour is the state's role, so storage needing attention is the
      same amber as anything else that needs attention (021, T084). */
-  const tone =
+  const tone: ChipTone =
     health.kind === 'attention'
-      ? 'ui-chip-warn ui-color-warning'
+      ? 'warn'
       : health.kind === 'indexing' ||
           health.kind === 'preparing' ||
           health.kind === 'waiting_provider'
-        ? 'ui-chip-busy ui-color-info'
-        : 'ui-color-success';
+        ? 'busy'
+        : 'ok';
   const busyState =
     health.kind === 'indexing' || health.kind === 'preparing' || health.kind === 'waiting_provider';
 
@@ -165,16 +166,16 @@ export function StorageChip({
 
   return (
     <>
-      <button
-        type="button"
-        className={`ui-chip team-storage-chip ${tone}`}
-        aria-live="polite"
-        aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
+      <WorkspaceChip
+        tone={tone}
+        busy={busyState}
+        className="team-storage-chip"
+        label={chipCopy(health, t)}
+        opensDialog
+        onPress={() => setOpen(true)}
       >
-        {busyState && <span className="ui-chip-spinner" aria-hidden="true" />}
         {chipCopy(health, t)}
-      </button>
+      </WorkspaceChip>
       {open && (
         <Modal
           labelledBy={titleId}

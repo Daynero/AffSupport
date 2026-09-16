@@ -242,7 +242,7 @@ describe('the old sections, as aliases (011)', () => {
     });
   });
 
-  it('opens the catalog updater over the explorer only (023)', () => {
+  it('opens the catalog updater over whatever section is open (023, revised by 024)', () => {
     const route = buildTeamRoute({
       spaceId: 'space-1',
       section: 'explorer',
@@ -251,9 +251,15 @@ describe('the old sections, as aliases (011)', () => {
     expect(route).toContain('updater=1');
     expect(parseTeamRoute(route)).toMatchObject({ query: { folderId: 'f-1', updater: true } });
     expect(parseTeamRoute('/team/space-1')).toMatchObject({ query: { updater: false } });
-    expect(
-      buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { updater: true } })
-    ).not.toContain('updater');
+    /*
+     * 023 wrote it onto an explorer address only, which meant opening it from
+     * Tasks threw you into Files and closing it left you there. The updater is
+     * the space's, not the explorer's — it is about every catalog in the space
+     * — so it rides on top of the section you were reading (024, FR-106).
+     */
+    expect(buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { updater: true } })).toBe(
+      '/team/space-1/tasks?updater=1'
+    );
   });
 
   it('round-trips the explorer view state through the address', () => {
@@ -285,4 +291,43 @@ describe('the old sections, as aliases (011)', () => {
       query: { kinds: ['image'] }
     });
   });
+});
+
+/**
+ * T115 — the space's own surfaces ride on top of the section (024, FR-106).
+ *
+ * Settings, the updater, the trash and the palette were written into the
+ * address only for the explorer, so opening any of them from Tasks or Accounts
+ * threw you into Files — and closing one left you there, looking at a folder
+ * you had not asked for. They belong to the space; the section underneath them
+ * is whatever you were reading.
+ */
+describe('surfaces that are the space’s, not a section’s', () => {
+  const SPACE = '27000000-0000-4000-8000-000000000001';
+
+  for (const section of ['explorer', 'tasks', 'accounts', 'members'] as const) {
+    it(`keeps ${section} underneath, and comes back to it`, () => {
+      for (const surface of ['settings', 'updater', 'trash', 'palette'] as const) {
+        const opened = buildTeamRoute({ spaceId: SPACE, section, query: { [surface]: true } });
+        const parsed = parseTeamRoute(opened);
+        expect(parsed?.kind, `${section}/${surface}`).toBe('space');
+        if (parsed?.kind !== 'space') continue;
+        // The surface is in the address…
+        expect(parsed.query[surface], `${section}/${surface}`).toBe(true);
+        // …and so is the section it was opened from, which is the half that
+        // used to be lost.
+        expect(parsed.section, `${section}/${surface}`).toBe(section);
+
+        // Closing it returns to exactly that section, with nothing else moved.
+        const closed = buildTeamRoute({
+          spaceId: SPACE,
+          section: parsed.section,
+          query: { ...parsed.query, [surface]: false }
+        });
+        const back = parseTeamRoute(closed);
+        expect(back?.kind === 'space' && back.section, `${section}/${surface}`).toBe(section);
+        expect(back?.kind === 'space' && back.query[surface], `${section}/${surface}`).toBe(false);
+      }
+    });
+  }
 });

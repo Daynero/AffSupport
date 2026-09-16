@@ -75,7 +75,7 @@ function client(over: Record<string, unknown> = {}) {
     issueDownloadGrant: vi.fn(),
     thumbnailUrl: vi.fn(),
     ...over
-  } as never;
+  };
 }
 
 function board(api: ReturnType<typeof client>) {
@@ -94,7 +94,7 @@ function board(api: ReturnType<typeof client>) {
         ]}
         realtime={false}
       >
-        <TaskSpace teamId={TEAM_ID} client={api} />
+        <TaskSpace teamId={TEAM_ID} client={api as never} />
       </TeamProvider>
     </ToastProvider>
   );

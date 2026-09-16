@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
+import { WorkspaceChip } from './WorkspaceChip';
 
 /**
  * A brief drop — or a slow first connect — is normal and self-healing;
@@ -40,9 +41,9 @@ export function RealtimeChip() {
 
   if (realtimeState === 'disabled') {
     return (
-      <span className="ui-chip ui-chip-warn ui-color-warning" role="status">
+      <WorkspaceChip tone="warn" label={t('teamRealtimeDisabled')}>
         {t('teamRealtimeDisabled')}
-      </span>
+      </WorkspaceChip>
     );
   }
   // `connecting` used to be terminal and silent, which made the worse of the
@@ -53,10 +54,23 @@ export function RealtimeChip() {
   // (FR-018).
   if (graceElapsed && WAITING.has(realtimeState)) {
     return (
-      <span className="ui-chip ui-chip-warn ui-color-warning" role="status">
-        <span className="ui-chip-spinner" aria-hidden="true" />
+      /*
+       * Pressable, because there is something to do (024, FR-112).
+       *
+       * It used to be a `<span>` that said live updates were not arriving and
+       * left it there — the one chip of the four a reader most wants to act
+       * on, and the only one that offered nothing. A reload remounts the
+       * subscription, which is the same thing the person was about to do
+       * anyway, done without losing the address.
+       */
+      <WorkspaceChip
+        tone="warn"
+        busy
+        label={t('teamRealtimeRetry')}
+        onPress={() => window.location.reload()}
+      >
         {t(realtimeState === 'connecting' ? 'teamRealtimeConnecting' : 'teamRealtimeReconnecting')}
-      </span>
+      </WorkspaceChip>
     );
   }
   return null;

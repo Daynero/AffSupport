@@ -1,5 +1,6 @@
 import { useI18n } from '../../i18n';
 import { useOptionalLibraryProcessing } from '../library/LibraryProcessingProvider';
+import { WorkspaceChip } from './WorkspaceChip';
 
 /**
  * Says that the space is busy, from anywhere in the space.
@@ -19,14 +20,14 @@ export function BackgroundWorkChip({ onOpen }: { onOpen: () => void }) {
   // scan gives the real number; without one, "0 of 0" would be a lie.
   const total = Math.max(batch.total, settled + (batch.activeKind ? 1 : 0), 1);
   return (
-    <button
-      type="button"
-      className="ui-chip ui-chip-busy ui-color-info team-background-chip"
-      aria-label={t('teamBatchChipOpen', { done: batch.done, total })}
-      onClick={onOpen}
+    <WorkspaceChip
+      tone="busy"
+      busy
+      className="team-background-chip"
+      label={t('teamBatchChipOpen', { done: batch.done, total })}
+      onPress={onOpen}
     >
-      <span className="ui-chip-spinner" aria-hidden="true" />
       {t('teamBatchChip', { done: batch.done, total })}
-    </button>
+    </WorkspaceChip>
   );
 }
