@@ -360,7 +360,7 @@ export function TaskAttachmentTile({
                 : t(CATEGORY_LABEL[attachment.category ?? 'other'])}
             </small>
             {isDraft && (
-              <small className="team-task-attachment-draft">{t('teamTaskAttachmentDraft')}</small>
+              <small className="team-task-attachment-draft">{t('teamTaskAttachmentAttaching')}</small>
             )}
           </div>
         </div>

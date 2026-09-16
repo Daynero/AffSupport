@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render as renderRaw, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as renderRaw, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskAttachmentSummary } from '@video-compressor/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -437,7 +437,16 @@ describe('Creative Library task workflows', () => {
     expect(screen.getByTitle('1 attachments')).toBeTruthy();
   });
 
-  it('stages attached media locally and drops it when the editor is closed without saving', async () => {
+  /**
+   * 024 turned these three inside out, and they are kept rather than deleted
+   * because the thing they were protecting is still the point: a person's work
+   * must not be lost by closing a dialog.
+   *
+   * It used to be protected by staging the work, keeping a copy in
+   * sessionStorage, and putting a dialog in the doorway. Now it is protected by
+   * not holding the work in the first place.
+   */
+  it('attaches the moment media is picked, and closing keeps it', async () => {
     const api = client();
     api.listMaterials = vi.fn().mockResolvedValue([
       {
@@ -468,94 +477,6 @@ describe('Creative Library task workflows', () => {
     fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
     fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
-
-    expect(await screen.findByText('Will be added on save')).toBeTruthy();
-    expect(api.attachTaskMaterials).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(await screen.findByRole('heading', { name: 'You have unsaved changes' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Close without saving' }));
-
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(api.attachTaskMaterials).not.toHaveBeenCalled();
-    expect(api.detachTaskMaterial).not.toHaveBeenCalled();
-  });
-
-  it('restores typed task fields after the browser recreates a background tab', async () => {
-    const api = client();
-    const first = render(
-      <TaskEditor
-        teamId={TEAM_ID}
-        task={task()}
-        members={[]}
-        canEdit
-        client={api}
-        onClose={vi.fn()}
-        onChanged={vi.fn()}
-      />
-    );
-
-    await screen.findByText('launch.mp4');
-    const title = document.querySelector('#team-task-title') as HTMLInputElement;
-    fireEvent.change(title, { target: { value: 'Keep this title' } });
-    fireEvent.change(document.querySelector('.team-task-description-input')!, {
-      target: { value: 'Keep this description too' }
-    });
-    first.unmount();
-
-    render(
-      <TaskEditor
-        teamId={TEAM_ID}
-        task={task()}
-        members={[]}
-        canEdit
-        client={api}
-        onClose={vi.fn()}
-        onChanged={vi.fn()}
-      />
-    );
-
-    await screen.findByText('launch.mp4');
-    expect((document.querySelector('#team-task-title') as HTMLInputElement).value).toBe(
-      'Keep this title'
-    );
-    expect(
-      (document.querySelector('.team-task-description-input') as HTMLTextAreaElement).value
-    ).toBe('Keep this description too');
-  });
-
-  it('sends staged media to the server only when saving the task', async () => {
-    const api = client();
-    api.listMaterials = vi.fn().mockResolvedValue([
-      {
-        id: SECOND_ASSET_ID,
-        teamId: TEAM_ID,
-        providerId: 'drive-new-image',
-        parentFolderId: 'drive-root',
-        name: 'new-image.png',
-        kind: 'file',
-        category: 'image',
-        previewState: 'ready'
-      }
-    ]);
-    const onClose = vi.fn();
-    render(
-      <TaskEditor
-        teamId={TEAM_ID}
-        task={task()}
-        members={[]}
-        canEdit
-        client={api}
-        onClose={onClose}
-        onChanged={vi.fn()}
-      />
-    );
-
-    await screen.findByText('launch.mp4');
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
-    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save task' }));
 
     await waitFor(() =>
       expect(api.attachTaskMaterials).toHaveBeenCalledWith({
@@ -564,7 +485,77 @@ describe('Creative Library task workflows', () => {
         materialIds: [SECOND_ASSET_ID]
       })
     );
+
+    // And the door is a door: nothing stands in it asking about unsaved work.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('heading', { name: 'You have unsaved changes' })).toBeNull();
     expect(onClose).toHaveBeenCalledOnce();
+    expect(api.detachTaskMaterial).not.toHaveBeenCalled();
+  });
+
+  it('writes a typed field after the typing stops, so a discarded tab loses nothing', async () => {
+    vi.useFakeTimers();
+    const api = client();
+    const view = render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await vi.waitFor(() => expect(screen.getByText('launch.mp4')).toBeTruthy());
+    fireEvent.change(document.querySelector('#team-task-title') as HTMLInputElement, {
+      target: { value: 'Keep this title' }
+    });
+    // Mid-word, nothing has gone yet: one write per sentence, not per keystroke.
+    expect(api.updateTask).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    await vi.waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        TEAM_ID,
+        TASK_ID,
+        expect.objectContaining({ title: 'Keep this title' })
+      )
+    );
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it('sends a field left mid-pause when the editor closes', async () => {
+    vi.useFakeTimers();
+    const api = client();
+    render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await vi.waitFor(() => expect(screen.getByText('launch.mp4')).toBeTruthy());
+    fireEvent.change(document.querySelector('.team-task-description-input')!, {
+      target: { value: 'Half a thought' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        TEAM_ID,
+        TASK_ID,
+        expect.objectContaining({ note: 'Half a thought' })
+      )
+    );
+    vi.useRealTimers();
   });
 
   it('saves status immediately without treating it as an unsaved editor change', async () => {

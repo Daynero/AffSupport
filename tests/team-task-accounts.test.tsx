@@ -556,13 +556,11 @@ describe('the list', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /^Date: / }).textContent).toBe('Sep 18')
     );
-    // A date of its own, and it saves with the form rather than on the press.
+    // A date of its own, and it commits on the press: picking a day *is* the
+    // decision, and there is no Save button left to hold it behind (024).
     expect(screen.getByRole('button', { name: /^Date: / }).classList.contains('is-custom')).toBe(
       true
     );
-    expect(api.updateTask).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole('button', { name: 'Save task' }));
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(
         TEAM_ID,
@@ -595,7 +593,6 @@ describe('the list', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /^Date: / }).textContent).toBe('Sep 5')
     );
-    await user.click(screen.getByRole('button', { name: 'Save task' }));
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(
         TEAM_ID,
@@ -643,7 +640,6 @@ describe('the list', () => {
     await user.click(screen.getAllByRole('article')[0]!);
     await user.click(await screen.findByRole('button', { name: /^Date: / }));
     await user.click(screen.getByRole('button', { name: '2026-09-18' }));
-    await user.click(screen.getByRole('button', { name: 'Save task' }));
 
     await waitFor(() => expect(api.listTasks).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryAllByRole('article').length).toBe(0));

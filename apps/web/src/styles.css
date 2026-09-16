@@ -10758,7 +10758,7 @@ body {
 .team-task-picker-dialog,
 .team-task-picker-dialog-heading,
 .team-task-detach-confirmation,
-.team-task-unsaved-confirmation {
+.team-task-conflict {
   display: grid;
   gap: var(--space-3);
 }
@@ -10768,10 +10768,42 @@ body {
 }
 .team-task-picker-dialog-heading h2,
 .team-task-detach-confirmation h2,
-.team-task-unsaved-confirmation h2,
+.team-task-conflict h2,
 .team-task-detach-confirmation p,
-.team-task-unsaved-confirmation p {
+.team-task-conflict p {
   margin: 0;
+}
+/* The other person's version, quoted so the choice is between two things you
+   can both see rather than between a label and a guess. */
+.team-task-conflict-newer {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+/* The editor's heading, with the save receipt beside it. */
+.team-task-editor-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.team-task-editor-heading h2 {
+  margin: 0;
+}
+.team-task-saved {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-task-save-failed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-error-text);
+  font-size: var(--text-caption);
 }
 .team-task-picker-dialog-heading small {
   max-width: 28ch;

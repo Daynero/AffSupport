@@ -128,3 +128,21 @@ export function materialUnavailableMessage(
 ): string {
   return t(UNAVAILABLE[reason]);
 }
+
+/**
+ * The machine code behind a thrown value, when it is one this product knows.
+ *
+ * Copy is one thing and control flow is another: an autosave that has to
+ * behave differently for `SOURCE_CHANGED` than for a dropped connection needs
+ * the code, and sniffing the shape at every call site is how three slightly
+ * different sniffers appear. Nothing here reaches the DOM — that is still
+ * `teamErrorMessage`'s job.
+ */
+export function teamErrorCodeOf(error: unknown): TeamErrorCode | null {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const { code } = error as { code: unknown };
+    if (typeof code === 'string' && isTeamErrorCode(code)) return code;
+  }
+  if (error instanceof Error && isTeamErrorCode(error.message)) return error.message;
+  return null;
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { teamTaskDate } from '@video-compressor/shared';
 import type {
   TeamTaskAgentTag,
@@ -36,6 +36,7 @@ import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
 import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
 import { TaskProgressScale } from './TaskProgressScale';
 import { useCoalescedWrite } from './useCoalescedWrite';
+import { useTaskAutosave } from './useTaskAutosave';
 import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagsEditor, type TaskAgentTagsClient } from './TaskAgentTags';
 import { TaskLabelsEditor, type TaskLabelsEditorClient } from './TaskLabelsEditor';
@@ -79,69 +80,6 @@ export interface TaskEditorClient
 
 const defaultClient: TaskEditorClient = { ...teamApi, uploadFile: uploadTeamFile };
 const TASK_PROGRESS_MAX = 10_000;
-
-/**
- * A browser may discard a background tab and recreate the page when it is
- * restored. Keeping an unsaved form only in React state made that lifecycle
- * look like somebody had chosen to discard their work. This tab-local draft
- * survives a discard/reload, without claiming it was saved to the team.
- */
-const TASK_DRAFT_STORAGE_PREFIX = 'soty.team-task-draft.v1:';
-
-type TaskFormDraft = Pick<
-  TeamTaskSummary,
-  'title' | 'note' | 'assigneeId' | 'dateOn' | 'progressMax' | 'progressValue'
->;
-
-function taskDraftKey(teamId: string, taskId: string): string {
-  return `${TASK_DRAFT_STORAGE_PREFIX}${teamId}:${taskId}`;
-}
-
-function readTaskFormDraft(teamId: string, task: TeamTaskSummary): TaskFormDraft | null {
-  try {
-    const value: unknown = JSON.parse(
-      window.sessionStorage.getItem(taskDraftKey(teamId, task.id)) ?? ''
-    );
-    if (!value || typeof value !== 'object') return null;
-    const draft = value as Partial<TaskFormDraft>;
-    if (
-      typeof draft.title !== 'string' ||
-      (draft.note !== null && typeof draft.note !== 'string') ||
-      (draft.assigneeId !== null && typeof draft.assigneeId !== 'string') ||
-      (draft.dateOn !== null && typeof draft.dateOn !== 'string') ||
-      !Number.isInteger(draft.progressMax) ||
-      !Number.isInteger(draft.progressValue)
-    ) {
-      return null;
-    }
-    return {
-      title: draft.title,
-      note: draft.note,
-      assigneeId: draft.assigneeId,
-      dateOn: draft.dateOn,
-      progressMax: draft.progressMax as number,
-      progressValue: draft.progressValue as number
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeTaskFormDraft(teamId: string, taskId: string, draft: TaskFormDraft): void {
-  try {
-    window.sessionStorage.setItem(taskDraftKey(teamId, taskId), JSON.stringify(draft));
-  } catch {
-    // Storage is a recovery aid; private-mode restrictions must not block editing.
-  }
-}
-
-function clearTaskFormDraft(teamId: string, taskId: string): void {
-  try {
-    window.sessionStorage.removeItem(taskDraftKey(teamId, taskId));
-  } catch {
-    // The editor remains fully usable when browser storage is unavailable.
-  }
-}
 
 function uniqueAttachments(
   current: TeamTaskAttachmentSummary[],
@@ -329,30 +267,26 @@ export function TaskEditor({
         // The delivery reports its own outcome through the notices below.
       });
   };
-  const [restoredDraft] = useState(() => readTaskFormDraft(teamId, initialTask));
   const [task, setTask] = useState(initialTask);
-  const [title, setTitle] = useState(restoredDraft?.title ?? initialTask.title);
-  const [note, setNote] = useState(restoredDraft?.note ?? initialTask.note ?? '');
+  const [title, setTitle] = useState(initialTask.title);
+  const [note, setNote] = useState(initialTask.note ?? '');
   const [status, setStatus] = useState(initialTask.status);
   const [assigneeId, setAssigneeId] = useState(
-    restoredDraft?.assigneeId ?? initialTask.assigneeId ?? ''
+    initialTask.assigneeId ?? ''
   );
   /** The day the task is for; null is "the day it was created". */
-  const [dateOn, setDateOn] = useState<string | null>(restoredDraft?.dateOn ?? initialTask.dateOn);
+  const [dateOn, setDateOn] = useState<string | null>(initialTask.dateOn);
   const [progressMax, setProgressMax] = useState(
-    restoredDraft?.progressMax ?? initialTask.progressMax
+    initialTask.progressMax
   );
   const [progressMaxInput, setProgressMaxInput] = useState(
-    String(restoredDraft?.progressMax ?? initialTask.progressMax)
+    String(initialTask.progressMax)
   );
   const [progressValue, setProgressValue] = useState(
-    restoredDraft?.progressValue ?? initialTask.progressValue
+    initialTask.progressValue
   );
   const [persistedAttachments, setPersistedAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
-  const [draftAttachments, setDraftAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
-  const [detachedMaterialIds, setDetachedMaterialIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   /**
@@ -364,7 +298,6 @@ export function TaskEditor({
    * reports through its own tile and toast.
    */
   const [error, setError] = useState<'read' | 'write' | null>(null);
-  const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   /**
    * The video whose product catalog is open over this task, if any.
@@ -438,8 +371,6 @@ export function TaskEditor({
         else setTask(value.task);
         if (resetAttachmentDraft) {
           setPersistedAttachments(value.attachments);
-          setDraftAttachments([]);
-          setDetachedMaterialIds(new Set());
         } else {
           setPersistedAttachments(current => uniqueAttachments(current, value.attachments));
         }
@@ -457,13 +388,11 @@ export function TaskEditor({
     void load({ hydrate: true, resetAttachmentDraft: true });
   }, [load]);
 
-  const visibleAttachments = useMemo(
-    () => [
-      ...persistedAttachments.filter(attachment => !detachedMaterialIds.has(attachment.materialId)),
-      ...draftAttachments
-    ],
-    [detachedMaterialIds, draftAttachments, persistedAttachments]
-  );
+  // Everything on screen is on the task. There is no third state between
+  // "attached" and "not attached" any more, which is what a staged attachment
+  // was: a tile that looked exactly like the real thing and vanished if the
+  // dialog was closed the wrong way.
+  const visibleAttachments = persistedAttachments;
   const visibleMaterialIds = useMemo(
     () => new Set(visibleAttachments.map(attachment => attachment.materialId)),
     [visibleAttachments]
@@ -497,43 +426,7 @@ export function TaskEditor({
     return () => window.clearTimeout(timer);
   }, [load, unsettled, persistedAttachments]);
 
-  const attachmentCount = Math.max(
-    0,
-    task.attachmentCount - detachedMaterialIds.size + draftAttachments.length
-  );
-  const formDirty =
-    title !== task.title ||
-    note !== (task.note ?? '') ||
-    assigneeId !== (task.assigneeId ?? '') ||
-    dateOn !== task.dateOn ||
-    progressMax !== task.progressMax ||
-    progressValue !== task.progressValue;
-  const attachmentDirty = draftAttachments.length > 0 || detachedMaterialIds.size > 0;
-  // Status has an immediate server write and therefore intentionally does not make this dirty.
-  const hasUnsavedChanges = canEdit && (formDirty || attachmentDirty);
-
-  useEffect(() => {
-    if (!canEdit || !formDirty) return;
-    writeTaskFormDraft(teamId, task.id, {
-      title,
-      note: note || null,
-      assigneeId: assigneeId || null,
-      dateOn,
-      progressMax,
-      progressValue
-    });
-  }, [
-    assigneeId,
-    canEdit,
-    dateOn,
-    formDirty,
-    note,
-    progressMax,
-    progressValue,
-    task.id,
-    teamId,
-    title
-  ]);
+  const attachmentCount = persistedAttachments.length;
 
   const loadMore = async () => {
     const cursor = persistedAttachments.at(-1)?.position;
@@ -555,34 +448,41 @@ export function TaskEditor({
     }
   };
 
-  const addAttachments = (materials: TaskAttachmentCandidate[]) => {
-    const persistedIds = new Set(persistedAttachments.map(attachment => attachment.materialId));
-    const reattachedIds = new Set(
-      materials.filter(item => persistedIds.has(item.id)).map(item => item.id)
+  /**
+   * Picked or dragged in — attached, now.
+   *
+   * It used to be staged: the tile appeared, the task did not have the file,
+   * and the two only agreed if the dialog was closed through Save. Dropping an
+   * upload attached immediately in the same dialog, so picking and dropping
+   * meant different things and only one of them survived a close.
+   */
+  const addAttachments = async (materials: TaskAttachmentCandidate[]) => {
+    const known = new Set(persistedAttachments.map(attachment => attachment.materialId));
+    const additions = materials.filter(material => !known.has(material.id));
+    if (additions.length === 0) return;
+    const position = Math.max(-1, ...persistedAttachments.map(item => item.position));
+    // On screen first: the wait is the server's, and a tile that appears when
+    // the request returns makes a good connection feel like a slow one.
+    const optimistic = additions.map((material, index) =>
+      draftAttachment(task.id, material, position + index + 1)
     );
-    if (reattachedIds.size > 0) {
-      setDetachedMaterialIds(current => {
-        const next = new Set(current);
-        for (const id of reattachedIds) next.delete(id);
-        return next;
+    setPersistedAttachments(current => uniqueAttachments(current, optimistic));
+    try {
+      const result = await attachTaskMaterialsInChunks({
+        client,
+        teamId,
+        taskId: task.id,
+        materialIds: additions.map(material => material.id)
       });
-    }
-    setDraftAttachments(current => {
-      const known = new Set([...persistedIds, ...current.map(attachment => attachment.materialId)]);
-      const additions = materials.filter(material => !known.has(material.id));
-      if (additions.length === 0) return current;
-      const position = Math.max(
-        -1,
-        ...persistedAttachments.map(attachment => attachment.position),
-        ...current.map(attachment => attachment.position)
+      if (result.rejected.length > 0) throw new Error('ATTACHMENT_REJECTED');
+      await load({ quiet: true });
+      onChanged({ ...task, attachmentCount: persistedAttachments.length + additions.length });
+    } catch (cause) {
+      setPersistedAttachments(current =>
+        current.filter(item => !optimistic.some(added => added.id === item.id))
       );
-      return [
-        ...current,
-        ...additions.map((material, index) =>
-          draftAttachment(task.id, material, position + index + 1)
-        )
-      ];
-    });
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    }
   };
 
   /**
@@ -808,43 +708,40 @@ export function TaskEditor({
   };
 
   /**
-   * Detaching is staged, not written — the change lands when the task is saved.
-   * The toast makes that reversibility visible, which is what the confirmation
-   * dialog was standing in for; a dialog guarding a staged, undoable change was
-   * friction charged twice over (finding R3, FR-028).
+   * Detaching is written at once, and takeable back.
+   *
+   * It used to be staged until Save, which made the toast's Undo a promise
+   * about a change that had not happened — and left the file attached if the
+   * dialog was closed another way. The reversibility is real now: the Undo
+   * re-attaches, which is the same guarantee trashing a file makes, and the
+   * reason there is still no confirmation dialog in front of it (FR-028).
    */
-  const stageDetach = (attachment: TeamTaskAttachmentSummary) => {
-    if (attachment.id.startsWith('draft:')) {
-      setDraftAttachments(current =>
-        current.filter(candidate => candidate.materialId !== attachment.materialId)
-      );
-      push({
-        tone: 'info',
-        text: t('teamToastAttachmentDetached', { name: attachment.name }),
-        action: {
-          label: t('teamUndo'),
-          run: () =>
-            setDraftAttachments(current =>
-              current.some(candidate => candidate.materialId === attachment.materialId)
-                ? current
-                : [...current, attachment]
-            )
-        }
-      });
+  const detach = async (attachment: TeamTaskAttachmentSummary) => {
+    setPersistedAttachments(current =>
+      current.filter(item => item.materialId !== attachment.materialId)
+    );
+    try {
+      await client.detachTaskMaterial(teamId, task.id, attachment.materialId);
+      onChanged({ ...task, attachmentCount: Math.max(0, persistedAttachments.length - 1) });
+    } catch (cause) {
+      setPersistedAttachments(current => uniqueAttachments(current, [attachment]));
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
       return;
     }
-    setDetachedMaterialIds(current => new Set(current).add(attachment.materialId));
     push({
       tone: 'info',
       text: t('teamToastAttachmentDetached', { name: attachment.name }),
       action: {
         label: t('teamUndo'),
         run: () =>
-          setDetachedMaterialIds(current => {
-            const next = new Set(current);
-            next.delete(attachment.materialId);
-            return next;
-          })
+          void addAttachments([
+            {
+              id: attachment.materialId,
+              name: attachment.name,
+              category: attachment.category,
+              kind: attachment.kind
+            } as TaskAttachmentCandidate
+          ])
       }
     });
   };
@@ -868,57 +765,42 @@ export function TaskEditor({
     if (String(normalized) !== raw) setProgressMaxInput(String(normalized));
   };
 
-  const save = async () => {
-    if (!canEdit || saving || savingStatus) return;
-    setSaving(true);
-    setError(null);
-    try {
-      let updated = task;
-      if (formDirty) {
-        const response = await client.updateTask(teamId, task.id, {
-          title,
-          note: note || null,
-          assigneeId: assigneeId || null,
-          dateOn,
-          progressMax,
-          progressValue,
-          expectedUpdatedAt: task.updatedAt
-        });
-        // The update RPC returns the physical row, while attachmentCount is
-        // derived by the read RPC. Keep the known count while this editor stays open.
-        updated = { ...response, attachmentCount: task.attachmentCount, agents: task.agents };
-        setTask(updated);
-      }
-      if (draftAttachments.length > 0) {
-        const result = await attachTaskMaterialsInChunks({
-          client,
-          teamId,
-          taskId: task.id,
-          materialIds: draftAttachments.map(attachment => attachment.materialId)
-        });
-        if (result.rejected.length > 0) throw new Error('ATTACHMENT_REJECTED');
-      }
-      for (const materialId of detachedMaterialIds) {
-        await client.detachTaskMaterial(teamId, task.id, materialId);
-      }
-      onChanged({ ...updated, attachmentCount });
-      clearTaskFormDraft(teamId, task.id);
-      onClose();
-    } catch {
-      setError('write');
-    } finally {
-      setSaving(false);
-    }
-  };
+  /**
+   * Every field writes itself (024).
+   *
+   * The version the write expects is the newest one this editor has seen, held
+   * in a ref rather than read from state: two changes a keystroke apart would
+   * otherwise both quote the version before the first, and the second would be
+   * refused as a conflict with the reader's own edit.
+   */
+  const versionRef = useRef(task.updatedAt);
+  versionRef.current = task.updatedAt;
 
-  const saveFromSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    void save();
-  };
+  const autosave = useTaskAutosave({
+    write: async patch => {
+      const response = await client.updateTask(teamId, task.id, {
+        ...patch,
+        expectedUpdatedAt: versionRef.current
+      });
+      // The update RPC returns the physical row, while attachmentCount is
+      // derived by the read RPC. Keep the known count while this editor stays open.
+      return { ...response, attachmentCount: task.attachmentCount, agents: task.agents };
+    },
+    read: async () => {
+      const value = await client.getTask({ teamId, taskId: task.id });
+      return value?.task ?? null;
+    },
+    onSaved: updated => {
+      setTask(updated);
+      setError(null);
+      onChanged(updated);
+    }
+  });
 
   /*
-   * Progress is saved the moment it is let go, like the status — not held for "Save". It carries the
-   * scale it was set on, and is not held to the copy's `updatedAt`: one field, last writer wins.
+   * Progress is saved the moment it is let go, like the status. It carries the
+   * scale it was set on, and is not held to the copy's `updatedAt`: one field,
+   * last writer wins — a slider is not something two people argue over.
    */
   const progressWriter = useCoalescedWrite<{ progressValue: number; progressMax: number }>({
     write: async value => {
@@ -934,7 +816,7 @@ export function TaskEditor({
   });
 
   const saveStatus = async (next: TeamTaskSummary['status']) => {
-    if (!canEdit || next === status || savingStatus || saving) return;
+    if (!canEdit || next === status || savingStatus) return;
     const previousTask = task;
     const previousStatus = status;
     setStatus(next);
@@ -967,16 +849,15 @@ export function TaskEditor({
     }
   };
 
+  /**
+   * Closing is just closing.
+   *
+   * There is nothing to lose on the way out any more, so the dialog that used
+   * to stand in the door — "you have unsaved changes" — has nothing to ask.
+   * Anything still waiting out the typing pause goes first.
+   */
   const requestClose = () => {
-    if (hasUnsavedChanges) {
-      setShowUnsavedPrompt(true);
-      return;
-    }
-    onClose();
-  };
-
-  const discardAndClose = () => {
-    clearTaskFormDraft(teamId, task.id);
+    autosave.flush();
     onClose();
   };
 
@@ -990,8 +871,36 @@ export function TaskEditor({
         size="lg"
       >
         <div className="team-task-editor">
-          <form className="team-dialog-form" onSubmit={saveFromSubmit}>
-            <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
+          <form
+            className="team-dialog-form"
+            // Nothing submits any more; Enter in a field must not reload the page.
+            onSubmit={event => event.preventDefault()}
+          >
+            <header className="team-task-editor-heading">
+              <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
+              {/* Quiet when it works, loud when it does not. A save that
+                  succeeded is a receipt that fades; a save that failed keeps
+                  the words on screen and offers the retry, because the one
+                  thing worse than a spinner is silence over lost work. */}
+              {canEdit && autosave.state === 'saving' && (
+                <small className="team-task-saved" aria-live="polite">
+                  {t('teamTaskSaving')}
+                </small>
+              )}
+              {canEdit && autosave.state === 'saved' && (
+                <small className="team-task-saved" aria-live="polite">
+                  {t('teamTaskSaved')}
+                </small>
+              )}
+              {canEdit && autosave.state === 'failed' && (
+                <small className="team-task-save-failed" role="alert">
+                  {t('teamTaskSaveFailed')}
+                  <Button size="sm" color="error" variant="ghost" onClick={autosave.flush}>
+                    {t('teamTaskRetrySave')}
+                  </Button>
+                </small>
+              )}
+            </header>
             {/* A viewer sees a dialog of dead fields and no reason for it. The
                 fields stay — reading them is the point — and the boundary is
                 said once, at the top, in the product's own words (FR-004). */}
@@ -1000,7 +909,7 @@ export function TaskEditor({
               <span id="team-task-status-title">{t('teamTaskStatus')}</span>
               <TaskStatusControl
                 value={status}
-                disabled={!canEdit || saving || savingStatus}
+                disabled={!canEdit || savingStatus}
                 onChange={next => void saveStatus(next)}
               />
               {/* The date the task is for, where the card shows it: at the end
@@ -1010,7 +919,10 @@ export function TaskEditor({
                 isCustom={dateOn !== null}
                 createdOn={teamTaskDate({ dateOn: null, createdAt: task.createdAt })}
                 disabled={!canEdit}
-                onChange={setDateOn}
+                onChange={next => {
+                  setDateOn(next);
+                  if (canEdit) autosave.save({ dateOn: next });
+                }}
               />
             </section>
             {/* The accounts this task is about (017). Written at once, like
@@ -1053,7 +965,11 @@ export function TaskEditor({
                 onFocus={event => {
                   if (event.target.value === t('teamTaskUntitled')) event.target.select();
                 }}
-                onChange={event => setTitle(event.target.value)}
+                onChange={event => {
+                  setTitle(event.target.value);
+                  if (canEdit) autosave.saveSoon({ title: event.target.value });
+                }}
+                onBlur={autosave.flush}
               />
             </FormField>
             <div className="team-task-editor-meta">
@@ -1071,7 +987,10 @@ export function TaskEditor({
                     value: member.userId,
                     label: member.displayName ?? member.email ?? member.userId
                   }))}
-                  onChange={setAssigneeId}
+                  onChange={next => {
+                    setAssigneeId(next);
+                    if (canEdit) autosave.save({ assigneeId: next || null });
+                  }}
                 />
               </FormField>
               <FormField
@@ -1152,7 +1071,11 @@ export function TaskEditor({
                 value={note}
                 maxLength={2_000}
                 disabled={!canEdit}
-                onChange={event => setNote(event.target.value)}
+                onChange={event => {
+                  setNote(event.target.value);
+                  if (canEdit) autosave.saveSoon({ note: event.target.value || null });
+                }}
+                onBlur={autosave.flush}
               />
             </FormField>
             {error && (
@@ -1162,15 +1085,6 @@ export function TaskEditor({
             )}
             {canEdit && (
               <div className="team-dialog-actions">
-                <Button
-                  type="submit"
-                  color="primary"
-                  variant="solid"
-                  loading={saving}
-                  disabled={savingStatus}
-                >
-                  {t('teamTaskSave')}
-                </Button>
                 {/* Deleting a task was the one lifecycle step with no way to
                     take it — a finished or mistaken task stayed on the board
                     forever (finding R1). */}
@@ -1254,7 +1168,7 @@ export function TaskEditor({
                   attachment={attachment}
                   client={client}
                   isDraft={attachment.id.startsWith('draft:')}
-                  onDetach={canEdit ? () => stageDetach(attachment) : undefined}
+                  onDetach={canEdit ? () => void detach(attachment) : undefined}
                   onReveal={() => void revealAttachment(attachment)}
                   onDownloadRestitched={
                     can('download') ? () => deliverRestitched(attachment) : undefined
@@ -1318,23 +1232,32 @@ export function TaskEditor({
           </section>
         </div>
       </Modal>
-      {showUnsavedPrompt && (
+      {/* The one thing still worth a dialog: somebody else changed this task
+          while you were changing it. Not a snap-back — the words you typed are
+          still here, and you choose which version stands. */}
+      {autosave.state === 'conflict' && (
         <Modal
           nested
-          labelledBy="team-task-unsaved-title"
-          onClose={() => setShowUnsavedPrompt(false)}
+          labelledBy="team-task-conflict-title"
+          onClose={autosave.takeNewer}
           closeLabel={t('teamCancel')}
           size="sm"
         >
-          <div className="team-task-unsaved-confirmation">
-            <h2 id="team-task-unsaved-title">{t('teamTaskUnsavedTitle')}</h2>
-            <p>{t('teamTaskUnsavedDescription')}</p>
+          <div className="team-task-conflict">
+            <h2 id="team-task-conflict-title">{t('teamTaskConflictTitle')}</h2>
+            <p>{t('teamTaskConflictDescription')}</p>
+            {autosave.conflict && (
+              <p className="team-task-conflict-newer">
+                <strong>{autosave.conflict.title}</strong>
+                {autosave.conflict.note ? <span>{autosave.conflict.note}</span> : null}
+              </p>
+            )}
             <div className="team-dialog-actions">
-              <Button color="neutral" variant="ghost" onClick={discardAndClose}>
-                {t('teamTaskCloseWithoutSaving')}
+              <Button color="neutral" variant="ghost" onClick={autosave.takeNewer}>
+                {t('teamTaskConflictTakeNewer')}
               </Button>
-              <Button color="primary" variant="solid" loading={saving} onClick={() => void save()}>
-                {t('teamTaskSave')}
+              <Button color="primary" variant="solid" onClick={autosave.overwrite}>
+                {t('teamTaskConflictKeepMine')}
               </Button>
             </div>
           </div>

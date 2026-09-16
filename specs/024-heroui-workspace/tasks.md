@@ -286,16 +286,23 @@ closing or losing anything.
 
 ## Phase 5: User Story 3 — a task you can actually work in (Priority: P1)
 
-- [ ] T064 [US3] Give every form field in `apps/web/src/team/tasks/TaskEditor.tsx` its own
+- [x] T064 [US3] Give every form field in `apps/web/src/team/tasks/TaskEditor.tsx` its own
       coalesced writer through `useCoalescedWrite`, keeping the version check and surfacing a
-      conflict as an explicit "take the newer value" choice rather than a snap-back.
-- [ ] T065 [US3] Delete the staged-attachment concept, the `draftAttachment` shape, the
+      conflict as an explicit "take the newer value" choice rather than a snap-back. Done as
+      `useTaskAutosave`: one writer, `save` for a gesture and `saveSoon` for typing, `flush` on
+      blur and on close. The version comes from a ref, or two keystrokes would quote the same
+      stale stamp and the second would conflict with the reader's own edit.
+- [x] T065 [US3] Delete the staged-attachment concept, the `draftAttachment` shape, the
       sessionStorage draft, the unsaved-changes modal, the Save button and the "will be added on
-      save" wording from `TaskEditor.tsx`.
-- [ ] T066 [US3] Make the picker attach on confirm in
-      `apps/web/src/team/tasks/TaskAttachmentPicker.tsx`, so picking and dropping agree.
-- [ ] T067 [US3] Add the quiet saved indicator and the loud retryable failure to the editor's
-      header.
+      save" wording from `TaskEditor.tsx`. The draft shape survives as an optimistic tile for the
+      moment between picking and the server's answer, and its badge says "Attaching…" — a fact
+      about now, not a promise about a button.
+- [x] T066 [US3] Make the picker attach on confirm, so picking and dropping agree. Detaching
+      became immediate with it, which is what finally makes its Undo true: it used to promise to
+      take back a change that had not happened.
+- [x] T067 [US3] Add the quiet saved indicator and the loud retryable failure to the editor's
+      header. "Saved" is a receipt that fades; a failure keeps the words on screen, holds the
+      value the person typed, and offers the retry.
 - [ ] T068 [US3] Re-lay the editor as two columns on a wide screen and stacked on a narrow one —
       the task's own fields on one side, materials / accounts / tags on the other, attachments
       visible without scrolling.
@@ -317,10 +324,12 @@ closing or losing anything.
       overflow, keeping the whole card as the open target.
 - [ ] T077 [US3] Reduce the filter row from nine clusters to a search field, the date control and
       one "Filters" surface showing what is active as removable chips.
-- [ ] T078 [US3] Update the task test files the change invalidates — `task-progress-saving`,
-      `task-progress-scale`, `team-tasks*`, `creative-library-tasks` — to the new save model and
-      markup.
-- [ ] T079 [P] [US3] Write `tests/task-editor-autosave.test.tsx`: each field writes on change; no
+- [x] T078 [US3] Update the task test files the change invalidates. Three tests in
+      `creative-library-tasks` were turned inside out rather than deleted — what they protected
+      (work must not be lost by closing a dialog) is still the point, it is just no longer
+      protected by holding the work. `team-task-accounts`' date tests lost their Save press, and
+      `team-explorer-capability-map` now names the route rather than the label that sat on it.
+- [x] T079 [P] [US3] Write `tests/task-editor-autosave.test.tsx`: each field writes on change; no
       Save button exists; closing raises no prompt; a conflict offers the newer value.
 
 **Checkpoint**: quickstart Checkpoint 4, items 1–4 and 6.
