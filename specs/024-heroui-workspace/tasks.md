@@ -155,9 +155,13 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
 - [ ] T030 [US2] `Breadcrumb`, `Link`, `Pagination`, `Tabs` onto HeroUI in
       `apps/web/src/components/ui/Navigation.tsx` — one keyboard behaviour for both tab strips,
       link mode included; add `Toolbar`; delete the second always-rendered compact breadcrumb.
-- [ ] T031 [US2] `Table` and its cells onto HeroUI `Table`, `Accordion` onto `DisclosureGroup`,
-      `User` onto `Avatar`, in `apps/web/src/components/ui/Table.tsx`; `Tree` and `Timeline` stay
-      ours and are restyled with utilities; add `ScrollShadow`.
+- [ ] T031 [US2] **Deferred to Phase 10, with a reason.** The inventory's `Table` is a CSS grid
+      whose columns are ruled by the screen that uses it — the explorer, the accounts table, the
+      member list and the admin lists each set their own tracks against `.ui-table-row`. HeroUI's
+      table is a real `<table>` with different DOM, so swapping it rewrites all four screens'
+      column CSS at once. T116 rebuilds the accounts table; that is where this belongs, screen by
+      screen, rather than as one change that cannot be checked in one sitting.
+      `Accordion` → `DisclosureGroup` and `User` → `Avatar` are unblocked and stay here.
 - [ ] T032 [US2] Patterns in `apps/web/src/components/ui/patterns.tsx`: `EmptyState`,
       `LoadingState`, `ErrorState`, `PermissionState` as compositions; `ConfirmDialog` onto
       `AlertDialog`; `SelectionBar` onto `Toolbar`.
@@ -171,9 +175,12 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       and the `data-tip` attribute pattern give way to the inventory's `Tooltip` with one delay
       group; delete `useAnchoredLayer.ts` and `useCompactToolbar.ts`, whose jobs React Aria now
       does.
-- [ ] T037 [US2] Delete `apps/web/src/components/ui.tsx` and move its 70 importers to the
-      inventory, resolving the eight shadowed names (`Button`, `Checkbox`, `Tooltip`,
-      `SegmentedControl`, `ProgressBar`, `Spinner`, `StatusBadge`, `Collapse`).
+- [ ] T037 [US2] **Deferred to the sweep (T140), with a reason.** 56 files import the shim, and
+      48 of them only for `Button`, which the inventory already accepts in its legacy spelling —
+      so the repoint is mechanical. What is not mechanical is the checking: most of those files
+      are outside the team workspace, and three of those screens cannot render at all without the
+      local app, which is exactly the finding (021, S8) that says a screen nothing can open is a
+      screen nothing has checked. It goes in the pass that walks them, not before it.
 - [ ] T038 [US2] Rewrite `tests/design-components.test.tsx` from the deleted shim's literal
       classes onto the inventory's marker grammar.
 - [ ] T039 [US2] Extend `apps/web/src/dev/DesignSystemPage.tsx` to every new component and the
@@ -231,7 +238,7 @@ closing or losing anything.
       `RowActions.tsx` done, which both `ContentList` and `ContentGrid` render. Copy link, share
       and the colour tag still live as their own row affordances; they join the surface with the
       detail work in T086–T090.
-- [ ] T054 [US1] Render it from search results in `apps/web/src/team/catalog/MaterialResults.tsx`.
+- [x] T054 [US1] Render it from search results in `apps/web/src/team/catalog/MaterialResults.tsx`.
 - [ ] T055 [US1] Render it from the detail pane in `apps/web/src/team/explorer/PreviewPane.tsx`,
       replacing its three raw icon buttons.
 - [x] T056 [US1] Render it from a task attachment in

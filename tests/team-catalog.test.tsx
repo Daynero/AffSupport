@@ -145,7 +145,9 @@ describe('team catalog search UI', () => {
     );
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
     await choose(user, 'Missing metadata', 'GEO');
-    await user.click(screen.getByRole('button', { name: 'Edit metadata for launch.mp4' }));
+    // Behind the one overflow now, with everything else this file can take.
+    await user.click(screen.getByRole('button', { name: /^Actions for launch\.mp4/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit the details' }));
     await choose(user, 'File GEO', 'UA');
     await user.click(screen.getByRole('button', { name: 'Save metadata' }));
     await waitFor(() =>
@@ -168,7 +170,7 @@ describe('team catalog search UI', () => {
       </TeamProvider>
     );
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Show launch.mp4 in its folder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
     expect(onReveal).toHaveBeenCalledWith(expect.objectContaining({ id: 'visible-material' }));
   });
 

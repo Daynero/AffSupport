@@ -5,6 +5,7 @@ import {
   Eye,
   FileText,
   FolderOpen,
+  GitBranch,
   Link2,
   ListPlus,
   Minimize2,
@@ -53,6 +54,7 @@ export const MATERIAL_ACTION_IDS = [
   'open',
   'detail',
   'showInFolder',
+  'provenance',
   // get
   'copyLink',
   'share',
@@ -72,6 +74,7 @@ export const MATERIAL_ACTION_IDS = [
   'rename',
   'move',
   'colourTag',
+  'editMetadata',
   'uploadInto',
   // remove
   'detach',
@@ -113,6 +116,8 @@ export interface MaterialRef {
   trashed?: boolean;
   availability?: 'ready' | 'pending' | 'trashed' | 'missing' | 'unavailable';
   transcriptReady?: boolean;
+  /** This file came from another, or others came from it, or it is a version. */
+  hasLineage?: boolean;
   /** A draft attachment exists only in the open task until it is saved. */
   draft?: boolean;
   companions?: MaterialCompanions;
@@ -256,6 +261,20 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
   },
 
   // ── Get ───────────────────────────────────────────────────────────────────
+  {
+    // Where a file came from and what came from it. Lived only in the search
+    // results, which is where the lineage happened to be loaded — not where a
+    // person happens to want it.
+    id: 'provenance',
+    group: 'open',
+    order: 4,
+    labelKey: 'materialActionProvenance',
+    icon: GitBranch,
+    inlinePriority: null,
+    applies: material => Boolean(material.hasLineage),
+    available: material => ready(material)
+  },
+
   {
     id: 'copyLink',
     group: 'get',
@@ -452,9 +471,19 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     available: material => ready(material)
   },
   {
-    id: 'uploadInto',
+    id: 'editMetadata',
     group: 'organise',
     order: 5,
+    labelKey: 'materialActionEditMetadata',
+    icon: SquarePen,
+    inlinePriority: null,
+    applies: material => isFile(material) && !material.draft,
+    available: (material, context) => all(ready(material), may(context, 'manage_metadata'))
+  },
+  {
+    id: 'uploadInto',
+    group: 'organise',
+    order: 6,
     labelKey: 'materialActionUploadInto',
     icon: Upload,
     inlinePriority: null,

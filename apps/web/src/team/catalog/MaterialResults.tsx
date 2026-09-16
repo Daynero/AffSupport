@@ -8,7 +8,7 @@ import type {
 } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { MaterialRowMenu } from './MaterialRowMenu';
+import { SearchResultActions } from './SearchResultActions';
 import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
@@ -108,16 +108,11 @@ export function MaterialResults({
       </div>
       <ul className="team-catalog-results">
         {result.items.map(material => {
-          const isFolder = material.kind === 'folder';
           const typeLabel = catalogMaterialTypeLabel(material, t);
           const categoryGlyph = catalogMaterialGlyph(material);
           const hasMetadata = Boolean(
             material.geo || material.language || material.offer || material.tags.length
           );
-          const hasSecondaryActions = isFolder
-            ? permissions.upload
-            : permissions.download || permissions.edit || permissions.process || permissions.delete;
-
           return (
             <li key={material.id} className="team-catalog-result-card">
               <div className="team-catalog-material-main">
@@ -187,68 +182,22 @@ export function MaterialResults({
                   {material.lineage.isVersion && <span>{t('teamCatalogIsVersion')}</span>}
                 </div>
               </div>
-              <div className="team-catalog-material-actions">
-                {material.kind === 'file' && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label={t('teamCatalogPreviewFor', { name: material.name })}
-                    onClick={() => onPreview(material)}
-                  >
-                    {t('teamCatalogPreview')}
-                  </Button>
-                )}
-                {canManageMetadata && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label={t('teamCatalogEditMetadataFor', { name: material.name })}
-                    onClick={() => onEditMetadata(material)}
-                  >
-                    {t('teamCatalogEditMetadata')}
-                  </Button>
-                )}
-                {(material.lineage.hasSource ||
-                  material.lineage.hasDerivatives ||
-                  material.lineage.isVersion) && (
-                  <Button type="button" variant="ghost" onClick={() => onShowProvenance(material)}>
-                    {t('teamProvenanceTitle')}
-                  </Button>
-                )}
-                {onReveal && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label={t('teamRevealInFolderFor', { name: material.name })}
-                    onClick={() => onReveal(material)}
-                  >
-                    {t('teamRevealInFolder')}
-                  </Button>
-                )}
-                {onCreateTask && material.kind === 'file' && (
-                  <Button type="button" variant="ghost" onClick={() => onCreateTask(material)}>
-                    {t('creativeLibraryCreateTask')}
-                  </Button>
-                )}
-                {/* The "…" belongs beside the actions it extends, not on a row
-                    of its own — where it rendered as the bare word "Дії" under
-                    every result, a label with nothing after it. */}
-                {hasSecondaryActions && (
-                  <MaterialRowMenu
-                    teamId={material.teamId}
-                    material={material}
-                    permissions={permissions}
-                    browseClient={browseClient}
-                    storageKind={storageKind}
-                    onChanged={onChanged}
-                    onEditText={() => onEditText(material)}
-                    onProcess={() => onProcess(material)}
-                    destinationFolderId={destinationFolderId ?? material.parentFolderId ?? null}
-                    replaceMaterialId={material.id}
-                    folderUploadLabel={t('teamCatalogAddFileToFolder')}
-                  />
-                )}
-              </div>
+              <SearchResultActions
+                material={material}
+                permissions={permissions}
+                storageKind={storageKind}
+                browseClient={browseClient}
+                destinationFolderId={destinationFolderId ?? material.parentFolderId ?? null}
+                canManageMetadata={canManageMetadata}
+                onChanged={onChanged}
+                onPreview={onPreview}
+                onEditText={onEditText}
+                onProcess={onProcess}
+                onEditMetadata={onEditMetadata}
+                onShowProvenance={onShowProvenance}
+                onCreateTask={onCreateTask}
+                onReveal={onReveal}
+              />
             </li>
           );
         })}
