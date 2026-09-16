@@ -156,7 +156,7 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
 - [ ] T032 [US2] Patterns in `apps/web/src/components/ui/patterns.tsx`: `EmptyState`,
       `LoadingState`, `ErrorState`, `PermissionState` as compositions; `ConfirmDialog` onto
       `AlertDialog`; `SelectionBar` onto `Toolbar`.
-- [ ] T033 [US2] Create `apps/web/src/components/ui/DateField.tsx` — `Calendar`, `RangeCalendar`,
+- [x] T033 [US2] Create `apps/web/src/components/ui/DateField.tsx` — `Calendar`, `RangeCalendar`,
       `DatePicker`, `DateField` on HeroUI, with the one adapter between `CalendarDate` and the
       product's stored string shape.
 - [ ] T034 [US2] Update the barrel `apps/web/src/components/ui/index.ts` with every new export.

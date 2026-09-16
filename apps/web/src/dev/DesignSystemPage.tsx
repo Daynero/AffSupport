@@ -6,6 +6,9 @@ import {
   Accordion,
   Alert,
   Badge,
+  Calendar,
+  RangeCalendar,
+  todayHere,
   Breadcrumb,
   Button,
   Card,
@@ -81,9 +84,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function DesignSystemPage() {
-  const [tab, setTab] = useState<'foundation' | 'buttons' | 'forms' | 'data' | 'overlays'>(
-    'foundation'
-  );
+  const [tab, setTab] = useState<
+    'foundation' | 'buttons' | 'forms' | 'dates' | 'data' | 'overlays'
+  >('foundation');
   const [segment, setSegment] = useState<'all' | 'free'>('all');
   const [radio, setRadio] = useState<'optimal' | 'custom'>('optimal');
   const [picto, setPicto] = useState<'fit' | 'fill' | 'blur'>('fit');
@@ -96,6 +99,8 @@ export default function DesignSystemPage() {
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['root']));
   const [openPanels, setOpenPanels] = useState<Set<string>>(new Set(['one']));
+  const [day, setDay] = useState(todayHere());
+  const [range, setRange] = useState({ start: todayHere(), end: todayHere().add({ days: 4 }) });
 
   return (
     <div className="ds-page">
@@ -116,6 +121,7 @@ export default function DesignSystemPage() {
           { id: 'foundation', label: 'Foundation' },
           { id: 'buttons', label: 'Buttons and badges' },
           { id: 'forms', label: 'Forms' },
+          { id: 'dates', label: 'Dates' },
           { id: 'data', label: 'Data' },
           { id: 'overlays', label: 'Overlays and feedback' }
         ]}
@@ -358,6 +364,24 @@ export default function DesignSystemPage() {
             <Slider min={0} max={100} defaultValue={40} aria-label="Quality" />
           </Row>
         </Section>
+      )}
+
+      {tab === 'dates' && (
+        <>
+          <Section title="Calendar">
+            <p className="prose">
+              One calendar for the whole product: a day, a range, the year jump, and the keyboard
+              that comes with them — arrows by day, PageUp and PageDown by month, Home and End to
+              the week&rsquo;s ends.
+            </p>
+            <Row title="one day">
+              <Calendar label="A day" value={day} onChange={setDay} />
+            </Row>
+            <Row title="a range">
+              <RangeCalendar label="A range" value={range} onChange={setRange} />
+            </Row>
+          </Section>
+        </>
       )}
 
       {tab === 'data' && (

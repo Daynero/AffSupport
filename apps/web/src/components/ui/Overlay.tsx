@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  type ReactNode,
-  type RefObject
-} from 'react';
+import { useCallback, useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu as HeroMenu } from '@heroui/react/menu';
 import { MenuItem as HeroMenuItem } from '@heroui/react/menu-item';

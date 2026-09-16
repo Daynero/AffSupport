@@ -2311,3 +2311,108 @@
 .ui-slider-keys {
   display: contents;
 }
+
+/* ============================================================
+   Calendar (024)
+
+   One calendar for the whole product. The grid, the arrows and the year jump
+   are React Aria's; the proportions are this product's — a dense working tool,
+   so a day is a 34px square rather than the roomy cell a marketing page wants.
+   ============================================================ */
+.ui-calendar {
+  display: grid;
+  gap: var(--space-2);
+  width: fit-content;
+}
+.ui-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.ui-calendar-heading {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-emphasis);
+  text-align: center;
+  cursor: pointer;
+}
+.ui-calendar-nav {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+}
+.ui-calendar-nav[data-hovered='true'] {
+  background: var(--color-neutral-surface-subtle);
+  color: var(--color-neutral-text);
+}
+.ui-calendar-grid {
+  border-collapse: collapse;
+}
+.ui-calendar-weekday {
+  padding-bottom: var(--space-1);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  text-transform: uppercase;
+}
+.ui-calendar-day {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-text);
+  font-size: var(--text-caption);
+  text-align: center;
+  vertical-align: middle;
+  cursor: pointer;
+  outline: none;
+}
+.ui-calendar-day[data-outside-month='true'] {
+  color: var(--color-neutral-text-muted);
+  opacity: 0.5;
+}
+.ui-calendar-day[data-hovered='true'] {
+  background: var(--color-neutral-surface-subtle);
+}
+/* Selection is violet — the product's "this one is chosen" — rather than the
+   honey that means "the one action this surface exists for". The library fills
+   a chosen day with a pseudo-element rather than a background, so recolouring
+   the cell alone leaves the fill accent-coloured, exactly as with the
+   checkbox. */
+.ui-calendar-day[data-selected='true'],
+.ui-calendar-day[data-selection-start='true'],
+.ui-calendar-day[data-selection-end='true'] {
+  background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
+}
+.ui-calendar-day[data-selected='true'][data-selection-start='false'][data-selection-end='false'] {
+  background: var(--color-secondary-soft);
+  color: var(--color-secondary-text);
+  border-radius: 0;
+}
+.ui-calendar-day[data-focus-visible='true'] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.ui-calendar-day[data-unavailable='true'],
+.ui-calendar-day[data-disabled='true'] {
+  color: var(--color-neutral-text-muted);
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.ui-calendar-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-neutral-border);
+}
