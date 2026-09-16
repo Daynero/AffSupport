@@ -262,12 +262,10 @@ export function TaskCard({
       <h3 ref={titleRef} title={titleClamped ? task.title : undefined}>
         {task.title}
       </h3>
+      {/* No brief, no line: "Add a description" on every card of a board read as a to-do list
+          of its own, the same grey words repeated down the page (024; Linear shows nothing). */}
       <div className="team-task-card-description">
-        {task.note ? (
-          <p ref={noteRef}>{task.note}</p>
-        ) : (
-          <span>{t('teamTaskDescriptionEmpty')}</span>
-        )}
+        {task.note && <p ref={noteRef}>{task.note}</p>}
         {(clamped || expanded) && (
           <button
             type="button"

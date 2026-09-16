@@ -157,3 +157,42 @@ describe('a board filtered by status', () => {
     expect(openId).toBe('a');
   });
 });
+
+describe('a task made from files', () => {
+  it('is made once, even when the effect runs twice, and again when the same files are sent again', async () => {
+    const api = client();
+    const asset = { ids: ['m1', 'm2'], name: 'clip та ще 1' };
+    const { rerender } = board(
+      api,
+      <React.StrictMode>
+        <TaskSpace teamId={TEAM_ID} client={api as never} createFromAsset={asset} />
+      </React.StrictMode>
+    );
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledTimes(1));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(api.createTask).toHaveBeenCalledTimes(1);
+
+    // The same selection sent a second time is a second request, not a repeat.
+    rerender(
+      <ToastProvider>
+        <TeamProvider
+          initialTeams={[
+            {
+              id: TEAM_ID,
+              name: 'Media buyers',
+              role: 'editor',
+              permissions: DEFAULT_ROLE_PERMISSIONS.editor,
+              connectionState: 'connected' as const
+            }
+          ]}
+          realtime={false}
+        >
+          <React.StrictMode>
+            <TaskSpace teamId={TEAM_ID} client={api as never} createFromAsset={{ ...asset }} />
+          </React.StrictMode>
+        </TeamProvider>
+      </ToastProvider>
+    );
+    await waitFor(() => expect(api.createTask).toHaveBeenCalledTimes(2));
+  });
+});

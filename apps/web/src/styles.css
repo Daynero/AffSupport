@@ -10425,9 +10425,6 @@ body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.team-task-card-description > span {
-  color: var(--color-text-muted);
-}
 .team-task-card-footer {
   min-height: 22px;
   color: var(--color-text-muted);

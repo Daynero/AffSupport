@@ -140,7 +140,12 @@ export function TaskSpace({
   const [accounts, setAccounts] = useState<TeamAccountSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  const [creatingAssetId, setCreatingAssetId] = useState<string | null>(null);
+  /*
+   * The request being served, by identity. It was the selection's ids in state: an effect run
+   * twice before that state landed (StrictMode does exactly this) made the task twice, and the
+   * same files sent again later were refused as "already being created".
+   */
+  const servedAssetRequest = useRef<object | null>(null);
   /**
    * A task created by the "Create task" button and not yet given anything of
    * its own. There is no separate form any more: the button makes the real
@@ -310,22 +315,21 @@ export function TaskSpace({
    */
   useEffect(() => {
     const materialIds = sourceMaterialIds(createFromAsset);
-    const selectionKey = materialIds.join(',') || null;
     if (
       !createFromAsset ||
       materialIds.length === 0 ||
       !can('edit') ||
-      creatingAssetId === selectionKey
+      servedAssetRequest.current === createFromAsset
     )
       return;
-    setCreatingAssetId(selectionKey);
+    servedAssetRequest.current = createFromAsset;
     void startTask({
       title: createFromAsset.name.slice(0, 160),
       materialIds,
       touched: true
     });
     onConsumedCreateFromAsset?.();
-  }, [can, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, startTask, t]);
+  }, [can, createFromAsset, onConsumedCreateFromAsset, startTask, t]);
 
   const bulkAnchor = useRef<HTMLDivElement>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
