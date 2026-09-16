@@ -20,6 +20,7 @@ import {
   releaseHandoffAttempts,
   sessionHandoffOrigin
 } from './session-handoff';
+import { beginGoogleSignIn, finishGoogleSignIn, isDirectGoogleCallback } from './google-sign-in';
 import { syncProfileLanguage } from '../i18n';
 
 export type AuthStatus =
@@ -52,7 +53,7 @@ export type AuthContextValue = AuthSnapshot & {
   loading: boolean;
   signInWithGoogle: (returnPath?: string | null) => Promise<void>;
   signInWithBetaFixture: () => Promise<void>;
-  completeOAuthCallback: (code: string) => Promise<void>;
+  completeOAuthCallback: (code: string, state?: string | null) => Promise<void>;
   adoptHandedOverSession: (accessToken: string, refreshToken: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (patch: EditableProfilePatch) => Promise<Profile>;
@@ -313,6 +314,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     rememberReturnPath(returnPath);
     setSnapshot(current => ({ ...current, status: 'authenticating', error: null }));
     try {
+      // Returning through the site keeps supabase.co out of the Google client
+      // (brand verification); without the function the provider redirect below
+      // is the same sign-in it always was.
+      const direct = await beginGoogleSignIn({
+        supabaseUrl: publicConfig.value.supabaseUrl,
+        publishableKey: publicConfig.value.supabasePublishableKey
+      });
+      if (direct) {
+        location.assign(direct);
+        return;
+      }
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -370,12 +382,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const completeOAuthCallback = useCallback(async (code: string) => {
+  const completeOAuthCallback = useCallback(async (code: string, state?: string | null) => {
     if (LOCAL_DEV_AUTH) return;
     const supabase = getSupabaseClient();
-    if (!supabase) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+    if (!supabase || !publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
     setSnapshot(current => ({ ...current, status: 'initializing', error: null }));
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const params = new URLSearchParams();
+    if (state) params.set('state', state);
+    const { error } = isDirectGoogleCallback(params)
+      ? await finishGoogleSignIn(
+          {
+            supabaseUrl: publicConfig.value.supabaseUrl,
+            publishableKey: publicConfig.value.supabasePublishableKey
+          },
+          code
+        ).then(
+          ({ idToken, nonce }) =>
+            supabase.auth.signInWithIdToken({ provider: 'google', token: idToken, nonce }),
+          () => ({ error: new Error('GOOGLE_SIGN_IN_EXCHANGE_FAILED') })
+        )
+      : await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       setSnapshot({ ...initialSnapshot, status: 'error', error: 'callback' });
       throw new Error('OAUTH_CALLBACK_FAILED');

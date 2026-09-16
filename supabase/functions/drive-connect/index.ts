@@ -33,6 +33,7 @@ import {
   type RootCandidateSnapshot
 } from './handler.ts';
 import { evaluateTeamProviderReadiness } from './readiness.ts';
+import { driveRedirectUri, type GoogleRedirectEnvironment } from '../_shared/google-redirect.ts';
 import {
   assertScopesAllowed,
   resolveDriveScopes,
@@ -158,9 +159,8 @@ async function startOAuth(
     p_request_origin: signals.requestOrigin ?? signals.siteUrl ?? 'http://127.0.0.1:5173',
     p_expires_at: expiresAt
   });
-  const callbackUrl =
-    Deno.env.get('GOOGLE_REDIRECT_URI') ??
-    `${supabaseUrl.replace(/\/$/, '')}/functions/v1/drive-oauth-callback`;
+  const callbackUrl = driveRedirectUri(googleRedirectEnvironment());
+  if (!callbackUrl) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: false });
   const authorizationUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authorizationUrl.searchParams.set('client_id', clientId);
   authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
@@ -271,6 +271,14 @@ function rootCapabilities(root: RootCandidateSnapshot, startPageToken: string) {
   };
 }
 
+function googleRedirectEnvironment(): GoogleRedirectEnvironment {
+  return {
+    SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
+    WISHLY_SITE_URL: Deno.env.get('WISHLY_SITE_URL'),
+    GOOGLE_REDIRECT_URI: Deno.env.get('GOOGLE_REDIRECT_URI')
+  };
+}
+
 function actionFromRequest(url: URL, body?: Record<string, unknown>): string {
   if (typeof body?.action === 'string') return body.action;
   const candidate = url.pathname.split('/').filter(Boolean).at(-1);
@@ -306,6 +314,8 @@ Deno.serve(async request => {
             GOOGLE_CLIENT_ID: Deno.env.get('GOOGLE_CLIENT_ID'),
             GOOGLE_CLIENT_SECRET: Deno.env.get('GOOGLE_CLIENT_SECRET'),
             GOOGLE_REDIRECT_URI: Deno.env.get('GOOGLE_REDIRECT_URI'),
+            SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
+            WISHLY_SITE_URL: Deno.env.get('WISHLY_SITE_URL'),
             RESEND_API_KEY: Deno.env.get('RESEND_API_KEY'),
             INVITE_EMAIL_FROM: Deno.env.get('INVITE_EMAIL_FROM'),
             TEAM_DIRECT_ADD_MODE: Deno.env.get('TEAM_DIRECT_ADD_MODE'),

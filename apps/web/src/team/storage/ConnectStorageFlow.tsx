@@ -5,6 +5,7 @@ import { trackTeamStorageConnected } from '../../analytics/service';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from '../drive/BetaStorageNotice';
 import { openFolderPicker, pickerConfig, type PickFolders } from './loadPicker';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
+import { DriveDataUseNotice } from '../drive/DriveDataUseNotice';
 import { Button, Card, ErrorState, uiClasses } from '../../components/ui/index';
 
 /**
@@ -151,6 +152,7 @@ export function ConnectStorageFlow({
     >
       {/* Said once, before the chooser, instead of as a step after it. */}
       <p className="team-connect-acl-note">{t('teamDriveIndependentAcl')}</p>
+      <DriveDataUseNotice />
       <BetaStorageNotice />
 
       {!unavailable && !authorized && !authorizationUrl && (

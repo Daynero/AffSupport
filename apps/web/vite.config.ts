@@ -1,8 +1,12 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { PRODUCTION_SITE_ORIGIN } from '../../packages/shared/src/release';
+import { supportEmail } from './src/lib/support';
+import { staticPublicPages } from './src/static-public-pages';
 
 function currentRevision() {
   if (process.env.VITE_WEB_REVISION) return process.env.VITE_WEB_REVISION;
@@ -25,8 +29,26 @@ function siteOriginPlugin(): Plugin {
   };
 }
 
+/** Writes the crawler-readable copies of `/`, `/privacy` and `/terms` (see src/static-public-pages.ts). */
+function staticPublicPagesPlugin(): Plugin {
+  let outDir = '';
+  return {
+    name: 'soty-static-public-pages',
+    apply: 'build',
+    configResolved(config) {
+      outDir = path.resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      const index = readFileSync(path.join(outDir, 'index.html'), 'utf8');
+      for (const page of staticPublicPages(index, supportEmail)) {
+        writeFileSync(path.join(outDir, page.fileName), page.html);
+      }
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), siteOriginPlugin()],
+  plugins: [react(), tailwindcss(), siteOriginPlugin(), staticPublicPagesPlugin()],
   envDir: '../..',
   define: { 'import.meta.env.VITE_WEB_REVISION': JSON.stringify(currentRevision()) },
   server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:43117' } },
@@ -52,7 +74,11 @@ export default defineConfig({
           // The component inventory is imported by every screen, so the library
           // behind it would otherwise land in whichever route chunk got there
           // first and be re-downloaded by the next one.
-          if (/[\\/]node_modules[\\/](@heroui|react-aria|react-aria-components|@react-aria|@react-stately|@react-types|@internationalized|tailwind-variants|tailwind-merge)[\\/]/u.test(id)) {
+          if (
+            /[\\/]node_modules[\\/](@heroui|react-aria|react-aria-components|@react-aria|@react-stately|@react-types|@internationalized|tailwind-variants|tailwind-merge)[\\/]/u.test(
+              id
+            )
+          ) {
             return 'heroui';
           }
           return undefined;
