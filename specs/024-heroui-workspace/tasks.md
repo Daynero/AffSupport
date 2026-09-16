@@ -618,18 +618,18 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ## Phase 9C: User Story 12 — a task reads as a brief (Priority: P1)
 
-- [ ] T162 [US12] Make `.team-task-editor` an inline-size container and lay it out by container
+- [x] T162 [US12] Make `.team-task-editor` an inline-size container and lay it out by container
       query: two columns (brief | work) at ≥ 820 px, one column below; the dialog grows to `xl`.
-- [ ] T163 [US12] Reorder the editor: title; one facts row (status · assignee · date); the brief
+- [x] T163 [US12] Reorder the editor: title; one facts row (status · assignee · date); the brief
       with `field-sizing: content` and a three-row minimum; one compact progress row (slider +
       maximum + save-as-default with a label); right column materials → accounts → tags.
-- [ ] T164 [US12] `TaskStatusControl`: segmented form and `Select` form, one shown by container
+- [x] T164 [US12] `TaskStatusControl`: segmented form and `Select` form, one shown by container
       query; labels never wrap.
-- [ ] T165 [US12] Replace the "Task details" heading with the save state and an editor menu
+- [x] T165 [US12] **Undo withdrawn (021 R3): confirms instead.** The heading's menu holds Delete; the assignee's invite became the select's last option. Original: Replace the "Task details" heading with the save state and an editor menu
       holding Delete; deleting closes the editor and offers Undo that re-creates the task with its
       fields and attachments. Remove the mid-form delete button.
-- [ ] T166 [US12] Fold the attachments hint paragraph into the drop zone's own text.
-- [ ] T167 [P] [US12] Test: `tests/task-editor-layout.test.tsx` — order of sections, no Delete
+- [x] T166 [US12] Fold the attachments hint paragraph into the drop zone's own text.
+- [x] T167 [P] [US12] Test: `tests/task-editor-layout.test.tsx` — order of sections, no Delete
       button outside the menu, Undo re-creates, the status select exists for narrow containers.
 
 ---

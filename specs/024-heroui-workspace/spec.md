@@ -480,7 +480,7 @@ wraps inside itself.
 5. **Given** the maximum and the progress, **When** they are shown, **Then** they are one compact
    row.
 6. **Given** deleting a task, **When** it is wanted, **Then** it is in the editor's menu and
-   offers Undo.
+   confirms, naming what goes.
 
 ---
 
@@ -814,7 +814,10 @@ Measured by a read of every surface (counts assume an owner, a ready space, a wi
 - **FR-086**: No control's label MUST wrap inside the control; a segmented control without room
   MUST become a select.
 - **FR-087**: The brief field MUST size to its content.
-- **FR-088**: Deleting a task MUST live in the editor's menu and MUST offer Undo.
+- **FR-088**: Deleting a task MUST live in the editor's menu and MUST confirm with a verb naming
+  the consequence. (Undo was specified and withdrawn: a task cannot be re-created with its
+  attachments, accounts and progress, and 021 finding R3 already chose a confirmation over an undo
+  that silently restores less.)
 
 ### Functional Requirements — solo (US13)
 

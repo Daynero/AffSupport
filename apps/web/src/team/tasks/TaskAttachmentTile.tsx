@@ -21,6 +21,22 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 import { cachedPreview } from '../preview-url-cache';
 import { MaterialPreview } from '../preview/MaterialPreview';
+import { KindIcon } from '../explorer/KindIcon';
+import type { TeamMaterialRowKind } from '@video-compressor/shared';
+
+/** Kinds that have a picture to wait for; the rest are drawn as their glyph. */
+const HAS_PICTURE = new Set(['video', 'image', 'landing']);
+
+function kindOfCategory(category: TeamTaskAttachmentSummary['category']): TeamMaterialRowKind {
+  switch (category) {
+    case 'transcript':
+      return 'transcript';
+    case 'archive':
+      return 'archive';
+    default:
+      return 'other';
+  }
+}
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -427,7 +443,21 @@ export function TaskAttachmentTile({
         )}
         {(!rangeUrl || (!thumbnailUrl && attachment.category === 'video' && !videoReady)) && (
           <span className="team-task-attachment-fallback">
-            {unavailable ? t('teamTaskPreviewUnavailable') : t('teamTaskPreviewLoading')}
+            {/* A file with no picture of itself — a transcript, a document, a
+                folder — shows what it is, not an apology (024, US14). The
+                sentence is kept for a picture that should have come and did
+                not. */}
+            {unavailable &&
+            attachment.availability === 'ready' &&
+            !HAS_PICTURE.has(attachment.category ?? '') ? (
+              <KindIcon
+                kind={attachment.kind === 'folder' ? 'folder' : kindOfCategory(attachment.category)}
+              />
+            ) : unavailable ? (
+              t('teamTaskPreviewUnavailable')
+            ) : (
+              t('teamTaskPreviewLoading')
+            )}
           </span>
         )}
       </div>

@@ -15,6 +15,7 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  DropdownMenu,
   ErrorState,
   FormField,
   IconButton,
@@ -23,6 +24,8 @@ import {
   Select
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
   attachTaskMaterialsInChunks,
   TaskAttachmentPicker,
@@ -93,6 +96,8 @@ export interface TaskEditorClient
 
 const defaultClient: TaskEditorClient = { ...teamApi, uploadFile: uploadTeamFile };
 const TASK_PROGRESS_MAX = 10_000;
+/** The assignee list's last line, which invites rather than assigns. */
+const INVITE_OPTION = '__invite__';
 
 function uniqueAttachments(
   current: TeamTaskAttachmentSummary[],
@@ -317,6 +322,8 @@ export function TaskEditor({
    */
   const [error, setError] = useState<'read' | 'write' | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editorMenuOpen, setEditorMenuOpen] = useState(false);
+  const editorMenuTrigger = useRef<HTMLButtonElement>(null);
   /**
    * The video whose product catalog is open over this task, if any.
    *
@@ -912,16 +919,14 @@ export function TaskEditor({
         onClose={requestClose}
         closeLabel={t('teamCancel')}
         initialFocus="#team-task-title"
-        size="lg"
+        size="xl"
       >
-        <div className="team-task-editor">
-          <form
-            className="team-dialog-form"
-            // Nothing submits any more; Enter in a field must not reload the page.
-            onSubmit={event => event.preventDefault()}
-          >
+        <div className="team-task-editor-frame">
+          <div className="team-task-editor">
             <header className="team-task-editor-heading">
-              <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
+              <h2 id="team-task-editor-title" className="visually-hidden">
+                {t('teamTaskEditTitle')}
+              </h2>
               {/* Quiet when it works, loud when it does not. A save that
                   succeeded is a receipt that fades; a save that failed keeps
                   the words on screen and offers the retry, because the one
@@ -944,394 +949,413 @@ export function TaskEditor({
                   </Button>
                 </small>
               )}
+              {/* Deleting lives in the editor's own menu (024, FR-088): a red
+                  button in the middle of the form was the loudest thing on a
+                  screen about a brief. It still confirms — a task cannot be
+                  given back whole, so an Undo would be a quieter lie (021, R3). */}
+              {canEdit && onDelete && (
+                <>
+                  <IconButton
+                    ref={editorMenuTrigger}
+                    className="team-task-editor-menu"
+                    size="sm"
+                    variant="ghost"
+                    label={t('teamTaskEditorMenu')}
+                    onClick={() => setEditorMenuOpen(true)}
+                  >
+                    <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </IconButton>
+                  <DropdownMenu
+                    open={editorMenuOpen}
+                    onClose={() => setEditorMenuOpen(false)}
+                    anchor={editorMenuTrigger}
+                    label={t('teamTaskEditorMenu')}
+                    items={[
+                      {
+                        id: 'delete',
+                        label: t('teamTaskDelete'),
+                        destructive: true,
+                        icon: (
+                          <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                        ),
+                        onSelect: () => setConfirmingDelete(true)
+                      }
+                    ]}
+                  />
+                </>
+              )}
             </header>
-            {/* A viewer sees a dialog of dead fields and no reason for it. The
+            <form
+              className="team-dialog-form team-task-editor-brief"
+              // Nothing submits any more; Enter in a field must not reload the page.
+              onSubmit={event => event.preventDefault()}
+            >
+              {/* A viewer sees a dialog of dead fields and no reason for it. The
                 fields stay — reading them is the point — and the boundary is
                 said once, at the top, in the product's own words (FR-004). */}
-            {!canEdit && <PermissionState message={t('teamTaskReadOnly')} />}
-            <section className="team-task-editor-status" aria-labelledby="team-task-status-title">
-              <span id="team-task-status-title">{t('teamTaskStatus')}</span>
-              <TaskStatusControl
-                value={status}
-                disabled={!canEdit || savingStatus}
-                onChange={next => void saveStatus(next)}
-              />
-              {/* The date the task is for, where the card shows it: at the end
-                  of the status line. It saves with the form, like the title. */}
-              <TaskDateField
-                value={teamTaskDate({ dateOn, createdAt: task.createdAt })}
-                isCustom={dateOn !== null}
-                createdOn={teamTaskDate({ dateOn: null, createdAt: task.createdAt })}
-                disabled={!canEdit}
-                onChange={next => {
-                  setDateOn(next);
-                  if (canEdit) autosave.save({ dateOn: next });
-                }}
-              />
-            </section>
-            <FormField label={t('teamTaskTitle')} htmlFor="team-task-title" required>
-              <Input
-                id="team-task-title"
-                value={title}
-                maxLength={160}
-                required
-                disabled={!canEdit}
-                /* A brand-new task opens with a stand-in name; selecting it
+              {!canEdit && <PermissionState message={t('teamTaskReadOnly')} />}
+              <FormField label={t('teamTaskTitle')} htmlFor="team-task-title" required>
+                <Input
+                  id="team-task-title"
+                  value={title}
+                  maxLength={160}
+                  required
+                  disabled={!canEdit}
+                  /* A brand-new task opens with a stand-in name; selecting it
                    means the first thing typed replaces it instead of landing
                    after it. */
-                onFocus={event => {
-                  if (event.target.value === t('teamTaskUntitled')) event.target.select();
-                }}
-                onChange={event => {
-                  setTitle(event.target.value);
-                  if (canEdit) autosave.saveSoon({ title: event.target.value });
-                }}
-                onBlur={autosave.flush}
-              />
-            </FormField>
-            <div className="team-task-editor-meta">
-              <FormField
-                className="team-task-assignee-field"
-                label={t('teamTaskAssignee')}
-                htmlFor="team-task-assignee"
-              >
+                  onFocus={event => {
+                    if (event.target.value === t('teamTaskUntitled')) event.target.select();
+                  }}
+                  onChange={event => {
+                    setTitle(event.target.value);
+                    if (canEdit) autosave.saveSoon({ title: event.target.value });
+                  }}
+                  onBlur={autosave.flush}
+                />
+              </FormField>
+              {/* What the task is, read across one line (024, FR-085): its state,
+                who has it, when it is for. */}
+              <div className="team-task-editor-facts">
+                <TaskStatusControl
+                  adaptive
+                  value={status}
+                  disabled={!canEdit || savingStatus}
+                  onChange={next => void saveStatus(next)}
+                />
+                {/* Who has it: the select says "not assigned" by itself, so it needs no
+                    caption beside it, and the person you want may not be in the space yet —
+                    inviting them is the list's last line rather than a second button (024,
+                    FR-031, US14). */}
                 <Select
                   id="team-task-assignee"
+                  className="team-task-assignee-select"
+                  aria-label={t('teamTaskAssignee')}
                   value={assigneeId}
                   disabled={!canEdit}
                   placeholder={t('teamTaskUnassigned')}
-                  options={members.map(member => ({
-                    value: member.userId,
-                    label: member.displayName ?? member.email ?? member.userId
-                  }))}
+                  options={[
+                    ...members.map(member => ({
+                      value: member.userId,
+                      label: member.displayName ?? member.email ?? member.userId
+                    })),
+                    ...(canEdit && can('manage_members') && client.createInvitation
+                      ? [{ value: INVITE_OPTION, label: `+ ${t('teamTaskInviteSomeone')}` }]
+                      : [])
+                  ]}
                   onChange={next => {
+                    if (next === INVITE_OPTION) {
+                      setInviting(true);
+                      return;
+                    }
                     setAssigneeId(next);
                     if (canEdit) autosave.save({ assigneeId: next || null });
                   }}
                 />
-                {/* The person you want to give this to may not be in the space
-                    yet. Sending them here used to mean leaving the task, going
-                    to the members settings, inviting, and finding the task
-                    again (024, FR-071). */}
-                {canEdit && can('manage_members') && client.createInvitation && (
-                  <Button
-                    size="sm"
-                    color="neutral"
-                    variant="ghost"
-                    onClick={() => setInviting(true)}
-                  >
-                    {t('teamTaskInviteSomeone')}
-                  </Button>
-                )}
-              </FormField>
-              <FormField
-                className="team-task-progress-max-field"
-                label={t('teamTaskProgressMax')}
-                htmlFor="team-task-progress-max"
-              >
-                <div className="team-task-progress-max-input">
-                  <Input
-                    id="team-task-progress-max"
-                    inputMode="numeric"
-                    type="number"
-                    min={1}
-                    max={TASK_PROGRESS_MAX}
-                    value={progressMaxInput}
-                    disabled={!canEdit}
-                    onChange={event => updateProgressMax(event.target.value)}
-                    onBlur={() => {
-                      if (!/^\d+$/u.test(progressMaxInput))
-                        setProgressMaxInput(String(progressMax));
-                    }}
-                  />
-                  {canEdit && defaultMax !== null && progressMax !== defaultMax && (
-                    <IconButton
-                      className="team-task-progress-max-save"
-                      size="sm"
-                      label={t('teamTaskProgressMaxSaveDefault')}
-                      disabled={savingDefaultMax}
-                      onClick={async () => {
-                        setSavingDefaultMax(true);
-                        try {
-                          await teamApi.setTaskProgressMaxDefault(progressMax);
-                          setDefaultMax(progressMax);
-                          push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
-                        } catch {
-                          push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
-                        } finally {
-                          setSavingDefaultMax(false);
-                        }
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                        <path
-                          d="M5 3h11l3 3v15H5z"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M8 3v6h7V3M8 21v-6h8v6"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </IconButton>
-                  )}
-                </div>
-              </FormField>
-            </div>
-            <TaskProgressScale
-              value={progressValue}
-              max={progressMax}
-              disabled={!canEdit}
-              label={t('teamTaskProgressScale')}
-              onChange={setProgressValue}
-              onCommit={next => {
-                if (canEdit) progressWriter.send({ progressValue: next, progressMax });
-              }}
-            />
-            <FormField label={t('teamTaskDescription')} htmlFor="team-task-description">
-              <Textarea
-                id="team-task-description"
-                className="team-task-description-input"
-                rows={12}
-                value={note}
-                maxLength={2_000}
-                disabled={!canEdit}
-                onChange={event => {
-                  setNote(event.target.value);
-                  if (canEdit) autosave.saveSoon({ note: event.target.value || null });
-                }}
-                onBlur={autosave.flush}
-              />
-            </FormField>
-            {error && (
-              <ErrorState
-                message={t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
-              />
-            )}
-            {canEdit && (
-              <div className="team-dialog-actions">
-                {/* Deleting a task was the one lifecycle step with no way to
-                    take it — a finished or mistaken task stayed on the board
-                    forever (finding R1). */}
-                {onDelete && (
-                  <Button color="error" variant="soft" onClick={() => setConfirmingDelete(true)}>
-                    {t('teamTaskDelete')}
-                  </Button>
-                )}
-              </div>
-            )}
-          </form>
-
-          {/* The accounts this task is about (017). Written at once, like
-              status: a tag is a fact about the task, not a draft of one. */}
-          <TaskAgentTagsEditor
-            teamId={teamId}
-            taskId={task.id}
-            taskTitle={title}
-            tags={task.agents}
-            canEdit={canEdit}
-            client={client}
-            onTagsChange={agents => {
-              setTask(current => ({ ...current, agents }));
-              onTagsChange?.(agents);
-            }}
-          />
-          {/* The team's own tags (018), from the dictionary in settings. */}
-          <TaskLabelsEditor
-            teamId={teamId}
-            taskId={task.id}
-            labels={task.labels}
-            available={labels}
-            canEdit={canEdit}
-            client={client}
-            onLabelsChange={next => {
-              setTask(current => ({ ...current, labels: next }));
-              onLabelsChange?.(next);
-            }}
-            // A tag made from inside the task belongs to the space, so the
-            // dictionary the board and the settings read has to learn it too.
-            onLabelCreated={onLabelCreated}
-          />
-          <RestitchDeliveryNotices
-            states={restitch.states}
-            onConfigure={can('manage_metadata') ? openRestitchSettings : null}
-          />
-          {/* The whole section takes a drop, not a small strip inside it: a
-              person aims at "the attachments", and a target the size of the
-              thing it is named after cannot be missed. */}
-          <section
-            className={`team-task-attachments${dropping ? ' is-dropping' : ''}`}
-            aria-labelledby="team-task-attachments-title"
-            onDragEnter={event => {
-              if (!canDrop(event)) return;
-              event.preventDefault();
-              dropDepth.current += 1;
-              setDropping(true);
-            }}
-            onDragOver={event => {
-              if (!canDrop(event)) return;
-              // Without this the browser opens the file instead, which loses
-              // the task and everything typed into it.
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'copy';
-            }}
-            onDragLeave={() => {
-              // Counted, not toggled: dragging over a tile inside the section
-              // fires `leave` for the section itself.
-              dropDepth.current = Math.max(0, dropDepth.current - 1);
-              if (dropDepth.current === 0) setDropping(false);
-            }}
-            onDrop={event => {
-              if (!canDrop(event)) return;
-              event.preventDefault();
-              dropDepth.current = 0;
-              setDropping(false);
-              // Read synchronously: `webkitGetAsEntry` is only valid for the
-              // duration of the event, and it is the only way to tell a folder
-              // from a file before trying to send it.
-              /*
-               * Entries, not `files`: a folder is in `files` too, as a
-               * zero-byte record that would upload as an empty file of that
-               * name. The entries are the only way to walk into it, and they
-               * are only valid for the length of this event.
-               */
-              const dropped = droppedEntries(event.dataTransfer);
-              void uploadDropped(dropped.files, dropped.folders);
-            }}
-          >
-            <div className="team-task-attachments-heading">
-              <div>
-                <h3 id="team-task-attachments-title">{t('teamTaskAttachments')}</h3>
-                <p>
-                  {canEdit && can('upload')
-                    ? t('teamTaskAttachmentsDropHint')
-                    : t('teamTaskAttachmentsHint')}
-                </p>
-              </div>
-              <Badge size="sm">{t('teamTaskAttachmentsCount', { count: attachmentCount })}</Badge>
-            </div>
-
-            {/* The shape of what is coming, so the list does not jump when it
-                lands — and the sentence stays, because a bare shimmer is
-                indistinguishable from a stuck screen. */}
-            {loading && <LabeledSkeleton label="teamTaskLoadingAttachments" rows={2} />}
-            <div className="team-task-attachment-grid">
-              {visibleAttachments.map(attachment => (
-                <TaskAttachmentTile
-                  key={attachment.id}
-                  teamId={teamId}
-                  attachment={attachment}
-                  client={client}
-                  isDraft={attachment.id.startsWith('draft:')}
-                  onDetach={canEdit ? () => void detach(attachment) : undefined}
-                  onReveal={() => void revealAttachment(attachment)}
-                  onDownloadRestitched={
-                    can('download') ? () => deliverRestitched(attachment) : undefined
-                  }
-                  onProductCatalog={
-                    attachment.category === 'video' && !attachment.id.startsWith('draft:')
-                      ? () =>
-                          setCatalogFor({
-                            id: attachment.materialId,
-                            name: attachment.name
-                          })
-                      : undefined
-                  }
-                  onTranscribe={
-                    spaceQueue && attachment.category === 'video'
-                      ? () =>
-                          void findParentFolder(attachment).then(folderId =>
-                            spaceQueue.enqueueTranscriptions([
-                              {
-                                id: attachment.materialId,
-                                name: attachment.name,
-                                folderId: folderId ?? null,
-                                attachTo: { taskId: task.id }
-                              }
-                            ])
-                          )
-                      : undefined
-                  }
-                  onCompress={
-                    spaceQueue && attachment.category === 'video'
-                      ? () =>
-                          void findParentFolder(attachment).then(folderId =>
-                            setCompressing({
-                              id: attachment.materialId,
-                              name: attachment.name,
-                              folderId: folderId ?? null
-                            })
-                          )
-                      : undefined
-                  }
-                  onProcess={() =>
-                    void findParentFolder(attachment).then(folderId =>
-                      setProcessing({
-                        material: {
-                          id: attachment.materialId,
-                          name: attachment.name,
-                          category: attachment.category
-                        },
-                        folderId: folderId ?? null
-                      })
-                    )
-                  }
-                  browseClient={client}
-                  companionsRevision={companionsRevision}
-                  restitching={restitch.states[attachment.materialId]?.kind === 'running'}
+                <TaskDateField
+                  value={teamTaskDate({ dateOn, createdAt: task.createdAt })}
+                  isCustom={dateOn !== null}
+                  createdOn={teamTaskDate({ dateOn: null, createdAt: task.createdAt })}
+                  disabled={!canEdit}
+                  onChange={next => {
+                    setDateOn(next);
+                    if (canEdit) autosave.save({ dateOn: next });
+                  }}
                 />
-              ))}
-              {uploads.map(item => (
-                <div key={item.id} className="team-task-attachment is-uploading">
-                  <div className="team-task-attachment-preview">
-                    <span className="team-task-attachment-fallback">
-                      {t('teamTaskAttachmentUploadingShare', {
-                        percent: item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0
-                      })}
-                    </span>
-                  </div>
-                  <div className="team-task-attachment-caption">
-                    <div className="team-task-attachment-caption-heading">
-                      <div>
-                        <strong title={item.name}>{item.name}</strong>
-                        <small>{t('teamTaskAttachmentUploadingLabel')}</small>
-                      </div>
-                    </div>
-                    <Progress
-                      className="team-task-attachment-progress"
-                      size="xs"
-                      label={t('teamTaskAttachmentUploading', { name: item.name })}
-                      value={item.total > 0 ? (item.sent / item.total) * 100 : 0}
+              </div>
+              <FormField label={t('teamTaskDescription')} htmlFor="team-task-description">
+                <Textarea
+                  id="team-task-description"
+                  className="team-task-description-input"
+                  // Short when the brief is short; it grows as it is written (FR-087).
+                  rows={3}
+                  value={note}
+                  maxLength={2_000}
+                  disabled={!canEdit}
+                  onChange={event => {
+                    setNote(event.target.value);
+                    if (canEdit) autosave.saveSoon({ note: event.target.value || null });
+                  }}
+                  onBlur={autosave.flush}
+                />
+              </FormField>
+              <div className="team-task-editor-progress">
+                <TaskProgressScale
+                  value={progressValue}
+                  max={progressMax}
+                  disabled={!canEdit}
+                  label={t('teamTaskProgressScale')}
+                  onChange={setProgressValue}
+                  onCommit={next => {
+                    if (canEdit) progressWriter.send({ progressValue: next, progressMax });
+                  }}
+                />
+                <FormField
+                  className="team-task-progress-max-field"
+                  label={t('teamTaskProgressMax')}
+                  htmlFor="team-task-progress-max"
+                >
+                  <div className="team-task-progress-max-input">
+                    <Input
+                      id="team-task-progress-max"
+                      inputMode="numeric"
+                      type="number"
+                      min={1}
+                      max={TASK_PROGRESS_MAX}
+                      value={progressMaxInput}
+                      disabled={!canEdit}
+                      onChange={event => updateProgressMax(event.target.value)}
+                      onBlur={() => {
+                        if (!/^\d+$/u.test(progressMaxInput))
+                          setProgressMaxInput(String(progressMax));
+                      }}
                     />
+                    {canEdit && defaultMax !== null && progressMax !== defaultMax && (
+                      <Button
+                        className="team-task-progress-max-save"
+                        size="sm"
+                        color="neutral"
+                        variant="ghost"
+                        disabled={savingDefaultMax}
+                        onClick={async () => {
+                          setSavingDefaultMax(true);
+                          try {
+                            await teamApi.setTaskProgressMaxDefault(progressMax);
+                            setDefaultMax(progressMax);
+                            push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
+                          } catch {
+                            push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
+                          } finally {
+                            setSavingDefaultMax(false);
+                          }
+                        }}
+                      >
+                        {t('teamTaskProgressMaxSaveDefault')}
+                      </Button>
+                    )}
                   </div>
-                </div>
-              ))}
-              {canEdit && (
-                <TaskAttachmentPicker
-                  teamId={teamId}
-                  client={client}
-                  attachedMaterialIds={visibleMaterialIds}
-                  onAdd={addAttachments}
+                </FormField>
+              </div>
+              {error && (
+                <ErrorState
+                  message={t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
                 />
               )}
-            </div>
-            {persistedAttachments.length < task.attachmentCount && (
-              <Button
-                color="neutral"
-                variant="outline"
-                loading={loadingMore}
-                onClick={() => void loadMore()}
+            </form>
+            {/* What the task is about: its materials first, because they are the work. */}
+            <div className="team-task-editor-work">
+              <RestitchDeliveryNotices
+                states={restitch.states}
+                onConfigure={can('manage_metadata') ? openRestitchSettings : null}
+              />
+              {/* The whole section takes a drop, not a small strip inside it: a
+              person aims at "the attachments", and a target the size of the
+              thing it is named after cannot be missed. */}
+              <section
+                className={`team-task-attachments${dropping ? ' is-dropping' : ''}`}
+                aria-labelledby="team-task-attachments-title"
+                onDragEnter={event => {
+                  if (!canDrop(event)) return;
+                  event.preventDefault();
+                  dropDepth.current += 1;
+                  setDropping(true);
+                }}
+                onDragOver={event => {
+                  if (!canDrop(event)) return;
+                  // Without this the browser opens the file instead, which loses
+                  // the task and everything typed into it.
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'copy';
+                }}
+                onDragLeave={() => {
+                  // Counted, not toggled: dragging over a tile inside the section
+                  // fires `leave` for the section itself.
+                  dropDepth.current = Math.max(0, dropDepth.current - 1);
+                  if (dropDepth.current === 0) setDropping(false);
+                }}
+                onDrop={event => {
+                  if (!canDrop(event)) return;
+                  event.preventDefault();
+                  dropDepth.current = 0;
+                  setDropping(false);
+                  // Read synchronously: `webkitGetAsEntry` is only valid for the
+                  // duration of the event, and it is the only way to tell a folder
+                  // from a file before trying to send it.
+                  /*
+                   * Entries, not `files`: a folder is in `files` too, as a
+                   * zero-byte record that would upload as an empty file of that
+                   * name. The entries are the only way to walk into it, and they
+                   * are only valid for the length of this event.
+                   */
+                  const dropped = droppedEntries(event.dataTransfer);
+                  void uploadDropped(dropped.files, dropped.folders);
+                }}
               >
-                {t('teamTaskLoadMoreAttachments')}
-              </Button>
-            )}
-          </section>
+                <div className="team-task-attachments-heading">
+                  <div>
+                    <h3 id="team-task-attachments-title">{t('teamTaskAttachments')}</h3>
+                    {/* Said while there is nothing yet; once there are files the
+                    tiles and the picker speak for themselves (024, US14). */}
+                    {visibleAttachments.length === 0 && (
+                      <p>
+                        {canEdit && can('upload')
+                          ? t('teamTaskAttachmentsDropHint')
+                          : t('teamTaskAttachmentsHint')}
+                      </p>
+                    )}
+                  </div>
+                  <Badge size="sm">
+                    {t('teamTaskAttachmentsCount', { count: attachmentCount })}
+                  </Badge>
+                </div>
+
+                {/* The shape of what is coming, so the list does not jump when it
+                lands — and the sentence stays, because a bare shimmer is
+                indistinguishable from a stuck screen. */}
+                {loading && <LabeledSkeleton label="teamTaskLoadingAttachments" rows={2} />}
+                <div className="team-task-attachment-grid">
+                  {visibleAttachments.map(attachment => (
+                    <TaskAttachmentTile
+                      key={attachment.id}
+                      teamId={teamId}
+                      attachment={attachment}
+                      client={client}
+                      isDraft={attachment.id.startsWith('draft:')}
+                      onDetach={canEdit ? () => void detach(attachment) : undefined}
+                      onReveal={() => void revealAttachment(attachment)}
+                      onDownloadRestitched={
+                        can('download') ? () => deliverRestitched(attachment) : undefined
+                      }
+                      onProductCatalog={
+                        attachment.category === 'video' && !attachment.id.startsWith('draft:')
+                          ? () =>
+                              setCatalogFor({
+                                id: attachment.materialId,
+                                name: attachment.name
+                              })
+                          : undefined
+                      }
+                      onTranscribe={
+                        spaceQueue && attachment.category === 'video'
+                          ? () =>
+                              void findParentFolder(attachment).then(folderId =>
+                                spaceQueue.enqueueTranscriptions([
+                                  {
+                                    id: attachment.materialId,
+                                    name: attachment.name,
+                                    folderId: folderId ?? null,
+                                    attachTo: { taskId: task.id }
+                                  }
+                                ])
+                              )
+                          : undefined
+                      }
+                      onCompress={
+                        spaceQueue && attachment.category === 'video'
+                          ? () =>
+                              void findParentFolder(attachment).then(folderId =>
+                                setCompressing({
+                                  id: attachment.materialId,
+                                  name: attachment.name,
+                                  folderId: folderId ?? null
+                                })
+                              )
+                          : undefined
+                      }
+                      onProcess={() =>
+                        void findParentFolder(attachment).then(folderId =>
+                          setProcessing({
+                            material: {
+                              id: attachment.materialId,
+                              name: attachment.name,
+                              category: attachment.category
+                            },
+                            folderId: folderId ?? null
+                          })
+                        )
+                      }
+                      browseClient={client}
+                      companionsRevision={companionsRevision}
+                      restitching={restitch.states[attachment.materialId]?.kind === 'running'}
+                    />
+                  ))}
+                  {uploads.map(item => (
+                    <div key={item.id} className="team-task-attachment is-uploading">
+                      <div className="team-task-attachment-preview">
+                        <span className="team-task-attachment-fallback">
+                          {t('teamTaskAttachmentUploadingShare', {
+                            percent: item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0
+                          })}
+                        </span>
+                      </div>
+                      <div className="team-task-attachment-caption">
+                        <div className="team-task-attachment-caption-heading">
+                          <div>
+                            <strong title={item.name}>{item.name}</strong>
+                            <small>{t('teamTaskAttachmentUploadingLabel')}</small>
+                          </div>
+                        </div>
+                        <Progress
+                          className="team-task-attachment-progress"
+                          size="xs"
+                          label={t('teamTaskAttachmentUploading', { name: item.name })}
+                          value={item.total > 0 ? (item.sent / item.total) * 100 : 0}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {canEdit && (
+                    <TaskAttachmentPicker
+                      teamId={teamId}
+                      client={client}
+                      attachedMaterialIds={visibleMaterialIds}
+                      onAdd={addAttachments}
+                    />
+                  )}
+                </div>
+                {persistedAttachments.length < task.attachmentCount && (
+                  <Button
+                    color="neutral"
+                    variant="outline"
+                    loading={loadingMore}
+                    onClick={() => void loadMore()}
+                  >
+                    {t('teamTaskLoadMoreAttachments')}
+                  </Button>
+                )}
+              </section>
+              {/* The accounts this task is about (017). Written at once, like
+              status: a tag is a fact about the task, not a draft of one. */}
+              <TaskAgentTagsEditor
+                teamId={teamId}
+                taskId={task.id}
+                taskTitle={title}
+                tags={task.agents}
+                canEdit={canEdit}
+                client={client}
+                onTagsChange={agents => {
+                  setTask(current => ({ ...current, agents }));
+                  onTagsChange?.(agents);
+                }}
+              />
+              {/* The team's own tags (018), from the dictionary in settings. */}
+              <TaskLabelsEditor
+                teamId={teamId}
+                taskId={task.id}
+                labels={task.labels}
+                available={labels}
+                canEdit={canEdit}
+                client={client}
+                onLabelsChange={next => {
+                  setTask(current => ({ ...current, labels: next }));
+                  onLabelsChange?.(next);
+                }}
+                // A tag made from inside the task belongs to the space, so the
+                // dictionary the board and the settings read has to learn it too.
+                onLabelCreated={onLabelCreated}
+              />
+            </div>
+          </div>
         </div>
       </Modal>
       {/* The one thing still worth a dialog: somebody else changed this task
