@@ -96,7 +96,13 @@ export function TaskLabelsEditor({
     }
   };
 
-  const toggle = (label: TeamTaskLabelRef, next: boolean) =>
+  /*
+   * A pick closes the list (the owner, 024): a tag is hung one at a time, and the
+   * list left open after the press read as the press not having taken.
+   */
+  const toggle = (label: TeamTaskLabelRef, next: boolean) => {
+    setOpen(false);
+    trigger.current?.focus();
     void run(async () => {
       onLabelsChange(
         next
@@ -104,6 +110,7 @@ export function TaskLabelsEditor({
           : await client.detachTaskLabel({ teamId, taskId, labelId: label.id })
       );
     });
+  };
 
   /**
    * The word typed into the picker, made into a tag and hung on the task.
@@ -119,6 +126,7 @@ export function TaskLabelsEditor({
       const made = await make({ teamId, name, color: TEAM_TASK_LABEL_DEFAULT_COLOR });
       onLabelsChange(await client.attachTaskLabel({ teamId, taskId, labelId: made.id }));
       onLabelCreated?.(made);
+      setOpen(false);
       return made;
     } catch (cause) {
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });

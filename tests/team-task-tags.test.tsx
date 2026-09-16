@@ -348,6 +348,8 @@ describe('the editor', () => {
       })
     );
     expect(onLabelsChange).toHaveBeenCalledWith([ref(HOT)]);
+    // The pick closes the list (024).
+    expect(screen.queryByRole('listbox')).toBeNull();
 
     await user.click(await screen.findByRole('button', { name: 'Take «Hot» off this task' }));
     await waitFor(() =>
