@@ -1,8 +1,10 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';
+import { Card as HeroCard } from '@heroui/react/card';
+import { Separator as HeroSeparator } from '@heroui/react/separator';
+import { createElement, type HTMLAttributes, type ReactNode } from 'react';
 import { uiClasses } from './types';
 
 /**
- * Card and Separator (021, T016).
+ * Card and Separator (021 T016, on HeroUI in 024).
  *
  * The product answered "what is a container" three ways: the compressor's
  * violet-tinted slab under an accent outline, the team space's surface-plus-
@@ -37,32 +39,30 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
   selected?: boolean;
 }
 
-export const Card = forwardRef<HTMLElement, CardProps>(function Card(
-  {
-    role = 'surface',
-    as: Tag = 'div',
-    icon,
-    title,
-    titleId,
-    aside,
-    description,
-    interactive = false,
-    selected = false,
-    className,
-    children,
-    ...props
-  },
-  ref
-) {
+export function Card({
+  role = 'surface',
+  as = 'div',
+  icon,
+  title,
+  titleId,
+  aside,
+  description,
+  interactive = false,
+  selected = false,
+  className,
+  children,
+  ...props
+}: CardProps) {
   const hasHeading = Boolean(icon || title || aside);
   return (
-    <Tag
-      // The element type is chosen by the caller; the ref type follows it.
-      ref={ref as never}
+    <HeroCard
       {...props}
       aria-labelledby={props['aria-labelledby'] ?? (title && titleId ? titleId : undefined)}
+      /* The element is the caller's: a card can be a section, an article, a
+         list item or a form, and which it is decides what the document outline
+         says. The library's own element override is how that is said. */
+      render={rendered => createElement(as, rendered)}
       className={uiClasses('card', {
-        variant: undefined,
         states: { interactive, selected },
         className: [`ui-card--${role}`, className].filter(Boolean).join(' ')
       })}
@@ -88,9 +88,9 @@ export const Card = forwardRef<HTMLElement, CardProps>(function Card(
         <p className="ui-card-description prose">{description}</p>
       )}
       {children}
-    </Tag>
+    </HeroCard>
   );
-});
+}
 
 export interface SeparatorProps extends HTMLAttributes<HTMLDivElement> {
   orientation?: 'horizontal' | 'vertical';
@@ -98,23 +98,32 @@ export interface SeparatorProps extends HTMLAttributes<HTMLDivElement> {
   label?: ReactNode;
 }
 
+/**
+ * A line, and — when it is carrying a word — a line that is not a separator.
+ *
+ * `role="separator"` describes a break with no content. Once there is a word in
+ * the middle, the thing on screen is a labelled divider and announcing it as a
+ * separator hides the word from anyone listening. So the plain case is the
+ * library's, and the labelled case is its own element with the label read.
+ */
 export function Separator({
   orientation = 'horizontal',
   label,
   className,
   ...props
 }: SeparatorProps) {
+  const classes = uiClasses('separator', {
+    states: { labelled: Boolean(label) },
+    className: [`ui-separator--${orientation}`, className].filter(Boolean).join(' ')
+  });
+
+  if (!label) {
+    return <HeroSeparator {...props} orientation={orientation} className={classes} />;
+  }
+
   return (
-    <div
-      {...props}
-      role="separator"
-      aria-orientation={orientation}
-      className={uiClasses('separator', {
-        states: { labelled: Boolean(label) },
-        className: [`ui-separator--${orientation}`, className].filter(Boolean).join(' ')
-      })}
-    >
-      {label && <span className="ui-separator-label">{label}</span>}
+    <div {...props} className={classes}>
+      <span className="ui-separator-label">{label}</span>
     </div>
   );
 }

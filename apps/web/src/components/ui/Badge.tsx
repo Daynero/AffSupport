@@ -1,13 +1,26 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';
+import { X } from 'lucide-react';
+import { Chip as HeroChip } from '@heroui/react/chip';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { uiClasses, type UiColor, type UiSize, type UiVariant } from './types';
 
 /**
- * Badge and Chip (021, T015).
+ * Badge and Chip (021 T015, on HeroUI in 024).
  *
  * A Badge states a fact — "Connected", "Beta", "3 agents". A Chip carries a
  * value a person put there and can take back — a tag, a filter, an attached
  * account. The difference is not decorative: a chip is interactive and a badge
  * is not, and the product had them wearing each other's clothes in four places.
+ *
+ * Both are the library's `Chip` underneath, which is the pill this product
+ * draws; the library's own `Badge` is the little count that sits on the corner
+ * of something else, which is a different object this product does not have.
+ *
+ * The press and the remove control stay this product's own buttons. The
+ * library's `TagGroup` is the right home for a *group* of removable tags — one
+ * keyboard walk across all of them — and that is where the task labels belong;
+ * a chip rendered on its own beside unrelated things is not a group, and
+ * wrapping each one in a group of one would be a lie told to assistive
+ * technology.
  */
 
 export interface BadgeProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'color'> {
@@ -17,21 +30,26 @@ export interface BadgeProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'color
   leading?: ReactNode;
 }
 
-export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
-  { color = 'neutral', variant = 'soft', size = 'sm', leading, className, children, ...props },
-  ref
-) {
+export function Badge({
+  color = 'neutral',
+  variant = 'soft',
+  size = 'sm',
+  leading,
+  className,
+  children,
+  ...props
+}: BadgeProps) {
   return (
-    <span ref={ref} {...props} className={uiClasses('badge', { color, variant, size, className })}>
+    <HeroChip {...props} className={uiClasses('badge', { color, variant, size, className })}>
       {leading && (
         <span className="ui-badge-leading" aria-hidden="true">
           {leading}
         </span>
       )}
       {children}
-    </span>
+    </HeroChip>
   );
-});
+}
 
 export interface ChipProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'color' | 'onSelect'> {
   color?: UiColor;
@@ -49,23 +67,20 @@ export interface ChipProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'color'
   onSelect?: () => void;
 }
 
-export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
-  {
-    color = 'neutral',
-    variant = 'soft',
-    size = 'sm',
-    leading,
-    selected = false,
-    disabled = false,
-    onRemove,
-    removeLabel,
-    onSelect,
-    className,
-    children,
-    ...props
-  },
-  ref
-) {
+export function Chip({
+  color = 'neutral',
+  variant = 'soft',
+  size = 'sm',
+  leading,
+  selected = false,
+  disabled = false,
+  onRemove,
+  removeLabel,
+  onSelect,
+  className,
+  children,
+  ...props
+}: ChipProps) {
   const body = (
     <>
       {leading && (
@@ -78,8 +93,7 @@ export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
   );
 
   return (
-    <span
-      ref={ref}
+    <HeroChip
       {...props}
       className={uiClasses('chip', {
         color,
@@ -111,17 +125,9 @@ export const Chip = forwardRef<HTMLSpanElement, ChipProps>(function Chip(
           disabled={disabled}
           onClick={onRemove}
         >
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path
-              d="m4.5 4.5 7 7m0-7-7 7"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="1.6"
-            />
-          </svg>
+          <X size={14} strokeWidth={2} aria-hidden="true" />
         </button>
       )}
-    </span>
+    </HeroChip>
   );
-});
+}

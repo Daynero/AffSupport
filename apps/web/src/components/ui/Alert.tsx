@@ -1,8 +1,9 @@
+import { Alert as HeroAlert } from '@heroui/react/alert';
 import { type HTMLAttributes, type ReactNode } from 'react';
 import { uiClasses, type UiColor, type UiVariant } from './types';
 
 /**
- * Alert (021, T017).
+ * Alert (021 T017, on HeroUI in 024).
  *
  * Everything the product says in place rather than in a toast: an inline error,
  * a note about beta storage, a warning that the space is read-only, a notice
@@ -38,23 +39,23 @@ export function Alert({
   ...props
 }: AlertProps) {
   return (
-    <div
+    <HeroAlert
       {...props}
       role={live === 'none' ? undefined : live}
       className={uiClasses('alert', { color, variant, className })}
     >
       {icon && (
-        <span className="ui-alert-icon" aria-hidden="true">
+        <HeroAlert.Indicator className="ui-alert-icon" aria-hidden="true">
           {icon}
-        </span>
+        </HeroAlert.Indicator>
       )}
-      <div className="ui-alert-body">
-        {title && <strong className="ui-alert-title">{title}</strong>}
+      <HeroAlert.Content className="ui-alert-body">
+        {title && <HeroAlert.Title className="ui-alert-title">{title}</HeroAlert.Title>}
         {children !== undefined && children !== null && children !== false && (
           <p className="ui-alert-text prose">{children}</p>
         )}
-      </div>
+      </HeroAlert.Content>
       {action && <div className="ui-alert-action">{action}</div>}
-    </div>
+    </HeroAlert>
   );
 }
