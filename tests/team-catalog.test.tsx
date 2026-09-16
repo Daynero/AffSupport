@@ -174,6 +174,24 @@ describe('team catalog search UI', () => {
     expect(onReveal).toHaveBeenCalledWith(expect.objectContaining({ id: 'visible-material' }));
   });
 
+  it('opens with the query the address carries, not an empty search', async () => {
+    const api = client();
+    render(
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <ToastProvider>
+          <TeamCatalog teamId={TEAM_ID} client={api} initialQuery="hook" />
+        </ToastProvider>
+      </TeamProvider>
+    );
+    expect(((await screen.findByRole('searchbox')) as HTMLInputElement).value).toBe('hook');
+    await waitFor(() =>
+      expect(api.searchCatalog).toHaveBeenLastCalledWith(
+        TEAM_ID,
+        expect.objectContaining({ query: 'hook' })
+      )
+    );
+  });
+
   it('uses readable material labels instead of raw Drive MIME values', async () => {
     const api = client();
     vi.mocked(api.searchCatalog).mockResolvedValue(
