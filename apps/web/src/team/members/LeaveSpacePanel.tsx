@@ -36,11 +36,7 @@ export function LeaveSpacePanel({
   teamId: string;
   client: LeaveSpaceClient;
   isOwner: boolean;
-  /**
-   * Nobody else is in the space. "Transfer to a member in the list above" is
-   * then an instruction that cannot be followed — the list is just you — so
-   * the owner is told the step that comes before it.
-   */
+  /** Nobody else is in the space: an owner then has no way out to show. */
   alone?: boolean;
 }) {
   const { t } = useI18n();
@@ -73,16 +69,16 @@ export function LeaveSpacePanel({
     }
   };
 
+  // An owner alone in the space has nothing to do here: no one to hand it to and nothing to press.
+  // The card said so at full width under the members, and read as a problem to solve (024).
+  if (isOwner && alone) return null;
+
   return (
     <SettingsSection
       icon={LogOut}
       titleId="team-leave-space-title"
       title={t('teamLeaveTitle')}
-      description={
-        isOwner
-          ? t(alone ? 'teamLeaveOwnerAlone' : 'teamLeaveOwnerExplanation')
-          : t('teamLeaveDescription')
-      }
+      description={isOwner ? t('teamLeaveOwnerExplanation') : t('teamLeaveDescription')}
       className="team-leave-panel"
     >
       {!isOwner && (
