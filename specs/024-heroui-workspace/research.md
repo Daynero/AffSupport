@@ -429,3 +429,33 @@ The danger the audit named is real, though — it just arrives through TSX. That
 `scripts/check-tailwind-classes.mjs` is for, and it catches exactly the four shapes a value can
 take in a utility: an arbitrary value in brackets, a colour from a palette this product did not
 choose, a type step from Tailwind's ladder rather than ours, and a duration in milliseconds.
+
+### D4 revised again — one rung for all of Soty's CSS, and it is the top one
+
+`theme, base, components, utilities, soty`.
+
+The two-rung version — pre-024 sheets below the library's components, the inventory above them —
+was wrong, and wrong in the way that is hardest to see: a layer loses without a warning anywhere.
+Twenty-four rules in the screens' stylesheets refine the inventory, because that is what a screen
+stylesheet is for: a table's columns, a chip's colour, a button inside a toolbar. Splitting the
+two across layers inverted every one of those relationships at once. The explorer's file list
+came apart into one column per cell — checkbox, then name, then size, each on its own line — and
+nothing said so.
+
+So all of it goes in one rung, in the order it has always loaded in, and inside that rung
+specificity decides exactly as it did before any of this was layered. The relationship between
+the inventory and the screens is then unchanged by the migration, which is the only safe thing
+for a migration to do to it.
+
+Above the library, rather than below, because that is the whole arrangement: HeroUI's component
+CSS is a floor — it draws the calendar, the menu and the table this product never wrote CSS for —
+and anything Soty says overrides it.
+
+The element resets that motivated the original ordering (`button { background-color: transparent }`
+and its two siblings) turned out not to need it. They are element selectors; every rule they
+could hurt is a class rule, and inside one layer specificity settles it — which is how these two
+sheets have coexisted since before either was layered.
+
+The `.ui-table-columns` rules changed anyway, from setting `grid-template-columns` directly to
+setting the variable the inventory exposes for exactly that. It works under either ladder, and it
+says what it means.

@@ -113,29 +113,30 @@ describe('the theme bridge', () => {
 
 describe('the stylesheet entry', () => {
   it('declares the layer ladder before anything can land in it', () => {
-    const ladder = entry.indexOf('@layer theme, base, soty-legacy, components, utilities, soty;');
+    const ladder = entry.indexOf('@layer theme, base, components, utilities, soty;');
     expect(ladder, 'the layer order is the whole coexistence story').toBeGreaterThan(-1);
     expect(ladder).toBeLessThan(entry.indexOf("@import 'tailwindcss'"));
   });
 
-  it('puts every pre-024 stylesheet below the library, and the skin above it', () => {
-    const legacy = [
+  it('keeps every Soty stylesheet in one rung, above the library', () => {
+    // One rung, because the screens refine the inventory constantly and
+    // splitting the two across layers inverts those relationships silently —
+    // the explorer's file list came apart into one column per cell that way.
+    const sheets = [
       './base.css',
+      './components.css',
       '../styles.css',
       './team-accounts.css',
       './team-tasks.css',
       './transcription.css',
-      './landing-viewer.css'
+      './landing-viewer.css',
+      './skin.css'
     ];
-    for (const sheet of legacy) {
-      expect(entry, `${sheet} must be layered, or it outranks every component`).toContain(
-        `@import '${sheet}' layer(soty-legacy);`
+    for (const sheet of sheets) {
+      expect(entry, `${sheet} belongs in the soty layer`).toContain(
+        `@import '${sheet}' layer(soty);`
       );
     }
-    // The inventory's own sheet is the skin, not the legacy: it must outrank the
-    // library, or every control it sizes becomes whatever height HeroUI ships.
-    expect(entry).toContain("@import './components.css' layer(soty);");
-    expect(entry).toContain("@import './skin.css' layer(soty);");
   });
 
   it('leaves the token layer unlayered, which is what gives it the last word', () => {

@@ -244,7 +244,7 @@ The beta database's last applied migration was `20260820210000`; this feature's
 
 `beta:up` restores the database from a snapshot — its own log says
 `Starting database from backup...` — and does not replay pending migrations.
-Only `npm run beta:reset` does, and `docs/BETA.md` presents reset as a *data*
+Only `npm run beta:reset` does, and `docs/BETA.md` presents reset as a _data_
 reset ("seeds the fixtures, clears resettable state"), so nothing tells someone
 about to validate a schema change that `beta:up` alone leaves them a schema
 behind. Every US4/US5 lifecycle flow fails identically and anonymously until it
@@ -266,7 +266,7 @@ The migration widened `private.record_team_audit`'s target-key whitelist to
 accept `task_id` and `task_title` (`20260823120000:44-54`). The client keeps its
 own copy of that list, `AUDIT_TARGET_KEYS` in `apps/web/src/api/team.ts`, and it
 was not widened. `mapAuditEvent` returns `null` for a row carrying a key it does
-not know, and `listAuditEvents` throws `INVALID_RESPONSE` when *any* row maps to
+not know, and `listAuditEvents` throws `INVALID_RESPONSE` when _any_ row maps to
 null — so one `task.deleted` event does not lose its own line, it loses every
 line, forever, for every member of that space.
 
@@ -287,7 +287,7 @@ entry, with the id and title still absent from what is displayed.
 
 `/team` never resolves to the lobby for anyone who has entered a space:
 
-- `TeamSpace.tsx:104` redirects whenever exactly one space is *ready*.
+- `TeamSpace.tsx:104` redirects whenever exactly one space is _ready_.
 - Failing that, `TeamSpace.tsx:111-116` redirects to the remembered space.
 - `SpaceSwitcher.tsx:35` renders the switcher only when another space exists,
   and the "Усі простори" link lives **inside** that menu — so with one space
@@ -307,7 +307,7 @@ What the user loses: the create wizard and the space list, both of which live
 only in the lobby. The shipped beta fixture — one ready space, one member — is
 the worst case of it. Only a pending invitation forces the lobby open.
 
-Left unfixed on purpose: every candidate fix changes what `/team` *means*, and
+Left unfixed on purpose: every candidate fix changes what `/team` _means_, and
 the resolver's rules are spec text (FR-015) and encoded in
 `tests/team-ux-navigation.test.tsx`. The smallest honest shape is an explicit
 "take me to the lobby" intent that the resolver honours for one navigation —
@@ -320,7 +320,7 @@ With `supabase_realtime_wishly` stopped, the space showed no chip for forty
 seconds and nothing else changed either. `useTeamRealtime.ts:19` starts in
 `connecting` and leaves it only on a subscribe-callback status
 (`SUBSCRIBED` / `CHANNEL_ERROR` / `TIMED_OUT` / `CLOSED`, `:86-93`). Kong stays
-up while its upstream is dead, so the WebSocket handshake *hangs* rather than
+up while its upstream is dead, so the WebSocket handshake _hangs_ rather than
 failing — probed from the page, a raw `ws://…/realtime/v1/websocket` neither
 opened, closed nor errored within six seconds. No status fires, so `connecting`
 is terminal, and `RealtimeChip` draws nothing for it.
@@ -339,7 +339,7 @@ with a test to match, not a one-liner.
 `button-primary` reading `Підключити Google Drive` — measured `disabled:false`,
 `aria-disabled:null`, `opacity:1`. `DriveConnectionPanel.tsx:275` guards the same
 control with `externalStorageUnavailableInBeta()`; `ConnectFolderStep.tsx:154`
-rendered only the notice. FR-015 asks for hidden or disabled *with* an
+rendered only the notice. FR-015 asks for hidden or disabled _with_ an
 explanation; only the explanation had shipped. The step now uses the same
 predicate as its sibling — verified: notice present, button gone.
 
@@ -362,12 +362,12 @@ from that width instead of added to it, leaving 185 px for a 200 px name. Now
   round trip.
 - **US4** — abandoning the wizard leaves a draft card offering resume or delete;
   the delete confirmation names the space and states that nothing was saved. An
-  owner is told *why* they cannot leave ("Простір не може лишитися без
+  owner is told _why_ they cannot leave ("Простір не може лишитися без
   власника…") rather than being shown a dead control — FR-015 at its best.
 - **US5** — "Create task" from a file row stages the attachment without
   committing it ("Файлів буде прикріплено після збереження: 1"); cancelling left
   zero tasks and zero attachment rows in the database. Creating opens the editor
-  at `?task=<id>`. Deleting confirms, names the consequence *and* says the
+  at `?task=<id>`. Deleting confirms, names the consequence _and_ says the
   attached files survive it, toasts, and clears the parameter. The audit row
   lands as `task.deleted / succeeded` carrying `task_id` + `task_title`.
 - **US6** — dialogs are `aria-modal`, lock the page behind them (`body` overflow
@@ -378,7 +378,7 @@ from that width instead of added to it, leaving 185 px for a 200 px name. Now
   gave `Google Drive не відповідає. Спробуйте трохи згодом.`, no error code.
 - **US2 (partial)** — the catalog panel carries search plus seven filters, an
   honest count and `Каталог актуальний`, and the toggle relabels to `Закрити
-  пошук`. Trash renders, explains Drive's ~30-day window and distinguishes empty
+пошук`. Trash renders, explains Drive's ~30-day window and distinguishes empty
   from unloaded.
 - Not a defect, checked because it looked like one: the create-task submit is
   enabled with an empty title, but the input is `required` on a form that is not
@@ -433,7 +433,7 @@ this pass wrote one.
 ## T068 / T069 — the two open behaviours, landed (2026-08-26)
 
 Both were left as decisions rather than repairs when T065 found them, because
-each changes what a rule *means* rather than fixing a slip. Taken in turn.
+each changes what a rule _means_ rather than fixing a slip. Taken in turn.
 
 ### `/team` can now be asked for the lobby, and the ask is in the address
 
@@ -446,7 +446,7 @@ it never converged.
 The intent is now a parameter, `/team?all=1`, for the reason the rest of team
 mode keeps state in the URL: it survives a refresh, so reloading the lobby keeps
 you in the lobby instead of dropping you back into a space. `resolveTeamEntry`
-honours it *before* the one-ready-space and remembered-space rules, and both of
+honours it _before_ the one-ready-space and remembered-space rules, and both of
 those rules are otherwise untouched — arriving at `/team` behaves exactly as it
 did. `leaveSpace()` navigates to the same address, since leaving is a
 destination and not merely an exit.

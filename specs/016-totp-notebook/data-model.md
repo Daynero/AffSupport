@@ -14,14 +14,14 @@ so no PostgREST route can reach it at all, and the RPCs in `public` are the only
 door. RLS is enabled and no client-facing policy is created; `revoke all` on the
 table, with no compensating grant to `authenticated`.
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` primary key, `default gen_random_uuid()` | Stable across an edit, so a row does not jump under the pointer. |
-| `owner` | `uuid not null references auth.users(id) on delete cascade` | The only access dimension in this version. Deleting the account takes the notebook with it. |
-| `name` | `text not null` | 1–120 characters after trimming. Not unique: duplicate names are explicitly allowed (spec edge case). |
-| `vault_secret_id` | `uuid not null` | The `vault.secrets` row holding the seed. Never exposed to a client. |
-| `created_at` | `timestamptz not null default clock_timestamp()` | |
-| `updated_at` | `timestamptz not null default clock_timestamp()` | Touched on every edit; drives the stable ordering. |
+| Column            | Type                                                        | Notes                                                                                                 |
+| ----------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `id`              | `uuid` primary key, `default gen_random_uuid()`             | Stable across an edit, so a row does not jump under the pointer.                                      |
+| `owner`           | `uuid not null references auth.users(id) on delete cascade` | The only access dimension in this version. Deleting the account takes the notebook with it.           |
+| `name`            | `text not null`                                             | 1–120 characters after trimming. Not unique: duplicate names are explicitly allowed (spec edge case). |
+| `vault_secret_id` | `uuid not null`                                             | The `vault.secrets` row holding the seed. Never exposed to a client.                                  |
+| `created_at`      | `timestamptz not null default clock_timestamp()`            |                                                                                                       |
+| `updated_at`      | `timestamptz not null default clock_timestamp()`            | Touched on every edit; drives the stable ordering.                                                    |
 
 **Indexes.** `(owner, created_at desc, id)` — the one access path is "this
 person's notebook, in order", and including `id` makes the order total, which is
@@ -43,7 +43,7 @@ The invariant to hold in every function: **a row and its secret are created and
 destroyed together.**
 
 - Create wraps the insert in `exception when others then delete from
-  vault.secrets where id = secret_id; raise;` — the pattern
+vault.secrets where id = secret_id; raise;` — the pattern
   `private.store_google_drive_credential` already uses, so a failed insert
   cannot leave an orphaned secret.
 - Update replaces the value in place with `vault.update_secret(...)`, keeping

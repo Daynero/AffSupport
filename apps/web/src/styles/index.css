@@ -8,32 +8,31 @@
  *
  *   theme         Tailwind's and HeroUI's variables.
  *   base          Tailwind's preflight and HeroUI's base reset.
- *   soty-legacy   Every stylesheet written before this feature.
  *   components    HeroUI's component structure (`.button--primary`, `.menu--…`).
  *   utilities     Tailwind's utilities.
- *   soty          The Soty skin: what this product says on top of the library.
+ *   soty          Everything this product has ever written about how it looks.
  *
- * Two placements are load-bearing.
+ * One rung for all of Soty's own CSS, and it is the top one. Two things follow
+ * from that, and both are the point:
  *
- * `soty-legacy` sits **below** `components` so that a pre-existing element rule
- * — `button { padding: 0 }` and its hundred siblings — cannot outrank a HeroUI
- * component. An unlayered rule beats every layered one no matter its
- * specificity, so leaving the old sheets unlayered would have meant every
- * adopted component arriving half-styled by rules written years before it.
- * Nothing changes visually the day this lands: HeroUI's rules match class names
- * the product does not emit yet, so the old screens keep the look they had.
+ * The library decides nothing this product has an opinion about. Its component
+ * styles are a floor — they draw a calendar, a menu and a table this product
+ * never wrote CSS for — and anything Soty says overrides them.
  *
- * `soty` sits **above** `utilities` because the skin is the last word. A Soty
- * refinement of a HeroUI component must win, and it must win without an
- * `!important` or a specificity race.
+ * And inside that rung, specificity decides, exactly as it did before any of
+ * this was layered. That matters more than it sounds: the screens' stylesheets
+ * refine the inventory constantly — a table's columns, a chip's colour, a
+ * button inside a toolbar — and splitting the two across layers silently
+ * inverted twenty-four of those relationships. The explorer's file list came
+ * apart into one column per cell, and it came apart quietly, because a layer
+ * loses without a warning anywhere.
  *
  * `tokens.css` is deliberately **unlayered**, which puts it above the whole
  * ladder: it is the only file allowed to spell a value, and its definitions —
  * including the HeroUI variables it derives from Soty roles — must outrank the
- * library's own theme layer. That is the whole of the theme bridge's authority.
- */
+ * library's own theme layer. That is the whole of the theme bridge's authority. */
 
-@layer theme, base, soty-legacy, components, utilities, soty;
+@layer theme, base, components, utilities, soty;
 
 /*
  * The library, and the utility engine it is built on. Order matters: HeroUI's
@@ -110,24 +109,15 @@
   --ease-in-out: var(--ease-in-out-curve);
 }
 
-/* Everything written before 024, kept whole and beaten only by the library's
-   component structure. Each of these is deleted as its screens migrate. */
-@import './base.css' layer(soty-legacy);
-@import '../styles.css' layer(soty-legacy);
-@import './team-accounts.css' layer(soty-legacy);
-@import './team-tasks.css' layer(soty-legacy);
-@import './transcription.css' layer(soty-legacy);
-@import './landing-viewer.css' layer(soty-legacy);
-
-/*
- * What Soty says on top of the library.
- *
- * `components.css` is the inventory's own sheet — the seven colour roles times
- * six variants times five sizes that this product decided on. It belongs above
- * the library, not below it with the legacy sheets: HeroUI supplies behaviour
- * and a structure to fall back on, and this decides what the result looks like.
- * Put it in `soty-legacy` and a 38px control becomes whatever height the
- * library ships.
- */
+/* Everything this product says about how it looks, in the order it has always
+   been loaded in — the reset, the inventory, the screens, the skin. Each of
+   these is deleted as its screens migrate. */
+@import './base.css' layer(soty);
 @import './components.css' layer(soty);
+@import '../styles.css' layer(soty);
+@import './team-accounts.css' layer(soty);
+@import './team-tasks.css' layer(soty);
+@import './transcription.css' layer(soty);
+@import './landing-viewer.css' layer(soty);
+
 @import './skin.css' layer(soty);

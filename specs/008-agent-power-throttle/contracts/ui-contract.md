@@ -24,15 +24,15 @@ The header control, the thrust lever, and the live readout. Behaviour and access
 
 ## Header button
 
-| Property | Contract |
-|---|---|
-| Element | `<button type="button" class="power-toggle">` |
-| Icon | A power glyph, inline SVG, `currentColor`, 20×20 — matching `ThemeToggle`'s sizing so the cluster stays even |
+| Property                 | Contract                                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Element                  | `<button type="button" class="power-toggle">`                                                                                                          |
+| Icon                     | A power glyph, inline SVG, `currentColor`, 20×20 — matching `ThemeToggle`'s sizing so the cluster stays even                                           |
 | Reduced-limit indication | When `mode === 'limited'`, the button carries a visible state (`data-limited="true"`) — FR-005 requires the limit be legible without opening the panel |
-| `aria-label` | `t('powerControl')`, e.g. "Soty power limit" |
-| `aria-expanded` | Tracks panel open state |
-| `aria-haspopup` | `"dialog"` |
-| `title` | Current limit, e.g. `t('powerLimitAt', { percent: 40 })` |
+| `aria-label`             | `t('powerControl')`, e.g. "Soty power limit"                                                                                                           |
+| `aria-expanded`          | Tracks panel open state                                                                                                                                |
+| `aria-haspopup`          | `"dialog"`                                                                                                                                             |
+| `title`                  | Current limit, e.g. `t('powerLimitAt', { percent: 40 })`                                                                                               |
 
 ---
 
@@ -40,12 +40,12 @@ The header control, the thrust lever, and the live readout. Behaviour and access
 
 Opens on click, closes on a second click, on `Escape`, and on pointer-down outside. Focus moves into the panel on open and returns to the button on close.
 
-| Property | Contract |
-|---|---|
-| Element | `<div class="power-panel" role="dialog" aria-label={t('powerControl')}>` |
-| Contents, top to bottom | Title → `<PowerLever />` → `<PowerReadout />` |
-| Dismissal | Second click, `Escape`, outside pointer-down |
-| Focus | Trapped while open; restored to the trigger on close |
+| Property                | Contract                                                                 |
+| ----------------------- | ------------------------------------------------------------------------ |
+| Element                 | `<div class="power-panel" role="dialog" aria-label={t('powerControl')}>` |
+| Contents, top to bottom | Title → `<PowerLever />` → `<PowerReadout />`                            |
+| Dismissal               | Second click, `Escape`, outside pointer-down                             |
+| Focus                   | Trapped while open; restored to the trigger on close                     |
 
 ---
 
@@ -56,25 +56,27 @@ A vertical throttle drawn as an aircraft thrust lever with a marked power scale,
 **Accessibility** — this is a slider, and must be one to assistive technology (FR-004):
 
 ```html
-<div role="slider"
-     aria-orientation="vertical"
-     aria-valuemin="20"
-     aria-valuemax="100"
-     aria-valuenow="40"
-     aria-valuetext="40%"
-     aria-label="Power limit"
-     tabindex="0">
+<div
+  role="slider"
+  aria-orientation="vertical"
+  aria-valuemin="20"
+  aria-valuemax="100"
+  aria-valuenow="40"
+  aria-valuetext="40%"
+  aria-label="Power limit"
+  tabindex="0"
+></div>
 ```
 
 **Keyboard**:
 
-| Key | Effect |
-|---|---|
-| `↑` / `→` | +1% |
-| `↓` / `←` | −1% |
-| `Page Up` / `Page Down` | ±10% |
-| `Home` | `POWER_LIMIT_MIN` (20) |
-| `End` | `POWER_LIMIT_MAX` (100) |
+| Key                     | Effect                  |
+| ----------------------- | ----------------------- |
+| `↑` / `→`               | +1%                     |
+| `↓` / `←`               | −1%                     |
+| `Page Up` / `Page Down` | ±10%                    |
+| `Home`                  | `POWER_LIMIT_MIN` (20)  |
+| `End`                   | `POWER_LIMIT_MAX` (100) |
 
 **Pointer**: drag the handle, or click anywhere on the track to jump there. Dragging captures the pointer so movement outside the track still tracks.
 
@@ -97,16 +99,16 @@ Rapid dragging must leave the lever and the applied limit in agreement — last 
 
 The text beneath the lever, satisfying FR-015 through FR-018. What it shows is driven entirely by `sample.availability` and `sample.activity`:
 
-| Condition | Rendered |
-|---|---|
-| `availability: 'ok'`, `activity: 'active'` | `t('powerUsageActive', { percent: 38.4 })` — e.g. "Soty is using 38.4% of your computer" |
-| `availability: 'ok'`, `activity: 'idle'` | `t('powerUsageIdle', { percent: 0.2 })` — e.g. "Soty is idle — 0.2%" |
-| `availability: 'warming-up'` | `t('powerUsageMeasuring')` — "Measuring…" |
-| `availability: 'unsupported'` | `t('powerUsageUnsupported')` — no figure |
-| `availability: 'error'` | `t('powerUsageUnavailable')` — no figure |
-| Agent not connected | `t('powerAgentOffline')`, lever **still movable** at its stored position; the chosen value is held and posted on reconnect rather than discarded (FR-021) |
-| Agent contract too old | `t('powerAgentOutdated')` + update prompt, lever disabled (FR-022) |
-| `throttlingSupported === false` | `t('powerThrottleUnsupported')` — the limit applies to newly started work only |
+| Condition                                  | Rendered                                                                                                                                                  |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `availability: 'ok'`, `activity: 'active'` | `t('powerUsageActive', { percent: 38.4 })` — e.g. "Soty is using 38.4% of your computer"                                                                  |
+| `availability: 'ok'`, `activity: 'idle'`   | `t('powerUsageIdle', { percent: 0.2 })` — e.g. "Soty is idle — 0.2%"                                                                                      |
+| `availability: 'warming-up'`               | `t('powerUsageMeasuring')` — "Measuring…"                                                                                                                 |
+| `availability: 'unsupported'`              | `t('powerUsageUnsupported')` — no figure                                                                                                                  |
+| `availability: 'error'`                    | `t('powerUsageUnavailable')` — no figure                                                                                                                  |
+| Agent not connected                        | `t('powerAgentOffline')`, lever **still movable** at its stored position; the chosen value is held and posted on reconnect rather than discarded (FR-021) |
+| Agent contract too old                     | `t('powerAgentOutdated')` + update prompt, lever disabled (FR-022)                                                                                        |
+| `throttlingSupported === false`            | `t('powerThrottleUnsupported')` — the limit applies to newly started work only                                                                            |
 
 The rule that matters: **no percentage is ever rendered from a non-`ok` sample.** The discriminated union makes that a type error rather than a discipline problem.
 
@@ -163,9 +165,9 @@ All three use the existing typed wrappers (`request` / `requestBody` → `assert
 
 Two new names on the constrained `AnalyticsEventName` union in `apps/web/src/analytics/events.ts`:
 
-| Event | Properties |
-|---|---|
-| `power_panel_opened` | none |
+| Event                 | Properties                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| `power_panel_opened`  | none                                                                                                 |
 | `power_limit_changed` | `{ limit_percent: number }` — the settled value after debounce, not every intermediate drag position |
 
 `limit_percent` needs a range entry in the numeric-bounds map (`[20, 100]`). No machine-identifying detail is added, per FR-024.
@@ -184,19 +186,19 @@ Both `en` and `uk` (the file carries the two blocks; `TranslationKey` is compile
 
 `tests/power-panel.test.tsx` (jsdom, via `// @vitest-environment jsdom`), using `PowerContextOverride` to drive states:
 
-| Case | Expected |
-|---|---|
-| Button renders in the header | Present, labelled, `aria-expanded="false"` |
-| Limit below 100 | Button carries the reduced-limit indication |
-| Click | Panel opens, focus enters, `aria-expanded="true"` |
-| `Escape` | Panel closes, focus returns to the button |
-| Lever roles | `role="slider"`, correct `aria-valuemin/max/now/orientation` |
-| `↑` / `PageUp` / `Home` / `End` | +1 / +10 / 20 / 100 |
-| Drag across the track | Value follows; one debounced request, not many |
-| `setLimit` rejects | Lever returns to the previous value; error surfaced |
-| `availability: 'ok'` + active | Percentage rendered |
-| `availability: 'warming-up'` / `'error'` / `'unsupported'` | No percentage anywhere in the output |
-| Agent offline | Offline copy, stored position shown, lever still movable |
-| Agent offline, lever moved, then reconnect | The held value is posted once on reconnect (FR-021) |
-| Contract too old | Outdated copy, lever disabled |
-| Panel closed | `watch()` teardown ran — no live subscription remains |
+| Case                                                       | Expected                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------ |
+| Button renders in the header                               | Present, labelled, `aria-expanded="false"`                   |
+| Limit below 100                                            | Button carries the reduced-limit indication                  |
+| Click                                                      | Panel opens, focus enters, `aria-expanded="true"`            |
+| `Escape`                                                   | Panel closes, focus returns to the button                    |
+| Lever roles                                                | `role="slider"`, correct `aria-valuemin/max/now/orientation` |
+| `↑` / `PageUp` / `Home` / `End`                            | +1 / +10 / 20 / 100                                          |
+| Drag across the track                                      | Value follows; one debounced request, not many               |
+| `setLimit` rejects                                         | Lever returns to the previous value; error surfaced          |
+| `availability: 'ok'` + active                              | Percentage rendered                                          |
+| `availability: 'warming-up'` / `'error'` / `'unsupported'` | No percentage anywhere in the output                         |
+| Agent offline                                              | Offline copy, stored position shown, lever still movable     |
+| Agent offline, lever moved, then reconnect                 | The held value is posted once on reconnect (FR-021)          |
+| Contract too old                                           | Outdated copy, lever disabled                                |
+| Panel closed                                               | `watch()` teardown ran — no live subscription remains        |

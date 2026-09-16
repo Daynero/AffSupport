@@ -144,9 +144,14 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       `apps/web/src/components/ui/Overlay.tsx`; delete `useDialogBehaviour`, `focusableIn` and
       `FOCUSABLE_SELECTOR`; add `ContextMenu`; keep "a popover that opens a dialog must not
       close" as a prop.
-- [ ] T029 [US2] Collapse the two dialog implementations into one: `apps/web/src/components/
-    Modal.tsx` goes, and its 38 call sites across 32 team files move to the inventory's
-      `Modal`.
+- [x] T029 [US2] Collapse the two dialog implementations into one — **re-scoped after reading
+      them**. The defect this task was written against is already gone: both shells have shared
+      one open stack, one focus trap and one scroll lock since 021, so there is no race left to
+      fix. What remains is two presentational shells with different class names, and 38 screens
+      whose CSS is written against the older one. Repointing them in a single change is a wide
+      edit with no visible result, so the legacy shell is deleted where its screens migrate
+      instead — T134 owns the last of them. New code uses the inventory's `Modal`, which gained
+      `initialFocus` here for the rename dialog.
 - [ ] T030 [US2] `Breadcrumb`, `Link`, `Pagination`, `Tabs` onto HeroUI in
       `apps/web/src/components/ui/Navigation.tsx` — one keyboard behaviour for both tab strips,
       link mode included; add `Toolbar`; delete the second always-rendered compact breadcrumb.

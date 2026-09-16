@@ -21,7 +21,7 @@ into `TeamSpace`. A new `team/routes.ts` owns parsing/building:
 Tabs render as real `<a>` elements using `internalLink()` + `aria-current="page"`, so
 middle-click, copy-link, Back/Forward and view transitions all come for free
 (`lib/navigation.ts:85-118`). Entering a space = `navigateTo('/team/<id>')`; the
-`localStorage` remembered space only decides the *redirect target* when landing on bare
+`localStorage` remembered space only decides the _redirect target_ when landing on bare
 `/team`; the URL always wins over the cache. Unknown space id or RLS denial → neutral
 "no access" screen (same copy for "doesn't exist" and "not yours"), satisfying 001 FR-016.
 
@@ -91,13 +91,13 @@ folders** via the existing `listMaterials(teamId, parentFolderId)` filtered to
 `kind === 'folder'` (the same data the browser tree uses), with breadcrumb + "Select current
 folder", mirroring the wizard's Drive browser UX. It replaces all three raw-ID inputs (F4):
 move, process output, save-text-as-new-version. Drive-side `listFolders` (OAuth wizard path)
-is *not* reused here — it lists Drive-wide folders, not the connected root's catalog.
+is _not_ reused here — it lists Drive-wide folders, not the connected root's catalog.
 
 **Rationale**: Reuses proven data paths; kills the largest click-path regression (F2) and the
 raw-ID inputs in one shared component; lazy menus are the direct fix for SC-009.
 
 **Alternatives considered**: (a) reuse `TaskAttachmentPicker` for destinations — it selects
-*files* for attachment, wrong selection model; extract only its navigation pattern;
+_files_ for attachment, wrong selection model; extract only its navigation pattern;
 (b) keep `<details>` rows but mount lazily — still two systems (browser vs search) and no
 picker; (c) full virtualized list — out of scope, 50-cap pages suffice for SC-009.
 
@@ -130,9 +130,9 @@ members during the grace window; rejected as dishonest state.
 
 - `leave_team(p_team)` — self-removal for non-owners; owner gets `OWNER_TRANSFER_REQUIRED`
   (mirrors `remove_member`'s guard at `20260801100000_team_membership_actions.sql:169` but
-  authorizes on *self* instead of `manage_members`). Audit: `membership.left`. Same
+  authorizes on _self_ instead of `manage_members`). Audit: `membership.left`. Same
   `EXTERNAL_DRIVE_ACCESS_REMAINS` warning envelope as `remove_member`.
-- `delete_draft_team(p_team)` — owner-only; refuses (`TEAM_NOT_DRAFT`) if the team has *ever*
+- `delete_draft_team(p_team)` — owner-only; refuses (`TEAM_NOT_DRAFT`) if the team has _ever_
   had a drive connection row (stricter than UI readiness: `setup_incomplete` shows for
   `none|detached`, but only never-connected teams are deletable — a detached space keeps its
   catalog/history and stays undeletable, per spec Assumptions). Cascade-deletes memberships +
@@ -240,7 +240,7 @@ asserts: (1) no forbidden tokens in team-facing keys («Таски», «ДОНТ
 object noun in uk copy, матеріал/asset/media synonyms in user-visible team strings, the
 placeholder gate title); (2) required canonical labels exist for the five sections; (3) the
 Close/Cancel split — keys used by close-only surfaces must not carry the Cancel string
-(enforced by a small key-role map in the test). Key *renames* ride the compile-checked
+(enforced by a small key-role map in the test). Key _renames_ ride the compile-checked
 `TranslationKey` union so every call site updates or fails the build. The three duplicate
 Cancel keys collapse to `teamCancel` + new `teamClose`.
 
@@ -280,7 +280,7 @@ confirm modal (R3) becomes an immediate detach + Undo toast (re-attach via
 `attachTaskMaterials`).
 
 **Rationale**: Draft-then-save is the standard editor contract users expect; it also removes
-the silent server write on a mis-click, which currently *cannot be cleaned up at all* — the
+the silent server write on a mis-click, which currently _cannot be cleaned up at all_ — the
 worst trap found (R1).
 
 **Alternatives considered**: keep instant-create but add task delete — still creates

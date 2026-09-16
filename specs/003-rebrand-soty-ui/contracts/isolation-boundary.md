@@ -38,4 +38,3 @@ is scanned for review iteration/brand markers.
 
 Violation of any clause blocks visual review; it cannot be waived by calling a live action
 “demo”.
-

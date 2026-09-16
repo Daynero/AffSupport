@@ -33,12 +33,12 @@ export function clampPowerLimit(value: number): number;
 
 Behaviour table (the test matrix):
 
-| Input | Result |
-|---|---|
-| `55` | `55` |
-| `55.4` / `55.6` | `55` / `56` |
-| `0` / `-10` / `19` | `20` |
-| `101` / `1000` | `100` |
+| Input                            | Result          |
+| -------------------------------- | --------------- |
+| `55`                             | `55`            |
+| `55.4` / `55.6`                  | `55` / `56`     |
+| `0` / `-10` / `19`               | `20`            |
+| `101` / `1000`                   | `100`           |
 | `NaN` / `Infinity` / `-Infinity` | `100` (default) |
 
 ### State types
@@ -123,7 +123,7 @@ export const AGENT_TOOL_CONTRACTS = {
   landingPreview: 2,
   transcription: 5,
   teamWorkspace: 2,
-  power: 1            // NEW
+  power: 1 // NEW
 } as const;
 
 export const WEB_TOOL_REQUIREMENTS = {

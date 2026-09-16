@@ -26,11 +26,11 @@ kept working, which is why the failure looked feature-specific rather than stack
 
 ### Fixed
 
-| What | Where |
-| --- | --- |
+| What                                                                                                                                                                                       | Where                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
 | `drive-ops` and `library-ops` import `team/contract`, `team/material-category`, `team/transcript`, `team/transport`, `team/creative-library`, `team/library-processing` — never the barrel | `supabase/functions/{drive-ops,library-ops}/index.ts` |
-| Regression guard: no function may import `shared/dist/types.js` | `tests/team-contract.test.ts` |
-| `beta:up` now boots every function and refuses to report beta up while any answers a 503 that is not a team error envelope | `scripts/beta-up.mjs` |
+| Regression guard: no function may import `shared/dist/types.js`                                                                                                                            | `tests/team-contract.test.ts`                         |
+| `beta:up` now boots every function and refuses to report beta up while any answers a 503 that is not a team error envelope                                                                 | `scripts/beta-up.mjs`                                 |
 
 The old readiness probe asked for a function that does not exist, so a runtime that could not
 boot `drive-ops` passed it happily and beta reported itself up — the product looked broken with

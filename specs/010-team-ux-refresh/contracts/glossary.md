@@ -6,23 +6,23 @@ team-mode string in both locales.
 
 ## Canonical vocabulary
 
-| Concept | uk | en |
-|---|---|---|
-| The team object | Простір | Space |
-| The mode / entry point | Командний простір | Team workspace |
-| Content units | файл / папка (collective: файли) | file / folder (files) |
-| Sections | Файли · Завдання · Креативи · Лендінги · Налаштування | Files · Tasks · Creatives · Landings · Settings |
-| Creative stages | Finds / Library — shown as the physical folder names they are | Finds / Library |
-| Long-running file work | Обробка | Processing |
-| Close-only button | Закрити | Close |
-| Cancel-an-action button | Скасувати | Cancel |
+| Concept                 | uk                                                            | en                                              |
+| ----------------------- | ------------------------------------------------------------- | ----------------------------------------------- |
+| The team object         | Простір                                                       | Space                                           |
+| The mode / entry point  | Командний простір                                             | Team workspace                                  |
+| Content units           | файл / папка (collective: файли)                              | file / folder (files)                           |
+| Sections                | Файли · Завдання · Креативи · Лендінги · Налаштування         | Files · Tasks · Creatives · Landings · Settings |
+| Creative stages         | Finds / Library — shown as the physical folder names they are | Finds / Library                                 |
+| Long-running file work  | Обробка                                                       | Processing                                      |
+| Close-only button       | Закрити                                                       | Close                                           |
+| Cancel-an-action button | Скасувати                                                     | Cancel                                          |
 
 ## Forbidden in user-visible team strings
 
 - «Таски», «таск» (uk slang register) — use «Завдання».
-- «матеріал(и)», "asset(s)", "media", "creative(s)" as *synonyms for files* in running copy.
+- «матеріал(и)», "asset(s)", "media", "creative(s)" as _synonyms for files_ in running copy.
   («Креативи» is the section name; inside it, items are still файли/files.)
-- "team"/«команда» and "workspace"/«воркспейс» as the *object* noun — the object is
+- "team"/«команда» and "workspace"/«воркспейс» as the _object_ noun — the object is
   Простір/Space. («Командний простір»/"Team workspace" names the mode, not the object.)
 - "Library" as the name of the whole section (it names only the stage/folder).
 - Any placeholder copy; specifically `ДОНТ ПУШ ЗЕ ХОРСИС` must not appear in any bundle.

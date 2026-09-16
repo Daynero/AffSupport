@@ -62,11 +62,11 @@ previews (FR-016).
 
 ## Error → i18n mapping (branch on code, not text)
 
-| Code | Key |
-| --- | --- |
-| `PAIRING_REQUIRED` / `CONNECTION_FAILED` | `teamPreviewAgentRequired` (reused) |
-| `AGENT_UPDATE_REQUIRED` | `teamPreviewAgentUpdateRequired` (reused) |
-| `RENDER_FAILED` + reason `corrupt/protected/too_large/unsupported` | `teamLandingUnavailable*` (new) |
-| `SOURCE_CHANGED` / `STALE_RENDER` | `teamLandingNeedsRerender` (new) |
-| `OAUTH_APPROVAL_REQUIRED` | reused drive-gate copy |
-| `PERMISSION_DENIED` | reused |
+| Code                                                               | Key                                       |
+| ------------------------------------------------------------------ | ----------------------------------------- |
+| `PAIRING_REQUIRED` / `CONNECTION_FAILED`                           | `teamPreviewAgentRequired` (reused)       |
+| `AGENT_UPDATE_REQUIRED`                                            | `teamPreviewAgentUpdateRequired` (reused) |
+| `RENDER_FAILED` + reason `corrupt/protected/too_large/unsupported` | `teamLandingUnavailable*` (new)           |
+| `SOURCE_CHANGED` / `STALE_RENDER`                                  | `teamLandingNeedsRerender` (new)          |
+| `OAUTH_APPROVAL_REQUIRED`                                          | reused drive-gate copy                    |
+| `PERMISSION_DENIED`                                                | reused                                    |

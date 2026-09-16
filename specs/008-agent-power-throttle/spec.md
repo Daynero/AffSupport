@@ -14,11 +14,11 @@ Today, when Soty processes media locally it takes whatever share of the machine 
 
 This feature gives the user one **global power limit** for everything Soty does locally: a single control that says "Soty may use up to N% of this computer". The limit applies to **all local tools at once** — compressor, landing optimizer, transcription, image/media actions, voice isolation, and any local tool added later — as one shared budget, not as a per-tool setting. Turning the limit down lets the user leave Soty running in the background on a long job while continuing to work; turning it up gives Soty the machine when the user steps away.
 
-The control lives in the app header, next to the theme toggle: a power icon that opens a small panel containing a **vertical throttle lever** styled like an aircraft thrust lever, with a marked power scale. Underneath it, a live readout shows roughly how much of the system's CPU Soty is consuming *right now*, so the user can see at a glance whether Soty is working, how hard, and what effect moving the lever had.
+The control lives in the app header, next to the theme toggle: a power icon that opens a small panel containing a **vertical throttle lever** styled like an aircraft thrust lever, with a marked power scale. Underneath it, a live readout shows roughly how much of the system's CPU Soty is consuming _right now_, so the user can see at a glance whether Soty is working, how hard, and what effect moving the lever had.
 
 Behaviour must be equivalent on Windows and macOS.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Cap Soty so the computer stays usable (Priority: P1)
 
@@ -32,8 +32,8 @@ A user starts a long local job (compressing a batch of videos) and needs to keep
 
 1. **Given** the limit is at 100% and a local job is running, **When** the user moves the lever to 20%, **Then** Soty's share of system CPU falls toward roughly 20% within a few seconds and the job continues without failing.
 2. **Given** the limit is at 20% and a job is running, **When** the user moves the lever to 100%, **Then** Soty ramps back up and the remaining work finishes faster.
-3. **Given** the limit is set to a reduced value, **When** the user starts a *new* local job of any tool type, **Then** that job also runs within the same limit without any per-tool configuration.
-4. **Given** two different local tools are running at the same time, **When** the limit is 50%, **Then** the two jobs *together* stay near 50% — the limit is a shared budget, not 50% each.
+3. **Given** the limit is set to a reduced value, **When** the user starts a _new_ local job of any tool type, **Then** that job also runs within the same limit without any per-tool configuration.
+4. **Given** two different local tools are running at the same time, **When** the limit is 50%, **Then** the two jobs _together_ stay near 50% — the limit is a shared budget, not 50% each.
 5. **Given** a job is running at a reduced limit, **When** it completes, **Then** its output is byte-for-byte equivalent to the same job run at 100% (only duration differs).
 
 ---
@@ -100,7 +100,7 @@ A user who moves between a Mac and a Windows PC gets the same control, the same 
 - **Work queued while limited**: queued jobs remain queued and run in order under the limit; nothing is dropped because the budget is small.
 - **Sleep / wake and long-running jobs**: after the machine wakes, the readout resumes updating and the limit is still enforced.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -146,7 +146,7 @@ A user who moves between a Mac and a Windows PC gets the same control, the same 
 - **Consumption Sample**: A point-in-time estimate of the share of the machine's processing capacity currently used by Soty's local work, plus whether the figure is available and whether Soty is idle or active.
 - **Local Tool**: Any capability Soty performs on the user's own machine (compression, optimization, preview rendering, transcription, media/image conversion, voice isolation, future additions). Every local tool is a consumer of the single Power Limit.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

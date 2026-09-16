@@ -99,15 +99,15 @@ compressor.
 
 ## Automated equivalents
 
-| Check | Test |
-| --- | --- |
-| 1, 3, 4, 5 | `tests/stitch-integration.test.ts` (real FFmpeg, `it.skipIf(!available)` — never a silent `return`) |
-| Plan maths, AAC snapping, operation inference | `tests/stitch-plan.test.ts` |
-| Argument builders, including the sub-frame loop guard (D8) | `tests/stitch-presets.test.ts` |
-| Tolerance boundaries — ~60 ms passes, 2 s fails | `tests/stitch-verify.test.ts` |
-| Routes and error codes | `tests/stitch-routes.test.ts` |
-| 6, 8 (cancellation, failure isolation) | `tests/stitch-queue.test.ts` |
-| 9 and the preview line | `tests/stitcher-page.test.tsx` (jsdom) |
+| Check                                                      | Test                                                                                                |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 1, 3, 4, 5                                                 | `tests/stitch-integration.test.ts` (real FFmpeg, `it.skipIf(!available)` — never a silent `return`) |
+| Plan maths, AAC snapping, operation inference              | `tests/stitch-plan.test.ts`                                                                         |
+| Argument builders, including the sub-frame loop guard (D8) | `tests/stitch-presets.test.ts`                                                                      |
+| Tolerance boundaries — ~60 ms passes, 2 s fails            | `tests/stitch-verify.test.ts`                                                                       |
+| Routes and error codes                                     | `tests/stitch-routes.test.ts`                                                                       |
+| 6, 8 (cancellation, failure isolation)                     | `tests/stitch-queue.test.ts`                                                                        |
+| 9 and the preview line                                     | `tests/stitcher-page.test.tsx` (jsdom)                                                              |
 
 ## Gates before a PR
 

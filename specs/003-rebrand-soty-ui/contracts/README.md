@@ -8,4 +8,3 @@ These contracts define the first-stage local review artifact:
 
 They are UI/review contracts, not backend APIs. No production protocol, database or release
 contract changes in this phase.
-

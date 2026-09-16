@@ -12433,12 +12433,12 @@ button.team-landing-tile:hover {
    the template pushed the restore button past the row's own right edge. */
 .team-trash-list.team-explorer-rows .ui-table-header,
 .team-trash-list.team-explorer-rows .ui-table-row {
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 12rem) auto;
+  --ui-table-columns: auto minmax(0, 1fr) minmax(0, 12rem) auto;
 }
 @container (max-width: 620px) {
   .team-trash-list.team-explorer-rows .ui-table-header,
   .team-trash-list.team-explorer-rows .ui-table-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    --ui-table-columns: auto minmax(0, 1fr) auto;
   }
   .team-trash-list .team-explorer-row-date {
     display: none;
@@ -12801,7 +12801,7 @@ button.team-landing-tile:hover {
      measured against a fixed 16px root and cut "17.2 MB" to "17.2 …" at the
      desktop width. `auto` is what each column needs and no more, and it still
      gives way under pressure — the name takes everything left. */
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
+  --ui-table-columns: auto minmax(0, 1fr) auto auto auto auto;
   gap: 0;
 }
 .team-explorer-rows .ui-table-header {
@@ -13032,7 +13032,7 @@ button.team-landing-tile:hover {
 @container (max-width: 680px) {
   .team-explorer-rows .ui-table-header,
   .team-explorer-rows .ui-table-row {
-    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    --ui-table-columns: auto minmax(0, 1fr) auto auto auto;
   }
   .team-explorer-row-date {
     display: none;
@@ -13046,7 +13046,7 @@ button.team-landing-tile:hover {
 @container (max-width: 620px) {
   .team-explorer-rows .ui-table-header,
   .team-explorer-rows .ui-table-row {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    --ui-table-columns: auto minmax(0, 1fr) auto auto;
   }
   .team-explorer-row-kind {
     display: none;
@@ -13055,7 +13055,7 @@ button.team-landing-tile:hover {
 @container (max-width: 400px) {
   .team-explorer-rows .ui-table-header,
   .team-explorer-rows .ui-table-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    --ui-table-columns: auto minmax(0, 1fr) auto;
   }
   .team-explorer-row-meta {
     display: none;

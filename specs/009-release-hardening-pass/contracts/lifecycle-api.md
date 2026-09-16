@@ -79,12 +79,12 @@ export type Driver = () => Promise<{ before: string; after: string }>;
 export type DriverMap = Partial<Record<EdgeKey, Driver>>;
 ```
 
-| Assertion | Catches |
-|---|---|
-| Every declared edge has a driver | A new state added without a test |
-| Every driver names a declared edge | Table rot after a state is removed |
-| Each driver ends where the table says | A wrong table |
-| Every **undeclared** edge is refused without changing state | FR-001 |
+| Assertion                                                   | Catches                            |
+| ----------------------------------------------------------- | ---------------------------------- |
+| Every declared edge has a driver                            | A new state added without a test   |
+| Every driver names a declared edge                          | Table rot after a state is removed |
+| Each driver ends where the table says                       | A wrong table                      |
+| Every **undeclared** edge is refused without changing state | FR-001                             |
 
 A new state therefore fails **twice** — at type-check and at test. That is SC-003.
 

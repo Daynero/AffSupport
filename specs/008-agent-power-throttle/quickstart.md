@@ -172,11 +172,11 @@ Repeat across the tool set — landing optimizer, landing preview, image convers
 
 With the limit at **20%**:
 
-| Do this | Expect |
-|---|---|
-| Upload or download a large file through the team workspace | Transfer speed is unaffected — the limit governs local processing, not the network |
-| Click around the app while a job runs | The interface stays responsive; the limit never throttles the UI or the agent's own request handling |
-| Trigger any server-side/remote operation | Unaffected |
+| Do this                                                    | Expect                                                                                               |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Upload or download a large file through the team workspace | Transfer speed is unaffected — the limit governs local processing, not the network                   |
+| Click around the app while a job runs                      | The interface stays responsive; the limit never throttles the UI or the agent's own request handling |
+| Trigger any server-side/remote operation                   | Unaffected                                                                                           |
 
 A transfer that slows to a crawl at 20% means something outside local processing was registered with the governor.
 
@@ -204,16 +204,16 @@ Restart the agent. **Expected**: 100% (unrestricted), one log line, no crash. Th
 
 **Discharges**: FR-015 – FR-019, SC-007, SC-010.
 
-| Do this | Expect |
-|---|---|
-| Open the panel with nothing running | A near-zero figure and idle wording within 2 s |
-| Start a job | The figure rises and keeps updating (≥ once / 2 s) |
-| Move the lever | The figure follows within a few seconds without reopening the panel |
-| Stop the job | The figure falls back toward idle |
-| Load the machine with something **other** than Soty | Soty's figure stays low — it reports Soty's share, not system load |
-| Stop the agent, keep the panel open | "Unavailable" wording, **no number** (FR-018) |
-| Close the panel with a job running | The sampling probe stops — no `ps` / helper traffic (FR-019) |
-| Watch the agent's own CPU with the panel open and nothing running | ≤ 1% of the system (SC-010) |
+| Do this                                                           | Expect                                                              |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Open the panel with nothing running                               | A near-zero figure and idle wording within 2 s                      |
+| Start a job                                                       | The figure rises and keeps updating (≥ once / 2 s)                  |
+| Move the lever                                                    | The figure follows within a few seconds without reopening the panel |
+| Stop the job                                                      | The figure falls back toward idle                                   |
+| Load the machine with something **other** than Soty               | Soty's figure stays low — it reports Soty's share, not system load  |
+| Stop the agent, keep the panel open                               | "Unavailable" wording, **no number** (FR-018)                       |
+| Close the panel with a job running                                | The sampling probe stops — no `ps` / helper traffic (FR-019)        |
+| Watch the agent's own CPU with the panel open and nothing running | ≤ 1% of the system (SC-010)                                         |
 
 Verify the last one on macOS with `sudo fs_usage -f exec | grep ps` or simply by watching the agent process's own share in Activity Monitor.
 
@@ -240,16 +240,16 @@ Run scenario 3 on both platforms with the same source file and the same limit, o
 
 **Discharges**: the Edge Cases section of the spec.
 
-| Scenario | Expected |
-|---|---|
-| Drag the lever rapidly end to end | Last position wins; lever and applied limit agree; one settled request, not one per pixel |
-| Low-core machine (2–4 cores) at 20% | Work still progresses (FR-013). The *effective* share may exceed 20% — expected, see [research R10](./research.md#r10--keeping-throughput-non-zero-at-the-floor), not a defect |
-| Agent not running, open the panel and move the lever | Panel opens, offline copy, no figure; the chosen value is retained and applied once the agent reconnects, not discarded (FR-021) |
-| Agent predating this feature | "Not supported, please update"; no limit claimed to be in force (FR-022) |
-| Queue several jobs, then lower the limit | All run in order under the limit; nothing dropped |
-| Sleep/wake mid-job | Readout resumes, limit still enforced |
-| Keyboard only, no mouse | Tab to the button, `Enter`, arrows/`PageUp`/`Home`/`End` on the lever, `Escape` to close (FR-004) |
-| Screen reader | Lever announces as a slider with its value; the readout announces politely, not on every tick |
+| Scenario                                             | Expected                                                                                                                                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Drag the lever rapidly end to end                    | Last position wins; lever and applied limit agree; one settled request, not one per pixel                                                                                      |
+| Low-core machine (2–4 cores) at 20%                  | Work still progresses (FR-013). The _effective_ share may exceed 20% — expected, see [research R10](./research.md#r10--keeping-throughput-non-zero-at-the-floor), not a defect |
+| Agent not running, open the panel and move the lever | Panel opens, offline copy, no figure; the chosen value is retained and applied once the agent reconnects, not discarded (FR-021)                                               |
+| Agent predating this feature                         | "Not supported, please update"; no limit claimed to be in force (FR-022)                                                                                                       |
+| Queue several jobs, then lower the limit             | All run in order under the limit; nothing dropped                                                                                                                              |
+| Sleep/wake mid-job                                   | Readout resumes, limit still enforced                                                                                                                                          |
+| Keyboard only, no mouse                              | Tab to the button, `Enter`, arrows/`PageUp`/`Home`/`End` on the lever, `Escape` to close (FR-004)                                                                              |
+| Screen reader                                        | Lever announces as a slider with its value; the readout announces politely, not on every tick                                                                                  |
 
 ---
 

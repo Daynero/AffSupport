@@ -5,37 +5,37 @@ review model і його переходи.
 
 ## ReviewCatalog
 
-| Field | Type | Rules |
-| --- | --- | --- |
-| `iteration` | `ReviewIterationId` | Один visible constant, початково `soty-ui-r01` |
-| `surfaces` | `readonly ReviewSurface[]` | Unique, stable IDs; порядок є catalog order |
-| `exclusions` | `readonly ScopeExclusion[]` | Кожна відома позаскоупна surface має rationale |
-| `themes` | `readonly ['light','dark']` | Обидві обов'язкові для approval |
-| `locales` | `readonly ['uk','en-long']` | Українська основна; long-copy fixture обов'язкова |
-| `viewports` | `readonly ReviewViewport[]` | 320/390/768/1024/1440 matrix |
+| Field        | Type                        | Rules                                             |
+| ------------ | --------------------------- | ------------------------------------------------- |
+| `iteration`  | `ReviewIterationId`         | Один visible constant, початково `soty-ui-r01`    |
+| `surfaces`   | `readonly ReviewSurface[]`  | Unique, stable IDs; порядок є catalog order       |
+| `exclusions` | `readonly ScopeExclusion[]` | Кожна відома позаскоупна surface має rationale    |
+| `themes`     | `readonly ['light','dark']` | Обидві обов'язкові для approval                   |
+| `locales`    | `readonly ['uk','en-long']` | Українська основна; long-copy fixture обов'язкова |
+| `viewports`  | `readonly ReviewViewport[]` | 320/390/768/1024/1440 matrix                      |
 
 ## ReviewSurface
 
-| Field | Type | Rules |
-| --- | --- | --- |
-| `id` | `SurfaceId` | Stable kebab/slash ID; unique |
-| `group` | `SurfaceGroup` | auth, shell, home, tool, team, account, components |
-| `title` | `string` | Ukrainian human-readable review label |
-| `routeHint` | `string` | Reference to current production route, never navigation target |
-| `primaryStateId` | `StateId` | Must exist in `states` |
-| `states` | `readonly ReviewState[]` | At least one; unique within surface |
-| `requirements` | `readonly RequirementId[]` | Links to FR/SC evidence |
+| Field            | Type                       | Rules                                                          |
+| ---------------- | -------------------------- | -------------------------------------------------------------- |
+| `id`             | `SurfaceId`                | Stable kebab/slash ID; unique                                  |
+| `group`          | `SurfaceGroup`             | auth, shell, home, tool, team, account, components             |
+| `title`          | `string`                   | Ukrainian human-readable review label                          |
+| `routeHint`      | `string`                   | Reference to current production route, never navigation target |
+| `primaryStateId` | `StateId`                  | Must exist in `states`                                         |
+| `states`         | `readonly ReviewState[]`   | At least one; unique within surface                            |
+| `requirements`   | `readonly RequirementId[]` | Links to FR/SC evidence                                        |
 
 ## ReviewState
 
-| Field | Type | Rules |
-| --- | --- | --- |
-| `id` | `StateId` | Stable within surface |
-| `kind` | `CanonicalStateKind` | default/loading/empty/success/error/active/confirmation/disabled |
-| `label` | `string` | Visible in state selector |
-| `model` | `ReviewModel` | Discriminated union matching surface and state |
-| `coverage` | `CoverageDecision` | scenario reference or explicit N/A rationale |
-| `primaryAction` | `ReviewElementId \| null` | No more than one honey action per local group |
+| Field           | Type                      | Rules                                                            |
+| --------------- | ------------------------- | ---------------------------------------------------------------- |
+| `id`            | `StateId`                 | Stable within surface                                            |
+| `kind`          | `CanonicalStateKind`      | default/loading/empty/success/error/active/confirmation/disabled |
+| `label`         | `string`                  | Visible in state selector                                        |
+| `model`         | `ReviewModel`             | Discriminated union matching surface and state                   |
+| `coverage`      | `CoverageDecision`        | scenario reference or explicit N/A rationale                     |
+| `primaryAction` | `ReviewElementId \| null` | No more than one honey action per local group                    |
 
 `CoverageDecision` is either
 `{ applicability: 'scenario'; scenarioId: string }` or
@@ -83,13 +83,13 @@ invalid route/state/theme -> catalog + explanatory notice
 
 ## DesignTokenSet
 
-| Field | Type | Rules |
-| --- | --- | --- |
-| `sourcePath` | literal path | `specs/003-rebrand-soty-ui/design-tokens.json` |
-| `sourceDigest` | string | Recorded in generated header to detect drift |
-| `resolvedColors` | readonly map | No unresolved/cyclic aliases |
-| `cssVariables` | readonly map | Scoped names start `--soty-` |
-| `proposals` | readonly proposal records | Non-color tokens and outcome roles require review status |
+| Field            | Type                      | Rules                                                    |
+| ---------------- | ------------------------- | -------------------------------------------------------- |
+| `sourcePath`     | literal path              | `specs/003-rebrand-soty-ui/design-tokens.json`           |
+| `sourceDigest`   | string                    | Recorded in generated header to detect drift             |
+| `resolvedColors` | readonly map              | No unresolved/cyclic aliases                             |
+| `cssVariables`   | readonly map              | Scoped names start `--soty-`                             |
+| `proposals`      | readonly proposal records | Non-color tokens and outcome roles require review status |
 
 ## VisualMotifPlacement
 
@@ -117,4 +117,3 @@ draft -> in-review -> changes-requested -> in-review -> approved
 responsive/200%-zoom states, logo direction and every blocking decision. Only `approved`
 permits creation of a separate functional-integration plan; it never activates production
 code automatically.
-

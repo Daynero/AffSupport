@@ -12,25 +12,25 @@ Sections map to user stories. Each names its prerequisites, what to run, and wha
 
 ### Prerequisites
 
-| Need | For | If absent |
-|---|---|---|
-| Node at the version in the repo's version file | everything | nothing works |
-| A real Windows machine or runner | §1W, §2W, §3 | the platform half of Stories 1–3 cannot be validated; source-text assertions written on a Mac do **not** satisfy a platform requirement |
-| Container runtime | the database gate in §3 | that one gate skips with a named reason |
-| A browser | §4, §7 | the interface stories cannot be validated |
-| Test signing identities | §5 signing | the chain is proven with test credentials; real ones are a substitution, not a rebuild |
+| Need                                           | For                     | If absent                                                                                                                               |
+| ---------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Node at the version in the repo's version file | everything              | nothing works                                                                                                                           |
+| A real Windows machine or runner               | §1W, §2W, §3            | the platform half of Stories 1–3 cannot be validated; source-text assertions written on a Mac do **not** satisfy a platform requirement |
+| Container runtime                              | the database gate in §3 | that one gate skips with a named reason                                                                                                 |
+| A browser                                      | §4, §7                  | the interface stories cannot be validated                                                                                               |
+| Test signing identities                        | §5 signing              | the chain is proven with test credentials; real ones are a substitution, not a rebuild                                                  |
 
 ### The reproduction pass — do this first
 
 The audit is explicit that **nothing in its interface section was observed in a browser**. Before building anything against those findings, reproduce them. Budget an hour.
 
 1. Start the beta stack. Open the compressor. **Kill the local app for five seconds**, then restart it.
-   - *Expected today (D1)*: the page is replaced by a "Download Soty" dialog with no way to close it, and the queue view is gone.
-   - *Record*: what actually happened, in the audit file, replacing the "inferred" label with an observation.
+   - _Expected today (D1)_: the page is replaced by a "Download Soty" dialog with no way to close it, and the queue view is gone.
+   - _Record_: what actually happened, in the audit file, replacing the "inferred" label with an observation.
 2. Open the workspace in **two tabs**, then open a landing preview in one of them. Start a compression. Try to stop it.
-   - *Expected today (D10)*: with enough streams open, the stop request never completes. Count the open connections in the browser's network panel — the prediction is that the seventh never opens.
+   - _Expected today (D10)_: with enough streams open, the stop request never completes. Count the open connections in the browser's network panel — the prediction is that the seventh never opens.
 3. Start a compression, and while a request is in flight, watch the progress bar.
-   - *Expected today (D3)*: progress occasionally jumps backwards.
+   - _Expected today (D3)_: progress occasionally jumps backwards.
 
 **If any of these does not reproduce, say so and update the audit before writing code.** A fix for a bug that does not exist is worse than no fix.
 
@@ -64,7 +64,7 @@ The four walkthroughs spec 008 left open (T084–T087) are the acceptance conten
 4. Stop everything. Quit the app. Reopen it.
 5. Repeat, but **force-quit** at step 4 instead.
 
-**Must be true**, checked with the system's own process viewer, not the app: nothing from Soty is running after step 4; no truncated output files sit next to the sources; every interrupted job reads as *interrupted*, not *failed* and not *running*; and step 5 behaves the same as step 4 (this is the FR-003a half — the crash case is the one users actually hit).
+**Must be true**, checked with the system's own process viewer, not the app: nothing from Soty is running after step 4; no truncated output files sit next to the sources; every interrupted job reads as _interrupted_, not _failed_ and not _running_; and step 5 behaves the same as step 4 (this is the FR-003a half — the crash case is the one users actually hit).
 
 ### 1W. Windows specifics
 
@@ -116,7 +116,7 @@ npm run verify:release    # full, target under 10 min (measured baseline ≈ 7�
 
 **A deliberate self-test:** add a state to any status union without adding a driver.
 
-- Expected: **two** failures — one at type-check (the table is incomplete) and one in the suite (no driver). That double failure *is* SC-003.
+- Expected: **two** failures — one at type-check (the table is incomplete) and one in the suite (no driver). That double failure _is_ SC-003.
 
 ---
 
@@ -151,13 +151,13 @@ npm run verify:release -- --gates=e2e
 
 At least **30 attempts against a real running local app**, 100% refused:
 
-| Category | Attempts |
-|---|---|
-| Origin | hostile origin, no origin, spoofed host, rebound name |
-| Token | forged, replayed, expired, in a query parameter, repeated parameter (yields an array — today this reaches a raw comparison) |
-| Paths | traversal, symlink swapped between grant and read, credential-store paths, network paths, extended-length prefixes, short (8.3) names, case-collision variants |
-| Uploads | oversized, truncated, over the file-count budget, over the byte budget, over the time budget, an entry escaping its destination |
-| Backend | the unauthenticated range path with a forged, replayed, expired, or wrong-team ticket |
+| Category | Attempts                                                                                                                                                       |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Origin   | hostile origin, no origin, spoofed host, rebound name                                                                                                          |
+| Token    | forged, replayed, expired, in a query parameter, repeated parameter (yields an array — today this reaches a raw comparison)                                    |
+| Paths    | traversal, symlink swapped between grant and read, credential-store paths, network paths, extended-length prefixes, short (8.3) names, case-collision variants |
+| Uploads  | oversized, truncated, over the file-count budget, over the byte budget, over the time budget, an entry escaping its destination                                |
+| Backend  | the unauthenticated range path with a forged, replayed, expired, or wrong-team ticket                                                                          |
 
 **Also assert the positive suite** — this is what stops the path ledger from shipping as "the queue empties itself after an upgrade":
 

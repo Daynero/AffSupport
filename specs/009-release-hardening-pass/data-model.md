@@ -17,10 +17,10 @@ Existing types are shown only where this feature changes them.
 type TransitionTable<S extends string> = Readonly<Record<S, readonly S[]>>;
 
 interface Lifecycle<S extends string> {
-  readonly id: string;      // stable, matches the ToolModule id where one exists
+  readonly id: string; // stable, matches the ToolModule id where one exists
   readonly initial: S;
   readonly transitions: TransitionTable<S>;
-  readonly settled: readonly S[];   // the run is over; see below
+  readonly settled: readonly S[]; // the run is over; see below
 }
 ```
 
@@ -28,10 +28,10 @@ interface Lifecycle<S extends string> {
 
 So it is declared, and the well-formedness rules below check it: every settled state is a real state, is reachable, and is never the initial one, and every terminal state is settled (the reverse does not hold).
 
-| Field | Rule |
-|---|---|
-| `id` | Unique across the registry. Used in error payloads and test names. |
-| `initial` | Must be a key of `transitions`. |
+| Field         | Rule                                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | Unique across the registry. Used in error payloads and test names.                                                          |
+| `initial`     | Must be a key of `transitions`.                                                                                             |
 | `transitions` | Keyed on the **whole status union**, so a new state is a type error at the table. Every listed target must itself be a key. |
 
 Derived helpers, all pure: `canTransition(l, from, to)`, `isTerminal(l, s)` (empty target list), `isSettled(l, s)` (declared, see above), `statesOf(l)`, `edgesOf(l)`.
@@ -47,15 +47,15 @@ Derived helpers, all pure: `canTransition(l, from, to)`, `isTerminal(l, s)` (emp
 
 Seven lifecycles, all registered in one exported array so tests can iterate them.
 
-| Id | States | Notes |
-|---|---|---|
-| `compression` | `analyzing, ready, queued, processing, completed, failed, cancelled, interrupted` | The reference implementation. |
-| `transcription` | the same eight as `compression`, once `interrupted` is added | Has seven today; gains `interrupted` — see §1.3. |
-| `translation` | `queued, processing, completed, failed` | Sub-run of a transcription. `processing → queued` is preemption. |
-| `landing-job` | `preparing, ready, queued, processing, completed, failed, cancelled` | Phase becomes derived — see §1.2. Not re-runnable; its finished states are terminal. |
-| `landing-asset` | `pending, processing, optimized, skipped, failed` | Sub-run of a landing job. `skipped` is a real outcome. |
-| `landing-preview-item` | `queued, rendering, ready, failed` | `ready` re-enters `queued` on a re-render. |
-| `media-action` | `queued, processing, completed, failed, skipped` **plus `cancelled`** | Gains `cancelled` — see §1.4. |
+| Id                     | States                                                                            | Notes                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `compression`          | `analyzing, ready, queued, processing, completed, failed, cancelled, interrupted` | The reference implementation.                                                        |
+| `transcription`        | the same eight as `compression`, once `interrupted` is added                      | Has seven today; gains `interrupted` — see §1.3.                                     |
+| `translation`          | `queued, processing, completed, failed`                                           | Sub-run of a transcription. `processing → queued` is preemption.                     |
+| `landing-job`          | `preparing, ready, queued, processing, completed, failed, cancelled`              | Phase becomes derived — see §1.2. Not re-runnable; its finished states are terminal. |
+| `landing-asset`        | `pending, processing, optimized, skipped, failed`                                 | Sub-run of a landing job. `skipped` is a real outcome.                               |
+| `landing-preview-item` | `queued, rendering, ready, failed`                                                | `ready` re-enters `queued` on a re-render.                                           |
+| `media-action`         | `queued, processing, completed, failed, skipped` **plus `cancelled`**             | Gains `cancelled` — see §1.4.                                                        |
 
 The registry is declared `as const` so it is a tuple of the seven concrete lifecycle types rather than an array of widened ones. Widening would lose per-lifecycle exhaustiveness at exactly the point the tables are iterated — see [contracts/lifecycle-api.md](./contracts/lifecycle-api.md).
 
@@ -113,8 +113,14 @@ Closes **A3**. `skipped` (an output already existed) and `cancelled` (the user s
 ```ts
 type CompressorActivity =
   | { kind: 'idle' }
-  | { kind: 'encoding';      jobId: string; abort: AbortController; child: ChildProcess | null }
-  | { kind: 'encoding-held'; jobId: string; abort: AbortController; child: ChildProcess; release: () => void }
+  | { kind: 'encoding'; jobId: string; abort: AbortController; child: ChildProcess | null }
+  | {
+      kind: 'encoding-held';
+      jobId: string;
+      abort: AbortController;
+      child: ChildProcess;
+      release: () => void;
+    }
   | { kind: 'estimating' };
 ```
 
@@ -135,14 +141,14 @@ Replaces five independent fields. The mapping and the migration order are in [re
 **Serves**: FR-037, SC-013.
 
 ```ts
-revision: number;   // monotonic, per queue instance, starts at 0
+revision: number; // monotonic, per queue instance, starts at 0
 ```
 
-| Rule | |
-|---|---|
-| Monotonic | Increments on every broadcast, never decreases within one local-app run. |
-| Instance-scoped | Resets to 0 when the local app restarts. The interface must key its reset on the reported instance identity, **not** treat a lower revision as stale. |
-| Absent means zero | An older local app omits the field; the client normalises to `0` and the guard degrades to today's behaviour. |
+| Rule              |                                                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monotonic         | Increments on every broadcast, never decreases within one local-app run.                                                                              |
+| Instance-scoped   | Resets to 0 when the local app restarts. The interface must key its reset on the reported instance identity, **not** treat a lower revision as stale. |
+| Absent means zero | An older local app omits the field; the client normalises to `0` and the guard degrades to today's behaviour.                                         |
 
 Client rule: `next.revision < current.revision → keep current`, applied in exactly one place (the state writer), with a single documented bypass for a fresh connect.
 
@@ -155,33 +161,33 @@ Client rule: `next.revision < current.revision → keep current`, applied in exa
 
 ```ts
 interface PathGrant {
-  id: string;                 // opaque; what the interface echoes back
-  path: string;               // realpath'd, absolute
+  id: string; // opaque; what the interface echoes back
+  path: string; // realpath'd, absolute
   kind: 'file' | 'dir';
   access: 'read' | 'write';
   origin: 'picker' | 'drop' | 'finder' | 'restore';
-  dev: number;                // captured at mint
-  ino: number;                // captured at mint
+  dev: number; // captured at mint
+  ino: number; // captured at mint
   createdAt: number;
-  expiresAt: number | null;   // null while referenced by durable state
+  expiresAt: number | null; // null while referenced by durable state
   refs: number;
 }
 ```
 
 **Validation and lifetime rules:**
 
-| Rule | Why |
-|---|---|
-| Minted only inside the selection code paths | So no caller can forget. |
-| `path` is realpath'd at mint | Comparison is over resolved paths only. |
-| `dev`+`ino` re-checked at use | Time-of-check defence: a job sits for minutes between grant and read, and a symlink swap in that window is the realistic attack. |
-| A directory grant covers descendants; a file grant covers only itself | |
-| Write scope for derived output is **pattern-bound**, not directory-bound | A read grant on one file must not imply write access across its folder. |
-| Referenced grants never expire; unattached ones expire after 24 h idle | Refcounted against jobs, catalogs and the output-folder setting. |
-| Outer bound applies even to a granted path | Never system directories, another user's home, or any path containing credential-store directories. Defence in depth: downgrades a ledger bug from "read anything" to "read something in the user's own documents". |
-| Windows comparison is case-insensitive, separator-normalised, and resolves extended-length prefixes **and short (8.3) names** | Standard realpath resolves junctions but not short names. |
+| Rule                                                                                                                          | Why                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Minted only inside the selection code paths                                                                                   | So no caller can forget.                                                                                                                                                                                            |
+| `path` is realpath'd at mint                                                                                                  | Comparison is over resolved paths only.                                                                                                                                                                             |
+| `dev`+`ino` re-checked at use                                                                                                 | Time-of-check defence: a job sits for minutes between grant and read, and a symlink swap in that window is the realistic attack.                                                                                    |
+| A directory grant covers descendants; a file grant covers only itself                                                         |                                                                                                                                                                                                                     |
+| Write scope for derived output is **pattern-bound**, not directory-bound                                                      | A read grant on one file must not imply write access across its folder.                                                                                                                                             |
+| Referenced grants never expire; unattached ones expire after 24 h idle                                                        | Refcounted against jobs, catalogs and the output-folder setting.                                                                                                                                                    |
+| Outer bound applies even to a granted path                                                                                    | Never system directories, another user's home, or any path containing credential-store directories. Defence in depth: downgrades a ledger bug from "read anything" to "read something in the user's own documents". |
+| Windows comparison is case-insensitive, separator-normalised, and resolves extended-length prefixes **and short (8.3) names** | Standard realpath resolves junctions but not short names.                                                                                                                                                           |
 
-**Rebuilt on boot** from the durable tool state it authorises — the persisted queue, the transcription store, the preview catalog, the output-folder setting. **Not a separate file.** The persisted queue *is* the record of user-chosen paths, so restoration and authorisation cannot disagree. See [research.md §R22](./research.md) for why, and for the three prerequisites that must land first.
+**Rebuilt on boot** from the durable tool state it authorises — the persisted queue, the transcription store, the preview catalog, the output-folder setting. **Not a separate file.** The persisted queue _is_ the record of user-chosen paths, so restoration and authorisation cannot disagree. See [research.md §R22](./research.md) for why, and for the three prerequisites that must land first.
 
 **Refusal**: `403 { error: 'PATH_NOT_GRANTED' }` — one code for every cause, so the route is not an existence oracle.
 
@@ -196,13 +202,13 @@ interface PathGrant {
 // base64url(HMAC(sessionSecret, `${method}|${path}|${exp}`))
 ```
 
-| Rule | |
-|---|---|
-| Bound to one method and one path | A ticket for one image cannot fetch another. |
-| TTL 5 minutes | A leak via a referrer or a log costs one resource for five minutes, not the machine. |
-| Derived from, but not equal to, the session token | This is the whole point. |
-| Issued only in an authenticated response describing that resource | |
-| Range requests unaffected | Which is why blob conversion was rejected. |
+| Rule                                                              |                                                                                      |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Bound to one method and one path                                  | A ticket for one image cannot fetch another.                                         |
+| TTL 5 minutes                                                     | A leak via a referrer or a log costs one resource for five minutes, not the machine. |
+| Derived from, but not equal to, the session token                 | This is the whole point.                                                             |
+| Issued only in an authenticated response describing that resource |                                                                                      |
+| Range requests unaffected                                         | Which is why blob conversion was rejected.                                           |
 
 ---
 
@@ -219,12 +225,15 @@ interface VerificationResult {
   command: 'verify';
   generated_at: string;
   form: 'fast' | 'release';
-  error?: string;                 // the failing gate id, when ok is false
+  error?: string; // the failing gate id, when ok is false
   data: {
     duration_ms: number;
     totals: {
-      gates: number; passed: number; failed: number;
-      tests: number; skipped_tests: number;
+      gates: number;
+      passed: number;
+      failed: number;
+      tests: number;
+      skipped_tests: number;
       skip_reasons: Record<string, number>;
       coverage_lines: number | null;
     };
@@ -234,11 +243,11 @@ interface VerificationResult {
 }
 
 interface GateResult {
-  id: string;                     // stable, appears in exactly one form's list
+  id: string; // stable, appears in exactly one form's list
   ok: boolean;
   duration_ms: number;
   skipped_reason?: string;
-  detail?: unknown;               // gate-specific, unbounded, never printed
+  detail?: unknown; // gate-specific, unbounded, never printed
 }
 ```
 
@@ -260,18 +269,18 @@ interface GateResult {
 interface ProcessObservation {
   pid: number;
   ppid: number;
-  createdAt: number;              // (pid, createdAt) defeats pid recycling
+  createdAt: number; // (pid, createdAt) defeats pid recycling
   name: string;
-  cpuMillis: number;              // cumulative
-  suspended: boolean | null;      // Windows only; null elsewhere
+  cpuMillis: number; // cumulative
+  suspended: boolean | null; // Windows only; null elsewhere
 }
 
 interface MachineSample {
   at: number;
-  tree: ProcessObservation[];     // rooted at the agent the harness spawned
+  tree: ProcessObservation[]; // rooted at the agent the harness spawned
   totalCapacityCores: number;
-  sotySharePercent: number;       // (Δtree cpu) / (Δt × cores) × 100
-  machineIdlePercent: number;     // diagnostic only — NEVER subtracted
+  sotySharePercent: number; // (Δtree cpu) / (Δt × cores) × 100
+  machineIdlePercent: number; // diagnostic only — NEVER subtracted
 }
 ```
 
@@ -291,20 +300,20 @@ interface MachineSample {
 
 ```ts
 type Step =
-  | { do: 'add';     tool: ToolId; fixture: string }
-  | { do: 'start';   tool: ToolId; jobRef: string }
-  | { do: 'stop';    tool: ToolId; jobRef: string }
+  | { do: 'add'; tool: ToolId; fixture: string }
+  | { do: 'start'; tool: ToolId; jobRef: string }
+  | { do: 'stop'; tool: ToolId; jobRef: string }
   | { do: 'stopAll'; tool: ToolId }
-  | { do: 'rerun';   tool: ToolId; jobRef: string }
+  | { do: 'rerun'; tool: ToolId; jobRef: string }
   | { do: 'restartAgent' }
   | { do: 'sleepWake' }
   | { do: 'setLimit'; percent: number }
-  | { do: 'expect';  tool: ToolId; jobRef: string; status: string };
+  | { do: 'expect'; tool: ToolId; jobRef: string; status: string };
 
 interface Scenario {
   id: string;
   steps: readonly Step[];
-  checkpointEvery: boolean;       // observe the machine after every step
+  checkpointEvery: boolean; // observe the machine after every step
 }
 ```
 
@@ -320,12 +329,12 @@ interface Scenario {
 
 Four committed files, each the enforceable memory of a gate.
 
-| File | Contents | Fails when | Serves |
-|---|---|---|---|
-| `coverage-baseline.json` | Global + per-file coverage, floored | Global falls, or a file falls beyond tolerance | FR-018 |
-| `coverage-critical.json` | Run-state modules with absolute floors | A listed module drops below its floor — checked **before and independently of** the ratchet, so a falling global cannot excuse it. Membership is **derived** by walking the import graph from the run-state entry points; adding a state module without listing it fails. | FR-018a |
-| `i18n-dynamic.json` | Prefix patterns for runtime-constructed keys | A constructed key exists whose file is not registered — enforced by a lint rule on the cast that marks one | FR-056 |
-| `audit-exceptions.json` | `{ advisory_id, package, severity, rationale, expires }` | An exception is **expired** | FR-030 |
+| File                     | Contents                                                 | Fails when                                                                                                                                                                                                                                                                | Serves  |
+| ------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `coverage-baseline.json` | Global + per-file coverage, floored                      | Global falls, or a file falls beyond tolerance                                                                                                                                                                                                                            | FR-018  |
+| `coverage-critical.json` | Run-state modules with absolute floors                   | A listed module drops below its floor — checked **before and independently of** the ratchet, so a falling global cannot excuse it. Membership is **derived** by walking the import graph from the run-state entry points; adding a state module without listing it fails. | FR-018a |
+| `i18n-dynamic.json`      | Prefix patterns for runtime-constructed keys             | A constructed key exists whose file is not registered — enforced by a lint rule on the cast that marks one                                                                                                                                                                | FR-056  |
+| `audit-exceptions.json`  | `{ advisory_id, package, severity, rationale, expires }` | An exception is **expired**                                                                                                                                                                                                                                               | FR-030  |
 
 The dated expiry is the point of the last one: a deferral becomes a decision with a review date rather than a permanent hole.
 
@@ -338,11 +347,11 @@ The dated expiry is the point of the last one: a deferral becomes a decision wit
 
 Two scales **do not exist and must be created** — the spec says so explicitly, because a requirement to use a scale that does not exist is unmeetable:
 
-| Scale | Status |
-|---|---|
-| `--space-*`, `--radius-*`, `--shadow-*`, `--dur-*`, `--ease-*` | Exist. Enforce use. |
-| Text size | **Create.** Today: machine-generated fractional pixel literals, so browser font-size settings are ignored. |
-| Stacking order (`--z-*`) | **Create.** Today: 58 raw values, no scale, no comments. View-transition pseudo-elements are excluded — they live in their own overlay context and are not comparable. |
+| Scale                                                          | Status                                                                                                                                                                 |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--space-*`, `--radius-*`, `--shadow-*`, `--dur-*`, `--ease-*` | Exist. Enforce use.                                                                                                                                                    |
+| Text size                                                      | **Create.** Today: machine-generated fractional pixel literals, so browser font-size settings are ignored.                                                             |
+| Stacking order (`--z-*`)                                       | **Create.** Today: 58 raw values, no scale, no comments. View-transition pseudo-elements are excluded — they live in their own overlay context and are not comparable. |
 
 Nine referenced-but-undefined properties must be defined or removed: `--color-danger`, `--border`, `--border-strong`, `--surface`, `--surface-raised`, `--text`, `--text-muted`, `--font-mono`, `--color-text-subtle`.
 

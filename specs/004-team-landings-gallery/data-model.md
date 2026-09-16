@@ -10,13 +10,13 @@ redefined.
 
 ## 1. Reused entities (read-only here)
 
-| Entity | Source | How this feature uses it |
-| --- | --- | --- |
-| **Material (catalog row)** | 001 catalog (`drive_vault_catalog` migration) | The gallery lists materials where `category = 'landing'`. Reads `id`, `name`, `category`, `classification_source` (`inspected_landing` vs candidate), `sourceVersion`, `fingerprint`, metadata (`geo`, `offer`, `language`, `tags`), `preview_state`, freshness. |
-| **Effective permissions** | 001 `private.can(team, perm, uid)` | `view` gates gallery + preview; `download`/`edit` gate optional actions. Never widened client-side. |
-| **Drive connection / root** | 001 drive connection | Source of truth for which landings exist; hidden `.soty/landing-previews/` subtree lives under this root. |
-| **Preview grant / transfer** | 001 US4 `drive-transfer` `preview_range` grant | Reused to (a) range-download a landing zip for rendering and (b) stream a cached render's WebP bytes to an agent-less viewer. |
-| **Viewer presets (local previewer)** | `LandingPreviewState` in `@video-compressor/shared` | Device size / colour scheme / zoom / grid preset model reused by the team viewer controls. |
+| Entity                               | Source                                              | How this feature uses it                                                                                                                                                                                                                                         |
+| ------------------------------------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Material (catalog row)**           | 001 catalog (`drive_vault_catalog` migration)       | The gallery lists materials where `category = 'landing'`. Reads `id`, `name`, `category`, `classification_source` (`inspected_landing` vs candidate), `sourceVersion`, `fingerprint`, metadata (`geo`, `offer`, `language`, `tags`), `preview_state`, freshness. |
+| **Effective permissions**            | 001 `private.can(team, perm, uid)`                  | `view` gates gallery + preview; `download`/`edit` gate optional actions. Never widened client-side.                                                                                                                                                              |
+| **Drive connection / root**          | 001 drive connection                                | Source of truth for which landings exist; hidden `.soty/landing-previews/` subtree lives under this root.                                                                                                                                                        |
+| **Preview grant / transfer**         | 001 US4 `drive-transfer` `preview_range` grant      | Reused to (a) range-download a landing zip for rendering and (b) stream a cached render's WebP bytes to an agent-less viewer.                                                                                                                                    |
+| **Viewer presets (local previewer)** | `LandingPreviewState` in `@video-compressor/shared` | Device size / colour scheme / zoom / grid preset model reused by the team viewer controls.                                                                                                                                                                       |
 
 ---
 
@@ -25,20 +25,20 @@ redefined.
 A pointer to a produced, team-shared render of one landing at one source identity and one
 viewer preset. **Small metadata only** — the image bytes are Drive files (§4).
 
-| Field | Type | Rules |
-| --- | --- | --- |
-| `id` | uuid pk | server-generated |
-| `team_id` | uuid fk → teams | RLS-scoped; every read predicate includes it |
-| `material_id` | uuid fk → catalog material | the landing this render belongs to |
-| `source_version` | text/int | must equal the material's current immutable `sourceVersion` to be **valid** |
-| `fingerprint` | text | must equal the material's current `fingerprint` to be **valid** |
-| `preset` | text enum | `default` (baseline); future device/colour presets keyed here |
-| `segment_count` | int | number of WebP segments produced (≥1) |
-| `artifact_root` | text | Drive path/id of `.soty/landing-previews/<materialId>/<source>-<fp>/<preset>/` |
-| `render_state` | text enum | `rendering \| ready \| stale \| failed` |
-| `failure_reason` | text enum null | `corrupt \| protected \| too_large \| unsupported \| render_error` (when `failed`) |
-| `rendered_by` | uuid null | member whose agent produced it (audit; never exposed as content) |
-| `created_at` / `updated_at` | timestamptz | audit |
+| Field                       | Type                       | Rules                                                                              |
+| --------------------------- | -------------------------- | ---------------------------------------------------------------------------------- |
+| `id`                        | uuid pk                    | server-generated                                                                   |
+| `team_id`                   | uuid fk → teams            | RLS-scoped; every read predicate includes it                                       |
+| `material_id`               | uuid fk → catalog material | the landing this render belongs to                                                 |
+| `source_version`            | text/int                   | must equal the material's current immutable `sourceVersion` to be **valid**        |
+| `fingerprint`               | text                       | must equal the material's current `fingerprint` to be **valid**                    |
+| `preset`                    | text enum                  | `default` (baseline); future device/colour presets keyed here                      |
+| `segment_count`             | int                        | number of WebP segments produced (≥1)                                              |
+| `artifact_root`             | text                       | Drive path/id of `.soty/landing-previews/<materialId>/<source>-<fp>/<preset>/`     |
+| `render_state`              | text enum                  | `rendering \| ready \| stale \| failed`                                            |
+| `failure_reason`            | text enum null             | `corrupt \| protected \| too_large \| unsupported \| render_error` (when `failed`) |
+| `rendered_by`               | uuid null                  | member whose agent produced it (audit; never exposed as content)                   |
+| `created_at` / `updated_at` | timestamptz                | audit                                                                              |
 
 **Uniqueness**: one **valid** render per (`team_id`, `material_id`, `preset`) at a given
 (`source_version`, `fingerprint`). A new source identity supersedes rather than overwrites.
@@ -76,14 +76,14 @@ The per-tile view model the web builds by joining a catalog landing row with its
 `LandingRender` and the current agent/permission context. Transport type in
 `@video-compressor/shared/team`.
 
-| Field | Derivation |
-| --- | --- |
-| `materialId`, `name`, `category`, metadata facets | from the catalog row |
-| `isCandidate` | `classification_source != 'inspected_landing'` (archive not yet confirmed) |
-| `thumbnailRef` | first WebP segment of the valid `ready` render (downscaled), else none |
-| `renderState` | `ready \| candidate \| rendering \| needs_agent \| agent_outdated \| error` (see below) |
-| `unavailableReason` | typed reason when `error` (`corrupt/protected/too_large/unsupported`) |
-| `canDownload` / `canEdit` | from effective permissions (optional actions only) |
+| Field                                             | Derivation                                                                              |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `materialId`, `name`, `category`, metadata facets | from the catalog row                                                                    |
+| `isCandidate`                                     | `classification_source != 'inspected_landing'` (archive not yet confirmed)              |
+| `thumbnailRef`                                    | first WebP segment of the valid `ready` render (downscaled), else none                  |
+| `renderState`                                     | `ready \| candidate \| rendering \| needs_agent \| agent_outdated \| error` (see below) |
+| `unavailableReason`                               | typed reason when `error` (`corrupt/protected/too_large/unsupported`)                   |
+| `canDownload` / `canEdit`                         | from effective permissions (optional actions only)                                      |
 
 **`renderState` resolution (structural, guarantees SC-004 zero-false-ready):**
 
@@ -121,11 +121,11 @@ else                                  → needs_agent
 
 ## 5. New client state: viewer presets & gallery view
 
-| State | Where | Notes |
-| --- | --- | --- |
-| Active viewer preset (device / colour scheme / zoom / grid) | new `localStorage` key `soty.landing-viewer.v1` | reuses the local previewer preset shape; per-device, not synced |
-| Gallery query (text + `category=landing` + facets + page) | `useTeamLandings` over `useCatalogSearch` | authoritative rows from the server; realtime refetch, no polling |
-| Workspace view mode | existing `WorkspaceShell` `content \| search \| settings` | add a `landings` mode (FR-015) |
+| State                                                       | Where                                                     | Notes                                                            |
+| ----------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
+| Active viewer preset (device / colour scheme / zoom / grid) | new `localStorage` key `soty.landing-viewer.v1`           | reuses the local previewer preset shape; per-device, not synced  |
+| Gallery query (text + `category=landing` + facets + page)   | `useTeamLandings` over `useCatalogSearch`                 | authoritative rows from the server; realtime refetch, no polling |
+| Workspace view mode                                         | existing `WorkspaceShell` `content \| search \| settings` | add a `landings` mode (FR-015)                                   |
 
 ---
 

@@ -41,7 +41,7 @@ This feature replaces the dialects with one vocabulary — modelled on Nuxt UI's
 catalogue, governed by the product's own `docs/DESIGN.md` and by the craft rules in
 `docs/DESIGN-PRINCIPLES.md` — and then re-dresses every screen and every state in it.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - A reader learns the product once (Priority: P1)
 
@@ -205,7 +205,7 @@ new CSS declarations it needed (target: near zero outside layout).
   denser than any Nuxt UI example; their density must come from the size scale (xs/sm) and
   not from one-off values.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### A. Token layer
 
@@ -351,7 +351,7 @@ new CSS declarations it needed (target: near zero outside layout).
   confirmation dialog, selection bar, settings panel, picker, data table row), specified
   once and reused.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

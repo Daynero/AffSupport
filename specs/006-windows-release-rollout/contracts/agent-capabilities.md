@@ -14,20 +14,20 @@ every agent advertises every capability — including `finder-image-conversion`,
 serve. It becomes a **platform-derived list** computed from `capabilities()`.
 
 The wire shape does not change: still `capabilities: string[]` in the same two payloads. The
-`AGENT_CAPABILITIES` union remains the closed set of *possible* strings (so the web keeps
+`AGENT_CAPABILITIES` union remains the closed set of _possible_ strings (so the web keeps
 compile-time checking); what changes is that an agent advertises a subset.
 
 ## Capability set
 
-| String | Meaning | macOS | Windows |
-| --- | --- | --- | --- |
-| `local-file-paths` | The agent can act on paths the browser hands it | yes | yes |
-| `native-file-picker` | The agent can open an OS file/folder chooser | yes | yes |
-| `finder-image-conversion` | OS file-manager context-menu image conversion | yes | **no** |
-| `landing` | Landing optimizer available | yes | yes |
-| `landing-preview` | Bundled browser can render previews | yes | yes |
-| `transcription` | Transcription and translation available | yes | yes |
-| `team-workspace` | Team workspace bridge available | yes | yes |
+| String                    | Meaning                                         | macOS | Windows |
+| ------------------------- | ----------------------------------------------- | ----- | ------- |
+| `local-file-paths`        | The agent can act on paths the browser hands it | yes   | yes     |
+| `native-file-picker`      | The agent can open an OS file/folder chooser    | yes   | yes     |
+| `finder-image-conversion` | OS file-manager context-menu image conversion   | yes   | **no**  |
+| `landing`                 | Landing optimizer available                     | yes   | yes     |
+| `landing-preview`         | Bundled browser can render previews             | yes   | yes     |
+| `transcription`           | Transcription and translation available         | yes   | yes     |
+| `team-workspace`          | Team workspace bridge available                 | yes   | yes     |
 
 `native-file-picker` is new; it exposes the already-existing
 `PlatformCapabilities.nativeFilePicker`, which is `true` on win32 today.

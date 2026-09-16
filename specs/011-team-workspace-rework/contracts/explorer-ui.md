@@ -26,17 +26,17 @@
 
 ## Panes and components (`apps/web/src/team/explorer/`)
 
-| Component                              | Responsibility                                                                                              | Data                                                       |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `ExplorerProvider` / `useExplorer()`   | tree cache, selection, filters, view mode, thumbnail session                                                | `listFolderTree`, realtime patches, `mintThumbnailSession` |
-| `FolderTree`                           | virtualised tree, counts, "listing…" state, drag target                                                     | `TeamFolderNode[]`                                         |
-| `Breadcrumb`                           | full clickable path from root/selection                                                                     | tree                                                       |
-| `KindFilterMenu` / `SortMenu`           | a Type dropdown (landing · image · video · transcript · archive · other) and a sort menu (name/date, A–Z/Z–A, folders apart) | tree counts + page totals |
-| `ExplorerSearch`                       | type-ahead within folder; scope toggle; results with paths                                                  | `search_materials`                                         |
-| `ContentGrid` / `ContentList`          | paged rows, thumbnails via session URL, kind icon + reason, selection, context menu, drag source            | `listFolderPage`                                           |
-| `PreviewPane`                          | wraps `MaterialPreview` (media/transcript/archive), `LandingFullView`, metadata editor, provenance, actions | existing clients                                           |
-| `StorageChip` (`team/storage/`)        | one state at a time; click → detail sheet with actions                                                      | `useStorageHealth`                                         |
-| `ConnectStorageFlow` (`team/storage/`) | name → Picker → done; selections list under outcome B                                                       | `picker_token`, `choose_root`, selections                  |
+| Component                              | Responsibility                                                                                                               | Data                                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `ExplorerProvider` / `useExplorer()`   | tree cache, selection, filters, view mode, thumbnail session                                                                 | `listFolderTree`, realtime patches, `mintThumbnailSession` |
+| `FolderTree`                           | virtualised tree, counts, "listing…" state, drag target                                                                      | `TeamFolderNode[]`                                         |
+| `Breadcrumb`                           | full clickable path from root/selection                                                                                      | tree                                                       |
+| `KindFilterMenu` / `SortMenu`          | a Type dropdown (landing · image · video · transcript · archive · other) and a sort menu (name/date, A–Z/Z–A, folders apart) | tree counts + page totals                                  |
+| `ExplorerSearch`                       | type-ahead within folder; scope toggle; results with paths                                                                   | `search_materials`                                         |
+| `ContentGrid` / `ContentList`          | paged rows, thumbnails via session URL, kind icon + reason, selection, context menu, drag source                             | `listFolderPage`                                           |
+| `PreviewPane`                          | wraps `MaterialPreview` (media/transcript/archive), `LandingFullView`, metadata editor, provenance, actions                  | existing clients                                           |
+| `StorageChip` (`team/storage/`)        | one state at a time; click → detail sheet with actions                                                                       | `useStorageHealth`                                         |
+| `ConnectStorageFlow` (`team/storage/`) | name → Picker → done; selections list under outcome B                                                                        | `picker_token`, `choose_root`, selections                  |
 
 ## Capability map (enforced by `tests/team-explorer-capability-map.test.ts`)
 

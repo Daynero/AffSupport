@@ -33,4 +33,3 @@ decision. Updating screenshots or passing automation is evidence only.
 Production integration remains prohibited until the owner gives written approval for all
 agreed key screens, both themes, responsive states, logo direction and every blocking item.
 Approval starts a separate planning phase; it does not merge, deploy or activate Soty.
-

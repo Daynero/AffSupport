@@ -43,14 +43,14 @@ Everything below this line is module-private: `decodeBase32`, `sha1`,
 (`GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ` in Base32), SHA-1, 8 digits — the fixture
 takes the last 6 for the shipped 6-digit configuration:
 
-| Time (s) | 8-digit code |
-| --- | --- |
-| 59 | 94287082 |
-| 1111111109 | 07081804 |
-| 1111111111 | 14050471 |
-| 1234567890 | 89005924 |
-| 2000000000 | 69279037 |
-| 20000000000 | 65353130 |
+| Time (s)    | 8-digit code |
+| ----------- | ------------ |
+| 59          | 94287082     |
+| 1111111109  | 07081804     |
+| 1111111111  | 14050471     |
+| 1234567890  | 89005924     |
+| 2000000000  | 69279037     |
+| 20000000000 | 65353130     |
 
 The last row is past 2038, so the counter must be computed in a way that does
 not truncate to 32 bits.

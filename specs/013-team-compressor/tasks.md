@@ -29,13 +29,13 @@ vitest single-worker, live-verify each phase in the beta browser.
       selection bar (each selected video), folder's Обробити вміст…
       («Стиснути всі відео»).
 - [~] B3 Destination «Поруч з оригіналом» / «У папку на Drive» (folder picker):
-      start the process with the right `destinationFolderId` + suffixed
-      `outputName` (`_1`, `_2` numbering when the suffix is empty).
+  start the process with the right `destinationFolderId` + suffixed
+  `outputName` (`_1`, `_2` numbering when the suffix is empty).
 - [~] B4 Destination «Перезаписати оригінал»: run as `new_version` of the
-      source material (same id → companions stay), name preserved (or
-      `name+suffix` → rename in the same commit), modified date updates;
-      the original is untouched until the upload finalizes. Server work in
-      `drive-ops/process/*` to accept a `versionOfMaterialId`.
+  source material (same id → companions stay), name preserved (or
+  `name+suffix` → rename in the same commit), modified date updates;
+  the original is untouched until the upload finalizes. Server work in
+  `drive-ops/process/*` to accept a `versionOfMaterialId`.
 - [ ] B5 Destination «Локально на компʼютері»: the agent also writes the
       result into its chosen local folder (reuse `outputMode: 'chosen-folder'`
       plumbing) — surfaced as a checkbox/choice in the dialog.
@@ -91,6 +91,7 @@ never complete) — restarting the agent releases it, and reservations were
 freed by marking the dead operations failed.
 
 ## Live findings (session 2026-08-30, overwrite saga continued)
+
 - The "75% hang with no connections" had TWO independent causes stacked:
   1. undici treats Google's 308 chunk acks as redirects (`redirect: 'error'`
      aborted multi-chunk uploads) — fixed with `redirect: 'manual'`.
@@ -119,12 +120,12 @@ freed by marking the dead operations failed.
   processed_from self-link — are skipped when
   `intent.version_of_material_id = operation.source_material_id`.
 - B5 «Локально на компʼютері» implemented end to end (agent download bridge
-  + compress delegate + local save with suffix; web dialog radio + queue
-  runner branch, no team operation). Live verification reached the native
-  folder picker: the request chain web → download grant → agent → picker
-  works, but the OS dialog needs a human click (osascript keystrokes are
-  blocked without Accessibility permission), so the final click-through is
-  on the owner.
+  - compress delegate + local save with suffix; web dialog radio + queue
+    runner branch, no team operation). Live verification reached the native
+    folder picker: the request chain web → download grant → agent → picker
+    works, but the OS dialog needs a human click (osascript keystrokes are
+    blocked without Accessibility permission), so the final click-through is
+    on the owner.
 - C1 verification pass (2026-08-30): team suite 68 files / 515 tests green,
   creative-library suite 64 tests green (both single-worker); web tsc and
   agent build clean; live walkthrough covered B3 beside-run, B4 overwrite

@@ -14,12 +14,12 @@ One implementation, one flag. The two forms differ **only** in which gates run �
 node scripts/verify-all.mjs --form=fast|release [--json] [--gates=<group>] [--update-coverage-baseline]
 ```
 
-| Flag | Meaning |
-|---|---|
-| `--form` | Gate list. Required. |
-| `--json` | Emit the result envelope to stdout instead of the human summary. |
-| `--gates` | Run one named phase group. Used by CI jobs to split work across runners. |
-| `--update-coverage-baseline` | Rewrite the committed baseline. Release form only. |
+| Flag                         | Meaning                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `--form`                     | Gate list. Required.                                                     |
+| `--json`                     | Emit the result envelope to stdout instead of the human summary.         |
+| `--gates`                    | Run one named phase group. Used by CI jobs to split work across runners. |
+| `--update-coverage-baseline` | Rewrite the committed baseline. Release form only.                       |
 
 Exit code `0` on success, `1` on any gate failure. The full result is always written to `verification-result.json` (gitignored) regardless of flags, so nothing is ever lost — only unread.
 
@@ -29,13 +29,13 @@ Exit code `0` on success, `1` on any gate failure. The full result is always wri
 
 Parallel **within** a phase, strictly serial **between** phases.
 
-| Phase | Gates | Fast | Release |
-|---|---|---|---|
-| 0 — seed | build shared | ✓ | ✓ |
-| A — static, read-only | format · lint · 6 typecheck projects · styles · i18n · dependency audit | ✓ | ✓ |
-| B — suite, **exclusive** | the test suite (+ coverage in release) | ✓ | ✓ |
-| C — builds & contract | build web · build agent · release contract · web env · team contract | ✗ | ✓ |
-| D — out-of-process, **exclusive** | end-to-end · database · accessibility sweep · review app | ✗ | ✓ |
+| Phase                             | Gates                                                                   | Fast | Release |
+| --------------------------------- | ----------------------------------------------------------------------- | ---- | ------- |
+| 0 — seed                          | build shared                                                            | ✓    | ✓       |
+| A — static, read-only             | format · lint · 6 typecheck projects · styles · i18n · dependency audit | ✓    | ✓       |
+| B — suite, **exclusive**          | the test suite (+ coverage in release)                                  | ✓    | ✓       |
+| C — builds & contract             | build web · build agent · release contract · web env · team contract    | ✗    | ✓       |
+| D — out-of-process, **exclusive** | end-to-end · database · accessibility sweep · review app                | ✗    | ✓       |
 
 **Phase B is exclusive for a specific, recorded reason** (finding A17): the suite rebuilds the shared package's committed output and rewrites a tracked migration while other phases would be reading both. It is also pointless to overlap — the suite already saturates every core. The lasting fix is an output-directory flag on the generator so the test writes into a temp directory; until then, exclusivity is enforced in the aggregator rather than by convention.
 
@@ -50,35 +50,57 @@ Extends the existing analytics envelope — `ok`, `command`, `generated_at`, `da
 The full shape is in [data-model.md §6](../data-model.md).
 
 ```json
-{ "ok": true, "command": "verify", "generated_at": "…", "form": "release",
-  "data": { "duration_ms": 431200,
-            "totals": { "gates": 14, "passed": 14, "failed": 0,
-                        "tests": 1403, "skipped_tests": 0,
-                        "skip_reasons": {}, "coverage_lines": 71.2 },
-            "gates": [ { "id": "lint", "ok": true, "duration_ms": 5512 } ] } }
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "…",
+  "form": "release",
+  "data": {
+    "duration_ms": 431200,
+    "totals": {
+      "gates": 14,
+      "passed": 14,
+      "failed": 0,
+      "tests": 1403,
+      "skipped_tests": 0,
+      "skip_reasons": {},
+      "coverage_lines": 71.2
+    },
+    "gates": [{ "id": "lint", "ok": true, "duration_ms": 5512 }]
+  }
+}
 ```
 
 ```json
-{ "ok": false, "command": "verify", "generated_at": "…", "form": "fast",
+{
+  "ok": false,
+  "command": "verify",
+  "generated_at": "…",
+  "form": "fast",
   "error": "typecheck:tests",
-  "data": { "…": "…",
-            "failure": { "gate": "typecheck:tests",
-                         "subject": "tests/queue.test.ts(88,7): TS2345 …",
-                         "excerpt": ["…"] } } }
+  "data": {
+    "…": "…",
+    "failure": {
+      "gate": "typecheck:tests",
+      "subject": "tests/queue.test.ts(88,7): TS2345 …",
+      "excerpt": ["…"]
+    }
+  }
+}
 ```
 
 ---
 
 ## Output budget
 
-| | Cap | Rule |
-|---|---|---|
-| Success | **20 lines** | 1 header, ≤15 gate lines, blank, 2 totals lines. The aggregator asserts the cap and collapses the gate block to one line if a future list would exceed it. |
+|         | Cap           | Rule                                                                                                                                                                |
+| ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Success | **20 lines**  | 1 header, ≤15 gate lines, blank, 2 totals lines. The aggregator asserts the cap and collapses the gate block to one line if a future list would exceed it.          |
 | Failure | **100 lines** | Line 1 names the form and the failing gate. Line 2 is the one-line subject. Lines 3–8 are the remaining gate statuses. Then a per-gate excerpt, capped at 88 lines. |
 
 **The aggregator never re-formats what a gate said about itself — it truncates.** That is what keeps "sufficient to act on without re-running" honest: the excerpt is the tool's own words.
 
-Test-suite noise is removed by the runner's own passed-only silencing, measured to eliminate 100% of the known stderr noise while still emitting logs from *failing* tests. **Named-file filtering was rejected outright** — an allowlist silently stops working on rename and can suppress a genuine error.
+Test-suite noise is removed by the runner's own passed-only silencing, measured to eliminate 100% of the known stderr noise while still emitting logs from _failing_ tests. **Named-file filtering was rejected outright** — an allowlist silently stops working on rename and can suppress a genuine error.
 
 ---
 
@@ -90,11 +112,11 @@ A requirements helper probes at **collection time** (the availability flag is as
 describe('real encoder fidelity [needs: ffmpeg,ffprobe]', …)
 ```
 
-| Rule | |
-|---|---|
-| Reasons are read back from the runner's JSON report | No ledger file, no global state, no reporter plugin. |
-| **A skipped test with no requirement marker fails the run** | On every runner. This is SC-007 in one line. |
-| Release mode makes the probes **throw** | So a release runner missing a binary fails loudly naming it, rather than quietly reporting zero skips because nothing ran. |
+| Rule                                                           |                                                                                                                                                      |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reasons are read back from the runner's JSON report            | No ledger file, no global state, no reporter plugin.                                                                                                 |
+| **A skipped test with no requirement marker fails the run**    | On every runner. This is SC-007 in one line.                                                                                                         |
+| Release mode makes the probes **throw**                        | So a release runner missing a binary fails loudly naming it, rather than quietly reporting zero skips because nothing ran.                           |
 | A bare early return inside a test callback is a **lint error** | The constitution has named this anti-pattern since ratification and it is still present in fourteen places. A rule is the only thing that ends that. |
 
 ---
@@ -114,13 +136,13 @@ Expect the first measured figure to be low. That is the correct baseline, and th
 
 ## CI mapping
 
-| Job | Runner | Invocation |
-|---|---|---|
-| `static` | Linux | `--form=fast --gates=static` |
-| `test-macos` | macOS | `--form=fast --gates=suite` + coverage |
-| `test-windows` | Windows | `--form=fast --gates=suite` |
-| `build` | macOS + Windows | `--form=release --gates=build` |
-| `e2e` | macOS | `--form=release --gates=e2e` |
+| Job            | Runner          | Invocation                             |
+| -------------- | --------------- | -------------------------------------- |
+| `static`       | Linux           | `--form=fast --gates=static`           |
+| `test-macos`   | macOS           | `--form=fast --gates=suite` + coverage |
+| `test-windows` | Windows         | `--form=fast --gates=suite`            |
+| `build`        | macOS + Windows | `--form=release --gates=build`         |
+| `e2e`          | macOS           | `--form=release --gates=e2e`           |
 
 Required for merge: `static`, `test-macos`, `test-windows`, `build`. The end-to-end job runs on push to the default branch and on labelled pull requests only — the single biggest minutes lever, and the right trade, because that harness needs a full build plus real binaries and its failures are rarely local to one change.
 

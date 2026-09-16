@@ -6,32 +6,32 @@ This feature makes **no backend change**. It reuses the following existing `team
 
 ## Navigation & lobby
 
-| Purpose | `teamApi` method | Underlying 001 endpoint | Change |
-| --- | --- | --- | --- |
-| List the user's spaces | `listTeams()` | `rpc('list_my_teams')` | none |
-| Read connection readiness for card state | `getConnectionStatus(teamId)` | `rpc('get_drive_connection_status')` | none |
+| Purpose                                  | `teamApi` method              | Underlying 001 endpoint              | Change |
+| ---------------------------------------- | ----------------------------- | ------------------------------------ | ------ |
+| List the user's spaces                   | `listTeams()`                 | `rpc('list_my_teams')`               | none   |
+| Read connection readiness for card state | `getConnectionStatus(teamId)` | `rpc('get_drive_connection_status')` | none   |
 
 ## Create wizard
 
-| Purpose | `teamApi` method | Underlying 001 endpoint | Change |
-| --- | --- | --- | --- |
-| Create the team row (name step) | `createTeam(name)` | `rpc('create_team')` | none |
-| Start Drive OAuth | `startDriveOAuth(teamId)` | `drive-connect` (`start`) | none |
-| Browse folders | `listFolders(teamId,'root',token)` | `drive-connect` (`folders`) | none |
-| Confirm root (2-phase) | `confirmDriveRoot(...)` | `drive-connect` (`confirm`) | none |
+| Purpose                         | `teamApi` method                   | Underlying 001 endpoint     | Change |
+| ------------------------------- | ---------------------------------- | --------------------------- | ------ |
+| Create the team row (name step) | `createTeam(name)`                 | `rpc('create_team')`        | none   |
+| Start Drive OAuth               | `startDriveOAuth(teamId)`          | `drive-connect` (`start`)   | none   |
+| Browse folders                  | `listFolders(teamId,'root',token)` | `drive-connect` (`folders`) | none   |
+| Confirm root (2-phase)          | `confirmDriveRoot(...)`            | `drive-connect` (`confirm`) | none   |
 
 ## Workspace shell, settings, catalog
 
-| Purpose | `teamApi` method | Underlying 001 endpoint | Change |
-| --- | --- | --- | --- |
-| Browse folder contents | `listMaterials(teamId, parent)` | `rpc('list_team_materials')` | none |
-| Search (on demand) | `searchCatalog(teamId, req)` | `rpc('search_materials')` | none |
-| Content-aware facets | `getCatalogVocabulary(teamId)` | `rpc('get_team_vocab_and_facets')` | none |
-| Members panel | `listMembers` / `updateMembership` / `removeMember` / `transferOwnership` | corresponding RPCs | none |
-| Invitations panel | `listInvitations` / `createInvitation` / `resendInvitation` / `revokeInvitation` / `directAddMember` | `team-invitations` + RPCs | none |
-| Drive settings panel | `replaceDriveRoot` / `detachDrive` | `drive-connect` | none |
-| Audit panel | `listAuditEvents` | `rpc('list_team_audit_events')` | none |
-| Preview / processing | `previewMaterial` / `startProcess` / `getOperation` / … | `drive-transfer` / `drive-ops` | none |
+| Purpose                | `teamApi` method                                                                                     | Underlying 001 endpoint            | Change |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------- | ------ |
+| Browse folder contents | `listMaterials(teamId, parent)`                                                                      | `rpc('list_team_materials')`       | none   |
+| Search (on demand)     | `searchCatalog(teamId, req)`                                                                         | `rpc('search_materials')`          | none   |
+| Content-aware facets   | `getCatalogVocabulary(teamId)`                                                                       | `rpc('get_team_vocab_and_facets')` | none   |
+| Members panel          | `listMembers` / `updateMembership` / `removeMember` / `transferOwnership`                            | corresponding RPCs                 | none   |
+| Invitations panel      | `listInvitations` / `createInvitation` / `resendInvitation` / `revokeInvitation` / `directAddMember` | `team-invitations` + RPCs          | none   |
+| Drive settings panel   | `replaceDriveRoot` / `detachDrive`                                                                   | `drive-connect`                    | none   |
+| Audit panel            | `listAuditEvents`                                                                                    | `rpc('list_team_audit_events')`    | none   |
+| Preview / processing   | `previewMaterial` / `startProcess` / `getOperation` / …                                              | `drive-transfer` / `drive-ops`     | none   |
 
 ## Assertions
 

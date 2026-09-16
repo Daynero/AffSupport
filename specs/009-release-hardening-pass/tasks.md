@@ -318,7 +318,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T148 [P] [US5] Create `tests/mac-signing-chain.test.ts` verifying the signing, hardened-runtime and stapling chain against a self-signed identity in a throwaway keychain (C1, SC-010)
 - [ ] T149 [P] [US5] Create `tests/release-manifest-pinning.test.ts` asserting an artifact on an unexpected host or with a malformed hash is rejected (C11)
 - [x] T150 [P] [US5] Create `tests/pairing-verify-before-adopt.test.ts` asserting a planted token is discarded without ever reaching persistent storage (C12)
-- [X] T151 [P] [US5] Create `tests/csp-smoke.test.ts` driving a browser through pair → compress → open a preview → sign in and asserting zero policy violations (C2)
+- [x] T151 [P] [US5] Create `tests/csp-smoke.test.ts` driving a browser through pair → compress → open a preview → sign in and asserting zero policy violations (C2)
 - [ ] T152 [P] [US5] Create `tests/transfer-grant-tickets.test.ts` asserting forged, replayed, expired and wrong-team tickets are all refused on the unauthenticated backend range paths (C9)
 - [ ] T152a [US5] Create `tests/adversarial-suite-size.test.ts` collecting the attempt count across `tests/agent-admission.test.ts`, `tests/path-grants.test.ts`, `tests/upload-budgets.test.ts`, `tests/hostile-filenames.test.ts` and `tests/transfer-grant-tickets.test.ts`, asserting at least 30 attempts at a 100% refusal rate — a countable assertion, not a claim in prose (SC-008)
 
@@ -333,9 +333,9 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Implementation — the browser origin
 
-- [X] T163 [US5] Rewrite the boot-recovery block in `apps/web/index.html` to remove its inline handler and inline styles, and localise its text and theme (C2, FR-057)
-- [X] T164 [US5] Add a build step generating policy hashes for the two inline blocks and writing them into `apps/web/public/_headers`
-- [X] T165 [US5] Write the full header set into `apps/web/public/_headers` per [contracts/web-origin-headers.md](./contracts/web-origin-headers.md), with the connect list covering the local app across ports (FR-025)
+- [x] T163 [US5] Rewrite the boot-recovery block in `apps/web/index.html` to remove its inline handler and inline styles, and localise its text and theme (C2, FR-057)
+- [x] T164 [US5] Add a build step generating policy hashes for the two inline blocks and writing them into `apps/web/public/_headers`
+- [x] T165 [US5] Write the full header set into `apps/web/public/_headers` per [contracts/web-origin-headers.md](./contracts/web-origin-headers.md), with the connect list covering the local app across ports (FR-025)
 
 ### Implementation — tokens out of URLs
 
@@ -349,10 +349,10 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [x] T170 [P] [US5] Remove the model hash from the environment-overridable set in `apps/agent/src/translation/tools.ts`, so the pin cannot be changed by whoever changed the source (C19, FR-032e)
 - [x] T171 [P] [US5] Write state files with owner-only permissions under an owner-only parent in `apps/agent/src/queue/store.ts`, `apps/agent/src/queue/transcription-store.ts`, `apps/agent/src/entitlement/entitlement.ts` and the preview catalog, and tighten the beta environment file in `scripts/beta-up.mjs` (C18, FR-032d)
 - [x] T172 [US5] Create `apps/agent/src/files/path-grants.ts` implementing the ledger from [data-model.md §4](./data-model.md), including pattern-bound derived-output write scope, device and inode re-checking, and the outer bound (FR-026)
-- [X] T173 [US5] Mint grants inside every selector in `apps/agent/src/files/picker.ts` and on successful resolution in `apps/agent/src/files/dropped-source.ts`, so no caller can forget
+- [x] T173 [US5] Mint grants inside every selector in `apps/agent/src/files/picker.ts` and on successful resolution in `apps/agent/src/files/dropped-source.ts`, so no caller can forget
 - [ ] T174 [US5] Mint grants in the native bridge handlers in `apps/agent/src/media-actions/routes.ts`, then run the same check as everyone else — no bypass
-- [X] T175 [US5] Rebuild the ledger on boot from the durable tool state in `apps/agent/src/index.ts`, resolving and stat-ing each path, so restoration and authorisation cannot disagree
-- [X] T176 [US5] Consult the ledger in `apps/agent/src/compressor/routes.ts`, `apps/agent/src/transcription/routes.ts` and `apps/agent/src/landing-preview/routes.ts`, in **observe mode** — evaluate, count, allow — refusing with one code for every cause and matching in memory before touching the filesystem, and emit the would-refuse count through the diagnostics surface so the rate is measurable rather than anecdotal
+- [x] T175 [US5] Rebuild the ledger on boot from the durable tool state in `apps/agent/src/index.ts`, resolving and stat-ing each path, so restoration and authorisation cannot disagree
+- [x] T176 [US5] Consult the ledger in `apps/agent/src/compressor/routes.ts`, `apps/agent/src/transcription/routes.ts` and `apps/agent/src/landing-preview/routes.ts`, in **observe mode** — evaluate, count, allow — refusing with one code for every cause and matching in memory before touching the filesystem, and emit the would-refuse count through the diagnostics surface so the rate is measurable rather than anecdotal
 - [ ] T177 [US5] Accept grant identifiers in place of absolute paths in those three routes and in `apps/web/src/api/client.ts`, keeping raw-path acceptance only where it resolves to an existing grant
 - [ ] T178 [US5] Flip the ledger from observe to enforce in `apps/agent/src/files/path-grants.ts`, with no environment flag to disable it. **Exit criterion, fixed before T176 ships**: at least 200 observed path uses across at least 10 distinct beta sessions covering pick, drop, Finder and restore, with **zero** would-refuse events not already reproduced by a positive-suite case. One unexplained would-refuse resets the count
 - [x] T179 [P] [US5] Route the six reveal and open call sites through one guarded helper in `apps/agent/src/platform/platform.ts` that resolves, stats, and rejects executable or URL-shaped targets (C15, FR-032b)
@@ -364,7 +364,7 @@ These four close holes confirmed by **probing a running local app**, not inferre
 - [ ] T182 [P] [US5] Add the folder-upload session budget, echoed session identifier, path depth bounds and exclusive-create write to `apps/agent/src/landing/routes.ts` (C8)
 - [x] T183 [P] [US5] Add the subscriber cap, oldest-first eviction with a terminal frame, heartbeat and stalled-writer drop to `apps/agent/src/server/sse.ts` (C7)
 - [x] T184 [P] [US5] Replace string interpolation with argument passing in the system search in `apps/agent/src/files/dropped-source.ts`, and make the picker script safe by construction rather than by accident in `apps/agent/src/files/picker.ts` (C14, FR-032a)
-- [X] T185 [P] [US5] Map failures to a fixed code list in `apps/agent/src/server/app.ts`, `apps/agent/src/landing/routes.ts` and `apps/agent/src/landing-preview/routes.ts`, and add a guard test so relaying an underlying message cannot regress (C17, FR-029a)
+- [x] T185 [P] [US5] Map failures to a fixed code list in `apps/agent/src/server/app.ts`, `apps/agent/src/landing/routes.ts` and `apps/agent/src/landing-preview/routes.ts`, and add a guard test so relaying an underlying message cannot regress (C17, FR-029a)
 - [x] T186 [P] [US5] Verify a candidate pairing token against the local app before persisting or broadcasting it in `apps/web/src/api/pairing-token.ts` (C12, FR-032)
 - [ ] T187 [P] [US5] Sign, bind, time-limit and single-use the transfer grants in `supabase/functions/drive-transfer/index.ts` and `supabase/functions/_shared/operations.ts`, with replay detection by unique insert (C9, FR-031)
 - [ ] T188 [P] [US5] Build the backend origin allowlist from deployment configuration in `supabase/functions/_shared/cors.ts` and add a deploy check asserting production contains no loopback origin (C20, FR-032f)
@@ -382,27 +382,27 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Tests for User Story 6
 
-- [X] T190 [P] [US6] Create `tests/performance-budgets.test.ts` recording the pre-change baseline and asserting the bundle, load-time and interaction budgets, including that each of the three largest pieces falls (FR-048, SC-014)
-- [X] T191 [P] [US6] Create `tests/render-counts.test.tsx` asserting that a live update does not rebuild rows whose data did not change (FR-042, SC-015)
+- [x] T190 [P] [US6] Create `tests/performance-budgets.test.ts` recording the pre-change baseline and asserting the bundle, load-time and interaction budgets, including that each of the three largest pieces falls (FR-048, SC-014)
+- [x] T191 [P] [US6] Create `tests/render-counts.test.tsx` asserting that a live update does not rebuild rows whose data did not change (FR-042, SC-015)
 
 ### Implementation for User Story 6
 
-- [X] T192 [US6] Split `apps/web/src/AgentContext.tsx` into a low-frequency status context and an external store with selectors, keeping the existing hook as a shim and the test override working
-- [X] T193 [US6] Create `apps/web/src/api/reconcile-queue.ts` returning previous references for unchanged jobs and the previous array when nothing changed, so memoisation is not a no-op
-- [X] T194 [US6] Apply reconciliation inside the state writer in `apps/web/src/AgentContext.tsx`
-- [X] T195 [US6] Stabilise the four inline callbacks and move the selection arithmetic behind refs in `apps/web/src/App.tsx`, then memoise `apps/web/src/components/JobRow.tsx`
-- [X] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
-- [X] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
-- [X] T198 [US6] Bound the broadcast rate and send only what changed in `apps/agent/src/queue/queue.ts` and `apps/agent/src/server/sse.ts` (FR-043, E4)
-- [X] T199 [US6] Lazy-load the tool pages, the workspace and the admin screen in `apps/web/src/lib/tool-registry.ts` and `apps/web/src/ProtectedSoty.tsx` (FR-045)
-- [X] T200 [P] [US6] Lazy-load the code generator in `apps/web/src/components/SupportDialog.tsx` so it does not ship to everyone
-- [X] T201 [US6] Move the decorative field's data out of the entry bundle and mount it per route rather than above the router in `apps/web/src/Root.tsx` and `apps/web/src/components/HoneycombField.tsx`
-- [X] T202 [US6] Remove the per-element filter from the pointer-driven loop in `apps/web/src/components/HoneycombField.tsx` and gate the whole effect on a reduced-motion preference and a constrained-machine check (FR-047)
-- [X] T203 [US6] Add chunking configuration to `apps/web/vite.config.ts` so the vendor and workspace code split apart
-- [X] T204 [US6] Virtualise the compressor queue in `apps/web/src/App.tsx` (FR-044)
-- [X] T205 [US6] Virtualise the transcript segment lists in `apps/web/src/transcription/TranscriptTextModal.tsx` and remove the half-second recomputation interval
-- [X] T206 [P] [US6] Add lazy loading, explicit dimensions and async decoding to the ten image sites listed under E8 across `apps/web/src/` (FR-046)
-- [X] T207 [P] [US6] Add a minimum interval to the manifest polling in `apps/web/src/AgentContext.tsx` and throttle the tooltip measurement in `apps/web/src/components/ui.tsx` (E9)
+- [x] T192 [US6] Split `apps/web/src/AgentContext.tsx` into a low-frequency status context and an external store with selectors, keeping the existing hook as a shim and the test override working
+- [x] T193 [US6] Create `apps/web/src/api/reconcile-queue.ts` returning previous references for unchanged jobs and the previous array when nothing changed, so memoisation is not a no-op
+- [x] T194 [US6] Apply reconciliation inside the state writer in `apps/web/src/AgentContext.tsx`
+- [x] T195 [US6] Stabilise the four inline callbacks and move the selection arithmetic behind refs in `apps/web/src/App.tsx`, then memoise `apps/web/src/components/JobRow.tsx`
+- [x] T196 [P] [US6] Memoise the remaining derived selections in `apps/web/src/App.tsx` and delete the per-render identifier join key
+- [x] T197 [P] [US6] Memoise the context value in `apps/web/src/AuthContext.tsx`
+- [x] T198 [US6] Bound the broadcast rate and send only what changed in `apps/agent/src/queue/queue.ts` and `apps/agent/src/server/sse.ts` (FR-043, E4)
+- [x] T199 [US6] Lazy-load the tool pages, the workspace and the admin screen in `apps/web/src/lib/tool-registry.ts` and `apps/web/src/ProtectedSoty.tsx` (FR-045)
+- [x] T200 [P] [US6] Lazy-load the code generator in `apps/web/src/components/SupportDialog.tsx` so it does not ship to everyone
+- [x] T201 [US6] Move the decorative field's data out of the entry bundle and mount it per route rather than above the router in `apps/web/src/Root.tsx` and `apps/web/src/components/HoneycombField.tsx`
+- [x] T202 [US6] Remove the per-element filter from the pointer-driven loop in `apps/web/src/components/HoneycombField.tsx` and gate the whole effect on a reduced-motion preference and a constrained-machine check (FR-047)
+- [x] T203 [US6] Add chunking configuration to `apps/web/vite.config.ts` so the vendor and workspace code split apart
+- [x] T204 [US6] Virtualise the compressor queue in `apps/web/src/App.tsx` (FR-044)
+- [x] T205 [US6] Virtualise the transcript segment lists in `apps/web/src/transcription/TranscriptTextModal.tsx` and remove the half-second recomputation interval
+- [x] T206 [P] [US6] Add lazy loading, explicit dimensions and async decoding to the ten image sites listed under E8 across `apps/web/src/` (FR-046)
+- [x] T207 [P] [US6] Add a minimum interval to the manifest polling in `apps/web/src/AgentContext.tsx` and throttle the tooltip measurement in `apps/web/src/components/ui.tsx` (E9)
 
 **Checkpoint**: Measurably smaller, measurably faster, and enforced against regression.
 
@@ -416,40 +416,40 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ### Tests for User Story 7
 
-- [X] T208 [P] [US7] Create `tests/design-token-contract.test.ts` asserting the checker catches an undefined property, an off-scale value and a duplicate rule block
-- [X] T209 [P] [US7] Create `tests/route-matrix-contract.test.ts` asserting every literal path compared in `apps/web/src/Root.tsx` and `apps/web/src/ProtectedSoty.tsx` is a member of the exported route list, so a new route cannot escape the sweep
-- [X] T210 [P] [US7] Create `tests/i18n-plurals.test.ts` asserting each count string is correct in both languages across the plural categories
+- [x] T208 [P] [US7] Create `tests/design-token-contract.test.ts` asserting the checker catches an undefined property, an off-scale value and a duplicate rule block
+- [x] T209 [P] [US7] Create `tests/route-matrix-contract.test.ts` asserting every literal path compared in `apps/web/src/Root.tsx` and `apps/web/src/ProtectedSoty.tsx` is a member of the exported route list, so a new route cannot escape the sweep
+- [x] T210 [P] [US7] Create `tests/i18n-plurals.test.ts` asserting each count string is correct in both languages across the plural categories
 
 ### Implementation — the checkers
 
-- [X] T211 [US7] Create `scripts/verify-styles.mjs` parsing `apps/web/src/styles.css`, cross-referencing component inline styles to resolve legitimately-external properties, and checking undefined properties, off-scale values, the stacking scale and duplicate blocks (SC-017)
+- [x] T211 [US7] Create `scripts/verify-styles.mjs` parsing `apps/web/src/styles.css`, cross-referencing component inline styles to resolve legitimately-external properties, and checking undefined properties, off-scale values, the stacking scale and duplicate blocks (SC-017)
 - [ ] T212 [US7] Extract the browser and accessibility core of `apps/soty-review/scripts/verify-review.mjs` into `scripts/lib/axe-sweep.mjs` and hoist its two dependencies to the root `package.json`
-- [X] T213 [US7] Create `scripts/verify-a11y.mjs` serving the built interface and walking the route matrix in both themes and both languages, using `tests/support/fake-agent.ts` to reach authenticated routes (FR-053)
-- [X] T214 [US7] Land the accessibility sweep in report-only mode with a committed violation baseline, wired into `scripts/verify-all.mjs`
-- [X] T215 [US7] Create `scripts/verify-i18n.mjs` scanning every string literal rather than every call site, subtracting a committed dynamic-key allowlist (SC-018)
-- [X] T216 [US7] Create `i18n-dynamic.json` at the repository root and add a lint rule to `eslint.config.mjs` forbidding the translation-key cast outside registered files
+- [x] T213 [US7] Create `scripts/verify-a11y.mjs` serving the built interface and walking the route matrix in both themes and both languages, using `tests/support/fake-agent.ts` to reach authenticated routes (FR-053)
+- [x] T214 [US7] Land the accessibility sweep in report-only mode with a committed violation baseline, wired into `scripts/verify-all.mjs`
+- [x] T215 [US7] Create `scripts/verify-i18n.mjs` scanning every string literal rather than every call site, subtracting a committed dynamic-key allowlist (SC-018)
+- [x] T216 [US7] Create `i18n-dynamic.json` at the repository root and add a lint rule to `eslint.config.mjs` forbidding the translation-key cast outside registered files
 
 ### Implementation — the fixes
 
-- [X] T217 [US7] Define the nine referenced-but-undefined custom properties in `apps/web/src/styles.css`, or delete the three orphan blocks that use them (F1, FR-049)
-- [X] T218 [US7] Create the text-size scale in `apps/web/src/styles.css` and replace the fractional pixel literals, so browser font-size settings are honoured (F2, FR-050)
-- [X] T219 [US7] Create the stacking scale in `apps/web/src/styles.css` and move all 58 raw values onto it, excluding view-transition pseudo-elements (F3, FR-050)
-- [X] T220 [US7] Move the off-grid spacing declarations onto the spacing scale in `apps/web/src/styles.css` (F2)
-- [X] T221 [US7] Remove the duplicate button definition and the triplicated help-text rule from `apps/web/src/styles.css`, and route the four one-off button styles through the shared component (F5)
-- [X] T222 [US7] Fix the global focus indicator contrast in `apps/web/src/styles.css`, which currently fails on every light surface (F8)
-- [X] T223 [P] [US7] Replace the hardcoded colours that do not respond to theme across `apps/web/src/styles.css` (F6, FR-052)
-- [X] T224 [US7] Route the two hand-rolled dialogs in `apps/web/src/team/preview/MaterialPreview.tsx` and `apps/web/src/team/landings/LandingFullView.tsx` through the shared modal, and replace the three native confirmations in `apps/web/src/App.tsx` and `apps/web/src/landing-viewer/useLandingViewer.ts` (F4, FR-051)
-- [X] T225 [US7] Extend the focusable-element set in `apps/web/src/components/Modal.tsx` to cover editable regions, media controls and frames, and mark the rest of the tree inert while a dialog is open (F10)
-- [X] T226 [US7] Remove the live-region announcement from the three job lists in `apps/web/src/App.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx`, replacing it with one throttled status line, and make error notifications assertive (F9)
-- [X] T227 [P] [US7] Add arrow-key navigation and a roving tab stop to the segmented control in `apps/web/src/components/ui.tsx` (F11)
-- [X] T228 [P] [US7] Make range selection keyboard-operable in `apps/web/src/components/JobRow.tsx` and fix the controlled-input warning (F11)
-- [X] T229 [P] [US7] Give the language switch a proper role and pressed state in `apps/web/src/App.tsx`, and stop activating disabled tool cards in `apps/web/src/HomePage.tsx` (F11)
-- [X] T230 [US7] Add plural-rule handling to `apps/web/src/i18n.ts` for the five count strings and remove the hand-coded special case (F12, FR-054)
-- [X] T231 [US7] Delete the unused translations from `apps/web/src/i18n.ts` after reproducing the count with the new checker (F12, FR-056)
-- [X] T232 [US7] Emit stable codes for the eleven messages currently translated by matching English wording, in `apps/agent/src/` and `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (F13, FR-055)
-- [X] T233 [P] [US7] Move the remaining untranslated literals and page titles into the translations across `apps/web/src/` (F14)
-- [X] T234 [US7] Make the document language, title, description and pre-load appearance match the user in `apps/web/index.html` and `apps/web/src/i18n.ts` (F7, FR-057)
-- [X] T235 [US7] Drive the accessibility violation baseline to zero and flip the sweep from report-only to blocking in `scripts/verify-all.mjs` (SC-016)
+- [x] T217 [US7] Define the nine referenced-but-undefined custom properties in `apps/web/src/styles.css`, or delete the three orphan blocks that use them (F1, FR-049)
+- [x] T218 [US7] Create the text-size scale in `apps/web/src/styles.css` and replace the fractional pixel literals, so browser font-size settings are honoured (F2, FR-050)
+- [x] T219 [US7] Create the stacking scale in `apps/web/src/styles.css` and move all 58 raw values onto it, excluding view-transition pseudo-elements (F3, FR-050)
+- [x] T220 [US7] Move the off-grid spacing declarations onto the spacing scale in `apps/web/src/styles.css` (F2)
+- [x] T221 [US7] Remove the duplicate button definition and the triplicated help-text rule from `apps/web/src/styles.css`, and route the four one-off button styles through the shared component (F5)
+- [x] T222 [US7] Fix the global focus indicator contrast in `apps/web/src/styles.css`, which currently fails on every light surface (F8)
+- [x] T223 [P] [US7] Replace the hardcoded colours that do not respond to theme across `apps/web/src/styles.css` (F6, FR-052)
+- [x] T224 [US7] Route the two hand-rolled dialogs in `apps/web/src/team/preview/MaterialPreview.tsx` and `apps/web/src/team/landings/LandingFullView.tsx` through the shared modal, and replace the three native confirmations in `apps/web/src/App.tsx` and `apps/web/src/landing-viewer/useLandingViewer.ts` (F4, FR-051)
+- [x] T225 [US7] Extend the focusable-element set in `apps/web/src/components/Modal.tsx` to cover editable regions, media controls and frames, and mark the rest of the tree inert while a dialog is open (F10)
+- [x] T226 [US7] Remove the live-region announcement from the three job lists in `apps/web/src/App.tsx`, `apps/web/src/transcription/TranscriptionPage.tsx` and `apps/web/src/landing/LandingOptimizerPage.tsx`, replacing it with one throttled status line, and make error notifications assertive (F9)
+- [x] T227 [P] [US7] Add arrow-key navigation and a roving tab stop to the segmented control in `apps/web/src/components/ui.tsx` (F11)
+- [x] T228 [P] [US7] Make range selection keyboard-operable in `apps/web/src/components/JobRow.tsx` and fix the controlled-input warning (F11)
+- [x] T229 [P] [US7] Give the language switch a proper role and pressed state in `apps/web/src/App.tsx`, and stop activating disabled tool cards in `apps/web/src/HomePage.tsx` (F11)
+- [x] T230 [US7] Add plural-rule handling to `apps/web/src/i18n.ts` for the five count strings and remove the hand-coded special case (F12, FR-054)
+- [x] T231 [US7] Delete the unused translations from `apps/web/src/i18n.ts` after reproducing the count with the new checker (F12, FR-056)
+- [x] T232 [US7] Emit stable codes for the eleven messages currently translated by matching English wording, in `apps/agent/src/` and `apps/web/src/App.tsx` and `apps/web/src/components/JobRow.tsx` (F13, FR-055)
+- [x] T233 [P] [US7] Move the remaining untranslated literals and page titles into the translations across `apps/web/src/` (F14)
+- [x] T234 [US7] Make the document language, title, description and pre-load appearance match the user in `apps/web/index.html` and `apps/web/src/i18n.ts` (F7, FR-057)
+- [x] T235 [US7] Drive the accessibility violation baseline to zero and flip the sweep from report-only to blocking in `scripts/verify-all.mjs` (SC-016)
 
 **Checkpoint**: One dialog, one theme system, one set of scales, two correct languages, zero blocking accessibility findings.
 
@@ -457,15 +457,15 @@ These four close holes confirmed by **probing a running local app**, not inferre
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [X] T236 [P] Consolidate the temp-directory setup copy-pasted into 41 test files onto the shared helper in `tests/support/` (B7, FR-021)
-- [X] T237 [P] Replace the real sleeps at the twenty sites listed under B8 with fake timers or `tests/support/wait.ts`, starting with `tests/agent-http.test.ts`, `tests/queue.test.ts`, `tests/stop-all.test.ts`, `tests/estimate.test.ts` and `tests/landing-preview-catalog.test.ts` (FR-022)
-- [X] T238 [P] Fix the load-dependent cleanup flake in `tests/transcription-auto-translation.test.ts` (A18)
-- [X] T239 [P] Replace the wall-clock assertions in `tests/catalog-benchmark.test.ts`, `tests/creative-library-benchmark.test.ts` and `tests/team-landing-gallery.test.tsx` with the recorded performance budgets (FR-022)
-- [X] T240 Empty the type-check exclusion lists in `tsconfig.check.json` and `tsconfig.scripts.json`
-- [X] T241 [P] Add tests for every module named in `coverage-critical.json` that no test imports today, working the list in `specs/009-release-hardening-pass/findings.md` §B; modules outside that file are out of scope here and are governed by the coverage ratchet instead
-- [X] T242 [P] Update `AGENTS.md` and `README.md` to describe the single verification command and the two forms
-- [X] T243 [P] Update `.specify/memory/constitution.md` to retire the "Known CI gaps" paragraph, which this feature closes
-- [X] T244 Record the disposition of every audit finding in `specs/009-release-hardening-pass/findings.md` — resolved, or accepted with a stated reason (SC-019)
+- [x] T236 [P] Consolidate the temp-directory setup copy-pasted into 41 test files onto the shared helper in `tests/support/` (B7, FR-021)
+- [x] T237 [P] Replace the real sleeps at the twenty sites listed under B8 with fake timers or `tests/support/wait.ts`, starting with `tests/agent-http.test.ts`, `tests/queue.test.ts`, `tests/stop-all.test.ts`, `tests/estimate.test.ts` and `tests/landing-preview-catalog.test.ts` (FR-022)
+- [x] T238 [P] Fix the load-dependent cleanup flake in `tests/transcription-auto-translation.test.ts` (A18)
+- [x] T239 [P] Replace the wall-clock assertions in `tests/catalog-benchmark.test.ts`, `tests/creative-library-benchmark.test.ts` and `tests/team-landing-gallery.test.tsx` with the recorded performance budgets (FR-022)
+- [x] T240 Empty the type-check exclusion lists in `tsconfig.check.json` and `tsconfig.scripts.json`
+- [x] T241 [P] Add tests for every module named in `coverage-critical.json` that no test imports today, working the list in `specs/009-release-hardening-pass/findings.md` §B; modules outside that file are out of scope here and are governed by the coverage ratchet instead
+- [x] T242 [P] Update `AGENTS.md` and `README.md` to describe the single verification command and the two forms
+- [x] T243 [P] Update `.specify/memory/constitution.md` to retire the "Known CI gaps" paragraph, which this feature closes
+- [x] T244 Record the disposition of every audit finding in `specs/009-release-hardening-pass/findings.md` — resolved, or accepted with a stated reason (SC-019)
 - [ ] T245 Run `specs/009-release-hardening-pass/quickstart.md` end to end on macOS
 - [ ] T246 Run `specs/009-release-hardening-pass/quickstart.md` end to end on Windows, including the orphaned-suspended-process check (FR-009)
 - [ ] T247 Substitute the real Developer ID profile into `scripts/sign-mac-app.sh` and the real certificate secret into `.github/workflows/release-windows.yml`, then re-run publisher verification on a clean machine on both platforms (SC-010)

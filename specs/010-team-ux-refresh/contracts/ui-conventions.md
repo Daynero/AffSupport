@@ -9,7 +9,7 @@ jsdom suites listed in `plan.md` → tests.
   backdrop, single z-layer). The seven hand-rolled overlays are ported onto it; the z-index
   bands 45/80 are retired for shared layer tokens.
 - One overlay at a time per surface, held as a discriminated union — stacked independent
-  dialogs are unrepresentable. Nested *steps* (e.g. unsaved-changes prompt inside an editor)
+  dialogs are unrepresentable. Nested _steps_ (e.g. unsaved-changes prompt inside an editor)
   are part of the owning dialog, not a second system.
 - Escape and the explicit close control always work; dialogs with unsaved edits prompt first.
 - Close-only surfaces are labeled with `teamClose`; only true cancels use `teamCancel`
@@ -28,17 +28,17 @@ jsdom suites listed in `plan.md` → tests.
 
 ## Confirmation proportionality (FR-028)
 
-| Action | Friction |
-|---|---|
-| Trash a file | none — immediate + Undo toast |
-| Detach a task attachment | none — immediate + Undo toast |
-| Delete a saved task | confirm naming the consequence |
-| Revoke an invitation | confirm naming the consequence |
-| Remove a member / transfer ownership | confirm (existing dialogs kept) |
-| Detach drive / replace root | confirm naming the consequence; replace-root confirmation is server-validated, not client-fabricated |
-| Delete a draft space | confirm naming the consequence |
-| Cancel a running batch | confirm |
-| Leave a space | confirm |
+| Action                               | Friction                                                                                             |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Trash a file                         | none — immediate + Undo toast                                                                        |
+| Detach a task attachment             | none — immediate + Undo toast                                                                        |
+| Delete a saved task                  | confirm naming the consequence                                                                       |
+| Revoke an invitation                 | confirm naming the consequence                                                                       |
+| Remove a member / transfer ownership | confirm (existing dialogs kept)                                                                      |
+| Detach drive / replace root          | confirm naming the consequence; replace-root confirmation is server-validated, not client-fabricated |
+| Delete a draft space                 | confirm naming the consequence                                                                       |
+| Cancel a running batch               | confirm                                                                                              |
+| Leave a space                        | confirm                                                                                              |
 
 ## Status rendering (FR-016..018, D12)
 

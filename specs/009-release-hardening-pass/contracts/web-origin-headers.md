@@ -9,15 +9,15 @@ Today this file sets only caching and indexing directives — on the exact origi
 
 ## The header set
 
-| Header | Value | Why |
-|---|---|---|
-| `Content-Security-Policy` | see below | The point of the exercise |
-| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | **Without `preload` initially.** Add it and submit the domain only once the team accepts never serving the site over plain HTTP again — that decision is irreversible in practice. |
-| `X-Content-Type-Options` | `nosniff` | |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` | Today only one route family sets this. It becomes global. |
-| `Permissions-Policy` | deny everything the app does not use | |
-| `Cross-Origin-Opener-Policy` | `same-origin` | Safe because the sign-in flow is a full redirect, not a popup. |
-| `Cross-Origin-Embedder-Policy` | **not set** | Deliberate: it would break the loopback handshake frame and cross-origin avatars. |
+| Header                         | Value                                 | Why                                                                                                                                                                                |
+| ------------------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Content-Security-Policy`      | see below                             | The point of the exercise                                                                                                                                                          |
+| `Strict-Transport-Security`    | `max-age=31536000; includeSubDomains` | **Without `preload` initially.** Add it and submit the domain only once the team accepts never serving the site over plain HTTP again — that decision is irreversible in practice. |
+| `X-Content-Type-Options`       | `nosniff`                             |                                                                                                                                                                                    |
+| `Referrer-Policy`              | `strict-origin-when-cross-origin`     | Today only one route family sets this. It becomes global.                                                                                                                          |
+| `Permissions-Policy`           | deny everything the app does not use  |                                                                                                                                                                                    |
+| `Cross-Origin-Opener-Policy`   | `same-origin`                         | Safe because the sign-in flow is a full redirect, not a popup.                                                                                                                     |
+| `Cross-Origin-Embedder-Policy` | **not set**                           | Deliberate: it would break the loopback handshake frame and cross-origin avatars.                                                                                                  |
 
 `frame-ancestors` in the policy supersedes `X-Frame-Options`; both may be sent for older clients.
 
@@ -27,19 +27,19 @@ Today this file sets only caching and indexing directives — on the exact origi
 
 Directives, with the reasoning that is easy to get wrong here:
 
-| Directive | Notes |
-|---|---|
-| `default-src 'self'` | |
-| `script-src` | `'self'` plus **hashes** for the two inline blocks. |
-| `style-src` | `'self'` plus the hash for any remaining inline style block. |
-| `connect-src` | `'self'`, the backend origin, **and the local app on a variable port**. The port is not fixed — it differs between production, beta and development — so the entry must cover the loopback host across ports, not one literal. |
-| `img-src` | `'self'`, `data:` (an inline SVG in the stylesheet), `blob:` (a generated download preview), and the avatar host. |
-| `media-src` | `'self'` and the local app origin. |
-| `frame-src` | the local app origin — the re-pairing handshake frame. |
-| `frame-ancestors 'none'` | |
-| `base-uri 'none'` | |
-| `form-action 'none'` | Safe because sign-in is a redirect, not a form post. Widen to `'self'` if a real form target ever appears. |
-| `object-src 'none'` | |
+| Directive                | Notes                                                                                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `default-src 'self'`     |                                                                                                                                                                                                                                |
+| `script-src`             | `'self'` plus **hashes** for the two inline blocks.                                                                                                                                                                            |
+| `style-src`              | `'self'` plus the hash for any remaining inline style block.                                                                                                                                                                   |
+| `connect-src`            | `'self'`, the backend origin, **and the local app on a variable port**. The port is not fixed — it differs between production, beta and development — so the entry must cover the loopback host across ports, not one literal. |
+| `img-src`                | `'self'`, `data:` (an inline SVG in the stylesheet), `blob:` (a generated download preview), and the avatar host.                                                                                                              |
+| `media-src`              | `'self'` and the local app origin.                                                                                                                                                                                             |
+| `frame-src`              | the local app origin — the re-pairing handshake frame.                                                                                                                                                                         |
+| `frame-ancestors 'none'` |                                                                                                                                                                                                                                |
+| `base-uri 'none'`        |                                                                                                                                                                                                                                |
+| `form-action 'none'`     | Safe because sign-in is a redirect, not a form post. Widen to `'self'` if a real form target ever appears.                                                                                                                     |
+| `object-src 'none'`      |                                                                                                                                                                                                                                |
 
 ### Inline scripts
 

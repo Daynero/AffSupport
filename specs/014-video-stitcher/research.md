@@ -41,11 +41,11 @@ for D seconds — not one frame stamped with a D-second duration.
 
 **Rationale**: measured on a 45-second 1080×1080 end screen:
 
-| Variant | Encode time | Size | Seek/thumbnail at t=22 s |
-| --- | --- | --- | --- |
+| Variant                         | Encode time | Size   | Seek/thumbnail at t=22 s      |
+| ------------------------------- | ----------- | ------ | ----------------------------- |
 | single frame, `-framerate 1/45` | **0.086 s** | 1.8 KB | **fails — no frame returned** |
-| **1 fps (45 frames)** | **0.258 s** | 4.4 KB | **works** |
-| body's own 30 fps (1350 frames) | **7.03 s** | 80 KB | works |
+| **1 fps (45 frames)**           | **0.258 s** | 4.4 KB | **works**                     |
+| body's own 30 fps (1350 frames) | **7.03 s**  | 80 KB  | works                         |
 
 The single-frame trick is the fastest and is what the owner's brief proposed, but nothing
 can seek inside it: a thumbnailer, a scrubbing player, or a platform that samples the middle
@@ -80,7 +80,7 @@ Screen durations are snapped to a whole number of AAC frames (N × 1024 / sample
 
 **Rationale**: three measured effects, all of them fixed by this shape.
 
-- Slicing with `-t D` returns the frame that *covers* D, so the audio came out longer than
+- Slicing with `-t D` returns the frame that _covers_ D, so the audio came out longer than
   the video (5.013 s audio vs 5.000 s video). `-frames:a N` is exact.
 - An `.m4a` bank carries encoder priming in an edit list; every segment cut from it started
   at +0.021 s, which the concat demuxer then baked into the timeline as a seam offset. ADTS
@@ -169,15 +169,15 @@ rediscover it in production.
 Re-stitching the 50-second 1080×1080 legacy creative — detect, prepare (with an 8.3 s head
 re-encode), build both screens, join, verify:
 
-| Step | Measured |
-| --- | --- |
-| Head re-encode (8.3 s of 1080×1080, only when the body is not keyframe-aligned) | 1.63 s |
-| Tail stream copy (11.7 s) | 0.12 s |
-| Both screens (1 fps end screen + silence slices + muxes) | 0.43 s |
-| Join, `-c copy -movflags +faststart` | 0.11 s |
-| Probe/verify | ~0.02 s |
-| **Total, worst case (first touch of a legacy file)** | **≈ 2.3 s** |
-| **Total, re-stitch of a prepared or Soty-made body** | **≈ 0.6 s** |
+| Step                                                                            | Measured    |
+| ------------------------------------------------------------------------------- | ----------- |
+| Head re-encode (8.3 s of 1080×1080, only when the body is not keyframe-aligned) | 1.63 s      |
+| Tail stream copy (11.7 s)                                                       | 0.12 s      |
+| Both screens (1 fps end screen + silence slices + muxes)                        | 0.43 s      |
+| Join, `-c copy -movflags +faststart`                                            | 0.11 s      |
+| Probe/verify                                                                    | ~0.02 s     |
+| **Total, worst case (first touch of a legacy file)**                            | **≈ 2.3 s** |
+| **Total, re-stitch of a prepared or Soty-made body**                            | **≈ 0.6 s** |
 
 SC-001's five seconds holds with room to spare, and SC-002's "independent of screen
 duration" holds because the end screen's cost is 45 frames of static picture regardless of
@@ -255,13 +255,13 @@ been fixed".
 The numbers in D9 were measured on the pieces; these were measured through the agent's own
 API on the same 50-second 1080×1080 creative, with the machine under its usual load:
 
-| Run | Measured |
-| --- | --- |
-| Re-stitch, first touch (prepares the body, rebuilds one group of frames) | **4.8 s** |
-| Re-stitch, same body, new photo | **1.1 s** |
-| Stitch a clean 20-second video | **1.1 s** |
-| Remove the stitching | **0.25 s** |
-| Inspect (probe + edge detection), before any run | 4.1 s |
+| Run                                                                      | Measured   |
+| ------------------------------------------------------------------------ | ---------- |
+| Re-stitch, first touch (prepares the body, rebuilds one group of frames) | **4.8 s**  |
+| Re-stitch, same body, new photo                                          | **1.1 s**  |
+| Stitch a clean 20-second video                                           | **1.1 s**  |
+| Remove the stitching                                                     | **0.25 s** |
+| Inspect (probe + edge detection), before any run                         | 4.1 s      |
 
 With the compressor's real ranges — a **40-to-50-minute** end screen — the same re-stitch
 measures **4.3–5.5 s** warm, and **19 s** the very first time an audio shape is seen, because
@@ -281,11 +281,11 @@ slowest thing the user waits for and is the obvious next thing to make quicker.
 for **30 to 60 minutes**, not seconds. D2's "one picture per second" does not survive that.
 Measured on a 45-minute screen at 1080×1080:
 
-| Variant | Encode time | Seekable |
-| --- | --- | --- |
-| 1 fps (2700 pictures) | **18.3 s** | yes |
-| 300 pictures (one every 9 s) | **1.4 s** | yes |
-| single frame | 0.17 s | **no** |
+| Variant                      | Encode time | Seekable |
+| ---------------------------- | ----------- | -------- |
+| 1 fps (2700 pictures)        | **18.3 s**  | yes      |
+| 300 pictures (one every 9 s) | **1.4 s**   | yes      |
+| single frame                 | 0.17 s      | **no**   |
 
 A 45-second screen still gets its full 45 pictures, because the cap is not reached. The rule
 therefore keeps D2's finding (never a single frame) while making it survive a duration three

@@ -15,7 +15,7 @@ Self-service exit for a non-owner member (FR-022, finding I2).
 - **Guards**: caller is owner → error `OWNER_TRANSFER_REQUIRED` (same code the remove path
   uses today). Not a member → the standard not-found/denied error (no existence leak).
 - **Effect**: deletes the caller's membership row (same row-level effect as `remove_member`,
-  authorized on *self* instead of `manage_members`).
+  authorized on _self_ instead of `manage_members`).
 - **Returns**: `{ ok: true, warning_code: 'EXTERNAL_DRIVE_ACCESS_REMAINS' }` — the standing
   Drive-ACL warning envelope, mirrored from `remove_member`.
 - **Audit**: `membership.left` (actor = the leaver, target = the team).
@@ -62,11 +62,11 @@ result`, per the file's existing pattern. No `as` casts.
 
 ## Error codes
 
-| Code | New? | Where |
-|---|---|---|
-| `TEAM_NOT_DRAFT` | **new** | `delete_draft_team` on a team that ever had a connection |
-| `OWNER_TRANSFER_REQUIRED` | reused | `leave_team` by the owner |
-| `EXTERNAL_DRIVE_ACCESS_REMAINS` | reused (warning) | `leave_team` success envelope |
+| Code                            | New?             | Where                                                    |
+| ------------------------------- | ---------------- | -------------------------------------------------------- |
+| `TEAM_NOT_DRAFT`                | **new**          | `delete_draft_team` on a team that ever had a connection |
+| `OWNER_TRANSFER_REQUIRED`       | reused           | `leave_team` by the owner                                |
+| `EXTERNAL_DRIVE_ACCESS_REMAINS` | reused (warning) | `leave_team` success envelope                            |
 
 ## Tests (PGlite, `tests/`)
 

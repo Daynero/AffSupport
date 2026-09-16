@@ -7,10 +7,12 @@
 **Status**: Draft
 
 **Input**: User description: "треба взяти за основу компресор і зробити новий інструмент зашивка відео, по суті він буде відрізнятись тим що не буде стискати відео, або перезашивати або зашивати, або приберати зашивку. І змінеться підхід до цього.Одноразова підготовка:
+
 - `body.mp4` має бути очищений від статичних екранів і нормалізований: H.264 yuv420p, 1080×1080, AAC 44.1 kHz stereo, video track timescale 15360.
 - Підготуй довгу AAC-доріжку тиші, щоб для кожного `D` брати потрібну частину через stream copy.
 
 Для кожного нового фото:
+
 1. Створи відеозаставку як ОДИН H.264-кадр, а не D×fps кадрів.
 2. Для фіналу задай цьому кадру тривалість D через `-framerate 1/D` та обов'язково `-video_track_timescale 15360`; фото масштабуй до 1080×1080.
 3. Додай до заставки тишу потрібної тривалості без перекодування.
@@ -35,7 +37,7 @@ The tool is presented and operated like the compressor (same file picking, same 
 image library, same destination and naming choices, same queue and progress panel); it
 differs in what it produces: no quality settings, no compression, no waiting.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Re-stitch a creative with a new photo (Priority: P1)
 
@@ -173,7 +175,7 @@ that was stitched, to within one frame, with no re-encoding.
 - **Disk full / destination unwritable**: reported by name before or during the run, source
   untouched.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -301,7 +303,7 @@ that was stitched, to within one frame, with no re-encoding.
 - **Detected stitching**: what the tool found at the edges of a source — a leading duration
   and a trailing duration, both adjustable by the user before the run.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

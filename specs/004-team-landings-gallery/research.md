@@ -12,9 +12,10 @@ All Technical Context unknowns are resolved below. No `NEEDS CLARIFICATION` rema
 the connected Drive root** — `.soty/landing-previews/<materialId>/<sourceVersion>-<fingerprint>/<preset>/<segment>.webp` —
 and record a small pointer row per (material, sourceVersion, fingerprint, preset) in a new
 `landing_renders` table. Serve those bytes to the browser through the existing `drive-transfer`
-cloud byte path (no agent needed to *view*); require a paired agent only to *produce* a render.
+cloud byte path (no agent needed to _view_); require a paired agent only to _produce_ a render.
 
 **Rationale**:
+
 - **Satisfies FR-007 / SC-003 / SC-004** — an agent-less member fetches a render another member
   already produced, because the bytes live in shared Drive and stream via `drive-transfer` (the
   same bounded, no-store Range path already used for team media preview in US4).
@@ -30,13 +31,14 @@ cloud byte path (no agent needed to *view*); require a paired agent only to *pro
   browser token; served bytes are inert WebP, never executed.
 
 **Alternatives considered**:
-- *Agent-only, ephemeral (no persistence)* — simplest, but fails SC-003 outright: a member
+
+- _Agent-only, ephemeral (no persistence)_ — simplest, but fails SC-003 outright: a member
   without a running agent would see an empty gallery. Rejected.
-- *Supabase Storage bucket* — clean separation, but is a new cloud-storage surface needing its
+- _Supabase Storage bucket_ — clean separation, but is a new cloud-storage surface needing its
   own bucket RLS, signed-URL policy, retention, and cleanup, and contradicts the "no new cloud
   storage" assumption. Rejected for the first release; revisitable if Drive write pollution
   becomes a problem.
-- *Postgres blob (bytea) in the catalog* — full-page landing screenshots are large; storing
+- _Postgres blob (bytea) in the catalog_ — full-page landing screenshots are large; storing
   them in-row bloats the table and the realtime change payloads members subscribe to. Rejected;
   only small pointer rows go in the DB.
 
@@ -66,7 +68,8 @@ existing search is strictly less surface than a parallel listing.
 ## 3. What is "works together with the local previewer"? (FR-016)
 
 **Decision**: Two concrete, verifiable couplings, both reuse-first:
-1. **Shared render engine + preset model** — the team gallery renders through the *same*
+
+1. **Shared render engine + preset model** — the team gallery renders through the _same_
    `apps/agent/src/landing-preview/renderer.ts` (`LandingPageRenderer`) already used for the
    team single-preview fallback, and reuses the local previewer's viewer-preset model (device
    size / colour scheme / zoom / grid) from the shared `LandingPreviewState` types. Identical
@@ -84,7 +87,7 @@ non-team previewer surface, so it can ship last without touching the team galler
 
 **Alternatives considered**: a shared UI component rendered in both places — rejected; the team
 gallery needs team permission/realtime/Drive wiring the local previewer must not have, so
-sharing the *engine + preset model* (not the component) is the correct seam.
+sharing the _engine + preset model_ (not the component) is the correct seam.
 
 ---
 
@@ -168,13 +171,13 @@ US5 process output.
 
 ## Summary of decisions
 
-| # | Topic | Decision |
-| --- | --- | --- |
-| 1 | Render storage | Hidden Drive subtree `.soty/landing-previews/`, pointer rows in `landing_renders`, served via `drive-transfer` |
-| 2 | Listing | `category=landing` over existing `searchCatalog` + `useCatalogSearch` |
-| 3 | Local-previewer interop | Shared render engine + preset model (P1/P2); open space as previewer catalog (P3) |
-| 4 | Agent lifecycle | Reuse handshake; explicit tile render-state union; zero false "ready" |
-| 5 | Thumbnails/perf | First WebP segment downscaled; lazy + paginated grid |
-| 6 | Invalidation | `source_version`+`fingerprint` match; tombstone pass cleans stale artifacts |
-| 7 | Contract | New routes under `teamWorkspace` tool contract; old agents → `AGENT_UPDATE_REQUIRED` |
-| 8 | Security | View to read, service/scoped-grant to write; sandbox/CSP/nav-guard reused |
+| #   | Topic                   | Decision                                                                                                       |
+| --- | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | Render storage          | Hidden Drive subtree `.soty/landing-previews/`, pointer rows in `landing_renders`, served via `drive-transfer` |
+| 2   | Listing                 | `category=landing` over existing `searchCatalog` + `useCatalogSearch`                                          |
+| 3   | Local-previewer interop | Shared render engine + preset model (P1/P2); open space as previewer catalog (P3)                              |
+| 4   | Agent lifecycle         | Reuse handshake; explicit tile render-state union; zero false "ready"                                          |
+| 5   | Thumbnails/perf         | First WebP segment downscaled; lazy + paginated grid                                                           |
+| 6   | Invalidation            | `source_version`+`fingerprint` match; tombstone pass cleans stale artifacts                                    |
+| 7   | Contract                | New routes under `teamWorkspace` tool contract; old agents → `AGENT_UPDATE_REQUIRED`                           |
+| 8   | Security                | View to read, service/scoped-grant to write; sandbox/CSP/nav-guard reused                                      |
