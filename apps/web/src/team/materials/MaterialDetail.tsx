@@ -60,14 +60,22 @@ export function MaterialDetail({
   actions?: ReactNode;
   className?: string;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const rows: Array<[TranslationKey, ReactNode]> = [];
   rows.push(['teamExplorerPaneKind', facts.kindLabel]);
   if (typeof facts.sizeBytes === 'number') {
     rows.push(['teamExplorerPaneSize', formatSize(facts.sizeBytes)]);
   }
   if (facts.modifiedAt) {
-    rows.push(['teamExplorerPaneModified', new Date(facts.modifiedAt).toLocaleString()]);
+    rows.push([
+      'teamExplorerPaneModified',
+      // A day and a minute, in the reader's language — not the machine's
+      // locale and not the second (024, benchmarked on Drive's details panel).
+      new Date(facts.modifiedAt).toLocaleString(language === 'uk' ? 'uk-UA' : 'en-GB', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      })
+    ]);
   }
   if (facts.folderName) rows.push(['teamExplorerPaneFolder', facts.folderName]);
 
@@ -98,11 +106,11 @@ export function MaterialDetail({
       </dl>
       {notes}
       {/*
-        * What lives beside it. Said here rather than left to be discovered:
-        * a video whose catalog already exists should not be offering to make a
-        * second one, and the text somebody paid to have made should not be
-        * three screens away from the video it belongs to.
-        */}
+       * What lives beside it. Said here rather than left to be discovered:
+       * a video whose catalog already exists should not be offering to make a
+       * second one, and the text somebody paid to have made should not be
+       * three screens away from the video it belongs to.
+       */}
       {(catalog || transcript) && (
         <ul className="team-material-detail-companions">
           {catalog && (

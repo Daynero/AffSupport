@@ -36,3 +36,9 @@ per tile costs more than the two-line clamp, which already keeps the distinguish
 **Rejected:** Linear's neutral, hairline settings rows for space settings. The violet sections are
 the compressor's settings panel, which the owner set as the reference for this product; one look
 for "settings" across the product beats matching a different product.
+
+## Round 4 (2026-09-16)
+
+| Surface           | Reference              | What they do                                                                              | What we did                                                                                                                                                                    |
+| ----------------- | ---------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| File details pane | Google Drive "Details" | Name first; facts as small label–value rows; dates to the minute in the reader's language | Facts at label size under a body-size name (they had inherited a larger size and outranked the name); modified date as "15 вер. 2026 р., 18:49", no seconds, no machine locale |
