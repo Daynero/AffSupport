@@ -106,10 +106,14 @@ export function videoShareLink(fileId: string, resourceKey: string | null): stri
   return resourceKey ? `${base}&resourcekey=${encodeURIComponent(resourceKey)}` : base;
 }
 
-/** `clip.final.mp4` → `clip.final catalog`: the one naming rule for a catalog sheet. */
-export function productCatalogName(videoName: string): string {
+/**
+ * `IN 40.mp4`, variation 2 → `IN 40_v2_catalog`: the one naming rule for a catalog sheet (024,
+ * US15). The owner names the catalog on Meta the same way, so the sheet, the product and the ad
+ * account all say which video and which variation it is.
+ */
+export function productCatalogName(videoName: string, variant: number): string {
   const stem = videoName.replace(/\.[^.]+$/u, '');
-  return `${stem.length > 0 ? stem : videoName} catalog`;
+  return `${stem.length > 0 ? stem : videoName}_v${variant}_catalog`;
 }
 
 export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [

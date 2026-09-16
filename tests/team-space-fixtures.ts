@@ -43,7 +43,7 @@ export function makeClient(overrides: Partial<TeamSpaceClient> = {}): TeamSpaceC
     // 022 — the space's product catalog values and a video's catalog. Unset by default.
     getProductCatalogSettings: vi.fn().mockResolvedValue(null),
     setProductCatalogSettings: vi.fn(),
-    getProductCatalog: vi.fn().mockResolvedValue(null),
+    listProductCatalogs: vi.fn().mockResolvedValue([]),
     createProductCatalog: vi.fn(),
     // The two team-mode preferences the space settings now hold; both answer
     // with the value the server would apply by default.

@@ -266,13 +266,15 @@ export function CatalogUpdaterDialog({
                     type="checkbox"
                     checked={chosen.has(row.catalogId)}
                     disabled={!mayRun}
-                    aria-label={t('catalogUpdaterSelectFor', { name: row.videoName })}
+                    aria-label={t('catalogUpdaterSelectFor', { name: row.name })}
                     onChange={() => toggle(row.catalogId)}
                   />
                   <span />
                 </label>
                 <div className="team-updater-row-main">
-                  <strong>{row.videoName}</strong>
+                  {/* The catalog's own name, not its video's: two variations of one
+                      video were two rows with the same label (024, FR-106). */}
+                  <strong title={row.videoName}>{row.name}</strong>
                   {/* Two facts, the ones an updater is read for: where it is, and
                       when it was last brought up to date. The count and the
                       creation date are one hover away (024, T131). */}

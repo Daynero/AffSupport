@@ -175,6 +175,8 @@ export interface ProductCatalogSummary {
   sheetUrl: string;
   sourceLink: string;
   productCount: number;
+  /** The variation's number (024, US15): `<video>_v<N>_catalog`. */
+  variant: number;
   createdAt: string;
 }
 
@@ -197,6 +199,7 @@ export interface ProductCatalogCreateResult {
     sheetUrl: string;
     sourceLink: string;
     productCount: number;
+    variant?: number;
     createdAt: string | null;
   };
   videoShared: boolean;
@@ -1785,35 +1788,41 @@ export const teamApi = {
     };
   },
 
-  async getProductCatalog(teamId: string, videoId: string): Promise<ProductCatalogSummary | null> {
+  /** Every live catalog of a video — its variations (024, US15) — by number. */
+  async listProductCatalogs(teamId: string, videoId: string): Promise<ProductCatalogSummary[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_material_product_catalog', {
+      requireSupabaseClient().rpc('list_material_product_catalogs', {
         p_team: teamId,
         p_video: videoId
       })
     );
     throwRpc(error);
-    const row = asRecord(Array.isArray(data) ? data[0] : null);
-    if (
-      !row ||
-      typeof row.id !== 'string' ||
-      typeof row.name !== 'string' ||
-      typeof row.sheet_url !== 'string' ||
-      !/^https:\/\//u.test(row.sheet_url) ||
-      typeof row.source_link !== 'string' ||
-      typeof row.product_count !== 'number' ||
-      typeof row.created_at !== 'string'
-    ) {
-      return null;
-    }
-    return {
-      id: row.id,
-      name: row.name,
-      sheetUrl: row.sheet_url,
-      sourceLink: row.source_link,
-      productCount: row.product_count,
-      createdAt: row.created_at
-    };
+    return (Array.isArray(data) ? data : []).flatMap(value => {
+      const row = asRecord(value);
+      if (
+        !row ||
+        typeof row.id !== 'string' ||
+        typeof row.name !== 'string' ||
+        typeof row.sheet_url !== 'string' ||
+        !/^https:\/\//u.test(row.sheet_url) ||
+        typeof row.source_link !== 'string' ||
+        typeof row.product_count !== 'number' ||
+        typeof row.created_at !== 'string'
+      ) {
+        return [];
+      }
+      return [
+        {
+          id: row.id,
+          name: row.name,
+          sheetUrl: row.sheet_url,
+          sourceLink: row.source_link,
+          productCount: row.product_count,
+          variant: typeof row.variant === 'number' ? row.variant : 1,
+          createdAt: row.created_at
+        }
+      ];
+    });
   },
 
   async listTeamProductCatalogs(teamId: string): Promise<CatalogRegistryRow[]> {

@@ -6,6 +6,7 @@ import type {
 } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
+import { Button as InventoryButton } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
@@ -53,30 +54,32 @@ function errorKey(error: unknown): TranslationKey | null {
 }
 
 /**
- * "Create catalog" (022, US1 and US5): a link and a product count, then the sheet's link.
+ * "Create catalog" (022, US1 and US5): a link and a product count, then the sheet.
  *
- * Re-creating is the same dialog opened on an existing catalog — prefilled with what that
- * catalog was made from, and saying once that it will be replaced. There is no warning about
- * the links being viewable: the pasted link and the sheet belong to the person making them.
+ * Re-creating is the same form prefilled with what that variation was made from, saying once
+ * that it will be replaced. The result leads with the sheet's name and a button that copies it:
+ * the owner names the catalog on Meta the same way (024, US15), and retyping `IN 40_v2_catalog`
+ * is where the two start to disagree. There is no warning about the links being viewable: the
+ * pasted link and the sheet belong to the person making them.
  */
 export function CreateProductCatalogDialog({
   teamId,
   video,
-  replaces: replacesProp,
-  existing,
+  replaces,
+  variation = false,
+  initialCount,
   client,
   onClose,
   onCreated
 }: {
   teamId: string;
   video: { id: string; name: string };
-  /** The catalog being replaced; absent to create one. */
+  /** The variation being replaced; absent to create one. */
   replaces?: ProductCatalogSummary | null;
-  /**
-   * The video's catalog, when the dialog is opened to show it (from a row menu): it opens on the
-   * catalog itself, with re-creating one step away.
-   */
-  existing?: ProductCatalogSummary | null;
+  /** The video already has catalogs, so this one is a new variation beside them. */
+  variation?: boolean;
+  /** The count to start from — the last variation's, so a second one is one link away. */
+  initialCount?: number;
   client: CreateProductCatalogClient;
   onClose: () => void;
   onCreated?: (result: ProductCatalogCreateResult) => void;
@@ -84,20 +87,17 @@ export function CreateProductCatalogDialog({
   const { t } = useI18n();
   const { push } = useToasts();
   const { can } = useTeam();
-  const [replaces, setReplaces] = useState<ProductCatalogSummary | null>(replacesProp ?? null);
   const titleId = useId();
   const linkId = useId();
   const countId = useId();
 
   const [link, setLink] = useState(replaces?.sourceLink ?? '');
-  const [count, setCount] = useState(String(replaces?.productCount ?? PRODUCT_COUNT_DEFAULT));
+  const [count, setCount] = useState(
+    String(replaces?.productCount ?? initialCount ?? PRODUCT_COUNT_DEFAULT)
+  );
   const [touched, setTouched] = useState({ link: false, count: false });
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
-  const [phase, setPhase] = useState<Phase>(() =>
-    existing
-      ? { kind: 'result', heading: 'productCatalogSection', catalog: existing }
-      : { kind: 'form' }
-  );
+  const [phase, setPhase] = useState<Phase>({ kind: 'form' });
   const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
@@ -151,10 +151,10 @@ export function CreateProductCatalogDialog({
     }
   };
 
-  const copy = async (url: string) => {
+  const copy = async (text: string, done: TranslationKey = 'productCatalogLinkCopied') => {
     try {
-      await navigator.clipboard.writeText(url);
-      push({ tone: 'success', text: t('productCatalogLinkCopied') });
+      await navigator.clipboard.writeText(text);
+      push({ tone: 'success', text: t(done) });
     } catch {
       push({ tone: 'error', text: t('teamToastLinkCopyFailed') });
     }
@@ -162,30 +162,24 @@ export function CreateProductCatalogDialog({
 
   if (phase.kind === 'result') {
     const shown = phase.catalog;
-    const mayRecreate = existing && phase.heading === 'productCatalogSection' && can('upload');
     return (
       <Modal labelledBy={titleId} onClose={onClose} closeLabel={t('productCatalogDone')} size="md">
         <div className="team-dialog-form product-catalog-dialog">
           <h2 id={titleId}>{t(phase.heading)}</h2>
-          <p className="product-catalog-dialog-name">{shown.name}</p>
+          <div className="product-catalog-dialog-name-row">
+            <p className="product-catalog-dialog-name">{shown.name}</p>
+            <InventoryButton
+              type="button"
+              size="sm"
+              variant="secondary"
+              aria-label={t('productCatalogCopyNameOf', { name: shown.name })}
+              onClick={() => void copy(shown.name, 'productCatalogNameCopied')}
+            >
+              {t('productCatalogCopyName')}
+            </InventoryButton>
+          </div>
           <p className="field-hint">{t('productCatalogProducts', { count: shown.productCount })}</p>
           <div className="team-dialog-actions">
-            {mayRecreate && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="product-catalog-dialog-recreate"
-                aria-label={t('productCatalogRecreate')}
-                onClick={() => {
-                  setReplaces(existing);
-                  setLink(existing.sourceLink);
-                  setCount(String(existing.productCount));
-                  setPhase({ kind: 'form' });
-                }}
-              >
-                {t('productCatalogRecreateShort')}
-              </Button>
-            )}
             <a
               className="soty-button button-secondary"
               href={shown.sheetUrl}
@@ -213,7 +207,9 @@ export function CreateProductCatalogDialog({
   }
 
   const busy = phase.kind === 'busy';
-  const linkError = touched.link && !linkCheck.ok;
+  // An empty field is not a mistake yet — Create simply waits for it. The dialog opened with
+  // "Paste a link that starts with http://" in red before anything had been typed.
+  const linkError = touched.link && link.trim() !== '' && !linkCheck.ok;
   const countError = touched.count && !countCheck.ok;
 
   return (
@@ -230,7 +226,15 @@ export function CreateProductCatalogDialog({
         className="team-dialog-form product-catalog-dialog"
         onSubmit={event => void submit(event)}
       >
-        <h2 id={titleId}>{t(replaces ? 'productCatalogRecreate' : 'productCatalogCreate')}</h2>
+        <h2 id={titleId}>
+          {t(
+            replaces
+              ? 'productCatalogRecreate'
+              : variation
+                ? 'productCatalogCreateVariation'
+                : 'productCatalogCreate'
+          )}
+        </h2>
         <p className="product-catalog-dialog-name">{video.name}</p>
 
         {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}

@@ -501,6 +501,14 @@ export function TaskAttachmentTile({
           }
           done={copied ? 'copyLink' : null}
           size="sm"
+          worded={{
+            productCatalog:
+              (companions?.productCatalog?.count ?? 0) > 1
+                ? t('materialActionProductCatalogs', {
+                    count: companions?.productCatalog?.count ?? 0
+                  })
+                : t('productCatalogMenuEntry')
+          }}
           className="team-task-attachment-actions"
         />
         {actionFailed && (

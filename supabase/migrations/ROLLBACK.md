@@ -16,6 +16,15 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260916160000_product_catalog_variations.sql`: first leave each video at most one live
+   `product_catalog` companion (trash the extra sheets), then re-apply
+   `service_link_product_catalog_companion` from `20260915010000`, drop
+   `public.list_material_product_catalogs(uuid, uuid)` and
+   `public.service_next_product_catalog_variant(uuid, uuid)`, drop
+   `team_materials_one_transcript_idx` and re-create `team_materials_one_companion_idx` on
+   `(team_id, companion_of, companion_kind) where companion_of is not null and lifecycle =
+   'active'`, then drop the `variant` column and its check from `team_product_catalogs`.
+
 0. `20260916150000_task_progress_max_per_space.sql`: re-apply `create_team_task` from
    `20260830160000` (the default read from `profiles`), drop
    `public.get_team_task_progress_max_default(uuid)` and

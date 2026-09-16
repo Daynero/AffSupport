@@ -5,13 +5,18 @@ const shared = vi.hoisted(() => ({
   companion: null as { id: string; name: string } | null,
   /** The product catalog the catalog reports for a video, or none (022). */
   catalog: null as { id: string; name: string } | null,
+  /** A second variation beside it (024, US15). */
+  variations: [] as Array<{ id: string; name: string; variant: number }>,
   linked: [] as Array<{ videoId: string; companionId: string }>
 }));
 
 vi.mock('../apps/web/src/api/team', () => ({
   teamApi: {
     getTranscriptCompanion: vi.fn(async () => shared.companion),
-    getProductCatalog: vi.fn(async () => shared.catalog),
+    listProductCatalogs: vi.fn(async () => [
+      ...(shared.catalog ? [{ ...shared.catalog, variant: 1 }] : []),
+      ...shared.variations
+    ]),
     linkTranscriptCompanion: vi.fn(async (_team: string, videoId: string, companionId: string) => {
       shared.linked.push({ videoId, companionId });
       return true;
@@ -220,9 +225,30 @@ describe('a material and what belongs to it', () => {
       ).toEqual([
         ['video-1', 'final cut.mp4'],
         ['txt-1', 'final cut.txt'],
-        ['sheet-1', 'final cut catalog']
+        ['sheet-1', 'final cut_v1_catalog']
       ]);
-      expect(productCatalogNameFor('clip.final.mp4')).toBe('clip.final catalog');
+      expect(productCatalogNameFor('clip.final.mp4', 2)).toBe('clip.final_v2_catalog');
+    });
+
+    it('renames every variation with its own number (024, US15)', async () => {
+      shared.companion = null;
+      shared.catalog = { id: 'sheet-1', name: 'clip_v1_catalog' };
+      shared.variations = [{ id: 'sheet-3', name: 'clip_v3_catalog', variant: 3 }];
+      const api = client();
+
+      await renameMaterialWithTail({
+        teamId: TEAM,
+        material: VIDEO,
+        newName: 'IN 40.mp4',
+        client: api
+      });
+
+      expect(api.renameMaterial.mock.calls.map(([input]) => input.newName)).toEqual([
+        'IN 40.mp4',
+        'IN 40_v1_catalog',
+        'IN 40_v3_catalog'
+      ]);
+      shared.variations = [];
     });
 
     it('moves the catalog to the same folder', async () => {

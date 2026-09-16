@@ -122,7 +122,7 @@ function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
 }
 
 const startButton = () => screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement;
-const box = (name: string) => screen.getByLabelText(`Select ${name}`) as HTMLInputElement;
+const box = (name: string) => screen.getByLabelText(`Select ${name} catalog`) as HTMLInputElement;
 
 describe('the registry', () => {
   it('lists every catalog with its video, folder and state', async () => {
@@ -135,8 +135,8 @@ describe('the registry', () => {
         stopped
       )
     );
-    expect(await screen.findByText('polo.mp4')).toBeTruthy();
-    expect(screen.getByText('shirt.mp4')).toBeTruthy();
+    expect(await screen.findByText('polo.mp4 catalog')).toBeTruthy();
+    expect(screen.getByText('shirt.mp4 catalog')).toBeTruthy();
     expect(screen.getByText(/Space root/)).toBeTruthy();
     expect(screen.getByText(/Last update failed/)).toBeTruthy();
     expect(screen.getByText('Not running')).toBeTruthy();
@@ -160,7 +160,7 @@ describe('the registry', () => {
 
   it('narrows the list by search and selects only what is shown', async () => {
     renderDialog(client([row('1', 'polo.mp4'), row('2', 'shirt.mp4')], stopped));
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '  SHIRT ' } });
     expect(screen.queryByText('polo.mp4')).toBeNull();
     fireEvent.click(screen.getByLabelText('Select all shown'));
@@ -181,7 +181,7 @@ describe('starting, saving and stopping', () => {
   it('starts with the ticked catalogs and the chosen interval', async () => {
     const api = client([row('1', 'polo.mp4'), row('2', 'shirt.mp4')], stopped);
     renderDialog(api);
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     expect(startButton().disabled).toBe(true);
     expect(screen.getByText('Select at least one catalog.')).toBeTruthy();
     fireEvent.click(box('shirt.mp4'));
@@ -200,7 +200,7 @@ describe('starting, saving and stopping', () => {
   it('starts on an own interval in whole hours, and refuses one out of range', async () => {
     const api = client([row('1', 'polo.mp4')], stopped);
     renderDialog(api);
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     fireEvent.click(box('polo.mp4'));
     fireEvent.click(screen.getByRole('button', { name: 'Own interval' }));
     const hours = screen.getByLabelText('Hours between updates');
@@ -222,7 +222,7 @@ describe('starting, saving and stopping', () => {
     renderDialog(
       client([row('1', 'polo.mp4', { inUpdater: true })], { ...running, interval: '36h' })
     );
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     await waitFor(() =>
       expect((screen.getByLabelText('Hours between updates') as HTMLInputElement).value).toBe('36')
     );
@@ -234,7 +234,7 @@ describe('starting, saving and stopping', () => {
   it('starts with re-stitching when it is ticked, and says how copies are prepared', async () => {
     const api = client([row('1', 'polo.mp4')], stopped);
     renderDialog(api);
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     expect(screen.getByText(/Copies are prepared while Soty is open/)).toBeTruthy();
     const restitch = screen.getByLabelText(/Re-stitch videos/) as HTMLInputElement;
     await waitFor(() => expect(restitch.disabled).toBe(false));
@@ -268,7 +268,7 @@ describe('starting, saving and stopping', () => {
         </ToastProvider>
       </TeamProvider>
     );
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     await waitFor(() =>
       expect((screen.getByLabelText(/Re-stitch videos/) as HTMLInputElement).checked).toBe(true)
     );
@@ -279,7 +279,7 @@ describe('starting, saving and stopping', () => {
   it('opens a running updater with its catalogs ticked and its interval', async () => {
     const api = client([row('1', 'polo.mp4', { inUpdater: true }), row('2', 'shirt.mp4')], running);
     renderDialog(api);
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     await waitFor(() => expect(box('polo.mp4').checked).toBe(true));
     expect(box('shirt.mp4').checked).toBe(false);
     expect(screen.getByRole('button', { name: '1 day' }).getAttribute('aria-pressed')).toBe('true');
@@ -298,7 +298,7 @@ describe('starting, saving and stopping', () => {
   it('stops only after confirming', async () => {
     const api = client([row('1', 'polo.mp4', { inUpdater: true })], running);
     const { onChanged } = renderDialog(api);
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     const confirm = await screen.findByRole('dialog', { name: 'Stop the updater?' });
     expect(api.stopCatalogUpdater).not.toHaveBeenCalled();
@@ -313,7 +313,7 @@ describe('starting, saving and stopping', () => {
       saveCatalogUpdater: vi.fn().mockRejectedValue(new TeamApiError('PERMISSION_DENIED', false))
     });
     renderDialog(api);
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     fireEvent.click(box('polo.mp4'));
     fireEvent.click(startButton());
     expect(await screen.findByText('You do not have permission for this.')).toBeTruthy();
@@ -322,7 +322,7 @@ describe('starting, saving and stopping', () => {
 
   it('lets a viewer look but not run it', async () => {
     renderDialog(client([row('1', 'polo.mp4')], stopped), viewing);
-    await screen.findByText('polo.mp4');
+    await screen.findByText('polo.mp4 catalog');
     expect(box('polo.mp4').disabled).toBe(true);
     expect(startButton().disabled).toBe(true);
     expect(

@@ -78,6 +78,7 @@ const body = (overrides: Record<string, unknown> = {}) => ({
 const existing: ExistingCatalog = {
   materialId: OLD_SHEET,
   name: 'clip catalog',
+  variant: 1,
   sheetUrl: 'https://docs.google.com/spreadsheets/d/old/edit',
   sourceLink: 'https://offer.example.test/?sub=0',
   productCount: 100,
@@ -89,6 +90,8 @@ function setup(
     category?: string;
     settings?: typeof settings | null;
     live?: ExistingCatalog | null;
+    catalogs?: ExistingCatalog[];
+    next?: number;
     videoPublic?: boolean;
     canShare?: boolean;
     editAllowed?: boolean;
@@ -139,7 +142,8 @@ function setup(
       };
     }),
     readSettings: vi.fn(async () => (options.settings === undefined ? settings : options.settings)),
-    readLiveCatalog: vi.fn(async () => options.live ?? null),
+    readLiveCatalogs: vi.fn(async () => options.catalogs ?? (options.live ? [options.live] : [])),
+    nextVariant: vi.fn(async () => options.next ?? 1),
     driveFor: vi.fn(async () => drive as unknown as CatalogDrive),
     proveVideo: vi.fn(async () =>
       metadata({ capabilities: { ...metadata().capabilities, canShare: options.canShare ?? true } })
@@ -273,9 +277,10 @@ describe('making a catalog', () => {
       videoShared: true,
       catalog: {
         materialId: NEW_SHEET,
-        name: 'clip catalog',
+        name: 'clip_v1_catalog',
         sheetUrl: 'https://docs.google.com/spreadsheets/d/drive-sheet/edit?usp=drivesdk',
-        productCount: 3
+        productCount: 3,
+        variant: 1
       }
     });
     expect(drive.createConvertedFile).toHaveBeenCalledTimes(1);
@@ -286,7 +291,7 @@ describe('making a catalog', () => {
       sourceMimeType: string;
     };
     expect(upload).toMatchObject({
-      name: 'clip catalog',
+      name: 'clip_v1_catalog',
       parentId: 'folder',
       targetMimeType: 'application/vnd.google-apps.spreadsheet',
       sourceMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -301,23 +306,35 @@ describe('making a catalog', () => {
           productCount: 3,
           videoLink: 'https://drive.google.com/file/d/drive-video/view?usp=sharing',
           settingsSnapshot: settings,
-          createdBy: ACTOR
+          createdBy: ACTOR,
+          variant: 1
         })
       })
     );
     expect(drive.updateFileMetadata).not.toHaveBeenCalled();
     // Drive sizes a native spreadsheet once it exists; the intent carries what Drive reported.
     expect(deps.bindIntent).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'clip catalog', sizeBytes: 4096 })
+      expect.objectContaining({ name: 'clip_v1_catalog', sizeBytes: 4096 })
     );
   });
 
-  it('shows the catalog that already exists instead of making another', async () => {
-    const { deps, drive } = setup({ live: existing });
-    const result = await createProductCatalog(deps, body(), ACTOR);
-    expect(result).toEqual({ outcome: 'existing', catalog: existing, videoShared: false });
-    expect(deps.driveFor).not.toHaveBeenCalled();
-    expect(drive.createConvertedFile).not.toHaveBeenCalled();
+  it('makes a new variation beside the catalog that exists, named with its number (024)', async () => {
+    const { deps, drive } = setup({ live: existing, next: 2 });
+    const result = await createProductCatalog(
+      deps,
+      body({ sourceLink: 'https://offer.example.test/?sub=2' }),
+      ACTOR
+    );
+    expect(result).toMatchObject({
+      outcome: 'created',
+      catalog: { name: 'clip_v2_catalog', variant: 2 }
+    });
+    expect(drive.createConvertedFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'clip_v2_catalog' })
+    );
+    expect(deps.link).toHaveBeenCalledWith(
+      expect.objectContaining({ replaces: null, record: expect.objectContaining({ variant: 2 }) })
+    );
   });
 
   it('trashes its own sheet and shows the winner when it loses the race', async () => {
@@ -353,9 +370,9 @@ describe('making a catalog', () => {
 
   it('does not upload twice for a confirmation that arrives twice', async () => {
     const finished = setup({ reused: { state: 'succeeded' } });
-    vi.mocked(finished.deps.readLiveCatalog)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ ...existing, materialId: NEW_SHEET });
+    vi.mocked(finished.deps.readLiveCatalogs)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...existing, materialId: NEW_SHEET }]);
     const result = await createProductCatalog(finished.deps, body(), ACTOR);
     expect(result.catalog.materialId).toBe(NEW_SHEET);
     expect(finished.drive.createConvertedFile).not.toHaveBeenCalled();
@@ -368,9 +385,12 @@ describe('making a catalog', () => {
 });
 
 describe('re-creating a catalog', () => {
-  it('replaces the live catalog and trashes the retired file', async () => {
+  it('replaces one variation, keeps its number, and trashes the retired file', async () => {
     const { deps, drive } = setup({
-      live: { ...existing, driveFileId: 'drive-old' },
+      catalogs: [
+        { ...existing, driveFileId: 'drive-old' },
+        { ...existing, materialId: NEW_SHEET, name: 'clip_v2_catalog', variant: 2 }
+      ],
       link: { linked: true, retired: [{ driveFileId: 'drive-old', resourceKey: null }] }
     });
     const result = await createProductCatalog(
@@ -379,6 +399,9 @@ describe('re-creating a catalog', () => {
       ACTOR
     );
     expect(result.outcome).toBe('recreated');
+    // A catalog from before variations is variation 1, and its successor says so.
+    expect(result.catalog).toMatchObject({ name: 'clip_v1_catalog', variant: 1 });
+    expect(deps.nextVariant).not.toHaveBeenCalled();
     expect(deps.link).toHaveBeenCalledWith(expect.objectContaining({ replaces: OLD_SHEET }));
     // The successor keeps the name: the sheet it retires is no conflict.
     expect(deps.planName).toHaveBeenCalledWith(

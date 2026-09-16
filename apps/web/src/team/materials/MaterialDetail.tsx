@@ -116,9 +116,11 @@ export function MaterialDetail({
           {catalog && (
             <li>
               <ClipboardList size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              {catalog.productCount === null
-                ? t('materialCompanionCatalog')
-                : t('materialCompanionCatalogCount', { count: catalog.productCount })}
+              {(catalog.count ?? 1) > 1
+                ? t('materialCompanionCatalogVariations', { count: catalog.count ?? 1 })
+                : catalog.productCount === null
+                  ? t('materialCompanionCatalog')
+                  : t('materialCompanionCatalogCount', { count: catalog.productCount })}
             </li>
           )}
           {transcript && (

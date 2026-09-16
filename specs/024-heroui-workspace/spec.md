@@ -841,6 +841,35 @@ Measured by a read of every surface (counts assume an owner, a ready space, a wi
 - **FR-097**: A destructive or rarely used row action MUST live in the row's menu, not as a
   bordered button on every row.
 
+### Functional Requirements — catalog variations (US15)
+
+The owner runs one video on several ad accounts, each with its own tracking link, so one video
+needs several catalogs. On Meta each catalog is named after the video — `IN 40_v1_catalog` — so
+the name must be the same in the sheet, in the product and on Meta, and copying it must be one
+press. Variations must not pile up: removing one is one action and leaves nothing behind.
+
+- **FR-098**: A video MUST be able to hold any number of live product catalogs ("variations").
+  Creating one never replaces or refuses because of another.
+- **FR-099**: A catalog sheet MUST be named `<video name without extension>_v<N>_catalog`, where N
+  is the variation's number. N is the next number after the highest this video ever used, so a
+  removed `v2` is never handed out again (its name may still be live on Meta). A catalog made
+  before variations existed is variation 1 and keeps its name until it is re-created.
+- **FR-100**: Re-creating a variation MUST keep its number and replace only that variation.
+- **FR-101**: A video's catalogs MUST open as one list — name, product count, the link's host —
+  where each row copies its name, copies its link and opens the sheet in one press, and keeps
+  re-create and remove in its menu. "New variation" is on the same screen and prefills the
+  product count of the last one.
+- **FR-102**: Removing a variation MUST move its sheet to the trash (restorable from the trash,
+  where it comes back as the same variation) and take it off the list at once.
+- **FR-103**: After a catalog is created, the result MUST show its name with a copy button beside
+  it, next to copy link and open.
+- **FR-104**: From a task's video, "Catalog" MUST be one press on the tile: with no catalog it opens
+  the form; with catalogs it opens the list — without leaving the task.
+- **FR-105**: Renaming, moving or trashing a video MUST carry every variation along, each renamed
+  to the new name with its own number.
+- **FR-106**: The catalog updater MUST name each row by its catalog's name, so two variations of
+  one video are two distinguishable rows.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,
@@ -900,6 +929,9 @@ Measured by a read of every surface (counts assume an owner, a ready space, a wi
   action reachable twice**, checked by a test over the rendered surfaces.
 - **SC-019**: At 1440 px the editor shows title, status, assignee, date, brief and the first row of
   materials **without scrolling**; at 390 px **no control label wraps inside its control**.
+
+- **SC-020**: A second catalog for the same video, with a different link, takes **3 actions** from
+  a task (Catalog → New variation → Create) and its name is on the clipboard in **1 more**.
 
 ---
 

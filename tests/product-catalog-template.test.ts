@@ -185,9 +185,9 @@ describe('names and links', () => {
   });
 
   it('names a catalog after its video', () => {
-    expect(productCatalogName('clip.mp4')).toBe('clip catalog');
-    expect(productCatalogName('clip.final.mp4')).toBe('clip.final catalog');
-    expect(productCatalogName('no-extension')).toBe('no-extension catalog');
+    expect(productCatalogName('IN 40.mp4', 1)).toBe('IN 40_v1_catalog');
+    expect(productCatalogName('clip.final.mp4', 2)).toBe('clip.final_v2_catalog');
+    expect(productCatalogName('no-extension', 3)).toBe('no-extension_v3_catalog');
   });
 
   it('builds the shared link a signed-out viewer can open', () => {

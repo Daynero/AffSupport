@@ -154,7 +154,8 @@ export interface MaterialRef {
 
 /** What lives beside a material, shown on it wherever it appears. */
 export interface MaterialCompanions {
-  productCatalog?: { link: string | null; productCount: number | null } | null;
+  /** The newest catalog's link and count, and how many variations there are (024, US15). */
+  productCatalog?: { link: string | null; productCount: number | null; count?: number } | null;
   transcript?: { ready: boolean } | null;
   restitchedPreparedFor?: string | null;
 }

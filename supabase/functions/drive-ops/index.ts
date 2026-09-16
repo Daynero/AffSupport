@@ -2358,6 +2358,7 @@ function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatal
     sheetUrl,
     sourceLink,
     productCount,
+    variant: safeInteger(row.variant) ?? undefined,
     createdAt: stringValue(row, 'created_at') ?? stringValue(row, 'createdAt')
   };
 }
@@ -2403,15 +2404,27 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       if (!title || !description || !imageLink || price === null) return null;
       return { title, description, price, imageLink };
     },
-    async readLiveCatalog(teamId, videoId) {
-      return existingCatalogFrom(
-        firstRecord(
-          await rpcValue(caller, 'get_material_product_catalog', {
-            p_team: teamId,
-            p_video: videoId
-          })
-        )
+    async readLiveCatalogs(teamId, videoId) {
+      const rows = await rpcValue(caller, 'list_material_product_catalogs', {
+        p_team: teamId,
+        p_video: videoId
+      });
+      return (Array.isArray(rows) ? rows : []).flatMap(row => {
+        const catalog = existingCatalogFrom(isRecord(row) ? row : null);
+        return catalog ? [catalog] : [];
+      });
+    },
+    async nextVariant(teamId, videoId) {
+      const value = safeInteger(
+        await rpcValue(service, 'service_next_product_catalog_variant', {
+          p_team: teamId,
+          p_video: videoId
+        })
       );
+      if (value === null || value < 1) {
+        throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+      }
+      return value;
     },
     async driveFor(credentialId) {
       const known = drives.get(credentialId);
@@ -2540,6 +2553,7 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         const retired = Array.isArray(value.retired) ? value.retired : [];
         return {
           linked: true,
+          variant: safeInteger(value.variant) ?? undefined,
           retired: retired.flatMap(entry => {
             if (!isRecord(entry)) return [];
             const driveFileId = stringValue(entry, 'driveFileId');

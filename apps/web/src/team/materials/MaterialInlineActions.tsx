@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react';
-import { IconButton } from '../../components/ui/index';
+import { Button, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { MaterialActionMenu } from './MaterialActionMenu';
@@ -20,6 +20,7 @@ export function MaterialInlineActions({
   busy,
   done,
   size = 'sm',
+  worded,
   className,
   contextTarget
 }: {
@@ -37,6 +38,12 @@ export function MaterialInlineActions({
    */
   done?: MaterialActionId | null;
   size?: 'xs' | 'sm' | 'md';
+  /**
+   * Inline actions this surface names in words beside the icon. A task's video
+   * showed the catalog as a clipboard glyph between an eye and "…", and the
+   * owner went to Files to make a catalog the tile already offered (024, US15).
+   */
+  worded?: Partial<Record<MaterialActionId, string>>;
   className?: string;
   /** An ancestor whose right-click opens the overflow (024, FR-021). */
   contextTarget?: string;
@@ -53,6 +60,24 @@ export function MaterialInlineActions({
       {list.inline.map(({ action, run }) => {
         const succeeded = done === action.id;
         const Icon = succeeded ? Check : action.icon;
+        const words = worded?.[action.id];
+        if (words) {
+          return (
+            <Button
+              key={action.id}
+              size={size}
+              variant="ghost"
+              color={succeeded ? 'success' : 'neutral'}
+              loading={busy === action.id}
+              aria-label={t(action.labelKey)}
+              className="ui-material-actions-worded"
+              onClick={run}
+            >
+              <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {words}
+            </Button>
+          );
+        }
         return (
           <IconButton
             key={action.id}

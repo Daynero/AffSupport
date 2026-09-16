@@ -42,13 +42,18 @@ export function useMaterialCompanions(
     let active = true;
     void Promise.all([
       teamApi.getTranscriptCompanion(teamId, id).catch(() => null),
-      teamApi.getProductCatalog(teamId, id).catch(() => null)
-    ]).then(([transcript, catalog]) => {
+      teamApi.listProductCatalogs(teamId, id).catch(() => [])
+    ]).then(([transcript, catalogs]) => {
       if (!active) return;
+      const newest = catalogs.at(-1);
       setCompanions({
         transcript: transcript ? { ready: transcript.hasText } : null,
-        productCatalog: catalog
-          ? { link: catalog.sheetUrl, productCount: catalog.productCount ?? null }
+        productCatalog: newest
+          ? {
+              link: newest.sheetUrl,
+              productCount: newest.productCount ?? null,
+              count: catalogs.length
+            }
           : null
       });
     });

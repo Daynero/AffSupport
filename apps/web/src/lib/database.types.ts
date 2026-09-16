@@ -3003,6 +3003,19 @@ export type Database = {
         Args: { p_value: number };
         Returns: undefined;
       };
+      list_material_product_catalogs: {
+        Args: { p_team: string; p_video: string };
+        Returns: {
+          id: string;
+          name: string;
+          drive_file_id: string;
+          sheet_url: string;
+          source_link: string;
+          product_count: number;
+          variant: number;
+          created_at: string;
+        }[];
+      };
       get_team_task_progress_max_default: {
         Args: { p_team: string };
         Returns: number;

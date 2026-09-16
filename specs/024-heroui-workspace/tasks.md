@@ -674,7 +674,29 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ---
 
-## Phase 10: User Story 8 — accounts, agents and members (Priority: P3)
+## Phase 9G: User Story 15 — catalog variations (Priority: P1)
+
+- [x] T179 [US15] Migration `20260916160000_product_catalog_variations.sql`: `variant` on
+      `team_product_catalogs` (existing rows = 1); the one-live-companion index narrowed to
+      transcripts; `list_material_product_catalogs`; `service_next_product_catalog_variant`;
+      `service_link_product_catalog_companion` links a new variation beside the others and a
+      re-create retires only what it replaces. ROLLBACK.md entry.
+- [x] T180 [P] [US15] SQL tests: two variations live at once; numbers never reused after a
+      removal; re-create keeps the number and retires only its own sheet; a stale re-create loses.
+- [x] T181 [US15] Edge function: no "exists" refusal on create; `productCatalogName(video, N)` →
+      `<stem>_v<N>_catalog`; a re-create keeps N; handler tests updated.
+- [x] T182 [US15] Web API: `listProductCatalogs`, `variant` on the summary; companions carry the
+      list; tail renames every variation with its own number.
+- [x] T183 [US15] `ProductCatalogMenuDialog` becomes the video's catalog list (copy name, copy
+      link, open; re-create and remove in the row menu; New variation); the result view shows the
+      name with a copy button.
+- [x] T184 [US15] Task tile: "Catalog" inline on a video; the updater names rows by catalog name.
+- [x] T185 [P] [US15] Component tests for the list, the result's copy name, and the tile.
+- [x] T186 [US15] Walk it on the beta: two variations from a task, copy names, remove one, restore
+      it from the trash. (Walked: v1 and v2 from a task's tile, list, remove v2. Restore is held by
+      the SQL test; not walked, to leave the owner's Drive trash alone.)
+
+— accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the
       inventory's `Table` at its dense size, keeping the sticky header and the foldable money
@@ -758,7 +780,10 @@ processed copy from the attachment, and see all three on the task without it clo
 - [ ] T146 Write `specs/024-heroui-workspace/findings.md` — what the migration walked past, what
       it taught the system, what it deliberately did not do, and what it weighed — in the shape
       feature 021's findings file established.
-- [ ] T147 Confirm the feature is still web-only deployable: nothing changed under `apps/agent`,
+- [ ] T147 Confirm nothing changed under `apps/agent`, `packaging`, `packages/shared/src`,
+      `packages/shared/package.json` or `config/production.env`. No longer web-only: US15 and the
+      space's task maximum add migrations and an edge-function change, which deploy with it.
+      Was: Confirm the feature is still web-only deployable: nothing changed under `apps/agent`,
       `packaging`, `packages/shared/src`, `packages/shared/package.json` or
       `config/production.env`.
 - [ ] T148 Walk every quickstart checkpoint end to end on the beta, in one sitting, as a person

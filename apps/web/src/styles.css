@@ -14111,6 +14111,67 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
+/* The result leads with the name and the button that copies it: the owner types the same name
+   into Meta (024, US15). */
+.product-catalog-dialog-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.product-catalog-dialog-name-row > .product-catalog-dialog-name {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: 600;
+}
+/* A video's variations: name and what tells them apart on the left, the three presses and the
+   menu on the right — one line each while it fits. */
+.product-catalog-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.product-catalog-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.product-catalog-row-text {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.product-catalog-row-text strong,
+.product-catalog-row-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-catalog-row-text small {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.product-catalog-row-text strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.product-catalog-row-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+.product-catalog-row-open {
+  display: inline-grid;
+  place-items: center;
+}
 .product-catalog-dialog-missing {
   display: grid;
   justify-items: start;
