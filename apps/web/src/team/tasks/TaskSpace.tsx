@@ -165,9 +165,21 @@ export function TaskSpace({
   const [localOpenId, setLocalOpenId] = useState<string | null>(null);
   const controlled = Boolean(onOpenTaskChange);
   const effectiveOpenId = controlled ? openTaskId : localOpenId;
-  const openTask = effectiveOpenId
-    ? (tasks.tasks.find(task => task.id === effectiveOpenId) ?? null)
+  /*
+   * The open task is the one the person is working on, not a row of the board.
+   * Set to "Done" under an "In progress" filter it leaves the board — and the
+   * editor used to close under the person's hands, then spring open again the
+   * moment "Done" was chosen, because the address still named it. It stays
+   * open on the last copy the board held until it is closed.
+   */
+  const lastOpenTask = useRef<TeamTaskSummary | null>(null);
+  const listedOpenTask = effectiveOpenId
+    ? (tasks.allTasks.find(task => task.id === effectiveOpenId) ?? null)
     : null;
+  if (listedOpenTask) lastOpenTask.current = listedOpenTask;
+  const openTask =
+    listedOpenTask ??
+    (effectiveOpenId && lastOpenTask.current?.id === effectiveOpenId ? lastOpenTask.current : null);
   const setOpenTask = (task: TeamTaskSummary | null) => {
     if (controlled) onOpenTaskChange?.(task?.id ?? null);
     else setLocalOpenId(task?.id ?? null);

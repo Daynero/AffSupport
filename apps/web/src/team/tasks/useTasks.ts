@@ -520,12 +520,21 @@ export function useTasks({
       };
       // An edit can move a task's date, and the board is ordered by that date:
       // re-place the card instead of leaving it where it used to belong.
+      // And a task the edit takes out of the filters in force leaves the board
+      // now, not at the next reload: a card set to "Done" under "In progress"
+      // stayed there, answering to a filter it no longer passed.
+      const stillShown =
+        (status === null || next.status === status) &&
+        (assigneeId == null || next.assigneeId === assigneeId) &&
+        (!unassigned || next.assigneeId == null);
       setTasks(current =>
-        current.map(item => (item.id === next.id ? next : item)).sort(teamTaskComparator(sort))
+        current
+          .flatMap(item => (item.id === next.id ? (stillShown ? [next] : []) : [item]))
+          .sort(teamTaskComparator(sort))
       );
       return next;
     },
-    [client, sort, teamId]
+    [assigneeId, client, sort, status, teamId, unassigned]
   );
 
   /** The editor hung or removed a tag (018); the card follows at once. */
