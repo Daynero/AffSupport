@@ -165,16 +165,8 @@ describe('the board at rest', () => {
 });
 
 describe('a space of one', () => {
-  it('shows no assignee to a person working alone, and shows it with a second member', async () => {
-    const { unmount } = editor([{ userId: 'u1', displayName: 'Olena', email: null }]);
-    await screen.findByDisplayValue('Task a');
-    expect(document.querySelector('#team-task-assignee')).toBeNull();
-    unmount();
-
-    editor([
-      { userId: 'u1', displayName: 'Olena', email: null },
-      { userId: 'u2', displayName: 'Taras', email: null }
-    ]);
+  it('keeps the assignee in the editor even when the person works alone (024, the owner)', async () => {
+    editor([{ userId: 'u1', displayName: 'Olena', email: null }]);
     await screen.findByDisplayValue('Task a');
     expect(document.querySelector('#team-task-assignee')).toBeTruthy();
   });

@@ -323,7 +323,6 @@ export function TaskEditor({
   const [error, setError] = useState<'read' | 'write' | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editorMenuOpen, setEditorMenuOpen] = useState(false);
-  const solo = members.length <= 1;
   const editorMenuTrigger = useRef<HTMLButtonElement>(null);
   /**
    * The video whose product catalog is open over this task, if any.
@@ -1042,43 +1041,40 @@ export function TaskEditor({
                   disabled={!canEdit || savingStatus}
                   onChange={next => void saveStatus(next)}
                 />
-                {/* Solo is not a smaller team (024, FR-089): a space of one has
-                    nobody to hand this to, and "not assigned" on every task of a
-                    person working alone is noise. It appears with the second
-                    member — or when this task already names someone. */}
-                {(!solo || assigneeId) && (
-                  <>
-                    {/* Who has it: the select says "not assigned" by itself, so it needs no
+                {/* Always in the editor (the owner, 024, revising FR-089): hidden
+                    in a space of one, the field looked lost rather than quiet —
+                    and its last line is how the second person gets invited. */}
+                <>
+                  {/* Who has it: the select says "not assigned" by itself, so it needs no
                     caption beside it, and the person you want may not be in the space yet —
                     inviting them is the list's last line rather than a second button (024,
                     FR-031, US14). */}
-                    <Select
-                      id="team-task-assignee"
-                      className="team-task-assignee-select"
-                      aria-label={t('teamTaskAssignee')}
-                      value={assigneeId}
-                      disabled={!canEdit}
-                      placeholder={t('teamTaskUnassigned')}
-                      options={[
-                        ...members.map(member => ({
-                          value: member.userId,
-                          label: member.displayName ?? member.email ?? member.userId
-                        })),
-                        ...(canEdit && can('manage_members') && client.createInvitation
-                          ? [{ value: INVITE_OPTION, label: `+ ${t('teamTaskInviteSomeone')}` }]
-                          : [])
-                      ]}
-                      onChange={next => {
-                        if (next === INVITE_OPTION) {
-                          setInviting(true);
-                          return;
-                        }
-                        setAssigneeId(next);
-                        if (canEdit) autosave.save({ assigneeId: next || null });
-                      }}
-                    />
-                  </>
-                )}
+                  <Select
+                    id="team-task-assignee"
+                    className="team-task-assignee-select"
+                    aria-label={t('teamTaskAssignee')}
+                    value={assigneeId}
+                    disabled={!canEdit}
+                    placeholder={t('teamTaskUnassigned')}
+                    options={[
+                      ...members.map(member => ({
+                        value: member.userId,
+                        label: member.displayName ?? member.email ?? member.userId
+                      })),
+                      ...(canEdit && can('manage_members') && client.createInvitation
+                        ? [{ value: INVITE_OPTION, label: `+ ${t('teamTaskInviteSomeone')}` }]
+                        : [])
+                    ]}
+                    onChange={next => {
+                      if (next === INVITE_OPTION) {
+                        setInviting(true);
+                        return;
+                      }
+                      setAssigneeId(next);
+                      if (canEdit) autosave.save({ assigneeId: next || null });
+                    }}
+                  />
+                </>
                 <TaskDateField
                   value={teamTaskDate({ dateOn, createdAt: task.createdAt })}
                   isCustom={dateOn !== null}

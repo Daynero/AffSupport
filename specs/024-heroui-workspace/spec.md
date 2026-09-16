@@ -821,8 +821,9 @@ Measured by a read of every surface (counts assume an owner, a ready space, a wi
 
 ### Functional Requirements — solo (US13)
 
-- **FR-089**: While a space has one member, assignee controls, invite prompts and the assignee
-  filter MUST be absent, and MUST appear live when a second member arrives.
+- **FR-089**: While a space has one member, the board's assignee filter MUST be absent, and MUST
+  appear live when a second member arrives. (Revised by the owner: the editor's assignee field
+  stays in a space of one — hidden, it read as lost, and it is where the second person is invited.)
 - **FR-090**: The board MUST offer a quick-add field that creates a task from its title on Enter
   and keeps focus for the next.
 
