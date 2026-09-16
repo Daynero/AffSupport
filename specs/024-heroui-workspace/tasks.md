@@ -519,8 +519,11 @@ closing or losing anything.
 - [x] T109 [US7] Put "New space" in the space switcher. The wizard now has an address,
       `/team?new=1`, which the resolver holds instead of entering a space underneath it;
       cancelling goes back to where it was opened, creating replaces the wizard in history.
-- [ ] T110 [US7] Put leaving a space and transferring ownership in one place, each naming the
-      other.
+- [x] T110 [US7] Put leaving a space and transferring ownership in one place, each naming the
+      other. Leaving was in the settings' General tab and transferring on a member's row — after
+      T108 two different screens. `LeaveSpacePanel` moved to `members/` and sits under the
+      Members list; the owner's explanation points at the list above it, and the transfer
+      dialog says where leaving is.
 - [ ] T111 [US7] Make the dialogs worth restoring addressable — batch processing, material
       preview, storage detail — and leave the rest as component state.
 - [x] T112 [US7] Make the three header chips one component with one shape and one interaction,

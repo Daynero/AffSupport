@@ -119,7 +119,7 @@ describe('leaving a space', () => {
     const member = makeTeam({ role: 'editor', permissions: DEFAULT_ROLE_PERMISSIONS.editor });
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([member]), leaveTeam });
     const user = userEvent.setup();
-    renderSpace(client, `/team/${SPACE_ID}/settings`);
+    renderSpace(client, `/team/${SPACE_ID}/members`);
 
     await user.click(await screen.findByRole('button', { name: 'Leave this space' }));
     expect(await screen.findByRole('heading', { name: 'Leave this space?' })).toBeTruthy();
@@ -138,11 +138,11 @@ describe('leaving a space', () => {
 
   it('tells an owner why they cannot leave, instead of offering a dead control', async () => {
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([makeTeam()]) });
-    renderSpace(client, `/team/${SPACE_ID}/settings`);
+    renderSpace(client, `/team/${SPACE_ID}/members`);
 
     expect(
       await screen.findByText(
-        'A space cannot be left without an owner. Transfer ownership to another member first, then you can leave.'
+        'A space cannot be left without an owner. Transfer ownership to a member in the list above first, then you can leave here.'
       )
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Leave this space' })).toBeNull();

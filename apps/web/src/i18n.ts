@@ -1248,6 +1248,8 @@ const en = {
   teamOwnershipTransferDescription:
     '{name} will become the only owner. Choose the role your account will receive.',
   teamOwnershipFormerRole: 'Your new role',
+  teamOwnershipThenLeave:
+    'Once they own it you can stay in your new role, or leave the space from the bottom of Members.',
   teamOwnershipConfirm: 'I understand that {name} will become owner',
   teamOwnershipTransferAction: 'Transfer ownership',
   teamOwnershipTransferFailed: 'Could not transfer ownership.',
@@ -1930,7 +1932,7 @@ const en = {
   teamLeaveDone:
     'You have left the space. Files shared with you directly in Google Drive stay shared — ask an admin to remove that access if you need it revoked.',
   teamLeaveOwnerExplanation:
-    'A space cannot be left without an owner. Transfer ownership to another member first, then you can leave.',
+    'A space cannot be left without an owner. Transfer ownership to a member in the list above first, then you can leave here.',
   teamDraftDeleteAction: 'Discard this draft',
   teamDraftDeleteConfirmTitle: 'Discard “{name}”?',
   teamDraftDeleteConfirmBody:
@@ -3858,6 +3860,8 @@ const uk: Record<keyof typeof en, string> = {
   teamOwnershipTransferDescription:
     '{name} стане єдиним власником. Оберіть роль, яку отримає ваш акаунт.',
   teamOwnershipFormerRole: 'Ваша нова роль',
+  teamOwnershipThenLeave:
+    'Після цього можна лишитися в новій ролі або вийти з простору внизу екрана «Учасники».',
   teamOwnershipConfirm: 'Я розумію, що {name} стане власником',
   teamOwnershipTransferAction: 'Передати власність',
   teamOwnershipTransferFailed: 'Не вдалося передати власність.',
@@ -4538,7 +4542,7 @@ const uk: Record<keyof typeof en, string> = {
   teamLeaveDone:
     'Ви вийшли з простору. Файли, якими з вами поділилися напряму в Google Drive, лишаються доступними — попросіть адміна забрати цей доступ, якщо його треба відкликати.',
   teamLeaveOwnerExplanation:
-    'Простір не може лишитися без власника. Спершу передайте володіння іншому учаснику — тоді зможете вийти.',
+    'Простір не може лишитися без власника. Спершу передайте володіння учаснику зі списку вище — тоді зможете вийти тут.',
   teamDraftDeleteAction: 'Видалити чернетку',
   teamDraftDeleteConfirmTitle: 'Видалити «{name}»?',
   teamDraftDeleteConfirmBody:
