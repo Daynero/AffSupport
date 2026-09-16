@@ -16,6 +16,9 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260916210000_search_by_marker.sql`: re-apply `search_materials` from `20260906170000`
+   and `get_team_vocab_and_facets` from `20260916200000`. No data is touched.
+
 0. `20260916200000_filter_languages_in_use.sql`: re-apply `get_team_vocab_and_facets` from
    `20260815113000` (without `usedLanguages`). No data is touched.
 

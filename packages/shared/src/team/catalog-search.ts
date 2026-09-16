@@ -24,7 +24,8 @@ export const CATALOG_FILTER_KEYS = [
   'category',
   'originalType',
   'kind',
-  'unfilled'
+  'unfilled',
+  'marker'
 ] as const;
 export type CatalogFilterKey = (typeof CATALOG_FILTER_KEYS)[number];
 export type CatalogUnfilledField = 'geo' | 'offer' | 'language';
@@ -37,6 +38,9 @@ export interface CatalogSearchFilters {
   originalType: string[];
   kind: MaterialKind[];
   unfilled: CatalogUnfilledField[];
+  /** A file's colour mark (024). Optional: a server without it refuses the key, so an empty one
+   * is left out of the request rather than sent. */
+  marker?: TeamMaterialTagColor[];
 }
 
 export interface CatalogSearchRequest {
@@ -242,12 +246,24 @@ export function normalizeCatalogSearchRequest(input: unknown): CatalogSearchRequ
       ? (value as CatalogUnfilledField)
       : null
   );
-  if (!geo || !language || !offer || !category || !originalType || !kind || !unfilled) {
+  const marker = normalizedArray(rawFilters.marker, value =>
+    isTeamMaterialTagColor(value) ? value : null
+  );
+  if (!geo || !language || !offer || !category || !originalType || !kind || !unfilled || !marker) {
     return null;
   }
   return {
     query,
-    filters: { geo, language, offer, category, originalType, kind, unfilled },
+    filters: {
+      geo,
+      language,
+      offer,
+      category,
+      originalType,
+      kind,
+      unfilled,
+      ...(marker.length > 0 ? { marker } : {})
+    },
     page,
     pageSize
   };

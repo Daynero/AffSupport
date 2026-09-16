@@ -195,7 +195,7 @@ export function useCatalogSearch(input: {
     setPage(1);
     setFilters(current => ({
       ...current,
-      [key]: current[key].filter(entry => entry !== value)
+      [key]: (current[key] ?? []).filter(entry => entry !== value)
     }));
   }, []);
 

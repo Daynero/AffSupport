@@ -132,7 +132,8 @@ const FILTER_PARAM: Record<CatalogFilterKey, string> = {
   category: 'category',
   originalType: 'type',
   kind: 'kind',
-  unfilled: 'unfilled'
+  unfilled: 'unfilled',
+  marker: 'marker'
 };
 
 /** Explorer kind chips use `k`; the catalog's older `kind` filter keeps `kind`. */
@@ -361,7 +362,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     const filters = query.filters;
     if (filters) {
       for (const key of CATALOG_FILTER_KEYS) {
-        for (const value of filters[key]) params.append(FILTER_PARAM[key], value);
+        for (const value of filters[key] ?? []) params.append(FILTER_PARAM[key], value);
       }
     }
     if (query.folderId) params.set('folder', query.folderId);

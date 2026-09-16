@@ -34,7 +34,11 @@ const VOCABULARY = { geo: ['UA', 'PL'], languages: ['uk', 'en'], offers: ['Pro C
 
 function renderPanel(
   overrides: {
-    vocabulary?: typeof VOCABULARY & { usedGeo?: string[]; usedLanguages?: string[] };
+    vocabulary?: typeof VOCABULARY & {
+      usedGeo?: string[];
+      usedLanguages?: string[];
+      usedMarkers?: string[];
+    };
     filters?: Partial<CatalogSearchFilters>;
     facets?: Record<string, { value: string; count: number }[]>;
   } = {},
@@ -70,7 +74,8 @@ const FACET_KEY: Record<string, string> = {
   Category: 'category',
   'Original type': 'originalType',
   Kind: 'kind',
-  'Missing metadata': 'unfilled'
+  'Missing metadata': 'unfilled',
+  'Colour mark': 'marker'
 };
 
 async function openFacet(name: string) {
@@ -97,6 +102,22 @@ async function optionTexts(name: string) {
 }
 
 describe('catalog filters', () => {
+  it('offers no filter that could find nothing, and a colour mark filter when files carry one (024)', async () => {
+    renderPanel({
+      vocabulary: {
+        ...VOCABULARY,
+        offers: [],
+        usedGeo: [],
+        usedLanguages: ['uk'],
+        usedMarkers: ['green']
+      }
+    });
+    expect(document.getElementById('catalog-facet-geo')).toBeNull();
+    expect(document.getElementById('catalog-facet-offer')).toBeNull();
+    expect(document.getElementById('catalog-facet-language')).toBeTruthy();
+    expect(await optionTexts('Colour mark')).toEqual(expect.arrayContaining(['Green']));
+  });
+
   it('offers only the GEO and languages the files carry, by name (024)', async () => {
     renderPanel({
       vocabulary: { ...VOCABULARY, usedGeo: ['PL'], usedLanguages: ['uk'] },

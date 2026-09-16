@@ -20,7 +20,7 @@ import { TEAM_MATERIAL_TAG_COLORS, type TeamMaterialTagColor } from '@video-comp
 import { useI18n, type TranslationKey } from '../../i18n';
 import { Popover } from '../../components/ui/index';
 
-const COLOR_LABEL: Record<TeamMaterialTagColor, TranslationKey> = {
+export const COLOR_LABEL: Record<TeamMaterialTagColor, TranslationKey> = {
   red: 'teamTagRed',
   orange: 'teamTagOrange',
   yellow: 'teamTagYellow',
