@@ -14,7 +14,7 @@ export type CardProps<T extends ElementType = 'section'> = CardOwnProps<T> &
 
 /**
  * Shared surface primitive behind tool/metric/account/admin/login/landing
- * cards: one `.card` base (border, radius, background, padding on tokens) with
+ * cards: one `.soty-card` base (border, radius, background, padding on tokens) with
  * per-card modifier classes layered on top for their unique traits.
  */
 export function Card<T extends ElementType = 'section'>({
@@ -24,7 +24,10 @@ export function Card<T extends ElementType = 'section'>({
   ...props
 }: CardProps<T>) {
   const Tag = (as ?? 'section') as ElementType;
-  const classes = `card ${interactive ? 'card-interactive' : ''} ${className}`
+  // `soty-card`, not `card` (024): HeroUI owns an unprefixed `.card`, the
+  // stylesheet's rule was renamed, and this shim kept emitting the old name —
+  // every card built on it lost its surface, border and padding.
+  const classes = `soty-card ${interactive ? 'card-interactive' : ''} ${className}`
     .replace(/\s+/g, ' ')
     .trim();
   return <Tag {...props} className={classes} />;

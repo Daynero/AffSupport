@@ -588,7 +588,8 @@ a {
   line-height: 1.55;
 }
 
-.team-workspace-launcher-card > .soty-button {
+.team-workspace-launcher-card > .soty-button,
+.team-workspace-launcher-card > .ui-button {
   flex: 0 0 auto;
 }
 
@@ -653,11 +654,15 @@ a {
   gap: 12px;
 }
 
-.tool-action-row:has(> .soty-button:only-child) {
+.tool-action-row:has(> .soty-button:only-child),
+.tool-action-row:has(> .ui-button:only-child) {
   justify-content: flex-end;
 }
 
-.tool-card .tool-action-row /* `.soty-button` already sets both of these where it is defined; this repeat was
+/* A removed rule left `.tool-card .tool-action-row` dangling here, which glued
+   itself onto the next selector as `.tool-card .tool-action-row .tool-icon` and
+   quietly unstyled every tool icon (found in the 024 audit).
+   `.soty-button` already sets both of these where it is defined; this repeat was
    added during a touch-target pass and changes nothing. The two rules that do
    reduce a button's height — the job actions and the update notice — are more
    specific and win regardless of order, so removing this affects nothing at
@@ -707,7 +712,8 @@ a {
 .tool-readiness.beta {
   color: var(--color-action-hover);
 }
-.soty-button.is-disabled {
+.soty-button.is-disabled,
+.ui-button.is-disabled {
   opacity: 0.58;
   pointer-events: none;
 }
@@ -2957,7 +2963,8 @@ input.is-invalid {
   gap: var(--space-3);
 }
 
-.release-update-actions .soty-button {
+.release-update-actions .soty-button,
+.release-update-actions .ui-button {
   min-height: 34px;
   padding: 7px 12px;
   font-size: var(--text-xl);
@@ -3278,7 +3285,8 @@ input.is-invalid {
     padding: 20px;
   }
 
-  .team-workspace-launcher-card > .soty-button {
+  .team-workspace-launcher-card > .soty-button,
+  .team-workspace-launcher-card > .ui-button {
     width: 100%;
   }
 
@@ -3516,7 +3524,8 @@ input.is-invalid {
 
   .launcher .onboarding-panel > .inline-actions .soty-button,
   .launcher .blocking-message .inline-actions,
-  .launcher .blocking-message .ui-button {
+  .launcher .blocking-message .ui-button,
+  .launcher .onboarding-panel > .inline-actions .ui-button {
     width: 100%;
   }
 
@@ -3555,7 +3564,8 @@ input.is-invalid {
     flex-direction: column;
   }
 
-  .tool-action-row .soty-button {
+  .tool-action-row .soty-button,
+  .tool-action-row .ui-button {
     min-height: 42px;
     width: 100%;
   }
@@ -4739,7 +4749,8 @@ body:has(.public-home) {
   gap: var(--space-4);
 }
 
-.platform-download-actions .soty-button {
+.platform-download-actions .soty-button,
+.platform-download-actions .ui-button {
   width: 100%;
 }
 
@@ -4773,7 +4784,8 @@ body:has(.public-home) {
   padding-top: 4px;
 }
 
-.local-app-modal > .inline-actions .soty-button {
+.local-app-modal > .inline-actions .soty-button,
+.local-app-modal > .inline-actions .ui-button {
   width: 100%;
   min-height: 44.2px;
   padding-inline: 12px;
@@ -4782,7 +4794,8 @@ body:has(.public-home) {
   box-shadow: none;
 }
 
-.local-app-modal > .inline-actions .soty-button:hover {
+.local-app-modal > .inline-actions .soty-button:hover,
+.local-app-modal > .inline-actions .ui-button:hover {
   border-color: var(--color-border-strong);
   background: var(--color-surface-muted);
   box-shadow: none;
@@ -9521,7 +9534,8 @@ button,
   .team-create-actions .ui-button,
   .team-dialog-actions .soty-button,
   .team-catalog-material-actions .soty-button,
-  .team-material-action-buttons .soty-button {
+  .team-material-action-buttons .soty-button,
+  .team-dialog-actions .ui-button {
     width: 100%;
   }
   .team-create-actions,
@@ -11494,7 +11508,8 @@ body {
    catalog rows, library cards and the share menu. Soft tinted fill + tinted
    border + saturated icon/text, matching the task-attachment action pattern.
    Icons carry no fill and inherit each button's colour via currentColor. --- */
-.team-media-action.soty-button {
+.team-media-action.soty-button,
+.team-media-action.ui-button {
   gap: 6px;
   border-width: 1px;
   white-space: normal;
@@ -17569,4 +17584,3 @@ input[type='number'] {
 .team-explorer-pane-transcript .creative-library-text-actions {
   gap: var(--space-1);
 }
-

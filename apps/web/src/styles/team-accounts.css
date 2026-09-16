@@ -1538,7 +1538,8 @@
   color: var(--color-text-muted);
 }
 
-.team-accounts-empty .soty-button {
+.team-accounts-empty .soty-button,
+.team-accounts-empty .ui-button {
   margin-top: var(--space-2);
 }
 
