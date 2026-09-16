@@ -12,7 +12,11 @@ import {
   teamLandingScreenshotUrl
 } from '../../api/client';
 import { teamApi } from '../../api/team';
+import { X } from 'lucide-react';
 import { Button } from '../../components/ui';
+import { IconButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import { useI18n } from '../../i18n';
 import { teamErrorMessage } from '../errors';
 import { LandingPreviewFrame, type LandingPreviewView } from './LandingPreviewFrame';
@@ -215,14 +219,22 @@ export function MaterialPreview({
           landingPreset?.zoom === undefined ? undefined : String(landingPreset.zoom)
       }}
     >
+      {/*
+       * The file, not the viewer (the owner, 024): its name and what it is on the
+       * left, the way out on the right, as Drive and Frame.io head a viewer.
+       * "Safe preview" over every file asked which other kind there was, and a
+       * worded "Close preview" button was the loudest thing above the picture.
+       */}
       <header className="team-preview-heading">
-        <div>
-          <p>{t('teamPreviewEyebrow')}</p>
-          <h2 id="team-preview-title">{material.name}</h2>
+        <div className="team-preview-title">
+          <h2 id="team-preview-title" title={material.name}>
+            {material.name}
+          </h2>
+          <small>{t(CATEGORY_LABEL[material.category ?? 'other'])}</small>
         </div>
-        <Button type="button" variant="ghost" onClick={close}>
-          {t('teamPreviewClose')}
-        </Button>
+        <IconButton label={t('teamPreviewClose')} variant="ghost" onClick={close}>
+          <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </IconButton>
       </header>
       {toolbar && <div className="landing-full-view-toolbar">{toolbar}</div>}
       <div className="team-preview-content">

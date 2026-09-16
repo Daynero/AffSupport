@@ -6,7 +6,9 @@ import {
   type LandingViewerPreset,
   type RenderArtifactRef
 } from '@video-compressor/shared';
-import { Button, ErrorState, Spinner } from '../../components/ui/index';
+import { X } from 'lucide-react';
+import { Button, ErrorState, IconButton, Spinner } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { MaterialPreview, type MaterialPreviewClient } from '../preview/MaterialPreview';
 import { LandingViewerControls } from './LandingViewerControls';
@@ -92,13 +94,14 @@ export function LandingFullView({
         }}
       >
         <header className="team-preview-heading">
-          <div>
-            <p>{t('teamPreviewEyebrow')}</p>
-            <h2 id="team-preview-title">{material.name}</h2>
+          <div className="team-preview-title">
+            <h2 id="team-preview-title" title={material.name}>
+              {material.name}
+            </h2>
           </div>
-          <Button color="neutral" variant="ghost" onClick={onClose}>
-            {t('teamPreviewClose')}
-          </Button>
+          <IconButton label={t('teamPreviewClose')} variant="ghost" onClick={onClose}>
+            <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
         </header>
         <div className="landing-full-view-toolbar">
           <LandingViewerControls preset={preset} onChange={updatePreset} />
