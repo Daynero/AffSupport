@@ -139,8 +139,10 @@ function AgentTasksList({
                 internalLink(event, href);
               }}
             >
-              <span className="team-peek-tile-status" title={taskStatusLabel(task.status, t)}>
+              {/* No hover tip: it covered the title it sits above. Said to a screen reader. */}
+              <span className="team-peek-tile-status">
                 <TaskStatusIcon status={task.status} />
+                <span className="visually-hidden">{taskStatusLabel(task.status, t)}</span>
               </span>
               <span className="team-peek-tile-title">{task.title}</span>
             </a>

@@ -15,7 +15,7 @@
  * done by someone who cannot do it.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TEAM_MATERIAL_TAG_COLORS, type TeamMaterialTagColor } from '@video-compressor/shared';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { Popover } from '../../components/ui/index';
@@ -50,6 +50,44 @@ export function TagDot({
 
   const label = color ? t(COLOR_LABEL[color]) : t('teamTagNone');
 
+  /*
+   * Press, slide, release (the owner, 024): holding the dot opens the colours at once, and letting
+   * go over one chooses it — the way a macOS pop-up menu is used in a single gesture. A plain
+   * click still opens the menu and leaves it open; the keyboard is unchanged.
+   */
+  const pressed = useRef(false);
+  const [aimed, setAimed] = useState<string | null>(null);
+  const swatchAt = (x: number, y: number) => {
+    const target = document.elementFromPoint(x, y);
+    const swatch =
+      target instanceof HTMLElement ? target.closest<HTMLButtonElement>('.team-tag-swatch') : null;
+    return swatch && !swatch.disabled && root.current?.ownerDocument.contains(swatch)
+      ? swatch
+      : null;
+  };
+  useEffect(() => {
+    if (!open) return;
+    const move = (event: PointerEvent) => {
+      if (!pressed.current) return;
+      setAimed(swatchAt(event.clientX, event.clientY)?.dataset.swatch ?? null);
+    };
+    const release = (event: PointerEvent) => {
+      if (!pressed.current) return;
+      setAimed(null);
+      const swatch = swatchAt(event.clientX, event.clientY);
+      if (swatch) {
+        pressed.current = false;
+        swatch.click();
+      }
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', release);
+    return () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', release);
+    };
+  }, [open]);
+
   if (!canTag) {
     // Nothing at all rather than an empty ring: an untagged file has nothing
     // to say to a reader who cannot tag it.
@@ -78,11 +116,26 @@ export function TagDot({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t('teamTagOf', { name, tag: label })}
-        onClick={() => setOpen(value => !value)}
+        onPointerDown={event => {
+          if (event.button !== 0 || open) return;
+          // Touch captures the pointer to the dot; release it so the colours can be reached.
+          event.currentTarget.releasePointerCapture?.(event.pointerId);
+          pressed.current = true;
+          setOpen(true);
+        }}
+        onClick={() => {
+          // Already opened by the press that ended in this click.
+          if (pressed.current) {
+            pressed.current = false;
+            return;
+          }
+          setOpen(value => !value);
+        }}
       />
       <Popover
         open={open}
         onClose={() => {
+          pressed.current = false;
           setOpen(false);
           trigger.current?.focus();
         }}
@@ -101,7 +154,8 @@ export function TagDot({
                 type="button"
                 role="menuitemradio"
                 aria-checked={color === option}
-                className={`team-tag-swatch is-${option}${color === option ? ' is-active' : ''}`}
+                data-swatch={option}
+                className={`team-tag-swatch is-${option}${color === option ? ' is-active' : ''}${aimed === option ? ' is-aimed' : ''}`}
                 aria-label={t(COLOR_LABEL[option])}
                 onClick={() => {
                   // Pressing the colour a file already has takes it off, the
@@ -111,19 +165,23 @@ export function TagDot({
                 }}
               />
             ))}
+            {/* "No marker" as one more swatch — an empty circle struck through, the
+                way design tools say "no fill" — rather than a line of text under the
+                colours (the owner, 024). Named, and titled for the pointer. */}
+            <button
+              type="button"
+              role="menuitem"
+              data-swatch="clear"
+              className={`team-tag-swatch is-clear${aimed === 'clear' ? ' is-aimed' : ''}`}
+              disabled={color === null}
+              aria-label={t('teamTagClear')}
+              title={t('teamTagClear')}
+              onClick={() => {
+                onChange(null);
+                setOpen(false);
+              }}
+            />
           </div>
-          <button
-            type="button"
-            role="menuitem"
-            className="team-tag-clear"
-            disabled={color === null}
-            onClick={() => {
-              onChange(null);
-              setOpen(false);
-            }}
-          >
-            {t('teamTagClear')}
-          </button>
         </div>
       </Popover>
     </div>

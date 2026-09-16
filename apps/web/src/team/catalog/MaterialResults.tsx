@@ -156,18 +156,10 @@ export function MaterialResults({
                     )}
                   </span>
                   <div>
-                    <strong>{material.name}</strong>
-                    {pathFor?.(material) && (
-                      <span className="team-catalog-material-path">{pathFor(material)}</span>
-                    )}
-                    <span className="team-catalog-material-type">
-                      {typeLabel}
-                      {material.kind === 'file' && material.fileExtension
-                        ? ` · ${material.fileExtension.toUpperCase()}`
-                        : ''}
-                      {material.sizeBytes !== null ? ` · ${formatBytes(material.sizeBytes)}` : ''}
-                      {/* The same dot the explorer shows, in the same place:
-                          beside the size, where the eye already stops. */}
+                    <strong className="team-catalog-material-name">
+                      <span title={material.name}>{material.name}</span>
+                      {/* Beside the name, as in the explorer (024): beside the size it
+                        read as part of the size and sat on its last letter. */}
                       <TagDot
                         color={
                           material.id in justTagged
@@ -181,6 +173,16 @@ export function MaterialResults({
                           tagging?.onSetTag(material, color);
                         }}
                       />
+                    </strong>
+                    {pathFor?.(material) && (
+                      <span className="team-catalog-material-path">{pathFor(material)}</span>
+                    )}
+                    <span className="team-catalog-material-type">
+                      {typeLabel}
+                      {material.kind === 'file' && material.fileExtension
+                        ? ` · ${material.fileExtension.toUpperCase()}`
+                        : ''}
+                      {material.sizeBytes !== null ? ` · ${formatBytes(material.sizeBytes)}` : ''}
                     </span>
                   </div>
                 </div>
@@ -208,7 +210,7 @@ export function MaterialResults({
                 {/* The note (024): a file found by a word of it should say so. */}
                 {material.note && (
                   <p className="team-catalog-material-note" title={material.note}>
-                    {material.note}
+                    <span>{material.note.replace(/\n\s*\n+/gu, '\n')}</span>
                   </p>
                 )}
                 <div className="team-catalog-markers team-catalog-material-statuses">

@@ -13393,25 +13393,40 @@ button.team-landing-tile:hover {
 .team-tag-swatch.is-active {
   border-color: var(--color-text);
 }
-.team-tag-clear {
-  padding: 4px 6px;
-  border: 0;
-  border-radius: var(--radius-sm);
+/* Under the finger or pointer while the dot is held: the colour that letting go will choose. */
+.team-tag-swatch.is-aimed,
+.team-tag-swatch:hover:not(:disabled) {
+  transform: scale(1.2);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .team-tag-swatch {
+    transition: transform var(--motion-fast) ease;
+  }
+}
+.team-tag-swatch.is-clear {
+  position: relative;
+  margin-inline-start: 4px;
+  border-color: var(--color-text-muted);
   background: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  white-space: nowrap;
 }
-.team-tag-clear:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
-  color: var(--color-text);
+/* The strike: corner to corner, inside the ring. */
+.team-tag-swatch.is-clear::after {
+  content: '';
+  position: absolute;
+  inset: 50% -1px auto;
+  height: 2px;
+  background: var(--color-text-muted);
+  transform: translateY(-50%) rotate(-45deg);
 }
-.team-tag-clear:disabled {
+.team-tag-swatch.is-clear:hover:not(:disabled) {
+  border-color: var(--color-text);
+}
+.team-tag-swatch.is-clear:hover:not(:disabled)::after {
+  background: var(--color-text);
+}
+.team-tag-swatch.is-clear:disabled {
   cursor: default;
-  opacity: 0.5;
+  opacity: 0.35;
 }
 
 /* A permission nobody can grant, in the list where permissions are read: shown
@@ -14064,17 +14079,38 @@ button.team-landing-tile:hover {
   overflow-wrap: anywhere;
 }
 /* A search result's note: two lines of it, enough to see why the file was found. */
+.team-catalog-material-heading strong.team-catalog-material-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.team-catalog-material-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-catalog-material-name .team-tag {
+  flex: 0 0 auto;
+}
 .team-catalog-material-note {
-  display: -webkit-box;
+  /* As wide as its words: a short note on a full-width plate was mostly empty plate. */
+  justify-self: start;
+  max-width: 100%;
   margin: 0;
   padding: var(--space-1) var(--space-2);
-  overflow: hidden;
   border-radius: var(--radius-md);
   background: var(--color-warning-soft);
   font-size: var(--text-caption);
+}
+.team-catalog-material-note > span {
+  display: -webkit-box;
+  overflow: hidden;
   white-space: pre-line;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  /* Room for the "…" the clamp adds past the longest line. */
+  padding-inline-end: 1ch;
 }
 /* A file's note (024): a person's words, so it reads as a small sticky note beside the facts
    rather than as another fact. Line breaks are kept; a long one folds. */

@@ -1218,3 +1218,28 @@ button.team-task-label-chip:hover:not(:disabled),
   width: 16px;
   height: 16px;
 }
+/* A task tile speaks the board's colours (024): grey to do, amber in progress, green done — a
+   white tick on a purple frame read as neither. */
+.team-peek-tile.is-todo .team-peek-tile-status {
+  color: var(--color-text-muted);
+}
+.team-peek-tile.is-in_progress .team-peek-tile-status {
+  color: var(--color-warning);
+}
+.team-peek-tile.is-done .team-peek-tile-status {
+  color: var(--color-success);
+}
+.team-peek-tile.is-todo {
+  border-color: color-mix(in oklab, var(--slate-500) 44%, var(--color-border));
+}
+.team-peek-tile.is-in_progress {
+  border-color: color-mix(in oklab, var(--amber-500) 52%, var(--color-border));
+}
+.team-peek-tile.is-done {
+  border-color: color-mix(in oklab, var(--green-600) 58%, var(--color-border));
+}
+.team-peek-tile.is-todo:hover,
+.team-peek-tile.is-in_progress:hover,
+.team-peek-tile.is-done:hover {
+  background: var(--color-surface-raised);
+}
