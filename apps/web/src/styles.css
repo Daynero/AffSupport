@@ -10248,6 +10248,11 @@ body {
   min-width: 15rem;
   font-size: var(--text-sm);
 }
+.task-filter-display {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
 .task-filter-more-caption {
   color: var(--color-text-muted);
   font-size: var(--text-caption);
@@ -10584,13 +10589,13 @@ body {
   position: relative;
   height: 10px;
   border-radius: var(--radius-full);
-  /* Two flat colours meeting at the knob, no blend: what is done (left of the
-     handle) reads green, what is left to do reads red, and the boundary sits
-     exactly under the handle rather than in a wash of amber. */
+  /* A manual marker, not a verdict (the owner, 024): each buyer or team uses the number as they
+     like, so nothing here says good or bad. Green-then-red made every new task at 0 look like an
+     alarm. The filled part is the accent, the rest a quiet groove. */
   background: linear-gradient(
     90deg,
-    var(--green-600) 0 var(--task-progress-position),
-    var(--red-600) var(--task-progress-position) 100%
+    var(--color-accent) 0 var(--task-progress-position),
+    color-mix(in oklab, var(--color-text) 14%, transparent) var(--task-progress-position) 100%
   );
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-black) 16%, transparent);
   cursor: pointer;

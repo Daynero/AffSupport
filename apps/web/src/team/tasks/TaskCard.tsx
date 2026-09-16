@@ -190,8 +190,8 @@ export function TaskCard({
       onClick={openFromClick}
       onKeyDown={openFromKeyboard}
     >
-      {/* One strip of chrome: the status, the accounts it is on (017) in the
-          same outline, and the date it was made in the corner. */}
+      {/* One strip of chrome: the status and the accounts it is on (017), in the
+          same outline. */}
       <div className="team-task-card-strip">
         {onSelectedChange && (
           <Checkbox
@@ -215,19 +215,6 @@ export function TaskCard({
         {/* The team's own tags (018), in the same strip and the same shape as
             the agent tags — their colour is what tells the two apart. */}
         <TaskLabelChips labels={task.labels} limit={3} />
-        {/* The day the task is for — its own date once someone sets one, the
-            day it was made until then. */}
-        <time
-          className="team-task-card-date"
-          dateTime={dateValue}
-          title={
-            task.dateOn
-              ? `${t('teamTaskDateOn', { date: formatTaskDate(language, dateValue, true) })}\n${t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })}`
-              : t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })
-          }
-        >
-          {formatTaskDate(language, dateValue)}
-        </time>
         {/* One door to everything else the card can do. Not a row of icons:
             past the status control, nothing here is used often enough to earn
             a permanent place on fifty cards at once (024, FR-076). */}
@@ -325,6 +312,20 @@ export function TaskCard({
             {t('teamTaskSaveFailed')}
           </span>
         )}
+        {/* The day the task is for — its own date once someone sets one, the
+            day it was made until then. In the footer (024): in the strip it
+            wrapped onto a line of its own whenever the chips did. */}
+        <time
+          className="team-task-card-date"
+          dateTime={dateValue}
+          title={
+            task.dateOn
+              ? `${t('teamTaskDateOn', { date: formatTaskDate(language, dateValue, true) })}\n${t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })}`
+              : t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })
+          }
+        >
+          {formatTaskDate(language, dateValue)}
+        </time>
       </div>
     </Card>
   );

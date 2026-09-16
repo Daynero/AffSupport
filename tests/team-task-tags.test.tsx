@@ -425,22 +425,22 @@ describe('the board', () => {
     expect(screen.getByRole('button', { name: 'Show tasks with any tag' })).toBeTruthy();
   });
 
-  it('puts the progress scales away with the eye, and remembers the choice', async () => {
+  it('puts the sliders away from the view options, and remembers the choice', async () => {
     const user = userEvent.setup();
     const api = client();
     const { unmount } = wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
     await screen.findByRole('article');
     expect(screen.getAllByRole('slider').length).toBeGreaterThan(0);
-    await user.click(screen.getByRole('button', { name: 'Hide the progress scales' }));
-    expect(screen.queryByRole('slider')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    await user.click(await screen.findByRole('switch', { name: 'Slider on cards' }));
+    expect(screen.queryAllByRole('slider')).toHaveLength(0);
 
     // The choice is this browser's, and it survives leaving the section.
     unmount();
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
     await screen.findByRole('article');
-    expect(screen.queryByRole('slider')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Show the progress scales' })).toBeTruthy();
+    expect(screen.queryAllByRole('slider')).toHaveLength(0);
   });
 
   it('narrows to one person, and to the tasks nobody is on', async () => {

@@ -627,12 +627,13 @@ describe('the list', () => {
     );
     await screen.findByText('v31-434');
 
-    await user.click(screen.getByRole('button', { name: 'Unfold all' }));
+    // A view switch, with the order and the filters (024).
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    await user.click(await screen.findByRole('switch', { name: 'Briefs unfolded' }));
     const cards = screen.getAllByRole('article');
     expect(cards.every(card => card.classList.contains('is-expanded'))).toBe(true);
 
-    // The one control says which way the next press goes.
-    await user.click(screen.getByRole('button', { name: 'Fold all' }));
+    await user.click(screen.getByRole('switch', { name: 'Briefs unfolded' }));
     expect(
       screen.getAllByRole('article').some(card => card.classList.contains('is-expanded'))
     ).toBe(false);

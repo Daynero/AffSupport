@@ -56,7 +56,8 @@ export function TaskFilterBar({
   onLabelIdsChange,
   sort,
   onSortChange,
-  trailing
+  trailing,
+  display
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -77,6 +78,8 @@ export function TaskFilterBar({
   onSortChange: (value: TeamTaskSort) => void;
   /** Anything the board wants at the end of the row. */
   trailing?: ReactNode;
+  /** How the cards are drawn (024): switches that change the view, not what is on it. */
+  display?: ReactNode;
 }) {
   const { t } = useI18n();
   const filtersRoot = useRef<HTMLDivElement | null>(null);
@@ -205,6 +208,12 @@ export function TaskFilterBar({
               )}
               <span className="task-filter-more-caption">{t('teamTasksSortGroup')}</span>
               <TaskSortControl value={sort} onChange={onSortChange} hasLabels={labels.length > 0} />
+              {display && (
+                <>
+                  <span className="task-filter-more-caption">{t('teamTasksDisplayGroup')}</span>
+                  <div className="task-filter-display">{display}</div>
+                </>
+              )}
             </Popover>
           </div>
           {trailing}

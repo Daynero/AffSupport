@@ -9,9 +9,10 @@
 
 .team-task-grid {
   /* No floor (024, benchmarked on Linear's board): a card is as tall as its
-     task, and cards sharing a row still match the tallest. A 300 px floor
-     made every short task a tall empty frame. */
+     task. Not stretched to the row either: one long brief made every card
+     beside it a tall empty frame, and the board showed half the tasks. */
   grid-auto-rows: min-content;
+  align-items: start;
 }
 
 /* One column: a card is as tall as its task, no floor — an empty description
@@ -29,6 +30,8 @@
 }
 
 .team-task-card {
+  /* As tall as the task, not as the row (024). */
+  height: auto;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-3) 10px;
@@ -222,6 +225,12 @@
 .team-task-card-footer .team-task-card-error {
   margin-left: auto;
 }
+.team-task-card-footer .team-task-card-date {
+  margin-left: auto;
+}
+.team-task-card-footer .team-task-card-error + .team-task-card-date {
+  margin-left: 0;
+}
 
 /* The panel's run field: the whole prefilled title on one line where it fits,
    the field taking the row when it does not. */
@@ -298,33 +307,6 @@
 .task-date-filter .task-status-filter-option svg {
   width: 15px;
   height: 15px;
-}
-
-/* Unfold every brief on the board at once, and fold them back. Quiet, beside
-   the primary action, because it changes how the board reads rather than
-   what is on it. */
-.team-task-expand-all {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  padding: 0 var(--space-3) 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-caption);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.team-task-expand-all:hover {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface-muted);
-  color: var(--color-text);
 }
 
 /* ============================================================
@@ -931,48 +913,6 @@ button.team-task-label-chip:hover:not(:disabled),
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* The eye that puts the progress scales away. Quieter than the fold control
-   beside it — no border until it is reached, and no word at all: what it hides
-   is the thing a person is looking at. */
-.team-task-progress-toggle {
-  display: inline-flex;
-  width: 34px;
-  height: 34px;
-  min-height: 34px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  background: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition:
-    border-color var(--dur-control) var(--ease-standard),
-    background-color var(--dur-control) var(--ease-standard),
-    color var(--dur-control) var(--ease-standard);
-}
-
-.team-task-progress-toggle:hover,
-.team-task-progress-toggle:focus-visible {
-  border-color: var(--color-border);
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-}
-
-/* Off, it stays marked rather than merely un-pressed: a board with no scales
-   should say that this is a choice and not a missing feature. */
-.team-task-progress-toggle.is-off {
-  border-color: var(--color-border);
-  color: var(--color-text);
-}
-
-/* The fold control claimed the whole gap; with the eye beside it the pair
-   sits together at the right, before the primary action. */
-.team-task-space-heading .team-task-progress-toggle {
-  margin-left: 0;
 }
 
 /* --- The palette and the shortcut sheet (024) ------------------------------ */

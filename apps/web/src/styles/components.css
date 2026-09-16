@@ -1001,13 +1001,16 @@
   padding: 2px;
   border-radius: var(--radius-full);
   background: var(--color-neutral-surface-muted);
+  /* Off has an edge and a visible thumb (024): in the dark theme a surface thumb on a muted
+     track was dark on dark, and an off switch read as no switch at all. */
+  box-shadow: inset 0 0 0 1px var(--color-neutral-border);
   transition: background-color var(--motion-fast) var(--ease-out-curve);
 }
 .ui-switch-thumb {
   width: 18px;
   height: 18px;
   border-radius: var(--radius-full);
-  background: var(--color-neutral-surface);
+  background: var(--color-neutral-text-muted);
   box-shadow: var(--shadow-sm);
   transition: transform var(--motion-fast) var(--ease-out-curve);
 }
@@ -1016,6 +1019,10 @@
 }
 .ui-switch[data-selected='true'] .ui-switch-thumb {
   transform: translateX(16px);
+  background: var(--color-neutral-surface);
+}
+.ui-switch[data-selected='true'] .ui-switch-track {
+  box-shadow: none;
 }
 .ui-switch[data-focus-visible='true'] .ui-switch-track {
   outline: 2px solid var(--color-focus-ring);

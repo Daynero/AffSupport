@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronsUpDown, Eye, EyeOff } from 'lucide-react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
-import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
-import { Empty, Input } from '../../components/ui/index';
+import { Empty, Input, Switch } from '../../components/ui/index';
 import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
@@ -447,33 +445,6 @@ export function TaskSpace({
     <section className="team-panel team-task-space" aria-labelledby="team-tasks-title">
       <div className="team-panel-heading team-task-space-heading">
         <h2 id="team-tasks-title">{t('teamTasksTitle')}</h2>
-        {/* Only where there is a brief to open: on a board of titles it was a
-            button that did nothing visible. */}
-        {tasks.tasks.some(task => task.note) && (
-          <button type="button" className="team-task-expand-all" onClick={toggleAll}>
-            <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t(allExpanded ? 'teamTasksCollapseAll' : 'teamTasksExpandAll')}
-          </button>
-        )}
-        {/* The eye, next to it and quieter: an icon alone, because the thing
-            it hides is on screen to be seen or not — a word beside it would
-            take more room than the scale it puts away. */}
-        {tasks.tasks.length > 0 && (
-          <button
-            type="button"
-            className={`team-task-progress-toggle${progressShown ? '' : ' is-off'}`}
-            aria-pressed={!progressShown}
-            title={t(progressShown ? 'teamTasksProgressHide' : 'teamTasksProgressShow')}
-            aria-label={t(progressShown ? 'teamTasksProgressHide' : 'teamTasksProgressShow')}
-            onClick={() => setProgressShown(current => !current)}
-          >
-            {progressShown ? (
-              <Eye size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            ) : (
-              <EyeOff size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            )}
-          </button>
-        )}
         {/* One way to make a task, and it is the fast one (024, FR-090): type
             what it is and press Enter, and it is on the board; the next one
             can be typed straight away. The button opens the editor for a task
@@ -526,6 +497,29 @@ export function TaskSpace({
         onLabelIdsChange={tasks.setLabelIds}
         sort={tasks.sort}
         onSortChange={tasks.setSort}
+        /* The eye and "Unfold all" lived in the heading beside the title — an icon nobody could
+           name and a button that looked like an action on the board (024). They are how the
+           cards are drawn, so they sit with the order, as Linear's Display does. */
+        display={
+          tasks.tasks.length > 0 ? (
+            <>
+              <Switch
+                size="sm"
+                label={t('teamTasksShowScale')}
+                checked={progressShown}
+                onChange={setProgressShown}
+              />
+              {tasks.tasks.some(task => task.note) && (
+                <Switch
+                  size="sm"
+                  label={t('teamTasksUnfoldBriefs')}
+                  checked={allExpanded}
+                  onChange={toggleAll}
+                />
+              )}
+            </>
+          ) : undefined
+        }
       />
       {error && (
         <p className="team-inline-error" role="alert">

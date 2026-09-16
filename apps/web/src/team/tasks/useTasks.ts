@@ -557,17 +557,40 @@ export function useTasks({
   }, []);
 
   const term = query.normalize('NFC').trim().toLocaleLowerCase();
-  const shown = useMemo(
-    () =>
+  /*
+   * Done goes to the end (024): before a launch the board is read for what is still open, and
+   * finished cards mixed in between pushed it down. Where a card sits is decided when the board
+   * first shows it, not on every status change — a card marked done right now stays under the
+   * pointer until the board is next read (a filter, a sort, another space), so nothing jumps
+   * away from the press that changed it.
+   */
+  const placedDone = useRef(new Map<string, boolean>());
+  const boardKey = `${teamId}|${JSON.stringify(filter)}|${statusFilter}|${sort}|${agentRowId}|${accountId}|${JSON.stringify(assignee)}|${labelIds.join(',')}`;
+  const placedFor = useRef(boardKey);
+  if (placedFor.current !== boardKey) {
+    placedFor.current = boardKey;
+    placedDone.current = new Map();
+  }
+  const shown = useMemo(() => {
+    const matching =
       term === ''
         ? tasks
         : tasks.filter(
             task =>
               task.title.toLocaleLowerCase().includes(term) ||
               (task.note ?? '').toLocaleLowerCase().includes(term)
-          ),
-    [tasks, term]
-  );
+          );
+    const placed = placedDone.current;
+    for (const task of matching) {
+      if (!placed.has(task.id)) placed.set(task.id, task.status === 'done');
+    }
+    return [
+      ...matching.filter(task => !placed.get(task.id)),
+      ...matching.filter(task => placed.get(task.id))
+    ];
+    // boardKey resets the placement; it is read through the ref above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, term, boardKey]);
 
   return {
     tasks: shown,
