@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link2 } from 'lucide-react';
+import { ICON_STROKE } from '../../components/icons';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
@@ -21,6 +22,9 @@ import type { TeamSettingsTab } from '../routes';
 import { Tabs } from '../../components/ui/index';
 
 export interface SharePreferenceSettingsClient {
+  getLibrarySharePreference?: (
+    teamId: string
+  ) => Promise<{ allowLinkOnCopy: boolean; remembered: boolean }>;
   resetLibrarySharePreference: (teamId: string) => Promise<boolean>;
 }
 
@@ -30,12 +34,20 @@ export type SpaceSettingsClient = MemberManagementClient &
   TeamAuditClient &
   DrivePanelClient & {
     resetLibrarySharePreference: SharePreferenceSettingsClient['resetLibrarySharePreference'];
+    getLibrarySharePreference?: SharePreferenceSettingsClient['getLibrarySharePreference'];
   } & RestitchDefaultsClient &
   TaskLabelsSectionClient &
   TeamPreferencesClient &
   ProductCatalogSettingsClient &
   SpaceNameClient;
 
+/**
+ * The remembered answer to "open this file to anyone with the link?" (024).
+ *
+ * It was a whole card with a paragraph and a reset button, shown whether or not anything had
+ * been remembered. Now it is one line under the storage card, and only while a choice is kept:
+ * what copying a link does today, and "Ask again".
+ */
 export function SharePreferenceSettings({
   teamId,
   client
@@ -44,48 +56,58 @@ export function SharePreferenceSettings({
   client: SharePreferenceSettingsClient;
 }) {
   const { t } = useI18n();
+  const [kept, setKept] = useState<{ allowLinkOnCopy: boolean } | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [state, setState] = useState<'done' | 'empty' | 'failed' | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!client.getLibrarySharePreference) return;
+    let active = true;
+    void client
+      .getLibrarySharePreference(teamId)
+      .then(value => {
+        if (active) setKept(value.remembered ? { allowLinkOnCopy: value.allowLinkOnCopy } : null);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [client, teamId]);
+
+  if (!kept) return null;
 
   const reset = async () => {
     setResetting(true);
-    setState(null);
+    setFailed(false);
     try {
-      setState((await client.resetLibrarySharePreference(teamId)) ? 'done' : 'empty');
+      await client.resetLibrarySharePreference(teamId);
+      setKept(null);
     } catch {
-      setState('failed');
+      setFailed(true);
     } finally {
       setResetting(false);
     }
   };
 
   return (
-    <SettingsSection
-      icon={Link2}
-      titleId="creative-library-share-settings-title"
-      title={t('creativeLibraryShareSettingsTitle')}
-      description={t('creativeLibraryShareSettingsDescription')}
+    <div
+      className="team-share-preference"
+      role="group"
+      aria-label={t('creativeLibraryShareSettingsTitle')}
     >
-      <div className="settings-section-actions">
-        <Button type="button" variant="secondary" loading={resetting} onClick={() => void reset()}>
-          {t('creativeLibraryShareReset')}
-        </Button>
-      </div>
-      {state && (
-        <p
-          className={state === 'failed' ? 'team-inline-error' : 'settings-section-note'}
-          role="status"
-        >
-          {t(
-            state === 'done'
-              ? 'creativeLibraryShareResetDone'
-              : state === 'empty'
-                ? 'creativeLibraryShareResetEmpty'
-                : 'creativeLibraryShareResetFailed'
-          )}
-        </p>
+      <Link2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      <p>
+        {t(kept.allowLinkOnCopy ? 'creativeLibraryShareKeptAllow' : 'creativeLibraryShareKeptDeny')}
+      </p>
+      <Button type="button" variant="ghost" loading={resetting} onClick={() => void reset()}>
+        {t('creativeLibraryShareAskAgain')}
+      </Button>
+      {failed && (
+        <span className="team-inline-error" role="alert">
+          {t('creativeLibraryShareResetFailed')}
+        </span>
       )}
-    </SettingsSection>
+    </div>
   );
 }
 
@@ -180,7 +202,6 @@ export function SpaceSettings({
             {/* How team mode behaves, first: it is what a person opens these
                 settings to change. */}
             <TeamPreferencesSection teamId={teamId} client={client} />
-            <SharePreferenceSettings teamId={teamId} client={client} />
             {activeTeam?.role === 'owner' && (
               <DriveConnectionPanel
                 key={`drive:${teamId}`}
@@ -198,6 +219,7 @@ export function SpaceSettings({
                 }}
               />
             )}
+            <SharePreferenceSettings teamId={teamId} client={client} />
           </>
         )}
 

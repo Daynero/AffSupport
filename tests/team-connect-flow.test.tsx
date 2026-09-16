@@ -252,7 +252,7 @@ describe('DriveConnectionPanel (settings)', () => {
     expect(await screen.findByText('The folder is back.')).toBeTruthy();
   });
 
-  it('carries a reconnect on a connected space through to Google', async () => {
+  it('carries a reconnect on a connected space that reports a problem through to Google', async () => {
     const user = userEvent.setup();
     const startDriveOAuth = vi.fn().mockResolvedValue({
       authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?x=1',
@@ -266,7 +266,9 @@ describe('DriveConnectionPanel (settings)', () => {
             getConnectionStatus: vi.fn().mockResolvedValue({
               state: 'connected',
               rootFolderName: 'Root',
-              connectionId: 'c1'
+              connectionId: 'c1',
+              // Reconnect is offered only when something went wrong (024).
+              lastErrorCode: 'AUTH_REQUIRED'
             }),
             startDriveOAuth,
             pickerToken: vi.fn(),

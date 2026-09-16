@@ -812,8 +812,8 @@ const en = {
   welcomeBody: 'Choose your language. Product news are optional and can be changed later.',
   chooseLanguage: 'Choose language',
   marketingConsent: 'Receive news about new Soty tools and updates.',
-  accountTranscriptDeleteLabel: 'When deleting a video with a transcript',
-  accountTaskMaxDefaultLabel: 'Progress maximum for new tasks in this space',
+  accountTranscriptDeleteLabel: 'The transcript, when you delete its video',
+  accountTaskMaxDefaultLabel: 'Slider maximum in new tasks',
   accountTranscriptDeleteAsk: 'Ask each time',
   accountTranscriptDeleteAlways: 'Delete the transcript too',
   accountTranscriptDeleteNever: 'Keep the transcript',
@@ -1748,6 +1748,11 @@ const en = {
   creativeLibraryShareUnavailable: 'Your current Drive access cannot change sharing.',
   creativeLibraryShareRemember: 'Remember my choice for this space',
   creativeLibraryShareApprove: 'Allow and copy',
+  creativeLibraryShareKeptAllow:
+    'Copying a link to a restricted file opens it to anyone with the link, without asking.',
+  creativeLibraryShareKeptDeny:
+    'Copying a link to a restricted file leaves its access as it is, without asking.',
+  creativeLibraryShareAskAgain: 'Ask again',
   creativeLibraryShareSettingsTitle: 'Drive link sharing',
   creativeLibraryShareSettingsDescription:
     'Reset the per-space choice that may allow Anyone-with-the-link access when you copy a restricted file’s link.',
@@ -2521,7 +2526,7 @@ const en = {
   // Task tags (018): the space's own dictionary, hung on tasks.
   teamPreferencesTitle: 'Tasks and transcripts',
   teamPreferencesDescription:
-    'How tasks start in this space, for everyone, and what happens to your transcripts.',
+    'The slider maximum a new task starts with, for everyone in the space; and what happens to a transcript when you delete its video — your own choice.',
   teamSettingsTabTags: 'Tags',
   teamTaskTagsTitle: 'Tags',
   teamTaskTagsDescription:
@@ -3511,8 +3516,8 @@ const uk: Record<keyof typeof en, string> = {
   welcomeBody: 'Оберіть мову. Новини продукту необов’язкові, вибір можна змінити пізніше.',
   chooseLanguage: 'Оберіть мову',
   marketingConsent: 'Отримувати новини про нові інструменти та оновлення Soty.',
-  accountTranscriptDeleteLabel: 'Коли видаляєте відео з транскрипцією',
-  accountTaskMaxDefaultLabel: 'Максимум прогресу для нових завдань у цьому просторі',
+  accountTranscriptDeleteLabel: 'Транскрипція, коли видаляєте відео',
+  accountTaskMaxDefaultLabel: 'Максимум повзунка в нових завданнях',
   accountTranscriptDeleteAsk: 'Питати щоразу',
   accountTranscriptDeleteAlways: 'Видаляти транскрипцію теж',
   accountTranscriptDeleteNever: 'Залишати транскрипцію',
@@ -4447,6 +4452,11 @@ const uk: Record<keyof typeof en, string> = {
   creativeLibraryShareUnavailable: 'Поточні права Drive не дозволяють змінити sharing.',
   creativeLibraryShareRemember: 'Запамʼятати мій вибір для цього простору',
   creativeLibraryShareApprove: 'Дозволити й скопіювати',
+  creativeLibraryShareKeptAllow:
+    'Копіювання посилання на закритий файл відкриває його всім, хто має посилання, — без питання.',
+  creativeLibraryShareKeptDeny:
+    'Копіювання посилання на закритий файл не змінює доступ — без питання.',
+  creativeLibraryShareAskAgain: 'Питати знову',
   creativeLibraryShareSettingsTitle: 'Поширення посилань Drive',
   creativeLibraryShareSettingsDescription:
     'Тут можна скинути вибір для простору, який дозволяє доступ «усім, хто має посилання» під час копіювання посилання на файл з обмеженим доступом.',
@@ -5214,7 +5224,7 @@ const uk: Record<keyof typeof en, string> = {
   // Теги завдань (018): власний словник простору.
   teamPreferencesTitle: 'Завдання і транскрипції',
   teamPreferencesDescription:
-    'З чого починаються завдання в цьому просторі — для всіх, і що робити з вашими транскрипціями.',
+    'Максимум повзунка, з яким стартує нове завдання, — для всіх у просторі. І що робити з транскрипцією, коли ви видаляєте її відео, — це ваш особистий вибір.',
   teamSettingsTabTags: 'Теги',
   teamTaskTagsTitle: 'Теги',
   teamTaskTagsDescription:

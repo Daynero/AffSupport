@@ -16,6 +16,7 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260917110000_drive_status_folder_id.sql`: drop `public.get_drive_connection_status(uuid)` and re-apply it with its grants from `20260916100000`.
 0. `20260917100000_rename_space.sql`: drop `public.rename_team(uuid, text)`.
 0. `20260916230000_search_shows_note.sql`: re-apply `search_materials` from `20260916210000`.
 0. `20260916220000_material_notes.sql`: drop `public.get_team_material_note(uuid, uuid)`, re-apply

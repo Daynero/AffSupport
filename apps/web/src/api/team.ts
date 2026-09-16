@@ -539,6 +539,8 @@ export interface DriveConnectionStatus {
   connectionId: string | null;
   state: TeamContextSnapshot['connectionState'];
   rootFolderName: string | null;
+  /** The folder's Drive id, so the settings can open it in Drive (024). */
+  rootFolderId?: string | null;
   driveKind: 'my_drive' | 'shared_drive' | null;
   initialSyncState: 'not_started' | 'scanning' | 'replaying' | 'ready' | 'failed';
   lastSyncedAt: string | null;
@@ -1717,6 +1719,7 @@ export const teamApi = {
       connectionId: typeof row.connection_id === 'string' ? row.connection_id : null,
       state: row.state as DriveConnectionStatus['state'],
       rootFolderName: typeof row.root_folder_name === 'string' ? row.root_folder_name : null,
+      rootFolderId: typeof row.root_folder_id === 'string' ? row.root_folder_id : null,
       driveKind:
         row.drive_kind === 'my_drive' || row.drive_kind === 'shared_drive' ? row.drive_kind : null,
       initialSyncState: (row.initial_sync_state ??

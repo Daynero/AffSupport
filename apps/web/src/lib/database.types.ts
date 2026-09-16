@@ -2577,6 +2577,7 @@ export type Database = {
           initial_sync_state: string;
           last_error_code: string;
           last_synced_at: string;
+          root_folder_id: string;
           root_folder_name: string;
           state: string;
         }[];

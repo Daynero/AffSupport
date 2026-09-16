@@ -296,7 +296,22 @@ export function DriveConnectionPanel({
           {badge}
         </Badge>
       }
-      description={status.rootFolderName}
+      /* The folder opens in Drive from its name (024): naming it and nothing more left
+         finding it in Drive to the reader. */
+      description={
+        status.rootFolderName && status.rootFolderId ? (
+          <a
+            className="team-drive-folder-link"
+            href={`https://drive.google.com/drive/folders/${encodeURIComponent(status.rootFolderId)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {status.rootFolderName}
+          </a>
+        ) : (
+          status.rootFolderName
+        )
+      }
       className="team-drive-panel"
     >
       <BetaStorageNotice state={status.state} />
@@ -367,7 +382,11 @@ export function DriveConnectionPanel({
               {t('teamDriveAuthorize')}
             </a>
           ) : (
-            client.startDriveOAuth && (
+            /* Only when something went wrong (024): on a healthy connection "Connect again"
+               sat beside "Replace folder" as a third equal button, and nobody could say how
+               the two differed. */
+            client.startDriveOAuth &&
+            status.lastErrorCode && (
               <Button
                 type="button"
                 variant="secondary"
