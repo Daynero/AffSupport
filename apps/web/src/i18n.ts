@@ -84,6 +84,11 @@ const en = {
     'Compress video, turn audio into text, and optimize or preview landing pages directly on your computer. No subscriptions, no upload queue, no extra busywork.',
   publicHomeSignIn: 'Open Soty',
   publicHomeFooter: 'Soty · Free local tools for media buyers',
+  publicHomeDriveNote:
+    'Team spaces keep the team’s files in a Google Drive folder the owner picks, and Soty uses that access only to catalog, preview, upload and organize those files.',
+  googleDataUseLink: 'How Soty uses Google data',
+  teamDriveDataUse:
+    'Soty gets access only to the folders you pick in Google’s chooser and to the files it creates, and uses it only for this space’s files.',
   toolsTitle: 'Soty Tools',
   toolsSubtitle: 'Choose a tool to work with your files.',
   videoCompressor: 'Video Compressor',
@@ -908,7 +913,7 @@ const en = {
   backToSoty: 'Back to Soty',
   privacyTitle: 'Privacy Policy',
   termsTitle: 'Terms of Use',
-  lastUpdated: 'Last updated: August 5, 2026',
+  lastUpdated: 'Last updated: September 17, 2026',
   landingOptimizer: 'Landing Optimizer',
   landingOptimizerDescription:
     'Optimize a whole landing page locally — compress its images and videos and update every link automatically.',
@@ -2600,6 +2605,11 @@ const uk: Record<keyof typeof en, string> = {
     'Стискайте відео, перетворюйте аудіо на текст, оптимізуйте й переглядайте лендінги прямо на своєму комп’ютері. Без підписок, черг на завантаження та зайвої ручної роботи.',
   publicHomeSignIn: 'Відкрити Soty',
   publicHomeFooter: 'Soty · Безкоштовні локальні інструменти для медіабаєрів',
+  publicHomeDriveNote:
+    'Командні простори зберігають файли команди в папці Google Drive, яку вибирає власник, і Soty використовує цей доступ лише для каталогу, перегляду, завантаження та впорядкування цих файлів.',
+  googleDataUseLink: 'Як Soty використовує дані Google',
+  teamDriveDataUse:
+    'Soty отримує доступ лише до папок, які ви вибираєте у вікні Google, і до створених ним файлів, і використовує його лише для файлів цього простору.',
   toolsTitle: 'Інструменти Soty',
   toolsSubtitle: 'Оберіть інструмент для роботи з вашими файлами.',
   videoCompressor: 'Відеокомпресор',
@@ -3420,7 +3430,7 @@ const uk: Record<keyof typeof en, string> = {
   backToSoty: 'Повернутися у Soty',
   privacyTitle: 'Політика конфіденційності',
   termsTitle: 'Умови використання',
-  lastUpdated: 'Оновлено: 5 серпня 2026 року',
+  lastUpdated: 'Оновлено: 17 вересня 2026 року',
   landingOptimizer: 'Оптимізатор лендінгів',
   landingOptimizerDescription:
     'Оптимізуйте цілий лендінг локально — стисніть його зображення й відео та автоматично оновіть усі посилання.',

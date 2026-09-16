@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { isRecord } from '../_shared/validation.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { completeDriveOAuthCallback } from './handler.ts';
+import { driveRedirectUri } from '../_shared/google-redirect.ts';
 
 interface RpcFailure {
   code?: string;
@@ -55,12 +56,14 @@ async function stateHash(state: string): Promise<string> {
 }
 
 function callbackUrl(): string {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  if (!supabaseUrl) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: false });
-  return (
-    Deno.env.get('GOOGLE_REDIRECT_URI') ??
-    `${supabaseUrl.replace(/\/$/, '')}/functions/v1/drive-oauth-callback`
-  );
+  // The same string the authorization start sent, or Google refuses the exchange.
+  const redirectUri = driveRedirectUri({
+    SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
+    WISHLY_SITE_URL: Deno.env.get('WISHLY_SITE_URL'),
+    GOOGLE_REDIRECT_URI: Deno.env.get('GOOGLE_REDIRECT_URI')
+  });
+  if (!redirectUri) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: false });
+  return redirectUri;
 }
 
 async function exchangeCode(input: { code: string; codeVerifier: string }) {

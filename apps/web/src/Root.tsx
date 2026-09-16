@@ -17,6 +17,7 @@ import {
   sessionHandoffOrigin
 } from './auth/session-handoff';
 import PublicHomePage from './PublicHomePage';
+import { DRIVE_OAUTH_CALLBACK_PATH, DriveOAuthForwardPage } from './auth/DriveOAuthForward';
 import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
 
@@ -86,6 +87,7 @@ function Routes() {
     );
   }
   if (path === '/auth/callback') return <AuthCallbackPage />;
+  if (path === DRIVE_OAUTH_CALLBACK_PATH) return <DriveOAuthForwardPage />;
   if (path === HANDOFF_PATH) return <AuthHandoffPage />;
   if (path === '/login') return <LoginPage />;
 
