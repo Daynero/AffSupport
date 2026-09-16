@@ -12651,15 +12651,19 @@ button.team-landing-tile:hover {
 /* Its own columns: the explorer's row is built for a checkbox, a kind, a size
    and a menu, and the trash has none of those. Borrowing the chrome without
    the template pushed the restore button past the row's own right edge. */
-.team-trash-list.team-explorer-rows .ui-table-header,
-.team-trash-list.team-explorer-rows .ui-table-row {
+.team-explorer-rows.team-trash-list {
   --ui-table-columns: auto minmax(0, 1fr) minmax(0, 12rem) auto;
 }
+.team-explorer-rows.team-trash-list .team-trash-row-glyph {
+  grid-column: 1;
+}
+.team-explorer-rows.team-trash-list .team-explorer-row-date {
+  grid-column: 3;
+}
+.team-explorer-rows.team-trash-list .team-explorer-row-actions {
+  grid-column: 4;
+}
 @container (max-width: 620px) {
-  .team-trash-list.team-explorer-rows .ui-table-header,
-  .team-trash-list.team-explorer-rows .ui-table-row {
-    --ui-table-columns: auto minmax(0, 1fr) auto;
-  }
   .team-trash-list .team-explorer-row-date {
     display: none;
   }
@@ -13021,8 +13025,40 @@ button.team-landing-tile:hover {
      measured against a fixed 16px root and cut "17.2 MB" to "17.2 …" at the
      desktop width. `auto` is what each column needs and no more, and it still
      gives way under pressure — the name takes everything left. */
-  --ui-table-columns: auto minmax(0, 1fr) auto auto auto auto;
   gap: 0;
+  /* One set of tracks for the whole listing, not one per row. Each row sized
+     its own `auto` columns from its own content, so the header's "Розмір" sat
+     sixty pixels right of the sizes beneath it and "1.58 MB" and "224 KB"
+     started at different x. Drive and Airtable rule a column once; the rows
+     borrow the table's tracks. */
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+.team-explorer-rows {
+  --ui-table-columns: auto minmax(0, 1fr) auto auto auto auto;
+  grid-template-columns: var(--ui-table-columns);
+  column-gap: 0;
+}
+/* Every cell names its track, so a column the width drops (display: none)
+   leaves its track empty — zero wide — instead of the next cell sliding into
+   it. That is what lets the tracks be set once, on the table. */
+.team-explorer-rows .team-explorer-row-check {
+  grid-column: 1;
+}
+.team-explorer-rows .team-explorer-row-name {
+  grid-column: 2;
+}
+.team-explorer-rows .team-explorer-row-kind {
+  grid-column: 3;
+}
+.team-explorer-rows .team-explorer-row-date {
+  grid-column: 4;
+}
+.team-explorer-rows .team-explorer-row-meta {
+  grid-column: 5;
+}
+.team-explorer-rows .team-explorer-row-actions {
+  grid-column: 6;
 }
 .team-explorer-rows .ui-table-header {
   padding-inline: var(--space-2);
@@ -13275,10 +13311,6 @@ button.team-landing-tile:hover {
   container-type: inline-size;
 }
 @container (max-width: 680px) {
-  .team-explorer-rows .ui-table-header,
-  .team-explorer-rows .ui-table-row {
-    --ui-table-columns: auto minmax(0, 1fr) auto auto auto;
-  }
   .team-explorer-row-date {
     display: none;
   }
@@ -13289,19 +13321,11 @@ button.team-landing-tile:hover {
    "Транс…" and "17.2 …". The icon already says what kind a row is; a size cut
    in half says nothing. */
 @container (max-width: 620px) {
-  .team-explorer-rows .ui-table-header,
-  .team-explorer-rows .ui-table-row {
-    --ui-table-columns: auto minmax(0, 1fr) auto auto;
-  }
   .team-explorer-row-kind {
     display: none;
   }
 }
 @container (max-width: 400px) {
-  .team-explorer-rows .ui-table-header,
-  .team-explorer-rows .ui-table-row {
-    --ui-table-columns: auto minmax(0, 1fr) auto;
-  }
   .team-explorer-row-meta {
     display: none;
   }
@@ -14267,8 +14291,10 @@ button.team-landing-tile:hover {
   white-space: nowrap;
   font-weight: 600;
 }
-.team-explorer-selection-bar > .team-explorer-selection-action:last-child {
+.team-explorer-selection-bar > .team-explorer-selection-action.is-icon {
   flex: none;
+  width: 40px;
+  padding: 0;
 }
 /* Quieter than the count it follows: the number is the subject, where those
    files are is the caveat. */

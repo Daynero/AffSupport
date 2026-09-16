@@ -1320,6 +1320,17 @@ function ExplorerBody({
                it, so a screen reader said "Обрано: 3" twice on entry. */
             aria-label={t('teamExplorerSelectionRegion')}
           >
+            {/* The way out leads, as a bare cross, the way Drive and Gmail draw
+                it: at the far end, in words, it repeated the count beside it and
+                took the room the bin's own label needed, which then scrolled
+                out of sight. Its name still carries the count for a reader. */}
+            <SelectionAction
+              iconOnly
+              label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
+              onClick={clearSelection}
+            >
+              <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </SelectionAction>
             <span className="team-explorer-selection-count">
               {t('teamExplorerSelectedCount', { count: selectedRows.length })}
               {/* The selection survives walking into another folder, which is
@@ -1436,12 +1447,6 @@ function ExplorerBody({
                 </SelectionAction>
               )}
             </div>
-            <SelectionAction
-              label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
-              onClick={clearSelection}
-            >
-              <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </SelectionAction>
           </div>
         )}
         {trash ? (
@@ -1939,10 +1944,13 @@ function SelectionAction({
   onClick,
   destructive,
   primary,
+  iconOnly,
   children
 }: {
   label: string;
   onClick: () => void;
+  /** Drawn as its icon alone; the name stays for a reader and the tooltip. */
+  iconOnly?: boolean;
   /** The one that throws things away; coloured apart from the rest. */
   destructive?: boolean;
   /** The action this screen exists for; it keeps its word at any width. */
@@ -1954,7 +1962,7 @@ function SelectionAction({
       type="button"
       className={`team-explorer-selection-action ${destructive ? 'is-destructive' : ''} ${
         primary ? 'is-primary' : ''
-      }`.trim()}
+      } ${iconOnly ? 'is-icon' : ''}`.trim()}
       aria-label={label}
       data-tip={label}
       onClick={onClick}
@@ -1963,7 +1971,7 @@ function SelectionAction({
       {/* The word is in the markup and only CSS takes it away, and only where
           the bar runs out of room. Five unlabelled icons — one of them a bin —
           asked people to guess, with four hundred pixels of the bar unused. */}
-      <span className="team-explorer-selection-action-label">{label}</span>
+      {!iconOnly && <span className="team-explorer-selection-action-label">{label}</span>}
     </button>
   );
 }
