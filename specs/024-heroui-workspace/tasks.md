@@ -714,11 +714,11 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ## Phase 11: The catalog updater and the remaining surfaces
 
-- [ ] T131 Put `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` on the inventory —
-      `SearchField`, `Checkbox` with a real `indeterminate` prop, `ToggleButtonGroup` for the
-      intervals, `NumberField` for the custom hours, and the shared row actions.
-      **Target from the at-rest table (US14):** "…" per row instead of four icon buttons; two facts
-      on the meta line; the footer's three notes behind one hint.
+- [~] T131 (rows and schedule done in benchmark round 3; the dialog's own controls onto the inventory still open) Put `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` on the inventory —
+  `SearchField`, `Checkbox` with a real `indeterminate` prop, `ToggleButtonGroup` for the
+  intervals, `NumberField` for the custom hours, and the shared row actions.
+  **Target from the at-rest table (US14):** "…" per row instead of four icon buttons; two facts
+  on the meta line; the footer's three notes behind one hint.
 - [ ] T132 Link the updater to a catalog's video and back, which nothing does today.
 - [ ] T133 Put `apps/web/src/team/product-catalog/CreateProductCatalogDialog.tsx` on `FormField`
       and `Input`, and give `ProductCatalogMenuDialog.tsx` a loading state instead of rendering

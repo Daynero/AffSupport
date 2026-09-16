@@ -273,10 +273,16 @@ export function CatalogUpdaterDialog({
                 </label>
                 <div className="team-updater-row-main">
                   <strong>{row.videoName}</strong>
-                  <small>
+                  {/* Two facts, the ones an updater is read for: where it is, and
+                      when it was last brought up to date. The count and the
+                      creation date are one hover away (024, T131). */}
+                  <small
+                    title={`${t('catalogUpdaterProducts', { count: row.productCount })} · ${t(
+                      'catalogUpdaterCreated',
+                      { date: when(row.createdAt) }
+                    )}`}
+                  >
                     {row.folderName ?? t('catalogUpdaterSpaceRoot')} ·{' '}
-                    {t('catalogUpdaterProducts', { count: row.productCount })} ·{' '}
-                    {t('catalogUpdaterCreated', { date: when(row.createdAt) })} ·{' '}
                     {row.lastUpdatedAt
                       ? t('catalogUpdaterUpdated', { date: when(row.lastUpdatedAt) })
                       : t('catalogUpdaterNeverUpdated')}

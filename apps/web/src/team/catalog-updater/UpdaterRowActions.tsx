@@ -80,11 +80,19 @@ export function UpdaterRowActions({
     onChanged
   });
 
-  const list = useMaterialActionList(ref, context, {
-    ...host.handlers,
-    open: () => window.open(row.sheetUrl, '_blank', 'noopener,noreferrer'),
-    showInFolder: onReveal ? () => onReveal(row) : undefined
-  });
+  const list = useMaterialActionList(
+    ref,
+    context,
+    {
+      ...host.handlers,
+      open: () => window.open(row.sheetUrl, '_blank', 'noopener,noreferrer'),
+      showInFolder: onReveal ? () => onReveal(row) : undefined
+      // One inline — open the sheet — and the rest named in "…" (024, T131):
+      // four unlabelled icons on every row of a list of catalogs was a toolbar
+      // repeated forty times.
+    },
+    { maxInline: 1 }
+  );
 
   return (
     <div className="team-updater-row-actions">

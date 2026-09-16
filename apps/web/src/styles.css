@@ -17224,13 +17224,21 @@ input[type='number'] {
   gap: var(--space-4);
   min-width: 0;
 }
+/* "Every 1 h / 1 d / 1 w / [6] h" reads as one sentence, so it sits on one line
+   (024, T131); the custom hours used to drop onto a line of their own. */
 .team-updater-interval {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  justify-items: start;
 }
 .team-updater-interval .custom-duration-input {
   font-size: var(--text-md);
+}
+/* Hours are two digits; the field is as wide as they are. */
+.team-updater-interval .custom-duration-input input {
+  width: 4.5rem;
+  flex: 0 0 auto;
 }
 .team-updater-restitch {
   display: inline-flex;

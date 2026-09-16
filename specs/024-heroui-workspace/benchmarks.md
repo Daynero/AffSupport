@@ -25,3 +25,14 @@ per tile costs more than the two-line clamp, which already keeps the distinguish
 | --------------- | ----------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | File list       | Google Drive list | Checkboxes appear on hover or once something is selected; row actions uncaptioned; no rules between cells | Box on hover/focus/any-checked (touch keeps it); "Actions" caption for screen readers only; cell rules gone                               |
 | Command palette | Raycast, Linear   | Every row carries its type's icon and a grey line on the right saying what it is                          | Kind icons by category; "Video · 3.2 MB", a task's status; no size for Google documents; tasks are a checklist glyph, not a "create" plus |
+
+## Round 3 (2026-09-16)
+
+| Surface              | Reference                    | What they do                                     | What we did                                                                                                         |
+| -------------------- | ---------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Catalog updater rows | Zapier / Make schedule lists | A row is its name, one status line, and one menu | Open the sheet inline, the rest in "…"; the meta line is where + last updated, the count and creation date on hover |
+| Updater schedule     | the same                     | A schedule reads as one sentence                 | Presets and custom hours on one line                                                                                |
+
+**Rejected:** Linear's neutral, hairline settings rows for space settings. The violet sections are
+the compressor's settings panel, which the owner set as the reference for this product; one look
+for "settings" across the product beats matching a different product.
