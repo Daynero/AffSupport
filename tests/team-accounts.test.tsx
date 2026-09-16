@@ -834,14 +834,16 @@ describe('deleting an agent', () => {
 });
 
 describe('how many tasks name an agent', () => {
-  it('is a link on the line of the run, and nothing at all when there are none', async () => {
+  it('sits under the agent\'s state, and is nothing at all when there are none', async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
     const busy = rows().find(item => item.textContent?.includes('Pro Caps'))!;
     const link = within(busy).getByRole('link', { name: '2 tasks' });
-    // On the line of the run it is read with, not in a column of its own.
-    expect(link.closest('.team-agent-run')).not.toBeNull();
+    // Under the state, the same place on every row (024): on a run's line it pushed that
+    // run's age out of line with the others.
+    expect(link.closest('.team-agent-status')).not.toBeNull();
+    expect(link.closest('.team-agent-run')).toBeNull();
 
     // An agent no task names says nothing. It used to say "—", and the owner
     // read that dash as a delete mark and pressed it.
@@ -894,9 +896,6 @@ describe('searching', () => {
     expect(within(v31).getAllByText('v31', { selector: 'mark' }).length).toBeGreaterThan(0);
     await user.clear(screen.getByRole('searchbox', { name: 'Search accounts' }));
     await user.type(screen.getByRole('searchbox', { name: 'Search accounts' }), 'pro caps');
-    // The page's own totals do not quietly become the matches.
-    expect(screen.getByText('1 of 3 accounts')).toBeTruthy();
-    expect(screen.getByText('1 of 3 agents')).toBeTruthy();
   });
 
   it('says how many agents of an account are on screen', async () => {
@@ -946,11 +945,11 @@ describe('the head of an account', () => {
     expect(within(v31).getByText('1 running')).toBeTruthy();
   });
 
-  it('counts accounts and agents apart, above the chips that count agents', async () => {
+  it('says its counts once, in the chips and the heads, with no totals line under the title', async () => {
     render(client());
     await waitForGroups();
-    expect(screen.getByText('3 accounts')).toBeTruthy();
-    expect(screen.getByText('3 agents')).toBeTruthy();
+    expect(screen.queryByText('3 accounts')).toBeNull();
+    expect(document.querySelector('.team-accounts-summary')).toBeNull();
   });
 });
 

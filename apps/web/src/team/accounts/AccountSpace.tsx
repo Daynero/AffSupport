@@ -17,14 +17,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronsDownUp,
-  ChevronsLeftRight,
-  ChevronsRightLeft,
   ChevronsUpDown,
   Copy,
   Eraser,
   Plus,
   Search,
   UserRound,
+  Wallet,
   X
 } from 'lucide-react';
 import {
@@ -53,7 +52,6 @@ import { useTeam } from '../TeamContext';
 import { teamErrorMessageFor } from '../errors';
 import { AccountGroup, AccountNameRow, type AgentEditing } from './AccountGroup';
 import { MarkerFilter } from './MarkerFilter';
-import { accountCountKey, agentCountKey } from './plural';
 import { copyText } from '../../two-factor/clipboard';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
@@ -229,12 +227,6 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
     () => countTeamAccounts(filterTeamAccounts(accounts.accounts, { occupancy: 'all', search })),
     [accounts.accounts, search]
   );
-  /** The same two numbers for the whole space, whatever is typed in the search. */
-  const totals = useMemo(() => countTeamAccounts(accounts.accounts), [accounts.accounts]);
-  /* Each number says "2 of 4" only when that number is the one the search
-     narrowed: "3 of 4 accounts · 3 of 3 agents" is true and reads as a bug. */
-  const fewerAccounts = counts.accounts !== totals.accounts;
-  const fewerAgents = counts.agents !== totals.agents;
 
   /**
    * What the filter leaves — plus the account being edited, whatever the
@@ -499,29 +491,8 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       <div className="team-panel-heading team-account-space-heading">
         <div className="team-account-space-title">
           <h2 id="team-accounts-title">{t('teamAccountsTitle')}</h2>
-          {/* The two numbers, apart: the page is called Accounts and the chips
-              below count agents, which is a different figure and used to be
-              the only one on screen. */}
-          {accounts.accounts.length > 0 && (
-            <p className="team-accounts-summary">
-              {/* Under a search the totals do not quietly become the matches:
-                  the page says "2 of 4 accounts", the way the head of an
-                  account says "2 of 3 agents" a few pixels below. */}
-              <span>
-                {fewerAccounts
-                  ? t('teamAccountsShownAccounts', {
-                      shown: counts.accounts,
-                      count: totals.accounts
-                    })
-                  : t(accountCountKey(language, counts.accounts), { count: counts.accounts })}
-              </span>
-              <span>
-                {fewerAgents
-                  ? t('teamAccountsShownAgents', { shown: counts.agents, count: totals.agents })
-                  : t(agentCountKey(language, counts.agents), { count: counts.agents })}
-              </span>
-            </p>
-          )}
+          {/* No totals line (024): the chips below count agents, and each account's head
+              counts its own — a third count under the title said the same numbers again. */}
         </div>
         {/* While the list is empty the empty state carries this same invitation;
             two primaries for one act is one too many (024, FR-092). */}
@@ -602,7 +573,9 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
             {/* The fold, for the whole list: with four accounts open the fourth
             one's rows are a screen away, and folding them one at a time is
             four presses to see what is on the page. */}
-            {visible.length > 0 && (
+            {/* Only with two accounts or more (024): with one, folding everything is the
+                same press as folding its own head. */}
+            {visible.length > 1 && (
               <button
                 type="button"
                 className="team-accounts-fold-all"
@@ -657,6 +630,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               className="team-accounts-money-fold"
               aria-expanded={!moneyFolded}
               aria-controls="team-accounts-list"
+              data-open={moneyFolded ? undefined : 'true'}
               title={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
               aria-label={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
               onClick={() => {
@@ -665,11 +639,9 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                 writeMoneyFolded(teamId, next);
               }}
             >
-              {moneyFolded ? (
-                <ChevronsLeftRight size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              ) : (
-                <ChevronsRightLeft size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              )}
+              {/* A wallet, not arrows (024): "<>" read as code. Pressed while the column
+                  is open; the tooltip says which way the press goes. */}
+              <Wallet size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
               <span>{t('teamAccountColumnMoney')}</span>
             </button>
             {/* Named for a screen reader only; the row's buttons speak for

@@ -449,10 +449,9 @@ export function AgentRow({
     </button>
   );
   /**
-   * How many tasks name this agent, and the way to them — on the run's own
-   * line, where it is read with the run. It had a column of its own, and that
-   * column was a hundred pixels of em dashes: the owner read those dashes as a
-   * delete mark and pressed them.
+   * How many tasks name this agent, and the way to them — under its state. It had a column of
+   * its own, and that column was a hundred pixels of em dashes: the owner read those dashes as a
+   * delete mark and pressed them. Absent when there are none.
    */
   const tasksLink =
     agent.taskCount > 0 && activeTeam ? (
@@ -550,15 +549,16 @@ export function AgentRow({
           <span className="team-agent-state-dot" aria-hidden="true" />
           {t(free ? 'teamAgentFree' : 'teamAgentBusy')}
         </span>
+        {/* Under the state, the same place on every row (024). On the last run's line it
+            pushed that run's age out of line with the others, and on a free agent it stood
+            under Run. Tasks belong to the agent, not to one of its runs. */}
+        {tasksLink}
       </div>
 
       {/* The runs: one line each, with the day it was written. A line being
           corrected is a field; a new run is a field under the last line. */}
       <div className="team-agent-runs">
-        {agent.runs.length === 0 && !editingNew && tasksLink && (
-          <div className="team-agent-run is-empty">{tasksLink}</div>
-        )}
-        {agent.runs.map((item, index) =>
+        {agent.runs.map(item =>
           runEditing?.runId === item.id ? (
             <RunField
               key={item.id}
@@ -623,7 +623,6 @@ export function AgentRow({
                   </IconButton>
                 </span>
               )}
-              {index === agent.runs.length - 1 && tasksLink}
             </div>
           )
         )}

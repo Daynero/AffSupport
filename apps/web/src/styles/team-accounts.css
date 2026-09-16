@@ -796,7 +796,14 @@
 /* The state in a word. Green and amber carry it at a glance, the word carries
    it for anyone the colour does not reach. */
 .team-agent-status {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
   min-width: 0;
+}
+.team-agent-status .team-agent-tasks-link {
+  margin-left: 0;
+  font-size: var(--text-caption);
 }
 
 /* The agent as its tag — the chip a task shows, so the two surfaces agree on
@@ -2684,6 +2691,9 @@ button.team-task-agent-chip.is-selected {
 .team-accounts-money-fold {
   border-color: transparent;
   color: var(--color-text-muted);
+}
+.team-accounts-money-fold[data-open] {
+  color: var(--color-text);
 }
 
 @media (hover: hover) {
