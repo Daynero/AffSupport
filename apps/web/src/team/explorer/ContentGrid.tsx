@@ -251,22 +251,26 @@ function Tile({
         event.dataTransfer.effectAllowed = 'move';
       }}
       onClick={() => onSelect(row.id)}
+      onDoubleClick={open}
     >
       <button
         type="button"
         className="team-explorer-tile-visual"
         aria-label={t('teamExplorerOpenNamed', { name: row.name })}
         /*
-         * One press chooses a file, two open it; a folder opens on the first,
-         * because there is no preview of a folder to wait for. The list says
-         * the same thing in the same words — it did not, before 024.
+         * One press chooses, two open — a folder as much as a file (the owner,
+         * 024: "the same for every file"). A folder that opened on the first
+         * press could not be selected to act on at all, and the list and the
+         * grid disagreed about which gesture meant what.
          */
         onClick={event => {
           event.stopPropagation();
           onSelect(row.id);
-          if (row.kind === 'folder') open();
         }}
-        onDoubleClick={open}
+        onDoubleClick={event => {
+          event.stopPropagation();
+          open();
+        }}
       >
         {image ? (
           <img src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />

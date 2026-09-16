@@ -140,19 +140,22 @@ describe('selecting and opening a row', () => {
     await user.dblClick(fileRows()[1]!);
     expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ name: 'clip.png' }));
 
-    /*
-     * The name is a control again (024, FR-091), text-sized rather than the
-     * width of the cell — something the keyboard can reach and the focus ring
-     * can land on, which the row had nothing of. Pressing it opens, because
-     * somebody who aims at the name means the file.
-     */
+    // The name behaves as the rest of the row (the owner, 024): a press selects,
+    // two open — it used to open on the first.
     onPreview.mockClear();
     await user.click(screen.getByRole('button', { name: 'clip.png' }));
-    expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ name: 'clip.png' }));
+    expect(onPreview).not.toHaveBeenCalled();
+    await user.dblClick(screen.getByRole('button', { name: 'clip.png' }));
+    expect(onPreview).toHaveBeenCalledTimes(1);
 
-    // A folder opens on the first press in both views: there is no preview of
-    // a folder to wait for, and the grid already behaved this way.
+    // A folder too: one press selects it, two open it.
     await user.click(fileRows()[0]!);
+    expect(fileRows()[0]!.getAttribute('aria-selected')).toBe('true');
+    expect(listFolderPage).not.toHaveBeenCalledWith(
+      TEAM,
+      expect.objectContaining({ parentFolderId: 'drive-nested' })
+    );
+    await user.dblClick(fileRows()[0]!);
     await waitFor(() =>
       expect(listFolderPage).toHaveBeenCalledWith(
         TEAM,

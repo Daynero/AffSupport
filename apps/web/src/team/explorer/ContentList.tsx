@@ -189,6 +189,10 @@ function Row({
   const { t, language } = useI18n();
   const reason = KIND_REASON[row.kind];
   const previewable = PREVIEWABLE_KINDS.has(row.kind);
+  const open = () => {
+    if (row.kind === 'folder') onOpenFolder(row.driveFileId);
+    else if (previewable) onPreview?.(previewSummary(row));
+  };
   return (
     <TableRow
       /*
@@ -217,26 +221,12 @@ function Row({
        * (the shell's own handler), which is why nothing here is focusable.
        */
       /*
-       * One grammar, in both views (024, FR-091).
-       *
-       * A press selects; a second press opens; a folder opens on the first,
-       * because there is no preview of a folder to wait for and nothing to
-       * choose it *for*. The grid already worked this way and the list did
-       * not — a folder there needed two presses — so the same gesture meant
-       * different things depending on which view you happened to be in.
-       *
-       * The name used to be a button the width of the cell, which is why
-       * selecting meant finding the gap beside it. It is a control again, but
-       * text-sized: something the keyboard can reach and the eye can see the
-       * focus on, rather than a strip that swallows every press that misses.
+       * One grammar, in both views and for every row (024, FR-091): a press
+       * selects, a second press opens — a folder too. Enter opens from the
+       * keyboard (the shell's handler).
        */
-      onClick={() => {
-        onSelect(row.id);
-        if (row.kind === 'folder') onOpenFolder(row.driveFileId);
-      }}
-      onDoubleClick={() => {
-        if (row.kind !== 'folder' && previewable) onPreview?.(previewSummary(row));
-      }}
+      onClick={() => onSelect(row.id)}
+      onDoubleClick={open}
     >
       <TableCell className="team-explorer-row-check">
         <label
@@ -258,11 +248,17 @@ function Row({
         <button
           type="button"
           className="team-explorer-row-open"
+          /* The name selects like the rest of the row, and opens on the
+             second press like the rest of the row (024): it used to open on
+             the first, so the same row did two things depending on where the
+             press landed. */
           onClick={event => {
             event.stopPropagation();
             onSelect(row.id);
-            if (row.kind === 'folder') onOpenFolder(row.driveFileId);
-            else if (previewable) onPreview?.(previewSummary(row));
+          }}
+          onDoubleClick={event => {
+            event.stopPropagation();
+            open();
           }}
         >
           {row.name}
