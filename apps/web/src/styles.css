@@ -14253,9 +14253,6 @@ button.team-landing-tile:hover {
   min-width: max-content;
   max-width: min(360px, calc(100vw - 2 * var(--space-4)));
 }
-.team-explorer-process-menu .team-explorer-menu-item {
-  white-space: nowrap;
-}
 .team-explorer-filter-button {
   display: inline-flex;
   align-items: center;
@@ -14326,6 +14323,12 @@ button.team-landing-tile:hover {
   background: transparent;
   color: var(--color-text);
   font: inherit;
+  /* The shared menu's size. The menu is portalled to the body, so it inherited
+     the page's reading size and stood louder than the toolbar that opened it —
+     and the process menu's own rules, written under its button, never reached
+     it (024). */
+  font-size: var(--text-label);
+  white-space: nowrap;
   text-align: left;
   cursor: pointer;
 }
