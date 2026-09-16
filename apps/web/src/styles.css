@@ -17508,3 +17508,37 @@ input[type='number'] {
 .team-explorer-row-check .team-explorer-check > span {
   transition: opacity var(--dur-control) var(--ease-standard);
 }
+
+/* The accounts table, calmer (024, benchmarked on Airtable and Linear lists).
+   The two money figures are named once per account, over its first agent,
+   instead of over every row; their ± presses and a busy agent's "+ Run" appear
+   with the pointer or keyboard focus in the row. Touch screens keep them. */
+/* The caption over the first row takes no width of its own, so its fields
+   line up with every field below it: a zero-wide box, the word centred over it. */
+.team-agent-row:first-child .team-agent-money-caption {
+  display: flex;
+  justify-content: center;
+  align-self: center;
+  width: 0;
+}
+.team-agent-row:not(:first-child) .team-agent-money-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  .team-agent-row:not(:hover):not(:focus-within) .team-agent-money-step,
+  .team-agent-row:not(.is-free):not(:hover):not(:focus-within)
+    .team-agent-actions-stack
+    .team-agent-run-add {
+    opacity: 0;
+  }
+}
+.team-agent-money-step,
+.team-agent-actions-stack .team-agent-run-add {
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+

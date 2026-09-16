@@ -1554,7 +1554,7 @@
  */
 @media (max-width: 1200px) {
   .team-account-space {
-    --team-agent-id-width: 168px;
+    --team-agent-id-width: 128px;
     --team-agent-status-width: 96px;
     /*
      * The buttons keep the width they actually need. At 148 they did not fit
@@ -1564,7 +1564,13 @@
      * was something there. The room comes off the run column, which has it.
      */
     --team-agent-actions-width: 248px;
-    --team-agent-money-width: 168px;
+  }
+  /* On the table, where the wide value is defined: set on the space above it,
+     as it was, the table's own 188 px won and this width never applied — which
+     is the whole of why a sample run overflowed its cell at 1001 px (caught by
+     scripts/check-accounts-layout.mjs). Two four-digit figures fit in 140. */
+  .team-accounts-table:not(.is-money-folded) {
+    --team-agent-money-width: 140px;
   }
 }
 

@@ -563,9 +563,6 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               role="group"
               aria-label={t('teamAccountsFilterLabel')}
             >
-              <span className="team-accounts-occupancy-label" aria-hidden="true">
-                {t('teamAccountsFilterInline')}
-              </span>
               {OCCUPANCY.map(value => (
                 <button
                   key={value}
@@ -668,7 +665,11 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               )}
               <span>{t('teamAccountColumnMoney')}</span>
             </button>
-            <span>{t('teamAccountColumnActions')}</span>
+            {/* Named for a screen reader only; the row's buttons speak for
+                themselves, as they do in Airtable and Linear lists. */}
+            <span>
+              <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
+            </span>
           </div>
           <div className="team-accounts-list" id="team-accounts-list">
             {creating && (
@@ -786,7 +787,10 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               in: the two ways to copy the day's top-ups out, and the way to
               clear them once they are paid. Quiet until there is anything to
               copy — the count on the buttons is the whole state of the thing. */}
-          {canEdit && accounts.accounts.length > 0 && (
+          {/* Only once there is something to copy or clear (024, benchmarked on
+              Airtable's selection bar): four disabled buttons over "nothing to
+              top up" were a toolbar for a job nobody had started. */}
+          {canEdit && accounts.accounts.length > 0 && (topupCount > 0 || balanceCount > 0) && (
             <div className="team-accounts-footer">
               <span className="team-accounts-footer-count">
                 {topupCount > 0
