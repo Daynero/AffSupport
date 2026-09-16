@@ -1787,6 +1787,7 @@ const en = {
   teamTaskDescriptionPlaceholder: 'Add a description — what needs doing, and what done looks like',
   teamTaskAttachments: 'Attached files',
   teamTaskAttachmentsCount: '{count} attachments',
+  teamTaskAttachmentsEmpty: 'No attachments now.',
   teamTaskAttachmentsHint: 'Visual references and source files for this task.',
   teamTaskAttachmentsDropHint:
     'Pick from the space, or drop files here — they land in "Task attachments" in the root.',
@@ -4453,6 +4454,7 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskDescriptionPlaceholder: 'Додайте опис — що треба зробити і яким має бути результат',
   teamTaskAttachments: 'Прикріплені медіа',
   teamTaskAttachmentsCount: 'Вкладень: {count}',
+  teamTaskAttachmentsEmpty: 'Зараз вкладень немає.',
   teamTaskAttachmentsHint: 'Візуальні референси та вихідні файли для цього завдання.',
   teamTaskAttachmentsDropHint:
     'Оберіть із простору або перетягніть файли сюди — вони складаються в «Task attachments» у корені.',

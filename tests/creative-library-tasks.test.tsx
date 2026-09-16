@@ -440,12 +440,12 @@ describe('Creative Library task workflows', () => {
     );
 
     // The count sits behind a paperclip now; the words are its tooltip.
-    await screen.findByTitle('1 attachments');
+    await screen.findByLabelText('1 attachments');
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Progress scale' }), {
       key: 'ArrowRight'
     });
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
-    expect(screen.getByTitle('1 attachments')).toBeTruthy();
+    expect(screen.getByLabelText('1 attachments')).toBeTruthy();
   });
 
   /**

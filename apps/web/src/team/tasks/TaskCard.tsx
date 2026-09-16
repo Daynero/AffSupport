@@ -10,6 +10,7 @@
  * rest.
  */
 
+import { TaskAttachmentsPeek } from './TaskAttachmentsPeek';
 import {
   useEffect,
   useLayoutEffect,
@@ -297,13 +298,21 @@ export function TaskCard({
       <div className="team-task-card-footer">
         {/* A zero is not information here: the footer says what the task has. */}
         {task.attachmentCount > 0 && (
-          <span
-            className="team-task-card-attachments"
-            title={t('teamTaskAttachmentsCount', { count: task.attachmentCount })}
-          >
-            <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {task.attachmentCount}
-          </span>
+          <TaskAttachmentsPeek
+            teamId={task.teamId}
+            taskId={task.id}
+            count={task.attachmentCount}
+            trigger={
+              <span
+                className="team-task-card-attachments"
+                tabIndex={0}
+                aria-label={t('teamTaskAttachmentsCount', { count: task.attachmentCount })}
+              >
+                <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {task.attachmentCount}
+              </span>
+            }
+          />
         )}
         {task.assigneeLabelSnapshot && (
           <span className="team-task-assignee" title={t('teamTaskAssignee')}>
