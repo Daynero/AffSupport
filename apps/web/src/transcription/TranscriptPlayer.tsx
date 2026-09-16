@@ -111,13 +111,13 @@ export const TranscriptPlayer = forwardRef<
     if (media.paused) void media.play().catch(() => {});
     else media.pause();
   };
-  const seek = (event: ChangeEvent<HTMLInputElement>) => {
+  const seek = (seconds: number) => {
     const media = mediaRef.current;
     if (!media) return;
-    media.currentTime = Number(event.target.value);
+    media.currentTime = seconds;
     sync();
   };
-  const seekByKey = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+  const seekByKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const media = mediaRef.current;
     if (!media) return;
     const delta =
@@ -136,10 +136,10 @@ export const TranscriptPlayer = forwardRef<
     media.currentTime = Math.max(0, Math.min(duration || 0, media.currentTime + delta));
     sync();
   };
-  const volume = (event: ChangeEvent<HTMLInputElement>) => {
+  const volume = (level: number) => {
     const media = mediaRef.current;
     if (!media) return;
-    media.volume = Number(event.target.value);
+    media.volume = level;
     sync();
   };
   const rate = (event: ChangeEvent<HTMLSelectElement>) => {

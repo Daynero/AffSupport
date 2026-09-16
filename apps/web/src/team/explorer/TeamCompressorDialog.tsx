@@ -96,11 +96,7 @@ export function TeamCompressorDialog({
       <h3 id={titleId}>{t('teamCompressTitle', { count: items.length })}</h3>
       <p className="team-explorer-muted">{t('teamCompressQualityNote')}</p>
 
-      <Checkbox
-        label={t('teamCompressEmbed')}
-        checked={embed}
-        onChange={event => setEmbed(event.target.checked)}
-      />
+      <Checkbox label={t('teamCompressEmbed')} checked={embed} onChange={setEmbed} />
 
       <FormField label={t('outputSuffixLabel')} htmlFor={suffixId} className="team-compress-suffix">
         <Input

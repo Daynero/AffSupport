@@ -1,8 +1,13 @@
-import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
-import { uiClasses, type UiSize } from './types';
+import { Checkbox as HeroCheckbox } from '@heroui/react/checkbox';
+import { Slider as HeroSlider } from '@heroui/react/slider';
+import { Switch as HeroSwitch } from '@heroui/react/switch';
+import { ToggleButton } from '@heroui/react/toggle-button';
+import { ToggleButtonGroup } from '@heroui/react/toggle-button-group';
+import { useId, useRef, type ReactNode } from 'react';
+import { heroSize, uiClasses, useNativeTitle, type UiSize } from './types';
 
 /**
- * Choice controls (021, T019).
+ * Choice controls (021 T019, rebuilt on HeroUI in 024).
  *
  * Checkbox, Switch, Slider, SegmentedControl and RadioGroup — including the
  * picto variant, which is this product's own and is specified in
@@ -10,56 +15,146 @@ import { uiClasses, type UiSize } from './types';
  * `is-active`, which does not exist in this system), `is-labeled` for short
  * values like `24` or `1080p`, and `is-single` for a lone toggle, where the
  * container's border disappears so there is not a double outline.
+ *
+ * ## What the library brought
+ *
+ * Two of these were a row of `<button role="radio">` with no arrow keys. A
+ * radio group that cannot be driven by the arrow keys is a radio group in
+ * appearance only, and the picto group — this product's signature control, on
+ * the compressor's main screen — was one of them. Both are `ToggleButtonGroup`
+ * now, which is the same markup with the keyboard included.
+ *
+ * `indeterminate` stops being a poke into the DOM through a ref and becomes
+ * what it always was: a piece of state the control is told about.
+ *
+ * ## What the product kept
+ *
+ * The classes, and therefore the appearance. `components.css` still draws every
+ * one of these, from the `soty` layer above the library.
  */
 
-export interface CheckboxProps extends Omit<
-  InputHTMLAttributes<HTMLInputElement>,
-  'size' | 'type'
-> {
+export interface CheckboxProps {
   label?: ReactNode;
   size?: Extract<UiSize, 'xs' | 'sm' | 'md'>;
+  checked?: boolean;
+  defaultChecked?: boolean;
   indeterminate?: boolean;
+  disabled?: boolean;
+  /**
+   * Told whether it is now checked — not handed a DOM event to read it from.
+   *
+   * The second argument carries the one thing a caller legitimately read off
+   * that event: whether Shift was down, which is how a list does range
+   * selection. React Aria's own `onChange` gives the value and nothing else, so
+   * the modifier is captured on the way in rather than lost.
+   */
+  onChange?: (checked: boolean, modifiers: { shiftKey: boolean }) => void;
+  className?: string;
+  name?: string;
+  value?: string;
+  id?: string;
+  autoFocus?: boolean;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
 }
 
 export function Checkbox({
   label,
   size = 'md',
+  checked,
+  defaultChecked,
   indeterminate = false,
-  className,
   disabled,
+  onChange,
+  className,
   ...props
 }: CheckboxProps) {
+  // Range selection is a shift-click, so the pointer is the only place the
+  // modifier has to be caught.
+  const shiftKey = useRef(false);
   return (
-    <label className={uiClasses('checkbox', { size, states: { disabled }, className })}>
-      <input
-        type="checkbox"
-        {...props}
-        disabled={disabled}
-        aria-checked={indeterminate ? 'mixed' : undefined}
-        ref={element => {
-          if (element) element.indeterminate = indeterminate;
-        }}
-      />
-      <span className="ui-checkbox-mark" aria-hidden="true" />
-      {label && <span className="ui-checkbox-label">{label}</span>}
-    </label>
+    <HeroCheckbox
+      {...props}
+      isSelected={checked}
+      defaultSelected={defaultChecked}
+      isIndeterminate={indeterminate}
+      isDisabled={disabled}
+      onMouseDownCapture={event => {
+        shiftKey.current = event.shiftKey;
+      }}
+      onChange={next => onChange?.(next, { shiftKey: shiftKey.current })}
+      className={uiClasses('checkbox', { size, states: { disabled }, className })}
+    >
+      <HeroCheckbox.Control className="ui-checkbox-mark">
+        <HeroCheckbox.Indicator />
+      </HeroCheckbox.Control>
+      {label && <HeroCheckbox.Content className="ui-checkbox-label">{label}</HeroCheckbox.Content>}
+    </HeroCheckbox>
   );
 }
 
-export interface SwitchProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
+export interface SwitchProps {
   label?: ReactNode;
   size?: Extract<UiSize, 'sm' | 'md'>;
+  checked?: boolean;
+  defaultChecked?: boolean;
+  disabled?: boolean;
+  onChange?: (checked: boolean) => void;
+  className?: string;
+  name?: string;
+  id?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
 }
 
-export function Switch({ label, size = 'md', className, disabled, ...props }: SwitchProps) {
+export function Switch({
+  label,
+  size = 'md',
+  checked,
+  defaultChecked,
+  disabled,
+  onChange,
+  className,
+  ...props
+}: SwitchProps) {
   return (
-    <label className={uiClasses('switch', { size, states: { disabled }, className })}>
-      <input type="checkbox" role="switch" {...props} disabled={disabled} />
-      <span className="ui-switch-track" aria-hidden="true">
-        <span className="ui-switch-thumb" />
-      </span>
-      {label && <span className="ui-switch-label">{label}</span>}
-    </label>
+    <HeroSwitch
+      {...props}
+      isSelected={checked}
+      defaultSelected={defaultChecked}
+      isDisabled={disabled}
+      onChange={onChange}
+      className={uiClasses('switch', { size, states: { disabled }, className })}
+    >
+      <HeroSwitch.Control className="ui-switch-track">
+        <HeroSwitch.Thumb className="ui-switch-thumb" />
+      </HeroSwitch.Control>
+      {label && <HeroSwitch.Content className="ui-switch-label">{label}</HeroSwitch.Content>}
+    </HeroSwitch>
+  );
+}
+
+/**
+ * A toggle button that keeps its tooltip.
+ *
+ * React Aria filters `title` off the DOM props it forwards, and in a picto
+ * group the tooltip is not decoration — it is the only place the option's name
+ * is written (docs/DESIGN.md: the plate carries an icon, the words live in the
+ * tip). So it goes on the node.
+ */
+function TitledToggleButton({
+  title,
+  children,
+  ...props
+}: Omit<Parameters<typeof ToggleButton>[0], 'title'> & { title?: string }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useNativeTitle(ref, title);
+  return (
+    <ToggleButton {...props} ref={ref}>
+      {children}
+    </ToggleButton>
   );
 }
 
@@ -84,26 +179,30 @@ export function SegmentedControl<T extends string>({
   className
 }: SegmentedControlProps<T>) {
   return (
-    <div
-      className={uiClasses('segmented', { size, states: { disabled }, className })}
-      role="radiogroup"
+    <ToggleButtonGroup
+      selectionMode="single"
+      disallowEmptySelection
+      selectedKeys={[value]}
+      onSelectionChange={keys => {
+        const [first] = [...keys];
+        if (first !== undefined) onChange(String(first) as T);
+      }}
+      isDisabled={disabled}
+      size={heroSize(size)}
       aria-label={label}
+      className={uiClasses('segmented', { size, states: { disabled }, className })}
     >
       {options.map(option => (
-        <button
+        <TitledToggleButton
           key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={option.value === value}
+          id={option.value}
           title={option.title}
-          disabled={disabled}
           className={option.value === value ? 'is-selected' : undefined}
-          onClick={() => onChange(option.value)}
         >
           {option.label}
-        </button>
+        </TitledToggleButton>
       ))}
-    </div>
+    </ToggleButtonGroup>
   );
 }
 
@@ -152,30 +251,33 @@ export function RadioGroup<T extends string>({
   summary
 }: RadioGroupProps<T>) {
   const name = useId();
+
   if (variant === 'pictos') {
     return (
       <>
-        <div
-          className={uiClasses('pictos', { states: { single, disabled }, className })}
-          role="radiogroup"
+        <ToggleButtonGroup
+          selectionMode="single"
+          disallowEmptySelection
+          selectedKeys={value === null ? [] : [value]}
+          onSelectionChange={keys => {
+            const [first] = [...keys];
+            if (first !== undefined) onChange(String(first) as T);
+          }}
+          isDisabled={disabled}
           aria-label={label}
+          className={uiClasses('pictos', { states: { single, disabled }, className })}
         >
           {options.map(option => (
-            <button
+            <TitledToggleButton
               key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={option.value === value}
-              /* The name is the label; the tip may say more than the name
-                 does. They were the same field once, which made the longer
-                 hint the control's accessible name. */
+              id={option.value}
+              isDisabled={option.disabled}
+              isIconOnly={option.short === undefined}
+              /* The name is the label; the tip may say more than the name does.
+                 They were the same field once, which made the longer hint the
+                 control's accessible name. */
               aria-label={String(option.label)}
-              /* The product draws its own tip off `data-tip` rather than the
-                 native one, which appears a second late and cannot be styled;
-                 `title` stays for the browsers and tools that read it. */
-              data-tip={option.title ?? String(option.label)}
               title={option.title ?? String(option.label)}
-              disabled={disabled || option.disabled}
               className={[
                 option.value === value ? 'is-selected' : '',
                 option.short !== undefined ? 'is-labeled' : '',
@@ -183,12 +285,11 @@ export function RadioGroup<T extends string>({
               ]
                 .filter(Boolean)
                 .join(' ')}
-              onClick={() => onChange(option.value)}
             >
               {option.short !== undefined ? option.short : option.icon}
-            </button>
+            </TitledToggleButton>
           ))}
-        </div>
+        </ToggleButtonGroup>
         {summary && <span className="ui-pictos-summary">{summary}</span>}
       </>
     );
@@ -233,18 +334,61 @@ export function RadioGroup<T extends string>({
   );
 }
 
-export interface SliderProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
+export interface SliderProps {
   size?: Extract<UiSize, 'sm' | 'md'>;
   /** A gradient track, as the quality slider uses. */
   gradient?: boolean;
+  value?: number;
+  defaultValue?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  onChange?: (value: number) => void;
+  /** Fired once the drag settles — the expensive half of a live preview. */
+  onChangeEnd?: (value: number) => void;
+  /**
+   * Extra keys on the thumb, for a control whose step is not its keyboard step
+   * — the transcript's scrubber drags by hundredths and seeks by seconds.
+   */
+  onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+  className?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
 }
 
-export function Slider({ size = 'md', gradient = false, className, ...props }: SliderProps) {
+export function Slider({
+  size = 'md',
+  gradient = false,
+  value,
+  defaultValue,
+  min,
+  max,
+  step,
+  disabled,
+  onChange,
+  onChangeEnd,
+  onKeyDown,
+  className,
+  ...props
+}: SliderProps) {
   return (
-    <input
-      type="range"
+    <HeroSlider
       {...props}
-      className={uiClasses('slider', { size, states: { gradient }, className })}
-    />
+      value={value}
+      defaultValue={defaultValue}
+      minValue={min}
+      maxValue={max}
+      step={step}
+      isDisabled={disabled}
+      onChange={next => onChange?.(typeof next === 'number' ? next : next[0])}
+      onChangeEnd={next => onChangeEnd?.(typeof next === 'number' ? next : next[0])}
+      className={uiClasses('slider', { size, states: { gradient, disabled }, className })}
+    >
+      <HeroSlider.Track className="ui-slider-track">
+        <HeroSlider.Fill className="ui-slider-fill" />
+        <HeroSlider.Thumb className="ui-slider-thumb" onKeyDown={onKeyDown} />
+      </HeroSlider.Track>
+    </HeroSlider>
   );
 }

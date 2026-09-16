@@ -813,19 +813,23 @@
 /* ============================================================
    Choice
    ============================================================ */
+/* Checkbox and Switch.
+
+   The library lays both out as a column — label over control — and this product
+   has always read them left to right, so the direction is stated here rather
+   than inherited. The rest is Soty's: an 18px box, the violet fill, and the one
+   focus ring. The checkmark itself is the library's, because its SVG draws
+   itself on rather than appearing, and a hand-rolled `::after` cannot.
+
+   State comes off the data attributes React Aria writes, not off an `input`
+   sibling: there is no longer a visible input to be a sibling of. */
 .ui-checkbox,
 .ui-switch {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: var(--space-2);
   cursor: pointer;
-}
-.ui-checkbox input,
-.ui-switch input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
 }
 .ui-checkbox-mark {
   display: inline-grid;
@@ -835,36 +839,32 @@
   border: 1px solid var(--color-neutral-border-strong);
   border-radius: var(--radius-sm);
   background: var(--color-neutral-surface);
+  color: var(--color-secondary-on-solid);
   transition:
     background-color var(--motion-fast) var(--ease-out-curve),
     border-color var(--motion-fast) var(--ease-out-curve);
 }
-.ui-checkbox input:checked + .ui-checkbox-mark {
+.ui-checkbox[data-selected='true'] .ui-checkbox-mark,
+.ui-checkbox[data-indeterminate='true'] .ui-checkbox-mark {
   border-color: var(--color-secondary-solid);
   background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
 }
-.ui-checkbox input:checked + .ui-checkbox-mark::after {
-  content: '';
-  width: 10px;
-  height: 6px;
-  border: 2px solid var(--color-secondary-on-solid);
-  border-top: 0;
-  border-right: 0;
-  transform: rotate(-45deg) translateY(-1px);
+/* The library fills its box with a scaled-in pseudo-element rather than a
+   background, so recolouring the box alone leaves the fill accent-coloured.
+   Selection in this product is violet (docs/DESIGN.md), not the honey that
+   means "the one action this surface exists for". */
+.ui-checkbox .ui-checkbox-mark::before {
+  background: var(--color-secondary-solid);
 }
-.ui-checkbox input:indeterminate + .ui-checkbox-mark::after {
-  content: '';
-  width: 10px;
-  height: 2px;
-  border: 0;
-  background: var(--color-secondary-on-solid);
-  transform: none;
-}
-.ui-checkbox input:focus-visible + .ui-checkbox-mark {
+.ui-checkbox[data-focus-visible='true'] .ui-checkbox-mark {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
-.ui-checkbox.is-disabled {
+.ui-checkbox[data-disabled='true'],
+.ui-switch[data-disabled='true'],
+.ui-checkbox.is-disabled,
+.ui-switch.is-disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -888,13 +888,13 @@
   box-shadow: var(--shadow-sm);
   transition: transform var(--motion-fast) var(--ease-out-curve);
 }
-.ui-switch input:checked + .ui-switch-track {
+.ui-switch[data-selected='true'] .ui-switch-track {
   background: var(--color-secondary-solid);
 }
-.ui-switch input:checked + .ui-switch-track .ui-switch-thumb {
+.ui-switch[data-selected='true'] .ui-switch-thumb {
   transform: translateX(16px);
 }
-.ui-switch input:focus-visible + .ui-switch-track {
+.ui-switch[data-focus-visible='true'] .ui-switch-track {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
@@ -1019,9 +1019,42 @@
   font-size: var(--text-caption);
 }
 
+/* Slider.
+
+   No longer an `<input type=range>`: a track, a fill and a thumb the pointer
+   and the arrow keys both drive. The sizes are this product's; the geometry is
+   the library's. */
 .ui-slider {
   width: 100%;
-  accent-color: var(--color-secondary-solid);
+}
+.ui-slider-track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+}
+.ui-slider--sm .ui-slider-track {
+  height: 4px;
+}
+.ui-slider-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-secondary-solid);
+}
+.ui-slider--gradient .ui-slider-fill {
+  background: var(--gradient-progress);
+}
+.ui-slider-thumb {
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface);
+  border: 1px solid var(--color-secondary-solid);
+  box-shadow: var(--shadow-sm);
+}
+.ui-slider-thumb[data-focus-visible='true'] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 /* ============================================================

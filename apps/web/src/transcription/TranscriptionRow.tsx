@@ -356,14 +356,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
             disabled={job.status === 'analyzing'}
             aria-label={t('fileSelection', { name: job.fileName })}
             label={<span className="sr-only">{t('fileSelection', { name: job.fileName })}</span>}
-            onChange={event =>
-              actions.select(
-                job.id,
-                index,
-                event.target.checked,
-                (event.nativeEvent as MouseEvent | KeyboardEvent).shiftKey === true
-              )
-            }
+            onChange={(next, { shiftKey }) => actions.select(job.id, index, next, shiftKey)}
           />
           <div className="transcription-row-title">
             <h3 className="job-row-name" title={job.fileName}>

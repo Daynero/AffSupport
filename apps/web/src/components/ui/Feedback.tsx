@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
+import { Tooltip as HeroTooltip } from '@heroui/react/tooltip';
+import { type HTMLAttributes, type ReactNode } from 'react';
 import { uiClasses, type UiColor, type UiSize } from './types';
 
 /**
@@ -150,14 +151,21 @@ export function Spinner({ size = 'sm', label }: { size?: 'sm' | 'md'; label?: st
 }
 
 /**
- * Tooltip with a delay group.
+ * Tooltip with a delay group (021 T024, rebuilt on HeroUI in 024).
  *
  * `docs/DESIGN-PRINCIPLES.md`: the first tooltip of a group waits, so a pointer
  * crossing the row does not set off a cascade; its neighbours open at once and
  * without animation, because by then the reader is reading tooltips.
+ *
+ * That rule used to be a module-level `groupOpenUntil` timestamp and a pair of
+ * `setTimeout`s. React Aria implements the same behaviour as a global warmup
+ * timer, which is what `shouldSkipAnimation` is named after — so the hand-rolled
+ * version is gone and the rule it encoded is kept.
+ *
+ * The anchor stays a `<span>` this product styles, because a tooltip's trigger
+ * is often a non-focusable glyph and the layouts around it are written against
+ * `.ui-tooltip-anchor`.
  */
-let groupOpenUntil = 0;
-
 export interface TooltipProps {
   label: ReactNode;
   children: ReactNode;
@@ -174,50 +182,18 @@ export function Tooltip({
   placement = 'top',
   className
 }: TooltipProps) {
-  const [open, setOpen] = useState(false);
-  const [instant, setInstant] = useState(false);
-  const timer = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    },
-    []
-  );
-
-  const show = () => {
-    const withinGroup = Date.now() < groupOpenUntil;
-    setInstant(withinGroup);
-    if (withinGroup) {
-      setOpen(true);
-      return;
-    }
-    timer.current = window.setTimeout(() => setOpen(true), delay);
-  };
-
-  const hide = () => {
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    if (open) groupOpenUntil = Date.now() + 600;
-    setOpen(false);
-  };
-
   return (
-    <span
-      className={uiClasses('tooltip-anchor', { className })}
-      onMouseEnter={show}
-      onMouseLeave={hide}
-      onFocus={show}
-      onBlur={hide}
-    >
-      {children}
-      {open && (
-        <span
-          role="tooltip"
-          className={`ui-tooltip ui-tooltip--${placement}${instant ? ' is-instant' : ''}`}
-        >
-          {label}
-        </span>
-      )}
-    </span>
+    <HeroTooltip delay={delay} closeDelay={0} shouldSkipAnimation>
+      <HeroTooltip.Trigger
+        render={props => (
+          <span {...props} className={uiClasses('tooltip-anchor', { className })}>
+            {children}
+          </span>
+        )}
+      />
+      <HeroTooltip.Content placement={placement} className={`ui-tooltip ui-tooltip--${placement}`}>
+        {label}
+      </HeroTooltip.Content>
+    </HeroTooltip>
   );
 }

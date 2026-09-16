@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, type CSSProperties, type RefObject } from 'react';
 
 /**
  * The vocabulary every component in the inventory speaks (021).
@@ -70,4 +70,68 @@ export function uiClasses(
 export function fillRatio(percent: number): CSSProperties {
   const clamped = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0));
   return { '--fill-ratio': clamped / 100 } as CSSProperties;
+}
+
+/**
+ * Soty's vocabulary, translated into the library's (024).
+ *
+ * HeroUI speaks a narrower language than this product: seven button variants
+ * against this product's six-times-seven, and three sizes against five. The
+ * translation is lossy on purpose and it does not matter, because the library's
+ * classes are not what decides the appearance — `components.css` is, from the
+ * `soty` layer above it. What this buys is a sensible fallback: a component the
+ * inventory has not styled yet still arrives looking like the rest of the
+ * product rather than looking unstyled.
+ *
+ * One place, so the mapping cannot drift between components.
+ */
+export type HeroVariant =
+  'primary' | 'secondary' | 'tertiary' | 'ghost' | 'outline' | 'danger' | 'danger-soft';
+
+export function heroVariant(variant: UiVariant, color: UiColor): HeroVariant {
+  const destructive = color === 'error';
+  switch (variant) {
+    case 'solid':
+      return destructive ? 'danger' : 'primary';
+    case 'outline':
+      return 'outline';
+    case 'soft':
+      return destructive ? 'danger-soft' : 'secondary';
+    case 'subtle':
+      return 'tertiary';
+    case 'ghost':
+    case 'link':
+      return 'ghost';
+  }
+}
+
+/** Five rungs onto three. The middle one is this product's 38px control. */
+export function heroSize(size: UiSize): 'sm' | 'md' | 'lg' {
+  if (size === 'xs' || size === 'sm') return 'sm';
+  if (size === 'lg' || size === 'xl') return 'lg';
+  return 'md';
+}
+
+/**
+ * A native `title`, put back on an element React Aria will not carry it to.
+ *
+ * React Aria filters DOM props down to the ones it knows, and `title` is not
+ * among them — so a control adopted from the library silently loses the tooltip
+ * this product has always used to hold the words an icon has no room for
+ * (docs/DESIGN.md: "слова живуть у тултіпах"). Two hundred controls losing
+ * their label quietly is not an acceptable side effect of a swap.
+ *
+ * So it is set on the node. This is deliberately the small fix rather than the
+ * right one: the right one is replacing every native title with the inventory's
+ * own `Tooltip`, which is keyboard-reachable and styled — a design pass with its
+ * own task, not something to do accidentally while changing what a button is
+ * made of.
+ */
+export function useNativeTitle(ref: RefObject<HTMLElement | null>, title: string | undefined) {
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    if (title) node.setAttribute('title', title);
+    else node.removeAttribute('title');
+  }, [ref, title]);
 }

@@ -113,12 +113,21 @@
 /* Everything written before 024, kept whole and beaten only by the library's
    component structure. Each of these is deleted as its screens migrate. */
 @import './base.css' layer(soty-legacy);
-@import './components.css' layer(soty-legacy);
 @import '../styles.css' layer(soty-legacy);
 @import './team-accounts.css' layer(soty-legacy);
 @import './team-tasks.css' layer(soty-legacy);
 @import './transcription.css' layer(soty-legacy);
 @import './landing-viewer.css' layer(soty-legacy);
 
-/* What Soty says on top of the library. */
+/*
+ * What Soty says on top of the library.
+ *
+ * `components.css` is the inventory's own sheet — the seven colour roles times
+ * six variants times five sizes that this product decided on. It belongs above
+ * the library, not below it with the legacy sheets: HeroUI supplies behaviour
+ * and a structure to fall back on, and this decides what the result looks like.
+ * Put it in `soty-legacy` and a 38px control becomes whatever height the
+ * library ships.
+ */
+@import './components.css' layer(soty);
 @import './skin.css' layer(soty);

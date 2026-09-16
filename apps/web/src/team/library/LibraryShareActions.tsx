@@ -188,7 +188,7 @@ export function LibraryShareActions({
               label={t('creativeLibraryShareRemember')}
               checked={remember}
               disabled={!confirmation.canShare}
-              onChange={event => setRemember(event.target.checked)}
+              onChange={setRemember}
             />
             <div className="team-dialog-actions">
               <Button color="neutral" variant="ghost" onClick={() => setConfirmation(null)}>

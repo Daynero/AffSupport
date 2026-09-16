@@ -53,7 +53,7 @@ export function UploadConflictDialog({
           className="team-upload-conflict-rest"
           label={t('teamUploadConflictForRest', { count: request.remaining })}
           checked={forRest}
-          onChange={event => setForRest(event.target.checked)}
+          onChange={setForRest}
         />
       )}
       <div className="team-dialog-actions">

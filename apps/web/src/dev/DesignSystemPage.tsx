@@ -150,11 +150,7 @@ export default function DesignSystemPage() {
             </Row>
             <Row title="Switch">
               <HeroSwitch aria-label="HeroUI switch" />
-              <Switch
-                checked={switched}
-                onChange={event => setSwitched(event.currentTarget.checked)}
-                label="Inventory"
-              />
+              <Switch checked={switched} onChange={setSwitched} label="Inventory" />
             </Row>
           </Section>
           <Section title="Colour roles">
@@ -322,7 +318,7 @@ export default function DesignSystemPage() {
           </Row>
           <Row title="choice">
             <Checkbox label="Checkbox" checked={checked} onChange={() => setChecked(!checked)} />
-            <Checkbox label="Indeterminate" indeterminate readOnly checked={false} />
+            <Checkbox label="Indeterminate" indeterminate checked={false} />
             <Checkbox label="Disabled" disabled />
             <Switch label="Switch" checked={switched} onChange={() => setSwitched(!switched)} />
             <SegmentedControl

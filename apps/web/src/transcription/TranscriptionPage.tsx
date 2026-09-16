@@ -821,9 +821,7 @@ export default function TranscriptionPage() {
                   className="select-all-box"
                   checked={selectableIds.length > 0 && selected.size === selectableIds.length}
                   disabled={!connected || selectableIds.length === 0}
-                  onChange={event =>
-                    setSelected(event.target.checked ? new Set(selectableIds) : new Set())
-                  }
+                  onChange={all => setSelected(all ? new Set(selectableIds) : new Set())}
                   label={<strong>{t('selectAll')}</strong>}
                 />
                 <Button

@@ -121,7 +121,6 @@ describe('the stylesheet entry', () => {
   it('puts every pre-024 stylesheet below the library, and the skin above it', () => {
     const legacy = [
       './base.css',
-      './components.css',
       '../styles.css',
       './team-accounts.css',
       './team-tasks.css',
@@ -133,6 +132,9 @@ describe('the stylesheet entry', () => {
         `@import '${sheet}' layer(soty-legacy);`
       );
     }
+    // The inventory's own sheet is the skin, not the legacy: it must outrank the
+    // library, or every control it sizes becomes whatever height HeroUI ships.
+    expect(entry).toContain("@import './components.css' layer(soty);");
     expect(entry).toContain("@import './skin.css' layer(soty);");
   });
 

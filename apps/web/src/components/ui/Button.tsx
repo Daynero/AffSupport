@@ -1,8 +1,17 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { uiClasses, type UiColor, type UiSize, type UiVariant } from './types';
+import { Button as HeroButton, type ButtonProps as HeroButtonProps } from '@heroui/react/button';
+import { useCallback, useRef, type MouseEvent, type ReactNode, type Ref } from 'react';
+import {
+  heroSize,
+  heroVariant,
+  uiClasses,
+  useNativeTitle,
+  type UiColor,
+  type UiSize,
+  type UiVariant
+} from './types';
 
 /**
- * The one button (021, T014).
+ * The one button (021 T014, rebuilt on HeroUI in 024).
  *
  * The product had seven: `.button-primary`, `.button-secondary`, `.button-ghost`,
  * `.button-danger`, `.team-agent-run-add`, `.team-accounts-fold-all`,
@@ -14,6 +23,20 @@ import { uiClasses, type UiColor, type UiSize, type UiVariant } from './types';
  * room. The legacy `variant="primary" | "danger" | …` spelling still works and
  * maps onto the pair, so the sixty files that import this keep compiling while
  * their screens migrate.
+ *
+ * ## What changed underneath, and what did not
+ *
+ * The element is now React Aria's, by way of HeroUI. That is where the press
+ * handling, the disabled semantics, the hover and focus-visible states and the
+ * pending flag come from — behaviour this product had been re-deriving with
+ * `:active` rules and `onMouseDown` guards.
+ *
+ * What did **not** change is who decides how it looks. The `ui-*` classes are
+ * still the appearance, and `components.css` still holds every one of the seven
+ * colours times six variants times five sizes. It is imported into the `soty`
+ * layer, above the library, so this product's 38px control stays 38px.
+ *
+ * `onClick` keeps working: React Aria accepts it as an alias for `onPress`.
  */
 
 /** The five names the pre-021 codebase uses, kept working through one mapping. */
@@ -36,7 +59,38 @@ function isLegacy(value: string | undefined): value is LegacyVariant {
   return value !== undefined && value in LEGACY;
 }
 
-export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'> {
+/**
+ * One ref for the component's own use and one for the caller's.
+ *
+ * The adapters need a handle on the node — React Aria will not carry `title`
+ * there — while a caller may still want the node for a popover anchor or a
+ * focus call. Merging is three lines and the alternative is choosing between
+ * them.
+ */
+function useMergedRef(
+  own: React.RefObject<HTMLButtonElement | null>,
+  forwarded: Ref<HTMLButtonElement> | undefined
+) {
+  return useCallback(
+    (node: HTMLButtonElement | null) => {
+      own.current = node;
+      if (typeof forwarded === 'function') forwarded(node);
+      else if (forwarded) forwarded.current = node;
+    },
+    [forwarded, own]
+  );
+}
+
+/**
+ * The props of a `<button>`, minus the ones React Aria owns.
+ *
+ * `color` is ours. `onClick` survives as React Aria's alias for `onPress`, but
+ * the mouse-event family it replaces (`onMouseDown`, `onMouseUp`) does not: a
+ * press is not a mouse-down, and a control that listened for one behaved
+ * differently under touch and keyboard. Nothing in the product used them on a
+ * Button.
+ */
+export interface ButtonProps {
   color?: UiColor;
   variant?: UiVariant | LegacyVariant;
   size?: UiSize;
@@ -50,39 +104,67 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   leading?: ReactNode;
   /** Drawn after the label. */
   trailing?: ReactNode;
+  children?: ReactNode;
+  className?: string;
+  disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+  title?: string;
+  id?: string;
+  autoFocus?: boolean;
+  tabIndex?: number;
+  form?: string;
+  /** React Aria accepts this as an alias for its own press event. */
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  ref?: Ref<HTMLButtonElement>;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
+  'aria-expanded'?: boolean;
+  'aria-haspopup'?: boolean | 'menu' | 'listbox' | 'dialog' | 'grid' | 'tree' | 'true' | 'false';
+  'aria-controls'?: string;
+  'aria-pressed'?: boolean;
+  'aria-current'?: boolean | 'page' | 'step' | 'location' | 'date' | 'time' | 'true' | 'false';
+  'data-testid'?: string;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  {
-    color,
-    variant,
-    size = 'md',
-    loading = false,
-    block = false,
-    square = false,
-    leading,
-    trailing,
-    className,
-    disabled,
-    children,
-    ...props
-  },
-  ref
-) {
+export function Button({
+  color,
+  variant,
+  size = 'md',
+  loading = false,
+  block = false,
+  square = false,
+  leading,
+  trailing,
+  className,
+  disabled,
+  children,
+  type = 'button',
+  title,
+  onClick,
+  ref: forwarded,
+  ...props
+}: ButtonProps) {
+  const node = useRef<HTMLButtonElement>(null);
+  const ref = useMergedRef(node, forwarded);
+  useNativeTitle(node, title);
   const legacy = isLegacy(variant) ? LEGACY[variant] : null;
   const resolvedColor = color ?? legacy?.color ?? 'neutral';
   const resolvedVariant = legacy?.variant ?? (variant as UiVariant | undefined) ?? 'solid';
 
   return (
-    <button
-      ref={ref}
-      // A bare <button> inside a form submits it. Most buttons in this product
-      // are not a form's submit, so the safe default is stated and a caller
-      // that wants a submit asks for one.
-      type={props.type ?? 'button'}
+    <HeroButton
       {...props}
-      disabled={disabled || loading}
-      aria-busy={loading || undefined}
+      ref={ref}
+      onClick={onClick as HeroButtonProps['onClick']}
+      // A bare button inside a form submits it. Most buttons in this product are
+      // not a form's submit, so the safe default is stated and a caller that
+      // wants a submit asks for one.
+      type={type}
+      isDisabled={disabled || loading}
+      isPending={loading || undefined}
+      variant={heroVariant(resolvedVariant, resolvedColor)}
+      size={heroSize(size)}
       className={uiClasses('button', {
         color: resolvedColor,
         variant: resolvedVariant,
@@ -109,17 +191,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
           <span className="ui-spinner" />
         </span>
       )}
-    </button>
+    </HeroButton>
   );
-});
+}
 
-export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'> {
+export interface IconButtonProps extends Omit<ButtonProps, 'children' | 'block' | 'square'> {
   /** The control's name. Required: an icon alone names nothing. */
   label: string;
-  color?: UiColor;
-  variant?: UiVariant;
-  size?: UiSize;
-  loading?: boolean;
   /** `aria-pressed` for a toggle; left alone for a plain action. */
   pressed?: boolean;
   children: ReactNode;
@@ -132,41 +210,47 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
  * plate grows — the icon never shrinks. So the sizes here change the plate,
  * not the glyph.
  */
-export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  {
-    label,
-    color = 'neutral',
-    variant = 'ghost',
-    size = 'md',
-    loading = false,
-    pressed,
-    title = label,
-    className,
-    disabled,
-    children,
-    ...props
-  },
-  ref
-) {
+export function IconButton({
+  label,
+  color = 'neutral',
+  variant = 'ghost',
+  size = 'md',
+  loading = false,
+  pressed,
+  title = label,
+  className,
+  disabled,
+  children,
+  type = 'button',
+  onClick,
+  ref: forwarded,
+  ...props
+}: IconButtonProps) {
+  const node = useRef<HTMLButtonElement>(null);
+  const ref = useMergedRef(node, forwarded);
+  useNativeTitle(node, title);
   return (
-    <button
-      ref={ref}
-      type={props.type ?? 'button'}
+    <HeroButton
       {...props}
-      disabled={disabled || loading}
+      ref={ref}
+      onClick={onClick as HeroButtonProps['onClick']}
+      type={type}
+      isDisabled={disabled || loading}
+      isPending={loading || undefined}
+      isIconOnly
+      variant={heroVariant(variant as UiVariant, color)}
+      size={heroSize(size)}
       aria-label={label}
       aria-pressed={pressed}
-      aria-busy={loading || undefined}
-      title={title}
       className={uiClasses('icon-button', {
         color,
-        variant,
+        variant: variant as UiVariant,
         size,
         states: { loading, pressed, disabled: disabled || loading },
         className
       })}
     >
       {loading ? <span className="ui-spinner" aria-hidden="true" /> : children}
-    </button>
+    </HeroButton>
   );
-});
+}
