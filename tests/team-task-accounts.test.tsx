@@ -619,6 +619,8 @@ describe('the list', () => {
 
   it('unfolds every brief on the board at once, and folds them back', async () => {
     const api = client([tagFor(A434)]);
+    // Only a board with a brief on it offers to unfold (024): nothing to open, no button.
+    vi.mocked(api.listTasks).mockResolvedValue([{ ...task([tagFor(A434)]), note: 'Brief' }]);
     const user = userEvent.setup();
     wrap(
       <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
