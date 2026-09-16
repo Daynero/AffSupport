@@ -755,12 +755,14 @@ export function WorkspaceShell({
                           : undefined
                       }
                       onPreview={openPreview}
-                      onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
+                      onCreateTask={asset =>
+                        createTaskFrom({ ids: [asset.id], name: taskTitleFor([asset], t) })
+                      }
                       onCreateTaskFromSelection={assets => {
                         if (assets.length === 0) return;
                         createTaskFrom({
                           ids: assets.map(asset => asset.id),
-                          name: t('creativeLibrarySelectionSummary', { count: assets.length })
+                          name: taskTitleFor(assets, t)
                         });
                       }}
                       /* The file in hand, not the whole space: the dialog opens on
@@ -848,4 +850,19 @@ export function WorkspaceShell({
       </BackgroundRenderProvider>
     </LibraryProcessingProvider>
   );
+}
+
+/**
+ * A task made from files is named after them: "Db3_2", or "Db3_2 та ще 2".
+ * It was "Завдання: Файлів: 1" — the word the board already says on every
+ * card, and a count instead of the thing a person would look for.
+ */
+function taskTitleFor(
+  assets: ReadonlyArray<{ name: string }>,
+  t: ReturnType<typeof useI18n>['t']
+): string {
+  const first = assets[0]?.name ?? '';
+  const dot = first.lastIndexOf('.');
+  const name = dot > 0 ? first.slice(0, dot) : first;
+  return assets.length > 1 ? t('teamTaskFromFilesTitle', { name, count: assets.length - 1 }) : name;
 }

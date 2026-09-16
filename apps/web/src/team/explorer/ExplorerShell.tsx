@@ -17,9 +17,19 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
-import { Download, ListChecks, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
+import {
+  Download,
+  ListChecks,
+  ListPlus,
+  MoreHorizontal,
+  Play,
+  Shrink,
+  Trash2,
+  X
+} from 'lucide-react';
 import { Button } from '../../components/ui';
-import { Popover, SegmentedControl } from '../../components/ui/index';
+import { DropdownMenu, Popover, SegmentedControl } from '../../components/ui/index';
+import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { moveMaterialWithTail, trashMaterialWithTail, type TailClient } from '../materials/tail';
@@ -1355,17 +1365,6 @@ function ExplorerBody({
                   <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
-              {/* Onto a task that already exists, staying here (024, US11). */}
-              {addToTask && (
-                <SelectionAction
-                  label={t('materialActionAddToTask')}
-                  onClick={() =>
-                    addToTask(selectedRows.map(row => ({ id: row.id, name: row.name })))
-                  }
-                >
-                  <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </SelectionAction>
-              )}
               {/*
                * The selection, whatever its size. This used to say "Process…"
                * over four files and quietly start work on the entire space —
@@ -1413,30 +1412,6 @@ function ExplorerBody({
                   <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
-              {permissions?.process && selectedVideos.length > 0 && (
-                <SelectionAction
-                  label={t('teamCompressSelected')}
-                  onClick={() =>
-                    setCompressing(
-                      selectedVideos.map(row => ({
-                        id: row.id,
-                        name: row.name,
-                        folderId: row.parentFolderId ?? currentFolderId ?? null
-                      }))
-                    )
-                  }
-                >
-                  <Shrink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </SelectionAction>
-              )}
-              {permissions?.download && selectedVideos.length > 0 && (
-                <SelectionAction
-                  label={t('teamRestitchDownloadRestitched')}
-                  onClick={() => void deliverRestitched(selectedVideos)}
-                >
-                  <Download size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </SelectionAction>
-              )}
               {permissions?.delete && (
                 <SelectionAction
                   label={t('teamFileTrash')}
@@ -1446,6 +1421,67 @@ function ExplorerBody({
                   <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
+              {/* Three acts in words, the rest under "…" — Linear's and
+                  Airtable's bulk bars. With a video in the selection the bar
+                  held six worded acts, the last cut mid-word and the rest a
+                  sideways scroll nobody knew to try. */}
+              <SelectionMore
+                label={t('teamTaskCardMore')}
+                items={[
+                  ...(addToTask
+                    ? [
+                        {
+                          id: 'add-to-task',
+                          label: t('materialActionAddToTask'),
+                          icon: (
+                            <ListChecks
+                              size={ICON_SIZE}
+                              strokeWidth={ICON_STROKE}
+                              aria-hidden="true"
+                            />
+                          ),
+                          onSelect: () =>
+                            addToTask(selectedRows.map(row => ({ id: row.id, name: row.name })))
+                        }
+                      ]
+                    : []),
+                  ...(permissions?.process && selectedVideos.length > 0
+                    ? [
+                        {
+                          id: 'compress',
+                          label: t('teamCompressSelected'),
+                          icon: (
+                            <Shrink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                          ),
+                          onSelect: () =>
+                            setCompressing(
+                              selectedVideos.map(row => ({
+                                id: row.id,
+                                name: row.name,
+                                folderId: row.parentFolderId ?? currentFolderId ?? null
+                              }))
+                            )
+                        }
+                      ]
+                    : []),
+                  ...(permissions?.download && selectedVideos.length > 0
+                    ? [
+                        {
+                          id: 'download-restitched',
+                          label: t('teamRestitchDownloadRestitched'),
+                          icon: (
+                            <Download
+                              size={ICON_SIZE}
+                              strokeWidth={ICON_STROKE}
+                              aria-hidden="true"
+                            />
+                          ),
+                          onSelect: () => void deliverRestitched(selectedVideos)
+                        }
+                      ]
+                    : [])
+                ]}
+              />
             </div>
           </div>
         )}
@@ -1936,6 +1972,36 @@ function ProcessMenu({
         </div>
       </Popover>
     </div>
+  );
+}
+
+/** The bar's "…": the acts a selection needs less often, one press away. */
+function SelectionMore({ label, items }: { label: string; items: MenuItem[] }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  if (items.length === 0) return null;
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        className="team-explorer-selection-action is-icon"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-tip={label}
+        onClick={() => setOpen(true)}
+      >
+        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </button>
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={trigger}
+        label={label}
+        items={items}
+      />
+    </>
   );
 }
 

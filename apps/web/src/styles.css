@@ -14291,7 +14291,7 @@ button.team-landing-tile:hover {
   white-space: nowrap;
   font-weight: 600;
 }
-.team-explorer-selection-bar > .team-explorer-selection-action.is-icon {
+.team-explorer-selection-action.is-icon {
   flex: none;
   width: 40px;
   padding: 0;

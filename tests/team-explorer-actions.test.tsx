@@ -127,7 +127,6 @@ describe('the selection bar', () => {
       Array.from(bar.querySelectorAll<HTMLElement>('button')).some(
         button => button.getAttribute('aria-label') === name
       );
-    expect(named('Download re-stitched')).toBe(true);
     expect(named('Move to trash')).toBe(true);
     // The count is on the button now, so the label is not a fixed string: the
     // press that clears a selection says how much it is about to clear.
@@ -139,8 +138,13 @@ describe('the selection bar', () => {
      * takes them away, and only where the bar genuinely runs out of room.
      */
     expect(bar.textContent).toContain('Selected: 2');
-    expect(bar.textContent).toContain('Download re-stitched');
     expect(bar.textContent).toContain('Move to trash');
+
+    // Three acts in words; the ones a selection needs less often wait under
+    // "…" (Linear, Airtable) instead of scrolling off the bar's edge.
+    const user = userEvent.setup();
+    await user.click(within(bar).getByRole('button', { name: 'More' }));
+    expect(await screen.findByRole('menuitem', { name: 'Download re-stitched' })).toBeTruthy();
   });
 });
 

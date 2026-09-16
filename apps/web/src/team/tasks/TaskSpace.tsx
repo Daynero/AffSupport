@@ -308,7 +308,7 @@ export function TaskSpace({
       return;
     setCreatingAssetId(selectionKey);
     void startTask({
-      title: t('teamTaskFromAssetTitle', { name: createFromAsset.name }).slice(0, 160),
+      title: createFromAsset.name.slice(0, 160),
       materialIds,
       touched: true
     });
