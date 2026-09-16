@@ -714,7 +714,7 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ## Phase 11: The catalog updater and the remaining surfaces
 
-- [~] T131 (rows and schedule done in benchmark round 3; the dialog's own controls onto the inventory still open) Put `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` on the inventory —
+- [ ] T131 (rows and schedule done in benchmark round 3; the dialog's own controls onto the inventory still open) Put `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` on the inventory —
   `SearchField`, `Checkbox` with a real `indeterminate` prop, `ToggleButtonGroup` for the
   intervals, `NumberField` for the custom hours, and the shared row actions.
   **Target from the at-rest table (US14):** "…" per row instead of four icon buttons; two facts
