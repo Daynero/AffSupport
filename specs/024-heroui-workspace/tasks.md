@@ -459,24 +459,35 @@ closing or losing anything.
 
 ## Phase 8: User Story 6 — actions you can find without hunting (Priority: P2)
 
-- [ ] T097 [US6] Write `apps/web/src/team/palette/WorkspacePalette.tsx` on the inventory's
-      `Modal` + `SelectMenu` — grouped results, keyboard throughout.
-- [ ] T098 [US6] Give the palette its data: materials through `searchCatalog`, tasks and accounts
-      through their existing hooks, folders through the tree, spaces through the lobby list —
-      debounced, cancellable, and never blocking the input.
-- [ ] T099 [US6] Bind ⌘K / Ctrl+K at the workspace level and make the palette addressable by
-      adding its field to `TeamRouteQuery` in `apps/web/src/team/routes.ts`, as settings and the
-      updater already are.
+- [x] T097 [US6] Write `apps/web/src/team/palette/WorkspacePalette.tsx` — grouped results,
+      keyboard throughout. On `Modal` plus a listbox: the inventory has no `SelectMenu`, and a
+      combobox over four kinds of thing is not a select. The arrows walk the whole list across
+      group boundaries, because a person typing three letters is not thinking in sections.
+- [x] T098 [US6] Give the palette its data — `usePaletteResults.ts`. The three small lists
+      (folders, tasks, accounts) are read once when it opens and filtered on every keystroke;
+      files stay a search, debounced, with a late answer to a question nobody is asking any more
+      dropped rather than rendered. The field never waits and the list never empties itself
+      mid-search: a list that blinks is a list that makes you stop typing. Spaces are not in it —
+      the palette is scoped to the space it is opened in, and switching spaces is the lobby's.
+- [x] T099 [US6] Bind ⌘K / Ctrl+K at the workspace level and make the palette addressable.
+      Verified in the beta. One defect found and fixed there: the palette and every result are
+      both writes to the address, and running the result before closing put the destination in
+      the history and then the close put the old address straight back on top — Enter appeared
+      to do nothing at all.
 - [ ] T100 [US6] Add the context menu to explorer rows and tiles, acting on the checked set when
       the pointer is over a checked row, and suppressing the browser menu only there.
-- [ ] T101 [US6] Write `apps/web/src/team/palette/ShortcutSheet.tsx` from **one** shortcut
-      registry that the bindings themselves read, so the sheet cannot drift from the product.
+- [x] T101 [US6] Write `ShortcutSheet.tsx` from one registry (`shortcuts.ts`) that the bindings
+      read. `formatShortcut` lives beside the table so a tooltip and the sheet spell a chord the
+      same way, and `matches` is written once so no call site re-derives what "⌘" means.
 - [ ] T102 [US6] Name each shortcut in the tooltip of the control it duplicates.
 - [ ] T103 [US6] Add copy / cut / paste as menu items, not only as keystrokes.
 - [ ] T104 [US6] Make toolbars and selection bars collapse into a labelled overflow at narrow
       widths instead of becoming unlabelled icons.
-- [ ] T105 [P] [US6] Test: the palette reaches every entity kind; the shortcut sheet lists every
-      binding the registry holds.
+- [x] T105 [P] [US6] `tests/workspace-palette.test.tsx`: the palette reaches a file, a folder, a
+      task and an account from one field; it never empties while a search is in flight; the
+      arrows wrap across groups; the sheet lists every binding the registry holds and nothing
+      else; and a chord matches only itself — a binding that fires with extra modifiers held is
+      a binding that fires when you meant something else.
 
 **Checkpoint**: quickstart Checkpoint 5, items 2–4.
 

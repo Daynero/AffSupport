@@ -67,6 +67,14 @@ export interface TeamRouteQuery {
   settingsTab: TeamSettingsTab | null;
   /** The catalog updater's dialog is open over the explorer (023). */
   updater: boolean;
+  /**
+   * The ⌘K palette is open (024).
+   *
+   * In the address like the settings and the updater, so a link can open it —
+   * and, more to the point, so Back closes it rather than leaving the
+   * workspace behind a surface the history does not know about.
+   */
+  palette: boolean;
   /** The selected material, so a shared link opens on it. */
   itemId: string | null;
 }
@@ -147,6 +155,7 @@ export function emptyTeamRouteQuery(): TeamRouteQuery {
     settings: false,
     settingsTab: null,
     updater: false,
+    palette: false,
     itemId: null
   };
 }
@@ -257,6 +266,7 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     settings: params.get('settings') === '1',
     settingsTab: readSettingsTab(params),
     updater: params.get('updater') === '1',
+    palette: params.get('palette') === '1',
     itemId: trimmedParam(params, 'item')
   };
   const { section, query } = aliasSection(rawSection, base);
@@ -312,6 +322,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.settings) params.set('settings', '1');
     if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
     if (query.updater) params.set('updater', '1');
+    if (query.palette) params.set('palette', '1');
     if (query.itemId) params.set('item', query.itemId);
   }
   if (section === 'tasks') {

@@ -1,6 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo } from '../../lib/navigation';
+import { PaletteHost } from '../palette/PaletteHost';
+import { ShortcutSheet } from '../palette/ShortcutSheet';
+import { matches } from '../palette/shortcuts';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
@@ -178,6 +181,7 @@ export function WorkspaceShell({
     return () => window.clearInterval(timer);
   }, [health?.kind, refreshHealth]);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   /** Which materials the batch is about; empty is the whole space. */
   const [batchSources, setBatchSources] = useState<string[]>([]);
   /* The same set said in words, for the window's title. The explorer knows
@@ -276,6 +280,27 @@ export function WorkspaceShell({
   });
 
   /** An explorer address that keeps the current folder and view. */
+  /*
+   * The two keystrokes the whole workspace answers (024, FR-099). Read from
+   * the shortcut registry rather than spelled here, so the sheet that lists
+   * them and the handler that serves them cannot disagree.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (matches(event, 'mod+k')) {
+        event.preventDefault();
+        navigateTo(explorerRouteRef.current({ palette: true }), true);
+        return;
+      }
+      if (matches(event, 'mod+/')) {
+        event.preventDefault();
+        setShortcutsOpen(current => !current);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const explorerRoute = useCallback(
     (patch: Partial<TeamRouteQuery>) =>
       buildTeamRoute({
@@ -290,6 +315,11 @@ export function WorkspaceShell({
       }),
     [query?.folderId, query?.kinds, query?.view, teamId]
   );
+  /* The document-level handler is bound once; the route builder is not, so it
+     is read through a ref rather than making the listener churn on every
+     folder change. */
+  const explorerRouteRef = useRef(explorerRoute);
+  explorerRouteRef.current = explorerRoute;
 
   /**
    * Write a piece of view state into the address.
@@ -563,6 +593,23 @@ export function WorkspaceShell({
               onClose={() => navigateTo(explorerRoute({ settings: false, settingsTab: null }))}
             />
           )}
+
+          {/*
+            * One way in, to anything (024, US6). In the address like the
+            * settings and the updater, so Back closes it — a surface the
+            * history does not know about is a surface Back throws you out of.
+            */}
+          {query?.palette && (
+            <PaletteHost
+              teamId={teamId}
+              onClose={() => navigateTo(explorerRoute({ palette: false }), true)}
+              onShortcuts={() => {
+                navigateTo(explorerRoute({ palette: false }), true);
+                setShortcutsOpen(true);
+              }}
+            />
+          )}
+          {shortcutsOpen && <ShortcutSheet onClose={() => setShortcutsOpen(false)} />}
 
           {query?.updater && (
             <CatalogUpdaterDialog
