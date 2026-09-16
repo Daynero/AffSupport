@@ -10326,13 +10326,17 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   /* `min-content` rather than a fixed 278px: the old height clipped a long
      title or note instead of letting the card grow (finding P3). */
-  grid-auto-rows: minmax(278px, min-content);
+  /* A card is as tall as what it says (024, benchmarked on Linear's board): a
+     278 px floor made a two-word task a tall empty frame, and a board of them
+     read as a wall of boxes rather than a list of work. Cards in one row still
+     match each other's height. */
+  grid-auto-rows: min-content;
   align-items: stretch;
   gap: var(--space-3);
 }
 .team-task-card {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   align-items: start;
   gap: var(--space-2);
   min-width: 0;
@@ -13814,6 +13818,12 @@ button.team-landing-tile:hover {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.team-explorer-tile-facts {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .team-explorer-tile-render.is-failed {
   color: var(--color-error);
@@ -17435,5 +17445,38 @@ input[type='number'] {
     overflow-x: auto;
     scrollbar-width: none;
   }
+}
+
+/* The title is the task's heading and the brief is its body (024, benchmarked
+   on Linear's issue view): no captions over them, no boxes around them until
+   they are being written. The labels stay for assistive technology. */
+.team-task-editor .team-task-title-field > .ui-field-label,
+.team-task-editor .team-task-brief-field > .ui-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.team-task-editor .team-task-title-field input,
+.team-task-editor .team-task-brief-field textarea {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding-left: var(--space-1);
+}
+.team-task-editor .team-task-title-field input {
+  font-size: var(--text-section);
+  font-weight: 650;
+}
+.team-task-editor .team-task-title-field input:hover,
+.team-task-editor .team-task-brief-field textarea:hover {
+  border-color: var(--color-border);
+}
+.team-task-editor .team-task-title-field input:focus-visible,
+.team-task-editor .team-task-brief-field textarea:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
 }
 

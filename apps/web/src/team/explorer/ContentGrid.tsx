@@ -308,20 +308,29 @@ function Tile({
         <span className="team-explorer-tile-name" title={row.name}>
           {row.name}
         </span>
+        {/* One quiet line under the name, as Drive and Frame.io draw it (024):
+            the picture already says "image" or "video", so the kind is named
+            only where there is no picture; then size and date. The colour tag
+            shows when there is one — setting it is in the menu. */}
         <span className="team-explorer-tile-meta">
-          <TagDot
-            color={row.tagColor ?? null}
-            name={row.name}
-            canTag={Boolean(tagging)}
-            onChange={color => tagging?.onSetTag(row, color)}
-          />
-          {/* A folder's glyph already says "folder" (024, US14). */}
-          {row.kind === 'folder' ? null : t(KIND_LABEL[row.kind])}
-          {row.sizeBytes !== null && row.kind !== 'folder' ? ` · ${formatSize(row.sizeBytes)}` : ''}
+          {row.tagColor && (
+            <TagDot
+              color={row.tagColor}
+              name={row.name}
+              canTag={Boolean(tagging)}
+              onChange={color => tagging?.onSetTag(row, color)}
+            />
+          )}
+          <span className="team-explorer-tile-facts">
+            {[
+              image || row.kind === 'folder' ? null : t(KIND_LABEL[row.kind]),
+              row.sizeBytes !== null && row.kind !== 'folder' ? formatSize(row.sizeBytes) : null,
+              row.modifiedAt ? formatDate(row.modifiedAt, language) : null
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
         </span>
-        {row.modifiedAt && (
-          <span className="team-explorer-tile-date">{formatDate(row.modifiedAt, language)}</span>
-        )}
         {row.kind === 'landing' && row.landingRender && (
           <span className={`team-explorer-tile-render is-${row.landingRender.state}`}>
             {t(RENDER_LABEL[row.landingRender.state])}

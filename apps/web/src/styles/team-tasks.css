@@ -8,8 +8,10 @@
    ============================================================ */
 
 .team-task-grid {
-  /* Taller floor: the description is the body now, not a footnote. */
-  grid-auto-rows: minmax(300px, min-content);
+  /* No floor (024, benchmarked on Linear's board): a card is as tall as its
+     task, and cards sharing a row still match the tallest. A 300 px floor
+     made every short task a tall empty frame. */
+  grid-auto-rows: min-content;
 }
 
 /* One column: a card is as tall as its task, no floor — an empty description

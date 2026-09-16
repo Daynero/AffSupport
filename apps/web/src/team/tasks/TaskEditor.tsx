@@ -995,7 +995,11 @@ export function TaskEditor({
                 fields stay — reading them is the point — and the boundary is
                 said once, at the top, in the product's own words (FR-004). */}
               {!canEdit && <PermissionState message={t('teamTaskReadOnly')} />}
-              <FormField label={t('teamTaskTitle')} htmlFor="team-task-title" required>
+              <FormField
+                className="team-task-title-field"
+                label={t('teamTaskTitle')}
+                htmlFor="team-task-title"
+              >
                 <Input
                   id="team-task-title"
                   value={title}
@@ -1072,10 +1076,15 @@ export function TaskEditor({
                   }}
                 />
               </div>
-              <FormField label={t('teamTaskDescription')} htmlFor="team-task-description">
+              <FormField
+                className="team-task-brief-field"
+                label={t('teamTaskDescription')}
+                htmlFor="team-task-description"
+              >
                 <Textarea
                   id="team-task-description"
                   className="team-task-description-input"
+                  placeholder={t('teamTaskDescriptionPlaceholder')}
                   // Short when the brief is short; it grows as it is written (FR-087).
                   rows={3}
                   value={note}

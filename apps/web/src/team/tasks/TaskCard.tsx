@@ -256,19 +256,6 @@ export function TaskCard({
         )}
       </div>
 
-      {showProgress && (
-        <TaskProgressScale
-          value={progressValue}
-          max={task.progressMax}
-          label={t('teamTaskProgressScale')}
-          disabled={!canEdit}
-          onChange={setProgressValue}
-          onCommit={next => {
-            if (canEdit) writer.send({ progressValue: next });
-          }}
-        />
-      )}
-
       {/* The task itself: the title, and the brief in full colour. The title's
           tooltip appears only when the title is cut — a hint that repeats
           what is already legible only covers the brief under it. */}
@@ -293,6 +280,21 @@ export function TaskCard({
           </button>
         )}
       </div>
+
+      {/* How far along, under what the task is (024, benchmarked on Linear's
+          board, where the title is what a card is read by). */}
+      {showProgress && (
+        <TaskProgressScale
+          value={progressValue}
+          max={task.progressMax}
+          label={t('teamTaskProgressScale')}
+          disabled={!canEdit}
+          onChange={setProgressValue}
+          onCommit={next => {
+            if (canEdit) writer.send({ progressValue: next });
+          }}
+        />
+      )}
 
       <div className="team-task-card-footer">
         {/* A zero is not information here: the footer says what the task has. */}

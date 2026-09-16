@@ -1222,7 +1222,9 @@ function ExplorerBody({
                   event.target.value = '';
                 }}
               />
-              <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}>
+              {/* The folder's one primary, as "New" is Drive's: putting files in
+                  is what a person opens a folder in a file manager to do. */}
+              <Button type="button" variant="primary" onClick={() => fileInput.current?.click()}>
                 {t('teamExplorerAddFiles')}
               </Button>
             </>
