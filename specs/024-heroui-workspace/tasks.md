@@ -669,7 +669,7 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ## Phase 9F: Walk it
 
-- [ ] T178 Walk journeys A–D on the beta at 1440 px and 390 px in both themes; fix what does not
+- [x] T178 Walk journeys A–D on the beta at 1440 px and 390 px in both themes; fix what does not
       read or does not work; record each fix in `findings.md`.
 
 ---
