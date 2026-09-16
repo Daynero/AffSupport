@@ -134,7 +134,9 @@ export function ContentList({
             </TableHeaderCell>
             {actions && (
               <TableHeaderCell className="team-explorer-row-actions">
-                {t('teamAccountColumnActions')}
+                {/* Named for a screen reader; a sighted reader sees the "…" (Drive
+                    does not caption its row actions either). */}
+                <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
               </TableHeaderCell>
             )}
           </TableHeader>

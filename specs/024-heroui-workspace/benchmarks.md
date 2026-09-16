@@ -18,3 +18,10 @@ borrowed or rejected and why. Kept as the work goes; the newest round is last.
 cards through three states a day; the one-press three-state pill stays, compact.
 **Rejected:** middle-truncated file names (Finder). CSS cannot do it and a measured JS truncation
 per tile costs more than the two-line clamp, which already keeps the distinguishing tail visible.
+
+## Round 2 (2026-09-16)
+
+| Surface         | Reference         | What they do                                                                                              | What we did                                                                                                                               |
+| --------------- | ----------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| File list       | Google Drive list | Checkboxes appear on hover or once something is selected; row actions uncaptioned; no rules between cells | Box on hover/focus/any-checked (touch keeps it); "Actions" caption for screen readers only; cell rules gone                               |
+| Command palette | Raycast, Linear   | Every row carries its type's icon and a grey line on the right saying what it is                          | Kind icons by category; "Video · 3.2 MB", a task's status; no size for Google documents; tasks are a checklist glyph, not a "create" plus |

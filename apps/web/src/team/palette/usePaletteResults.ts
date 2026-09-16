@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { TeamTaskStatus } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import type { PaletteResult } from './WorkspacePalette';
 
@@ -30,7 +31,7 @@ export interface PaletteSources {
 
 interface Small {
   folders: Array<{ id: string; driveFileId: string; name: string }>;
-  tasks: Array<{ id: string; title: string; note: string | null }>;
+  tasks: Array<{ id: string; title: string; note: string | null; status: TeamTaskStatus }>;
   accounts: Array<{ id: string; name: string }>;
 }
 
@@ -72,7 +73,12 @@ export function usePaletteResults(
           driveFileId: node.driveFileId,
           name: node.name
         })),
-        tasks: tasks.map(task => ({ id: task.id, title: task.title, note: task.note })),
+        tasks: tasks.map(task => ({
+          id: task.id,
+          title: task.title,
+          note: task.note,
+          status: task.status
+        })),
         accounts: accounts.map(account => ({ id: account.id, name: account.name }))
       });
     });
@@ -102,6 +108,7 @@ export function usePaletteResults(
               id: `material:${item.id}`,
               kind: 'material' as const,
               name: item.name,
+              facts: { category: item.category, sizeBytes: item.sizeBytes },
               run: () =>
                 at.current.openMaterial({
                   id: item.id,
@@ -140,6 +147,7 @@ export function usePaletteResults(
         id: `task:${task.id}`,
         kind: 'task' as const,
         name: task.title,
+        facts: { status: task.status },
         run: () => at.current.openTask(task.id)
       })),
     ...small.accounts

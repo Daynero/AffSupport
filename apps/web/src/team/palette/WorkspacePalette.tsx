@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { FileText, FolderOpen, ListPlus, Search, UserRound } from 'lucide-react';
+import { FileText, FolderOpen, ListChecks, Search, UserRound } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { EmptyState, Spinner } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
+import type {
+  MaterialCategory,
+  TeamMaterialRowKind,
+  TeamTaskStatus
+} from '@video-compressor/shared';
+import { KindIcon } from '../explorer/KindIcon';
+import { CATEGORY_LABEL } from '../explorer/rowKinds';
+import { formatSize } from '../../format';
+import { taskStatusLabel } from '../tasks/TaskStatusControl';
 
 /**
  * One way in, to anything (024, US6).
@@ -34,13 +43,24 @@ export interface PaletteResult {
   name: string;
   /** Where it lives, or what it is about — one line, never two. */
   hint?: string;
+  /**
+   * The facts a hint is made of, in the result's own terms (024, benchmarked
+   * on Raycast and Linear, where every row says what it is on its right). The
+   * palette words them; the search that found them does not need a dictionary.
+   */
+  facts?: {
+    category?: MaterialCategory | null;
+    sizeBytes?: number | null;
+    status?: TeamTaskStatus;
+  };
   run: () => void;
 }
 
 const KIND_ICON: Record<PaletteKind, typeof FileText> = {
   material: FileText,
   folder: FolderOpen,
-  task: ListPlus,
+  // A task, not the act of making one: the plus belonged to "create".
+  task: ListChecks,
   account: UserRound
 };
 
@@ -50,6 +70,30 @@ const KIND_HEADING: Record<PaletteKind, TranslationKey> = {
   task: 'paletteGroupTasks',
   account: 'paletteGroupAccounts'
 };
+
+function rowKindOf(category: MaterialCategory): TeamMaterialRowKind {
+  return category;
+}
+
+/** "Video · 3.2 MB", "In progress": what a row is, said on its right. */
+function hintOf(
+  item: PaletteResult,
+  t: ReturnType<typeof useI18n>['t'],
+  language: string
+): string | null {
+  const facts = item.facts;
+  if (!facts) return null;
+  if (facts.status) return taskStatusLabel(facts.status, t);
+  return (
+    [
+      facts.category ? t(CATEGORY_LABEL[facts.category]) : null,
+      // A Google document has no size worth saying ("1 B"), so none is said.
+      facts.sizeBytes && facts.category !== 'other' ? formatSize(facts.sizeBytes, language) : null
+    ]
+      .filter(Boolean)
+      .join(' · ') || null
+  );
+}
 
 const ORDER: readonly PaletteKind[] = ['material', 'folder', 'task', 'account'];
 
@@ -69,7 +113,7 @@ export function WorkspacePalette({
   /** A line under the list — the shortcut sheet's way in, usually. */
   footer?: ReactNode;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -189,9 +233,15 @@ export function WorkspacePalette({
                     onMouseEnter={() => setActive(index)}
                     onClick={() => choose(item)}
                   >
-                    <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    {item.kind === 'material' && item.facts?.category ? (
+                      <KindIcon kind={rowKindOf(item.facts.category)} />
+                    ) : (
+                      <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    )}
                     <span className="workspace-palette-name">{item.name}</span>
-                    {item.hint && <small>{item.hint}</small>}
+                    {(item.hint ?? hintOf(item, t, language)) && (
+                      <small>{item.hint ?? hintOf(item, t, language)}</small>
+                    )}
                   </button>
                 );
               })}

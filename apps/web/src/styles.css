@@ -13064,7 +13064,6 @@ button.team-landing-tile:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 var(--space-2);
-  border-left: 1px solid var(--color-border);
   line-height: 28px;
   color: var(--color-text-muted);
   font-size: 0.9em;
@@ -17480,3 +17479,19 @@ input[type='number'] {
   background: var(--color-surface);
 }
 
+/* A list row's box appears when it can be used (024, benchmarked on Google
+   Drive): under the pointer, with keyboard focus in the row, or for every row
+   once anything is checked — a column of forty empty squares was the loudest
+   thing in a quiet list. Touch screens have no hover, so they keep the box. */
+@media (hover: hover) {
+  .team-explorer-rows:not(:has(.team-explorer-row.is-checked))
+    .team-explorer-row:not(:hover):not(:focus-within)
+    .team-explorer-row-check
+    .team-explorer-check
+    > span {
+    opacity: 0;
+  }
+}
+.team-explorer-row-check .team-explorer-check > span {
+  transition: opacity var(--dur-control) var(--ease-standard);
+}

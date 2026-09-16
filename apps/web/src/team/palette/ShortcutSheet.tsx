@@ -23,7 +23,12 @@ export function ShortcutSheet({ onClose }: { onClose: () => void }) {
   const scopes: Array<Shortcut['scope']> = ['workspace', 'explorer', 'task'];
 
   return (
-    <Modal labelledBy="workspace-shortcuts-title" onClose={onClose} closeLabel={t('teamCancel')} size="sm">
+    <Modal
+      labelledBy="workspace-shortcuts-title"
+      onClose={onClose}
+      closeLabel={t('teamCancel')}
+      size="sm"
+    >
       <div className="workspace-shortcuts">
         <h2 id="workspace-shortcuts-title">{t('shortcutSheetTitle')}</h2>
         {scopes.map(scope => {
