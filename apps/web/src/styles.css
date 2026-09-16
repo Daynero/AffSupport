@@ -17427,6 +17427,26 @@ input[type='number'] {
   width: 3.5rem;
   height: 30px;
 }
+/* A phone: the name gets the width, its schedule and menu sit on the line under it. */
+@media (max-width: 560px) {
+  .team-updater-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'check main main' 'check schedule actions';
+    row-gap: var(--space-1);
+  }
+  .team-updater-row > :first-child {
+    grid-area: check;
+  }
+  .team-updater-row-main {
+    grid-area: main;
+  }
+  .team-updater-row-schedule {
+    grid-area: schedule;
+  }
+  .team-updater-row > .team-updater-row-actions {
+    grid-area: actions;
+  }
+}
 .team-updater-bulk {
   display: flex;
   flex-wrap: wrap;
