@@ -34,6 +34,7 @@ const VOCABULARY = { geo: ['UA', 'PL'], languages: ['uk', 'en'], offers: ['Pro C
 
 function renderPanel(
   overrides: {
+    vocabulary?: typeof VOCABULARY & { usedGeo?: string[]; usedLanguages?: string[] };
     filters?: Partial<CatalogSearchFilters>;
     facets?: Record<string, { value: string; count: number }[]>;
   } = {},
@@ -43,7 +44,7 @@ function renderPanel(
   render(
     <CatalogFilters
       filters={{ ...EMPTY_FILTERS, ...overrides.filters }}
-      vocabulary={VOCABULARY}
+      vocabulary={overrides.vocabulary ?? VOCABULARY}
       facets={overrides.facets}
       onSet={onSet}
       onRemove={() => {}}
@@ -96,6 +97,17 @@ async function optionTexts(name: string) {
 }
 
 describe('catalog filters', () => {
+  it('offers only the GEO and languages the files carry, by name (024)', async () => {
+    renderPanel({
+      vocabulary: { ...VOCABULARY, usedGeo: ['PL'], usedLanguages: ['uk'] },
+      filters: { geo: ['PL'] }
+    });
+    expect(await optionTexts('GEO')).toEqual(expect.arrayContaining(['Poland']));
+    expect(await optionTexts('GEO')).not.toContain('Ukraine');
+    expect(await optionTexts('Language')).toEqual(expect.arrayContaining(['Ukrainian']));
+    expect(await optionTexts('Language')).not.toContain('English');
+  });
+
   it('offers the types the results actually hold, and chooses one', async () => {
     const onSet = renderPanel({
       facets: {

@@ -72,15 +72,16 @@ export function CatalogFilters({
   onRemove: (key: keyof CatalogSearchFilters, value: string) => void;
   onClear: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const visible = new Set<keyof CatalogSearchFilters>(
     visibleKeys ?? (Object.keys(filters) as Array<keyof CatalogSearchFilters>)
   );
   const selections = (Object.keys(filters) as Array<keyof CatalogSearchFilters>).flatMap(key =>
     visible.has(key) ? (filters[key] as readonly string[]).map(value => ({ key, value })) : []
   );
-  const hasFacets =
-    vocabulary.geo.length > 0 || vocabulary.languages.length > 0 || vocabulary.offers.length > 0;
+  const usedGeo = (vocabulary as TeamVocabulary).usedGeo ?? vocabulary.geo;
+  const usedLanguages = (vocabulary as TeamVocabulary).usedLanguages ?? vocabulary.languages;
+  const hasFacets = usedGeo.length > 0 || usedLanguages.length > 0 || vocabulary.offers.length > 0;
   // No junk filters for an empty space: show nothing to filter unless there is
   // content or the user already has an active selection to clear.
   /* Open when something is narrowing the search, and then whatever the person
@@ -111,6 +112,9 @@ export function CatalogFilters({
     if (key === 'unfilled')
       return value === 'geo' ? 'GEO' : t(UNFILLED_KEYS[value] ?? 'teamCatalogAny');
     if (key === 'originalType') return originalTypeLabel(value);
+    // Names, not codes (024): "DE" and "de" said nothing to a person picking one.
+    if (key === 'geo') return displayName('region', value.toUpperCase(), language) ?? value;
+    if (key === 'language') return displayName('language', value, language) ?? value;
     return value;
   };
 
@@ -168,8 +172,11 @@ export function CatalogFilters({
           : t('teamCatalogFiltersIdle')}
       </summary>
       <div className="team-catalog-filters">
-        {visible.has('geo') && select('geo', vocabulary.geo)}
-        {visible.has('language') && select('language', vocabulary.languages)}
+        {/* Only what the space's files carry (024): a filter offering every
+            country and language in the dictionary found nothing for most of
+            them. The chosen value stays in the list so it can be changed. */}
+        {visible.has('geo') && select('geo', inUse(usedGeo, filters.geo))}
+        {visible.has('language') && select('language', inUse(usedLanguages, filters.language))}
         {visible.has('offer') && select('offer', vocabulary.offers)}
         {visible.has('category') && select('category', MATERIAL_CATEGORIES)}
         {visible.has('originalType') && select('originalType', originalTypeOptions)}
@@ -199,4 +206,24 @@ export function CatalogFilters({
       )}
     </details>
   );
+}
+
+/** The vocabulary with what the space's files actually carry (024); absent from an older server. */
+type TeamVocabulary = CatalogVocabulary & { usedGeo?: string[]; usedLanguages?: string[] };
+
+function inUse(used: readonly string[], chosen: readonly string[]): string[] {
+  return [...new Set([...used, ...chosen])];
+}
+
+function displayName(
+  type: 'region' | 'language',
+  code: string,
+  language: string
+): string | undefined {
+  try {
+    const name = new Intl.DisplayNames([language === 'uk' ? 'uk' : 'en'], { type }).of(code);
+    return name && name !== code ? name : undefined;
+  } catch {
+    return undefined;
+  }
 }

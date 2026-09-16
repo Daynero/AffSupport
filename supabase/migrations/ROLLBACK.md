@@ -16,6 +16,9 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260916200000_filter_languages_in_use.sql`: re-apply `get_team_vocab_and_facets` from
+   `20260815113000` (without `usedLanguages`). No data is touched.
+
 0. `20260916190000_batch_chooses_its_work.sql`: drop
    `scan_library_requirements(uuid, text, uuid[], boolean, text[])` and re-create the four-argument
    function with its grants from `20260906100000`. No data is touched.
