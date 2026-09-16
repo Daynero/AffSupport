@@ -61,10 +61,26 @@ export function TaskLabelMenu({
     ? sorted.filter(label => label.name.toLocaleLowerCase().includes(term))
     : sorted;
 
-  // Opening puts focus on the first option, so the arrows work at once.
+  // Opening puts focus in the field or on the first option, so typing and the arrows work at
+  // once. After the popover has placed itself: focused during mount, the popover's own focus
+  // handling took it back and the first word typed went into the task's title instead (024).
+  // The popover is hidden until it has measured where to sit, and a hidden field refuses focus,
+  // so this tries each frame until the field has it (a handful of frames at most).
   useEffect(() => {
-    const field = root.current?.querySelector<HTMLElement>('input');
-    (field ?? root.current?.querySelector<HTMLElement>('[role="option"]'))?.focus();
+    let frame = 0;
+    let tries = 0;
+    const place = () => {
+      const target =
+        root.current?.querySelector<HTMLElement>('input') ??
+        root.current?.querySelector<HTMLElement>('[role="option"]');
+      target?.focus();
+      if (target && document.activeElement !== target && tries < 20) {
+        tries += 1;
+        frame = requestAnimationFrame(place);
+      }
+    };
+    frame = requestAnimationFrame(place);
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   /** ↑/↓ walk the options, Home/End jump: the listbox pattern, not a tab stop each. */
@@ -94,7 +110,10 @@ export function TaskLabelMenu({
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
     >
-      {(sorted.length >= SEARCH_FROM || (onCreate && sorted.length > 0)) && (
+      {/* Where tags can be made here, the field is always there — the first tag
+          most of all. An empty space used to say "create them in the space's
+          settings", a detour out of the task for one word (024). */}
+      {(sorted.length >= SEARCH_FROM || onCreate) && (
         <input
           type="search"
           className="team-task-label-menu-search"
@@ -112,9 +131,7 @@ export function TaskLabelMenu({
           action={emptyTarget && <SpaceSettingsLink target={emptyTarget} />}
         />
       )}
-      {sorted.length === 0 && onCreate && !term && (
-        <EmptyState size="sm" className="team-task-label-menu-empty" title={emptyText} />
-      )}
+
       {sorted.length > 0 && shown.length === 0 && !term && (
         <EmptyState
           size="sm"

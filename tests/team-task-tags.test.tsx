@@ -362,6 +362,31 @@ describe('the editor', () => {
     expect(await screen.findByRole('button', { name: 'Undo' })).toBeTruthy();
   });
 
+  it('makes the first tag of an empty space from the task, typing where the tag goes (024)', async () => {
+    const user = userEvent.setup();
+    const api = client();
+    wrap(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        labels={[]}
+        onClose={() => {}}
+        onChanged={() => {}}
+        onLabelsChange={() => {}}
+      />
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Tag' }));
+    // Focus is in the tag field, not left on the task's title: typing names a tag.
+    const field = await screen.findByRole('searchbox', { name: 'Find a tag, or type a new one' });
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    await user.keyboard('Launch');
+    expect(await screen.findByRole('button', { name: /Launch/u })).toBeTruthy();
+  });
+
   it('sends a viewer no way to change the tags', async () => {
     wrap(
       <TaskEditor
