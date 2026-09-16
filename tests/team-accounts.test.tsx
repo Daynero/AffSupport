@@ -388,14 +388,12 @@ describe('marking a run', () => {
     expect(api.setAgentRunMarker).toHaveBeenCalledTimes(4);
   });
 
-  it('paints the run and counts it in the marker menu', async () => {
+  it('paints the run and counts it in the marker menu, which appears with the first marker', async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
-    expect((await openMarkers(user)).getByRole('button', { name: /^Green/ }).textContent).toBe(
-      'Green0'
-    );
-    await user.keyboard('{Escape}');
+    // No run carries a marker: there is nothing to filter by, so no filter (024, FR-092).
+    expect(screen.queryByRole('button', { name: /^Markers/ })).toBeNull();
     await user.click(markButton());
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeTruthy()
@@ -446,23 +444,11 @@ describe('marking a run', () => {
     );
   });
 
-  it('has nothing to clear until something is marked', async () => {
-    const user = userEvent.setup();
-    render(client());
-    await waitForGroups();
-    const menu = await openMarkers(user);
-    expect(menu.getByRole('button', { name: 'Clear all markers' }).hasAttribute('disabled')).toBe(
-      true
-    );
-  });
-
   it('gives a viewer no marker to press and nothing to clear', async () => {
-    const user = userEvent.setup();
     render(client(), 'viewer');
     await waitForGroups();
     expect(screen.queryByRole('button', { name: /^Mark the run/ })).toBeNull();
-    const menu = await openMarkers(user);
-    expect(menu.queryByRole('button', { name: 'Clear all markers' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Markers/ })).toBeNull();
   });
 });
 

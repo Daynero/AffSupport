@@ -582,16 +582,20 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
             {/* The colours, behind one control: they are the filter reached for
             least, and four more chips in this row pushed the fold onto a line
             of its own. Clearing every marker in the space lives in the same
-            menu — it is the only other thing on this screen about markers. */}
-            <MarkerFilter
-              value={marker}
-              counts={counts.markers}
-              total={counts.agents}
-              marked={markedRuns}
-              canEdit={canEdit}
-              onChange={setMarker}
-              onClearAll={() => void clearMarkers()}
-            />
+            menu — it is the only other thing on this screen about markers.
+            Absent while no run carries a marker (024, FR-092): "Markers 0" was
+            a filter with nothing to filter, read as one more thing to learn. */}
+            {(markedRuns > 0 || marker !== 'all') && (
+              <MarkerFilter
+                value={marker}
+                counts={counts.markers}
+                total={counts.agents}
+                marked={markedRuns}
+                canEdit={canEdit}
+                onChange={setMarker}
+                onClearAll={() => void clearMarkers()}
+              />
+            )}
             {/* The fold, for the whole list: with four accounts open the fourth
             one's rows are a screen away, and folding them one at a time is
             four presses to see what is on the page. */}
