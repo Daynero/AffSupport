@@ -9989,13 +9989,10 @@ body {
 }
 .team-task-editor {
   display: grid;
-  grid-template-areas: 'heading' 'brief' 'work';
+  grid-template-areas: 'brief' 'work';
   gap: var(--space-4);
   align-items: start;
   min-width: 0;
-}
-.team-task-editor-heading {
-  grid-area: heading;
 }
 .team-task-editor-brief {
   grid-area: brief;
@@ -10012,7 +10009,7 @@ body {
 @container task-editor (min-width: 820px) {
   .team-task-editor {
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    grid-template-areas: 'heading heading' 'brief work';
+    grid-template-areas: 'brief work';
     column-gap: var(--space-6);
   }
 }
@@ -10976,16 +10973,61 @@ body {
    editor's menu on the right, clear of the dialog's own close button. */
 .team-task-editor-heading {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: var(--space-3);
-  min-height: 32px;
-  padding-right: calc(var(--space-6) * 2);
-}
-.team-task-editor-heading > .team-task-editor-menu {
-  margin-left: auto;
+  gap: var(--space-2);
+  min-height: 38px;
 }
 .team-task-editor-heading h2 {
   margin: 0;
+}
+/*
+ * The editor on a laptop screen (024).
+ *
+ * On a 13-inch M1 a task with no brief still scrolled while half the dialog was
+ * empty: a 32px row holding only "…", a brief field four lines tall before
+ * anything was written in it, and a caption line above the progress, the
+ * accounts and the tags each. The menu joins the dialog's close button in the
+ * corner, the brief starts two lines tall and grows as it is written, and the
+ * captions sit beside what they name — Linear's properties, read as label ·
+ * value on one line.
+ */
+.modal:has(.team-task-editor-frame) {
+  --modal-padding: var(--space-6);
+  gap: var(--space-4);
+}
+@container task-editor (min-width: 560px) {
+  .team-task-editor .team-task-accounts,
+  .team-task-editor .team-task-labels-row-editor {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-3);
+  }
+}
+/* The title takes the line; the receipt and "…" end it, clear of the dialog's
+   close button, which sits over the first line while there is one column. */
+.team-task-title-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-right: calc(44px + var(--space-2));
+}
+.team-task-title-row > .team-task-title-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+@container task-editor (min-width: 820px) {
+  .team-task-title-row {
+    padding-right: 0;
+  }
+  .team-task-editor .team-task-attachments-heading {
+    padding-right: calc(44px + var(--space-2));
+  }
+}
+.team-task-editor .team-task-description-input {
+  min-height: 3.75rem;
 }
 .team-task-saved {
   color: var(--color-text-muted);

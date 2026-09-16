@@ -925,68 +925,9 @@ export function TaskEditor({
       >
         <div className="team-task-editor-frame">
           <div className="team-task-editor">
-            <header className="team-task-editor-heading">
-              <h2 id="team-task-editor-title" className="visually-hidden">
-                {t('teamTaskEditTitle')}
-              </h2>
-              {/* Quiet when it works, loud when it does not. A save that
-                  succeeded is a receipt that fades; a save that failed keeps
-                  the words on screen and offers the retry, because the one
-                  thing worse than a spinner is silence over lost work. */}
-              {canEdit && autosave.state === 'saving' && (
-                <small className="team-task-saved" aria-live="polite">
-                  {t('teamTaskSaving')}
-                </small>
-              )}
-              {canEdit && autosave.state === 'saved' && (
-                <small className="team-task-saved" aria-live="polite">
-                  {t('teamTaskSaved')}
-                </small>
-              )}
-              {canEdit && autosave.state === 'failed' && (
-                <small className="team-task-save-failed" role="alert">
-                  {t('teamTaskSaveFailed')}
-                  <Button size="sm" color="error" variant="ghost" onClick={autosave.flush}>
-                    {t('teamTaskRetrySave')}
-                  </Button>
-                </small>
-              )}
-              {/* Deleting lives in the editor's own menu (024, FR-088): a red
-                  button in the middle of the form was the loudest thing on a
-                  screen about a brief. It still confirms — a task cannot be
-                  given back whole, so an Undo would be a quieter lie (021, R3). */}
-              {canEdit && onDelete && (
-                <>
-                  <IconButton
-                    ref={editorMenuTrigger}
-                    className="team-task-editor-menu"
-                    size="sm"
-                    variant="ghost"
-                    label={t('teamTaskEditorMenu')}
-                    onClick={() => setEditorMenuOpen(true)}
-                  >
-                    <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </IconButton>
-                  <DropdownMenu
-                    open={editorMenuOpen}
-                    onClose={() => setEditorMenuOpen(false)}
-                    anchor={editorMenuTrigger}
-                    label={t('teamTaskEditorMenu')}
-                    items={[
-                      {
-                        id: 'delete',
-                        label: t('teamTaskDelete'),
-                        destructive: true,
-                        icon: (
-                          <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                        ),
-                        onSelect: () => setConfirmingDelete(true)
-                      }
-                    ]}
-                  />
-                </>
-              )}
-            </header>
+            <h2 id="team-task-editor-title" className="visually-hidden">
+              {t('teamTaskEditTitle')}
+            </h2>
             <form
               className="team-dialog-form team-task-editor-brief"
               // Nothing submits any more; Enter in a field must not reload the page.
@@ -996,30 +937,102 @@ export function TaskEditor({
                 fields stay — reading them is the point — and the boundary is
                 said once, at the top, in the product's own words (FR-004). */}
               {!canEdit && <PermissionState message={t('teamTaskReadOnly')} />}
-              <FormField
-                className="team-task-title-field"
-                label={t('teamTaskTitle')}
-                htmlFor="team-task-title"
-              >
-                <Input
-                  id="team-task-title"
-                  value={title}
-                  maxLength={160}
-                  required
-                  disabled={!canEdit}
-                  /* A brand-new task opens with a stand-in name; selecting it
-                   means the first thing typed replaces it instead of landing
-                   after it. */
-                  onFocus={event => {
-                    if (event.target.value === t('teamTaskUntitled')) event.target.select();
-                  }}
-                  onChange={event => {
-                    setTitle(event.target.value);
-                    if (canEdit) autosave.saveSoon({ title: event.target.value });
-                  }}
-                  onBlur={autosave.flush}
-                />
-              </FormField>
+              {/* The title and the editor's own receipt and menu share a line (024):
+                  a row above the title held one "…" and pushed the task down a line
+                  on a laptop screen. */}
+              <div className="team-task-title-row">
+                <FormField
+                  className="team-task-title-field"
+                  label={t('teamTaskTitle')}
+                  htmlFor="team-task-title"
+                >
+                  <Input
+                    id="team-task-title"
+                    value={title}
+                    maxLength={160}
+                    required
+                    disabled={!canEdit}
+                    /* A brand-new task opens with a stand-in name; selecting it
+                     means the first thing typed replaces it instead of landing
+                     after it. */
+                    onFocus={event => {
+                      if (event.target.value === t('teamTaskUntitled')) event.target.select();
+                    }}
+                    onChange={event => {
+                      setTitle(event.target.value);
+                      if (canEdit) autosave.saveSoon({ title: event.target.value });
+                    }}
+                    onBlur={autosave.flush}
+                  />
+                </FormField>
+                <div className="team-task-editor-heading">
+                  {/* Quiet when it works, loud when it does not. A save that
+                    succeeded is a receipt that fades; a save that failed keeps
+                    the words on screen and offers the retry, because the one
+                    thing worse than a spinner is silence over lost work. */}
+                  {canEdit && autosave.state === 'saving' && (
+                    <small className="team-task-saved" aria-live="polite">
+                      {t('teamTaskSaving')}
+                    </small>
+                  )}
+                  {canEdit && autosave.state === 'saved' && (
+                    <small className="team-task-saved" aria-live="polite">
+                      {t('teamTaskSaved')}
+                    </small>
+                  )}
+                  {canEdit && autosave.state === 'failed' && (
+                    <small className="team-task-save-failed" role="alert">
+                      {t('teamTaskSaveFailed')}
+                      <Button size="sm" color="error" variant="ghost" onClick={autosave.flush}>
+                        {t('teamTaskRetrySave')}
+                      </Button>
+                    </small>
+                  )}
+                  {/* Deleting lives in the editor's own menu (024, FR-088): a red
+                    button in the middle of the form was the loudest thing on a
+                    screen about a brief. It still confirms — a task cannot be
+                    given back whole, so an Undo would be a quieter lie (021, R3). */}
+                  {canEdit && onDelete && (
+                    <>
+                      <IconButton
+                        ref={editorMenuTrigger}
+                        className="team-task-editor-menu"
+                        size="sm"
+                        variant="ghost"
+                        label={t('teamTaskEditorMenu')}
+                        onClick={() => setEditorMenuOpen(true)}
+                      >
+                        <MoreHorizontal
+                          size={ICON_SIZE}
+                          strokeWidth={ICON_STROKE}
+                          aria-hidden="true"
+                        />
+                      </IconButton>
+                      <DropdownMenu
+                        open={editorMenuOpen}
+                        onClose={() => setEditorMenuOpen(false)}
+                        anchor={editorMenuTrigger}
+                        label={t('teamTaskEditorMenu')}
+                        items={[
+                          {
+                            id: 'delete',
+                            label: t('teamTaskDelete'),
+                            destructive: true,
+                            icon: (
+                              <Trash2
+                                size={ICON_SIZE}
+                                strokeWidth={ICON_STROKE}
+                                aria-hidden="true"
+                              />
+                            ),
+                            onSelect: () => setConfirmingDelete(true)
+                          }
+                        ]}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
               {/* What the task is, read across one line (024, FR-085): its state,
                 who has it, when it is for. */}
               <div className="team-task-editor-facts">
