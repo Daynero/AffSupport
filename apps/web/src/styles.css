@@ -9208,6 +9208,15 @@ button,
   background: var(--color-surface-muted);
   color: var(--color-accent);
   font-size: var(--text-body);
+  overflow: hidden;
+}
+/* The result's own picture, where the space can give one (024): a file found
+   by search used to show a category glyph while the same file in a folder
+   showed its thumbnail. */
+.team-catalog-material-glyph img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .team-catalog-material-type {
   color: var(--color-text-muted);

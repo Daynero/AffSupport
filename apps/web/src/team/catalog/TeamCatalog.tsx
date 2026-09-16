@@ -33,6 +33,7 @@ import { useCatalogSearch } from './useCatalogSearch';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { TeamTextEditor } from './TeamTextEditor';
 import { uploadTeamFile } from './material-actions-client';
+import type { ThumbnailSession } from '@video-compressor/shared';
 import { ProcessMaterialDialog } from '../processing/ProcessMaterialDialog';
 import { ActiveOperation } from '../processing/MaterialProcessFlow';
 import { ProvenancePanel } from './ProvenancePanel';
@@ -51,6 +52,14 @@ export interface TeamCatalogClient {
     patch: MaterialMetadataPatch
   ) => Promise<CatalogMaterialItem>;
   getConnectionStatus?: (teamId: string) => Promise<DriveConnectionStatus>;
+  /**
+   * The thumbnail session a result's picture needs (024, FR-090).
+   *
+   * Optional: a catalog rendered without it falls back to the kind glyph,
+   * which is what every result showed before.
+   */
+  mintThumbnailSession?: (teamId: string) => Promise<ThumbnailSession>;
+  thumbnailUrl?: (session: ThumbnailSession, materialId: string) => string;
 }
 
 export function TeamCatalog({
@@ -242,6 +251,14 @@ export function TeamCatalog({
         onClear={catalog.clearFilters}
       />
       <MaterialResults
+        thumbnails={
+          client.mintThumbnailSession && client.thumbnailUrl
+            ? {
+                mintThumbnailSession: client.mintThumbnailSession,
+                thumbnailUrl: client.thumbnailUrl
+              }
+            : undefined
+        }
         tagging={tagging}
         result={catalog.result}
         loading={catalog.loading}

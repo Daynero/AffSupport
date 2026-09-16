@@ -398,9 +398,19 @@ closing or losing anything.
       unwired in `PaneActions` so the pane does not also offer a one-press copy that guesses.
       A menu item that guesses is right where there is no room to ask; here there is room.
 - [ ] T088 [US5] Use it in search — the shell currently drops `has-pane` while searching; search
-      keeps the surface.
+      keeps the surface. **Started and set down, with the reason.** The pane is fed a
+      `TeamMaterialRow`, and a search result is a `CatalogMaterialItem` that genuinely lacks
+      three of that shape's fields — `driveFileId`, `driveVersion`, `thumbnailReady` — so a
+      conversion would have to invent them, and opening a folder from a search result would open
+      the wrong thing. `MaterialDetail` (T086) is the way through: search should render the card
+      from its own item rather than pretend to be a folder row. That also needs selection state
+      for results, which they have never had. Worth doing; too much to do sideways while the
+      pane, the shell split (T095) and the search list are all still moving.
 - [ ] T089 [US5] Use it from a task attachment and from the updater's list.
-- [ ] T090 [US5] Give search results the thumbnail, the colour tag and the share action they lack.
+- [x] T090 [US5] Give search results the thumbnail, the colour tag and the share action they lack.
+      The tag and the share had already arrived with the shared action surface (T054); the
+      picture is new. A file found by search showed a category glyph while the same file in a
+      folder showed its thumbnail, so recognising it depended on how you had looked for it.
 - [x] T091 [US5] Make opening a row consistent between list and grid, and give the row's name a
       real focusable control. One grammar in both views: a press selects, a second opens, and a
       folder opens on the first because there is no preview of a folder to wait for. The list

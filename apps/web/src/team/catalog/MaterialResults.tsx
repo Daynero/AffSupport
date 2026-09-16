@@ -12,6 +12,10 @@ import { SearchResultActions } from './SearchResultActions';
 import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
+import {
+  useThumbnailSession,
+  type ThumbnailSessionClient
+} from '../explorer/useThumbnailSession';
 import { EmptyState, ErrorState } from '../../components/ui/index';
 
 /** Matches the page size `useCatalogSearch` requests. */
@@ -24,6 +28,12 @@ const FRESHNESS_COPY: Record<CatalogSearchResponse['catalogFreshness']['state'],
   ready: 'teamCatalogFreshnessReady',
   failed: 'teamCatalogFreshnessFailed',
   unavailable: 'teamCatalogFreshnessUnavailable'
+};
+
+/** A stand-in so the hook's argument keeps its shape when nothing is supplied. */
+const EMPTY_THUMBNAILS: ThumbnailSessionClient = {
+  mintThumbnailSession: () => Promise.reject(new Error('NO_THUMBNAILS')),
+  thumbnailUrl: () => ''
 };
 
 export function MaterialResults({
@@ -46,8 +56,17 @@ export function MaterialResults({
   page,
   onPageChange,
   pathFor,
-  tagging
+  tagging,
+  thumbnails
 }: {
+  /**
+   * The picture a result was missing (024, FR-090).
+   *
+   * A file found by search showed a category glyph while the same file in a
+   * folder showed its thumbnail — so recognising it depended on how you had
+   * looked for it, which is the whole of what US5 is about.
+   */
+  thumbnails?: ThumbnailSessionClient;
   result: CatalogSearchResponse | null;
   loading: boolean;
   error: boolean;
@@ -86,6 +105,21 @@ export function MaterialResults({
    * colour the moment React re-rendered the list.
    */
   const [justTagged, setJustTagged] = useState<Record<string, TeamMaterialTagColor | null>>({});
+  /*
+   * Every result in a page belongs to the same space, so one session serves
+   * them all — and the hook caches it per team, so paging does not mint a
+   * second.
+   */
+  const teamId = result?.items[0]?.teamId ?? null;
+  const session = useThumbnailSession({
+    teamId: teamId ?? '',
+    client: thumbnails ?? EMPTY_THUMBNAILS,
+    enabled: Boolean(teamId && thumbnails)
+  });
+  const thumbnail = (material: CatalogMaterialItem): string | null =>
+    session && thumbnails && (material.category === 'image' || material.category === 'video')
+      ? thumbnails.thumbnailUrl(session, material.id)
+      : null;
   if (error)
     return <ErrorState className="team-inline-error" message={t('teamCatalogLoadFailed')} />;
   if (loading && !result) return <LabeledSkeleton label="teamCatalogLoadingResults" />;
@@ -118,7 +152,11 @@ export function MaterialResults({
               <div className="team-catalog-material-main">
                 <div className="team-catalog-material-heading">
                   <span className="team-catalog-material-glyph" aria-hidden="true">
-                    {categoryGlyph}
+                    {thumbnail(material) ? (
+                      <img src={thumbnail(material)!} alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      categoryGlyph
+                    )}
                   </span>
                   <div>
                     <strong>{material.name}</strong>
