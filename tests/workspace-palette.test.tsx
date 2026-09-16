@@ -14,7 +14,7 @@ import {
   matches
 } from '../apps/web/src/team/palette/shortcuts';
 import { translationKeys } from '../apps/web/src/i18n';
-import { rankByName } from '../apps/web/src/team/palette/usePaletteResults';
+import { isCatalogSheet, rankByName } from '../apps/web/src/team/palette/usePaletteResults';
 
 /**
  * T105 — the palette reaches every kind of thing, and the sheet cannot lie.
@@ -128,6 +128,14 @@ describe('the workspace palette', () => {
       'Db3_2_compressed_2.mp4',
       'old Db3_2 copy.mp4'
     ]);
+  });
+
+  it('tells a catalog sheet from any other spreadsheet', () => {
+    const sheet = 'application/vnd.google-apps.spreadsheet';
+    expect(isCatalogSheet('IN 40_v2_catalog', sheet)).toBe(true);
+    expect(isCatalogSheet('clip catalog (2)', sheet)).toBe(true);
+    expect(isCatalogSheet('Budget', sheet)).toBe(false);
+    expect(isCatalogSheet('IN 40_v2_catalog', 'text/plain')).toBe(false);
   });
 
   it('says what to do before anything is typed', () => {

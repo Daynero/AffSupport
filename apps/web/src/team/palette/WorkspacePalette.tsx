@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { FileText, FolderOpen, ListChecks, Search, UserRound } from 'lucide-react';
+import { ClipboardList, FileText, FolderOpen, ListChecks, Search, UserRound } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { EmptyState, Spinner } from '../../components/ui/index';
@@ -52,6 +52,8 @@ export interface PaletteResult {
     category?: MaterialCategory | null;
     sizeBytes?: number | null;
     status?: TeamTaskStatus;
+    /** A video's product catalog sheet: said as one, not as a spreadsheet file. */
+    catalog?: boolean;
   };
   run: () => void;
 }
@@ -84,6 +86,7 @@ function hintOf(
   const facts = item.facts;
   if (!facts) return null;
   if (facts.status) return taskStatusLabel(facts.status, t);
+  if (facts.catalog) return t('productCatalogSection');
   return (
     [
       facts.category ? t(CATEGORY_LABEL[facts.category]) : null,
@@ -233,7 +236,13 @@ export function WorkspacePalette({
                     onMouseEnter={() => setActive(index)}
                     onClick={() => choose(item)}
                   >
-                    {item.kind === 'material' && item.facts?.category ? (
+                    {item.facts?.catalog ? (
+                      <ClipboardList
+                        size={ICON_SIZE}
+                        strokeWidth={ICON_STROKE}
+                        aria-hidden="true"
+                      />
+                    ) : item.kind === 'material' && item.facts?.category ? (
                       <KindIcon kind={rowKindOf(item.facts.category)} />
                     ) : (
                       <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />

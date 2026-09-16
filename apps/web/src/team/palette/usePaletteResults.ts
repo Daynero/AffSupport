@@ -37,6 +37,18 @@ interface Small {
 
 const NOTHING: Small = { folders: [], tasks: [], accounts: [] };
 
+/**
+ * A product catalog sheet, as its name says: `IN 40_v2_catalog`, or `clip catalog` from before
+ * variations, with Drive's `(2)` when a name was taken. The search row carries no companion kind,
+ * and the naming rule is ours (022, 024), so the name is a reliable enough witness for a label.
+ */
+export function isCatalogSheet(name: string, mimeType: string | null | undefined): boolean {
+  return (
+    mimeType === 'application/vnd.google-apps.spreadsheet' &&
+    /(?:_v\d+_catalog| catalog)(?: \(\d+\))?$/iu.test(name)
+  );
+}
+
 function matchesTerm(value: string, term: string): boolean {
   return value.toLocaleLowerCase().includes(term);
 }
@@ -134,7 +146,11 @@ export function usePaletteResults(
               id: `material:${item.id}`,
               kind: 'material' as const,
               name: item.name,
-              facts: { category: item.category, sizeBytes: item.sizeBytes },
+              facts: {
+                category: item.category,
+                sizeBytes: item.sizeBytes,
+                catalog: isCatalogSheet(item.name, item.mimeType)
+              },
               run: () =>
                 at.current.openMaterial({
                   id: item.id,
