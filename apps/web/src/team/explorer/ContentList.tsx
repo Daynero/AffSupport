@@ -263,6 +263,15 @@ function Row({
         >
           {row.name}
         </button>
+        {/* The colour mark belongs to the file, so it follows the file's name,
+            as Finder's does (the owner, 024). Beside the size it read as part of
+            the size. */}
+        <TagDot
+          color={row.tagColor ?? null}
+          name={row.name}
+          canTag={Boolean(tagging)}
+          onChange={color => tagging?.onSetTag(row, color)}
+        />
         {/* A fact about the kind, not about this file: an icon that says it on
             hover and focus, rather than a second line under every such row. */}
         {reason && <KindNote text={t(reason)} />}
@@ -276,12 +285,6 @@ function Row({
           run across the row. */}
       <TableCell className="team-explorer-row-meta">
         {row.sizeBytes !== null && row.kind !== 'folder' ? formatSize(row.sizeBytes) : ''}
-        <TagDot
-          color={row.tagColor ?? null}
-          name={row.name}
-          canTag={Boolean(tagging)}
-          onChange={color => tagging?.onSetTag(row, color)}
-        />
       </TableCell>
       {actions && (
         <TableCell className="team-explorer-row-actions" onClick={event => event.stopPropagation()}>
