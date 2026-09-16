@@ -1122,3 +1122,14 @@ button.team-task-label-chip:hover:not(:disabled),
   outline-offset: -1px;
   box-shadow: none;
 }
+
+/* "Catalog" in words (024) came out wider than the tile could hold beside the eye and "…", which
+   then wrapped onto a line of its own. The words keep their size; the padding gives way. */
+.team-task-attachment-actions .ui-material-actions-worded {
+  gap: var(--space-1);
+  min-width: 0;
+  padding-inline: var(--space-px);
+}
+.team-task-attachment-actions.ui-material-actions {
+  gap: var(--space-px);
+}
