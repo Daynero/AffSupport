@@ -13427,10 +13427,16 @@ button.team-landing-tile:hover {
   place-items: center;
   color: var(--color-text-muted);
 }
+/* Inline, like the glyph it replaced (024). The reset makes every svg a block,
+   which is right for a picture and wrong for an icon set in a line of text: the
+   folder tree and the list's name cell put the icon on a line of its own above
+   the name. In a flex or grid parent the display is moot, so nothing else moves. */
 .team-kind-icon {
+  display: inline-block;
   width: 1em;
   height: 1em;
   flex: 0 0 auto;
+  vertical-align: -0.125em;
 }
 .team-explorer-tile-icon .team-kind-icon {
   width: 72cqmin;

@@ -108,6 +108,25 @@ This is the acceptance test of the whole feature.
 5. An invitation that was revoked says "revoked".
 6. Space history offers more than its first page.
 
+## Checkpoint 7 — the journeys (US10–US14)
+
+1. **Performer.** Open "Reveal test" on the beta. From the video attachment: make the catalog,
+   start the transcript, start a compressed copy. The task never closes; the catalog shows on the
+   tile; the transcript and the copy appear on the task when they finish, each with a toast whose
+   **Take off** detaches it.
+2. From the same task, follow "catalog settings": settings open over the task; closing returns to
+   it. "Show in folder": Files shows "← To the task"; pressing it reopens the task.
+3. **Lead.** In Files select two files → "Add to task…" → type "Reveal" → Enter. You are still in
+   Files; the toast opens the task, which now holds them. Add one again: "already there".
+4. **Editor.** At 1440 px: title, status, assignee, date, brief and the first materials row are
+   visible without scrolling; delete is in the "…" menu and Undo brings the task back. At 390 px:
+   no label wraps inside its control.
+5. **Solo.** In a one-member space: no assignee, invite or assignee filter anywhere; three tasks
+   added from the board's quick-add by typing and Enter.
+6. **At rest.** Files with nothing selected has no detail pane; the header shows the switcher,
+   the tabs, the palette trigger and the "Space" menu, and a chip only when something needs
+   saying; empty Tasks and empty Accounts each have one primary button.
+
 ## The sweep that decides "gorgeous"
 
 Walk every team screen at **390 px** and **1440 px**, in **both themes**, with reduced motion on

@@ -172,6 +172,100 @@ audit found smeared across `ExplorerShell.tsx`'s 2,231 lines. Nothing is added o
 except the four gate/doc files at the repository root, so the web-only deploy gate stays
 satisfied.
 
+## The flows pass (US10–US14)
+
+Added after the first beta walk. Everything below stays web-only: every piece of data it needs
+already reaches the browser. The two facts that make that true were checked in code, not
+assumed — a finished agent run reports the id of the material it wrote
+(`useAgentQueue.ts`, `finished.materialId`; `MaterialProcessFlow.tsx`, `outcome.materialId`), and
+`attachTaskMaterials` already answers `attached / alreadyAttached / rejected`.
+
+### F1 — The agent queue belongs to the space (FR-077, FR-078)
+
+`useAgentQueue` is called inside `ExplorerShell`, so a run exists only while Files is mounted and
+only Files can start one. It moves into `team/processing/AgentQueueProvider.tsx`, mounted by
+`WorkspaceShell` beside `LibraryProcessingProvider`; `ExplorerShell` reads it from context. This is
+T043, finally with its reason.
+
+A queue item gains `attachTo?: { taskId: string }`. When an item finishes with a material id and
+carries `attachTo`, the provider calls `attachTaskMaterials`; `alreadyAttached` is silent, a
+missing task is silent, and success raises one toast — "Added to the task" with **Take off**, which
+detaches. The single-material process dialog takes an `onFinished(materialId)` callback for the same
+purpose.
+
+### F2 — Every "Make" action on a task attachment (FR-076, FR-081)
+
+`TaskAttachmentTile` wires the handlers it lacks: `transcribe` (queue, with `attachTo`),
+`process` (`MaterialProcessFlow` over the task, `onFinished` attaches), `copyText` and `editText`
+for transcripts. The registry's standalone `compress` has no handler anywhere and duplicates
+`process`'s compressor tool; it is deleted, and `process` becomes the one entry (FR-041).
+
+Inline on a tile: **2** actions plus "…" (open and the kind's primary make — catalog for a video),
+not 4 — the tile is a card in a grid, and five icons on a card is the chaos this pass removes.
+
+### F3 — Settings over the surface that needs them (FR-079)
+
+The editor's two settings links (re-stitch, catalog) stop calling `onClose()` + `navigateTo` into
+Files. They push the current address with `settings=1&tab=…`; since T106 the dialog rides over any
+section, the `task` parameter stays, and the editor stays mounted under it.
+
+### F4 — The way back from "Show in folder" (FR-080)
+
+The reveal writes `back=<taskId>` into the Files address. Files' toolbar shows a return chip
+("← To the task") while `back` is present; pressing it goes to `/tasks?task=<id>`. Any other Files
+navigation drops `back`.
+
+### F5 — Download that the browser cannot take (FR-082)
+
+The tile's own download (a copy of the grant logic) is replaced by the shared download handler
+the explorer host already uses, which maps the grant's refusal to words and offers the local app.
+
+### F6 — Add to task (FR-083, FR-084)
+
+A registry action `addToTask` (group **place**) and a `team/tasks/AddToTaskDialog.tsx`: a search
+field over the space's tasks (the board's own `listTasks`), most recently changed first, Enter to
+add. Wired in Files rows and tiles, the detail pane, search results and the selection bar. It never
+navigates; the toast names the task and opens it.
+
+### F7 — The editor as a brief (FR-085 – FR-088)
+
+- `.team-task-editor` becomes an inline-size container; the two-column grid is a **container
+  query** at 820 px, so the dialog's width decides, not the window's. The dialog grows to `xl`.
+- Left column: title, one facts row (status · assignee · date), the brief (`field-sizing:
+content`, min 3 rows), one compact progress row (slider + maximum). Right column: materials first,
+  then accounts, then tags.
+- `TaskStatusControl` renders its segmented form and a `Select`; a container query shows one.
+  No label wraps (`white-space: nowrap`), which is also what makes the switch necessary.
+- The heading's generic "Task details" gives way to the save state and an editor menu ("…") that
+  holds Delete. Delete closes the editor and raises a toast with Undo, which re-creates the task
+  with its fields and attachments; the board's bulk delete already follows that model.
+- The attachments hint paragraph becomes the drop zone's own text.
+
+### F8 — Solo (FR-089, FR-090)
+
+`solo = members.length <= 1`, from the member list the editor and the board already load, and
+updated by the realtime member refresh. Assignee select, invite button and the assignee filter
+render nothing while solo. The board heading gains a quick-add field; its Enter creates a task with
+that title and does not open the editor.
+
+### F9 — Calm at rest (FR-091 – FR-097)
+
+- Files: `has-pane` only with a selection.
+- Board and Accounts: the heading's primary action is hidden while the empty state carries it;
+  Accounts hides its toolbar with zero accounts.
+- Rows and tiles lose `ShareButton` (the "…" has share and copy link); the "opens in Google Drive"
+  line becomes an icon with a tooltip; folder tiles drop the "Folder" caption and shrink.
+- Header: the eyebrow goes; Trash, the updater's idle link, Settings and Shortcuts move into one
+  "Space" `DropdownMenu`; a palette trigger (search icon, `⌘K` in its tooltip) sits beside it; the
+  storage chip renders only for non-healthy states, the updater chip only while running.
+- Members: one heading; a member row keeps Edit and moves Remove and Transfer into "…".
+- Detail pane: `transcribe` is not wired in `PaneActions` while `VideoTextActions` is shown.
+- A test (`tests/workspace-at-rest.test.tsx`) renders the empty board, empty accounts, Files at
+  rest and the header, and asserts one primary and no duplicated accessible name per surface.
+
+The accounts row and the updater row densities listed in the spec's table are carried by the
+already-planned T116–T131, which gain the concrete targets.
+
 ## Complexity Tracking
 
 | Violation                                                                                                                                       | Why needed                                                                                                                                                                                                                                      | Simpler alternative rejected because                                                                                                                                                                                                                                                                                                                          |

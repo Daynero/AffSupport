@@ -330,8 +330,242 @@ per surface, no state told by colour alone, and no empty state that is only a se
 
 ---
 
+---
+
+## The work, walked by the people who do it
+
+_Added after the first beta walk (2026-09-16). The stories above say what each screen must be;
+this part says what a person is trying to get done, counts the moves it takes today, and sets
+the number it must take. It was written from the code and from the running beta, not from
+memory — every "today" below was observed._
+
+There are three people in a space, and often they are the same person:
+
+- **The lead** creates tasks: picks the material, says what is wanted, hands it to someone.
+- **The performer** opens a task, does the work on its materials, and hands back a result.
+- **The solo buyer** is both, for themselves — and pays for every piece of team ceremony that
+  assumes two people.
+
+The tools exist for one reason: to turn a video into things a campaign needs — a catalog, a
+transcript, a smaller copy, a re-stitched copy, a landing — fast, and to keep track of which of
+them are done. Every screen is judged by that.
+
+### Journey A — the performer turns an attached video into its deliverables
+
+| Step                                  | Today (observed)                                                                                | Target                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Make the catalog                      | From the attachment's menu, over the task. Works.                                               | Same, one labelled action on the attachment        |
+| Transcribe it                         | Not offered on a task. Close the task, find the video in Files, transcribe, reopen the task.    | One action on the attachment; the task stays open  |
+| Compress / process it                 | Not offered on a task (`compress` has no handler anywhere; `process` only in Files and search). | One action on the attachment; the task stays open  |
+| Put the result on the task            | Nothing does. Reopen the task → attach picker → search for the file that was just made.         | Automatic; the result appears under its source     |
+| Settings missing (catalog, re-stitch) | The link closes the task and opens settings in Files.                                           | Settings open over the task; closing returns to it |
+| Look at the file in its folder        | "Show in folder" closes the task; Back reopens it.                                              | Files opens with a visible way back to this task   |
+| A transcript attached to the task     | Cannot be copied or edited from the task.                                                       | Copy text and edit text on the attachment          |
+| A download that needs the local app   | Generic "action failed".                                                                        | Says so, and offers the local app's download       |
+
+**Moves to take a video to catalog + transcript + compressed copy, all on the task:** today at
+least 14 with three section changes; target **3 actions, zero section changes**.
+
+### Journey B — the lead hands work over
+
+| Step                                        | Today (observed)                                                                                        | Target                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| New task from a file in Files               | "Create task" switches to Tasks and opens the editor. Works.                                            | Same                                                                            |
+| Add a file in Files to an **existing** task | Not possible from Files. Go to Tasks, open the task, attach picker, find the file.                      | "Add to task…" on the file and on the selection; stays in Files; toast opens it |
+| Write the brief                             | Title, then status, assignee, a maximum, a slider, then a 12-row description; materials below the fold. | Title and brief first, materials in view, the numbers compact                   |
+| Delete a task                               | A red button in the middle of the form.                                                                 | In the editor's own menu, with Undo                                             |
+
+### Journey C — the solo buyer
+
+| Step                     | Today (observed)                                                            | Target                                                                            |
+| ------------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Capture a to-do          | "Create task" makes an "Untitled" task and opens a full editor.             | Type the title in the board and press Enter; open it only if there is more to say |
+| Assignee, invite prompts | Always shown: "Not assigned", "Invite someone", assignee filter.            | Absent while the space has one member; they appear with the second                |
+| Leave an owned space     | Told to transfer ownership to "a member in the list above" — a list of one. | Told to invite someone first (fixed in this pass)                                 |
+
+### Journey D — finding and acting, anywhere
+
+| Step                                   | Today (observed)                                                                                    | Target                                                             |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Browse a folder with nothing selected  | A third of the width is a card saying "choose a file to see it here"; the list cuts its own column. | The list takes the width; the detail pane appears with a selection |
+| Read the folder tree                   | Every folder icon on a line of its own above its name (fixed in this pass).                         | One line per folder                                                |
+| Read the header over the hexagon field | Links with no ground vanish over a lit cell (fixed in this pass).                                   | Everything in the header on its own ground                         |
+| Open the trash from Tasks              | Drawn under the board; its back button dead (fixed in this pass).                                   | The trash stands in for the section and returns to it              |
+
+---
+
+### User Story 10 - The performer's loop closes inside the task (Priority: P1)
+
+Every deliverable the product can make from a video can be made from that video's attachment on
+a task, over the task, and what is made comes back onto the task on its own.
+
+**Why this priority**: It is the owner's example taken to its end. Making the catalog from the
+task was the first half; the second half is that nothing made from a task's video should need
+finding again.
+
+**Independent Test**: On a task with a video, make its catalog, start its transcript and its
+compressed copy from the attachment, and — without closing the task — see all three appear on
+the task under the video.
+
+**Acceptance Scenarios**:
+
+1. **Given** a video attached to a task, **When** its actions are opened, **Then** "Make" offers
+   the catalog, the transcript and processing (compress and the other tools), each running over
+   the task.
+2. **Given** a transcript or a processed copy started from a task's attachment, **When** it
+   finishes, **Then** the output is attached to that task automatically, shown under its source,
+   and a toast says so with a way to take it off.
+3. **Given** a catalog made from a task's attachment, **When** it exists, **Then** the attachment
+   shows it as a companion with Open and Copy link.
+4. **Given** missing catalog or re-stitch settings, **When** the fix is followed from inside the
+   task, **Then** the settings open over the task and closing them returns to the task.
+5. **Given** "Show in folder" from a task, **When** Files opens, **Then** a return chip names the
+   task and goes back to it in one press.
+6. **Given** a transcript attached to a task, **When** its actions are opened, **Then** Copy text
+   and Edit text are there.
+7. **Given** a download that the browser cannot take, **When** it is pressed, **Then** the reason
+   is said in words, and the local app's download is offered where it is available.
+
+---
+
+### User Story 11 - The lead hands work over in one motion (Priority: P1)
+
+A lead working in Files can put a file — or everything selected — onto an existing task without
+leaving Files, and a new task opens as a brief rather than a form.
+
+**Why this priority**: Handing over is the other half of every task. Today the only way to add a
+file to an existing task starts somewhere else.
+
+**Independent Test**: Select three files in Files, add them to an existing task, stay in Files,
+and open that task from the toast.
+
+**Acceptance Scenarios**:
+
+1. **Given** a file or a selection in Files or search, **When** "Add to task…" is chosen,
+   **Then** a picker lists tasks by name with search, most recent first, and adding keeps you
+   where you are.
+2. **Given** the add succeeded, **When** the toast shows, **Then** it names the task and opens it
+   on press.
+3. **Given** a file already on that task, **When** it is added again, **Then** the toast says it
+   was already there rather than failing.
+
+---
+
+### User Story 12 - A task reads as a brief, not a form (Priority: P1)
+
+The editor puts first what a task is for: its title and its brief, then the materials it is about.
+Numbers, dates and people sit in one compact line; the destructive action is in a menu; nothing
+wraps into letters.
+
+**Why this priority**: The beta walk found the editor squeezed: the status control broken into
+vertical letters, two columns crammed into a dialog too narrow for them, the materials heading
+wrapping mid-word, a red delete button in the middle of the form, and the materials below a
+twelve-row text box.
+
+**Independent Test**: Open a task at 1440 px and at 390 px, in both themes; read title, status,
+assignee, date, brief and materials without scrolling at 1440 px, and find no control whose text
+wraps inside itself.
+
+**Acceptance Scenarios**:
+
+1. **Given** the editor on a wide screen, **When** it opens, **Then** the brief is on the left and
+   the work — materials, accounts, tags — is on the right, each column wide enough for its content.
+2. **Given** the editor narrower than both columns need, **When** it opens, **Then** it is one
+   column with materials directly after the brief — decided by the editor's own width, not the
+   window's.
+3. **Given** the status control, **When** it has less room than its labels need, **Then** it
+   becomes a select, and never breaks a word.
+4. **Given** the brief, **When** it is short, **Then** the field is short, and it grows as it is
+   written.
+5. **Given** the maximum and the progress, **When** they are shown, **Then** they are one compact
+   row.
+6. **Given** deleting a task, **When** it is wanted, **Then** it is in the editor's menu and
+   offers Undo.
+
+---
+
+### User Story 13 - Solo is not a smaller team (Priority: P2)
+
+A space with one member shows no team ceremony, and a to-do is captured by typing its title.
+
+**Why this priority**: The solo buyer is the most common person in the product today and pays for
+every control that assumes a second one.
+
+**Independent Test**: In a one-member space, add three tasks from the board by typing and pressing
+Enter, open one, and find no assignee, invite or assignee-filter control anywhere.
+
+**Acceptance Scenarios**:
+
+1. **Given** a one-member space, **When** the board and the editor are shown, **Then** the
+   assignee control, the invite prompt and the assignee filter are absent.
+2. **Given** a second member joins, **When** the board is shown, **Then** they appear, without a
+   reload.
+3. **Given** the board, **When** a title is typed into its quick-add field and Enter pressed,
+   **Then** the task is created in place and focus stays in the field for the next one.
+
+---
+
+### User Story 14 - Calm at rest (Priority: P1)
+
+A screen at rest shows what it is for. Detail appears with a selection, secondary information on
+request, and a state with nothing in it shows one invitation instead of empty controls.
+
+**Why this priority**: It is the owner's "no chaos" asked of every screen, and the beta walk found
+it broken in the places people spend the most time.
+
+**Independent Test**: Open Files with nothing selected, Accounts with no accounts, and the header
+over a lit hexagon; count primary buttons, empty controls and unreadable text — all zero.
+
+**Acceptance Scenarios**:
+
+1. **Given** Files with nothing selected, **When** it is shown, **Then** there is no detail pane,
+   and the listing takes its width; selecting a file brings the pane in.
+2. **Given** any section with no data at all, **When** it is shown, **Then** its toolbar filters
+   and zero counts are not, and exactly one primary action invites the first item.
+3. **Given** a row, **When** it carries a secondary fact ("opens in Google Drive"), **Then** the
+   fact is an icon with its text on hover and focus, not a second line under the row.
+4. **Given** folder tiles in the grid, **When** they are shown, **Then** they are compact and do
+   not repeat "Folder" under a folder icon.
+5. **Given** anything drawn over the hexagon field, **When** it is read, **Then** it sits on its
+   own ground.
+6. **Given** the header, **When** nothing needs attention, **Then** it shows the space, the
+   sections and one "Space" menu (trash, catalog updater, settings, shortcuts) beside a visible
+   search trigger for the palette — and a status chip appears only when storage, the updater, a
+   batch or the connection has something to say.
+7. **Given** any one screen, **When** the same action is reachable twice on it (share beside
+   "…", transcribe as a button and in the menu, a heading repeated by its only child), **Then**
+   one of the two is gone.
+
+#### What each screen shows at rest
+
+Measured by a read of every surface (counts assume an owner, a ready space, a wide window).
+"At rest" is what is on screen before anything is selected, hovered or opened.
+
+| Surface          | Today at rest                                                                                      | At rest after                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Header           | eyebrow repeating the title, storage chip, three links, four tabs; wraps                           | space switcher, four tabs, palette trigger, "Space" menu; chips only when they report something                     |
+| Files toolbar    | Search, Add files, Process — three equal secondaries, no primary; view toggle icon-only            | Add files primary; Search and Process quieter; view toggle labelled in its tooltip                                  |
+| Files row / tile | ~10 elements, a Share icon beside a "…" that also shares, "opens in Google Drive" on a second line | name, kind icon, size, date, tag dot, "…" — the Drive note as an icon; folders compact, no "Folder" caption         |
+| Files pane       | a third of the width saying "choose a file"                                                        | absent until a selection                                                                                            |
+| Board            | ~13 controls above the cards; active filters stated three times; icon-only progress toggle         | quick-add, search, one Filters button whose chips are the only statement of what is active; status as one segmented |
+| Board, empty     | two primary "Create task" buttons                                                                  | one                                                                                                                 |
+| Task editor      | ~17 controls; delete mid-form; hint paragraph; icon-only save-default; 5 icons per attachment tile | brief, compact numbers line, materials in view; delete in the menu; 2 inline actions + "…" per tile                 |
+| Accounts, empty  | two primary "Add account" buttons over zero-count filters                                          | one invitation, no filters                                                                                          |
+| Accounts row     | 12+ controls, captions "Balance / Top-up" on every row under a "Money" header                      | identity, state, run, money, one primary action, "…"; captions once, in the header                                  |
+| Members          | "Members" heading twice; three bordered buttons per member                                         | one heading; Edit + "…" (remove, transfer)                                                                          |
+| Detail pane      | 4 inline icons + "…" + a second Transcribe button                                                  | one transcribe, companions with their own actions, 3 inline + "…"                                                   |
+| Updater          | 4 icon buttons per row; four facts per meta line; three notes in the footer                        | "…" per row; two facts; notes behind one hint                                                                       |
+
+---
+
 ### Edge Cases
 
+- **A result lands after the task was closed.** It is still attached: the link between a run and
+  its task belongs to the space's queue, not to the editor that started it.
+- **A result lands after its task was deleted.** It stays where it was written and nothing is
+  attached; no error is raised for a task nobody can see.
+- **The same run is attached twice** (a reload during finalize). Attaching is idempotent; the
+  second attempt reports "already attached" silently.
 - **A material that cannot take an action here.** Rather than a disabled item, the action is
   absent when the object can never take it (a folder cannot be catalogued) and present with a
   one-line reason when the situation is temporary (Drive disconnected, agent not running, no
@@ -549,6 +783,61 @@ per surface, no state told by colour alone, and no empty state that is only a se
 - **FR-075**: CSS that a migrated screen no longer uses MUST be deleted in the same change that
   migrates it.
 
+### Functional Requirements — the performer's loop (US10)
+
+- **FR-076**: A task attachment MUST offer every "Make" action that applies to its material —
+  product catalog, transcript, process (compress and the other tools) — and each MUST run over
+  the task without closing it.
+- **FR-077**: The local agent's queue MUST belong to the space, not to Files, so a run started
+  from a task survives the task closing and a section change.
+- **FR-078**: A run started from a task's attachment MUST carry that task, and on completion its
+  output material MUST be attached to the task — idempotently, silently on "already attached",
+  and not at all if the task is gone — with a toast offering to take it off.
+- **FR-079**: The settings a "Make" action needs MUST open over the surface it was started from,
+  and closing them MUST return there.
+- **FR-080**: "Show in folder" from a task MUST leave a return affordance in Files naming the task.
+- **FR-081**: A transcript attachment MUST offer Copy text and Edit text.
+- **FR-082**: A download refused to the browser MUST say why in words and, where the local app can
+  take it, offer that.
+
+### Functional Requirements — handing over (US11)
+
+- **FR-083**: "Add to task…" MUST exist for a material and for a selection, in Files and in
+  search, and MUST NOT change section.
+- **FR-084**: The task picker MUST search by name, list the most recently changed first, and
+  report "already attached" as information, not as failure.
+
+### Functional Requirements — the editor as a brief (US12)
+
+- **FR-085**: The editor MUST lay out by its own width: two columns (brief | work) when both fit,
+  one column with materials straight after the brief when they do not.
+- **FR-086**: No control's label MUST wrap inside the control; a segmented control without room
+  MUST become a select.
+- **FR-087**: The brief field MUST size to its content.
+- **FR-088**: Deleting a task MUST live in the editor's menu and MUST offer Undo.
+
+### Functional Requirements — solo (US13)
+
+- **FR-089**: While a space has one member, assignee controls, invite prompts and the assignee
+  filter MUST be absent, and MUST appear live when a second member arrives.
+- **FR-090**: The board MUST offer a quick-add field that creates a task from its title on Enter
+  and keeps focus for the next.
+
+### Functional Requirements — calm at rest (US14)
+
+- **FR-091**: Files MUST NOT reserve space for the detail pane while nothing is selected.
+- **FR-092**: A section with no data MUST show its empty state alone — no filters, no zero counts,
+  one primary action.
+- **FR-093**: The same action MUST NOT be reachable twice from one screen at rest.
+- **FR-094**: The header MUST show status chips only while they report something that is not the
+  healthy default, and MUST collect the space's utilities in one menu beside a visible palette
+  trigger.
+- **FR-095**: A secondary fact about a row MUST be an icon with its words on hover and focus, not
+  a second line.
+- **FR-096**: A caption that repeats a column header or a heading MUST be removed.
+- **FR-097**: A destructive or rarely used row action MUST live in the row's menu, not as a
+  bordered button on every row.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,
@@ -599,6 +888,15 @@ per surface, no state told by colour alone, and no empty state that is only a se
 - **SC-013**: First-load download weight is measured and the change is **stated and justified**,
   with the CSS removed counted against the library added.
 - **SC-014**: Every gate in the one verification command passes on all three operating systems.
+- **SC-015**: Taking a task's video to catalog + transcript + processed copy, all attached to the
+  task, takes **3 actions and zero section changes** (today: 14+ moves, three section changes).
+- **SC-016**: Adding a file in Files to an existing task takes **2 actions** and leaves you in Files
+  (today: impossible from Files).
+- **SC-017**: A solo space shows **zero** assignee or invite controls on the board and the editor.
+- **SC-018**: Every surface in the "at rest" table carries **at most one primary action** and **no
+  action reachable twice**, checked by a test over the rendered surfaces.
+- **SC-019**: At 1440 px the editor shows title, status, assignee, date, brief and the first row of
+  materials **without scrolling**; at 390 px **no control label wraps inside its control**.
 
 ---
 

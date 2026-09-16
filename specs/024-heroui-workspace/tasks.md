@@ -20,7 +20,7 @@ against the matching checkpoint in [quickstart.md](./quickstart.md).
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: can run in parallel (different files, no dependency on an unfinished task)
-- **[Story]**: US1–US9 from the spec; setup and foundational tasks carry none
+- **[Story]**: US1–US14 from the spec; setup and foundational tasks carry none
 
 ---
 
@@ -206,7 +206,7 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
 **Independent Test**: create a product catalog from a video attached to a task, without the task
 closing or losing anything.
 
-- [ ] T043 [US1] Lift the compression queue out of `apps/web/src/team/explorer/ExplorerShell.tsx`
+- [x] T043 [US1] **Superseded by T149**, which does the lift with its reason (US10). Lift the compression queue out of `apps/web/src/team/explorer/ExplorerShell.tsx`
       into `apps/web/src/team/processing/CompressionProvider.tsx`, mounted at the space level in
       `apps/web/src/team/workspace/WorkspaceShell.tsx` beside `LibraryProcessingProvider`,
       keeping pause / hold / stop-after-current / stop-now and the active-operation tracking.
@@ -558,11 +558,130 @@ closing or losing anything.
 
 ---
 
+## Phase 9A: User Story 10 — the performer's loop closes inside the task (Priority: P1)
+
+**Goal**: everything the product makes from a video can be made from its attachment on a task,
+and what is made comes back onto the task. Plan F1–F5.
+
+**Independent Test**: on a task with a video, make its catalog, start its transcript and its
+processed copy from the attachment, and see all three on the task without it closing.
+
+- [ ] T149 [US10] Create `apps/web/src/team/processing/AgentQueueProvider.tsx` that calls
+      `useAgentQueue` once for the space; mount it in `WorkspaceShell.tsx` inside
+      `LibraryProcessingProvider`; make `ExplorerShell.tsx` read the queue from context instead of
+      calling the hook. Supersedes T043.
+- [ ] T150 [US10] Add `attachTo?: { taskId: string }` to `AgentQueueItem` and to
+      `enqueueTranscriptions`; on a finished item with a material id, attach it through
+      `attachTaskMaterials` — silent on `alreadyAttached` and on a missing task, one toast with
+      **Take off** (detach) on success.
+- [ ] T151 [US10] Give `MaterialProcessFlow` an `onFinished(materialId)` prop, called from the
+      outcome that already carries `outcome.materialId`.
+- [ ] T152 [US10] Delete the registry's standalone `compress` action (no handler anywhere; the
+      compressor is a tool of `process`) and its strings; update the registry tests.
+- [ ] T153 [US10] Wire `transcribe`, `process`, `copyText` and `editText` in
+      `TaskAttachmentTile.tsx` / `TaskEditor.tsx`: transcribe enqueues with `attachTo`; process
+      opens `MaterialProcessFlow` nested over the task with `onFinished` attaching; transcripts
+      get copy and edit. Nothing closes the editor. The catalog dialog is given `onCreated` /
+      `onChanged`, so the attachment's companions refresh and the new catalog shows on the tile
+      with Open and Copy link (US10 scenario 3) — today the tile never hears about it.
+- [ ] T154 [US10] Cap a task attachment tile at **2** inline actions plus "…" (a `maxInline`
+      option on `useMaterialActionList`), so a card in a grid carries open and its primary make.
+- [ ] T155 [US10] Re-stitch and catalog settings links in the editor open settings over the task
+      (`settings=1&tab=restitch|product-catalog`, `task` kept) instead of closing it for Files.
+- [ ] T156 [US10] "Show in folder" from a task writes `back=<taskId>`; `routes.ts` carries
+      `back` on explorer addresses; Files' toolbar shows a return chip while it is present; any
+      other Files navigation drops it.
+- [ ] T157 [US10] Route the tile's download through the shared download handler the explorer
+      host uses, so a refusal is said in words and the local app is offered where it can take it.
+- [ ] T158 [P] [US10] Tests: `tests/task-attachment-make.test.tsx` — the video tile offers
+      catalog, transcript and process; a finished queue item with `attachTo` attaches once and
+      toasts; `alreadyAttached` is silent; settings open with `task` still in the address;
+      `back` round-trips in `tests/team-routes.test.ts`.
+
+**Checkpoint**: Journey A in the spec, end to end on the beta.
+
+---
+
+## Phase 9B: User Story 11 — the lead hands work over in one motion (Priority: P1)
+
+- [ ] T159 [US11] Write `apps/web/src/team/tasks/AddToTaskDialog.tsx`: a search field over the
+      space's tasks, most recently changed first, keyboard-first (arrows, Enter), attaching the
+      given material ids and reporting attached / already there / rejected in one toast that
+      names the task and opens it.
+- [ ] T160 [US11] Add the registry action `addToTask` (group **place**) for materials and wire it
+      in Files rows and tiles, the detail pane and search results; add it to the selection bar.
+      It never changes section.
+- [ ] T161 [P] [US11] Test: `tests/add-to-task.test.tsx` — search narrows, Enter attaches the
+      selection, "already attached" is information, and the address does not change.
+
+---
+
+## Phase 9C: User Story 12 — a task reads as a brief (Priority: P1)
+
+- [ ] T162 [US12] Make `.team-task-editor` an inline-size container and lay it out by container
+      query: two columns (brief | work) at ≥ 820 px, one column below; the dialog grows to `xl`.
+- [ ] T163 [US12] Reorder the editor: title; one facts row (status · assignee · date); the brief
+      with `field-sizing: content` and a three-row minimum; one compact progress row (slider +
+      maximum + save-as-default with a label); right column materials → accounts → tags.
+- [ ] T164 [US12] `TaskStatusControl`: segmented form and `Select` form, one shown by container
+      query; labels never wrap.
+- [ ] T165 [US12] Replace the "Task details" heading with the save state and an editor menu
+      holding Delete; deleting closes the editor and offers Undo that re-creates the task with its
+      fields and attachments. Remove the mid-form delete button.
+- [ ] T166 [US12] Fold the attachments hint paragraph into the drop zone's own text.
+- [ ] T167 [P] [US12] Test: `tests/task-editor-layout.test.tsx` — order of sections, no Delete
+      button outside the menu, Undo re-creates, the status select exists for narrow containers.
+
+---
+
+## Phase 9D: User Story 14 — calm at rest (Priority: P1)
+
+- [ ] T168 [US14] Files: `has-pane` and the pane only while something is selected.
+- [ ] T169 [US14] Rows and tiles: remove `ShareButton`; the "opens in Google Drive" note becomes
+      an icon with a tooltip; folder tiles drop the "Folder" caption and take a compact size.
+- [ ] T170 [US14] Header: remove the eyebrow; one "Space" `DropdownMenu` (trash, catalog
+      updater, settings, shortcuts); a palette trigger with `⌘K` in its tooltip; storage chip
+      only for non-healthy states; updater chip only while running.
+- [ ] T171 [US14] Board and Accounts: hide the heading's primary action while the empty state
+      carries it; Accounts hides its toolbar at zero accounts; the board's filter count badge goes
+      (the chips state what is active); the progress toggle gets a visible label.
+- [ ] T172 [US14] Members: one heading (drop `MembersSection`'s duplicate); a member row keeps
+      Edit and moves Remove and Transfer into a "…" menu.
+- [ ] T173 [US14] Detail pane: do not wire `transcribe` in `PaneActions` while `VideoTextActions`
+      is shown.
+- [ ] T174 [P] [US14] Test: `tests/workspace-at-rest.test.tsx` — the empty board, empty accounts,
+      Files at rest and the header each have at most one primary action and no two controls with
+      the same accessible name.
+
+---
+
+## Phase 9E: User Story 13 — solo is not a smaller team (Priority: P2)
+
+- [ ] T175 [US13] `solo = members.length <= 1` from the loaded member list; hide the assignee
+      select, the invite button and the assignee filter while solo; they appear live with a
+      second member.
+- [ ] T176 [US13] Board quick-add: a field in the board heading; Enter creates a task with that
+      title, does not open the editor, clears, keeps focus.
+- [ ] T177 [P] [US13] Test: `tests/task-solo.test.tsx` — no assignee/invite controls with one
+      member, present with two; quick-add creates three tasks by typing.
+
+---
+
+## Phase 9F: Walk it
+
+- [ ] T178 Walk journeys A–D on the beta at 1440 px and 390 px in both themes; fix what does not
+      read or does not work; record each fix in `findings.md`.
+
+---
+
 ## Phase 10: User Story 8 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the
       inventory's `Table` at its dense size, keeping the sticky header and the foldable money
       column, and ensuring no cell leaves its column when a group folds.
+      **Target from the at-rest table (US14):** an agent row carries identity, state, run, money,
+      one primary action and "…"; Copy ID and run edit/delete go into the menu; "Balance / Top-up"
+      captions appear once, in the column header; the account head's rename/delete go into "…".
 - [ ] T117 [US8] Delete the hand-rolled `AgentMenu` and its module-level "one menu open" global;
       row actions come from the shared menu.
 - [ ] T118 [US8] Put `apps/web/src/team/accounts/AgentMoney.tsx` on `InputNumber`, with one money
@@ -598,6 +717,8 @@ closing or losing anything.
 - [ ] T131 Put `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` on the inventory —
       `SearchField`, `Checkbox` with a real `indeterminate` prop, `ToggleButtonGroup` for the
       intervals, `NumberField` for the custom hours, and the shared row actions.
+      **Target from the at-rest table (US14):** "…" per row instead of four icon buttons; two facts
+      on the meta line; the footer's three notes behind one hint.
 - [ ] T132 Link the updater to a catalog's video and back, which nothing does today.
 - [ ] T133 Put `apps/web/src/team/product-catalog/CreateProductCatalogDialog.tsx` on `FormField`
       and `Input`, and give `ProductCatalogMenuDialog.tsx` a loading state instead of rendering
