@@ -41,6 +41,32 @@ function matchesTerm(value: string, term: string): boolean {
   return value.toLocaleLowerCase().includes(term);
 }
 
+/**
+ * Closest first, the way Raycast and Linear order a jump list: the name that *is* the query (its
+ * extension aside), then names that start with it, then words that do, then the rest — shorter
+ * before longer inside each. "Db3_2" listed `Db3_2_compressed_2.mp4` above `Db3_2.mp4`.
+ */
+export function rankByName<T>(items: readonly T[], term: string, nameOf: (item: T) => string): T[] {
+  const score = (name: string) => {
+    const lower = name.toLocaleLowerCase();
+    const stem = lower.replace(/\.[^.]+$/u, '');
+    if (lower === term || stem === term) return 0;
+    if (lower.startsWith(term)) return 1;
+    if (
+      new RegExp(`(^|[\\s_\\-.])${term.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u').test(lower)
+    ) {
+      return 2;
+    }
+    return 3;
+  };
+  return items
+    .map((item, index) => ({ item, index, name: nameOf(item) }))
+    .sort(
+      (a, b) => score(a.name) - score(b.name) || a.name.length - b.name.length || a.index - b.index
+    )
+    .map(entry => entry.item);
+}
+
 export function usePaletteResults(
   query: string,
   sources: PaletteSources
@@ -104,7 +130,7 @@ export function usePaletteResults(
           // A late answer to a question nobody is asking any more.
           if (token !== latest.current) return;
           setRemote(
-            found.items.map(item => ({
+            rankByName(found.items, term, item => item.name).map(item => ({
               id: `material:${item.id}`,
               kind: 'material' as const,
               name: item.name,
@@ -131,8 +157,11 @@ export function usePaletteResults(
   if (term === '') return { results: [], loading: false };
 
   const local: PaletteResult[] = [
-    ...small.folders
-      .filter(folder => matchesTerm(folder.name, term))
+    ...rankByName(
+      small.folders.filter(folder => matchesTerm(folder.name, term)),
+      term,
+      folder => folder.name
+    )
       .slice(0, PER_GROUP)
       .map(folder => ({
         id: `folder:${folder.id}`,
@@ -140,8 +169,13 @@ export function usePaletteResults(
         name: folder.name,
         run: () => at.current.openFolder(folder.driveFileId)
       })),
-    ...small.tasks
-      .filter(task => matchesTerm(task.title, term) || matchesTerm(task.note ?? '', term))
+    ...rankByName(
+      small.tasks.filter(
+        task => matchesTerm(task.title, term) || matchesTerm(task.note ?? '', term)
+      ),
+      term,
+      task => task.title
+    )
       .slice(0, PER_GROUP)
       .map(task => ({
         id: `task:${task.id}`,
@@ -150,8 +184,11 @@ export function usePaletteResults(
         facts: { status: task.status },
         run: () => at.current.openTask(task.id)
       })),
-    ...small.accounts
-      .filter(account => matchesTerm(account.name, term))
+    ...rankByName(
+      small.accounts.filter(account => matchesTerm(account.name, term)),
+      term,
+      account => account.name
+    )
       .slice(0, PER_GROUP)
       .map(account => ({
         id: `account:${account.id}`,

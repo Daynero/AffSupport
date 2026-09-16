@@ -14,6 +14,7 @@ import {
   matches
 } from '../apps/web/src/team/palette/shortcuts';
 import { translationKeys } from '../apps/web/src/i18n';
+import { rankByName } from '../apps/web/src/team/palette/usePaletteResults';
 
 /**
  * T105 — the palette reaches every kind of thing, and the sheet cannot lie.
@@ -117,6 +118,16 @@ describe('the workspace palette', () => {
     await user.keyboard('{ArrowUp}{ArrowUp}');
     const last = screen.getAllByRole('option').at(-1)!;
     expect(last.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('puts the closest name first', () => {
+    const names = ['Db3_2_compressed_2.mp4', 'old Db3_2 copy.mp4', 'Db3_2.mp4', 'Db3_2_v1_catalog'];
+    expect(rankByName(names, 'db3_2', name => name)).toEqual([
+      'Db3_2.mp4',
+      'Db3_2_v1_catalog',
+      'Db3_2_compressed_2.mp4',
+      'old Db3_2 copy.mp4'
+    ]);
   });
 
   it('says what to do before anything is typed', () => {
