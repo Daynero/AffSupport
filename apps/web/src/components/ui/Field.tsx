@@ -328,7 +328,17 @@ export function Select({
       <HeroSelect.Popover className="ui-select-popover">
         <ListBox className="ui-select-list">
           {rows.map(option => (
-            <ListBoxItem key={option.value} id={option.value} className="ui-select-option">
+            <ListBoxItem
+              key={option.value}
+              id={option.value}
+              className="ui-select-option"
+              /* The trigger reads the chosen row's text from here. HeroUI's item
+                 wraps its children, so React Aria cannot derive it, and every
+                 select holding a value showed an empty trigger (024). */
+              textValue={
+                typeof option.label === 'string' ? option.label : (option.title ?? option.value)
+              }
+            >
               {option.label}
             </ListBoxItem>
           ))}

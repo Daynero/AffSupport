@@ -9482,13 +9482,9 @@ button,
   .team-catalog-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .team-space-shell-header,
   .team-space-settings-header {
     align-items: stretch;
     flex-direction: column;
-  }
-  .team-space-shell-utilities {
-    justify-content: flex-start;
   }
 }
 
@@ -9520,7 +9516,6 @@ button,
     grid-template-columns: minmax(0, 1fr);
   }
   .team-space-lobby-header .soty-button,
-  .team-space-shell-utilities .soty-button,
   .team-space-settings-header .soty-button,
   .team-create-actions .soty-button,
   .team-create-actions .ui-button,
@@ -9529,7 +9524,6 @@ button,
   .team-material-action-buttons .soty-button {
     width: 100%;
   }
-  .team-space-shell-utilities,
   .team-create-actions,
   .team-dialog-actions,
   .team-material-action-buttons {
@@ -10038,8 +10032,10 @@ body {
     display: none;
   }
   .team-task-status-adaptive > .team-task-status-select {
-    display: inline-flex;
-    min-width: 11rem;
+    /* The library's own flex column; inline-flex collapsed the value to nothing. */
+    display: flex;
+    flex: 1 1 11rem;
+    min-width: 0;
   }
 }
 /* The brief is as tall as what is written in it. */
@@ -17395,5 +17391,21 @@ input[type='number'] {
   flex: 0 0 auto;
   color: var(--color-text-muted);
   font-size: var(--text-caption);
+}
+
+/* On a phone the header keeps one line (024, US14): the space's name, then its
+   two doors. Stacked full-width, "Find" and "Space" took the first screen's
+   height for two rarely pressed buttons. The chord is for keyboards. */
+@media (max-width: 560px) {
+  .team-space-shell-header {
+    align-items: center;
+  }
+  .team-space-shell-find kbd {
+    display: none;
+  }
+  .team-explorer-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--space-2);
+  }
 }
 
