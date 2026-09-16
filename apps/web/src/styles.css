@@ -17423,8 +17423,9 @@ input[type='number'] {
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
 }
-.team-updater-interval-custom input {
+.team-updater-interval-custom .time-input {
   width: 3.5rem;
+  height: 30px;
 }
 .team-updater-bulk {
   display: flex;

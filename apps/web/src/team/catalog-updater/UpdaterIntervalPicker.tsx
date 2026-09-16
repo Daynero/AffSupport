@@ -104,6 +104,7 @@ export function UpdaterIntervalPicker({
           <label htmlFor={hoursId}>{t('catalogUpdaterEvery')}</label>
           <input
             id={hoursId}
+            className="time-input"
             type="text"
             inputMode="numeric"
             placeholder="6"
