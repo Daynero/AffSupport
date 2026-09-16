@@ -267,6 +267,28 @@
     background-color var(--motion-fast) var(--ease-out-curve),
     color var(--motion-fast) var(--ease-out-curve);
 }
+/*
+ * The glyph at the size it was drawn for (the owner, 024: "every icon is tiny,
+ * you have to aim"). The library's button shrinks any svg inside a small button
+ * to its own 1rem — 12px on this type scale — whatever size the icon asked
+ * for, so a 20px lucide glyph sat in the middle of an empty 30px plate. The
+ * plate is the target; the glyph is what the eye aims at. Both grew.
+ */
+.ui-icon-button svg:not([data-slot='spinner'] svg) {
+  /* The base `max-width: 100%` measured the glyph against the plate's grid
+     track, which the library narrows — so a 20px icon drew 14px wide. */
+  max-width: none;
+  width: 20px;
+  height: 20px;
+}
+.ui-icon-button--xs svg:not([data-slot='spinner'] svg) {
+  width: 16px;
+  height: 16px;
+}
+.ui-icon-button--sm svg:not([data-slot='spinner'] svg) {
+  width: 18px;
+  height: 18px;
+}
 .ui-icon-button--xs {
   width: var(--control-height-xs);
   height: var(--control-height-xs);
