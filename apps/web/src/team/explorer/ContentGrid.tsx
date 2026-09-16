@@ -17,7 +17,6 @@ import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { ShareButton } from './ShareButton';
 import { useExplorer } from './ExplorerProvider';
-import { sortRows, DEFAULT_SORT, type ExplorerSort } from './sort';
 import { TagDot } from './TagDot';
 import type { TaggingProps } from './ContentList';
 import type { FolderPageClient, FolderPageState } from './useFolderPage';
@@ -50,18 +49,31 @@ const RENDER_LABEL: Record<NonNullable<TeamMaterialRow['landingRender']>['state'
 export function ContentGrid({
   client,
   page,
+  rows = page.rows,
   onPreview,
   actions,
-  sort,
   tagging,
   emptyAction
 }: {
   client: ContentGridClient;
   /** The folder's rows, held by the shell so one listing serves everything. */
   page: FolderPageState;
+  /**
+   * The rows to draw, already in order (024).
+   *
+   * The shell sorts once — it has to, because the arrow keys walk the list in
+   * the order the reader sees — and this used to sort the same array again on
+   * every render with the same comparator. Two sorts that agreed by accident:
+   * the day they stopped agreeing, Down would have moved to a different row
+   * from the one below.
+   *
+   * Defaults to the page's own rows so this view can still be rendered on its
+   * own — by a test, or by a surface that has no sort of its own — without
+   * having to know what order the shell would have put them in.
+   */
+  rows?: readonly TeamMaterialRow[];
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
-  sort?: ExplorerSort;
   /** Present only for the space's owner (011). */
   tagging?: TaggingProps;
   /**
@@ -81,7 +93,6 @@ export function ContentGrid({
    * name-clash check — read the shell's copy, which stopped at the first
    * hundred rows and never grew.
    */
-  const rows = sortRows(page.rows, sort ?? DEFAULT_SORT);
   const session = useThumbnailSession({ teamId, client });
   const landingIds = useMemo(
     () =>
@@ -250,13 +261,9 @@ function Tile({
         className="team-explorer-tile-visual"
         aria-label={t('teamExplorerOpenNamed', { name: row.name })}
         /*
-         * One press chooses a file, two open it — as a folder of files behaves
-         * everywhere else. Opening on the first press meant the panel beside
-         * the grid never had anything to show: it said "choose a file" while
-         * the player was already covering the screen, and three hundred and
-         * forty pixels of the layout did nothing in this view. A folder still
-         * opens on the first press: there is no preview of a folder to wait
-         * for.
+         * One press chooses a file, two open it; a folder opens on the first,
+         * because there is no preview of a folder to wait for. The list says
+         * the same thing in the same words — it did not, before 024.
          */
         onClick={event => {
           event.stopPropagation();

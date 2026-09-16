@@ -1721,7 +1721,7 @@ function ExplorerBody({
                 page={page}
                 onPreview={onPreview}
                 actions={actions}
-                sort={sort}
+                rows={sortedRows}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
               />
@@ -1730,7 +1730,7 @@ function ExplorerBody({
                 page={page}
                 onPreview={onPreview}
                 actions={actions}
-                sort={sort}
+                rows={sortedRows}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
               />

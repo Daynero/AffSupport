@@ -401,13 +401,25 @@ closing or losing anything.
       keeps the surface.
 - [ ] T089 [US5] Use it from a task attachment and from the updater's list.
 - [ ] T090 [US5] Give search results the thumbnail, the colour tag and the share action they lack.
-- [ ] T091 [US5] Make opening a row consistent between list and grid, and give the row's name a
-      real focusable control.
-- [ ] T092 [US5] Make the two selections visually distinct, and always state how much of the
-      checked set is out of view.
+- [x] T091 [US5] Make opening a row consistent between list and grid, and give the row's name a
+      real focusable control. One grammar in both views: a press selects, a second opens, and a
+      folder opens on the first because there is no preview of a folder to wait for. The list
+      needed two presses for a folder and the grid one — the same gesture meaning different
+      things depending on which view you were in. The name is a control again, text-sized rather
+      than the width of the cell: what 021 removed was a strip that swallowed every press aimed
+      at the row, and what it removed with it was the only thing a keyboard could land on.
+- [x] T092 [US5] Make the two selections visually distinct. Selected is where you are — one row,
+      outlined; checked is what the next action reaches — any number, filled. Both were drawn as
+      an accent outline, so a grid of forty checked tiles looked like forty cursors, and a
+      checked row in the list looked like nothing at all until you found its tick. The
+      out-of-view count was already there and already honest: it counts against the rows the
+      shell holds, not the rows on screen.
 - [ ] T093 [US5] Unify process / compress / transcript scope into one dialog that asks for the
       scope — this file, this folder, the selection, the whole space — instead of three doors.
-- [ ] T094 [US5] Remove the duplicated sort: the shell sorts, the views do not.
+- [x] T094 [US5] Remove the duplicated sort: the shell sorts, the views do not. Both sorted the
+      same array with the same comparator on every render — two sorts that agreed by accident,
+      and the day they stopped agreeing Down would have moved to a different row from the one
+      below. The views still default to the page's own rows so either can be rendered alone.
 - [ ] T095 [US5] Split `apps/web/src/team/explorer/ExplorerShell.tsx` so that no file in the team
       tree holds upload, clipboard, queue, restitch, tags, keyboard and view state at once.
 - [ ] T096 [US5] Make a 500-row folder usable without repeated manual paging (FR-044) — windowing

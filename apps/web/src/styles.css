@@ -12910,6 +12910,32 @@ button.team-landing-tile:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/*
+ * The name is a control again, and looks like the name (024).
+ *
+ * Text-sized rather than cell-sized, unstyled apart from the focus ring: what
+ * 021 removed was a highlighted strip the width of the column that swallowed
+ * every press aimed at the row. What it removed with it was the only thing in
+ * the row a keyboard could land on.
+ */
+.team-explorer-row-open {
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-explorer-row-open:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 .team-explorer-row-kind,
 .team-explorer-row-date,
 .team-explorer-row-meta {
@@ -13326,6 +13352,22 @@ button.team-landing-tile:hover {
 .team-explorer-tile.is-selected {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 1px var(--color-accent);
+}
+/*
+ * Checked is not selected (024).
+ *
+ * Selected is where you are: one thing, outlined. Checked is what the next
+ * action will reach: any number of things, filled. Drawing both as an outline
+ * in the accent colour made a grid of forty checked tiles look like forty
+ * cursors, and a checked row in the list looked like nothing at all.
+ */
+.team-explorer-tile.is-checked,
+.team-explorer-row.is-checked {
+  background: var(--color-accent-softer);
+}
+.team-explorer-tile.is-checked.is-selected,
+.team-explorer-row.is-checked[aria-selected='true'] {
+  background: var(--color-accent-soft);
 }
 /* A folder has no picture to show, so it does not need a picture's worth of
    height: full-size preview boxes full of the same glyph made a folder list

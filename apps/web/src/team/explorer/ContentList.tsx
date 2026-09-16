@@ -18,7 +18,6 @@ import { useI18n } from '../../i18n';
 import { formatDate, formatSize } from '../../format';
 import { DRAG_TYPE, KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { useExplorer } from './ExplorerProvider';
-import { sortRows, DEFAULT_SORT, type ExplorerSort } from './sort';
 import type { FolderPageState } from './useFolderPage';
 import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
@@ -38,18 +37,31 @@ export interface TaggingProps {
  */
 export function ContentList({
   page,
+  rows = page.rows,
   onPreview,
   actions,
-  sort,
   tagging,
   emptyAction
 }: {
   /** The folder's rows, held by the shell so one listing serves everything. */
   page: FolderPageState;
+  /**
+   * The rows to draw, already in order (024).
+   *
+   * The shell sorts once — it has to, because the arrow keys walk the list in
+   * the order the reader sees — and this used to sort the same array again on
+   * every render with the same comparator. Two sorts that agreed by accident:
+   * the day they stopped agreeing, Down would have moved to a different row
+   * from the one below.
+   *
+   * Defaults to the page's own rows so this view can still be rendered on its
+   * own — by a test, or by a surface that has no sort of its own — without
+   * having to know what order the shell would have put them in.
+   */
+  rows?: readonly TeamMaterialRow[];
   onPreview?: (material: TeamMaterialSummary) => void;
   /** Per-row file actions; absent when the member may do nothing (011, FR-025). */
   actions?: RowActionsProps;
-  sort?: ExplorerSort;
   /** Present only for the space's owner (011). */
   tagging?: TaggingProps;
   /**
@@ -69,7 +81,6 @@ export function ContentList({
    * name-clash check — read the shell's copy, which stopped at the first
    * hundred rows and never grew.
    */
-  const rows = sortRows(page.rows, sort ?? DEFAULT_SORT);
 
   return (
     <section className="team-explorer-content" aria-labelledby="team-explorer-content-title">
@@ -183,7 +194,15 @@ function Row({
   const previewable = PREVIEWABLE_KINDS.has(row.kind);
   return (
     <TableRow
-      className={`team-explorer-row is-${row.kind}`}
+      /*
+       * Two states, said two ways (024, FR-092). `selected` is where you are —
+       * one row, the one the pane is describing and the arrows move from.
+       * `is-checked` is what you are about to act on, which can be forty rows
+       * and most of them off screen. The list said the second one only on the
+       * tick box, so a checked row you had scrolled past looked exactly like a
+       * row nobody had touched.
+       */
+      className={`team-explorer-row is-${row.kind}${checked ? ' is-checked' : ''}`}
       data-material-id={row.id}
       selected={selected}
       interactive
@@ -200,10 +219,26 @@ function Row({
        * opening asks for the second press. Enter does it from the keyboard
        * (the shell's own handler), which is why nothing here is focusable.
        */
-      onClick={() => onSelect(row.id)}
-      onDoubleClick={() => {
+      /*
+       * One grammar, in both views (024, FR-091).
+       *
+       * A press selects; a second press opens; a folder opens on the first,
+       * because there is no preview of a folder to wait for and nothing to
+       * choose it *for*. The grid already worked this way and the list did
+       * not — a folder there needed two presses — so the same gesture meant
+       * different things depending on which view you happened to be in.
+       *
+       * The name used to be a button the width of the cell, which is why
+       * selecting meant finding the gap beside it. It is a control again, but
+       * text-sized: something the keyboard can reach and the eye can see the
+       * focus on, rather than a strip that swallows every press that misses.
+       */
+      onClick={() => {
+        onSelect(row.id);
         if (row.kind === 'folder') onOpenFolder(row.driveFileId);
-        else if (previewable) onPreview?.(previewSummary(row));
+      }}
+      onDoubleClick={() => {
+        if (row.kind !== 'folder' && previewable) onPreview?.(previewSummary(row));
       }}
     >
       <TableCell className="team-explorer-row-check">
@@ -222,7 +257,19 @@ function Row({
         </label>
       </TableCell>
       <TableCell className="team-explorer-row-name">
-        <KindIcon kind={row.kind} /> {row.name}
+        <KindIcon kind={row.kind} />{' '}
+        <button
+          type="button"
+          className="team-explorer-row-open"
+          onClick={event => {
+            event.stopPropagation();
+            onSelect(row.id);
+            if (row.kind === 'folder') onOpenFolder(row.driveFileId);
+            else if (previewable) onPreview?.(previewSummary(row));
+          }}
+        >
+          {row.name}
+        </button>
       </TableCell>
       <TableCell className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</TableCell>
       <TableCell className="team-explorer-row-date">

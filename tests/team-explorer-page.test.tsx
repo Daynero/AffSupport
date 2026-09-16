@@ -133,13 +133,32 @@ describe('selecting and opening a row', () => {
     );
     await waitFor(() => expect(fileRows()).toHaveLength(2));
 
-    // The name is a label, not a target: nothing in the row opens on one press.
-    await user.click(screen.getByText('clip.png'));
+    // One press on the row selects it and opens nothing.
+    await user.click(fileRows()[1]!);
     expect(onPreview).not.toHaveBeenCalled();
     expect(fileRows()[1]!.getAttribute('aria-selected')).toBe('true');
-
-    await user.dblClick(screen.getByText('clip.png'));
+    await user.dblClick(fileRows()[1]!);
     expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ name: 'clip.png' }));
+
+    /*
+     * The name is a control again (024, FR-091), text-sized rather than the
+     * width of the cell — something the keyboard can reach and the focus ring
+     * can land on, which the row had nothing of. Pressing it opens, because
+     * somebody who aims at the name means the file.
+     */
+    onPreview.mockClear();
+    await user.click(screen.getByRole('button', { name: 'clip.png' }));
+    expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ name: 'clip.png' }));
+
+    // A folder opens on the first press in both views: there is no preview of
+    // a folder to wait for, and the grid already behaved this way.
+    await user.click(fileRows()[0]!);
+    await waitFor(() =>
+      expect(listFolderPage).toHaveBeenCalledWith(
+        TEAM,
+        expect.objectContaining({ parentFolderId: 'drive-nested' })
+      )
+    );
   });
 });
 
