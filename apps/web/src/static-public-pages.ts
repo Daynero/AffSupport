@@ -50,7 +50,7 @@ export function staticPublicPages(indexHtml: string, supportEmail: string): Stat
   if (!SUPPORT_EMAIL_PATTERN.test(supportEmail)) {
     throw new Error('static-public-pages: the support email is not configured');
   }
-  const homepage = `<noscript><main><h1>Soty</h1><p>Free local tools for media buyers, and team spaces that work with a Google Drive folder the owner picks.</p>${LEGAL_LINKS}</main></noscript>`;
+  const homepage = `<noscript><main><h1>Soty</h1><p>Free local tools for media buyers, and spaces that keep your work in a Google Drive folder you pick, alone or with people you invite.</p>${LEGAL_LINKS}</main></noscript>`;
   return [
     { fileName: 'index.html', html: withBody(indexHtml, homepage) },
     {
