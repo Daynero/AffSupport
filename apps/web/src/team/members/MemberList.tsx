@@ -270,7 +270,7 @@ export function MemberList({
   );
 }
 
-function MemberRowMenu({
+export function MemberRowMenu({
   label,
   items
 }: {

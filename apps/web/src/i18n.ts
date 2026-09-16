@@ -1170,6 +1170,11 @@ const en = {
   teamInvitationFailed: 'Delivery failed',
   teamInvitationResend: 'Resend',
   teamInvitationRevoke: 'Revoke',
+  teamInvitationRevoked: 'Revoked',
+  teamInvitationAccepted: 'Accepted',
+  teamInvitationDeclined: 'Declined',
+  teamInvitationExpired: 'Expired',
+  teamInvitationActionsFor: 'More for {email}',
   teamInvitationLinkTitle: 'Invitation link',
   teamInvitationLinkHint:
     'This environment does not send invitation mail. Copy this link and give it to the person yourself.',
@@ -3809,6 +3814,11 @@ const uk: Record<keyof typeof en, string> = {
   teamInvitationFailed: 'Помилка доставки',
   teamInvitationResend: 'Надіслати знову',
   teamInvitationRevoke: 'Відкликати',
+  teamInvitationRevoked: 'Відкликано',
+  teamInvitationAccepted: 'Прийнято',
+  teamInvitationDeclined: 'Відхилено',
+  teamInvitationExpired: 'Прострочено',
+  teamInvitationActionsFor: 'Ще для {email}',
   teamInvitationLinkTitle: 'Посилання-запрошення',
   teamInvitationLinkHint:
     'Це середовище не надсилає листи із запрошеннями. Скопіюйте посилання й передайте людині самостійно.',

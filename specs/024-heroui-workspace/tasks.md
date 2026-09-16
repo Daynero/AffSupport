@@ -695,7 +695,7 @@ processed copy from the attachment, and see all three on the task without it clo
 - [ ] T123 [US8] Link a task's agent chip back to that agent in Accounts.
 - [ ] T124 [US8] Put members, permissions, ownership transfer and invitations on the inventory —
       `Table`, `Select`, `Checkbox`, `FormField` — replacing the raw selects and checkbox grids.
-- [ ] T125 [US8] Make an invitation state its own state in words and offer only the actions that
+- [x] T125 [US8] (benchmark round 8: pending/accepted/declined/revoked/expired each a word; resend and revoke in one menu only while pending) Make an invitation state its own state in words and offer only the actions that
       state allows.
 - [ ] T126 [US8] Page the space history, which today stops at fifty with no way to ask for more.
 - [ ] T127 [US8] Put the settings panels on the inventory —
@@ -715,10 +715,10 @@ processed copy from the attachment, and see all three on the task without it clo
 ## Phase 11: The catalog updater and the remaining surfaces
 
 - [ ] T131 (rows and schedule done in benchmark round 3; the dialog's own controls onto the inventory still open) Put `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` on the inventory —
-  `SearchField`, `Checkbox` with a real `indeterminate` prop, `ToggleButtonGroup` for the
-  intervals, `NumberField` for the custom hours, and the shared row actions.
-  **Target from the at-rest table (US14):** "…" per row instead of four icon buttons; two facts
-  on the meta line; the footer's three notes behind one hint.
+      `SearchField`, `Checkbox` with a real `indeterminate` prop, `ToggleButtonGroup` for the
+      intervals, `NumberField` for the custom hours, and the shared row actions.
+      **Target from the at-rest table (US14):** "…" per row instead of four icon buttons; two facts
+      on the meta line; the footer's three notes behind one hint.
 - [ ] T132 Link the updater to a catalog's video and back, which nothing does today.
 - [ ] T133 Put `apps/web/src/team/product-catalog/CreateProductCatalogDialog.tsx` on `FormField`
       and `Input`, and give `ProductCatalogMenuDialog.tsx` a loading state instead of rendering

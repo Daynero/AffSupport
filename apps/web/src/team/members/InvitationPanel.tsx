@@ -8,6 +8,7 @@ import { teamErrorMessageFor } from '../errors';
 import { Button } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { MemberRowMenu } from './MemberList';
 
 export interface InvitationPanelClient {
   listInvitations: (teamId: string) => Promise<TeamInvitationSummary[]>;
@@ -229,36 +230,66 @@ export function InvitationPanel({
       <ul className="team-invitation-list">
         {invitations.map(invitation => (
           <li key={invitation.id}>
-            <span>{invitation.targetEmail}</span>
+            {/* Email, its state in one word, and one menu (024, benchmarked on
+                Linear's member invitations): the row used to carry a coloured
+                badge and two bordered buttons, and the second wrapped onto a line
+                of its own. A revoked, accepted or expired invitation says so and
+                offers nothing (FR-063). */}
+            <span className="team-invitation-email">{invitation.targetEmail}</span>
             <span
-              className={`team-delivery-state is-${invitation.deliveryState} ui-color-${
-                invitation.deliveryState === 'sent'
-                  ? 'success'
-                  : invitation.deliveryState === 'failed'
-                    ? 'error'
-                    : 'neutral'
+              className={`team-delivery-state is-${
+                invitation.state === 'pending' ? invitation.deliveryState : invitation.state
+              } ui-color-${
+                invitation.state !== 'pending'
+                  ? 'neutral'
+                  : invitation.deliveryState === 'sent'
+                    ? 'success'
+                    : invitation.deliveryState === 'failed'
+                      ? 'error'
+                      : 'neutral'
               }`}
             >
-              {invitation.deliveryState === 'sent'
-                ? t('teamInvitationSent')
-                : invitation.deliveryState === 'failed'
-                  ? t('teamInvitationFailed')
-                  : t('teamInvitationPending')}
+              {invitation.state === 'revoked'
+                ? t('teamInvitationRevoked')
+                : invitation.state === 'declined'
+                  ? t('teamInvitationDeclined')
+                  : invitation.state === 'accepted'
+                    ? t('teamInvitationAccepted')
+                    : invitation.state === 'expired'
+                      ? t('teamInvitationExpired')
+                      : invitation.deliveryState === 'sent'
+                        ? t('teamInvitationSent')
+                        : invitation.deliveryState === 'failed'
+                          ? t('teamInvitationFailed')
+                          : t('teamInvitationPending')}
             </span>
-            {invitation.state === 'pending' && client.resendInvitation && (
-              <Button type="button" variant="secondary" onClick={() => void resend(invitation.id)}>
-                {t('teamInvitationResend')}
-              </Button>
-            )}
-            {invitation.state === 'pending' && client.revokeInvitation && (
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => setConfirmingRevoke(invitation.id)}
-              >
-                {t('teamInvitationRevoke')}
-              </Button>
-            )}
+            {invitation.state === 'pending' &&
+              (client.resendInvitation || client.revokeInvitation) && (
+                <MemberRowMenu
+                  label={t('teamInvitationActionsFor', { email: invitation.targetEmail })}
+                  items={[
+                    ...(client.resendInvitation
+                      ? [
+                          {
+                            id: 'resend',
+                            label: t('teamInvitationResend'),
+                            onSelect: () => void resend(invitation.id)
+                          }
+                        ]
+                      : []),
+                    ...(client.revokeInvitation
+                      ? [
+                          {
+                            id: 'revoke',
+                            label: t('teamInvitationRevoke'),
+                            destructive: true,
+                            onSelect: () => setConfirmingRevoke(invitation.id)
+                          }
+                        ]
+                      : [])
+                  ]}
+                />
+              )}
           </li>
         ))}
       </ul>
