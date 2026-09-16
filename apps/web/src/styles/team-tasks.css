@@ -1133,3 +1133,88 @@ button.team-task-label-chip:hover:not(:disabled),
 .team-task-attachment-actions.ui-material-actions {
   gap: var(--space-px);
 }
+
+/*
+ * What is behind a count, on the count (024): small tiles in a popover — an
+ * agent's tasks, a task's attachments — each opening its thing, some with a ×.
+ */
+.team-hover-peek {
+  display: inline-flex;
+}
+.team-hover-peek-surface {
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(360px, 60vh);
+  overflow: auto;
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+}
+.team-peek-empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+}
+.team-peek-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-peek-tile {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.team-peek-tile:hover {
+  border-color: var(--color-accent);
+}
+.team-peek-tile-open {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.team-peek-tile-status {
+  display: inline-flex;
+}
+.team-peek-tile-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.team-peek-tile-remove {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}
+.team-peek-tile-thumb {
+  display: grid;
+  aspect-ratio: 16 / 10;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+.team-peek-tile-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.team-peek-empty.is-loading {
+  min-height: 120px;
+}
+.team-peek-tile-status svg {
+  width: 16px;
+  height: 16px;
+}

@@ -48,6 +48,8 @@ import { teamErrorMessageFor } from '../errors';
 import { Marked } from './Marked';
 import { AgentLabels } from './AgentLabels';
 import { AgentMoney } from './AgentMoney';
+import { AgentTasksPeek } from './AgentTasksPeek';
+import { useTeam } from '../TeamContext';
 import { runCountKey, taskCountKey } from './plural';
 import { Popover } from '../../components/ui/index';
 
@@ -363,6 +365,7 @@ export function AgentRow({
 }) {
   const { t, language } = useI18n();
   const { push } = useToasts();
+  const { activeTeam } = useTeam();
   const titleId = useId();
   /**
    * The "…" the menu hangs from. The delete dialog returns focus here by hand:
@@ -452,15 +455,22 @@ export function AgentRow({
    * delete mark and pressed them.
    */
   const tasksLink =
-    agent.taskCount > 0 ? (
-      <a
-        className="team-agent-tasks-link"
-        href={tasksHref}
-        title={t('teamAgentTasksLinkTitle')}
-        onClick={event => internalLink(event, tasksHref)}
-      >
-        {t(taskCountKey(language, agent.taskCount), { count: agent.taskCount })}
-      </a>
+    agent.taskCount > 0 && activeTeam ? (
+      <AgentTasksPeek
+        teamId={activeTeam.id}
+        agentRowId={agent.id}
+        agentLabel={tag}
+        canEdit={canEdit}
+        trigger={
+          <a
+            className="team-agent-tasks-link"
+            href={tasksHref}
+            onClick={event => internalLink(event, tasksHref)}
+          >
+            {t(taskCountKey(language, agent.taskCount), { count: agent.taskCount })}
+          </a>
+        }
+      />
     ) : null;
 
   /*
