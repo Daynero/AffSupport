@@ -726,55 +726,141 @@
   border-color: var(--color-error-solid);
 }
 
+/* Select.
+
+   A listbox with a trigger, not a native `<select>`: the value is a slot that
+   can hold an icon beside a word, the list is a surface this product draws, and
+   the keyboard is React Aria's. The hidden native select the library keeps
+   underneath is what makes a form still post. */
 .ui-select {
   position: relative;
   display: inline-flex;
   align-items: center;
   width: 100%;
 }
-.ui-select select {
+.ui-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   width: 100%;
   min-width: 0;
-  padding: 0 var(--space-6) 0 var(--space-3);
+  padding: 0 var(--space-2) 0 var(--space-3);
   border: 1px solid var(--color-neutral-border-strong);
   border-radius: var(--radius-sm);
   background: var(--color-neutral-surface);
   color: var(--color-neutral-text);
-  appearance: none;
   cursor: pointer;
+  text-align: start;
 }
-.ui-select--xs select {
+.ui-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-select--xs .ui-select-trigger {
   min-height: var(--control-height-xs);
   font-size: var(--text-micro);
 }
-.ui-select--sm select {
+.ui-select--sm .ui-select-trigger {
   min-height: var(--control-height-sm);
   font-size: var(--text-caption);
 }
-.ui-select--md select {
+.ui-select--md .ui-select-trigger {
   min-height: var(--control-height-md);
   font-size: var(--text-label);
 }
-.ui-select--lg select {
+.ui-select--lg .ui-select-trigger {
   min-height: var(--control-height-lg);
   font-size: var(--text-body);
 }
-.ui-select select:focus {
+.ui-select-trigger[data-focus-visible='true'] {
   border-color: var(--color-secondary-solid);
-  outline: none;
-  box-shadow: 0 0 0 3px var(--color-secondary-softer);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.ui-select.is-invalid .ui-select-trigger {
+  border-color: var(--color-error-border);
+}
+.ui-select.is-disabled .ui-select-trigger {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 .ui-select-chevron {
-  position: absolute;
-  right: var(--space-2);
   display: grid;
   place-items: center;
   color: var(--color-neutral-text-muted);
   pointer-events: none;
 }
-.ui-select-chevron svg {
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
+.ui-select-popover {
+  z-index: var(--layer-anchored);
+  padding: var(--space-1);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-raised);
+  box-shadow: var(--shadow-menu);
+}
+.ui-select-list {
+  display: grid;
+  gap: var(--space-px);
+  max-height: 44vh;
+  overflow: auto;
+  outline: none;
+}
+.ui-select-option {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  cursor: pointer;
+  outline: none;
+}
+.ui-select-option[data-focused='true'],
+.ui-select-option[data-hovered='true'] {
+  background: var(--color-neutral-surface-subtle);
+}
+.ui-select-option[data-selected='true'] {
+  background: var(--color-secondary-softer);
+  color: var(--color-secondary-text);
+}
+
+/* Search field. One box, one magnifier, one clear — the product had five. */
+.ui-search-field {
+  display: inline-flex;
+  width: 100%;
+}
+.ui-search-field-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text-muted);
+}
+.ui-search-field-group input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  border: 0;
+  background: none;
+  color: var(--color-neutral-text);
+  outline: none;
+}
+.ui-search-field--sm .ui-search-field-group input {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-caption);
+}
+.ui-search-field-group:has(input:focus-visible) {
+  border-color: var(--color-secondary-solid);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.ui-search-field[data-empty='true'] .ui-search-field-group button {
+  visibility: hidden;
 }
 
 .ui-input-tags {
@@ -1387,7 +1473,8 @@
 .ui-menu-item:hover:not(:disabled) {
   background: var(--color-neutral-surface-muted);
 }
-.ui-menu-item:disabled {
+.ui-menu-item:disabled,
+.ui-menu-item[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.5;
 }
@@ -1418,7 +1505,8 @@
   line-height: var(--leading-caption);
   white-space: normal;
 }
-.ui-menu-item:disabled .ui-menu-note {
+.ui-menu-item:disabled .ui-menu-note,
+.ui-menu-item[aria-disabled='true'] .ui-menu-note {
   color: var(--color-warning-text);
 }
 .ui-menu-trailing {
@@ -2182,4 +2270,44 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-px);
+}
+
+/* Number field. The group carries the border; the plates sit inside it, so a
+   stepper press cannot look like a separate control from the value it moves. */
+.ui-input-number-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-px);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+}
+.ui-input-number-group input {
+  width: 96px;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-neutral-text);
+  text-align: center;
+  outline: none;
+}
+.ui-input-number--sm .ui-input-number-group input {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-caption);
+}
+.ui-input-number-group:has(input:focus-visible) {
+  border-color: var(--color-secondary-solid);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.ui-input-number.is-invalid .ui-input-number-group {
+  border-color: var(--color-error-border);
+}
+
+/* The wrapper a slider grows only when its keyboard step differs from its drag
+   step. Transparent to layout: it is there to catch keys, not to take room. */
+.ui-slider-keys {
+  display: contents;
 }

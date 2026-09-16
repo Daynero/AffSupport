@@ -245,7 +245,10 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     order: 3,
     labelKey: 'materialActionShowInFolder',
     icon: FolderOpen,
-    inlinePriority: 60,
+    // Above the download: on a task or in a search result, "where does this
+    // live" is asked far more often than "give me the bytes", and it is the
+    // action the owner asked for by name.
+    inlinePriority: 68,
     // Pointless where you already are; everywhere else it is the way back to
     // the file's home — and it no longer closes the surface asking for it.
     applies: (material, context) => !inExplorer(context) && !material.draft,
@@ -501,3 +504,22 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
 export const MATERIAL_ACTION_BY_ID = new Map<MaterialActionId, MaterialAction>(
   MATERIAL_ACTIONS.map(action => [action.id, action])
 );
+
+/**
+ * The space a surface is acting inside, found by id rather than by what is
+ * "active".
+ *
+ * A tile, a row and a search result are each about one space, and they are
+ * given its id. Reading the *active* space instead happens to be the same thing
+ * in the product — there is only ever one open — and is not the same thing at
+ * all in a test that renders the component on its own, where nothing has been
+ * entered and the permissions come back null. A control that silently believes
+ * it may do nothing is the hardest kind of bug to see.
+ */
+export function spaceOf<T extends { id: string }>(
+  teams: readonly T[],
+  activeTeam: T | null,
+  teamId: string
+): T | null {
+  return teams.find(team => team.id === teamId) ?? activeTeam;
+}

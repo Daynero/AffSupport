@@ -1,15 +1,28 @@
+import { ChevronDown, Search, X } from 'lucide-react';
+import { ListBox } from '@heroui/react/list-box';
+import { ListBoxItem } from '@heroui/react/list-box-item';
+import { NumberField } from '@heroui/react/number-field';
+import { SearchField as HeroSearchField } from '@heroui/react/search-field';
+import { Select as HeroSelect } from '@heroui/react/select';
 import {
   forwardRef,
   useId,
   type InputHTMLAttributes,
   type ReactNode,
-  type SelectHTMLAttributes,
   type TextareaHTMLAttributes
 } from 'react';
 import { uiClasses, type UiSize } from './types';
 
 /**
- * Form controls (021, T018, T020).
+ * Form controls (021 T018/T020, on HeroUI in 024).
+ *
+ * `Input` and `Textarea` stay a real `<input>` and a real `<textarea>`: a
+ * native text field is the best text field there is — it carries the platform's
+ * spellcheck, its autofill, its undo stack and its mobile keyboards, and the
+ * library wraps one for exactly the same reason. What moved are the controls
+ * where the native element is the weak part: a `<select>` that cannot be styled
+ * or hold anything but text, a number field with no steppers, and a search box
+ * every screen had re-invented with its own clear button.
  *
  * `docs/DESIGN.md` already fixed most of this and the screens drifted from it
  * anyway: the unit belongs *outside* the field's border as muted text, a custom
@@ -142,54 +155,87 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   );
 });
 
-export interface InputNumberProps extends Omit<InputProps, 'type'> {
+export interface InputNumberProps {
   /** Draws − and + plates beside the field, as the money column does. */
   steppers?: boolean;
-  onStep?: (direction: 1 | -1) => void;
+  value?: number;
+  defaultValue?: number;
+  onChange?: (value: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  size?: UiSize;
+  invalid?: boolean;
+  disabled?: boolean;
+  placeholder?: string;
   stepUpLabel?: string;
   stepDownLabel?: string;
+  className?: string;
+  id?: string;
+  name?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
 }
 
-export const InputNumber = forwardRef<HTMLInputElement, InputNumberProps>(function InputNumber(
-  { steppers = false, onStep, stepUpLabel, stepDownLabel, className, ...props },
-  ref
-) {
-  if (!steppers) {
-    return (
-      <Input
-        ref={ref}
-        type="number"
-        inputMode="numeric"
-        width="narrow"
-        className={className}
-        {...props}
-      />
-    );
-  }
+/**
+ * A number, with the arithmetic the browser never did.
+ *
+ * A native `type="number"` accepts "1e5" and "--3", clamps nothing, and steps
+ * by whatever the spinner decides. This one holds the value, clamps it to its
+ * bounds, steps by the amount it was given, and takes the arrow keys and
+ * PageUp/PageDown as well as the plates.
+ */
+export function InputNumber({
+  steppers = false,
+  value,
+  defaultValue,
+  onChange,
+  min,
+  max,
+  step,
+  size = 'md',
+  invalid = false,
+  disabled,
+  placeholder,
+  stepUpLabel,
+  stepDownLabel,
+  className,
+  ...props
+}: InputNumberProps) {
   return (
-    <span className={uiClasses('input-number', { className })}>
-      <button
-        type="button"
-        className="ui-input-step"
-        aria-label={stepDownLabel ?? '−'}
-        disabled={props.disabled}
-        onClick={() => onStep?.(-1)}
-      >
-        −
-      </button>
-      <Input ref={ref} type="number" inputMode="numeric" width="narrow" {...props} />
-      <button
-        type="button"
-        className="ui-input-step"
-        aria-label={stepUpLabel ?? '+'}
-        disabled={props.disabled}
-        onClick={() => onStep?.(1)}
-      >
-        +
-      </button>
-    </span>
+    <NumberField
+      {...props}
+      value={value}
+      defaultValue={defaultValue}
+      onChange={onChange}
+      minValue={min}
+      maxValue={max}
+      step={step}
+      isDisabled={disabled}
+      isInvalid={invalid}
+      className={uiClasses('input-number', {
+        size,
+        states: { invalid, disabled, steppers },
+        className
+      })}
+    >
+      <NumberField.Group className="ui-input-number-group">
+        {steppers && (
+          <NumberField.DecrementButton className="ui-input-step" aria-label={stepDownLabel ?? '−'}>
+            −
+          </NumberField.DecrementButton>
+        )}
+        <NumberField.Input placeholder={placeholder} />
+        {steppers && (
+          <NumberField.IncrementButton className="ui-input-step" aria-label={stepUpLabel ?? '+'}>
+            +
+          </NumberField.IncrementButton>
+        )}
+      </NumberField.Group>
+    </NumberField>
   );
-});
+}
 
 export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'size'> {
   size?: Extract<UiSize, 'sm' | 'md'>;
@@ -211,44 +257,134 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   );
 });
 
-export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
+export interface SelectProps {
   size?: UiSize;
   invalid?: boolean;
   /** `{ value, label }` pairs; the label is what the reader sees. */
   options: ReadonlyArray<{ value: string; label: ReactNode; title?: string }>;
   /** The "any"/"none" row, when the control may hold nothing. */
   placeholder?: ReactNode;
+  value?: string;
+  defaultValue?: string;
+  /** Told the value, not handed an event to read it from. */
+  onChange?: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+  name?: string;
+  id?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
 }
 
-export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { size = 'md', invalid = false, options, placeholder, className, disabled, ...props },
-  ref
-) {
+/**
+ * A choice from a closed list.
+ *
+ * No longer a native `<select>`, which could hold only text, could not be
+ * styled past its border, and opened the platform's own list in the middle of
+ * a dialog. It is a listbox now — typeahead, arrow keys and Home/End included —
+ * and it still renders a hidden native select underneath, so a form that posts
+ * still posts.
+ */
+export function Select({
+  size = 'md',
+  invalid = false,
+  options,
+  placeholder,
+  value,
+  defaultValue,
+  onChange,
+  disabled,
+  className,
+  ...props
+}: SelectProps) {
+  const rows =
+    placeholder !== undefined ? [{ value: '', label: placeholder }, ...options] : options;
   return (
-    <span className={uiClasses('select', { size, states: { invalid, disabled }, className })}>
-      <select ref={ref} {...props} disabled={disabled} aria-invalid={invalid || undefined}>
-        {placeholder !== undefined && <option value="">{placeholder}</option>}
-        {options.map(option => (
-          <option key={option.value} value={option.value} title={option.title}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <span className="ui-select-chevron" aria-hidden="true">
-        <svg viewBox="0 0 16 16" focusable="false">
-          <path
-            d="m4 6 4 4 4-4"
-            fill="none"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.6"
-          />
-        </svg>
-      </span>
-    </span>
+    <HeroSelect
+      {...props}
+      selectedKey={value}
+      defaultSelectedKey={defaultValue}
+      onSelectionChange={key => onChange?.(key === null ? '' : String(key))}
+      isDisabled={disabled}
+      isInvalid={invalid}
+      className={uiClasses('select', { size, states: { invalid, disabled }, className })}
+    >
+      <HeroSelect.Trigger className="ui-select-trigger">
+        {/* RAC hands the value slot a render function so the empty case can say
+            the product's own words rather than the library's default. */}
+        <HeroSelect.Value className="ui-select-value">
+          {({ isPlaceholder, selectedText }) =>
+            isPlaceholder ? (placeholder ?? selectedText) : selectedText
+          }
+        </HeroSelect.Value>
+        <span className="ui-select-chevron" aria-hidden="true">
+          <ChevronDown size={16} strokeWidth={1.75} />
+        </span>
+      </HeroSelect.Trigger>
+      <HeroSelect.Popover className="ui-select-popover">
+        <ListBox className="ui-select-list">
+          {rows.map(option => (
+            <ListBoxItem key={option.value} id={option.value} className="ui-select-option">
+              {option.label}
+            </ListBoxItem>
+          ))}
+        </ListBox>
+      </HeroSelect.Popover>
+    </HeroSelect>
   );
-});
+}
+
+export interface SearchFieldProps {
+  value?: string;
+  defaultValue?: string;
+  onChange?: (value: string) => void;
+  /** Fired on Enter, for a search that runs on demand rather than as you type. */
+  onSubmit?: (value: string) => void;
+  placeholder?: string;
+  size?: UiSize;
+  disabled?: boolean;
+  autoFocus?: boolean;
+  className?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
+}
+
+/**
+ * One search box.
+ *
+ * The product had five, each with its own hand-drawn magnifier and its own
+ * clear button — and Escape cleared some of them and not others.
+ */
+export function SearchField({
+  size = 'md',
+  disabled,
+  className,
+  onChange,
+  onSubmit,
+  placeholder,
+  ...props
+}: SearchFieldProps) {
+  return (
+    <HeroSearchField
+      {...props}
+      isDisabled={disabled}
+      onChange={onChange}
+      onSubmit={onSubmit}
+      className={uiClasses('search-field', { size, states: { disabled }, className })}
+    >
+      <HeroSearchField.Group className="ui-search-field-group">
+        <HeroSearchField.SearchIcon
+          render={iconProps => <Search {...iconProps} size={16} strokeWidth={1.75} />}
+        />
+        <HeroSearchField.Input placeholder={placeholder} />
+        <HeroSearchField.ClearButton>
+          <X size={14} strokeWidth={2} aria-hidden="true" />
+        </HeroSearchField.ClearButton>
+      </HeroSearchField.Group>
+    </HeroSearchField>
+  );
+}
 
 export interface InputTagsProps {
   values: readonly string[];

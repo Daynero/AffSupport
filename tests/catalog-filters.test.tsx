@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogSearchFilters } from '@video-compressor/shared';
 import { CatalogFilters } from '../apps/web/src/team/catalog/CatalogFilters';
@@ -52,11 +53,50 @@ function renderPanel(
   return onSet;
 }
 
-const optionsOf = (name: string) =>
-  within(screen.getByRole('combobox', { name })).getAllByRole('option') as HTMLOptionElement[];
+/**
+ * One facet, driven the way a person drives it.
+ *
+ * The control is a listbox behind a trigger now, so its options exist only
+ * while it is open — which is also the only time anybody can see them. Found
+ * through the caption's id rather than its words, because an open listbox
+ * portals its options to the body and more than one control on this panel can
+ * end up carrying the same text.
+ */
+const FACET_KEY: Record<string, string> = {
+  GEO: 'geo',
+  Language: 'language',
+  Offer: 'offer',
+  Category: 'category',
+  'Original type': 'originalType',
+  Kind: 'kind',
+  'Missing metadata': 'unfilled'
+};
+
+async function openFacet(name: string) {
+  const user = userEvent.setup();
+  // An open listbox hides the rest of the page from assistive technology, and
+  // therefore from these queries — which is correct behaviour and means one has
+  // to be closed before the next can be reached.
+  if (document.querySelector('[role="listbox"]')) await user.keyboard('{Escape}');
+  const caption = document.getElementById(`catalog-facet-${FACET_KEY[name]}`);
+  const facet = caption?.closest('.team-catalog-facet');
+  if (!facet) throw new Error(`no facet named "${name}"`);
+  const trigger = within(facet as HTMLElement).getByRole('button');
+  await user.click(trigger);
+  const list = await screen.findByRole('listbox');
+  return { user, list };
+}
+
+/** What the facet offers, in the words it offers them. */
+async function optionTexts(name: string) {
+  const { list } = await openFacet(name);
+  return within(list)
+    .getAllByRole('option')
+    .map(option => option.textContent);
+}
 
 describe('catalog filters', () => {
-  it('offers the types the results actually hold, and chooses one', () => {
+  it('offers the types the results actually hold, and chooses one', async () => {
     const onSet = renderPanel({
       facets: {
         originalType: [
@@ -66,45 +106,36 @@ describe('catalog filters', () => {
       }
     });
 
-    const options = optionsOf('Original type');
-    expect(options.map(option => option.textContent)).toEqual(['Any', 'MP4', 'ZIP']);
-    // The value written to the query is the type itself, not its short name.
-    expect(options.map(option => option.value)).toEqual(['', 'video/mp4', 'application/zip']);
+    const { user, list } = await openFacet('Original type');
+    expect(
+      within(list)
+        .getAllByRole('option')
+        .map(option => option.textContent)
+    ).toEqual(['Any', 'MP4', 'ZIP']);
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Original type' }), {
-      target: { value: 'video/mp4' }
-    });
+    // The reader picks the short name; what reaches the query is the type.
+    await user.click(within(list).getByRole('option', { name: 'MP4' }));
     expect(onSet).toHaveBeenCalledWith('originalType', 'video/mp4');
   });
 
   /* Facets narrow with the search, so a chosen type that no longer appears in
      them must still be in the list — otherwise there is no way to change it. */
-  it('keeps the chosen type listed even when the facets no longer name it', () => {
+  it('keeps the chosen type listed even when the facets no longer name it', async () => {
     renderPanel({
       filters: { originalType: ['image/png'] },
       facets: { originalType: [{ value: 'video/mp4', count: 3 }] }
     });
 
-    expect(optionsOf('Original type').map(option => option.value)).toContain('image/png');
+    expect(await optionTexts('Original type')).toContain('PNG');
   });
 
-  it('says every fixed value in words rather than in storage codes', () => {
+  it('says every fixed value in words rather than in storage codes', async () => {
     renderPanel();
 
-    expect(optionsOf('Category').map(option => option.textContent)).toContain('Video');
-    expect(optionsOf('Kind').map(option => option.textContent)).toEqual([
-      'Any',
-      'File',
-      'Folder',
-      'Shortcut'
-    ]);
+    expect(await optionTexts('Category')).toContain('Video');
+    expect(await optionTexts('Kind')).toEqual(['Any', 'File', 'Folder', 'Shortcut']);
     // GEO stays a code, because that is what a GEO is called.
-    expect(optionsOf('Missing metadata').map(option => option.textContent)).toEqual([
-      'Any',
-      'GEO',
-      'Offer',
-      'Language'
-    ]);
+    expect(await optionTexts('Missing metadata')).toEqual(['Any', 'GEO', 'Offer', 'Language']);
   });
 
   it('names an active filter and its value on the chip that removes it', () => {

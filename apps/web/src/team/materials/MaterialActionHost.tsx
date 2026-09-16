@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
 import { Button, FormField, Input, Modal } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
@@ -62,6 +62,22 @@ export function useMaterialActionHost({
   const [newName, setNewName] = useState(material.name);
   const uploadInput = useRef<HTMLInputElement>(null);
 
+  /**
+   * Select the base name, leaving the extension alone.
+   *
+   * Renaming almost always means replacing the name and keeping `.mp4`, so the
+   * field opens with exactly the part that changes already selected. Losing
+   * this was the kind of small thing nobody reports and everybody feels.
+   *
+   * On focus rather than on mount: the dialog decides who gets focus first, and
+   * a selection made before that is thrown away by it.
+   */
+  const selectBaseName = useCallback((event: { currentTarget: HTMLInputElement }) => {
+    const node = event.currentTarget;
+    const dot = node.value.lastIndexOf('.');
+    node.setSelectionRange(0, dot > 0 ? dot : node.value.length);
+  }, []);
+
   const actions = useMaterialActions({
     teamId,
     material: {
@@ -111,6 +127,7 @@ export function useMaterialActionHost({
           title={t('teamFileRename')}
           onClose={() => setPrompt(null)}
           busy={actions.busy}
+          initialFocus="#material-rename-name"
         >
           <form
             className="team-material-inline-form"
@@ -121,8 +138,13 @@ export function useMaterialActionHost({
               });
             }}
           >
-            <FormField label={t('teamFileNewName')}>
-              <Input autoFocus value={newName} onChange={event => setNewName(event.target.value)} />
+            <FormField label={t('teamFileNewName')} htmlFor="material-rename-name">
+              <Input
+                id="material-rename-name"
+                value={newName}
+                onFocus={selectBaseName}
+                onChange={event => setNewName(event.target.value)}
+              />
             </FormField>
             <div className="team-dialog-actions">
               <Button color="neutral" variant="ghost" onClick={() => setPrompt(null)}>

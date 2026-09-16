@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties, type RefObject } from 'react';
+import { useLayoutEffect, type CSSProperties, type RefObject } from 'react';
 
 /**
  * The vocabulary every component in the inventory speaks (021).
@@ -113,25 +113,47 @@ export function heroSize(size: UiSize): 'sm' | 'md' | 'lg' {
 }
 
 /**
- * A native `title`, put back on an element React Aria will not carry it to.
+ * Attributes put back on an element React Aria will not carry them to.
  *
- * React Aria filters DOM props down to the ones it knows, and `title` is not
- * among them — so a control adopted from the library silently loses the tooltip
- * this product has always used to hold the words an icon has no room for
- * (docs/DESIGN.md: "слова живуть у тултіпах"). Two hundred controls losing
- * their label quietly is not an acceptable side effect of a swap.
+ * React Aria forwards a known list of props and drops the rest, and two of the
+ * ones it drops matter to this product:
  *
- * So it is set on the node. This is deliberately the small fix rather than the
- * right one: the right one is replacing every native title with the inventory's
- * own `Tooltip`, which is keyboard-reachable and styled — a design pass with its
- * own task, not something to do accidentally while changing what a button is
- * made of.
+ * - `title`, which is where the words live for every control whose label is an
+ *   icon (docs/DESIGN.md: "слова живуть у тултіпах"). Two hundred controls
+ *   losing their label quietly is not an acceptable side effect of a swap.
+ * - `aria-busy`, which is how a control that is working says so to a reader who
+ *   cannot see the spinner. The library writes a data attribute for the
+ *   stylesheet and stops there.
+ *
+ * Setting them on the node is deliberately the small fix rather than the right
+ * one. The right one for `title` is replacing every native tooltip with the
+ * inventory's own `Tooltip`, which is keyboard-reachable and styled — a design
+ * pass with its own task, not something to do accidentally while changing what
+ * a button is made of.
  */
-export function useNativeTitle(ref: RefObject<HTMLElement | null>, title: string | undefined) {
-  useEffect(() => {
+export function useNativeAttributes(
+  ref: RefObject<HTMLElement | null>,
+  attributes: Record<string, string | undefined>
+) {
+  /*
+   * The value rather than the object, so a caller may build it inline without
+   * re-running this on every render.
+   *
+   * As a list of pairs, not as an object: `JSON.stringify` drops a key whose
+   * value is `undefined`, and a dropped key is a key this never removes — so a
+   * button that stopped working would have gone on saying `aria-busy` forever.
+   */
+  const serialized = JSON.stringify(
+    Object.entries(attributes).map(([name, value]) => [name, value ?? null])
+  );
+  // Before paint, not after: a tooltip or a busy state that arrives a frame
+  // late is a frame in which the control is unlabelled or silently working.
+  useLayoutEffect(() => {
     const node = ref.current;
     if (!node) return;
-    if (title) node.setAttribute('title', title);
-    else node.removeAttribute('title');
-  }, [ref, title]);
+    for (const [name, value] of JSON.parse(serialized) as Array<[string, string | null]>) {
+      if (value === null) node.removeAttribute(name);
+      else node.setAttribute(name, value);
+    }
+  }, [ref, serialized]);
 }

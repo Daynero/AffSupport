@@ -9050,7 +9050,8 @@ button,
 /* The label sits above its field, not beside it: at the width the explorer
    gives this column "Пошук файлів" broke across two lines next to the box. */
 .team-catalog-search,
-.team-catalog-filters label {
+.team-catalog-filters label,
+.team-catalog-facet {
   display: grid;
   gap: var(--space-1);
   color: var(--color-text-muted);
@@ -9103,7 +9104,7 @@ button,
   padding-inline: var(--space-3);
 }
 .team-catalog-search .ui-input input,
-.team-catalog-filters .ui-select select {
+.team-catalog-filters .ui-select .ui-select-trigger {
   width: 100%;
   border: 0;
   background: none;

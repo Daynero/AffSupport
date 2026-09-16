@@ -1071,7 +1071,7 @@ export function TaskEditor({
                     value: member.userId,
                     label: member.displayName ?? member.email ?? member.userId
                   }))}
-                  onChange={event => setAssigneeId(event.target.value)}
+                  onChange={setAssigneeId}
                 />
               </FormField>
               <FormField

@@ -4,7 +4,7 @@ import {
   heroSize,
   heroVariant,
   uiClasses,
-  useNativeTitle,
+  useNativeAttributes,
   type UiColor,
   type UiSize,
   type UiVariant
@@ -147,7 +147,7 @@ export function Button({
 }: ButtonProps) {
   const node = useRef<HTMLButtonElement>(null);
   const ref = useMergedRef(node, forwarded);
-  useNativeTitle(node, title);
+  useNativeAttributes(node, { title, 'aria-busy': loading ? 'true' : undefined });
   const legacy = isLegacy(variant) ? LEGACY[variant] : null;
   const resolvedColor = color ?? legacy?.color ?? 'neutral';
   const resolvedVariant = legacy?.variant ?? (variant as UiVariant | undefined) ?? 'solid';
@@ -228,7 +228,7 @@ export function IconButton({
 }: IconButtonProps) {
   const node = useRef<HTMLButtonElement>(null);
   const ref = useMergedRef(node, forwarded);
-  useNativeTitle(node, title);
+  useNativeAttributes(node, { title, 'aria-busy': loading ? 'true' : undefined });
   return (
     <HeroButton
       {...props}

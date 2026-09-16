@@ -15,7 +15,7 @@ import { useTeam } from '../TeamContext';
 import { MaterialActionMenu } from '../materials/MaterialActionMenu';
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
-import type { ActionContext, MaterialRef } from '../materials/actions';
+import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
 
 /**
  * The per-row actions of the explorer (011 FR-025, on the shared surface in 024).
@@ -85,7 +85,8 @@ export function RowActions({
   const { currentFolderId } = useExplorer();
   const { push } = useToasts();
   const { t } = useI18n();
-  const { activeTeam } = useTeam();
+  const { teams, activeTeam } = useTeam();
+  const space = spaceOf(teams, activeTeam, teamId);
   const agent = useOptionalAgent();
 
   const material: MaterialRef = {
@@ -101,11 +102,11 @@ export function RowActions({
 
   const context: ActionContext = {
     host: 'explorer-row',
-    permissions,
-    isOwner: activeTeam?.role === 'owner',
+    permissions: permissions ?? space?.permissions ?? null,
+    isOwner: space?.role === 'owner',
     currentFolderId,
     agentConnected: agent?.teamWorkspaceAvailable === true,
-    storageConnected: activeTeam?.connectionState === 'connected',
+    storageConnected: space?.connectionState === 'connected',
     restitchConfigured: true,
     catalogSettingsReady: true
   };

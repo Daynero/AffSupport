@@ -1,5 +1,4 @@
 import {
-  type ChangeEvent,
   forwardRef,
   useEffect,
   useImperativeHandle,
@@ -132,6 +131,9 @@ export const TranscriptPlayer = forwardRef<
               : 0;
     if (delta === 0) return;
     event.preventDefault();
+    // The slider would otherwise also move by its own step, and the two would
+    // add up: this control seeks in seconds and drags in hundredths.
+    event.stopPropagation();
     const duration = Number.isFinite(media.duration) ? media.duration : playback.duration;
     media.currentTime = Math.max(0, Math.min(duration || 0, media.currentTime + delta));
     sync();
@@ -142,10 +144,10 @@ export const TranscriptPlayer = forwardRef<
     media.volume = level;
     sync();
   };
-  const rate = (event: ChangeEvent<HTMLSelectElement>) => {
+  const rate = (value: string) => {
     const media = mediaRef.current;
     if (!media) return;
-    media.playbackRate = Number(event.target.value);
+    media.playbackRate = Number(value);
     sync();
   };
   const fullscreen = () => {
@@ -236,7 +238,7 @@ export const TranscriptPlayer = forwardRef<
           <span className="visually-hidden">{t('transcriptionPlayerSpeed')}</span>
           <Select
             size="xs"
-            value={playback.rate}
+            value={String(playback.rate)}
             onChange={rate}
             options={RATES.map(value => ({ value: String(value), label: `${formatRate(value)}×` }))}
           />

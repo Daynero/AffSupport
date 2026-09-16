@@ -157,6 +157,18 @@ function client(): TaskSpaceClient {
   };
 }
 
+/**
+ * Open a tile's overflow and read its menu.
+ *
+ * The tile shows the few actions it is for and keeps the rest behind one door
+ * (024): six unlabelled icons in 158 pixels is a puzzle, not a shortcut.
+ */
+async function openTileMenu() {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: /^Actions for/ }));
+  return screen.getAllByRole('menuitem');
+}
+
 describe('Creative Library task workflows', () => {
   it('chunks an unlimited UI attachment selection into idempotent batches of 100', async () => {
     const attachTaskMaterials = vi.fn(async ({ materialIds }: { materialIds: string[] }) => ({
@@ -228,12 +240,21 @@ describe('Creative Library task workflows', () => {
         onDownloadRestitched={onDownloadRestitched}
       />
     );
-    const button = screen.getByRole('button', { name: 'Download re-stitched' });
+    const items = await openTileMenu();
     // Beside the plain download, not in place of it: one gives the file as it
     // is, the other the file re-cut.
-    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
-    fireEvent.click(button);
-    expect(onDownloadRestitched).toHaveBeenCalledTimes(1);
+    expect(items.map(item => item.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining('Download')])
+    );
+    // Offered, and honest about what it is waiting for: with no Soty running on
+    // this computer there is nothing to re-cut the file with, and the item says
+    // so rather than vanishing or failing when pressed (024).
+    const restitched = screen.getByRole('menuitem', { name: 'Download re-stitched' });
+    expect(restitched.getAttribute('aria-disabled')).toBe('true');
+    const reason = restitched.getAttribute('aria-describedby');
+    expect(reason && document.getElementById(reason)?.textContent).toContain('Soty is not running');
+    fireEvent.click(restitched);
+    expect(onDownloadRestitched).toHaveBeenCalledTimes(0);
 
     // An image has nothing to re-stitch.
     rerender(
@@ -244,7 +265,7 @@ describe('Creative Library task workflows', () => {
         onDownloadRestitched={onDownloadRestitched}
       />
     );
-    expect(screen.queryByRole('button', { name: 'Download re-stitched' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Download re-stitched' })).toBeNull();
 
     // Nor has a video the task has not saved yet: the agent is handed a
     // material by id, and a draft has not got one on the server.
@@ -257,7 +278,7 @@ describe('Creative Library task workflows', () => {
         onDownloadRestitched={onDownloadRestitched}
       />
     );
-    expect(screen.queryByRole('button', { name: 'Download re-stitched' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Download re-stitched' })).toBeNull();
   });
 
   it('shows a saved attachment on Drive, and not a draft', async () => {
@@ -281,7 +302,7 @@ describe('Creative Library task workflows', () => {
         onReveal={onReveal}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Show on Drive' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
     expect(onReveal).toHaveBeenCalledTimes(1);
     unmount();
     render(
@@ -293,7 +314,7 @@ describe('Creative Library task workflows', () => {
         isDraft
       />
     );
-    expect(screen.queryByRole('button', { name: 'Show on Drive' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show in folder' })).toBeNull();
   });
 
   it('does not leave a broken attachment preview in a loading state', async () => {
@@ -363,7 +384,7 @@ describe('Creative Library task workflows', () => {
     render(<TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={api} />);
 
     await screen.findByLabelText('Video preview for launch.mp4 at one second');
-    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
     expect(await screen.findByRole('dialog')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 

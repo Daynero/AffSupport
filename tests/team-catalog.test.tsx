@@ -85,6 +85,18 @@ function client(): TeamCatalogClient {
   };
 }
 
+/**
+ * Pick a value from the inventory's Select.
+ *
+ * It is a listbox with a button for a trigger now, not a native `<select>`, so
+ * `selectOptions` has nothing to operate on. Driving it the way a person does —
+ * open, then choose — is also what checks that it can be driven at all.
+ */
+async function choose(user: ReturnType<typeof userEvent.setup>, name: string, option: string) {
+  await user.click(screen.getByRole('button', { name: new RegExp(name, 'i') }));
+  await user.click(await screen.findByRole('option', { name: option }));
+}
+
 describe('team catalog search UI', () => {
   it('combines search/facets, shows active chips and counts, and clears filters', async () => {
     const api = client();
@@ -100,8 +112,10 @@ describe('team catalog search UI', () => {
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
     expect(screen.getByText('1 file')).toBeTruthy();
     await user.type(screen.getByLabelText('Search files'), 'launch');
-    await user.selectOptions(screen.getByLabelText('GEO'), 'UA');
-    await user.selectOptions(screen.getByLabelText('Category'), 'video');
+    await choose(user, 'GEO', 'UA');
+    // The option is named the way a reader sees it, not the way the filter
+    // spells it — which is the point of a listbox that can hold more than text.
+    await choose(user, 'Category', 'Video');
     await waitFor(() =>
       expect(api.searchCatalog).toHaveBeenLastCalledWith(
         TEAM_ID,
@@ -114,7 +128,10 @@ describe('team catalog search UI', () => {
     expect(screen.getByRole('button', { name: 'Remove GEO: UA filter' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
     expect(screen.queryByRole('button', { name: 'Remove GEO: UA filter' })).toBeNull();
-  });
+    // Two listboxes opened and chosen from, plus typing: the interaction is
+    // real now rather than a `selectOptions` shortcut, and on a busy machine it
+    // outruns the default ceiling.
+  }, 20_000);
 
   it('supports unfilled metadata and metadata-only editing even when edit=false', async () => {
     const api = client();
@@ -127,9 +144,9 @@ describe('team catalog search UI', () => {
       </TeamProvider>
     );
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText('Missing metadata'), 'geo');
+    await choose(user, 'Missing metadata', 'GEO');
     await user.click(screen.getByRole('button', { name: 'Edit metadata for launch.mp4' }));
-    await user.selectOptions(screen.getByLabelText('File GEO'), 'UA');
+    await choose(user, 'File GEO', 'UA');
     await user.click(screen.getByRole('button', { name: 'Save metadata' }));
     await waitFor(() =>
       expect(api.updateMaterialMetadata).toHaveBeenCalledWith(

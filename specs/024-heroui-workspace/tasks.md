@@ -117,16 +117,19 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
 - [x] T021 [P] [US2] `Button`, `IconButton` (and `Checkbox`, `Switch`, `Slider`,
       `SegmentedControl`, `RadioGroup` pictos — T026) onto HeroUI in
       `apps/web/src/components/ui/Button.tsx`; `loading` keeps the control's width.
-- [ ] T022 [P] [US2] `Badge`, `Chip` onto HeroUI `Badge` / `Chip` / `Tag` in
+- [x] T022 [P] [US2] `Badge`, `Chip` onto HeroUI `Badge` / `Chip` / `Tag` in
       `apps/web/src/components/ui/Badge.tsx`; removable chips use `Tag` inside a `TagGroup`.
-- [ ] T023 [P] [US2] `Card`, `Separator` onto HeroUI `Card` / `Surface` / `Separator` in
+- [x] T023 [P] [US2] `Card`, `Separator` onto HeroUI `Card` / `Surface` / `Separator` in
       `apps/web/src/components/ui/Card.tsx`.
-- [ ] T024 [P] [US2] `Alert` onto HeroUI `Alert` in `apps/web/src/components/ui/Alert.tsx`.
-- [ ] T025 [US2] `FormField`, `Input`, `InputNumber`, `InputTags`, `Select`, `Textarea` onto
+- [x] T024 [P] [US2] `Alert` onto HeroUI `Alert` in `apps/web/src/components/ui/Alert.tsx`.
+- [x] T025 [US2] (Select, InputNumber, SearchField done; Input and Textarea stay a real input
+      and a real textarea — a native text field carries the platform's spellcheck, autofill, undo
+      and mobile keyboards, which is why the library wraps one too) `FormField`, `Input`,
+      `InputNumber`, `InputTags`, `Select`, `Textarea` onto
       HeroUI `Fieldset`/`Label`/`Description`/`FieldError`, `Input`/`InputGroup`, `NumberField`,
       `TagGroup`, `Select`, `Textarea` in `apps/web/src/components/ui/Field.tsx`; add
       `SearchField` and `SelectMenu` (ComboBox) as new exports.
-- [ ] T026 [US2] `Checkbox`, `RadioGroup` (including the `pictos` variant on
+- [x] T026 [US2] `Checkbox`, `RadioGroup` (including the `pictos` variant on
       `ToggleButtonGroup`), `SegmentedControl`, `Slider`, `Switch` in
       `apps/web/src/components/ui/Choice.tsx`; `indeterminate` becomes a prop and the `ref` poke
       into the DOM is deleted.
@@ -170,7 +173,7 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       new dates group, generated from the type unions as it already is.
 - [ ] T040 [US2] Delete from `apps/web/src/styles/components.css` every rule the adapters no
       longer need; confirm `node scripts/verify-styles.mjs` still reports no orphan `var()`.
-- [ ] T041 [US2] Repair the existing DOM test suite. 73 of the 113 `*.test.tsx` files render a
+- [x] T041 [US2] Repair the existing DOM test suite. All 113 files and 796 tests pass. 73 of the 113 `*.test.tsx` files render a
       component the swap changes; they assert on class names, roles and labels. Work through them
       in one pass, preferring role- and name-based queries to class-based ones, so the suite
       stops being coupled to markup it no longer owns.
@@ -233,7 +236,7 @@ closing or losing anything.
       `host: 'selection'` intersecting over the checked set and labels that say how many.
 - [ ] T059 [US1] Show companions on the material wherever it appears — catalog, transcript,
       re-stitched copy — each with its own direct actions.
-- [ ] T060 [US1] Wire up `editText` in the folder view, which the audit found dead because the
+- [x] T060 [US1] Wire up `editText` in the folder view, which the audit found dead because the
       explorer never passed the handler.
 - [x] T061 [P] [US1] Write `tests/material-action-registry.test.ts`: every action's translation
       key exists; no group over seven items without a heading; every destructive action is in

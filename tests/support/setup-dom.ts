@@ -35,6 +35,26 @@ import { clearPreviewUrlCache } from '../../apps/web/src/team/preview-url-cache'
  * changes what happens when the suite is competing for a busy CPU. One second
  * was enough to make a different single test fail on each full run.
  */
+/**
+ * `CSS.escape`, which jsdom does not implement.
+ *
+ * React Aria's selectable collections escape a key before putting it in a
+ * selector, so every listbox, menu and table it draws throws on mount without
+ * this. The failure reads as `Cannot read properties of undefined (reading
+ * 'escape')` from deep inside a commit, which names neither the component nor
+ * the cause — hence the note.
+ *
+ * The implementation is the specification's, kept short: identifiers are
+ * escaped by rule, and anything outside the safe set gets a backslash.
+ */
+if (typeof globalThis.CSS === 'undefined') {
+  (globalThis as { CSS?: unknown }).CSS = {};
+}
+const css = globalThis.CSS as { escape?: (value: string) => string };
+if (typeof css.escape !== 'function') {
+  css.escape = (value: string) => String(value).replace(/[^\w-]/gu, character => `\\${character}`);
+}
+
 configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {

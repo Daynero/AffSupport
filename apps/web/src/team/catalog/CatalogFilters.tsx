@@ -118,9 +118,13 @@ export function CatalogFilters({
      labels are unchanged — what goes is this file's own idea of what a select
      looks like. */
   const select = (key: keyof CatalogSearchFilters, options: readonly string[]) => (
-    <label>
-      <span>{filterLabel(key)}</span>
+    /* Not a wrapping `<label>` any more: the control is a listbox with a button
+       for a trigger, and a label that wraps one names nothing. The name is
+       said, and the id ties it to the control the reader actually operates. */
+    <div className="team-catalog-facet">
+      <span id={`catalog-facet-${key}`}>{filterLabel(key)}</span>
       <Select
+        aria-labelledby={`catalog-facet-${key}`}
         value={filters[key][0] ?? ''}
         placeholder={t('teamCatalogAny')}
         options={options.map(option => ({
@@ -128,9 +132,9 @@ export function CatalogFilters({
           label: valueLabel(key, option),
           title: option
         }))}
-        onChange={event => onSet(key, event.target.value || null)}
+        onChange={next => onSet(key, next || null)}
       />
-    </label>
+    </div>
   );
 
   /* Facet values narrow with the search, so the chosen one is kept in the list:

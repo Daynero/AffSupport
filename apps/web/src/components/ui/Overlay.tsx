@@ -150,14 +150,20 @@ export function useDialogBehaviour({
         : null;
     if (modal) lockPageScroll();
 
-    let focusFrame = 0;
+    /*
+     * Focus now, not on the next frame.
+     *
+     * Waiting for a frame was defensive — the portal is already in the document
+     * by the time this runs — and it cost two things: a frame in which the
+     * dialog is open and nothing is focused, and any way for a test to observe
+     * where focus went, since the frame never comes in jsdom. `preventScroll`
+     * is what the wait was really protecting against.
+     */
     if (modal && node) {
-      focusFrame = requestAnimationFrame(() => {
-        const selector = live.current.initialFocus;
-        const target =
-          (selector ? node.querySelector<HTMLElement>(selector) : null) ?? focusableIn(node)[0];
-        target?.focus();
-      });
+      const selector = live.current.initialFocus;
+      const target =
+        (selector ? node.querySelector<HTMLElement>(selector) : null) ?? focusableIn(node)[0];
+      target?.focus({ preventScroll: true });
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -194,12 +200,22 @@ export function useDialogBehaviour({
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
-      if (focusFrame) cancelAnimationFrame(focusFrame);
       window.removeEventListener('keydown', onKeyDown);
       const at = openStack.lastIndexOf(entry);
       if (at !== -1) openStack.splice(at, 1);
       if (modal) unlockPageScroll();
-      (live.current.returnFocus ?? previouslyFocused)?.focus?.();
+      /*
+       * Give focus back only if nothing else has taken it.
+       *
+       * A menu that opens a dialog closes on the way, and its cleanup used to
+       * pull focus out of the dialog it had just opened and back onto its own
+       * trigger — so a rename field opened from a row menu came up with the
+       * "…" button focused and the typing went nowhere. If focus has already
+       * moved somewhere that is not this surface, it moved there on purpose.
+       */
+      const active = document.activeElement as HTMLElement | null;
+      const stillHere = !active || active === document.body || node?.contains(active);
+      if (stillHere) (live.current.returnFocus ?? previouslyFocused)?.focus?.();
     };
     // Mount-only on purpose: `live` above carries the changing callbacks, so
     // the effect does not need them in its list and must not re-run on them.
@@ -221,6 +237,14 @@ export interface ModalProps {
   children: ReactNode;
   /** Drawn along the bottom, actions right-aligned. */
   footer?: ReactNode;
+  /**
+   * A selector for what should hold focus when this opens.
+   *
+   * Without it the surface focuses the first thing it finds, which is the close
+   * button — right for a dialog that is only read, wrong for one that exists to
+   * be typed into.
+   */
+  initialFocus?: string;
 }
 
 export function Modal({
@@ -233,12 +257,13 @@ export function Modal({
   busy = false,
   className,
   children,
-  footer
+  footer,
+  initialFocus
 }: ModalProps) {
   const surface = useRef<HTMLDivElement>(null);
   const generatedId = useId();
   const close = useCallback(() => onClose(), [onClose]);
-  useDialogBehaviour({ surface, active: open, onClose: close });
+  useDialogBehaviour({ surface, active: open, onClose: close, initialFocus });
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -533,6 +558,13 @@ export function DropdownMenu({
             <button
               key={item.id}
               type="button"
+              /* The reason an item cannot run is a description, not part of its
+                 name: concatenated into the name, "Process" becomes "Process
+                 Soty is not running on this computer" and the item can no
+                 longer be found by what it is called — by a reader or by a
+                 test. */
+              aria-labelledby={`${item.id}-label`}
+              aria-describedby={item.note ? `${item.id}-note` : undefined}
               role={
                 item.checked === undefined
                   ? 'menuitem'
@@ -541,7 +573,10 @@ export function DropdownMenu({
                     : 'menuitemradio'
               }
               aria-checked={item.checked}
-              disabled={item.disabled}
+              /* `aria-disabled`, not the attribute: an item that explains why
+                 it cannot run has to stay reachable, or its explanation is
+                 written for nobody. Activation is refused below instead. */
+              aria-disabled={item.disabled || undefined}
               tabIndex={rows.indexOf(item) === active ? 0 : -1}
               className={[
                 'ui-menu-item',
@@ -551,6 +586,7 @@ export function DropdownMenu({
                 .filter(Boolean)
                 .join(' ')}
               onClick={() => {
+                if (item.disabled) return;
                 item.onSelect();
                 if (closeOnSelect) onClose();
               }}
@@ -566,8 +602,14 @@ export function DropdownMenu({
                 </span>
               )}
               <span className="ui-menu-copy">
-                <span className="ui-menu-label">{item.label}</span>
-                {item.note && <span className="ui-menu-note">{item.note}</span>}
+                <span className="ui-menu-label" id={`${item.id}-label`}>
+                  {item.label}
+                </span>
+                {item.note && (
+                  <span className="ui-menu-note" id={`${item.id}-note`}>
+                    {item.note}
+                  </span>
+                )}
               </span>
               {item.trailing && <span className="ui-menu-trailing">{item.trailing}</span>}
             </button>

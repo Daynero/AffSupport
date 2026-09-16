@@ -552,9 +552,9 @@ export default function AdminPage() {
                     { value: 'true', label: t('consented') },
                     { value: 'false', label: t('notConsented') }
                   ]}
-                  onChange={event => {
+                  onChange={next => {
                     setPage(0);
-                    setConsentFilter(event.target.value);
+                    setConsentFilter(next);
                   }}
                 />
               </FormField>
@@ -568,9 +568,9 @@ export default function AdminPage() {
                     { value: 'blocked', label: t('blockedStatus') },
                     { value: 'deleted', label: t('deletedStatus') }
                   ]}
-                  onChange={event => {
+                  onChange={next => {
                     setPage(0);
-                    setStatusFilter(event.target.value);
+                    setStatusFilter(next);
                   }}
                 />
               </FormField>

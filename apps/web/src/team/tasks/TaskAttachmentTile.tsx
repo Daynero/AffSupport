@@ -13,7 +13,7 @@ import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
 import { MaterialInlineActions } from '../materials/MaterialInlineActions';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
-import type { ActionContext, MaterialRef } from '../materials/actions';
+import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
@@ -106,7 +106,8 @@ export function TaskAttachmentTile({
   const [copied, setCopied] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
 
-  const { activeTeam, permissions } = useTeam();
+  const { teams, activeTeam } = useTeam();
+  const space = spaceOf(teams, activeTeam, teamId);
   const agent = useOptionalAgent();
 
   /**
@@ -129,10 +130,10 @@ export function TaskAttachmentTile({
 
   const context: ActionContext = {
     host: 'task-attachment',
-    permissions,
-    isOwner: activeTeam?.role === 'owner',
+    permissions: space?.permissions ?? null,
+    isOwner: space?.role === 'owner',
     agentConnected: agent?.teamWorkspaceAvailable === true,
-    storageConnected: activeTeam?.connectionState === 'connected',
+    storageConnected: space?.connectionState === 'connected',
     restitchConfigured: true,
     // The catalog dialog already explains a missing default and links to the
     // panel that fixes it, so the reason is told once, where it can be acted

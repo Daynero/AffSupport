@@ -5,9 +5,8 @@ import type {
   MaterialMetadataPatch
 } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { ErrorState } from '../../components/ui/index';
+import { Button, ErrorState, FormField, Input, Select } from '../../components/ui/index';
 
 export function MaterialMetadataEditor({
   material,
@@ -61,32 +60,40 @@ export function MaterialMetadataEditor({
       <form className="team-dialog-form" onSubmit={event => void submit(event)}>
         <h2 id="material-metadata-title">{t('teamCatalogMetadataTitle')}</h2>
         <p>{material.name}</p>
-        <label>
-          <span>{t('teamCatalogMaterialGeo')}</span>
-          <select id="material-geo" value={geo} onChange={event => setGeo(event.target.value)}>
-            <option value="">{t('teamCatalogUnfilled')}</option>
-            {vocabulary.geo.map(value => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>{t('teamCatalogMaterialLanguage')}</span>
-          <select value={language} onChange={event => setLanguage(event.target.value)}>
-            <option value="">{t('teamCatalogUnfilled')}</option>
-            {vocabulary.languages.map(value => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>{t('teamCatalogMaterialOffer')}</span>
-          <input value={offer} maxLength={160} onChange={event => setOffer(event.target.value)} />
-        </label>
-        <label>
-          <span>{t('teamCatalogMaterialTags')}</span>
-          <input value={tags} onChange={event => setTags(event.target.value)} />
-        </label>
+        <FormField label={t('teamCatalogMaterialGeo')}>
+          <Select
+            id="material-geo"
+            aria-label={t('teamCatalogMaterialGeo')}
+            value={geo}
+            placeholder={t('teamCatalogUnfilled')}
+            options={vocabulary.geo.map(value => ({ value, label: value }))}
+            onChange={setGeo}
+          />
+        </FormField>
+        <FormField label={t('teamCatalogMaterialLanguage')}>
+          <Select
+            aria-label={t('teamCatalogMaterialLanguage')}
+            value={language}
+            placeholder={t('teamCatalogUnfilled')}
+            options={vocabulary.languages.map(value => ({ value, label: value }))}
+            onChange={setLanguage}
+          />
+        </FormField>
+        <FormField label={t('teamCatalogMaterialOffer')}>
+          <Input
+            aria-label={t('teamCatalogMaterialOffer')}
+            value={offer}
+            maxLength={160}
+            onChange={event => setOffer(event.target.value)}
+          />
+        </FormField>
+        <FormField label={t('teamCatalogMaterialTags')}>
+          <Input
+            aria-label={t('teamCatalogMaterialTags')}
+            value={tags}
+            onChange={event => setTags(event.target.value)}
+          />
+        </FormField>
         {error && (
           <ErrorState className="team-inline-error" message={t('teamCatalogMetadataFailed')} />
         )}

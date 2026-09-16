@@ -4,7 +4,7 @@ import { Switch as HeroSwitch } from '@heroui/react/switch';
 import { ToggleButton } from '@heroui/react/toggle-button';
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group';
 import { useId, useRef, type ReactNode } from 'react';
-import { heroSize, uiClasses, useNativeTitle, type UiSize } from './types';
+import { heroSize, uiClasses, useNativeAttributes, type UiSize } from './types';
 
 /**
  * Choice controls (021 T019, rebuilt on HeroUI in 024).
@@ -150,7 +150,7 @@ function TitledToggleButton({
   ...props
 }: Omit<Parameters<typeof ToggleButton>[0], 'title'> & { title?: string }) {
   const ref = useRef<HTMLButtonElement>(null);
-  useNativeTitle(ref, title);
+  useNativeAttributes(ref, { title });
   return (
     <ToggleButton {...props} ref={ref}>
       {children}
@@ -350,6 +350,11 @@ export interface SliderProps {
   /**
    * Extra keys on the thumb, for a control whose step is not its keyboard step
    * — the transcript's scrubber drags by hundredths and seeks by seconds.
+   *
+   * Handled before the library's own keyboard, so a handler that calls
+   * `stopPropagation` replaces the default movement rather than adding to it.
+   * Both running is how three arrow presses became ten seconds instead of
+   * fifteen.
    */
   onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
   className?: string;
@@ -372,7 +377,7 @@ export function Slider({
   className,
   ...props
 }: SliderProps) {
-  return (
+  const slider = (
     <HeroSlider
       {...props}
       value={value}
@@ -387,8 +392,24 @@ export function Slider({
     >
       <HeroSlider.Track className="ui-slider-track">
         <HeroSlider.Fill className="ui-slider-fill" />
-        <HeroSlider.Thumb className="ui-slider-thumb" onKeyDown={onKeyDown} />
+        <HeroSlider.Thumb className="ui-slider-thumb" />
       </HeroSlider.Track>
     </HeroSlider>
+  );
+
+  if (!onKeyDown) return slider;
+
+  /*
+   * One wrapper, and only for the control that needs it.
+   *
+   * React Aria forwards a known list of props and drops the rest, so a capture
+   * handler cannot be put on the slider, its track or its thumb. It has to sit
+   * above them — which is the only way a control whose keyboard step is not its
+   * drag step can replace the library's movement instead of adding to it.
+   */
+  return (
+    <span className="ui-slider-keys" onKeyDownCapture={onKeyDown}>
+      {slider}
+    </span>
   );
 }
