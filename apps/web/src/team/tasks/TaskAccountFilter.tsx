@@ -22,6 +22,30 @@ import type { TaskAccountScope } from './useTasks';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { Popover } from '../../components/ui/index';
 
+/**
+ * What names a scope — the account, or the agent inside it.
+ *
+ * Exported because the filter bar's chips say the same thing (024): the pill
+ * and the chip disagreeing about what the board is narrowed to would be worse
+ * than either of them being wrong.
+ */
+export function taskScopeLabel(
+  accounts: readonly TeamAccountSummary[],
+  scope: TaskAccountScope,
+  fallback: string
+): string {
+  if (scope.kind === 'account') {
+    return accounts.find(account => account.id === scope.accountId)?.name ?? fallback;
+  }
+  if (scope.kind === 'agent') {
+    for (const account of accounts) {
+      const agent = account.agents.find(item => item.id === scope.agentRowId);
+      if (agent) return teamAgentLabel(account.name, agent.agentId);
+    }
+  }
+  return fallback;
+}
+
 export function TaskAccountFilter({
   accounts,
   scope,
@@ -63,21 +87,7 @@ export function TaskAccountFilter({
     options[next]?.focus();
   };
 
-  /** What the pill says: the account, the tag, or the neutral word. */
-  const label = (() => {
-    if (scope.kind === 'account') {
-      return (
-        accounts.find(account => account.id === scope.accountId)?.name ?? t('teamTaskAccountFilter')
-      );
-    }
-    if (scope.kind === 'agent') {
-      for (const account of accounts) {
-        const agent = account.agents.find(item => item.id === scope.agentRowId);
-        if (agent) return teamAgentLabel(account.name, agent.agentId);
-      }
-    }
-    return t('teamTaskAccountFilter');
-  })();
+  const label = taskScopeLabel(accounts, scope, t('teamTaskAccountFilter'));
   const active = scope.kind !== 'all';
 
   /** Choosing closes the list and hands focus back to the pill that opened it. */

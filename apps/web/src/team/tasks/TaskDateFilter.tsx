@@ -107,24 +107,6 @@ export function TaskDateFilterControl({
 
   return (
     <div className="task-date-filter" aria-label={t('teamTasksDateFilter')}>
-      <div className="task-quick-ranges">
-        {quickRanges.map(option => (
-          <button
-            key={option.range}
-            type="button"
-            className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
-            aria-pressed={quick === option.range}
-            onClick={() => {
-              setOpen(false);
-              onChange(
-                option.range === 'all' ? { kind: 'all' } : quickRangeValue(option.range, new Date())
-              );
-            }}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
       <div ref={root} className="task-date-filter-calendar">
         <button
           type="button"
@@ -177,7 +159,33 @@ export function TaskDateFilterControl({
               })
             }
             footer={
-              <p className="task-calendar-hint">{t('teamTasksCalendarChooseStart')}</p>
+              <>
+                {/* The four ranges anybody actually asks for, as presets under
+                    the grid rather than four more buttons in the row (024,
+                    FR-077). A board is filtered by "today" far more often than
+                    by a range somebody picks out by hand. */}
+                <div className="task-quick-ranges">
+                  {quickRanges.map(option => (
+                    <button
+                      key={option.range}
+                      type="button"
+                      className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
+                      aria-pressed={quick === option.range}
+                      onClick={() => {
+                        setOpen(false);
+                        onChange(
+                          option.range === 'all'
+                            ? { kind: 'all' }
+                            : quickRangeValue(option.range, new Date())
+                        );
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="task-calendar-hint">{t('teamTasksCalendarChooseStart')}</p>
+              </>
             }
           />
         </Popover>

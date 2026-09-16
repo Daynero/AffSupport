@@ -332,8 +332,13 @@ closing or losing anything.
       delete-with-undo — on the inventory's `SelectionBar`.
 - [ ] T076 [US3] Put the actions that do not need the editor on the task card behind one
       overflow, keeping the whole card as the open target.
-- [ ] T077 [US3] Reduce the filter row from nine clusters to a search field, the date control and
-      one "Filters" surface showing what is active as removable chips.
+- [x] T077 [US3] Reduce the filter row to a search field, the date control and one "Filters"
+      surface showing what is active as removable chips — `TaskFilterBar.tsx`. Thirteen controls
+      became four. **One deliberate difference from the task as written**: status stays in the
+      row rather than going behind "Filters", because "what is left" is the question a board
+      answers and the four status pills read as one segmented control, not as four buttons. The
+      quick ranges became presets inside the calendar. `taskScopeLabel` is shared so the pill and
+      the chip cannot disagree about what the board is narrowed to.
 - [x] T078 [US3] Update the task test files the change invalidates. Three tests in
       `creative-library-tasks` were turned inside out rather than deleted — what they protected
       (work must not be lost by closing a dialog) is still the point, it is just no longer

@@ -13,8 +13,7 @@ import { ToastProvider } from '../apps/web/src/components/toast.js';
 import {
   MaterialSurface,
   clickMaterialAction,
-  materialActionState,
-  queryMaterialAction
+  materialActionState
 } from './support/material-surface';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client.js';
 import { TeamTextEditor } from '../apps/web/src/team/catalog/TeamTextEditor.js';

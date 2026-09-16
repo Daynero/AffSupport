@@ -9,13 +9,9 @@ import { Empty } from '../../components/ui/index';
 import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
-import { TaskDateFilterControl } from './TaskDateFilter';
+import { TaskFilterBar } from './TaskFilterBar';
 import { TaskEditor, type TaskEditorClient } from './TaskEditor';
 import { useTasks, type TaskAccountScope, type TasksClient } from './useTasks';
-import { TaskAccountFilter } from './TaskAccountFilter';
-import { TaskAssigneeFilter } from './TaskAssigneeFilter';
-import { TaskLabelFilter } from './TaskLabelFilter';
-import { TaskSortControl } from './TaskSortControl';
 import { persistedViewKey, usePersistedState } from '../persistedView';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useToasts } from '../../components/toast';
@@ -325,39 +321,25 @@ export function TaskSpace({
           </Button>
         )}
       </div>
-      <TaskDateFilterControl
-        value={tasks.filter}
-        onChange={tasks.setFilter}
+      <TaskFilterBar
+        query={tasks.query}
+        onQueryChange={tasks.setQuery}
+        date={tasks.filter}
+        onDateChange={tasks.setFilter}
         status={tasks.statusFilter}
         onStatusChange={tasks.setStatusFilter}
-      >
-        {(accounts.length > 0 || scope.kind !== 'all') && (
-          <TaskAccountFilter accounts={accounts} scope={scope} onChange={setScope} />
-        )}
-        {/* Who the work is on. Shown as soon as the space has anyone at all:
-            even alone, "mine" and "nobody's yet" are different piles. */}
-        {(members.length > 0 || tasks.assignee.kind !== 'all') && (
-          <TaskAssigneeFilter
-            members={members}
-            value={tasks.assignee}
-            onChange={tasks.setAssignee}
-          />
-        )}
-        {/* The tag filter appears once the space has tags to filter by, and
-            stays while a chosen one is still in force. */}
-        {(labels.labels.length > 0 || tasks.labelIds.length > 0) && (
-          <TaskLabelFilter
-            labels={labels.labels}
-            selectedIds={tasks.labelIds}
-            onChange={tasks.setLabelIds}
-          />
-        )}
-        <TaskSortControl
-          value={tasks.sort}
-          onChange={tasks.setSort}
-          hasLabels={labels.labels.length > 0}
-        />
-      </TaskDateFilterControl>
+        accounts={accounts}
+        scope={scope}
+        onScopeChange={setScope}
+        members={members}
+        assignee={tasks.assignee}
+        onAssigneeChange={tasks.setAssignee}
+        labels={labels.labels}
+        labelIds={tasks.labelIds}
+        onLabelIdsChange={tasks.setLabelIds}
+        sort={tasks.sort}
+        onSortChange={tasks.setSort}
+      />
       {error && (
         <p className="team-inline-error" role="alert">
           {t('teamTaskCreateFailed')}

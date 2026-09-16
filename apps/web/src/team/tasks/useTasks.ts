@@ -230,6 +230,19 @@ export function useTasks({
     { kind: 'all' },
     parseAssigneeFilter
   );
+  /**
+   * A word from the title or the brief (024, FR-077).
+   *
+   * Filtered here rather than on the server: the board holds a page of tasks
+   * that is already narrowed by date, status, account, assignee and tag, so
+   * the fastest way to the one you mean is to type two letters of it — and a
+   * round trip for two letters would be slower than the eye.
+   */
+  const [query, setQuery] = usePersistedState<string>(
+    persistedViewKey(teamId, 'tasks.query'),
+    '',
+    value => (typeof value === 'string' ? value : null)
+  );
   const bounds = useMemo(() => taskFilterBounds(filter), [filter]);
   const status = statusFilter === 'all' ? null : statusFilter;
   const agentRowId = scope.kind === 'agent' ? scope.agentRowId : null;
@@ -533,8 +546,25 @@ export function useTasks({
     setTasks(current => current.map(item => (item.id === taskId ? { ...item, agents } : item)));
   }, []);
 
+  const term = query.normalize('NFC').trim().toLocaleLowerCase();
+  const shown = useMemo(
+    () =>
+      term === ''
+        ? tasks
+        : tasks.filter(
+            task =>
+              task.title.toLocaleLowerCase().includes(term) ||
+              (task.note ?? '').toLocaleLowerCase().includes(term)
+          ),
+    [tasks, term]
+  );
+
   return {
-    tasks,
+    tasks: shown,
+    /** Everything the page holds, before the search narrows it. */
+    allTasks: tasks,
+    query,
+    setQuery,
     setTaskAgents,
     setTaskLabels,
     filter,

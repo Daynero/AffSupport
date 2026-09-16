@@ -191,6 +191,20 @@ function wrap(ui: React.ReactElement, role: 'editor' | 'viewer' = 'editor') {
   );
 }
 
+/**
+ * 024 put the board's filters behind two surfaces: the quick ranges are
+ * presets inside the calendar, and account, assignee, tag and sort sit behind
+ * one "Filters" trigger. Opening them is a real step a person takes, so the
+ * tests take it too rather than reaching past the chrome.
+ */
+async function openQuickRanges(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Open calendar' }));
+}
+
+async function openMoreFilters(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /^Filters/ }));
+}
+
 describe('a card', () => {
   it('folds a long brief behind "More" and unfolds it in place without opening the task', async () => {
     // jsdom has no layout: stand in for a clamped paragraph by hand.
@@ -523,6 +537,7 @@ describe('the list', () => {
       />
     );
     await screen.findByText('v31-434');
+    await openMoreFilters(user);
     await user.click(
       await screen.findByRole('button', { name: 'Only tasks of an account or agent' })
     );
@@ -628,6 +643,7 @@ describe('the list', () => {
       <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
     );
     await screen.findByText('v31-434');
+    await openQuickRanges(user);
     await user.click(screen.getByRole('button', { name: 'Today' }));
     await waitFor(() => expect(screen.getAllByRole('article').length).toBeGreaterThan(0));
 
@@ -658,6 +674,7 @@ describe('the list', () => {
     );
     await screen.findByText('v31-434');
 
+    await openQuickRanges(user);
     await user.click(screen.getByRole('button', { name: 'Today' }));
     const now = new Date();
     const today = [
@@ -694,8 +711,10 @@ describe('the list', () => {
         expect.objectContaining({ agentRowId: A434, accountId: null })
       )
     );
-    const pill = await screen.findByRole('button', { name: 'Only tasks of an account or agent' });
-    await waitFor(() => expect(pill.textContent).toBe('v31-434'));
-    expect(screen.getByRole('button', { name: 'Show every account' })).toBeTruthy();
+    // 024 put the pill behind "Filters" and the answer in front of it: a chip
+    // in the bar names what the board is narrowed to, and taking it off is one
+    // press. A filter you cannot see is a filter you blame the data for.
+    const chip = await screen.findByRole('button', { name: 'Remove the filter v31-434' });
+    expect(chip.textContent).toContain('v31-434');
   });
 });

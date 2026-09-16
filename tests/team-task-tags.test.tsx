@@ -197,6 +197,14 @@ function wrap(ui: React.ReactElement, role: 'editor' | 'viewer' = 'editor') {
   );
 }
 
+/**
+ * 024 moved the tag, assignee and order controls behind one "Filters" trigger
+ * (FR-077). Opening it is a step a person takes, so these take it too.
+ */
+async function openMoreFilters(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: /^Filters/ }));
+}
+
 describe('the contract', () => {
   it('normalizes a name and refuses one that is blank or too long', () => {
     expect(normalizeTeamTaskLabelName('  Hot   sale ')).toBe('Hot sale');
@@ -380,6 +388,7 @@ describe('the board', () => {
     const api = client();
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
+    await openMoreFilters(user);
     await user.click(await screen.findByRole('button', { name: 'Only tasks carrying these tags' }));
     await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Hot/u }));
     await waitFor(() =>
@@ -412,6 +421,7 @@ describe('the board', () => {
     const api = client();
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
+    await openMoreFilters(user);
     await user.click(await screen.findByRole('button', { name: 'Only one person’s tasks' }));
     await user.click(screen.getByRole('option', { name: /Анна/u }));
     await waitFor(() =>
@@ -436,6 +446,7 @@ describe('the board', () => {
     const api = client();
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
+    await openMoreFilters(user);
     await user.click(await screen.findByRole('button', { name: 'By tag' }));
     await waitFor(() =>
       expect(api.listTasks).toHaveBeenCalledWith(expect.objectContaining({ sort: 'label' }))

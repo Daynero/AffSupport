@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render as renderRaw, screen } from '@testing-library/react';
+import { cleanup, render as renderRaw, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LibraryAssetSummary } from '@video-compressor/shared';
 import { isCreativeLibraryAssetVisible } from '../apps/web/src/team/library/useCreativeLibrary';
@@ -52,7 +53,14 @@ describe('Creative Library rules that outlived the surface', () => {
     expect(isCreativeLibraryAssetVisible({ ...asset, name: 'landing-config.json' })).toBe(true);
   });
 
-  it('uses a compact calendar for single dates or ranges and keeps status filters explicit', () => {
+  /**
+   * 024 put the inventory's calendar here, so a day is asked for by the name
+   * the locale gives it rather than by `YYYY-MM-DD`, and the double-click that
+   * used to mean "just this one day" is gone: clicking the same day twice is a
+   * one-day range, which is the same outcome with one fewer thing to know.
+   */
+  it('takes a range from the calendar and keeps status filters explicit', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     const onStatusChange = vi.fn();
     const first = new Date();
@@ -60,6 +68,8 @@ describe('Creative Library rules that outlived the surface', () => {
     second.setDate(second.getDate() + 1);
     const firstDate = localDateValue(first);
     const secondDate = localDateValue(second);
+    const dayName = (date: Date) =>
+      new Intl.DateTimeFormat('en-US', { dateStyle: 'full' }).format(date);
     render(
       <TaskDateFilterControl
         value={{ kind: 'all' }}
@@ -68,17 +78,15 @@ describe('Creative Library rules that outlived the surface', () => {
         onStatusChange={onStatusChange}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Open calendar' }));
-    fireEvent.click(screen.getByRole('button', { name: firstDate }));
-    fireEvent.click(screen.getByRole('button', { name: secondDate }));
+    await user.click(screen.getByRole('button', { name: 'Open calendar' }));
+    await user.click(screen.getByRole('button', { name: new RegExp(dayName(first)) }));
+    // Half a range commits nothing; the day picked is not thrown away either.
+    expect(onChange).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: new RegExp(dayName(second)) }));
     expect(onChange).toHaveBeenLastCalledWith({ kind: 'range', from: firstDate, to: secondDate });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open calendar' }));
-    fireEvent.doubleClick(screen.getByRole('button', { name: firstDate }));
-    expect(onChange).toHaveBeenLastCalledWith({ kind: 'range', from: firstDate, to: firstDate });
-
-    fireEvent.click(screen.getByRole('button', { name: 'To do' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByRole('button', { name: 'To do' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(onStatusChange.mock.calls.map(([value]) => value)).toEqual(['todo', 'done']);
   });
 });

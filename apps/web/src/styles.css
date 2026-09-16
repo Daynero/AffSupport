@@ -10012,11 +10012,92 @@ body {
 .team-task-picker-heading > div {
   min-width: 0;
 }
-.task-date-filter {
+/*
+ * The board's filter bar (024): one row, and under it whatever is in force.
+ *
+ * Thirteen controls became four plus chips. The chips are the part that
+ * matters — a filter you cannot see is a filter you will blame the data for —
+ * so they get their own line rather than competing for room in the row.
+ */
+.task-filter-bar {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.task-filter-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+}
+.task-filter-search {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1 1 14rem;
+  max-width: 22rem;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  min-height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+.task-filter-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  outline: none;
+}
+.task-filter-more {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.task-filter-more-popover {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 15rem;
+}
+.task-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.task-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-accent-softer);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-caption);
+}
+.task-filter-chip:hover {
+  background: var(--color-surface-muted);
+}
+.task-date-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+/* The four ranges, now presets under the calendar's own grid. */
+.task-date-filter-popover .task-quick-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--space-2);
 }
 .task-date-filter-calendar {
   position: relative;
