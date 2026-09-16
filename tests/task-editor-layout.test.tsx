@@ -111,17 +111,19 @@ afterEach(() => {
 });
 
 describe('the task editor as a brief', () => {
-  it('reads title, then the facts line, then the brief, then the work', async () => {
+  it('reads title, the facts line, accounts and tags, the brief, then the work', async () => {
     open();
     await screen.findByDisplayValue('Pro Caps | TR 05/09');
     const editor = document.querySelector('.team-task-editor')!;
+    // Accounts and tags sit under the facts (024): which agent a launch is on is the task's
+    // main fact, and it used to follow a tall drop tile in the other column.
     const order = [
       '#team-task-title',
       '.team-task-editor-facts',
+      '.team-task-editor-tags',
       '#team-task-description',
-      '.team-task-editor-progress',
-      '.team-task-attachments',
-      '.team-task-agent-tags, .team-task-agents, [aria-labelledby*="agent"]'
+      '.team-task-editor-progress-group',
+      '.team-task-attachments'
     ]
       .map(selector => editor.querySelector(selector))
       .filter((node): node is Element => node !== null);

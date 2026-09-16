@@ -118,7 +118,7 @@ function wrap(api: TaskEditorClient, role: 'editor' | 'viewer' = 'editor', canEd
 
 /** The attachment section is the drop target, so the test aims where a person does. */
 function attachmentsSection(): HTMLElement {
-  const heading = screen.getByRole('heading', { name: 'Attached files' });
+  const heading = screen.getByRole('heading', { name: 'Files' });
   const section = heading.closest('section');
   if (!section) throw new Error('attachments section missing');
   return section;
@@ -184,7 +184,7 @@ describe('files dropped on a task', () => {
   it('sends them to the space’s one drop folder and attaches each as it lands', async () => {
     const api = client();
     wrap(api);
-    await screen.findByRole('heading', { name: 'Attached files' });
+    await screen.findByRole('heading', { name: 'Files' });
 
     drop(attachmentsSection(), [
       new File(['one'], 'brief.pdf', { type: 'application/pdf' }),
@@ -224,7 +224,7 @@ describe('files dropped on a task', () => {
       })
     } as Partial<TaskEditorClient>);
     wrap(api);
-    await screen.findByRole('heading', { name: 'Attached files' });
+    await screen.findByRole('heading', { name: 'Files' });
 
     drop(attachmentsSection(), [
       new File(['one'], 'huge.mov', { type: 'video/quicktime' }),
@@ -238,7 +238,7 @@ describe('files dropped on a task', () => {
   it('rebuilds a dropped folder in Drive and attaches the folder itself', async () => {
     const api = client();
     wrap(api);
-    await screen.findByRole('heading', { name: 'Attached files' });
+    await screen.findByRole('heading', { name: 'Files' });
 
     // A landing: a page, and an assets folder beside it. It only works whole,
     // so the tree is rebuilt rather than tipped into the drawer.
@@ -271,7 +271,7 @@ describe('files dropped on a task', () => {
   it('takes nothing from a member who may not upload', async () => {
     const api = client();
     wrap(api, 'viewer', false);
-    await screen.findByRole('heading', { name: 'Attached files' });
+    await screen.findByRole('heading', { name: 'Files' });
 
     drop(attachmentsSection(), [new File(['one'], 'brief.pdf', { type: 'application/pdf' })]);
 

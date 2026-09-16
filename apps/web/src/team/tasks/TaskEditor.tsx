@@ -1086,6 +1086,41 @@ export function TaskEditor({
                   }}
                 />
               </div>
+              {/* The accounts and the tags, right under state · who · when (024): which
+                  agent a launch is on is the task's main fact, and it sat under a tall
+                  empty drop tile in the other column. */}
+              <div className="team-task-editor-tags">
+                {/* The accounts this task is about (017). Written at once, like
+                status: a tag is a fact about the task, not a draft of one. */}
+                <TaskAgentTagsEditor
+                  teamId={teamId}
+                  taskId={task.id}
+                  taskTitle={title}
+                  tags={task.agents}
+                  canEdit={canEdit}
+                  client={client}
+                  onTagsChange={agents => {
+                    setTask(current => ({ ...current, agents }));
+                    onTagsChange?.(agents);
+                  }}
+                />
+                {/* The team's own tags (018), from the dictionary in settings. */}
+                <TaskLabelsEditor
+                  teamId={teamId}
+                  taskId={task.id}
+                  labels={task.labels}
+                  available={labels}
+                  canEdit={canEdit}
+                  client={client}
+                  onLabelsChange={next => {
+                    setTask(current => ({ ...current, labels: next }));
+                    onLabelsChange?.(next);
+                  }}
+                  // A tag made from inside the task belongs to the space, so the
+                  // dictionary the board and the settings read has to learn it too.
+                  onLabelCreated={onLabelCreated}
+                />
+              </div>
               <FormField
                 className="team-task-brief-field"
                 label={t('teamTaskDescription')}
@@ -1115,69 +1150,70 @@ export function TaskEditor({
                 role="group"
                 aria-labelledby="team-task-progress-title"
               >
-                <span id="team-task-progress-title" className="team-task-accounts-label">
-                  {t('teamTaskProgressTitle')}
-                </span>
-                <div className="team-task-editor-progress">
-                  <TaskProgressScale
-                    value={progressValue}
-                    max={progressMax}
-                    disabled={!canEdit}
-                    label={t('teamTaskProgressScale')}
-                    onChange={setProgressValue}
-                    onCommit={next => {
-                      if (canEdit) progressWriter.send({ progressValue: next, progressMax });
-                    }}
-                  />
-                  <FormField
-                    className="team-task-progress-max-field"
-                    label={t('teamTaskProgressMax')}
-                    htmlFor="team-task-progress-max"
-                  >
-                    <div className="team-task-progress-max-input">
-                      <Input
-                        id="team-task-progress-max"
-                        inputMode="numeric"
-                        type="number"
-                        min={1}
-                        max={TASK_PROGRESS_MAX}
-                        value={progressMaxInput}
-                        disabled={!canEdit}
-                        onChange={event => updateProgressMax(event.target.value)}
-                        onBlur={() => {
-                          if (!/^\d+$/u.test(progressMaxInput))
-                            setProgressMaxInput(String(progressMax));
+                {/* "0 / 100" on the caption line (024): the maximum is part of the reading, not
+                    a boxed field of its own that looked required on every task. */}
+                <div className="team-task-editor-progress-head">
+                  <span id="team-task-progress-title" className="team-task-accounts-label">
+                    {t('teamTaskProgressTitle')}
+                  </span>
+                  <span className="team-task-progress-readout">
+                    <span>{progressValue}</span>
+                    <span aria-hidden="true">/</span>
+                    <Input
+                      id="team-task-progress-max"
+                      className="team-task-progress-max-inline"
+                      aria-label={t('teamTaskProgressMax')}
+                      size="sm"
+                      inputMode="numeric"
+                      type="number"
+                      min={1}
+                      max={TASK_PROGRESS_MAX}
+                      value={progressMaxInput}
+                      disabled={!canEdit}
+                      onChange={event => updateProgressMax(event.target.value)}
+                      onBlur={() => {
+                        if (!/^\d+$/u.test(progressMaxInput))
+                          setProgressMaxInput(String(progressMax));
+                      }}
+                    />
+                  </span>
+                  {canEdit &&
+                    can('manage_metadata') &&
+                    defaultMax !== null &&
+                    progressMax !== defaultMax && (
+                      <Button
+                        className="team-task-progress-max-save"
+                        size="sm"
+                        color="neutral"
+                        variant="ghost"
+                        disabled={savingDefaultMax}
+                        onClick={async () => {
+                          setSavingDefaultMax(true);
+                          try {
+                            await teamApi.setTaskProgressMaxDefault(teamId, progressMax);
+                            setDefaultMax(progressMax);
+                            push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
+                          } catch {
+                            push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
+                          } finally {
+                            setSavingDefaultMax(false);
+                          }
                         }}
-                      />
-                      {canEdit &&
-                        can('manage_metadata') &&
-                        defaultMax !== null &&
-                        progressMax !== defaultMax && (
-                          <Button
-                            className="team-task-progress-max-save"
-                            size="sm"
-                            color="neutral"
-                            variant="ghost"
-                            disabled={savingDefaultMax}
-                            onClick={async () => {
-                              setSavingDefaultMax(true);
-                              try {
-                                await teamApi.setTaskProgressMaxDefault(teamId, progressMax);
-                                setDefaultMax(progressMax);
-                                push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
-                              } catch {
-                                push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
-                              } finally {
-                                setSavingDefaultMax(false);
-                              }
-                            }}
-                          >
-                            {t('teamTaskProgressMaxSaveDefault')}
-                          </Button>
-                        )}
-                    </div>
-                  </FormField>
+                      >
+                        {t('teamTaskProgressMaxSaveDefault')}
+                      </Button>
+                    )}
                 </div>
+                <TaskProgressScale
+                  value={progressValue}
+                  max={progressMax}
+                  disabled={!canEdit}
+                  label={t('teamTaskProgressScale')}
+                  onChange={setProgressValue}
+                  onCommit={next => {
+                    if (canEdit) progressWriter.send({ progressValue: next, progressMax });
+                  }}
+                />
               </div>
               {error && (
                 <ErrorState
@@ -1247,9 +1283,12 @@ export function TaskEditor({
                       </p>
                     )}
                   </div>
-                  <Badge size="sm">
-                    {t('teamTaskAttachmentsCount', { count: attachmentCount })}
-                  </Badge>
+                  {/* A zero says nothing the empty grid does not (024). */}
+                  {attachmentCount > 0 && (
+                    <Badge size="sm">
+                      {t('teamTaskAttachmentsCount', { count: attachmentCount })}
+                    </Badge>
+                  )}
                 </div>
 
                 {/* The shape of what is coming, so the list does not jump when it
@@ -1367,36 +1406,6 @@ export function TaskEditor({
                   </Button>
                 )}
               </section>
-              {/* The accounts this task is about (017). Written at once, like
-              status: a tag is a fact about the task, not a draft of one. */}
-              <TaskAgentTagsEditor
-                teamId={teamId}
-                taskId={task.id}
-                taskTitle={title}
-                tags={task.agents}
-                canEdit={canEdit}
-                client={client}
-                onTagsChange={agents => {
-                  setTask(current => ({ ...current, agents }));
-                  onTagsChange?.(agents);
-                }}
-              />
-              {/* The team's own tags (018), from the dictionary in settings. */}
-              <TaskLabelsEditor
-                teamId={teamId}
-                taskId={task.id}
-                labels={task.labels}
-                available={labels}
-                canEdit={canEdit}
-                client={client}
-                onLabelsChange={next => {
-                  setTask(current => ({ ...current, labels: next }));
-                  onLabelsChange?.(next);
-                }}
-                // A tag made from inside the task belongs to the space, so the
-                // dictionary the board and the settings read has to learn it too.
-                onLabelCreated={onLabelCreated}
-              />
             </div>
           </div>
         </div>

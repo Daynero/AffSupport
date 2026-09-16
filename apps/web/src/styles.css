@@ -10120,6 +10120,55 @@ body {
   min-height: 5.5rem;
   max-height: 24rem;
 }
+/* Accounts and tags under the facts, their captions left to the buttons (024): "Accounts"
+   beside "+ Account" said the same word twice. Still named for assistive technology. */
+.team-task-editor-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+/* One line of chips: the two groups give up their own boxes (and the label column the editor
+   gave them), so accounts and tags sit side by side and wrap as the line fills. */
+.team-task-editor .team-task-editor-tags .team-task-accounts,
+.team-task-editor .team-task-editor-tags .team-task-labels-row-editor {
+  display: contents;
+}
+.team-task-editor-tags .team-task-agent-panel {
+  flex-basis: 100%;
+}
+.team-task-editor-tags .team-task-accounts-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.team-task-editor-progress-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.team-task-progress-readout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.team-task-progress-readout > span:first-child {
+  color: var(--color-text);
+  font-weight: 650;
+}
+.team-task-editor .team-task-progress-max-inline {
+  width: 4.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 /* How far along, and out of how much, as one compact line. */
 .team-task-editor-progress-group {
   display: grid;
