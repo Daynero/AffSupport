@@ -12957,7 +12957,7 @@ button.team-landing-tile:hover {
 /* Ancestors give way first, and the open folder keeps the most room: it is the
    one a person is reading. */
 .team-explorer-breadcrumb button,
-.team-explorer-breadcrumb [aria-current='location'] {
+.team-explorer-breadcrumb [aria-current] {
   /* `min-width: 0` on both the item and the thing inside it, or the flex row
      hands each name its full intrinsic width and the ellipsis never fires —
      the row just overflows, which is where the mid-word cut came from. */
@@ -12970,7 +12970,9 @@ button.team-landing-tile:hover {
 .team-explorer-breadcrumb li:not(:last-child) button {
   max-width: 10rem;
 }
-.team-explorer-breadcrumb [aria-current='location'] {
+/* Any `aria-current`: the markup says "page", and a rule written for
+   "location" left "Нові аккаунти" free to break onto a second line. */
+.team-explorer-breadcrumb [aria-current] {
   min-width: 3rem;
 }
 .team-explorer-breadcrumb-separator {
@@ -13022,7 +13024,7 @@ button.team-landing-tile:hover {
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
 }
-.team-explorer-breadcrumb [aria-current='location'] {
+.team-explorer-breadcrumb [aria-current] {
   font-weight: 600;
 }
 .team-explorer-breadcrumb-separator {
