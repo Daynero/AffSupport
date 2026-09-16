@@ -1097,62 +1097,74 @@ export function TaskEditor({
                   onBlur={autosave.flush}
                 />
               </FormField>
-              <div className="team-task-editor-progress">
-                <TaskProgressScale
-                  value={progressValue}
-                  max={progressMax}
-                  disabled={!canEdit}
-                  label={t('teamTaskProgressScale')}
-                  onChange={setProgressValue}
-                  onCommit={next => {
-                    if (canEdit) progressWriter.send({ progressValue: next, progressMax });
-                  }}
-                />
-                <FormField
-                  className="team-task-progress-max-field"
-                  label={t('teamTaskProgressMax')}
-                  htmlFor="team-task-progress-max"
-                >
-                  <div className="team-task-progress-max-input">
-                    <Input
-                      id="team-task-progress-max"
-                      inputMode="numeric"
-                      type="number"
-                      min={1}
-                      max={TASK_PROGRESS_MAX}
-                      value={progressMaxInput}
-                      disabled={!canEdit}
-                      onChange={event => updateProgressMax(event.target.value)}
-                      onBlur={() => {
-                        if (!/^\d+$/u.test(progressMaxInput))
-                          setProgressMaxInput(String(progressMax));
-                      }}
-                    />
-                    {canEdit && defaultMax !== null && progressMax !== defaultMax && (
-                      <Button
-                        className="team-task-progress-max-save"
-                        size="sm"
-                        color="neutral"
-                        variant="ghost"
-                        disabled={savingDefaultMax}
-                        onClick={async () => {
-                          setSavingDefaultMax(true);
-                          try {
-                            await teamApi.setTaskProgressMaxDefault(progressMax);
-                            setDefaultMax(progressMax);
-                            push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
-                          } catch {
-                            push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
-                          } finally {
-                            setSavingDefaultMax(false);
-                          }
+              {/* Named where it stands, like Accounts and Tags below it: a
+                  red bar with a "0" on it and no word read as an error, not
+                  as "nothing done yet". */}
+              <div
+                className="team-task-editor-progress-group"
+                role="group"
+                aria-labelledby="team-task-progress-title"
+              >
+                <span id="team-task-progress-title" className="team-task-accounts-label">
+                  {t('teamTaskProgressTitle')}
+                </span>
+                <div className="team-task-editor-progress">
+                  <TaskProgressScale
+                    value={progressValue}
+                    max={progressMax}
+                    disabled={!canEdit}
+                    label={t('teamTaskProgressScale')}
+                    onChange={setProgressValue}
+                    onCommit={next => {
+                      if (canEdit) progressWriter.send({ progressValue: next, progressMax });
+                    }}
+                  />
+                  <FormField
+                    className="team-task-progress-max-field"
+                    label={t('teamTaskProgressMax')}
+                    htmlFor="team-task-progress-max"
+                  >
+                    <div className="team-task-progress-max-input">
+                      <Input
+                        id="team-task-progress-max"
+                        inputMode="numeric"
+                        type="number"
+                        min={1}
+                        max={TASK_PROGRESS_MAX}
+                        value={progressMaxInput}
+                        disabled={!canEdit}
+                        onChange={event => updateProgressMax(event.target.value)}
+                        onBlur={() => {
+                          if (!/^\d+$/u.test(progressMaxInput))
+                            setProgressMaxInput(String(progressMax));
                         }}
-                      >
-                        {t('teamTaskProgressMaxSaveDefault')}
-                      </Button>
-                    )}
-                  </div>
-                </FormField>
+                      />
+                      {canEdit && defaultMax !== null && progressMax !== defaultMax && (
+                        <Button
+                          className="team-task-progress-max-save"
+                          size="sm"
+                          color="neutral"
+                          variant="ghost"
+                          disabled={savingDefaultMax}
+                          onClick={async () => {
+                            setSavingDefaultMax(true);
+                            try {
+                              await teamApi.setTaskProgressMaxDefault(progressMax);
+                              setDefaultMax(progressMax);
+                              push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
+                            } catch {
+                              push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
+                            } finally {
+                              setSavingDefaultMax(false);
+                            }
+                          }}
+                        >
+                          {t('teamTaskProgressMaxSaveDefault')}
+                        </Button>
+                      )}
+                    </div>
+                  </FormField>
+                </div>
               </div>
               {error && (
                 <ErrorState

@@ -10059,6 +10059,11 @@ body {
   max-height: 24rem;
 }
 /* How far along, and out of how much, as one compact line. */
+.team-task-editor-progress-group {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
 .team-task-editor-progress {
   display: flex;
   flex-wrap: wrap;
@@ -10734,6 +10739,12 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A file's name at reading size, as Drive's tiles set it: at the dialog's
+   inherited size it was louder than the "Attached media" heading above it. */
+.team-task-attachment-caption strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 .team-task-attachment-caption small {
   margin-top: 2px;

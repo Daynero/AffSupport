@@ -485,7 +485,7 @@ describe('Creative Library task workflows', () => {
     );
 
     await screen.findByText('launch.mp4');
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
 
@@ -639,7 +639,7 @@ describe('Creative Library task workflows', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Campaigns/ }));
     await waitFor(() =>
       expect(api.listMaterials).toHaveBeenCalledWith(TEAM_ID, 'drive-folder-campaigns')
@@ -684,7 +684,7 @@ describe('Creative Library task workflows', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     const field = await screen.findByRole('searchbox', { name: 'Search the space by name' });
     fireEvent.change(field, { target: { value: 'new-image' } });
 
@@ -715,7 +715,7 @@ describe('Creative Library task workflows', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     const roots = await screen.findAllByRole('button', { name: 'Root' });
     expect(roots).toHaveLength(1);
     expect((roots[0] as HTMLButtonElement).disabled).toBe(false);
