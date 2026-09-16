@@ -122,7 +122,7 @@ export function useBrowserRoute() {
   return route;
 }
 
-export function internalLink(event: MouseEvent<HTMLAnchorElement>, path: string) {
+export function internalLink(event: MouseEvent<HTMLAnchorElement>, path: string, animate = true) {
   if (
     event.defaultPrevented ||
     event.button !== 0 ||
@@ -133,5 +133,5 @@ export function internalLink(event: MouseEvent<HTMLAnchorElement>, path: string)
   )
     return;
   event.preventDefault();
-  navigateTo(path);
+  navigateTo(path, false, animate);
 }

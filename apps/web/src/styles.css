@@ -7147,16 +7147,14 @@ body:has(.public-home) {
    Route transitions — a short crossfade of the page content
    only; the persistent topbar remains mounted.
    ============================================================ */
+/* The old page stays opaque under the new one while it fades in (024): fading both at once left
+   each half transparent mid-way, and the honeycomb behind the page flashed through. */
 ::view-transition-old(wishly-page) {
-  animation: wishly-page-out var(--dur-section) var(--ease-standard) both;
+  animation: none;
+  opacity: 1;
 }
 ::view-transition-new(wishly-page) {
   animation: wishly-page-in var(--dur-section) var(--ease-standard) both;
-}
-@keyframes wishly-page-out {
-  to {
-    opacity: 0;
-  }
 }
 @keyframes wishly-page-in {
   from {
@@ -8527,6 +8525,16 @@ body:has(.public-home) {
 .team-space-tabs .ui-tab.is-selected {
   color: var(--color-accent);
   border-bottom-color: var(--color-accent);
+}
+/* Inside the tab (024): the strip clips what spills past its top and bottom, so the page's ring
+   showed as two purple bars either side of the label. Keyboard focus only — a click draws none. */
+.team-space-tabs .ui-tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+.team-space-tabs .ui-tab:focus:not(:focus-visible) {
+  outline: none;
 }
 .team-space-shell-body {
   display: grid;

@@ -1,4 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  createElement,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType
+} from 'react';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { PaletteHost } from '../palette/PaletteHost';
@@ -45,12 +54,42 @@ import {
 import type { CatalogSearchFilters } from '@video-compressor/shared';
 import { Tabs } from '../../components/ui/index';
 
-const TaskSpace = lazy(() =>
-  import('../tasks/TaskSpace').then(module => ({ default: module.TaskSpace }))
+/**
+ * A section loaded on demand, drawn at once when its code is already here (024).
+ *
+ * `lazy` suspends for a tick on its first render even when the module has long been fetched, so
+ * a first visit to Tasks painted an empty page between the tab press and the board. The code is
+ * fetched in the background after the explorer is up; a section that finds it rendered directly,
+ * and one that does not falls back to `lazy` for good (switching mid-life would remount it).
+ */
+function preloadable<Module, Props extends object>(
+  load: () => Promise<Module>,
+  pick: (module: Module) => ComponentType<Props>
+) {
+  let loaded: Module | null = null;
+  const fetch = () =>
+    load().then(module => {
+      loaded = module;
+      return module;
+    });
+  const Lazy = lazy(() => fetch().then(module => ({ default: pick(module) })));
+  function Section(props: Props) {
+    const [ready] = useState(() => loaded !== null);
+    return ready && loaded ? createElement(pick(loaded), props) : createElement(Lazy, props);
+  }
+  return { Section, fetch };
+}
+
+const taskSection = preloadable(
+  () => import('../tasks/TaskSpace'),
+  module => module.TaskSpace
 );
-const AccountSpace = lazy(() =>
-  import('../accounts/AccountSpace').then(module => ({ default: module.AccountSpace }))
+const accountSection = preloadable(
+  () => import('../accounts/AccountSpace'),
+  module => module.AccountSpace
 );
+const TaskSpace = taskSection.Section;
+const AccountSpace = accountSection.Section;
 const ExplorerShell = lazy(() =>
   import('../explorer/ExplorerShell').then(module => ({ default: module.ExplorerShell }))
 );
@@ -238,10 +277,25 @@ export function WorkspaceShell({
    * other half of that deal: a space that is opened and never leaves the
    * explorer must not pay for loading three sections nobody asked for.
    */
-  const [visited, setVisited] = useState<ReadonlySet<TeamSection>>(() => new Set([section]));
+  const [remembered, setVisited] = useState<ReadonlySet<TeamSection>>(() => new Set([section]));
   useEffect(() => {
     setVisited(previous => (previous.has(section) ? previous : new Set(previous).add(section)));
   }, [section]);
+  /*
+   * The section being opened counts as visited in the very render that opens it (024). Read
+   * from state alone, the first frame after a tab press had the old section hidden and the new
+   * one not yet mounted — an empty page, with the honeycomb behind it flashing through.
+   */
+  const visited = remembered.has(section) ? remembered : new Set(remembered).add(section);
+  // The other sections' code, fetched once the explorer is up, so a first visit does not wait on
+  // a chunk with nothing on screen.
+  useEffect(() => {
+    const idle = window.setTimeout(() => {
+      void taskSection.fetch();
+      void accountSection.fetch();
+    }, 1500);
+    return () => window.clearTimeout(idle);
+  }, []);
   // Switching spaces needs no reset here: TeamSpace keys this shell on the
   // team, so another space arrives as a new shell with an empty memory.
 
@@ -665,8 +719,11 @@ export function WorkspaceShell({
                   className="team-space-tabs"
                   label={t('teamSectionsNavLabel')}
                   value={section}
-                  onChange={next => navigateTo(sectionRoute(next))}
-                  onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id))}
+                  /* No page crossfade between sections (the owner, 024): the header and
+                     the tabs stay where they are, and fading the whole page out and
+                     back in let the honeycomb behind it flash through on every switch. */
+                  onChange={next => navigateTo(sectionRoute(next), false, false)}
+                  onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id), false)}
                   items={CONTENT_TABS.map(tab => ({
                     id: tab.section,
                     label: t(tab.label),
@@ -694,26 +751,30 @@ export function WorkspaceShell({
                   )}
                   {visited.has('tasks') && (
                     <div hidden={section !== 'tasks' || trashOver}>
-                      <TaskSpace
-                        key={`tasks:${teamId}`}
-                        teamId={teamId}
-                        createFromAsset={taskAsset}
-                        onConsumedCreateFromAsset={() => setTaskAsset(null)}
-                        /* The editor is a dialog, portalled to the page: while Tasks is
+                      <Suspense fallback={null}>
+                        <TaskSpace
+                          key={`tasks:${teamId}`}
+                          teamId={teamId}
+                          createFromAsset={taskAsset}
+                          onConsumedCreateFromAsset={() => setTaskAsset(null)}
+                          /* The editor is a dialog, portalled to the page: while Tasks is
                       hidden it would float over whatever section is showing — "Show
                       in folder" opened Files under a task that stayed on top of it.
                       The open task is remembered either way, and comes back with
                       the tab or the way-back chip. */
-                        openTaskId={section === 'tasks' ? (taskQuery?.taskId ?? null) : null}
-                        onOpenTaskChange={onOpenTaskChange}
-                        scope={taskScope}
-                        onScopeChange={onTaskScopeChange}
-                      />
+                          openTaskId={section === 'tasks' ? (taskQuery?.taskId ?? null) : null}
+                          onOpenTaskChange={onOpenTaskChange}
+                          scope={taskScope}
+                          onScopeChange={onTaskScopeChange}
+                        />
+                      </Suspense>
                     </div>
                   )}
                   {visited.has('accounts') && (
                     <div hidden={section !== 'accounts' || trashOver}>
-                      <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+                      <Suspense fallback={null}>
+                        <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+                      </Suspense>
                     </div>
                   )}
                   {/* Nothing was ever indexed, so the connection is genuinely the
