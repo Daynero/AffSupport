@@ -6,6 +6,7 @@ import type {
 } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
+import { displayName } from './CatalogFilters';
 import { Button, ErrorState, FormField, Input, Select } from '../../components/ui/index';
 
 export function MaterialMetadataEditor({
@@ -19,7 +20,7 @@ export function MaterialMetadataEditor({
   onClose: () => void;
   onSave: (patch: MaterialMetadataPatch) => Promise<void>;
 }) {
-  const { t } = useI18n();
+  const { t, language: uiLanguage } = useI18n();
   const [geo, setGeo] = useState(material.geo ?? '');
   const [language, setLanguage] = useState(material.language ?? '');
   const [offer, setOffer] = useState(material.offer ?? '');
@@ -66,7 +67,7 @@ export function MaterialMetadataEditor({
             aria-label={t('teamCatalogMaterialGeo')}
             value={geo}
             placeholder={t('teamCatalogUnfilled')}
-            options={vocabulary.geo.map(value => ({ value, label: value }))}
+            options={named(vocabulary.geo, 'region', uiLanguage)}
             onChange={setGeo}
           />
         </FormField>
@@ -75,7 +76,7 @@ export function MaterialMetadataEditor({
             aria-label={t('teamCatalogMaterialLanguage')}
             value={language}
             placeholder={t('teamCatalogUnfilled')}
-            options={vocabulary.languages.map(value => ({ value, label: value }))}
+            options={named(vocabulary.languages, 'language', uiLanguage)}
             onChange={setLanguage}
           />
         </FormField>
@@ -108,4 +109,14 @@ export function MaterialMetadataEditor({
       </form>
     </Modal>
   );
+}
+
+/** "Poland · PL": the name to find it by, the code it is stored as (024). Sorted by name. */
+function named(codes: readonly string[], type: 'region' | 'language', uiLanguage: string) {
+  return codes
+    .map(code => {
+      const name = displayName(type, type === 'region' ? code.toUpperCase() : code, uiLanguage);
+      return { value: code, label: name ? `${name} · ${code}` : code };
+    })
+    .sort((left, right) => left.label.localeCompare(right.label, uiLanguage));
 }

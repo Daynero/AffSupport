@@ -215,7 +215,7 @@ function inUse(used: readonly string[], chosen: readonly string[]): string[] {
   return [...new Set([...used, ...chosen])];
 }
 
-function displayName(
+export function displayName(
   type: 'region' | 'language',
   code: string,
   language: string

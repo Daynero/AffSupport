@@ -148,7 +148,7 @@ describe('team catalog search UI', () => {
     // Behind the one overflow now, with everything else this file can take.
     await user.click(screen.getByRole('button', { name: /^Actions for launch\.mp4/ }));
     await user.click(await screen.findByRole('menuitem', { name: 'Edit the details' }));
-    await choose(user, 'File GEO', 'UA');
+    await choose(user, 'File GEO', 'Ukraine · UA');
     await user.click(screen.getByRole('button', { name: 'Save metadata' }));
     await waitFor(() =>
       expect(api.updateMaterialMetadata).toHaveBeenCalledWith(
