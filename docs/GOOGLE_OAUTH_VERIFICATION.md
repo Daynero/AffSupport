@@ -1,138 +1,70 @@
 # Google OAuth verification: Soty
 
-This is the release checklist for Google OAuth. It separates the public Soty sign-in
-from the future Google Drive workspace so we never ask Google to approve a feature that
-users cannot actually use.
+Soty requests `openid`, `userinfo.email`, `userinfo.profile` and
+`https://www.googleapis.com/auth/drive.file`. All four are non-sensitive, so Google asks for
+**brand verification only**: no scope review, no demo video, no CASA security assessment.
+Adding any other Drive scope (`drive`, `drive.readonly`, `drive.metadata*`) turns the
+submission into a restricted-scope review with a paid annual assessment. Do not add one.
 
-## Current allowed submission: Soty sign-in
+## What Google checks, and where Soty meets it
 
-The current public Soty release may use only these identity scopes through Supabase:
+| Requirement                                                            | Where                                                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Every domain in the OAuth client is verified by the project owner      | Both returns land on `soty.pp.ua` (`supabase/functions/_shared/google-redirect.ts`)         |
+| Homepage describes the app and why it asks for Google data, no login   | `apps/web/src/PublicHomePage.tsx` (`publicHomeDriveNote`)                                   |
+| Homepage links to the Privacy Policy, reachable on any screen          | Footer link; the homepage scrolls where it does not fit                                     |
+| Privacy Policy on the same domain, as HTML, describing Google data use | `/privacy` (`apps/web/src/pages/legal-content.ts`), also written to `privacy.html` at build |
+| In-product disclosure where data is requested                          | `apps/web/src/team/drive/DriveDataUseNotice.tsx` on the connect step                        |
+| Limited Use statement, no AI/ML training                               | Privacy Policy, section "Google data sharing, retention and deletion"                       |
+| Sign-in button follows Google branding                                 | `apps/web/src/auth/AuthScreens.tsx`, standard "G" on a white button                         |
 
-- `openid`
-- `https://www.googleapis.com/auth/userinfo.email`
-- `https://www.googleapis.com/auth/userinfo.profile`
+`<ref>.supabase.co` is on the Public Suffix List, so Google treats it as a domain of its own
+that nobody but Supabase can verify. That is why sign-in no longer returns to Supabase: the
+`google-sign-in` function runs the PKCE exchange against `https://soty.pp.ua/auth/callback`
+and the browser signs in with `signInWithIdToken`. It takes over only when the function's
+`GOOGLE_CLIENT_ID` is the client Supabase's Google provider uses; otherwise it answers
+`legacy` and the old provider redirect keeps working. Drive returns to
+`https://soty.pp.ua/oauth/drive/callback`, a page that forwards the query to
+`drive-oauth-callback` unchanged.
 
-These do **not** grant Drive access. Before submitting brand verification, the project
-owner must complete the following in Google Cloud Console:
+## Rollout order
 
-1. Use a dedicated **production** Cloud project. Keep development and test projects
-   separate.
-2. Set the application name to **Soty**, with a reachable support email and developer
-   contact email.
-3. Set these exact, public URLs on the verified `soty.pp.ua` domain:
-   - Homepage: `https://soty.pp.ua`
-   - Privacy Policy: `https://soty.pp.ua/privacy`
-   - Terms of Service: `https://soty.pp.ua/terms`
-4. Verify `soty.pp.ua` in Google Search Console using an account that is also an Owner
-   or Editor of the Cloud project.
-5. Configure only the exact origins and redirect URI in `docs/SUPABASE_SETUP.md`.
-   Do not add wildcards or a local origin to the production client.
-6. Open all three public URLs in a signed-out browser. They must load without a login,
-   show the Soty name, and the homepage must link to both legal pages.
-7. Publish the OAuth app, then submit the branding review from Google Auth Platform.
+The order matters: a function that sends people to a redirect URI Google does not know
+shows them Google's `redirect_uri_mismatch` page.
 
-To publish this identity-only release before Drive is ready, use:
+1. **Search Console.** Verify the domain `soty.pp.ua` (DNS TXT record in Cloudflare) with an
+   account that is an Owner or Editor of the production Cloud project.
+2. **Google Auth Platform → Clients → the web client** whose ID starts with `588652264319-`
+   (the one Supabase's Google provider uses). Add, without removing anything yet:
+   - Authorized JavaScript origin: `https://soty.pp.ua`
+   - Authorized redirect URIs: `https://soty.pp.ua/auth/callback` and
+     `https://soty.pp.ua/oauth/drive/callback`
+3. **Deploy the web.** It carries `/oauth/drive/callback`; sign-in keeps the provider redirect
+   until step 4.
+4. **Deploy the functions** `google-sign-in`, `drive-connect`, `drive-oauth-callback`.
+5. **Check.** Sign out and sign in with Google; Google must return to
+   `soty.pp.ua/auth/callback`. Readiness (`drive-connect/readiness`) must report
+   `redirectUri: https://soty.pp.ua/oauth/drive/callback`. If sign-in still goes through
+   supabase.co, the function answered `legacy`: the Edge `GOOGLE_CLIENT_ID` is a different
+   client from Supabase's, and one of the two must be changed to match.
+6. **Remove** every `https://<ref>.supabase.co/...` redirect URI from the project's clients.
+7. **Branding.** App name `Soty`; logo `docs/google-oauth/soty-logo-120.png` (120×120 PNG);
+   homepage `https://soty.pp.ua`; privacy `https://soty.pp.ua/privacy`; terms
+   `https://soty.pp.ua/terms`; authorized domain `soty.pp.ua` only; a support email the
+   project owner controls; a developer contact email that is read.
+8. **Data Access.** Exactly the four scopes above.
+9. **Audience.** Publishing status _In production_, then submit brand verification.
+   Automated checks take minutes; a manual review usually two to three business days.
 
-```bash
-npm run deploy:web:identity
-```
-
-This intentionally does not run `verify:team-production`; the regular `npm run deploy:web`
-remains the only deployment path that asserts the Google Drive workspace is production-ready.
-
-Do not change the public name, logo, homepage URL, Privacy URL, Terms URL, redirect URI,
-or requested scopes during review. Those changes can trigger a new review.
-
-## drive.file release (feature 011)
-
-The team workspace ships on the **non-restricted** `drive.file` scope with the Google Picker
-as the folder chooser, so it needs no restricted-scope review to work in production. The
-owner-side checklist, recorded with a date when done:
-
-1. OAuth consent screen publishing status **In production** (not Testing).
-2. Scope list exactly: `openid`, `userinfo.email`, `userinfo.profile`,
-   `https://www.googleapis.com/auth/drive.file`.
-3. **Google Picker API** enabled on the same Cloud project.
-4. A browser API key restricted to `https://soty.pp.ua` referrers and the Picker API only.
-5. The Cloud project number recorded; both values set as `VITE_GOOGLE_PICKER_API_KEY` and
-   `VITE_GOOGLE_PROJECT_NUMBER` in the gitignored `apps/web/.env.production.local`
-   (public values only). Vite merges this local profile over the tracked production defaults.
-6. `DRIVE_RESTRICTED_SCOPE_APPROVED` left unset (or `false`) on the Supabase deployment.
-
-The restricted-scope packet below is prepared **in parallel and never blocks the release**
-(clarification of 2026-08-27). After approval, set `DRIVE_RESTRICTED_SCOPE_APPROVED=true`;
-existing connections gain the wider scope through `include_granted_scopes` on their next
-authorization without the owner re-selecting anything.
-
-## Google Drive restricted scope — not required for the 011 release
-
-The team workspace currently has `DRIVE_OAUTH_MODE=disabled` in production. Its planned
-scope is `https://www.googleapis.com/auth/drive`, which is a **restricted** scope. Do not
-add it to the identity-only production OAuth project or claim that Drive is live until the
-complete user journey works in production.
-
-Restricted-scope review requires all of the following:
-
-- a working public feature, not mocks or a roadmap;
-- a screen-recorded demo of sign-in, the consent screen, choosing the team root, and each
-  requested Drive action;
-- a precise explanation of why `drive.file` cannot meet the implemented product flow;
-- up-to-date public Privacy Policy disclosures matching the actual data flow;
-- a Google review of the restricted scope; and
-- the annual CASA security assessment after Google requests it.
-
-Google recommends `drive.file`, a non-sensitive per-file scope, whenever the product can
-use an explicit user selection flow. Before enabling Drive, make a deliberate product
-decision:
-
-| Product design                                                                     | Scope to request | Verification impact                                           |
-| ---------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------- |
-| User explicitly selects files/folders shared with Soty                             | `drive.file`     | Non-sensitive; avoids restricted-scope security assessment.   |
-| Soty must browse and operate on arbitrary existing descendants of a connected root | `drive`          | Restricted; requires the full review and security assessment. |
-
-The current specification describes the second design, so it must retain the restricted
-scope until the product is redesigned around explicit per-file/folder selection. Do not
-downscope in code without changing and testing that user journey.
-
-## Drive submission packet (parallel, non-blocking)
-
-Per the 2026-08-27 clarification the 011 release ships on `drive.file` alone; this packet is
-prepared in parallel and blocks nothing. Checklist (kept outside the repository):
-
-- [ ] Restricted scope added to the consent screen in a **separate** submission, never to the
-      `drive.file` client the release uses.
-- [ ] `DRIVE_RESTRICTED_SCOPE_APPROVED` stays unset until Google's approval mail is filed.
-- [ ] Demo video shows the Picker flow, the folder tree, and one write inside the root.
-- [ ] CASA assessment booked (Tier 2), report filed with the approval date.
-- [ ] After approval: switch the scope set via `resolveDriveScopes`, and rely on
-      `include_granted_scopes=true` so existing owners upgrade without losing `drive.file`.
-
-Keep these values outside the repository, with no credentials or tokens:
-
-- Cloud project number and OAuth client ID;
-- owner and backup contact emails;
-- exact scope list and the reason for each scope;
-- public URLs and Search Console ownership evidence;
-- unlisted demo-video URL and a short reviewer test account/instructions when requested;
-- approval date, annual review date, and CASA Letter of Validation.
-
-Suggested scope justification for the current design:
-
-> Soty is a productivity tool for media buyers. A team owner explicitly connects one
-> Google Drive root folder. Soty must enumerate and operate on existing files and nested
-> folders inside that selected root for catalog search, preview, upload, download, edit,
-> move, processing results, and Trash-based deletion. Every operation is constrained to
-> that root and is initiated by an authorized team member. `drive.file` is insufficient
-> for this implemented catalog because it grants access only to files opened, created, or
-> explicitly shared with the app, not the existing descendant collection that Soty must
-> catalog and manage.
-
-Only use this justification if the feature demonstrably works exactly as stated.
+During review, change nothing Google looked at: name, logo, homepage, privacy and terms URLs,
+authorized domains, redirect URIs or scopes. Any of them restarts the review.
 
 ## Sources
 
-- [Google OAuth 2.0 policies](https://developers.google.com/identity/protocols/oauth2/policies)
-- [Choosing Google Drive API scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
-- [Google minimum-scope requirements](https://support.google.com/cloud/answer/13807380)
-- [Google verification requirements](https://support.google.com/cloud/answer/13464321)
-- [Google security assessment](https://support.google.com/cloud/answer/13465431)
+- [Brand verification requirements](https://support.google.com/cloud/answer/13464321)
+- [Homepage requirements](https://support.google.com/cloud/answer/13807376)
+- [Privacy policy requirements](https://support.google.com/cloud/answer/13806988)
+- [Authorized domains](https://support.google.com/cloud/answer/15549049)
+- [Drive API scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
+- [Sign in with Google branding](https://developers.google.com/identity/branding-guidelines)
+- [Supabase: signInWithIdToken for Google](https://supabase.com/docs/guides/auth/social-login/auth-google)
