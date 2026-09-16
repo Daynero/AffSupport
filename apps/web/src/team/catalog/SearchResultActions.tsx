@@ -3,6 +3,7 @@ import type {
   TeamAnalyticsStorage,
   TeamPermissions
 } from '@video-compressor/shared';
+import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
@@ -92,6 +93,7 @@ export function SearchResultActions({
     onChanged
   });
 
+  const addToTask = useOptionalAddToTask();
   const list = useMaterialActionList(ref, context, {
     ...host.handlers,
     open: () => onPreview(material),
@@ -100,7 +102,8 @@ export function SearchResultActions({
     editText: material.kind === 'file' ? () => onEditText(material) : undefined,
     process: () => onProcess(material),
     editMetadata: canManageMetadata ? () => onEditMetadata(material) : undefined,
-    createTask: onCreateTask ? () => onCreateTask(material) : undefined
+    createTask: onCreateTask ? () => onCreateTask(material) : undefined,
+    addToTask: addToTask ? () => addToTask([{ id: material.id, name: material.name }]) : undefined
   });
 
   return (

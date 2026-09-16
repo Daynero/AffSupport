@@ -604,14 +604,14 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ## Phase 9B: User Story 11 — the lead hands work over in one motion (Priority: P1)
 
-- [ ] T159 [US11] Write `apps/web/src/team/tasks/AddToTaskDialog.tsx`: a search field over the
+- [x] T159 [US11] Write `apps/web/src/team/tasks/AddToTaskDialog.tsx`: a search field over the
       space's tasks, most recently changed first, keyboard-first (arrows, Enter), attaching the
       given material ids and reporting attached / already there / rejected in one toast that
       names the task and opens it.
-- [ ] T160 [US11] Add the registry action `addToTask` (group **place**) for materials and wire it
+- [x] T160 [US11] Add the registry action `addToTask` (in **organise**, beside create-task: the same question, which task is this file for, with two answers — not **place**) for materials and wire it
       in Files rows and tiles, the detail pane and search results; add it to the selection bar.
       It never changes section.
-- [ ] T161 [P] [US11] Test: `tests/add-to-task.test.tsx` — search narrows, Enter attaches the
+- [x] T161 [P] [US11] Test: `tests/add-to-task.test.tsx` (the dialog is provided space-wide by `AddToTaskProvider`, so rows, the pane, search results and the selection bar call one hook rather than threading a prop) — search narrows, Enter attaches the
       selection, "already attached" is information, and the address does not change.
 
 ---

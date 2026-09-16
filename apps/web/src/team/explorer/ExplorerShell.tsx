@@ -17,7 +17,7 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
-import { Download, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
+import { Download, ListChecks, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { Popover, SegmentedControl } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -49,6 +49,7 @@ import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import { useAgentQueue } from './useAgentQueue';
 import { createPortal } from 'react-dom';
 import { AgentQueuePanel, useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
+import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { useExplorerClipboard } from './useExplorerClipboard';
 import { formatShortcut, shortcutOf } from '../palette/shortcuts';
 import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
@@ -518,6 +519,7 @@ function ExplorerBody({
   // The space owns the queue (024, FR-077); a Files shell mounted on its own —
   // a test, a preview — keeps one of its own, idle unless it is the one used.
   const space = useOptionalSpaceAgentQueue();
+  const addToTask = useOptionalAddToTask();
   const queue = space?.queue ?? localQueue;
   /* Long jobs report in one corner. Inside a space that corner is the space's,
      so a re-stitched download and the queue stack instead of covering each
@@ -1338,6 +1340,17 @@ function ExplorerBody({
                   }
                 >
                   <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </SelectionAction>
+              )}
+              {/* Onto a task that already exists, staying here (024, US11). */}
+              {addToTask && (
+                <SelectionAction
+                  label={t('materialActionAddToTask')}
+                  onClick={() =>
+                    addToTask(selectedRows.map(row => ({ id: row.id, name: row.name })))
+                  }
+                >
+                  <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
               {/*

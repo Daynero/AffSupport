@@ -1,4 +1,5 @@
 import type { TeamMaterialRow } from '@video-compressor/shared';
+import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
 import { useState } from 'react';
@@ -90,12 +91,14 @@ export function PaneActions({
     onChanged
   });
 
+  const addToTask = useOptionalAddToTask();
   const list = useMaterialActionList(material, context, {
     ...host.handlers,
     open: onOpen,
     download: onDownload,
     downloadRestitched: onDownloadRestitched,
     createTask: onCreateTask,
+    addToTask: addToTask ? () => addToTask([{ id: row.id, name: row.name }]) : undefined,
     trash: onDelete,
     transcribe: onTranscribe,
     // Deliberately not `copyText`: the pane carries the text surface itself,

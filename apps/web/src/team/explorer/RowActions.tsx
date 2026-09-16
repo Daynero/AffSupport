@@ -15,6 +15,7 @@ import { useTeam } from '../TeamContext';
 import { MaterialActionMenu } from '../materials/MaterialActionMenu';
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
+import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
 
 /**
@@ -142,6 +143,7 @@ export function RowActions({
     onTrashed: row.category === 'video' && onVideoTrashed ? () => onVideoTrashed(row.id) : undefined
   });
 
+  const addToTask = useOptionalAddToTask();
   const list = useMaterialActionList(material, context, {
     ...host.handlers,
     copyToClipboard: clipboard ? () => clipboard.take('copy', row) : undefined,
@@ -149,6 +151,7 @@ export function RowActions({
     pasteInto: clipboard?.pasteInto ? () => clipboard.pasteInto?.(row) : undefined,
     open: onOpen ? () => onOpen(row) : undefined,
     createTask: onCreateTask ? () => onCreateTask(row) : undefined,
+    addToTask: addToTask ? () => addToTask([{ id: row.id, name: row.name }]) : undefined,
     editText: row.kind === 'transcript' && onEditText ? () => onEditText(row) : undefined,
     process: onProcess ? () => onProcess(row) : undefined,
     compress: onCompress ? () => onCompress(row) : undefined,

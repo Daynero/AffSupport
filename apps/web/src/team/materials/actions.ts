@@ -72,6 +72,7 @@ export const MATERIAL_ACTION_IDS = [
   'regeneratePreview',
   'editText',
   'createTask',
+  'addToTask',
   // organise
   'rename',
   'move',
@@ -502,9 +503,21 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     available: material => ready(material)
   },
   {
-    id: 'editMetadata',
+    // Onto work that already exists (024, US11). Beside "create a task", because
+    // the question is the same — which task is this file for — with two answers.
+    id: 'addToTask',
     group: 'organise',
     order: 4,
+    labelKey: 'materialActionAddToTask',
+    icon: ListPlus,
+    inlinePriority: null,
+    applies: (material, context) => context.host !== 'task-attachment' && !material.draft,
+    available: (material, context) => all(ready(material), may(context, 'edit'))
+  },
+  {
+    id: 'editMetadata',
+    group: 'organise',
+    order: 5,
     labelKey: 'materialActionEditMetadata',
     icon: SquarePen,
     inlinePriority: null,
