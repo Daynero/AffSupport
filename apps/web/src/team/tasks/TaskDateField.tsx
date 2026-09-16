@@ -8,13 +8,13 @@
  * unremovable value behind.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n, type Language } from '../../i18n';
-import { calendarWeekdays, dateFromValue, monthDays, monthStart } from './TaskDateFilter';
+import { dateFromValue } from './TaskDateFilter';
 import { localDateValue } from './useTasks';
-import { Popover } from '../../components/ui/index';
+import { Calendar, Popover, fromCalendarDate, toCalendarDate } from '../../components/ui/index';
 
 /** "5 вер. 2026" from a `YYYY-MM-DD` day, or the whole date written out. */
 export function formatTaskDate(language: Language, value: string, full = false): string {
@@ -27,21 +27,6 @@ export function formatTaskDate(language: Language, value: string, full = false):
     month: 'short',
     ...(sameYear ? {} : { year: 'numeric' })
   }).format(date);
-}
-
-function Chevron({ direction }: { direction: 'left' | 'right' }) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path
-        d={direction === 'left' ? 'm11.8 4.5-5 5.5 5 5.5' : 'm8.2 4.5 5 5.5-5 5.5'}
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
 }
 
 export function TaskDateField({
@@ -64,16 +49,7 @@ export function TaskDateField({
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState(() => monthStart(dateFromValue(value)));
-  const days = useMemo(() => monthDays(month), [month]);
   const today = localDateValue(new Date());
-  const weekdays = calendarWeekdays(language);
-
-  // Reopening lands on the month of the date that is set, not where the last
-  // browse left off.
-  useEffect(() => {
-    if (open) setMonth(monthStart(dateFromValue(value)));
-  }, [open, value]);
 
   const choose = (next: string | null) => {
     onChange(next);
@@ -110,58 +86,17 @@ export function TaskDateField({
         label={t('teamTaskDateChoose')}
         className="task-date-filter-popover team-task-date-popover"
       >
-        <div className="task-calendar-heading">
-          <button
-            type="button"
-            aria-label={t('teamTasksCalendarPreviousMonth')}
-            onClick={() =>
-              setMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1, 12))
-            }
-          >
-            <Chevron direction="left" />
-          </button>
-          <strong>
-            {new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
-              month: 'long',
-              year: 'numeric'
-            }).format(month)}
-          </strong>
-          <button
-            type="button"
-            aria-label={t('teamTasksCalendarNextMonth')}
-            onClick={() =>
-              setMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1, 12))
-            }
-          >
-            <Chevron direction="right" />
-          </button>
-        </div>
-        <div className="task-calendar-weekdays" aria-hidden="true">
-          {weekdays.map((day, index) => (
-            <span key={`${day}-${index}`}>{day}</span>
-          ))}
-        </div>
-        <div className="task-calendar-days">
-          {days.map(day => {
-            const date = localDateValue(day);
-            const inMonth = day.getMonth() === month.getMonth();
-            const selected = date === value;
-            return (
-              <button
-                key={date}
-                type="button"
-                className={`${inMonth ? '' : 'is-outside'} ${selected ? 'is-selected' : ''} ${
-                  date === today ? 'is-today' : ''
-                }`.trim()}
-                aria-label={date}
-                aria-pressed={selected}
-                onClick={() => choose(date)}
-              >
-                {day.getDate()}
-              </button>
-            );
-          })}
-        </div>
+        {/*
+          * The inventory's calendar (024), which is React Aria's: it knows the
+          * locale's first day of week, answers PageUp and Home, and has a year
+          * jump. The 42 buttons this replaced were hand-built here and again in
+          * the board's filter, and neither of them did any of that.
+          */}
+        <Calendar
+          label={t('teamTaskDateChoose')}
+          value={toCalendarDate(value)}
+          onChange={next => choose(fromCalendarDate(next))}
+        />
         <div className="team-task-date-actions">
           <button type="button" onClick={() => choose(today)}>
             {t('teamTasksToday')}

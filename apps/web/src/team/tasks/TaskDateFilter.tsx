@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { TeamTaskStatus } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { TaskStatusIcon, taskStatusLabel } from './TaskStatusControl';
 import {
   activeQuickRange,
-  localDateValue,
   quickRangeValue,
   type QuickRange,
   type TaskDateFilter,
   type TaskStatusFilter
 } from './useTasks';
-import { Popover } from '../../components/ui/index';
+import {
+  Popover,
+  RangeCalendar,
+  fromCalendarDate,
+  toCalendarDate
+} from '../../components/ui/index';
 
 /**
  * The day-grid helpers, shared with the task editor's own date field: one
@@ -21,30 +25,6 @@ import { Popover } from '../../components/ui/index';
  */
 export function dateFromValue(value: string): Date {
   return new Date(`${value}T12:00:00`);
-}
-
-export function monthStart(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1, 12);
-}
-
-/** Six weeks from the Monday on or before the 1st: a stable grid. */
-export function monthDays(month: Date): Date[] {
-  const first = monthStart(month);
-  const offset = (first.getDay() + 6) % 7;
-  const start = new Date(first);
-  start.setDate(first.getDate() - offset);
-  return Array.from({ length: 42 }, (_, index) => {
-    const value = new Date(start);
-    value.setDate(start.getDate() + index);
-    return value;
-  });
-}
-
-function isInRange(value: string, filter: TaskDateFilter): boolean {
-  if (filter.kind !== 'range') return false;
-  const from = filter.from <= filter.to ? filter.from : filter.to;
-  const to = filter.from <= filter.to ? filter.to : filter.from;
-  return value >= from && value <= to;
 }
 
 function formatSelectedDate(language: 'en' | 'uk', filter: TaskDateFilter): string {
@@ -82,28 +62,6 @@ function CalendarIcon() {
   );
 }
 
-function Chevron({ direction }: { direction: 'left' | 'right' }) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path
-        d={direction === 'left' ? 'm11.8 4.5-5 5.5 5 5.5' : 'm8.2 4.5 5 5.5-5 5.5'}
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
-/** Monday-first initials, as the calendar's header row. */
-export function calendarWeekdays(language: 'en' | 'uk'): string[] {
-  return language === 'uk'
-    ? ['П', 'В', 'С', 'Ч', 'П', 'С', 'Н']
-    : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-}
-
 const statuses: readonly TaskStatusFilter[] = ['todo', 'in_progress', 'done', 'all'];
 
 export function TaskDateFilterControl({
@@ -123,33 +81,20 @@ export function TaskDateFilterControl({
   const { language, t } = useI18n();
   const root = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [pendingStart, setPendingStart] = useState<string | null>(null);
-  const [month, setMonth] = useState(() => monthStart(new Date()));
   const selectedLabel = useMemo(() => formatSelectedDate(language, value), [language, value]);
-  const days = useMemo(() => monthDays(month), [month]);
-  const weekdays = calendarWeekdays(language);
-  const today = localDateValue(new Date());
 
-  useEffect(() => {
-    const selected = value.kind === 'range' ? value.to : null;
-    if (selected) setMonth(monthStart(dateFromValue(selected)));
+  /**
+   * The range, as the calendar holds it.
+   *
+   * `all` has no range, and React Aria wants null rather than a pair of
+   * nothings.
+   */
+  const range = useMemo(() => {
+    if (value.kind !== 'range') return null;
+    const start = toCalendarDate(value.from <= value.to ? value.from : value.to);
+    const end = toCalendarDate(value.from <= value.to ? value.to : value.from);
+    return start && end ? { start, end } : null;
   }, [value]);
-
-  const choose = (date: string, single = false) => {
-    if (single) {
-      onChange({ kind: 'range', from: date, to: date });
-      setPendingStart(null);
-      setOpen(false);
-      return;
-    }
-    if (!pendingStart) {
-      setPendingStart(date);
-      return;
-    }
-    onChange({ kind: 'range', from: pendingStart, to: date });
-    setPendingStart(null);
-    setOpen(false);
-  };
 
   const now = new Date();
   const quick = activeQuickRange(value, now);
@@ -170,7 +115,6 @@ export function TaskDateFilterControl({
             className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
             aria-pressed={quick === option.range}
             onClick={() => {
-              setPendingStart(null);
               setOpen(false);
               onChange(
                 option.range === 'all' ? { kind: 'all' } : quickRangeValue(option.range, new Date())
@@ -197,85 +141,45 @@ export function TaskDateFilterControl({
             type="button"
             className="task-date-filter-clear"
             aria-label={t('teamTasksCalendarClear')}
-            onClick={() => {
-              onChange({ kind: 'all' });
-              setPendingStart(null);
-            }}
+            onClick={() => onChange({ kind: 'all' })}
           >
             ×
           </button>
         )}
         <Popover
           open={open}
-          /* Leaving with a half-made range abandons it: a single chosen day is
-             a start nobody finished, not a filter. */
-          onClose={() => {
-            setOpen(false);
-            setPendingStart(null);
-          }}
+          onClose={() => setOpen(false)}
           anchor={root}
           placement="bottom-start"
           frequent
           label={t('teamTasksCalendar')}
           className="task-date-filter-popover"
         >
-          <div className="task-calendar-heading">
-            <button
-              type="button"
-              aria-label={t('teamTasksCalendarPreviousMonth')}
-              onClick={() =>
-                setMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1, 12))
-              }
-            >
-              <Chevron direction="left" />
-            </button>
-            <strong>
-              {new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
-                month: 'long',
-                year: 'numeric'
-              }).format(month)}
-            </strong>
-            <button
-              type="button"
-              aria-label={t('teamTasksCalendarNextMonth')}
-              onClick={() =>
-                setMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1, 12))
-              }
-            >
-              <Chevron direction="right" />
-            </button>
-          </div>
-          <div className="task-calendar-weekdays" aria-hidden="true">
-            {weekdays.map((day, index) => (
-              <span key={`${day}-${index}`}>{day}</span>
-            ))}
-          </div>
-          <div className="task-calendar-days">
-            {days.map(day => {
-              const date = localDateValue(day);
-              const inMonth = day.getMonth() === month.getMonth();
-              const selected = isInRange(date, value);
-              const pending = pendingStart === date;
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  className={`${inMonth ? '' : 'is-outside'} ${selected ? 'is-selected' : ''} ${pending ? 'is-pending' : ''} ${date === today ? 'is-today' : ''}`.trim()}
-                  aria-label={date}
-                  aria-pressed={selected || pending}
-                  onClick={event => {
-                    if (event.detail !== 2) choose(date);
-                  }}
-                  onDoubleClick={() => choose(date, true)}
-                >
-                  {day.getDate()}
-                </button>
-              );
-            })}
-          </div>
-          <p>
-            {pendingStart ? t('teamTasksCalendarChooseEnd') : t('teamTasksCalendarChooseStart')}
-          </p>
+          {/*
+            * The inventory's range calendar (024). The 42 buttons it replaces
+            * were written twice, here and on the task's own date field, and
+            * neither copy knew the locale's first day of week, had a year jump
+            * or answered PageUp.
+            *
+            * A half-made range is kept, not abandoned (021 finding B4, closed):
+            * React Aria commits only a finished range, and the popover no
+            * longer throws away the first day when it closes — the person who
+            * picked it meant to.
+            */}
+          <RangeCalendar
+            label={t('teamTasksCalendar')}
+            value={range}
+            onChange={next =>
+              onChange({
+                kind: 'range',
+                from: fromCalendarDate(next.start) ?? '',
+                to: fromCalendarDate(next.end) ?? ''
+              })
+            }
+            footer={
+              <p className="task-calendar-hint">{t('teamTasksCalendarChooseStart')}</p>
+            }
+          />
         </Popover>
       </div>
       {children}

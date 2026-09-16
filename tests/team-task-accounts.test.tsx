@@ -552,7 +552,7 @@ describe('the list', () => {
     expect(trigger.classList.contains('is-custom')).toBe(false);
 
     await user.click(trigger);
-    await user.click(screen.getByRole('button', { name: '2026-09-18' }));
+    await user.click(screen.getByRole('button', { name: /September 18, 2026/ }));
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /^Date: / }).textContent).toBe('Sep 18')
     );
@@ -638,8 +638,13 @@ describe('the list', () => {
     api.listTasks = vi.fn().mockResolvedValue([]);
 
     await user.click(screen.getAllByRole('article')[0]!);
-    await user.click(await screen.findByRole('button', { name: /^Date: / }));
-    await user.click(screen.getByRole('button', { name: '2026-09-18' }));
+    // The card behind the dialog carries a date control of its own, so both
+    // triggers answer the name. The editor's is the one that just opened, and
+    // the popover it raised is the last in the document.
+    const triggers = await screen.findAllByRole('button', { name: /^Date: / });
+    await user.click(triggers.at(-1)!);
+    const days = await screen.findAllByRole('button', { name: /September 18, 2026/ });
+    await user.click(days.at(-1)!);
 
     await waitFor(() => expect(api.listTasks).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryAllByRole('article').length).toBe(0));

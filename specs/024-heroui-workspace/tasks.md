@@ -348,19 +348,25 @@ closing or losing anything.
 
 ## Phase 6: User Story 4 — dates behave like a calendar (Priority: P2)
 
-- [ ] T080 [US4] Replace the hand-written calendar in
-      `apps/web/src/team/tasks/TaskDateFilter.tsx` with the inventory's `RangeCalendar`, quick
-      ranges beside it as presets.
-- [ ] T081 [US4] Replace the hand-written calendar in `apps/web/src/team/tasks/TaskDateField.tsx`
-      with the inventory's `DatePicker`.
-- [ ] T082 [US4] Decide the half-made range once — it is kept, not abandoned — state it in the
-      popover, and close finding B4 of feature 021.
-- [ ] T083 [US4] Keep quick ranges stored by name so "today" stays today across a reload, as
-      `useTasks` already does.
-- [ ] T084 [US4] Delete the 42-button markup and its CSS from
-      `apps/web/src/styles/team-tasks.css` and `apps/web/src/styles.css`.
-- [ ] T085 [P] [US4] Test: both date surfaces render the same component; the locale's first day
-      of week is respected; PageUp/PageDown move by month.
+- [x] T080 [US4] Replace the hand-written calendar in `TaskDateFilter.tsx` with the inventory's
+      `RangeCalendar`, quick ranges beside it as presets.
+- [x] T081 [US4] Replace the hand-written calendar in `TaskDateField.tsx` with the inventory's
+      `Calendar` — a picker rather than a `DatePicker`, because the trigger already reads as the
+      date and a typed field beside it would be a second way to say the same thing.
+- [x] T082 [US4] Decide the half-made range once — it is kept, not abandoned. React Aria commits
+      only a finished range, and the popover no longer throws the first day away when it closes.
+      Finding B4 of 021 is closed, and `tests/task-dates-one-calendar.test.tsx` holds it.
+- [x] T083 [US4] Keep quick ranges stored by name so "today" stays today across a reload. Already
+      true: `encodeDateFilter` writes `{kind:'quick', range}` and `parseStoredDateFilter` resolves
+      it against the current day. Nothing to change — recorded so the next reader does not look
+      for it twice.
+- [x] T084 [US4] Delete the 42-button markup and its CSS. 1,761 characters of hand-built month
+      out of `styles.css`, and the grid helpers (`monthDays`, `monthStart`, `calendarWeekdays`,
+      two `Chevron` components) out of both date surfaces.
+- [x] T085 [P] [US4] `tests/task-dates-one-calendar.test.tsx`: the locale's first day of week is
+      respected (Sunday in en-US, Monday in uk-UA, in the reader's own words), PageDown moves by
+      month and Shift+PageDown by year, a half-made range commits nothing and loses nothing, and
+      neither date surface nor the stylesheet still carries a 42-cell month.
 
 **Checkpoint**: quickstart Checkpoint 4, item 5.
 

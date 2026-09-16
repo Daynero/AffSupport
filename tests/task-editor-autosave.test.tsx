@@ -144,7 +144,7 @@ describe('the task editor saves itself', () => {
     await screen.findByRole('heading', { name: 'Task details' });
 
     await user.click(await screen.findByRole('button', { name: /^Date: / }));
-    await user.click(screen.getByRole('button', { name: '2026-09-18' }));
+    await user.click(screen.getByRole('button', { name: /September 18, 2026/ }));
 
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(
