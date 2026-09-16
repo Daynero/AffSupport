@@ -12,9 +12,10 @@ import { FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { formatDate, formatSize } from '../../format';
-import { DRAG_TYPE, KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
+import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
+import { useMaterialDrag } from './materialDrag';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { useExplorer } from './ExplorerProvider';
 import { MorePages } from './MorePages';
@@ -54,7 +55,8 @@ export function ContentGrid({
   onPreview,
   actions,
   tagging,
-  emptyAction
+  emptyAction,
+  onDropMaterials
 }: {
   client: ContentGridClient;
   /** The folder's rows, held by the shell so one listing serves everything. */
@@ -83,9 +85,12 @@ export function ContentGrid({
    * which is the same rule as the toolbar's (FR-021, FR-004).
    */
   emptyAction?: ReactNode;
+  /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
+  onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
 }) {
   const { t } = useI18n();
   const { teamId, openFolder, selectedId, select, selectedIds, toggleSelected } = useExplorer();
+  const drag = useMaterialDrag({ selectedIds, rows, onDropMaterials });
   /*
    * The page comes from the shell, which is the only place that can hold it:
    * this component used to run its own `useFolderPage` with the same arguments,
@@ -167,6 +172,8 @@ export function ContentGrid({
             render={renders.get(row.id) ?? null}
             selected={selectedId === row.id}
             checked={selectedIds.has(row.id)}
+            drag={drag.dragProps(row)}
+            dropTarget={drag.dropTarget === row.id}
             onOpenFolder={openFolder}
             onSelect={select}
             onToggle={toggleSelected}
@@ -197,9 +204,13 @@ function Tile({
   onToggle,
   onPreview,
   actions,
-  tagging
+  tagging,
+  drag,
+  dropTarget
 }: {
   row: TeamMaterialRow;
+  drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
+  dropTarget: boolean;
   session: ThumbnailSession | null;
   client: ContentGridClient;
   render: RenderArtifactRef | null;
@@ -242,14 +253,10 @@ function Tile({
     <li
       className={`team-explorer-tile is-${row.kind}${selected ? ' is-selected' : ''}${
         checked ? ' is-checked' : ''
-      }`}
+      }${dropTarget ? ' is-drop-target' : ''}`}
       data-material-id={row.id}
       aria-selected={selected}
-      draggable={row.kind !== 'folder'}
-      onDragStart={event => {
-        event.dataTransfer.setData(DRAG_TYPE, row.id);
-        event.dataTransfer.effectAllowed = 'move';
-      }}
+      {...drag}
       onClick={() => onSelect(row.id)}
       onDoubleClick={open}
     >

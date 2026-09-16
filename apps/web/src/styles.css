@@ -14681,6 +14681,30 @@ button.team-landing-tile:hover {
 .team-explorer-tree [role='treeitem'].is-drop-target > .team-explorer-tree-row {
   outline: 2px dashed var(--color-accent);
 }
+/* A folder in the list or the grid, while files are held over it. */
+.team-explorer-row.is-drop-target,
+.team-explorer-tile.is-drop-target {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: -2px;
+  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
+}
+/* What is being dragged, in words: the browser's own ghost was the whole row, faded. Drawn once
+   off screen for the drag image and removed at once. */
+.team-explorer-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  max-width: 280px;
+  padding: var(--space-1) var(--space-3);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-label);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .team-catalog-material-path {
   display: block;
   color: var(--color-text-muted);

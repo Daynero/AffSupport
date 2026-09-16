@@ -642,6 +642,13 @@ function ExplorerBody({
     ]
   );
 
+  /** Where a drop can land; nothing is draggable for a reader who may not move files. */
+  const dropMaterials = useMemo(
+    () =>
+      permissions?.edit ? (folder: string, ids: string[]) => void moveTo(folder, ids) : undefined,
+    [moveTo, permissions?.edit]
+  );
+
   /** Files dropped on the content area, or picked from the "Add files" input. */
   const upload = useCallback(
     async (files: FileList | File[]) => {
@@ -1152,7 +1159,7 @@ function ExplorerBody({
     >
       <FolderTree
         elsewhere={trash || searching}
-        onDropMaterials={(folder, ids) => void moveTo(folder, ids)}
+        onDropMaterials={dropMaterials}
         onReset={onReset}
       />
       <div className="team-explorer-toolbar">
@@ -1534,6 +1541,7 @@ function ExplorerBody({
           >
             {view === 'grid' ? (
               <ContentGrid
+                onDropMaterials={dropMaterials}
                 client={client}
                 page={page}
                 onPreview={onPreview}
@@ -1544,6 +1552,7 @@ function ExplorerBody({
               />
             ) : (
               <ContentList
+                onDropMaterials={dropMaterials}
                 page={page}
                 onPreview={onPreview}
                 actions={actions}

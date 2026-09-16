@@ -15,12 +15,13 @@ import { FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n } from '../../i18n';
 import { formatDate, formatSize } from '../../format';
-import { DRAG_TYPE, KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
+import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { useExplorer } from './ExplorerProvider';
 import { MorePages } from './MorePages';
 import type { FolderPageState } from './useFolderPage';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
+import { useMaterialDrag } from './materialDrag';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { TagDot } from './TagDot';
 
@@ -41,7 +42,8 @@ export function ContentList({
   onPreview,
   actions,
   tagging,
-  emptyAction
+  emptyAction,
+  onDropMaterials
 }: {
   /** The folder's rows, held by the shell so one listing serves everything. */
   page: FolderPageState;
@@ -70,9 +72,12 @@ export function ContentList({
    * which is the same rule as the toolbar's (FR-021, FR-004).
    */
   emptyAction?: ReactNode;
+  /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
+  onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
 }) {
   const { t } = useI18n();
   const { openFolder, selectedId, select, selectedIds, toggleSelected } = useExplorer();
+  const drag = useMaterialDrag({ selectedIds, rows, onDropMaterials });
   /*
    * The page comes from the shell, which is the only place that can hold it:
    * this component used to run its own `useFolderPage` with the same arguments,
@@ -146,6 +151,8 @@ export function ContentList({
               row={row}
               selected={selectedId === row.id}
               checked={selectedIds.has(row.id)}
+              drag={drag.dragProps(row)}
+              dropTarget={drag.dropTarget === row.id}
               onSelect={select}
               onToggle={toggleSelected}
               onOpenFolder={openFolder}
@@ -174,9 +181,13 @@ function Row({
   onOpenFolder,
   onPreview,
   actions,
-  tagging
+  tagging,
+  drag,
+  dropTarget
 }: {
   row: TeamMaterialRow;
+  drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
+  dropTarget: boolean;
   selected: boolean;
   checked: boolean;
   onSelect: (materialId: string | null) => void;
@@ -203,15 +214,11 @@ function Row({
        * tick box, so a checked row you had scrolled past looked exactly like a
        * row nobody had touched.
        */
-      className={`team-explorer-row is-${row.kind}${checked ? ' is-checked' : ''}`}
+      className={`team-explorer-row is-${row.kind}${checked ? ' is-checked' : ''}${dropTarget ? ' is-drop-target' : ''}`}
       data-material-id={row.id}
       selected={selected}
       interactive
-      draggable={row.kind !== 'folder'}
-      onDragStart={event => {
-        event.dataTransfer.setData(DRAG_TYPE, row.id);
-        event.dataTransfer.effectAllowed = 'move';
-      }}
+      {...drag}
       /*
        * A file manager's own grammar: one press selects, two open. The name
        * used to be a button — a highlighted, underlined strip across most of
