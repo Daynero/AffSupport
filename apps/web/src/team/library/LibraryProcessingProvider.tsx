@@ -72,6 +72,9 @@ export interface LibraryProcessingValue {
   scan: LibraryRequirementScanResult | null;
   /** Job kinds this device can actually run, given the agent's tool contracts. */
   supportedKinds: LibraryJobKind[];
+  /** The kinds the person chose to run (024): a folder can be transcribed without its landings. */
+  chosenKinds: LibraryJobKind[];
+  setChosenKinds: (kinds: LibraryJobKind[]) => void;
   activeKind: LibraryJobKind | null;
   done: number;
   skipped: number;
@@ -259,6 +262,17 @@ export function LibraryProcessingProvider({
     return kinds;
   }, [agentCompatible, toolContracts]);
 
+  const [chosenKinds, setChosenKinds] = useState<LibraryJobKind[]>([
+    'transcription',
+    'translation',
+    'landing_optimization'
+  ]);
+  /** What a run claims and enqueues: what this device can do, of what was chosen. */
+  const runKinds = useMemo(
+    () => supportedKinds.filter(kind => chosenKinds.includes(kind)),
+    [chosenKinds, supportedKinds]
+  );
+
   const rescan = useCallback(async () => {
     setPhase('scanning');
     setErrorCode(null);
@@ -318,9 +332,9 @@ export function LibraryProcessingProvider({
    * then ended "complete" several short of its own number.
    */
   const total = scan
-    ? (supportedKinds.includes('transcription') ? scan.missing.transcription : 0) +
-      (supportedKinds.includes('translation') ? scan.missing.translation : 0) +
-      (supportedKinds.includes('landing_optimization') ? scan.missing.landingOptimization : 0)
+    ? (runKinds.includes('transcription') ? scan.missing.transcription : 0) +
+      (runKinds.includes('translation') ? scan.missing.translation : 0) +
+      (runKinds.includes('landing_optimization') ? scan.missing.landingOptimization : 0)
     : 0;
 
   /**
@@ -355,13 +369,13 @@ export function LibraryProcessingProvider({
   );
 
   const start = useCallback(async () => {
-    if (supportedKinds.length === 0) return;
+    if (runKinds.length === 0) return;
     control.current.stopped = false;
     setPhase('running');
     /* The queue is written here, at the press that agreed to it. Until now the
        window had only counted. */
     try {
-      await client.scanLibraryRequirements(teamId, language, sources, true);
+      await client.scanLibraryRequirements(teamId, language, sources, true, runKinds);
     } catch (error) {
       setErrorCode(safeErrorCode(error));
       setPhase('failed');
@@ -387,7 +401,7 @@ export function LibraryProcessingProvider({
         job = await client.claimLibraryJob({
           teamId,
           agentInstanceId: instanceId,
-          supportedKinds,
+          supportedKinds: runKinds,
           interfaceLanguage: language,
           ...(sources.length > 0 ? { sourceMaterialIds: sources } : {})
         });
@@ -574,7 +588,7 @@ export function LibraryProcessingProvider({
     rescan,
     sources,
     summarize,
-    supportedKinds,
+    runKinds,
     teamId,
     toolContracts.landingOptimizer,
     toolContracts.transcription
@@ -614,6 +628,8 @@ export function LibraryProcessingProvider({
       scope: appliedScope,
       scan,
       supportedKinds,
+      chosenKinds,
+      setChosenKinds,
       activeKind,
       done,
       skipped,
@@ -642,6 +658,7 @@ export function LibraryProcessingProvider({
       skipped,
       start,
       supportedKinds,
+      chosenKinds,
       total
     ]
   );

@@ -27,7 +27,8 @@ export interface ProcessLibraryClient {
     teamId: string,
     interfaceLanguage: string,
     sourceMaterialIds?: readonly string[],
-    commit?: boolean
+    commit?: boolean,
+    kinds?: readonly string[]
   ): Promise<LibraryRequirementScanResult>;
   claimLibraryJob(input: LibraryJobClaimRequest): Promise<LibraryJobClaimEnvelope>;
   getLibraryProcessingContext(

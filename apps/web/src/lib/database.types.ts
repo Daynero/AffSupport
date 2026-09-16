@@ -3096,6 +3096,7 @@ export type Database = {
         Args: {
           p_commit?: boolean;
           p_interface_language: string;
+          p_kinds?: string[];
           p_sources?: string[];
           p_team: string;
         };

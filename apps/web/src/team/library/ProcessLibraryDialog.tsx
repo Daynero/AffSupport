@@ -122,48 +122,61 @@ export function ProcessLibraryDialog({
         )}
         {batch.phase === 'scanning' && <LabeledSkeleton label="teamBatchScanning" rows={2} />}
         {batch.scan && (
-          <>
-            {/* Only the kinds this computer will actually claim. A tile for
-                work the agent cannot do is a number that never moves: the
-                folder batch promised six landing jobs and finished eighteen of
-                twenty-four, calling itself complete. */}
-            <div className="team-batch-counts" role="group" aria-label={t('teamBatchCounts')}>
-              {/* `batch.scope`, like the title above: these are the running
-                  batch's numbers, not the scope somebody has just asked for. */}
-              {countable(batch.scan, batch.supportedKinds, batch.scope.kind === 'space').map(
-                entry => (
-                  <div key={entry.key}>
-                    <strong>{entry.count}</strong>
-                    <span>{t(entry.label)}</span>
-                  </div>
-                )
-              )}
-            </div>
-            {/* What is left over says so, rather than sitting in a tile that
-                looks like part of the plan. */}
-            {unsupported(batch.scan, batch.supportedKinds).length > 0 && (
-              <p className="team-explorer-muted">
-                {t('teamBatchUnsupportedWork', {
-                  work: unsupported(batch.scan, batch.supportedKinds)
-                    .map(entry => `${t(entry.label)} — ${entry.count}`)
-                    .join(', ')
-                })}
-              </p>
-            )}
-          </>
+          /*
+           * What to run, chosen (024). The window used to count three kinds of
+           * work in tiles and start all of them — a folder could not be
+           * transcribed without also queueing its landings for the space. Each
+           * kind is a row to tick, with how many it would make; a kind with
+           * nothing to do says so and cannot be ticked.
+           */
+          <fieldset className="team-batch-choices">
+            <legend className="visually-hidden">{t('teamBatchChoose')}</legend>
+            {countable(batch.scan, batch.supportedKinds, true).map(entry => {
+              const kind = entry.key as (typeof batch.chosenKinds)[number];
+              const chosen = entry.count > 0 && batch.chosenKinds.includes(kind);
+              return (
+                <label
+                  key={entry.key}
+                  className={`team-batch-choice${entry.count === 0 ? ' is-empty' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={chosen}
+                    disabled={entry.count === 0 || running}
+                    onChange={event =>
+                      batch.setChosenKinds(
+                        event.target.checked
+                          ? [...batch.chosenKinds, kind]
+                          : batch.chosenKinds.filter(item => item !== kind)
+                      )
+                    }
+                  />
+                  <span className="team-batch-choice-label">{t(entry.label)}</span>
+                  <span className="team-batch-choice-count">
+                    {entry.count === 0 ? t('teamBatchChoiceNothing') : entry.count}
+                  </span>
+                </label>
+              );
+            })}
+          </fieldset>
         )}
-        {batch.phase === 'ready' && batch.total > 0 && (
-          <p>
-            {t('teamBatchConfirmation', { count: batch.total })}
-            {/* Where the difference went. A folder of twenty-four videos with
-                two transcripts already in it offers twenty-two jobs, and the
-                other two used to vanish between one line and the next. */}
-            {alreadyDone > 0 ? ` ${t('teamBatchAlreadyDone', { count: alreadyDone })}` : ''}
+        {batch.scan && unsupported(batch.scan, batch.supportedKinds).length > 0 && (
+          <p className="team-explorer-muted">
+            {t('teamBatchUnsupportedWork', {
+              work: unsupported(batch.scan, batch.supportedKinds)
+                .map(entry => `${t(entry.label)} — ${entry.count}`)
+                .join(', ')
+            })}
           </p>
         )}
-        {batch.phase === 'ready' && batch.total === 0 && (
-          <EmptyState size="sm" title={t('teamBatchNothing')} />
+        {batch.phase === 'ready' && alreadyDone > 0 && (
+          <p className="team-batch-note">{t('teamBatchAlreadyDone', { count: alreadyDone })}</p>
         )}
+        {batch.phase === 'ready' &&
+          batch.scan &&
+          totalOf(batch.scan, batch.supportedKinds) === 0 && (
+            <EmptyState size="sm" title={t('teamBatchNothing')} />
+          )}
         {!agentCompatible && (
           <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
             {t('teamProcessAgentUpdate')}
@@ -211,11 +224,18 @@ export function ProcessLibraryDialog({
           </p>
         )}
         <div className="team-dialog-actions">
-          {batch.phase !== 'running' && batch.total > 0 && (
-            <Button type="button" variant="primary" onClick={() => void batch.start()}>
-              {t('teamBatchStart')}
-            </Button>
-          )}
+          {batch.phase !== 'running' &&
+            batch.scan &&
+            totalOf(batch.scan, batch.supportedKinds) > 0 && (
+              <Button
+                type="button"
+                variant="primary"
+                disabled={batch.total === 0}
+                onClick={() => void batch.start()}
+              >
+                {t('teamBatchStartCount', { count: batch.total })}
+              </Button>
+            )}
           {batch.phase === 'running' && (
             <Button type="button" variant="secondary" onClick={() => setConfirmingCancel(true)}>
               {t('teamBatchCancel')}
@@ -302,6 +322,13 @@ function countable(
   return tilesOf(scan).filter(
     tile => supported.includes(tile.key) && (wholeSpace || tile.count > 0)
   );
+}
+
+/** Everything this computer could run here, chosen or not. */
+function totalOf(scan: LibraryRequirementScanResult, supported: readonly string[]): number {
+  return tilesOf(scan)
+    .filter(tile => supported.includes(tile.key))
+    .reduce((sum, tile) => sum + tile.count, 0);
 }
 
 function unsupported(scan: LibraryRequirementScanResult, supported: readonly string[]): KindTile[] {

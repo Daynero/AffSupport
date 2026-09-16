@@ -16,6 +16,10 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260916190000_batch_chooses_its_work.sql`: drop
+   `scan_library_requirements(uuid, text, uuid[], boolean, text[])` and re-create the four-argument
+   function with its grants from `20260906100000`. No data is touched.
+
 0. `20260916180000_catalog_registry_folder.sql`: drop `list_team_product_catalogs(uuid)` and
    re-create it from `20260916170000` (without `folder_drive_id`). No data is touched.
 

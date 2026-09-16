@@ -126,14 +126,12 @@ describe('Process Library confirmation UI', () => {
       </ToastProvider>
     );
 
-    expect(
-      await screen.findByText('1 jobs are ready. Processing starts only after confirmation.')
-    ).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Start · 1' })).toBeTruthy();
     expect(client.scanLibraryRequirements).toHaveBeenCalledWith(TEAM_ID, 'en', [SOURCE_ID], false);
     expect(client.startProcess).not.toHaveBeenCalled();
     expect(agent.process).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start processing' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Start · \d+$/u }));
     await waitFor(() => expect(client.finalizeLibraryJob).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
     expect(client.startProcess).toHaveBeenCalledWith(
@@ -223,7 +221,7 @@ describe('Process Library confirmation UI', () => {
       </ToastProvider>
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Start · \d+$/u }));
     await waitFor(() => expect(client.finalizeLibraryJob).toHaveBeenCalledTimes(1));
 
     // The file already in the folder is the one the requirement is closed with…

@@ -95,7 +95,7 @@ describe('the batch window and its scope', () => {
     expect(screen.getByRole('heading', { name: 'Processing: 2 selected' })).toBeTruthy();
     expect(screen.getByText('The 2 files you picked')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start processing' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Start · \d+$/u }));
     await waitFor(() => expect(client.claimLibraryJob).toHaveBeenCalled());
     expect(client.claimLibraryJob).toHaveBeenCalledWith(
       expect.objectContaining({ sourceMaterialIds: [FIRST, SECOND] })
@@ -155,9 +155,7 @@ describe('the batch window and its scope', () => {
       </ToastProvider>
     );
     // Two, not six: the number over Start is the number the loop can claim.
-    expect(
-      await screen.findByText('2 jobs are ready. Processing starts only after confirmation.')
-    ).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Start · 2' })).toBeTruthy();
     expect(screen.queryByText('Landing optimizations')).toBeNull();
     expect(
       screen.getByText(
@@ -170,7 +168,7 @@ describe('the batch window and its scope', () => {
     const folderClient = stubClient();
     const folder = mount(folderClient, [FIRST], { kind: 'folder', name: 'spy joints' });
     await waitFor(() => expect(folderClient.scanLibraryRequirements).toHaveBeenCalled());
-    expect(screen.getByRole('heading', { name: 'Processing: folder “spy joints”' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Process the folder “spy joints”' })).toBeTruthy();
     folder.unmount();
 
     const spaceClient = stubClient();
@@ -204,7 +202,7 @@ describe('the batch window and its scope', () => {
       </ToastProvider>
     );
     await waitFor(() => expect(client.scanLibraryRequirements).toHaveBeenCalled());
-    fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Start · \d+$/u }));
     await screen.findByText('Stop processing');
 
     // The shell now asks for a different scope while that run is in flight.
@@ -267,9 +265,9 @@ describe('the batch window and its scope', () => {
       </ToastProvider>
     );
     await waitFor(() => expect(client.scanLibraryRequirements).toHaveBeenCalled());
-    fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Start · \d+$/u }));
     await screen.findByText('Stop processing');
-    expect(screen.getAllByRole('group', { name: 'Missing processing jobs' })).toHaveLength(1);
+    expect(screen.getAllByRole('group', { name: 'What to run' })).toHaveLength(1);
     expect(screen.getByText('Translations')).toBeTruthy();
 
     // Asking for a narrower scope mid-run must not quietly drop the running
@@ -320,7 +318,7 @@ describe('the batch window and its scope', () => {
       </ToastProvider>
     );
     await waitFor(() => expect(client.scanLibraryRequirements).toHaveBeenCalled());
-    expect(screen.getByRole('heading', { name: 'Processing: folder “spy joints”' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Process the folder “spy joints”' })).toBeTruthy();
 
     // The same two files, hand-picked this time: identical work, different name.
     view.rerender(
@@ -380,7 +378,7 @@ describe('the batch window and its scope', () => {
     // Twenty videos, twenty transcriptions wanted: none of them is done, and the
     // four landings this computer cannot touch must not be counted as done
     // either — they are named on their own line instead.
-    expect(await screen.findByText(/20 jobs are ready/u)).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Start · 20' })).toBeTruthy();
     expect(screen.queryByText(/already have a transcript/u)).toBeNull();
     expect(
       screen.getByText(
@@ -434,9 +432,40 @@ describe('the batch window and its scope', () => {
     expect(client.scanLibraryRequirements).toHaveBeenCalledWith(TEAM_ID, 'en', [FIRST], false);
     expect(client.scanLibraryRequirements).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Start · \d+$/u }));
     await waitFor(() =>
-      expect(client.scanLibraryRequirements).toHaveBeenCalledWith(TEAM_ID, 'en', [FIRST], true)
+      expect(client.scanLibraryRequirements).toHaveBeenCalledWith(
+        TEAM_ID,
+        'en',
+        [FIRST],
+        true,
+        expect.any(Array)
+      )
+    );
+  });
+
+  it('runs only the work that is ticked (024)', async () => {
+    const client = stubClient();
+    mount(client, [FIRST], { kind: 'selection', count: 1 });
+    // A kind with nothing to do cannot be ticked.
+    const translations = (await screen.findByRole('checkbox', {
+      name: /Translations/u
+    })) as HTMLInputElement;
+    expect(translations.disabled).toBe(true);
+    // Unticking the only work there is leaves nothing to start.
+    fireEvent.click(screen.getByRole('checkbox', { name: /Transcriptions/u }));
+    const start = (await screen.findByRole('button', { name: 'Start · 0' })) as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Transcriptions/u }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start · 2' }));
+    await waitFor(() =>
+      expect(client.scanLibraryRequirements).toHaveBeenLastCalledWith(
+        TEAM_ID,
+        'en',
+        [FIRST],
+        true,
+        expect.arrayContaining(['transcription'])
+      )
     );
   });
 });

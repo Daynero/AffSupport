@@ -3142,7 +3142,9 @@ export const teamApi = {
     interfaceLanguage: string,
     sourceMaterialIds?: readonly string[],
     /** False just counts; true also enqueues the work it counted. */
-    commit = true
+    commit = true,
+    /** The kinds to enqueue (024); absent enqueues every kind. */
+    kinds?: readonly string[]
   ): Promise<LibraryRequirementScanResult> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('scan_library_requirements', {
@@ -3151,7 +3153,8 @@ export const teamApi = {
         // An empty list is not a scope; it is the whole space, same as none.
         p_sources:
           sourceMaterialIds && sourceMaterialIds.length > 0 ? [...sourceMaterialIds] : undefined,
-        p_commit: commit
+        p_commit: commit,
+        ...(kinds ? { p_kinds: [...kinds] } : {})
       })
     );
     throwRpc(error);
