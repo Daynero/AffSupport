@@ -82,7 +82,9 @@ export function StorageChip({
   isOwner,
   canManage,
   settingsHref,
-  onRefresh
+  onRefresh,
+  open: openProp,
+  onOpenChange
 }: {
   teamId: string;
   health: StorageHealth | null;
@@ -92,11 +94,20 @@ export function StorageChip({
   /** Where the full storage panel lives (the settings dialog's address). */
   settingsHref: string;
   onRefresh?: () => Promise<void> | void;
+  /**
+   * The detail, held by the caller when it is in the address (024, FR-050):
+   * "the Drive needs reconnecting — look" is a link worth sending, and a reload
+   * in the middle of reading it should not close it. Uncontrolled without.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const render = useOptionalBackgroundRender();
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = openProp ?? localOpen;
+  const setOpen = (next: boolean) => (onOpenChange ? onOpenChange(next) : setLocalOpen(next));
   const [busy, setBusy] = useState(false);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
   const titleId = useId();

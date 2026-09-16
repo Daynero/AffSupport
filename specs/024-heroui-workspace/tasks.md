@@ -524,17 +524,32 @@ closing or losing anything.
       T108 two different screens. `LeaveSpacePanel` moved to `members/` and sits under the
       Members list; the owner's explanation points at the list above it, and the transfer
       dialog says where leaving is.
-- [ ] T111 [US7] Make the dialogs worth restoring addressable — batch processing, material
-      preview, storage detail — and leave the rest as component state.
+- [x] T111 [US7] Make the dialogs worth restoring addressable — batch processing, material
+      preview, storage detail — and leave the rest as component state. The preview is
+      `item=<id>&open=1`, restored by the explorer's existing reveal (it is the one that can find
+      the row); `open` is dropped without an `item`. `process=1` is the **whole-space** batch
+      only: a batch over picked files stays state, because the pick is not in the address and a
+      restored window about nothing is worse than none. `storage=1` holds the Drive detail.
+      Opening pushes; closing replaces, so Back after a close does not reopen it.
 - [x] T112 [US7] Make the three header chips one component with one shape and one interaction,
       differing only in what they report; give the connection state a chip that can be pressed,
       instead of a `<span>` that announces a problem and offers nothing. There were four, not
       three — storage, the updater, background work, the connection — and all four are now
       `workspace/WorkspaceChip.tsx`. The waiting connection chip reloads the space; the disabled
       one stays a status, because there is nothing a reader can do about it.
-- [ ] T113 [US7] Make the toast provider reach every surface that can raise one.
-- [ ] T114 [US7] Update `tests/team-routes*` and the shell tests for the new query fields and the
-      section-preserving behaviour.
+- [x] T113 [US7] Make the toast provider reach every surface that can raise one. Every
+      `useToasts` caller already sat under a provider; what did not reach was the _region_. It
+      rendered inside the page's `<main>` while dialogs are portalled to the body, so its
+      `--layer-toast` counted only inside the page's stacking context, and the dialog focus trap
+      cycled through the dialog alone — a dialog's own Undo was a mouse-only control while the
+      dialog was up. The region is portalled to the body and always mounted (a live region that
+      appears with its first message is announced late or not at all), and the trap steps into
+      the toasts. `tests/toast-reach.test.tsx`.
+- [x] T114 [US7] Update `tests/team-routes*` and the shell tests for the new query fields and the
+      section-preserving behaviour — routes for every surface over every section, the settings
+      link to members, the wizard address and `open`/`process`/`storage`;
+      `tests/team-workspace.test.tsx` for the preview writing and clearing `open`;
+      `tests/team-entry-create.test.ts` for the resolver holding the wizard address.
 - [x] T115 [P] [US7] Test: opening each of settings / updater / trash from each section returns
       to that section — in `tests/team-routes.test.ts`, with the palette as a fourth surface.
       The 023 assertion that pinned the updater to the explorer was the old promise, rewritten.

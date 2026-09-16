@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
 import { fillRatio } from './ui/index';
 
@@ -164,8 +165,18 @@ function ToastRegion({
   onDismiss: (id: number) => void;
 }) {
   const { t } = useI18n();
-  if (toasts.length === 0) return null;
-  return (
+  /*
+   * On the body, and always there (024, T113).
+   *
+   * The region used to be rendered wherever the provider sat — inside the
+   * page's `<main>` — while every dialog is portalled to the body. Its
+   * `--layer-toast` therefore only counted inside the page's own stacking
+   * context: any ancestor that makes one (the page's entrance animation does,
+   * with a transform) put a dialog's own Undo underneath the dialog. And it was
+   * mounted only once there was a toast, which is too late for some screen
+   * readers to treat it as a live region at all; an empty one costs nothing.
+   */
+  const region = (
     <div className="ui-toast-region" aria-live="polite" aria-atomic="false">
       {toasts.map(toast => (
         <div
@@ -227,6 +238,7 @@ function ToastRegion({
       ))}
     </div>
   );
+  return typeof document === 'undefined' ? region : createPortal(region, document.body);
 }
 
 export function ToastContextOverride({

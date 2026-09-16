@@ -180,7 +180,7 @@ export function WorkspaceShell({
     }, INDEXING_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [health?.kind, refreshHealth]);
-  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [batchSelectionOpen, setBatchSelectionOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   /** Which materials the batch is about; empty is the whole space. */
   const [batchSources, setBatchSources] = useState<string[]>([]);
@@ -335,6 +335,47 @@ export function WorkspaceShell({
       teamId
     ]
   );
+  /**
+   * The address you are on, with one surface opened or closed over it (024,
+   * FR-050).
+   *
+   * Unlike `explorerRoute`, which builds a fresh explorer address, this keeps
+   * the whole query — the search, the selected file — because these surfaces
+   * are about what you are looking at, and closing one must leave it as it was.
+   * Pushed, so Back closes the surface rather than leaving the space.
+   */
+  const hereRoute = useCallback(
+    (patch: Partial<TeamRouteQuery>) =>
+      buildTeamRoute({ spaceId: teamId, section, query: { ...query, ...patch } }),
+    [query, section, teamId]
+  );
+
+  /*
+   * The preview is in the address too (024, FR-050): `item` names the file and
+   * `open` says it is being looked at, so a reload or a pasted link reopens it.
+   * The explorer restores it — it is the one that can find the row — and
+   * reports it through `onPreview` like any other open, which is why an open
+   * the address already describes does not push a second copy of itself.
+   */
+  const openPreview = useCallback(
+    (material: TeamMaterialSummary) => {
+      setPreviewing(material);
+      if (query?.open && query.itemId === material.id) return;
+      navigateTo(hereRoute({ itemId: material.id, open: true }));
+    },
+    [hereRoute, query?.itemId, query?.open]
+  );
+  // Replaced, not pushed: Back after closing goes to where the file was opened
+  // from, not to the preview that was just closed.
+  const closePreview = useCallback(() => {
+    setPreviewing(null);
+    navigateTo(hereRoute({ open: false }), true);
+  }, [hereRoute]);
+  // Back out of an open preview closes it.
+  useEffect(() => {
+    if (!query?.open) setPreviewing(null);
+  }, [query?.open]);
+
   /* The document-level handler is bound once; the route builder is not, so it
      is read through a ref rather than making the listener churn on every
      folder change. */
@@ -463,6 +504,8 @@ export function WorkspaceShell({
                   canManage={activeTeam.role === 'owner' || activeTeam.role === 'admin'}
                   settingsHref={explorerRoute({ settings: true })}
                   onRefresh={refreshHealth}
+                  open={Boolean(query?.storage)}
+                  onOpenChange={next => navigateTo(hereRoute({ storage: next }), !next)}
                 />
               )}
               <RealtimeChip />
@@ -471,7 +514,7 @@ export function WorkspaceShell({
                    must show *that* batch. Resetting the scope here retitled a
                    folder run "the whole space" and widened what a second press
                    of Start would touch. */
-                onOpen={() => setBatchDialogOpen(true)}
+                onOpen={() => navigateTo(hereRoute({ process: true }))}
               />
               {/* Trash and settings are the space's own surfaces: real links
               with their own addresses, so Back closes them and a pasted link
@@ -583,7 +626,7 @@ export function WorkspaceShell({
                   onFolderChange={onExplorerFolderChange}
                   onSearched={onSearched}
                   onReset={resetExplorer}
-                  onPreview={setPreviewing}
+                  onPreview={openPreview}
                   onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
                   onCreateTaskFromSelection={assets => {
                     if (assets.length === 0) return;
@@ -597,12 +640,12 @@ export function WorkspaceShell({
                   onProcessSelection={(materialIds, scope) => {
                     setBatchSources(materialIds);
                     setBatchScope(scope ?? { kind: 'selection', count: materialIds.length });
-                    setBatchDialogOpen(true);
+                    setBatchSelectionOpen(true);
                   }}
                   onProcessLibrary={() => {
                     setBatchSources([]);
                     setBatchScope({ kind: 'space' });
-                    setBatchDialogOpen(true);
+                    navigateTo(hereRoute({ process: true }));
                   }}
                   onChanged={() => setBrowserRevision(value => value + 1)}
                   readOnly={storageAttention}
@@ -646,11 +689,16 @@ export function WorkspaceShell({
             />
           )}
 
-          {batchDialogOpen && (
+          {/* The whole space is in the address; a batch over picked files is
+              not, because the pick is not (024, FR-050). */}
+          {(batchSelectionOpen || query?.process) && (
             <ProcessLibraryDialog
               agentCompatible={agent?.teamWorkspaceAvailable === true}
               scope={batchScope}
-              onClose={() => setBatchDialogOpen(false)}
+              onClose={() => {
+                if (batchSelectionOpen) setBatchSelectionOpen(false);
+                else navigateTo(hereRoute({ process: false }), true);
+              }}
             />
           )}
           {previewing &&
@@ -660,14 +708,10 @@ export function WorkspaceShell({
                 material={landingViewerMaterial(previewing)}
                 artifact={{ preset: 'default' }}
                 artifactClient={teamApi}
-                onClose={() => setPreviewing(null)}
+                onClose={closePreview}
               />
             ) : (
-              <MaterialPreview
-                teamId={teamId}
-                material={previewing}
-                onClose={() => setPreviewing(null)}
-              />
+              <MaterialPreview teamId={teamId} material={previewing} onClose={closePreview} />
             ))}
         </section>
       </BackgroundRenderProvider>

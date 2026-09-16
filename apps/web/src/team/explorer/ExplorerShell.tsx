@@ -379,18 +379,26 @@ function ExplorerBody({
     }
     revealedItem.current = revealItemId;
     select(revealItemId);
+    // `open=1` beside it: the address was a file being looked at, so it is
+    // looked at again rather than merely pointed at (024, FR-050).
+    if (query.open) {
+      const row = page.rows.find(candidate => candidate.id === revealItemId);
+      if (row && row.kind !== 'folder') onPreview?.(summaryOf(row));
+    }
     window.requestAnimationFrame(() => {
       Array.from(document.querySelectorAll<HTMLElement>('[data-material-id]'))
         .find(element => element.dataset.materialId === revealItemId)
-        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        ?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     });
   }, [
     currentFolderId,
     explorer.nodes,
     nodeOf,
+    onPreview,
     onQueryChange,
     page,
     query.folderId,
+    query.open,
     query.trash,
     revealItemId,
     searching,

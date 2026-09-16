@@ -76,6 +76,21 @@ export interface TeamRouteQuery {
   palette: boolean;
   /** The selected material, so a shared link opens on it. */
   itemId: string | null;
+  /**
+   * The selected material is open in its preview, not merely selected (024,
+   * FR-050). A reload used to close the preview and drop you back on the list;
+   * a link to "look at this" opened on a row you then had to find and open.
+   * Meaningless without `itemId`, so it is written only beside it.
+   */
+  open: boolean;
+  /**
+   * The whole-space batch processing dialog is open (024, FR-050). A batch over
+   * picked files stays component state: the pick itself is not in the address,
+   * so an address for its dialog would restore a window about nothing.
+   */
+  process: boolean;
+  /** The storage detail behind the Drive chip is open (024, FR-050). */
+  storage: boolean;
 }
 
 export type TeamRoute =
@@ -162,7 +177,10 @@ export function emptyTeamRouteQuery(): TeamRouteQuery {
     settingsTab: null,
     updater: false,
     palette: false,
-    itemId: null
+    itemId: null,
+    open: false,
+    process: false,
+    storage: false
   };
 }
 
@@ -274,7 +292,10 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     settingsTab: readSettingsTab(params),
     updater: params.get('updater') === '1',
     palette: params.get('palette') === '1',
-    itemId: trimmedParam(params, 'item')
+    itemId: trimmedParam(params, 'item'),
+    open: params.get('open') === '1' && Boolean(trimmedParam(params, 'item')),
+    process: params.get('process') === '1',
+    storage: params.get('storage') === '1'
   };
   const { section, query } = aliasSection(rawSection, base);
   /*
@@ -340,6 +361,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.view) params.set('view', query.view);
     if (query.scope === 'space') params.set('scope', 'space');
     if (query.itemId) params.set('item', query.itemId);
+    if (query.itemId && query.open) params.set('open', '1');
   }
   /*
    * Four surfaces that belong to the space, not to a section (024, FR-045).
@@ -355,6 +377,8 @@ export function buildTeamRoute(input: TeamRouteInput): string {
   if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
   if (query.updater) params.set('updater', '1');
   if (query.palette) params.set('palette', '1');
+  if (query.process) params.set('process', '1');
+  if (query.storage) params.set('storage', '1');
   if (section === 'tasks') {
     if (query.taskId) params.set('task', query.taskId);
     // One scope at a time: an agent is narrower than its account, so it wins.

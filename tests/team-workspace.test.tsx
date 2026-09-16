@@ -86,7 +86,15 @@ describe('guided team space workspace', () => {
       await waitFor(() =>
         expect(previewMaterial).toHaveBeenCalledWith(team.id, 'material-visible', 'media')
       );
+      // The preview is in the address (024, FR-050), so a reload reopens it…
+      expect(new URLSearchParams(window.location.search).get('open')).toBe('1');
+      expect(new URLSearchParams(window.location.search).get('item')).toBe('material-visible');
       await user.click(screen.getByRole('button', { name: 'Close preview' }));
+      // …and closing it takes it out again, leaving the file selected.
+      await waitFor(() =>
+        expect(new URLSearchParams(window.location.search).get('open')).toBeNull()
+      );
+      expect(new URLSearchParams(window.location.search).get('item')).toBe('material-visible');
       // The old all-panels grid is gone: management is not shown beside the content.
       expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
 

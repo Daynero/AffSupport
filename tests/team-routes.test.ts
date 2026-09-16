@@ -307,7 +307,14 @@ describe('surfaces that are the space’s, not a section’s', () => {
 
   for (const section of ['explorer', 'tasks', 'accounts', 'members'] as const) {
     it(`keeps ${section} underneath, and comes back to it`, () => {
-      for (const surface of ['settings', 'updater', 'trash', 'palette'] as const) {
+      for (const surface of [
+        'settings',
+        'updater',
+        'trash',
+        'palette',
+        'process',
+        'storage'
+      ] as const) {
         const opened = buildTeamRoute({ spaceId: SPACE, section, query: { [surface]: true } });
         const parsed = parseTeamRoute(opened);
         expect(parsed?.kind, `${section}/${surface}`).toBe('space');
@@ -373,6 +380,34 @@ describe('a new space, asked for by address', () => {
       driveReturn: null,
       showAll: false,
       create: true
+    });
+  });
+});
+
+/**
+ * T111 — the dialogs worth restoring have addresses (024, FR-050).
+ */
+describe('dialogs worth coming back to', () => {
+  it('reopens a file being looked at, and only beside the file it names', () => {
+    const route = buildTeamRoute({
+      spaceId: 'space-1',
+      section: 'explorer',
+      query: { folderId: 'f-1', itemId: 'm-1', open: true }
+    });
+    expect(route).toBe('/team/space-1?folder=f-1&item=m-1&open=1');
+    expect(parseTeamRoute(route)).toMatchObject({ query: { itemId: 'm-1', open: true } });
+    // `open` with nothing to open is not a state the address can be in.
+    expect(buildTeamRoute({ spaceId: 'space-1', query: { open: true } })).toBe('/team/space-1');
+    expect(parseTeamRoute('/team/space-1?open=1')).toMatchObject({ query: { open: false } });
+  });
+
+  it('keeps the whole-space batch and the storage detail over any section', () => {
+    expect(buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { process: true } })).toBe(
+      '/team/space-1/tasks?process=1'
+    );
+    expect(parseTeamRoute('/team/space-1/accounts?storage=1')).toMatchObject({
+      section: 'accounts',
+      query: { storage: true, process: false }
     });
   });
 });

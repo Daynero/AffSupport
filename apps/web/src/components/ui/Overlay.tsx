@@ -174,12 +174,31 @@ export function useDialogBehaviour({
         return;
       }
       if (event.key !== 'Tab' || !modal || !node) return;
-      const focusable = focusableIn(node);
+      /*
+       * The toasts are part of the loop (024, T113). A dialog that deletes
+       * something offers Undo in a toast, and a trap that cycled only through
+       * the dialog made that Undo a mouse-only control while the dialog was
+       * up — which is exactly when it is raised.
+       */
+      const toasts = document.querySelector<HTMLElement>('.ui-toast-region');
+      const toastControls = toasts ? focusableIn(toasts) : [];
+      const focusable = [...focusableIn(node), ...toastControls];
       if (focusable.length === 0) return;
       const first = focusable[0]!;
       const last = focusable.at(-1)!;
       const activeElement = document.activeElement;
-      const inside = activeElement instanceof HTMLElement && node.contains(activeElement);
+      const inside =
+        activeElement instanceof HTMLElement &&
+        (node.contains(activeElement) || Boolean(toasts?.contains(activeElement)));
+      // The region is portalled apart from the dialog, so the document's own
+      // tab order does not lead from one to the other; the step is taken here.
+      const at = inside && toastControls.length > 0 ? focusable.indexOf(activeElement) : -1;
+      if (at !== -1) {
+        event.preventDefault();
+        const step = event.shiftKey ? -1 : 1;
+        focusable[(at + step + focusable.length) % focusable.length]!.focus();
+        return;
+      }
       if (event.shiftKey && (!inside || activeElement === first)) {
         event.preventDefault();
         last.focus();
