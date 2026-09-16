@@ -57,6 +57,7 @@ function row(id: string, videoName: string, patch: Partial<CatalogRegistryRow> =
     updateInterval: null,
     nextRunAt: null,
     updatePending: false,
+    folderDriveId: 'folder-polo',
     ...patch
   } satisfies CatalogRegistryRow;
 }
@@ -111,6 +112,7 @@ function client(
 function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
   const onClose = vi.fn();
   const onChanged = vi.fn();
+  const onReveal = vi.fn();
   render(
     <TeamProvider initialTeams={[team]} realtime={false}>
       <ToastProvider>
@@ -119,11 +121,12 @@ function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
           client={api}
           onClose={onClose}
           onChanged={onChanged}
+          onReveal={onReveal}
         />
       </ToastProvider>
     </TeamProvider>
   );
-  return { onClose, onChanged };
+  return { onClose, onChanged, onReveal };
 }
 
 const box = (name: string) => screen.getByLabelText(`Select ${name} catalog`) as HTMLInputElement;
@@ -256,6 +259,19 @@ describe('a catalog’s own schedule', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Update polo.mp4 catalog now' }));
     expect(await screen.findByText('You do not have permission for this.')).toBeTruthy();
+  });
+});
+
+describe('a catalog’s menu', () => {
+  it('shows the sheet in its folder', async () => {
+    const polo = row('1', 'polo.mp4');
+    const { onReveal } = renderDialog(client([polo], stopped));
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole('button', { name: /^Actions (for|on) polo\.mp4 catalog/ })
+    );
+    await user.click(await screen.findByRole('menuitem', { name: 'Show in folder' }));
+    expect(onReveal).toHaveBeenCalledWith(polo);
   });
 });
 

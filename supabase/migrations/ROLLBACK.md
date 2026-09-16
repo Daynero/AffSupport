@@ -16,6 +16,9 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260916180000_catalog_registry_folder.sql`: drop `list_team_product_catalogs(uuid)` and
+   re-create it from `20260916170000` (without `folder_drive_id`). No data is touched.
+
 0. `20260916170000_catalog_updater_per_catalog.sql`: re-apply `private.queue_restitch_jobs`,
    `private.catalog_updater_state`, `save_team_catalog_updater`, `stop_team_catalog_updater`,
    `service_claim_catalog_updater_items`'s `private.claim_catalog_updater_items` and

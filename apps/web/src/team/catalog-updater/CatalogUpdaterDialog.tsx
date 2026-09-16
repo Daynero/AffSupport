@@ -53,7 +53,8 @@ export function CatalogUpdaterDialog({
   client = defaultClient,
   preparing = false,
   onClose,
-  onChanged
+  onChanged,
+  onReveal
 }: {
   teamId: string;
   client?: CatalogUpdaterDialogClient;
@@ -62,6 +63,8 @@ export function CatalogUpdaterDialog({
   onClose: () => void;
   /** Called after a change, so the chip outside the dialog reads the new state. */
   onChanged?: () => void;
+  /** Close the updater and show this catalog's sheet where it lives in the space. */
+  onReveal?: (row: CatalogRegistryRow) => void;
 }) {
   const { t, language } = useI18n();
   const { push } = useToasts();
@@ -324,6 +327,7 @@ export function CatalogUpdaterDialog({
                       teamId={teamId}
                       permissions={permissions}
                       onChanged={() => registry.reload()}
+                      onReveal={onReveal}
                     />
                   ) : null}
                 </li>

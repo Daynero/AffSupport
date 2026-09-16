@@ -27,12 +27,7 @@ import { useMaterialActionList } from '../materials/useMaterialActionList';
  *   does this live", and offering two ways out of a full-screen dialog is the
  *   chaos this feature exists to remove.
  *
- * `showInFolder` itself is offered only when the caller can honour it. The
- * registry row names the folder it is in but not the folder's id, and the
- * reveal needs the id to open it; giving it one is a column on
- * `list_team_product_catalogs`, which is server work this branch does not do.
- * An action nobody can carry out is worse than one that is absent, so it is
- * absent here until the column exists.
+ * `showInFolder` closes the updater and opens the sheet's folder with the sheet selected (024).
  */
 export function UpdaterRowActions({
   row,

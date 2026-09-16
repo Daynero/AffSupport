@@ -225,6 +225,8 @@ export interface CatalogRegistryRow {
   nextRunAt: string | null;
   /** An update is waiting or running for it right now. */
   updatePending: boolean;
+  /** The provider id of the folder the sheet is in; null at the space root. */
+  folderDriveId: string | null;
 }
 
 export type CatalogUpdaterInterval = UpdaterInterval;
@@ -342,7 +344,8 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     lastUpdateError: typeof row.last_update_error === 'string' ? row.last_update_error : null,
     updateInterval: parseUpdaterInterval(row.update_interval),
     nextRunAt: typeof row.next_run_at === 'string' ? row.next_run_at : null,
-    updatePending: row.update_pending === true
+    updatePending: row.update_pending === true,
+    folderDriveId: typeof row.folder_drive_id === 'string' ? row.folder_drive_id : null
   };
 }
 

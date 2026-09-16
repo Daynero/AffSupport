@@ -816,6 +816,15 @@ export function WorkspaceShell({
                   preparing={restitchPreparer.preparing}
                   onClose={() => navigateTo(explorerRoute({ updater: false }))}
                   onChanged={catalogUpdater.reload}
+                  onReveal={row =>
+                    navigateTo(
+                      buildTeamRoute({
+                        spaceId: teamId,
+                        section: 'explorer',
+                        query: { folderId: row.folderDriveId, itemId: row.catalogId }
+                      })
+                    )
+                  }
                 />
               )}
 

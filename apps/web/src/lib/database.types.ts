@@ -2059,6 +2059,7 @@ export type Database = {
           update_interval: string | null;
           next_run_at: string | null;
           update_pending: boolean;
+          folder_drive_id: string | null;
         }[];
       };
       get_team_catalog_updater: {
