@@ -1933,6 +1933,8 @@ const en = {
     'You have left the space. Files shared with you directly in Google Drive stay shared — ask an admin to remove that access if you need it revoked.',
   teamLeaveOwnerExplanation:
     'A space cannot be left without an owner. Transfer ownership to a member in the list above first, then you can leave here.',
+  teamLeaveOwnerAlone:
+    'A space cannot be left without an owner, and you are its only member. Invite someone, transfer ownership to them, then you can leave here.',
   teamDraftDeleteAction: 'Discard this draft',
   teamDraftDeleteConfirmTitle: 'Discard “{name}”?',
   teamDraftDeleteConfirmBody:
@@ -4543,6 +4545,8 @@ const uk: Record<keyof typeof en, string> = {
     'Ви вийшли з простору. Файли, якими з вами поділилися напряму в Google Drive, лишаються доступними — попросіть адміна забрати цей доступ, якщо його треба відкликати.',
   teamLeaveOwnerExplanation:
     'Простір не може лишитися без власника. Спершу передайте володіння учаснику зі списку вище — тоді зможете вийти тут.',
+  teamLeaveOwnerAlone:
+    'Простір не може лишитися без власника, а ви в ньому єдиний учасник. Запросіть когось, передайте йому володіння — тоді зможете вийти тут.',
   teamDraftDeleteAction: 'Видалити чернетку',
   teamDraftDeleteConfirmTitle: 'Видалити «{name}»?',
   teamDraftDeleteConfirmBody:

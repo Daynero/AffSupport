@@ -154,7 +154,8 @@ export function ExplorerShell({
   onChanged,
   onReset,
   actionsClient = defaultMaterialActionsClient,
-  readOnly = false
+  readOnly = false,
+  trashReturnLabel
 }: {
   teamId: string;
   client: ExplorerShellClient;
@@ -173,6 +174,12 @@ export function ExplorerShell({
   actionsClient?: MaterialActionsClient;
   /** Storage needs a person (011, FR-033): browse and preview only. */
   readOnly?: boolean;
+  /**
+   * Where leaving the trash goes, named, when that is not the files (024,
+   * FR-046): a trash opened from Tasks returns to Tasks, and a button promising
+   * "back to files" would be a small lie about where it goes.
+   */
+  trashReturnLabel?: string;
 }) {
   return (
     <ExplorerProvider
@@ -198,6 +205,7 @@ export function ExplorerShell({
         onReset={onReset}
         actionsClient={actionsClient}
         readOnly={readOnly}
+        trashReturnLabel={trashReturnLabel}
       />
     </ExplorerProvider>
   );
@@ -218,7 +226,8 @@ function ExplorerBody({
   onChanged,
   onReset,
   actionsClient,
-  readOnly
+  readOnly,
+  trashReturnLabel
 }: {
   teamId: string;
   client: ExplorerShellClient;
@@ -235,6 +244,7 @@ function ExplorerBody({
   onReset?: () => void;
   actionsClient: MaterialActionsClient;
   readOnly: boolean;
+  trashReturnLabel?: string;
 }) {
   const { t } = useI18n();
   const { push, update } = useToasts();
@@ -1140,7 +1150,7 @@ function ExplorerBody({
         </Button>
         {trash ? (
           <Button type="button" variant="ghost" onClick={() => onQueryChange({ trash: false })}>
-            ← {t('teamExplorerBackToFiles')}
+            ← {trashReturnLabel ?? t('teamExplorerBackToFiles')}
           </Button>
         ) : (
           <Breadcrumb />

@@ -8449,20 +8449,26 @@ body:has(.public-home) {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+/* On the chips' own surface (024). The header sits on the live hexagon field,
+   and a bare muted link over a lit cell was unreadable; the chip beside it
+   never was, because it carries its own ground. One row, one ground. */
 .team-space-shell-utility-link {
-  padding: 6px var(--space-2);
+  padding: 2px var(--space-2);
   font-size: var(--text-label);
-  color: var(--color-text-muted);
-  text-decoration: none;
-  border-radius: var(--radius-sm);
-}
-.team-space-shell-utility-link:hover {
   color: var(--color-text);
+  text-decoration: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
 }
+.team-space-shell-utility-link:hover {
+  border-color: var(--color-border-strong);
+}
 .team-space-shell-utility-link[aria-current='page'] {
+  /* The accent wash is translucent and let a lit cell through; the ground
+     stays opaque and the state is carried by the ink and the edge. */
   color: var(--color-accent);
-  background: var(--color-accent-softer);
+  border-color: var(--color-accent);
 }
 
 /* The tab bar. Horizontal scroll rather than wrapping: a second row of tabs

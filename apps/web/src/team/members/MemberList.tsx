@@ -44,13 +44,16 @@ export function MemberList({
   client,
   activeCount = 1,
   revision = 0,
-  onChanged
+  onChanged,
+  onLoaded
 }: {
   teamId?: string;
   client?: MemberManagementClient;
   activeCount?: number;
   revision?: number;
   onChanged?: () => void;
+  /** The list as read, for a neighbour whose wording depends on it. */
+  onLoaded?: (members: TeamMemberSummary[]) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -70,6 +73,7 @@ export function MemberList({
         if (active) {
           setMembers(value);
           setError(null);
+          onLoaded?.(value);
         }
       })
       .catch(() => {
@@ -78,6 +82,8 @@ export function MemberList({
     return () => {
       active = false;
     };
+    // `onLoaded` is left out on purpose: a caller's inline callback would re-read
+    // the list on every render.
   }, [client, revision, t, teamId]);
 
   const count = client && teamId ? members.length : activeCount;

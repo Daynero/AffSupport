@@ -27,6 +27,7 @@ export function MembersSection({
   const { t } = useI18n();
   const { activeTeam, can, notifyStateChanged, refreshTeams } = useTeam();
   const [revision, setRevision] = useState(0);
+  const [memberCount, setMemberCount] = useState<number | null>(null);
   const changed = () => {
     setRevision(value => value + 1);
     notifyStateChanged();
@@ -42,6 +43,7 @@ export function MembersSection({
           teamId={teamId}
           client={client}
           revision={revision}
+          onLoaded={members => setMemberCount(members.length)}
           onChanged={() => {
             changed();
             void refreshTeams();
@@ -57,7 +59,12 @@ export function MembersSection({
           onChanged={changed}
         />
       </div>
-      <LeaveSpacePanel teamId={teamId} client={client} isOwner={activeTeam?.role === 'owner'} />
+      <LeaveSpacePanel
+        teamId={teamId}
+        client={client}
+        isOwner={activeTeam?.role === 'owner'}
+        alone={memberCount === 1}
+      />
     </section>
   );
 }

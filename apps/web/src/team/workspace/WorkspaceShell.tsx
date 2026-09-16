@@ -335,6 +335,23 @@ export function WorkspaceShell({
       teamId
     ]
   );
+  /** The trash, opened over a section other than Files, stands in for it. */
+  const trashOver = Boolean(query?.trash) && section !== 'explorer';
+
+  /*
+   * The tab says where you are (024). The workspace never set a title, so the
+   * tab kept whatever the last page wrote — "Soty — Tools" from the home page,
+   * read as the name of a folder that happened to be called Tools.
+   */
+  const spaceName = activeTeam?.name ?? null;
+  useEffect(() => {
+    if (!spaceName) return;
+    const where = query?.trash
+      ? t('teamTrashEntry')
+      : t(CONTENT_TABS.find(tab => tab.section === section)?.label ?? 'teamSectionExplorer');
+    document.title = `${where} · ${spaceName} — Soty`;
+  }, [query?.trash, section, spaceName, t]);
+
   /**
    * The address you are on, with one surface opened or closed over it (024,
    * FR-050).
@@ -396,14 +413,26 @@ export function WorkspaceShell({
       // must not move the address out from under the section being looked at.
       // Every caller reports its own state, so "only the visible one writes"
       // costs nothing and removes the whole class of surprise navigation.
-      if (target !== section) return;
+      //
+      // The trash is the explorer, and it is the visible one wherever it is
+      // open (024, FR-046) — over Tasks too. Its reports are written under the
+      // section it was opened over, so closing it lands back there; a folder
+      // chosen from its tree is a trip to Files, because that is where
+      // folders are.
+      const visible = trashOver ? 'explorer' : section;
+      if (target !== visible) return;
+      const toFiles = trashOver && patch.trash !== false && 'folderId' in patch;
       navigateTo(
-        buildTeamRoute({ spaceId: teamId, section: target, query: { ...query, ...patch } }),
-        true,
+        buildTeamRoute({
+          spaceId: teamId,
+          section: toFiles ? 'explorer' : section,
+          query: { ...query, ...patch, ...(toFiles ? { trash: false } : {}) }
+        }),
+        !toFiles,
         false
       );
     },
-    [query, section, teamId]
+    [query, section, teamId, trashOver]
   );
 
   const onExplorerFolderChange = useCallback(
@@ -571,7 +600,7 @@ export function WorkspaceShell({
             Members — all of it is still there on the way back, because none of
             it was thrown away. */}
               {visited.has('members') && (
-                <div hidden={section !== 'members'}>
+                <div hidden={section !== 'members' || trashOver}>
                   <MembersSection
                     key={`members:${teamId}`}
                     teamId={teamId}
@@ -581,7 +610,7 @@ export function WorkspaceShell({
                 </div>
               )}
               {visited.has('tasks') && (
-                <div hidden={section !== 'tasks'}>
+                <div hidden={section !== 'tasks' || trashOver}>
                   <TaskSpace
                     key={`tasks:${teamId}`}
                     teamId={teamId}
@@ -595,7 +624,7 @@ export function WorkspaceShell({
                 </div>
               )}
               {visited.has('accounts') && (
-                <div hidden={section !== 'accounts'}>
+                <div hidden={section !== 'accounts' || trashOver}>
                   <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
                 </div>
               )}
@@ -626,6 +655,11 @@ export function WorkspaceShell({
                   onFolderChange={onExplorerFolderChange}
                   onSearched={onSearched}
                   onReset={resetExplorer}
+                  trashReturnLabel={
+                    trashOver
+                      ? t(CONTENT_TABS.find(tab => tab.section === section)!.label)
+                      : undefined
+                  }
                   onPreview={openPreview}
                   onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
                   onCreateTaskFromSelection={assets => {

@@ -30,11 +30,18 @@ export interface LeaveSpaceClient {
 export function LeaveSpacePanel({
   teamId,
   client,
-  isOwner
+  isOwner,
+  alone = false
 }: {
   teamId: string;
   client: LeaveSpaceClient;
   isOwner: boolean;
+  /**
+   * Nobody else is in the space. "Transfer to a member in the list above" is
+   * then an instruction that cannot be followed — the list is just you — so
+   * the owner is told the step that comes before it.
+   */
+  alone?: boolean;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -71,7 +78,11 @@ export function LeaveSpacePanel({
       icon={LogOut}
       titleId="team-leave-space-title"
       title={t('teamLeaveTitle')}
-      description={isOwner ? t('teamLeaveOwnerExplanation') : t('teamLeaveDescription')}
+      description={
+        isOwner
+          ? t(alone ? 'teamLeaveOwnerAlone' : 'teamLeaveOwnerExplanation')
+          : t('teamLeaveDescription')
+      }
       className="team-leave-panel"
     >
       {!isOwner && (
