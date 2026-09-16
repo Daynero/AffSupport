@@ -881,6 +881,19 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 - **FR-110**: Ticking catalogs MUST offer the same two controls — interval and update now — for all
   of them at once.
 
+### Functional Requirements — a note on a file (US17)
+
+- **FR-111**: Every file MUST be able to carry a note of up to 4000 characters, line breaks kept,
+  stored as Soty's own metadata beside GEO, language, offer and tags. Nothing is written to Google
+  Drive, so a note never changes the file's version, its transcript or an in-flight download.
+- **FR-112**: The details card MUST show the note under the file's facts and let someone with
+  `manage_metadata` edit it in place (⌘↵ saves, Esc cancels); with no note it offers "Add a note",
+  and to someone who may not write one it shows nothing.
+- **FR-113**: "Note" MUST be an action in the registry, so every file menu — row, search result,
+  task attachment — opens the same editor, read-only for whoever may only view.
+- **FR-114**: Search MUST find a file by a word of its note, and the result MUST show the note.
+- **FR-115**: A file downloaded through Soty carries no note and no other Soty metadata, silently.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,
@@ -943,6 +956,8 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 
 - **SC-020**: A second catalog for the same video, with a different link, takes **3 actions** from
   a task (Catalog → New variation → Create) and its name is on the clipboard in **1 more**.
+- **SC-021**: A note is added to a selected file in **2 actions** (Add a note → type → ⌘↵) and is
+  visible in the card and in search without a reload.
 
 ---
 

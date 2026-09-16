@@ -16,6 +16,7 @@ import {
   Share2,
   Sparkles,
   SquarePen,
+  StickyNote,
   Tags,
   Trash2,
   Undo2,
@@ -78,6 +79,7 @@ export const MATERIAL_ACTION_IDS = [
   'move',
   'colourTag',
   'editMetadata',
+  'note',
   'uploadInto',
   'copyToClipboard',
   'cutToClipboard',
@@ -524,6 +526,18 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     inlinePriority: null,
     applies: material => isFile(material) && !material.draft,
     available: (material, context) => all(ready(material), may(context, 'manage_metadata'))
+  },
+  {
+    // A few words for the next person (024). Anyone who sees the file reads it; writing it is
+    // the same licence as the rest of its details.
+    id: 'note',
+    group: 'organise',
+    order: 6,
+    labelKey: 'materialActionNote',
+    icon: StickyNote,
+    inlinePriority: null,
+    applies: material => isFile(material) && !material.draft,
+    available: material => ready(material)
   },
   {
     id: 'uploadInto',

@@ -12,10 +12,7 @@ import { SearchResultActions } from './SearchResultActions';
 import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
-import {
-  useThumbnailSession,
-  type ThumbnailSessionClient
-} from '../explorer/useThumbnailSession';
+import { useThumbnailSession, type ThumbnailSessionClient } from '../explorer/useThumbnailSession';
 import { EmptyState, ErrorState } from '../../components/ui/index';
 
 /** Matches the page size `useCatalogSearch` requests. */
@@ -208,6 +205,12 @@ export function MaterialResults({
                     </span>
                   )}
                 </div>
+                {/* The note (024): a file found by a word of it should say so. */}
+                {material.note && (
+                  <p className="team-catalog-material-note" title={material.note}>
+                    {material.note}
+                  </p>
+                )}
                 <div className="team-catalog-markers team-catalog-material-statuses">
                   {material.transcriptIngestState !== 'not_applicable' && (
                     <span>{catalogTranscriptStatus(material.transcriptIngestState, t)}</span>

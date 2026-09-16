@@ -246,6 +246,7 @@ export function TaskAttachmentTile({
       // FR-070).
       open: isFolder ? onReveal : () => setPreviewOpen(true),
       showInFolder: onReveal,
+      note: host.handlers.note,
       copyLink: () => void copyLink(),
       download: () => void download(),
       downloadRestitched: onDownloadRestitched,

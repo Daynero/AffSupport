@@ -62,7 +62,12 @@ export interface MaterialMetadataPatch {
   language?: string | null;
   offer?: string | null;
   tags?: string[];
+  /** A few words about the file, kept in Soty only (024). Empty removes it. */
+  note?: string | null;
 }
+
+/** The longest note a file carries; the database holds the same limit. */
+export const MATERIAL_NOTE_MAX = 4000;
 
 export interface CatalogLineageSummary {
   hasSource: boolean;
@@ -86,6 +91,8 @@ export interface CatalogMaterialItem {
   geo: string | null;
   language: string | null;
   offer: string | null;
+  /** Present where the server sends it (the metadata write); the folder list does not. */
+  note?: string | null;
   tags: string[];
   transcriptIngestState: TranscriptIngestState;
   transcriptTruncated: boolean;
@@ -272,7 +279,10 @@ export function normalizeCatalogSearchRequest(input: unknown): CatalogSearchRequ
 export function normalizeMaterialMetadataPatch(input: unknown): MaterialMetadataPatch | null {
   if (!isRecord(input)) return null;
   const keys = Object.keys(input);
-  if (keys.length === 0 || keys.some(key => !['geo', 'language', 'offer', 'tags'].includes(key))) {
+  if (
+    keys.length === 0 ||
+    keys.some(key => !['geo', 'language', 'offer', 'tags', 'note'].includes(key))
+  ) {
     return null;
   }
   const patch: MaterialMetadataPatch = {};
@@ -304,6 +314,12 @@ export function normalizeMaterialMetadataPatch(input: unknown): MaterialMetadata
     const value = normalizeTeamTags(input.tags);
     if (!value) return null;
     patch.tags = value;
+  }
+  if ('note' in input) {
+    if (input.note !== null && typeof input.note !== 'string') return null;
+    const value = input.note?.normalize('NFC').trim() ?? '';
+    if (value.length > MATERIAL_NOTE_MAX) return null;
+    patch.note = value === '' ? null : value;
   }
   return patch;
 }
@@ -344,6 +360,7 @@ export function decodeCatalogMaterial(
     !optionalString(value.geo) ||
     !optionalString(value.language) ||
     !optionalString(value.offer) ||
+    !(value.note === undefined || optionalString(value.note)) ||
     !Array.isArray(value.tags) ||
     !value.tags.every(tag => typeof tag === 'string') ||
     !(TRANSCRIPT_INGEST_STATES as readonly unknown[]).includes(value.transcriptIngestState) ||

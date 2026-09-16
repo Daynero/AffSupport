@@ -16,6 +16,12 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260916230000_search_shows_note.sql`: re-apply `search_materials` from `20260916210000`.
+0. `20260916220000_material_notes.sql`: drop `public.get_team_material_note(uuid, uuid)`, re-apply
+   `update_material_metadata`, `private.refresh_team_material_search` and its trigger from
+   `20260801101000`, then drop the `team_materials_note_check` constraint and the `note` column.
+   Dropping the column deletes every note.
+
 0. `20260916210000_search_by_marker.sql`: re-apply `search_materials` from `20260906170000`
    and `get_team_vocab_and_facets` from `20260916200000`. No data is touched.
 

@@ -696,6 +696,17 @@ processed copy from the attachment, and see all three on the task without it clo
       it from the trash. (Walked: v1 and v2 from a task's tile, list, remove v2. Restore is held by
       the SQL test; not walked, to leave the owner's Drive trash alone.)
 
+## Phase 9H: User Story 17 — a note on a file (Priority: P2)
+
+- [x] T187 [US17] Migration `20260916220000_material_notes.sql`: `team_materials.note`, searched;
+      `update_material_metadata` accepts `note`; `get_team_material_note`. `20260916230000` returns
+      the note in search results. SQL tests for trim, line breaks, limit, removal, search.
+- [x] T188 [US17] Shared patch normalizer and web API (`getMaterialNote`, `setMaterialNote`).
+- [x] T189 [US17] `MaterialNoteBlock` in the details card, `MaterialNoteDialog` behind the registry's
+      "Note" action, one note store so a save anywhere shows everywhere; the note in search results.
+- [x] T190 [P] [US17] Component tests; walked on the beta (add in the card, open from the row menu,
+      find by a word of it).
+
 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the

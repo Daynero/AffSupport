@@ -2589,6 +2589,26 @@ export const teamApi = {
     return material;
   },
 
+  /** A file's note (024), or null when it has none. Soty's own metadata; Drive never sees it. */
+  async getMaterialNote(teamId: string, materialId: string): Promise<string | null> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_material_note', {
+        p_team: teamId,
+        p_material: materialId
+      })
+    );
+    throwRpc(error);
+    if (data !== null && typeof data !== 'string')
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return data ?? null;
+  },
+
+  /** Writes a file's note; an empty one removes it. Returns what was kept. */
+  async setMaterialNote(teamId: string, materialId: string, note: string): Promise<string | null> {
+    const material = await teamApi.updateMaterialMetadata(teamId, materialId, { note });
+    return material.note ?? null;
+  },
+
   async startUpload(input: TeamUploadStartInput): Promise<TeamUploadSession> {
     const value = await invokeTeamFunction(
       'drive-ops/uploads/start',

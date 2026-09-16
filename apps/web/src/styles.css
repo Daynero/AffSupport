@@ -14063,6 +14063,89 @@ button.team-landing-tile:hover {
   margin: 0;
   overflow-wrap: anywhere;
 }
+/* A search result's note: two lines of it, enough to see why the file was found. */
+.team-catalog-material-note {
+  display: -webkit-box;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  font-size: var(--text-caption);
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+/* A file's note (024): a person's words, so it reads as a small sticky note beside the facts
+   rather than as another fact. Line breaks are kept; a long one folds. */
+.team-material-note {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  font-size: var(--text-label);
+}
+.team-material-note.is-editing {
+  padding: 0;
+  background: none;
+}
+.team-material-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+.team-material-note-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.team-material-note-more {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-caption);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.team-material-note-add {
+  justify-self: start;
+}
+.team-material-note-editor {
+  display: grid;
+  gap: var(--space-2);
+}
+.team-material-note-editor textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+.team-material-note-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.team-material-note-count {
+  margin-inline-end: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-material-note-count.is-over {
+  color: var(--color-error-text);
+}
+.team-material-note-quiet {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.team-material-note-dialog .team-material-note-text {
+  font-size: var(--text-body);
+}
 /* What lives beside the file, as facts rather than as offers: the actions are
    the offers, and saying the same thing twice is what this feature removes. */
 .team-material-detail-companions {

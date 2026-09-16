@@ -38,6 +38,7 @@ export function MaterialDetail({
   facts,
   preview,
   notes,
+  note,
   companions,
   tag,
   actions,
@@ -49,6 +50,8 @@ export function MaterialDetail({
   preview: ReactNode;
   /** Why the preview is not what it should be, in the host's own words. */
   notes?: ReactNode;
+  /** The note a person left on the file (024), read and edited in place. */
+  note?: ReactNode;
   companions?: MaterialCompanions;
   /** The colour tag, where the reader is allowed to set one. */
   tag?: {
@@ -104,6 +107,7 @@ export function MaterialDetail({
           </div>
         ))}
       </dl>
+      {note}
       {notes}
       {/*
        * What lives beside it. Said here rather than left to be discovered:

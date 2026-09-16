@@ -2656,6 +2656,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      get_team_material_note: {
+        Args: { p_material: string; p_team: string };
+        Returns: string;
+      };
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
       get_upload_batch: {
         Args: { p_batch: string; p_team: string };

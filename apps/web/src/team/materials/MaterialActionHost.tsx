@@ -9,6 +9,7 @@ import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import { useMaterialActions, type MaterialActionsClient } from '../catalog/useMaterialActions';
 import type { ActionHandlers } from './useMaterialActionList';
 import type { MaterialRef } from './actions';
+import { MaterialNoteDialog } from './MaterialNote';
 
 /**
  * The surfaces an action opens, mounted beside the caller rather than inside it.
@@ -62,7 +63,7 @@ export function useMaterialActionHost({
 }: MaterialActionHostInput): MaterialActionHostResult {
   const { t } = useI18n();
   const { push } = useToasts();
-  const [prompt, setPrompt] = useState<'rename' | 'move' | null>(null);
+  const [prompt, setPrompt] = useState<'rename' | 'move' | 'note' | null>(null);
   const [newName, setNewName] = useState(material.name);
   const uploadInput = useRef<HTMLInputElement>(null);
 
@@ -172,6 +173,7 @@ export function useMaterialActionHost({
       setPrompt('rename');
     },
     move: () => setPrompt('move'),
+    note: () => setPrompt('note'),
     uploadInto: () => uploadInput.current?.click(),
     trash: () =>
       void actions.trash().then(code => {
@@ -231,6 +233,15 @@ export function useMaterialActionHost({
             </div>
           </form>
         </Modal>
+      )}
+      {prompt === 'note' && (
+        <MaterialNoteDialog
+          teamId={teamId}
+          materialId={material.id}
+          name={material.name}
+          canEdit={permissions.manage_metadata === true}
+          onClose={() => setPrompt(null)}
+        />
       )}
       {prompt === 'move' && (
         <FolderPicker

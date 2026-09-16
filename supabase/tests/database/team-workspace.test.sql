@@ -1,6 +1,6 @@
 begin;
 
-select plan(268);
+select plan(273);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -2107,6 +2107,56 @@ select is(
     from pg_temp.us3_identity_before as before
   ),
   'metadata mutation preserves every sampled provider, lifecycle, and content field'
+);
+
+-- 024: a file's note is Soty's metadata, kept with its line breaks, found by search, and read alone.
+select is(
+  (
+    select public.update_material_metadata(
+      (select id from pg_temp.us1_created_team),
+      (select id from pg_temp.us3_identity_before),
+      jsonb_build_object('note', E'  For the Poland launch\nkeep the hook short  ')
+    ) ->> 'note'
+  ),
+  E'For the Poland launch\nkeep the hook short',
+  'a note is trimmed at its ends and keeps its line breaks'
+);
+select is(
+  public.get_team_material_note(
+    (select id from pg_temp.us1_created_team),
+    (select id from pg_temp.us3_identity_before)
+  ),
+  E'For the Poland launch\nkeep the hook short',
+  'a member who can view reads the note of one file'
+);
+select ok(
+  (
+    select material.search_tsv @@ pg_catalog.to_tsquery('simple', 'hook')
+    from public.team_materials as material
+    where material.id = (select id from pg_temp.us3_identity_before)
+  ),
+  'search finds a file by a word of its note'
+);
+select throws_ok(
+  format(
+    $$select public.update_material_metadata(%L::uuid, %L::uuid, %L::jsonb)$$,
+    (select id from pg_temp.us1_created_team),
+    (select id from pg_temp.us3_identity_before),
+    jsonb_build_object('note', repeat('x', 4001))
+  ),
+  '22023', 'INVALID_INPUT',
+  'a note longer than 4000 characters is refused'
+);
+select is(
+  (
+    select public.update_material_metadata(
+      (select id from pg_temp.us1_created_team),
+      (select id from pg_temp.us3_identity_before),
+      '{"note":"   "}'::jsonb
+    ) ->> 'note'
+  ),
+  null,
+  'an empty note removes the note'
 );
 
 create temporary table us3_transcript as
