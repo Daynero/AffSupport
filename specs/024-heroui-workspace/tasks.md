@@ -430,8 +430,18 @@ closing or losing anything.
       same array with the same comparator on every render — two sorts that agreed by accident,
       and the day they stopped agreeing Down would have moved to a different row from the one
       below. The views still default to the page's own rows so either can be rendered alone.
-- [ ] T095 [US5] Split `apps/web/src/team/explorer/ExplorerShell.tsx` so that no file in the team
+- [x] T095 [US5] Split `apps/web/src/team/explorer/ExplorerShell.tsx` so that no file in the team
       tree holds upload, clipboard, queue, restitch, tags, keyboard and view state at once.
+      2,240 lines → 1,935. Two concerns left whole rather than rewritten, because every comment
+      in them records something learned the hard way:
+      - `useAgentQueue.ts` (323 lines) — one queue for everything that runs on the local app.
+        Transcribing and compressing are the same shape of job, and none of it needs to know
+        what a folder row looks like. `deliberateStop` went with it, to its only caller.
+      - `useExplorerClipboard.ts` — copy, cut and paste. Held in a ref, not state, because
+        nothing on screen changes when you press ⌘C and re-rendering five hundred rows to
+        remember four ids would be the most expensive thing a copy ever does.
+      Upload, restitch, tags and the keyboard are still in the shell; they are more entangled
+      with the folder listing than these two were, and T096 is the reason to come back.
 - [ ] T096 [US5] Make a 500-row folder usable without repeated manual paging (FR-044) — windowing
       or continuous loading, whichever the split in T095 makes honest. This also closes findings
       B2 and B3 of feature 021 for the screens this feature touches.

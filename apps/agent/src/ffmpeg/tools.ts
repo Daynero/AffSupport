@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executableName } from '../platform/platform.js';
+import { probeExecutable, type ExecutableProbe } from '../platform/probe.js';
 
 const bundledRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -36,12 +37,13 @@ export function isMediaToolUnavailableError(error: unknown): error is MediaToolU
   return error instanceof MediaToolUnavailableError;
 }
 
+/** Whether the tool starts, and what stopped it when it does not. */
+export function probeMediaTool(command: string): Promise<ExecutableProbe> {
+  return probeExecutable(command, ['-version']);
+}
+
 export async function commandExists(command: string): Promise<boolean> {
-  return new Promise(resolve => {
-    const child = spawn(command, ['-version'], { shell: false, stdio: 'ignore' });
-    child.once('error', () => resolve(false));
-    child.once('close', code => resolve(code === 0));
-  });
+  return (await probeMediaTool(command)).runnable;
 }
 
 export interface MediaInfo {

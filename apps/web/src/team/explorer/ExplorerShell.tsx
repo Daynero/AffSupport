@@ -22,12 +22,7 @@ import { Button } from '../../components/ui';
 import { Popover, SegmentedControl } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
-import {
-  copyMaterialWithTail,
-  moveMaterialWithTail,
-  trashMaterialWithTail,
-  type TailClient
-} from '../materials/tail';
+import { moveMaterialWithTail, trashMaterialWithTail, type TailClient } from '../materials/tail';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
@@ -51,12 +46,8 @@ import { SortMenu } from './SortMenu';
 import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
 import { PreviewPane } from './PreviewPane';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
-import { useTeamOperation } from '../processing/useTeamOperation';
-import {
-  cancelTeamAgentProcess,
-  pauseTeamAgentProcess,
-  startTeamAgentProcess
-} from '../../api/client';
+import { useAgentQueue, type AgentQueueItem } from './useAgentQueue';
+import { useExplorerClipboard } from './useExplorerClipboard';
 import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import {
   BATCH_SCOPE_LIMIT,
@@ -108,18 +99,6 @@ export type { ExplorerView };
  * state lives in the address, so a refresh and a pasted link land on the same
  * screen.
  */
-/**
- * Was this the person stopping the work, rather than the work going wrong?
- *
- * The agent answers a cancelled run with the same shape as a failed one — a machine code on a
- * rejected promise — so the only thing separating "I pressed stop" from "it broke" is which
- * code it is.
- */
-function deliberateStop(cause: unknown): boolean {
-  const code = cause instanceof Error ? cause.message : String(cause);
-  return code === 'PROCESS_CANCELED' || code === 'DOWNLOAD_CANCELED' || code === 'PREVIEW_CANCELED';
-}
-
 /**
  * What a re-stitched download is doing, in words and as a share.
  *
@@ -257,7 +236,7 @@ function ExplorerBody({
   readOnly: boolean;
 }) {
   const { t } = useI18n();
-  const { push, update, dismiss } = useToasts();
+  const { push, update } = useToasts();
   /* 015 — one running re-stitched delivery per material, held here rather than in the row:
      a delivery outlives the menu that started it and the row that scrolled past. */
   const restitch = useRestitchDelivery(teamId);
@@ -329,37 +308,6 @@ function ExplorerBody({
   // in the background one after another — a corner panel shows the progress,
   // nothing blocks the screen.
   const agentCtx = useOptionalAgent();
-  type QueueItem = {
-    id: string;
-    name: string;
-    folderId: string | null;
-    tool: 'transcription' | 'compressor';
-    outputName: string;
-    /** Overwrite-the-original: upload as a new version of this material. */
-    versionOf?: string;
-    /** 013 (B5): compress on the agent and save to a locally chosen folder. */
-    local?: { embed: boolean; suffix: string };
-    options?: Record<string, unknown>;
-  };
-  const [tQueue, setTQueue] = useState<QueueItem[]>([]);
-  const [tActive, setTActive] = useState<(QueueItem & { operationId: string | null }) | null>(null);
-  const [tDone, setTDone] = useState(0);
-  const [tTotal, setTTotal] = useState(0);
-  // The batch is held: nothing new starts, and the file already in flight is
-  // suspended too when the local app can do that (`tHeld`). Both are needed —
-  // a pause that leaves the machine at full load for the next twenty minutes
-  // is not the pause anyone pressed.
-  const [tPaused, setTPaused] = useState(false);
-  const [tHeld, setTHeld] = useState(false);
-  /** The operation this browser has already asked the local app to hold. */
-  const heldAsked = useRef<string | null>(null);
-  // Cmd/Ctrl+C/X/V: what was copied or cut, held until the next paste. Files
-  // from any folder — paste lands them in the folder currently open.
-  const clipboard = useRef<{
-    mode: 'copy' | 'cut';
-    /** Category as well as kind: what travels with a file depends on it. */
-    items: { id: string; name: string; kind: string; category: string | null }[];
-  } | null>(null);
   /* A row from the list or the folder that is open — the batch needs a name
      and a drive id, and both kinds of thing carry those. */
   /* Reading a folder's subtree, and what the answer is for. All three of the
@@ -535,6 +483,25 @@ function ExplorerBody({
     onChanged?.();
     void page.reload();
   }, [onChanged, page]);
+
+  /*
+   * One queue for the work that runs on the local app: the card's Transcribe
+   * enqueues, the folder batch enqueues, and everything runs one after another
+   * while a corner panel shows the progress. It lives in its own file now
+   * (024, FR-095) — 250 lines of it were in here, between the upload zone and
+   * the keyboard handler.
+   */
+  const queue = useAgentQueue({ teamId, actionsClient, onChanged: changed });
+
+  /* Copy, cut and paste, in their own file for the same reason (024). */
+  const clipboard = useExplorerClipboard({
+    teamId,
+    currentFolderId: currentFolderId ?? null,
+    permissions,
+    tailClient,
+    onChanged: changed,
+    clearSelection
+  });
 
   /*
    * A trashed video takes its transcript with it, without asking (owner,
@@ -904,198 +871,7 @@ function ExplorerBody({
    * through here opened a preview on Enter and toggled the selection on every
    * space in the new name.
    */
-  const enqueueJobs = (items: QueueItem[]) => {
-    const known = new Set(
-      [...tQueue, ...(tActive ? [tActive] : [])].map(item => `${item.tool}:${item.id}`)
-    );
-    const fresh = items.filter(item => !known.has(`${item.tool}:${item.id}`));
-    if (fresh.length === 0) return;
-    setTQueue(current => [...current, ...fresh]);
-    setTTotal(current => current + fresh.length);
-    if (tActive || tQueue.length > 0) {
-      push({ tone: 'success', text: t('teamTranscribeQueueAdded', { count: fresh.length }) });
-    }
-  };
 
-  const enqueueTranscriptions = (items: { id: string; name: string; folderId: string | null }[]) =>
-    enqueueJobs(
-      items.map(item => ({
-        ...item,
-        tool: 'transcription' as const,
-        outputName: `${item.name.replace(/\.[^.]+$/u, '')}.txt`
-      }))
-    );
-
-  // Takes the next queued video whenever nothing is running.
-  useEffect(() => {
-    if (tActive || tQueue.length === 0 || tPaused) return;
-    const next = tQueue[0];
-    setTActive({ ...next, operationId: null });
-    void (async () => {
-      let started: string | null = null;
-      try {
-        if (next.local) {
-          // 013 (B5): no team operation — the agent downloads the source,
-          // compresses it locally and saves into a natively chosen folder.
-          const grant = await teamApi.requestDownload(teamId, next.id, 'agent');
-          if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
-          const saved = await downloadTeamFileWithAgent({
-            transferUrl: grant.transferUrl,
-            transferGrant: grant.grant,
-            fileName: next.name,
-            compress: next.local
-          });
-          push({ tone: 'success', text: t('teamCompressLocalSaved', { name: saved.fileName }) });
-          return;
-        }
-        const result = await teamApi.startProcess({
-          teamId,
-          materialId: next.id,
-          toolId: next.tool,
-          optionsSummary: next.options ?? {},
-          // The server's optionalDestination treats null as the space root; the
-          // client type predates that and still says string.
-          destinationFolderId: (next.folderId ?? null) as unknown as string,
-          outputName: next.outputName,
-          ...(next.versionOf ? { versionOfMaterialId: next.versionOf } : {}),
-          conflictMode: 'keep_both',
-          idempotencyKey: crypto.randomUUID(),
-          agentContractVersion: 1,
-          toolContractVersion: agentCtx?.toolContracts?.[next.tool] ?? 0
-        });
-        setTActive(current =>
-          current && current.id === next.id
-            ? { ...current, operationId: result.operationId }
-            : current
-        );
-        started = result.operationId;
-        const finished = await startTeamAgentProcess({
-          operationId: result.operationId,
-          toolId: next.tool,
-          options: next.options ?? {},
-          sourceGrant: result.sourceGrant,
-          finalizeGrant: result.finalizeGrant
-        });
-        /*
-         * A transcript is named after its video, including the second time.
-         *
-         * A repeat is written while the transcript it replaces is still there,
-         * so the name it asked for is taken and the conflict rule hands it
-         * "16-tail (2).txt". The old one is retired during that same finalize —
-         * which frees the name — and the file keeps the parenthesis forever,
-         * one more each time. Asking for the canonical name here costs one call
-         * and is refused (never duplicated) if something live still holds it.
-         */
-        if (next.tool === 'transcription' && finished.materialId) {
-          await actionsClient
-            .renameMaterial({
-              teamId,
-              materialId: finished.materialId,
-              newName: next.outputName,
-              conflictMode: 'cancel',
-              idempotencyKey: crypto.randomUUID()
-            })
-            .catch(() => undefined);
-        }
-      } catch (cause) {
-        // A run somebody stopped on purpose is not a failure, and saying so in red is how a
-        // deliberate act starts looking like a fault. Everything below still happens — the
-        // space is told the run is over either way.
-        if (!deliberateStop(cause)) push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        // Tell the space the run is over. Without this a failed item stays
-        // `running` for good: nothing else ever revisits it, it holds its
-        // output name reserved, and the next attempt at the same file is
-        // refused for a conflict with a run that is not happening.
-        if (started) await teamApi.cancelOperation(teamId, started).catch(() => undefined);
-      } finally {
-        setTDone(current => current + 1);
-        setTActive(null);
-        setTQueue(current => current.slice(1));
-        changed();
-      }
-    })();
-  }, [actionsClient, agentCtx?.toolContracts, changed, push, t, tActive, tPaused, tQueue, teamId]);
-
-  // The queue drained: one closing toast, counters reset. A pause dies with the
-  // queue it was holding; leaving it set would silently swallow the next batch.
-  useEffect(() => {
-    if (tActive || tQueue.length > 0 || tTotal === 0) return;
-    push({ tone: 'success', text: t('teamTranscribeQueueDone', { count: tDone }) });
-    setTDone(0);
-    setTTotal(0);
-    setTPaused(false);
-    setTHeld(false);
-  }, [push, t, tActive, tDone, tQueue.length, tTotal]);
-
-  /**
-   * Holds the batch, and the running file with it where that is possible.
-   *
-   * The local app is asked separately from the queue on purpose: an older build,
-   * a transfer rather than an encode, or the moment between two children all
-   * answer "nothing held", and the panel then says the current file is finishing
-   * rather than claiming a quiet machine it cannot deliver.
-   */
-  const pauseQueue = useCallback(
-    (paused: boolean) => {
-      setTPaused(paused);
-      const operationId = tActive?.operationId ?? null;
-      heldAsked.current = paused ? operationId : null;
-      if (!operationId) {
-        setTHeld(false);
-        return;
-      }
-      void pauseTeamAgentProcess(operationId, paused)
-        .then(held => setTHeld(paused && held))
-        .catch(() => setTHeld(false));
-    },
-    [tActive?.operationId]
-  );
-
-  /*
-   * A hold the local app keeps only while this page keeps asking for it.
-   *
-   * A reload does not close the request the run is riding on — the socket stays
-   * open and the agent keeps working, which is why a refresh costs no work. The
-   * pause would survive that reload too, with nothing left to lift it, so the
-   * page says "still paused" every half minute and the agent lets go on its own
-   * if that stops arriving.
-   */
-  useEffect(() => {
-    const operationId = tActive?.operationId ?? null;
-    if (!tPaused || !tHeld || !operationId) return;
-    const timer = window.setInterval(() => {
-      void pauseTeamAgentProcess(operationId, true).catch(() => undefined);
-    }, 30_000);
-    return () => window.clearInterval(timer);
-  }, [tActive?.operationId, tHeld, tPaused]);
-
-  // Pause pressed in the second between "started" and "the operation has an
-  // id": there was nothing to hold then, so the hold is taken as soon as there
-  // is. Asked once per operation — an agent that cannot hold has answered, and
-  // repeating the question on every render would be a request per frame.
-  useEffect(() => {
-    const operationId = tActive?.operationId ?? null;
-    if (!tPaused || !operationId || tHeld || heldAsked.current === operationId) return;
-    heldAsked.current = operationId;
-    void pauseTeamAgentProcess(operationId, true)
-      .then(held => setTHeld(held))
-      .catch(() => undefined);
-  }, [tActive?.operationId, tHeld, tPaused]);
-
-  /**
-   * Abandons the file being worked on, and everything queued behind it.
-   *
-   * The pause is lifted first: a stopped process is not delivered its termination signal
-   * until it runs again, so cancelling a held run would otherwise wait for a resume nobody
-   * is coming to give it.
-   */
-  const stopNow = useCallback(async () => {
-    const operationId = tActive?.operationId ?? null;
-    setTQueue([]);
-    if (tPaused) pauseQueue(false);
-    if (!operationId) return;
-    await cancelTeamAgentProcess(operationId).catch(() => false);
-  }, [pauseQueue, tActive?.operationId, tPaused]);
 
   /**
    * Painted first, written after: a dot that waits for a round trip before it
@@ -1118,18 +894,10 @@ function ExplorerBody({
   );
   const tagging = canTag ? { canTag: true as const, onSetTag: setTag } : undefined;
 
-  const activeOperation = useTeamOperation({
-    teamId,
-    operationId: tActive?.operationId ?? null
-  });
-  const activeProgress = Math.max(
-    activeOperation.operation?.progress ?? 0,
-    activeOperation.localProgress?.progress ?? 0
-  );
 
   const runCompressPlan = (plan: CompressPlan) => {
     const suffix = plan.suffix;
-    const jobs: QueueItem[] = plan.items.map(item => {
+    const jobs: AgentQueueItem[] = plan.items.map(item => {
       const stem = item.name.replace(/\.[^.]+$/u, '');
       const overwrite = plan.destination.kind === 'overwrite';
       const outputName = overwrite
@@ -1148,7 +916,7 @@ function ExplorerBody({
         options: plan.embed ? { imageEmbedding: { enabled: true } } : {}
       };
     });
-    enqueueJobs(jobs);
+    queue.enqueue(jobs);
   };
 
   /**
@@ -1193,83 +961,6 @@ function ExplorerBody({
       });
       if (done > 0) changed();
     })();
-  };
-
-  const pasteClipboard = async () => {
-    const clip = clipboard.current;
-    if (!clip) return;
-    if (clip.mode === 'copy' && !permissions?.upload) return;
-    if (clip.mode === 'cut' && !permissions?.edit) return;
-    // The Drive API cannot copy folders; a cut (move) handles them fine.
-    const items =
-      clip.mode === 'copy' ? clip.items.filter(item => item.kind !== 'folder') : clip.items;
-    const skipped = clip.items.length - items.length;
-    if (items.length === 0) {
-      push({ tone: 'error', text: t('teamExplorerPasteFoldersOnly') });
-      return;
-    }
-    let done = 0;
-    // Copying a file is a Drive-side operation per file, and each one brings its
-    // transcript with it — twenty pasted videos is forty round trips. A single
-    // line that counts is the difference between "nothing is happening" and
-    // "this is going to take a moment".
-    const progress = push({
-      tone: 'info',
-      sticky: true,
-      progress: 0,
-      text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
-        done: 0,
-        total: items.length
-      })
-    });
-    for (const item of items) {
-      try {
-        const material = { id: item.id, name: item.name, category: item.category };
-        if (clip.mode === 'copy') {
-          await copyMaterialWithTail({
-            teamId,
-            material,
-            destinationFolderId: currentFolderId ?? null,
-            client: tailClient
-          });
-        } else {
-          await moveMaterialWithTail({
-            teamId,
-            material,
-            destinationFolderId: currentFolderId ?? null,
-            conflictMode: 'keep_both',
-            client: tailClient
-          });
-        }
-        done += 1;
-        update(progress, {
-          progress: (done / items.length) * 100,
-          text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
-            done,
-            total: items.length
-          })
-        });
-      } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        break;
-      }
-    }
-    if (clip.mode === 'cut') clipboard.current = null;
-    if (done > 0) {
-      changed();
-      clearSelection();
-      update(progress, {
-        tone: 'success',
-        sticky: false,
-        progress: undefined,
-        text: t('teamExplorerPastedCount', { count: done })
-      });
-      if (skipped > 0) {
-        push({ tone: 'error', text: t('teamExplorerPasteFoldersSkipped', { count: skipped }) });
-      }
-    } else {
-      dismiss(progress);
-    }
   };
 
   const onContentKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -1361,15 +1052,15 @@ function ExplorerBody({
       if (key === 'c' || key === 'x') {
         const rows = selectedRows.length > 0 ? selectedRows : focused ? [focused] : [];
         if (rows.length === 0) return;
-        clipboard.current = {
-          mode: key === 'c' ? 'copy' : 'cut',
-          items: rows.map(row => ({
+        clipboard.take(
+          key === 'c' ? 'copy' : 'cut',
+          rows.map(row => ({
             id: row.id,
             name: row.name,
             kind: row.kind,
             category: row.category
           }))
-        };
+        );
         push({
           tone: 'success',
           text: t(key === 'c' ? 'teamExplorerCopiedCount' : 'teamExplorerCutCount', {
@@ -1379,9 +1070,9 @@ function ExplorerBody({
         event.preventDefault();
         return;
       }
-      if (key === 'v' && clipboard.current) {
+      if (key === 'v' && clipboard.has()) {
         event.preventDefault();
-        void pasteClipboard();
+        void clipboard.paste();
       }
     };
     document.addEventListener('keydown', onKeyDown);
@@ -1390,7 +1081,7 @@ function ExplorerBody({
        component re-renders on every toast and every page. With no dependency
        list at all a document-level listener was torn down and rebuilt on each
        of those. */
-  }, [focused, pasteClipboard, push, readOnly, searching, selectedRows, t, trash]);
+  }, [clipboard, focused, push, readOnly, searching, selectedRows, t, trash]);
 
   return (
     /* `team-panel`, like Accounts and Tasks: this was the one tab in the space
@@ -1757,7 +1448,7 @@ function ExplorerBody({
           onTranscribe={
             permissions?.process
               ? row =>
-                  enqueueTranscriptions([
+                  queue.enqueueTranscriptions([
                     {
                       id: row.id,
                       name: row.name,
@@ -1766,7 +1457,7 @@ function ExplorerBody({
                   ])
               : undefined
           }
-          transcribing={tActive ? { videoId: tActive.id, progress: activeProgress } : null}
+          transcribing={queue.active ? { videoId: queue.active.id, progress: queue.activeProgress } : null}
           onCreateTask={onCreateTask}
         />
       )}
@@ -1827,56 +1518,55 @@ function ExplorerBody({
       {/* One corner, one stack: both panels are reachable from the same
           selection, and pinned to the same pixel the second hid the first. */}
       <div className="team-process-stack">
-        {(tActive || tQueue.length > 0) && (
+        {(queue.active || queue.queued.length > 0) && (
           <ProcessPanel
             title={t(
-              tActive?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle'
+              queue.active?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle'
             )}
             detail={
-              tActive
+              queue.active
                 ? t('teamTranscribeQueueProgress', {
-                    done: tDone + 1,
-                    total: tTotal,
-                    name: tActive.name
+                    done: queue.done + 1,
+                    total: queue.total,
+                    name: queue.active.name
                   })
                 : null
             }
             phase={
-              tPaused
+              queue.paused
                 ? t(
-                    tActive
-                      ? tHeld
+                    queue.active
+                      ? queue.held
                         ? 'teamQueuePausedHeld'
                         : 'teamQueuePausedRunning'
                       : 'teamQueuePausedIdle',
-                    { count: tQueue.length }
+                    { count: queue.queued.length }
                   )
                 : null
             }
-            progress={activeProgress}
-            active={!tPaused}
+            progress={queue.activeProgress}
+            active={!queue.paused}
             actions={[
               {
-                label: t(tPaused ? 'teamQueueResume' : 'teamQueuePause'),
-                run: () => pauseQueue(!tPaused)
+                label: t(queue.paused ? 'teamQueueResume' : 'teamQueuePause'),
+                run: () => queue.pause(!queue.paused)
               },
-              ...(tQueue.length > (tActive ? 0 : 1)
+              ...(queue.queued.length > (queue.active ? 0 : 1)
                 ? [
                     {
                       label: t('teamTranscribeQueueStop'),
                       run: () => {
-                        setTQueue(tActive ? [] : current => current.slice(0, 1));
-                        setTTotal(tDone + 1);
+                        queue.clearQueued(Boolean(queue.active));
                         // "After the current one" has to have a current one that is still
                         // moving; stopping while paused would leave a suspended file as the
                         // last thing this panel ever did.
-                        if (tPaused) pauseQueue(false);
+                        if (queue.paused) queue.pause(false);
                       }
                     }
                   ]
                 : []),
-              ...(tActive
-                ? [{ label: t('teamQueueStopNow'), run: () => void stopNow(), destructive: true }]
+              ...(queue.active
+                ? [{ label: t('teamQueueStopNow'), run: () => void queue.stopNow(), destructive: true }]
                 : [])
             ]}
           />
