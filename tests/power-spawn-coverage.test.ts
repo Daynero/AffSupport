@@ -29,6 +29,10 @@ function portableRelative(root: string, absolute: string): string {
  */
 const SPAWN_ALLOWLIST = [
   'platform/platform.ts',
+  // "Can this binary be launched at all" — `-version`, under a ten-second
+  // ceiling, at boot. Managing a launch probe would put the question behind
+  // the power limit it is asked before.
+  'platform/probe.ts',
   'platform/windows-suspend.ts',
   'power/spawn.ts',
   'ffmpeg/tools.ts',
