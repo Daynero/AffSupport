@@ -204,7 +204,7 @@ closing or losing anything.
       the destructive group separated, last, and never focused first.
 - [x] T047 [US1] Write `apps/web/src/team/materials/MaterialInlineActions.tsx` — the first N by
       `inlinePriority`, labelled or tooltipped per the product's icon rules.
-- [ ] T048 [US1] Write `apps/web/src/team/materials/MaterialActionHost.tsx` — mounts the dialogs
+- [x] T048 [US1] Write `apps/web/src/team/materials/MaterialActionHost.tsx` — mounts the dialogs
       an action opens (catalog, process flow, folder picker, rename, colour picker, compressor)
       **beside** its host, so nothing closes.
 - [x] T049 [US1] Add the translation keys for every action, group heading and unavailability
@@ -214,10 +214,13 @@ closing or losing anything.
 - [ ] T051 [US1] Preserve analytics through the registry: every action that today opens a
       `startTeamFileAttempt` / `startTeamWorkflow` pair keeps doing so, with the same typed event
       names, so no funnel goes dark when the call site moves.
-- [ ] T052 [US1] Replace `apps/web/src/team/catalog/MaterialRowMenu.tsx` at its call sites with
-      the shared menu, then delete it and its hand-rolled roving focus.
-- [ ] T053 [US1] Render the shared surface from the explorer's rows and tiles —
-      `apps/web/src/team/explorer/ContentList.tsx`, `ContentGrid.tsx`, `RowActions.tsx`.
+- [x] T052 [US1] Replace `apps/web/src/team/catalog/MaterialRowMenu.tsx` at its call sites with
+      the shared menu (explorer rows done; search results and the updater still use it, so the
+      file stays until T054 and T057), then delete it and its hand-rolled roving focus.
+- [x] T053 [US1] Render the shared surface from the explorer's rows and tiles —
+      `RowActions.tsx` done, which both `ContentList` and `ContentGrid` render. Copy link, share
+      and the colour tag still live as their own row affordances; they join the surface with the
+      detail work in T086–T090.
 - [ ] T054 [US1] Render it from search results in `apps/web/src/team/catalog/MaterialResults.tsx`.
 - [ ] T055 [US1] Render it from the detail pane in `apps/web/src/team/explorer/PreviewPane.tsx`,
       replacing its three raw icon buttons.
