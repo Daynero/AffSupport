@@ -74,22 +74,17 @@ export function parseProductCount(value: unknown): ParseResult<number, 'count'> 
 }
 
 /** An `http`/`https` link with nothing around or inside it that a browser would not keep. */
+/**
+ * A link as pasted (024: the owner wants no validation): whitespace dropped, `https://` put in
+ * front of a link typed without its scheme. Only empty or overlong is refused. The web copy in
+ * `apps/web/src/team/product-catalog/limits.ts` must agree (parity test).
+ */
 export function parseWebLink(value: unknown, max: number): ParseResult<string, 'link'> {
   if (typeof value !== 'string') return { ok: false, error: 'link' };
-  const link = value.trim();
-  if (link.length === 0 || link.length > max || /\s/u.test(link)) {
-    return { ok: false, error: 'link' };
-  }
-  let parsed: URL;
-  try {
-    parsed = new URL(link);
-  } catch {
-    return { ok: false, error: 'link' };
-  }
-  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.hostname === '') {
-    return { ok: false, error: 'link' };
-  }
-  return { ok: true, value: link };
+  const compact = value.replace(/\s+/gu, '');
+  if (compact.length === 0) return { ok: false, error: 'link' };
+  const link = /^https?:\/\//iu.test(compact) ? compact : `https://${compact}`;
+  return link.length > max ? { ok: false, error: 'link' } : { ok: true, value: link };
 }
 
 /** A whole-dollar price as the sheet writes it — the owner's form, comma and all. */

@@ -152,13 +152,20 @@ describe('creating a catalog', () => {
     expect(count.value).toBe('7');
   });
 
-  it('refuses a link that is not a web link', async () => {
-    renderDialog(dialogClient());
+  it('takes a link as pasted, adding https where it is missing (024)', async () => {
+    const client = dialogClient();
+    renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), 'ftp://offer.example.test');
+    await user.type(screen.getByLabelText('Link'), 'offer.example.test/?sub=1');
     await user.tab();
-    expect(screen.getByText('Paste a link that starts with http:// or https://.')).toBeTruthy();
-    expect(confirm().disabled).toBe(true);
+    expect(screen.queryByText(/Paste a link/)).toBeNull();
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    await waitFor(() =>
+      expect(client.createProductCatalog).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceLink: 'https://offer.example.test/?sub=1' })
+      )
+    );
   });
 
   it('sends one request with the values typed, and shows the sheet', async () => {
@@ -382,6 +389,23 @@ describe('a video’s catalogs (024, US15)', () => {
       expect.objectContaining({ teamId: TEAM_ID, materialId: second.id })
     );
     expect(await screen.findByText('clip_v2_catalog moved to the trash')).toBeTruthy();
+  });
+
+  it('closes on Done after the first catalog, instead of opening the list', async () => {
+    const api = listClient({
+      listProductCatalogs: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([catalog])
+    });
+    const { onClose } = renderList(api);
+    const link = await screen.findByLabelText('Link');
+    fireEvent.change(link, { target: { value: 'https://offer.example.test/' } });
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    fireEvent.click(confirm());
+    await screen.findByText('The catalog is ready');
+    const done = screen
+      .getAllByRole('button', { name: 'Done' })
+      .find(button => button.textContent === 'Done')!;
+    fireEvent.click(done);
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('opens straight on the form when the video has none', async () => {

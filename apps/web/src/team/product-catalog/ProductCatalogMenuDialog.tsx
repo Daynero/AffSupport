@@ -29,7 +29,12 @@ const defaultClient: VideoProductCatalogClient = teamApi;
 type View =
   | { kind: 'loading' }
   | { kind: 'list' }
-  | { kind: 'create'; replaces: ProductCatalogSummary | null };
+  /**
+   * `fromList`: the form was opened from the list, so closing it goes back there. Decided when it
+   * opens — read from the catalogs after a create, the first catalog made the list non-empty, and
+   * "Done" on its result opened a second window instead of closing (024).
+   */
+  | { kind: 'create'; replaces: ProductCatalogSummary | null; fromList: boolean };
 
 /**
  * `https://www.offer.example/path?sub=2` → `offer.example/path?sub=2`. Two variations are usually
@@ -81,7 +86,11 @@ export function ProductCatalogMenuDialog({
   useEffect(() => {
     let active = true;
     void load().then(found => {
-      if (active) setView(found.length > 0 ? { kind: 'list' } : { kind: 'create', replaces: null });
+      if (active) {
+        setView(
+          found.length > 0 ? { kind: 'list' } : { kind: 'create', replaces: null, fromList: false }
+        );
+      }
     });
     return () => {
       active = false;
@@ -117,13 +126,13 @@ export function ProductCatalogMenuDialog({
   if (view.kind === 'loading') return null;
 
   if (view.kind === 'create') {
-    const backToList = catalogs.length > 0;
+    const backToList = view.fromList;
     return (
       <CreateProductCatalogDialog
         teamId={teamId}
         video={video}
         replaces={view.replaces}
-        variation={catalogs.length > 0}
+        variation={view.fromList}
         initialCount={catalogs.at(-1)?.productCount}
         client={client}
         onClose={() => {
@@ -156,7 +165,7 @@ export function ProductCatalogMenuDialog({
               mayChange={mayMake}
               onCopyName={() => void copy(catalog.name, 'productCatalogNameCopied')}
               onCopyLink={() => void copy(catalog.sheetUrl, 'productCatalogLinkCopied')}
-              onRecreate={() => setView({ kind: 'create', replaces: catalog })}
+              onRecreate={() => setView({ kind: 'create', replaces: catalog, fromList: true })}
               onRemove={() => void remove(catalog)}
             />
           ))}
@@ -167,7 +176,7 @@ export function ProductCatalogMenuDialog({
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setView({ kind: 'create', replaces: null })}
+              onClick={() => setView({ kind: 'create', replaces: null, fromList: true })}
             >
               <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               {t('productCatalogNewVariation')}

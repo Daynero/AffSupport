@@ -223,6 +223,7 @@ export function CreateProductCatalogDialog({
       size="md"
     >
       <form
+        noValidate
         className="team-dialog-form product-catalog-dialog"
         onSubmit={event => void submit(event)}
       >
@@ -259,7 +260,7 @@ export function CreateProductCatalogDialog({
           <span>{t('productCatalogSourceLinkLabel')}</span>
           <input
             id={linkId}
-            type="url"
+            type="text"
             inputMode="url"
             autoComplete="off"
             value={link}

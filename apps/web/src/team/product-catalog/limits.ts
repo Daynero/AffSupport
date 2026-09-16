@@ -30,20 +30,17 @@ export function validateProductCount(raw: string): FieldCheck<number> {
     : { ok: false, reason: 'invalid' };
 }
 
+/**
+ * A link as pasted, taken as it is (024: "no validation needed"). Spaces and line breaks a paste
+ * brings along are dropped, and a link typed without its scheme — `offer.com/?sub=1` — gets
+ * `https://` in front, which is what the sheet and Meta need. Nothing else is refused but an empty
+ * field or one past the length the database keeps.
+ */
 export function validateWebLink(raw: string, max: number): FieldCheck<string> {
-  const link = raw.trim();
-  if (link === '') return { ok: false, reason: 'required' };
-  if (link.length > max || /\s/u.test(link)) return { ok: false, reason: 'invalid' };
-  let parsed: URL;
-  try {
-    parsed = new URL(link);
-  } catch {
-    return { ok: false, reason: 'invalid' };
-  }
-  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.hostname === '') {
-    return { ok: false, reason: 'invalid' };
-  }
-  return { ok: true, value: link };
+  const compact = raw.replace(/\s+/gu, '');
+  if (compact === '') return { ok: false, reason: 'required' };
+  const link = /^https?:\/\//iu.test(compact) ? compact : `https://${compact}`;
+  return link.length > max ? { ok: false, reason: 'invalid' } : { ok: true, value: link };
 }
 
 /** A whole number of dollars, typed without currency, decimals or separators. */

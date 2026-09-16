@@ -185,8 +185,7 @@ async function refusal(promise: Promise<unknown>) {
 
 describe('reading the request', () => {
   it.each([
-    [{ sourceLink: 'ftp://x.test' }, 'link'],
-    [{ sourceLink: 'https://a b.test' }, 'link'],
+    [{ sourceLink: '   ' }, 'link'],
     [{ productCount: 0 }, 'count'],
     [{ productCount: 401 }, 'count'],
     [{ productCount: 2.5 }, 'count'],
@@ -220,9 +219,9 @@ describe('reading the request', () => {
 });
 
 describe('refusals leave nothing behind', () => {
-  it('refuses a bad link before touching Drive', async () => {
+  it('refuses an empty link before touching Drive', async () => {
     const { deps, drive } = setup();
-    const error = await refusal(createProductCatalog(deps, body({ sourceLink: 'nope' }), ACTOR));
+    const error = await refusal(createProductCatalog(deps, body({ sourceLink: ' ' }), ACTOR));
     expect(error.details).toEqual({ field: 'link' });
     expect(deps.loadVideo).not.toHaveBeenCalled();
     expect(drive.createConvertedFile).not.toHaveBeenCalled();

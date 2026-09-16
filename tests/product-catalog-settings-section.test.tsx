@@ -114,24 +114,6 @@ describe('a space’s catalog settings', () => {
     }
   );
 
-  it('refuses an image link that is not a web link', async () => {
-    const set = vi.fn();
-    renderSection({
-      getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
-      setProductCatalogSettings: set
-    });
-    const user = userEvent.setup();
-    const field = await screen.findByDisplayValue(stored.imageLink);
-    await user.clear(field);
-    await user.type(field, 'ftp://img.example.test/a.png');
-    await user.tab();
-    expect(
-      await screen.findByText('Paste a link that starts with http:// or https://.')
-    ).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(set).not.toHaveBeenCalled();
-  });
-
   it('shows the saved values read-only to a member who does not manage the space', async () => {
     renderSection(
       {

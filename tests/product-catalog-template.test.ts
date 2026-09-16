@@ -166,12 +166,20 @@ describe('what a person can type', () => {
     expect(parseWebLink('http://a.test', SOURCE_LINK_MAX).ok).toBe(true);
   });
 
-  it.each(['ftp://a.test', 'https://a b.test', 'a.test', 'javascript:alert(1)', '', 42])(
-    'refuses the link %j',
-    input => {
-      expect(parseWebLink(input, SOURCE_LINK_MAX)).toEqual({ ok: false, error: 'link' });
-    }
-  );
+  it('takes a link as pasted: spaces dropped, https added where the scheme is missing', () => {
+    expect(parseWebLink('sdsadas.com', SOURCE_LINK_MAX)).toEqual({
+      ok: true,
+      value: 'https://sdsadas.com'
+    });
+    expect(parseWebLink('https://a b.test\n', SOURCE_LINK_MAX)).toEqual({
+      ok: true,
+      value: 'https://ab.test'
+    });
+  });
+
+  it.each(['', '   ', 42])('refuses only an empty link %j', input => {
+    expect(parseWebLink(input, SOURCE_LINK_MAX)).toEqual({ ok: false, error: 'link' });
+  });
 
   it('refuses a link past its limit', () => {
     expect(parseWebLink(`https://a.test/${'x'.repeat(100)}`, 50).ok).toBe(false);

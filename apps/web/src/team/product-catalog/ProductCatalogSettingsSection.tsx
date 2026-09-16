@@ -248,7 +248,8 @@ export function ProductCatalogSettingsSection({
           </label>
           <input
             id={ids.imageLink}
-            type="url"
+            type="text"
+            inputMode="url"
             value={draft.imageLink}
             readOnly={!editable}
             aria-invalid={show('imageLink') && messages.imageLink !== null}
