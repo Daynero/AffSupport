@@ -447,7 +447,9 @@ export function TaskSpace({
     <section className="team-panel team-task-space" aria-labelledby="team-tasks-title">
       <div className="team-panel-heading team-task-space-heading">
         <h2 id="team-tasks-title">{t('teamTasksTitle')}</h2>
-        {tasks.tasks.length > 0 && (
+        {/* Only where there is a brief to open: on a board of titles it was a
+            button that did nothing visible. */}
+        {tasks.tasks.some(task => task.note) && (
           <button type="button" className="team-task-expand-all" onClick={toggleAll}>
             <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t(allExpanded ? 'teamTasksCollapseAll' : 'teamTasksExpandAll')}
