@@ -16,6 +16,19 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260916170000_catalog_updater_per_catalog.sql`: re-apply `private.queue_restitch_jobs`,
+   `private.catalog_updater_state`, `save_team_catalog_updater`, `stop_team_catalog_updater`,
+   `service_claim_catalog_updater_items`'s `private.claim_catalog_updater_items` and
+   `private.invoke_catalog_updater_worker` from `20260916120000`/`20260915140000`, and
+   `service_open_catalog_updater_rounds` and `list_team_product_catalogs` (drop and re-create
+   with the old columns) from `20260915140000`; drop the trigger
+   `team_catalog_updater_items_forget_unscheduled`, the functions
+   `private.forget_unscheduled_catalog_item()`, `private.sync_catalog_updater(uuid)`,
+   `private.checked_catalogs(uuid, uuid[])`, `set_team_catalog_update_interval`,
+   `run_team_catalog_update_now` and `set_team_catalog_updater_restitch`; delete items whose
+   `update_interval` is null, then drop the check, the index and the `update_interval` and
+   `next_run_at` columns of `team_catalog_updater_items`.
+
 0. `20260916160000_product_catalog_variations.sql`: first leave each video at most one live
    `product_catalog` companion (trash the extra sheets), then re-apply
    `service_link_product_catalog_companion` from `20260915010000`, drop

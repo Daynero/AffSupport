@@ -870,6 +870,16 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 - **FR-106**: The catalog updater MUST name each row by its catalog's name, so two variations of
   one video are two distinguishable rows.
 
+### Functional Requirements — the catalog updater per catalog (US16)
+
+- **FR-107**: Each catalog MUST carry its own update interval (every hour, day, week, or N hours up
+  to 720) or be off; choosing it saves it, with no separate Start, Save or Stop.
+- **FR-108**: Every catalog row MUST offer "Update now", which opens an update this minute whether
+  or not the catalog is scheduled, and a scheduled catalog's next run moves one interval from then.
+- **FR-109**: A row MUST say when its catalog updates next, and that an update is under way.
+- **FR-110**: Ticking catalogs MUST offer the same two controls — interval and update now — for all
+  of them at once.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,

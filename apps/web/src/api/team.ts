@@ -219,6 +219,12 @@ export interface CatalogRegistryRow {
   updateCount: number;
   inUpdater: boolean;
   lastUpdateError: string | null;
+  /** This catalog's own interval; null when it is not on a schedule (024). */
+  updateInterval: CatalogUpdaterInterval | null;
+  /** When this catalog is due next, by the server's clock. */
+  nextRunAt: string | null;
+  /** An update is waiting or running for it right now. */
+  updatePending: boolean;
 }
 
 export type CatalogUpdaterInterval = UpdaterInterval;
@@ -333,7 +339,10 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     lastUpdatedAt: typeof row.last_updated_at === 'string' ? row.last_updated_at : null,
     updateCount: row.update_count,
     inUpdater: row.in_updater,
-    lastUpdateError: typeof row.last_update_error === 'string' ? row.last_update_error : null
+    lastUpdateError: typeof row.last_update_error === 'string' ? row.last_update_error : null,
+    updateInterval: parseUpdaterInterval(row.update_interval),
+    nextRunAt: typeof row.next_run_at === 'string' ? row.next_run_at : null,
+    updatePending: row.update_pending === true
   };
 }
 
@@ -1847,24 +1856,6 @@ export const teamApi = {
     return parsed;
   },
 
-  async saveCatalogUpdater(
-    teamId: string,
-    input: { catalogIds: string[]; interval: CatalogUpdaterInterval; restitch: boolean }
-  ): Promise<CatalogUpdaterState> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('save_team_catalog_updater', {
-        p_team: teamId,
-        p_catalogs: input.catalogIds,
-        p_interval: input.interval,
-        p_restitch: input.restitch
-      })
-    );
-    throwRpc(error);
-    const parsed = catalogUpdaterStateFrom(data);
-    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
-    return parsed;
-  },
-
   /** The next spare copy this member's computer should prepare, or null (023). */
   async claimRestitchJob(teamId: string): Promise<RestitchClaim | null> {
     const value = await invokeTeamFunction(
@@ -1899,9 +1890,43 @@ export const teamApi = {
     return value.recorded;
   },
 
-  async stopCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
+  /** Puts catalogs on an interval, changes it, or — with null — takes them off (024). */
+  async setCatalogUpdateInterval(
+    teamId: string,
+    catalogIds: string[],
+    interval: CatalogUpdaterInterval | null
+  ): Promise<CatalogUpdaterState> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('stop_team_catalog_updater', { p_team: teamId })
+      requireSupabaseClient().rpc('set_team_catalog_update_interval', {
+        p_team: teamId,
+        p_catalogs: catalogIds,
+        p_interval: interval
+      })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdaterStateFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  /** Opens an update for catalogs this minute; resolves with how many were not already waiting. */
+  async runCatalogUpdateNow(teamId: string, catalogIds: string[]): Promise<number> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('run_team_catalog_update_now', {
+        p_team: teamId,
+        p_catalogs: catalogIds
+      })
+    );
+    throwRpc(error);
+    return typeof data === 'number' ? data : 0;
+  },
+
+  async setCatalogUpdaterRestitch(teamId: string, restitch: boolean): Promise<CatalogUpdaterState> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_catalog_updater_restitch', {
+        p_team: teamId,
+        p_restitch: restitch
+      })
     );
     throwRpc(error);
     const parsed = catalogUpdaterStateFrom(data);

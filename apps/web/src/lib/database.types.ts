@@ -2056,6 +2056,9 @@ export type Database = {
           update_count: number;
           in_updater: boolean;
           last_update_error: string | null;
+          update_interval: string | null;
+          next_run_at: string | null;
+          update_pending: boolean;
         }[];
       };
       get_team_catalog_updater: {
@@ -3002,6 +3005,18 @@ export type Database = {
       set_task_progress_max_default: {
         Args: { p_value: number };
         Returns: undefined;
+      };
+      set_team_catalog_update_interval: {
+        Args: { p_team: string; p_catalogs: string[]; p_interval: string | null };
+        Returns: Json;
+      };
+      run_team_catalog_update_now: {
+        Args: { p_team: string; p_catalogs: string[] };
+        Returns: number;
+      };
+      set_team_catalog_updater_restitch: {
+        Args: { p_team: string; p_restitch: boolean };
+        Returns: Json;
       };
       list_material_product_catalogs: {
         Args: { p_team: string; p_video: string };

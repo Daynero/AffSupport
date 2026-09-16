@@ -176,7 +176,8 @@ async function prepareSpare(device: Device, catalogId: string, link: string) {
 
 async function round(catalogId: string) {
   await harness.root(
-    `update public.team_catalog_updaters set next_run_at = now() - interval '1 minute' where team_id = $1`,
+    `update public.team_catalog_updater_items set next_run_at = now() - interval '1 minute'
+     where team_id = $1 and update_interval is not null`,
     [teamId]
   );
   await harness.root('select public.service_open_catalog_updater_rounds()');

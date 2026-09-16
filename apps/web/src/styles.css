@@ -17350,6 +17350,88 @@ input[type='number'] {
   display: inline-flex;
   gap: var(--space-1);
 }
+/* A row's schedule (024): how often, and "now", side by side at the row's right. */
+.team-updater-row-schedule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.team-updater-row.is-selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-softer);
+}
+.team-updater-row-main small.is-pending {
+  color: var(--color-accent);
+}
+.team-updater-row-schedule .is-spinning svg {
+  animation: team-updater-spin 1s linear infinite;
+}
+@keyframes team-updater-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-updater-row-schedule .is-spinning svg {
+    animation: none;
+  }
+}
+.team-updater-interval-picker {
+  display: inline-flex;
+}
+.team-updater-interval-picker .is-off {
+  color: var(--color-text-muted);
+}
+.team-updater-interval-menu {
+  display: grid;
+  gap: 2px;
+  min-width: 14rem;
+  padding: var(--space-1);
+}
+.team-updater-interval-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.team-updater-interval-option:hover,
+.team-updater-interval-option:focus-visible {
+  background: var(--color-surface-muted);
+}
+.team-updater-interval-option.is-off {
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  color: var(--color-text-muted);
+}
+.team-updater-interval-mark {
+  display: inline-grid;
+  width: 14px;
+  place-items: center;
+}
+.team-updater-interval-custom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+.team-updater-interval-custom input {
+  width: 3.5rem;
+}
+.team-updater-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
 .team-updater-row-actions .icon-button {
   display: inline-grid;
   place-items: center;
