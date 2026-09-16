@@ -12310,6 +12310,11 @@ button.team-landing-tile:hover {
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
+/* "All spaces" and "Create a new space" are one group under one rule. */
+.team-space-switcher-all + .team-space-switcher-all {
+  border-top: 0;
+}
+
 /* Row actions menu, folder picker and result pager (010 US2). */
 .team-row-menu {
   position: relative;

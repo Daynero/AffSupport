@@ -93,16 +93,20 @@ describe('guided team space workspace', () => {
       // Management lives behind a single "Space settings" entry — a link now, so
       // it is addressable and can be opened in a new tab.
       await user.click(screen.getByRole('link', { name: 'Space settings' }));
-      // Members are a tab of their own inside the settings.
-      await user.click(await screen.findByRole('tab', { name: 'People' }));
-      await user.type(await screen.findByLabelText('Invite by email'), 'new.member@example.test');
-      await user.click(screen.getByRole('button', { name: 'Send invitation' }));
-      expect(await screen.findByText('new.member@example.test')).toBeTruthy();
+      // Members exist once (024): the settings no longer carry a second copy.
+      expect(await screen.findByRole('tab', { name: 'General' })).toBeTruthy();
+      expect(screen.queryByRole('tab', { name: 'People' })).toBeNull();
 
       // Return to the content view. The opened file is still selected, so its name
       // shows on the tile and in the pane (011).
       await user.click(screen.getByRole('button', { name: 'Back to space' }));
       expect((await screen.findAllByText('launch.mp4')).length).toBeGreaterThanOrEqual(1);
+
+      // The invitation is made from the one Members screen.
+      await user.click(screen.getByRole('link', { name: 'Members' }));
+      await user.type(await screen.findByLabelText('Invite by email'), 'new.member@example.test');
+      await user.click(screen.getByRole('button', { name: 'Send invitation' }));
+      expect(await screen.findByText('new.member@example.test')).toBeTruthy();
 
       await waitFor(() =>
         expect(client.createInvitation).toHaveBeenCalledWith(

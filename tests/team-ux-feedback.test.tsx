@@ -217,12 +217,18 @@ describe('the realtime chip', () => {
       );
       // A slow first connect is ordinary and must stay quiet, exactly as a
       // brief drop does; the grace is the whole reason this is not a flicker.
-      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
 
       await act(async () => {
         vi.advanceTimersByTime(8_000);
       });
-      expect(screen.getByRole('status').textContent).toContain('No live updates yet');
+      // A button now, not a bare status (024, FR-052): it says what is wrong,
+      // offers the one thing a reader can do about it, and is still announced.
+      const chip = screen.getByRole('button', {
+        name: 'Live updates are not arriving — reload the space'
+      });
+      expect(chip.textContent).toContain('No live updates yet');
+      expect(chip.getAttribute('aria-live')).toBe('polite');
     } finally {
       vi.useRealTimers();
     }
@@ -236,7 +242,7 @@ describe('the realtime chip', () => {
           <RealtimeChip />
         </TeamContextOverride>
       );
-      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
 
       await act(async () => {
         vi.advanceTimersByTime(8_000);
@@ -244,7 +250,10 @@ describe('the realtime chip', () => {
       // Distinct copy on purpose: a channel that never connected is not
       // reconnecting, and telling someone we are restoring something they
       // never had is a small lie the chip does not need to tell.
-      expect(screen.getByRole('status').textContent).toContain('Reconnecting');
+      expect(
+        screen.getByRole('button', { name: 'Live updates are not arriving — reload the space' })
+          .textContent
+      ).toContain('Reconnecting');
     } finally {
       vi.useRealTimers();
     }

@@ -150,8 +150,8 @@ export function TaskAssigneeFilter({
             <div className="task-account-filter-empty" role="presentation">
               <p>{t('teamTaskAssigneeFilterEmpty')}</p>
               <SpaceSettingsLink
-                target={{ kind: 'settings', tab: 'members' }}
-                label={t('teamSettingsTabMembers')}
+                target={{ kind: 'section', section: 'members' }}
+                label={t('teamSectionMembers')}
               />
             </div>
           )}

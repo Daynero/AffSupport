@@ -29,7 +29,7 @@ import { spaceOf, type ActionContext, type MaterialRef } from '../materials/acti
 export interface RowActionsProps {
   teamId: string;
   /**
-   * Copy, cut and paste as menu items (024, FR-103).
+   * Copy, cut and paste as menu items (024, FR-055).
    *
    * The shell owns the clipboard — a paste lands in the folder it is looking
    * at, and it outlives every row that scrolls past — so the row is handed the
@@ -174,7 +174,7 @@ export function RowActions({
     <>
       {/* The same list on the "…" and on a right-click anywhere in the row or
           the tile — where a file manager has taught everyone to look for it
-          (024, FR-100). */}
+          (024, FR-021). */}
       <MaterialActionMenu
         list={list}
         label={t('materialActionsFor', { name: row.name })}

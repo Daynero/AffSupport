@@ -255,7 +255,7 @@ describe('the old sections, as aliases (011)', () => {
      * 023 wrote it onto an explorer address only, which meant opening it from
      * Tasks threw you into Files and closing it left you there. The updater is
      * the space's, not the explorer's — it is about every catalog in the space
-     * — so it rides on top of the section you were reading (024, FR-106).
+     * — so it rides on top of the section you were reading (024, FR-045).
      */
     expect(buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { updater: true } })).toBe(
       '/team/space-1/tasks?updater=1'
@@ -294,7 +294,7 @@ describe('the old sections, as aliases (011)', () => {
 });
 
 /**
- * T115 — the space's own surfaces ride on top of the section (024, FR-106).
+ * T115 — the space's own surfaces ride on top of the section (024, FR-045).
  *
  * Settings, the updater, the trash and the palette were written into the
  * address only for the explorer, so opening any of them from Tasks or Accounts
@@ -330,4 +330,49 @@ describe('surfaces that are the space’s, not a section’s', () => {
       }
     });
   }
+});
+
+/**
+ * T108 — Members exist once (024, FR-047). The settings dialog's "People" tab
+ * was a second copy of the section; its links are out there, and they land on
+ * the survivor rather than on the settings' first tab.
+ */
+describe('members, once', () => {
+  it('turns an old settings link to members into the Members section', () => {
+    expect(parseTeamRoute('/team/space-1/tasks?settings=1&tab=members')).toMatchObject({
+      kind: 'space',
+      section: 'members',
+      query: { settings: false, settingsTab: null }
+    });
+  });
+
+  it('no longer names members as a settings tab', () => {
+    expect(
+      buildTeamRoute({
+        spaceId: 'space-1',
+        section: 'tasks',
+        query: { settings: true, settingsTab: 'tags' }
+      })
+    ).toBe('/team/space-1/tasks?settings=1&tab=tags');
+    expect(parseTeamRoute('/team/space-1?settings=1&tab=history')).toMatchObject({
+      query: { settings: true, settingsTab: 'history' }
+    });
+  });
+});
+
+/**
+ * T109 — making a space is reachable from inside one (024, FR-048). The wizard
+ * has an address, so the space switcher can link to it rather than to the
+ * lobby that holds its button.
+ */
+describe('a new space, asked for by address', () => {
+  it('round-trips the wizard address', () => {
+    expect(teamResolverRoute({ create: true })).toBe('/team?new=1');
+    expect(parseTeamRoute('/team?new=1')).toEqual({
+      kind: 'resolver',
+      driveReturn: null,
+      showAll: false,
+      create: true
+    });
+  });
 });

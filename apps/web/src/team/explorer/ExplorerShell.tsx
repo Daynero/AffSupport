@@ -1144,7 +1144,7 @@ function ExplorerBody({
               variant="secondary"
               aria-pressed={searching}
               /* The key that does the same thing, on the control that does it
-                 (024, FR-102): a shortcut nobody is told about is a shortcut
+                 (024, FR-054): a shortcut nobody is told about is a shortcut
                  only the person who wrote it uses. */
               title={
                 searching

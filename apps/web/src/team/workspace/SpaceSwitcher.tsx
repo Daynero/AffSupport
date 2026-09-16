@@ -107,6 +107,20 @@ export function SpaceSwitcher({
           >
             {t('teamSpaceSwitcherAll')}
           </a>
+          {/* Making a space is a thing you do from inside one (024, FR-048):
+              it used to live only in the lobby, two hops and a list of spaces
+              away. */}
+          <a
+            href={teamResolverRoute({ create: true })}
+            className="team-space-switcher-all"
+            onClick={event => {
+              setOpen(false);
+              internalLink(event, teamResolverRoute({ create: true }));
+              if (event.defaultPrevented) leaveSpace();
+            }}
+          >
+            {t('teamSpaceCreateNew')}
+          </a>
         </div>
       </Popover>
     </div>

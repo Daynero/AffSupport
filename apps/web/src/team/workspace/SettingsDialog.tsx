@@ -11,13 +11,11 @@ import type { TeamSettingsTab } from '../routes';
 export function SettingsDialog({
   teamId,
   client,
-  directAddMode = 'disabled',
   initialTab,
   onClose
 }: {
   teamId: string;
   client: SpaceSettingsClient;
-  directAddMode?: 'disabled' | 'testing';
   initialTab?: TeamSettingsTab | null;
   onClose: () => void;
 }) {
@@ -27,13 +25,7 @@ export function SettingsDialog({
       <span id={titleId} className="visually-hidden">
         Settings
       </span>
-      <SpaceSettings
-        teamId={teamId}
-        client={client}
-        directAddMode={directAddMode}
-        initialTab={initialTab}
-        onBack={onClose}
-      />
+      <SpaceSettings teamId={teamId} client={client} initialTab={initialTab} onBack={onClose} />
     </Modal>
   );
 }

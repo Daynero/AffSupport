@@ -55,7 +55,7 @@ export function RealtimeChip() {
   if (graceElapsed && WAITING.has(realtimeState)) {
     return (
       /*
-       * Pressable, because there is something to do (024, FR-112).
+       * Pressable, because there is something to do (024, FR-052).
        *
        * It used to be a `<span>` that said live updates were not arriving and
        * left it there — the one chip of the four a reader most wants to act

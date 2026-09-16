@@ -19,7 +19,6 @@ export const TEAM_SECTIONS = ['explorer', 'tasks', 'accounts', 'members'] as con
 /** The settings dialog's tabs, named in the address as they are in the dialog. */
 export const TEAM_SETTINGS_TABS = [
   'general',
-  'members',
   'tags',
   'restitch',
   'product-catalog',
@@ -90,6 +89,13 @@ export type TeamRoute =
        * and wrong for having just pressed "All spaces".
        */
       showAll: boolean;
+      /**
+       * "Make a new space", asked for out loud (024, FR-048). The wizard used
+       * to live only behind the lobby, so from inside a space it was two hops
+       * away — and a hop through a list of spaces you were not looking for.
+       * Present only when asked, so every other resolver route reads as before.
+       */
+      create?: true;
     }
   | { kind: 'space'; spaceId: string; section: TeamSection; query: TeamRouteQuery };
 
@@ -245,7 +251,8 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     return {
       kind: 'resolver',
       driveReturn: trimmedParam(params, 'drive'),
-      showAll: params.get('all') === '1'
+      showAll: params.get('all') === '1',
+      ...(params.get('new') === '1' ? { create: true as const } : {})
     };
   }
 
@@ -270,6 +277,20 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     itemId: trimmedParam(params, 'item')
   };
   const { section, query } = aliasSection(rawSection, base);
+  /*
+   * Members exist once (024, FR-047). The settings dialog used to have a
+   * "People" tab that was the Members section again, so links to it are out
+   * there — in task filters, in bookmarks. They land on the survivor rather
+   * than on the settings' first tab, which would look like the link was wrong.
+   */
+  if (query.settings && params.get('tab')?.trim() === 'members') {
+    return {
+      kind: 'space',
+      spaceId,
+      section: 'members',
+      query: { ...query, settings: false, settingsTab: null }
+    };
+  }
   return { kind: 'space', spaceId, section, query };
 }
 
@@ -321,7 +342,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.itemId) params.set('item', query.itemId);
   }
   /*
-   * Four surfaces that belong to the space, not to a section (024, FR-106).
+   * Four surfaces that belong to the space, not to a section (024, FR-045).
    *
    * The settings, the updater, the trash and the palette were written only on
    * an explorer address, so opening any of them from Tasks or Accounts threw
@@ -353,6 +374,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
  * about what is open. It also means refreshing the lobby keeps you in the
  * lobby instead of dropping you back into a space.
  */
-export function teamResolverRoute(options: { showAll?: boolean } = {}): string {
+export function teamResolverRoute(options: { showAll?: boolean; create?: boolean } = {}): string {
+  if (options.create) return '/team?new=1';
   return options.showAll ? '/team?all=1' : '/team';
 }

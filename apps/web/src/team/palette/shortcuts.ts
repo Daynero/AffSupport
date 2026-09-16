@@ -1,7 +1,7 @@
 import type { TranslationKey } from '../../i18n';
 
 /**
- * Every keystroke the workspace answers, in one table (024, FR-101).
+ * Every keystroke the workspace answers, in one table (024, FR-054).
  *
  * The product had eight of them, bound in four files, and no screen that said
  * so — which makes a shortcut a thing you either already knew or never found.

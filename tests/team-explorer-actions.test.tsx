@@ -145,7 +145,7 @@ describe('the selection bar', () => {
 });
 
 /**
- * T100 — the right-click menu is the same menu (024, FR-100).
+ * T100 — the right-click menu is the same menu (024, FR-021).
  *
  * The explorer had no context menu at all, which in a file manager is the
  * first place anybody looks. It offers the registry's list, not a second

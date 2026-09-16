@@ -73,7 +73,7 @@ export function MaterialActionMenu({
   className?: string;
   /**
    * A selector for the ancestor that should open this menu on a right-click
-   * (024, FR-100) — a row, a tile.
+   * (024, FR-021) — a row, a tile.
    *
    * The same list, from the same registry, in the place a file manager has
    * taught everyone to look for it. The browser's own menu is suppressed only

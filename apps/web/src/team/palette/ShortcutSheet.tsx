@@ -3,7 +3,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { WORKSPACE_SHORTCUTS, formatShortcut, type Shortcut } from './shortcuts';
 
 /**
- * What the keyboard can do here, said out loud (024, FR-101).
+ * What the keyboard can do here, said out loud (024, FR-054).
  *
  * The workspace answered ten keystrokes and named none of them, which makes a
  * shortcut something you either already knew or never found. This reads the

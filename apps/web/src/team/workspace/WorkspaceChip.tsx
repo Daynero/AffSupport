@@ -1,7 +1,7 @@
 import type { MouseEvent, ReactNode } from 'react';
 
 /**
- * The header's chips, as one shape (024, FR-112).
+ * The header's chips, as one shape (024, FR-052).
  *
  * Four of them report on the space — the Drive, the catalog updater, the work
  * running in the background, the live connection — and they were four

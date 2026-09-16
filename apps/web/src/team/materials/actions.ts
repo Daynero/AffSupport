@@ -522,7 +522,7 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     available: (material, context) => all(ready(material), may(context, 'upload'))
   },
   /*
-   * Copy, cut and paste as things you can see (024, FR-103).
+   * Copy, cut and paste as things you can see (024, FR-055).
    *
    * They existed only as ⌘C / ⌘X / ⌘V, which meant they existed only for
    * whoever had read the code. A file manager puts them in the menu, and the

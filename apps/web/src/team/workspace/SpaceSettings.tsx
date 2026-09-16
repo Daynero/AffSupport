@@ -8,8 +8,8 @@ import { navigateTo } from '../../lib/navigation';
 import { teamResolverRoute } from '../routes';
 import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
-import { MemberList, type MemberManagementClient } from '../members/MemberList';
-import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
+import type { MemberManagementClient } from '../members/MemberList';
+import type { InvitationPanelClient } from '../members/InvitationPanel';
 import { TeamAuditPanel, type TeamAuditClient } from '../members/TeamAuditPanel';
 import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConnectionPanel';
 import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
@@ -92,33 +92,35 @@ export function SharePreferenceSettings({
 }
 
 /**
- * Secondary management surface. Re-parents the existing 001 panels — members
- * (incl. role/permission and ownership controls via MemberList), invitations,
- * the Drive connection (owner), and audit (owner/admin) — each shown per its
+ * Secondary management surface. Re-parents the existing 001 panels — the Drive
+ * connection (owner) and audit (owner/admin) among them — each shown per its
  * existing permission gate. Kept off the default workspace so the primary view
  * stays content-first.
+ *
+ * Members are not here (024, FR-047). They were a tab of this dialog *and* a
+ * section of the workspace — the same two panels, reached two ways, and free to
+ * drift apart. The section survives, because people are something you go to;
+ * an old `?settings=1&tab=members` link is turned into that section by the
+ * route parser.
  */
 export function SpaceSettings({
   teamId,
   client,
-  directAddMode = 'disabled',
   initialTab,
   onBack
 }: {
   teamId: string;
   client: SpaceSettingsClient;
-  directAddMode?: 'disabled' | 'testing';
   /** Which room to open in, when something sent the reader to a particular one. */
   initialTab?: TeamSettingsTab | null;
   onBack: () => void;
 }) {
   const { t } = useI18n();
-  const { activeTeam, can, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
+  const { activeTeam, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
   const canSeeHistory = activeTeam?.role === 'owner' || activeTeam?.role === 'admin';
   const tabs = [
     { id: 'general' as const, label: t('teamSettingsTabGeneral') },
-    { id: 'members' as const, label: t('teamSettingsTabMembers') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },
     { id: 'restitch' as const, label: t('teamSettingsTabRestitch') },
     { id: 'product-catalog' as const, label: t('teamSettingsTabProductCatalog') },
@@ -169,7 +171,7 @@ export function SpaceSettings({
         /* Two columns only where two panels genuinely balance. General is three
            short cards and history and re-stitch are one panel each; side by side
            they left half the dialog's width empty. */
-        className={`team-space-settings-grid${tab === 'members' ? '' : ' is-single'}`}
+        className="team-space-settings-grid is-single"
         role="tabpanel"
         id={`team-settings-panel-${tab}`}
         aria-labelledby={`tab-${tab}`}
@@ -201,29 +203,6 @@ export function SpaceSettings({
               teamId={teamId}
               client={client}
               isOwner={activeTeam?.role === 'owner'}
-            />
-          </>
-        )}
-
-        {tab === 'members' && (
-          <>
-            <MemberList
-              teamId={teamId}
-              client={client}
-              revision={revision}
-              onChanged={() => {
-                changed();
-                void refreshTeams();
-              }}
-            />
-            <InvitationPanel
-              key={`invitations:${teamId}`}
-              teamId={teamId}
-              client={client}
-              canManage={can('manage_members')}
-              directAddMode={directAddMode}
-              revision={revision}
-              onChanged={changed}
             />
           </>
         )}

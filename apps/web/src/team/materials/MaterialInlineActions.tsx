@@ -38,7 +38,7 @@ export function MaterialInlineActions({
   done?: MaterialActionId | null;
   size?: 'xs' | 'sm' | 'md';
   className?: string;
-  /** An ancestor whose right-click opens the overflow (024, FR-100). */
+  /** An ancestor whose right-click opens the overflow (024, FR-021). */
   contextTarget?: string;
 }) {
   const { t } = useI18n();

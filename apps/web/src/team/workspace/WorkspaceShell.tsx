@@ -306,7 +306,7 @@ export function WorkspaceShell({
    *
    * It used to force `section: 'explorer'`, so opening the settings, the
    * updater or the trash from Tasks threw you into Files — and closing one
-   * left you there, looking at a folder you had not asked for (024, FR-106).
+   * left you there, looking at a folder you had not asked for (024, FR-045).
    * The section is whatever is open; the surface rides on top of it.
    */
   const explorerRoute = useCallback(
@@ -477,7 +477,7 @@ export function WorkspaceShell({
               with their own addresses, so Back closes them and a pasted link
               opens them (011) — and reachable from every section rather than
               only from Files, which is where a file you deleted from a task
-              actually went (024, FR-107). */}
+              actually went (024, FR-046). */}
               <a
                 className="team-space-shell-utility-link"
                 href={explorerRoute({ trash: true })}
@@ -615,7 +615,6 @@ export function WorkspaceShell({
             <SettingsDialog
               teamId={teamId}
               client={client}
-              directAddMode={directAddMode}
               initialTab={query.settingsTab}
               onClose={() => navigateTo(explorerRoute({ settings: false, settingsTab: null }))}
             />

@@ -110,6 +110,9 @@ export function resolveTeamEntry(input: {
   // just cleared, so the lobby, and with it the create wizard, could not be
   // reached at all.
   if (route.showAll) return { kind: 'lobby' };
+  // The same for "make a new space": the wizard is drawn over the lobby's
+  // answer, and entering a space underneath it would navigate away from it.
+  if (route.create) return { kind: 'lobby' };
 
   /**
    * A redirect must not lose the Drive OAuth return. The parameter is what
@@ -438,15 +441,29 @@ export function TeamSpace({
     );
   }
 
-  if (flow.mode !== 'browse') {
+  // Asked for by address — from the space switcher — as well as by the lobby's
+  // own button (024, FR-048).
+  const createAsked = route.kind === 'resolver' && route.create === true;
+  if (flow.mode !== 'browse' || createAsked) {
     return wrap(
       <CreateSpaceWizard
         client={client}
         resumeTeamId={flow.mode === 'resume' ? flow.teamId : null}
-        onCancel={() => setFlow({ mode: 'browse' })}
+        onCancel={() => {
+          setFlow({ mode: 'browse' });
+          // Cancelling goes back to wherever the wizard was opened from — a
+          // space, usually — rather than to a lobby nobody asked for. Reached
+          // with no history behind it (a pasted link), there is nowhere to go
+          // back to, and the lobby is the honest answer.
+          if (!createAsked) return;
+          if (window.history.length > 1) window.history.back();
+          else navigateTo(teamResolverRoute({ showAll: true }), true);
+        }}
         onCreated={teamId => {
           setFlow({ mode: 'browse' });
-          navigateTo(buildTeamRoute({ spaceId: teamId }));
+          // `replace` when the wizard had its own address, so Back from the new
+          // space does not walk into a wizard for a space that now exists.
+          navigateTo(buildTeamRoute({ spaceId: teamId }), createAsked);
         }}
       />
     );

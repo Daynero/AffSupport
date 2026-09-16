@@ -512,8 +512,13 @@ closing or losing anything.
 - [x] T107 [US7] Make the trash reachable from every section — the link is no longer
       explorer-only, and the explorer (hidden, not unmounted) is shown wherever `trash=1` is
       asked for, which is where a file deleted from a task actually went.
-- [ ] T108 [US7] Make Members one screen, and make every deep link land on the survivor.
-- [ ] T109 [US7] Put "New space" in the space switcher.
+- [x] T108 [US7] Make Members one screen, and make every deep link land on the survivor. The
+      settings dialog's "People" tab was the Members section again; it is gone, and
+      `?settings=1&tab=members` parses to the Members section. The task assignee filter's empty
+      state, the one in-product link to the old tab, points at the section.
+- [x] T109 [US7] Put "New space" in the space switcher. The wizard now has an address,
+      `/team?new=1`, which the resolver holds instead of entering a space underneath it;
+      cancelling goes back to where it was opened, creating replaces the wizard in history.
 - [ ] T110 [US7] Put leaving a space and transferring ownership in one place, each naming the
       other.
 - [ ] T111 [US7] Make the dialogs worth restoring addressable — batch processing, material
