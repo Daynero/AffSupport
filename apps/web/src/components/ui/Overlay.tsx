@@ -415,6 +415,14 @@ export interface MenuItem {
   /** Drawn right-aligned: a shortcut, a count. */
   trailing?: ReactNode;
   /**
+   * One line under the label, saying why this cannot run right now.
+   *
+   * A menu item that is present and cannot be chosen owes the reader a reason.
+   * Without one it is indistinguishable from a bug, which is what a screen full
+   * of dimmed controls always is to the person looking at it.
+   */
+  note?: ReactNode;
+  /**
    * Present when the item is one answer to a question the menu is asking —
    * a sort key, a direction, a filter. It then reads as a radio rather than a
    * command, and carries a tick.
@@ -557,7 +565,10 @@ export function DropdownMenu({
                   {item.icon}
                 </span>
               )}
-              <span className="ui-menu-label">{item.label}</span>
+              <span className="ui-menu-copy">
+                <span className="ui-menu-label">{item.label}</span>
+                {item.note && <span className="ui-menu-note">{item.note}</span>}
+              </span>
               {item.trailing && <span className="ui-menu-trailing">{item.trailing}</span>}
             </button>
           )

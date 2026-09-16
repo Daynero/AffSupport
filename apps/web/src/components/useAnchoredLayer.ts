@@ -70,7 +70,11 @@ export function useAnchoredLayer(
         left,
         width: matchWidth ? width : undefined,
         maxHeight: shown,
-        zIndex: 'var(--layer-popover)' as unknown as number,
+        /* Above the dialog stack: what raises an anchored surface is very often
+           a dialog — the row menu inside the task editor, the sort menu inside
+           the updater — and the pre-024 rung sat below `--layer-modal`, so the
+           first menu ever opened from inside a dialog rendered behind it. */
+        zIndex: 'var(--layer-anchored)' as unknown as number,
         transformOrigin: `${align === 'end' ? 'right' : 'left'} ${upward ? 'bottom' : 'top'}`
       });
     };

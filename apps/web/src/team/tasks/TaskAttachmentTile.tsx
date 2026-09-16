@@ -9,9 +9,13 @@ import type {
   TeamTaskAttachmentSummary
 } from '@video-compressor/shared';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
+import { useOptionalAgent } from '../../AgentContext';
+import { useTeam } from '../TeamContext';
+import { MaterialInlineActions } from '../materials/MaterialInlineActions';
+import { useMaterialActionList } from '../materials/useMaterialActionList';
+import type { ActionContext, MaterialRef } from '../materials/actions';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 import { cachedPreview } from '../preview-url-cache';
@@ -44,59 +48,6 @@ export interface TaskAttachmentPreviewClient {
 
 const defaultClient: TaskAttachmentPreviewClient = teamApi;
 
-type AttachmentAction =
-  'view' | 'reveal' | 'download' | 'download-restitched' | 'copy-link' | 'detach';
-
-function AttachmentActionIcon({ action }: { action: AttachmentAction }) {
-  if (action === 'view') {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M2.2 10s2.65-4.55 7.8-4.55S17.8 10 17.8 10s-2.65 4.55-7.8 4.55S2.2 10 2.2 10Z" />
-        <circle cx="10" cy="10" r="2.15" />
-      </svg>
-    );
-  }
-  if (action === 'reveal') {
-    // A folder with an arrow into it: where the file lives.
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M2.6 5.4c0-.75.6-1.35 1.35-1.35h3.3l1.6 1.8h7.2c.75 0 1.35.6 1.35 1.35v7.4c0 .75-.6 1.35-1.35 1.35H3.95c-.75 0-1.35-.6-1.35-1.35V5.4Z" />
-        <path d="M8.2 11.2h4.6m0 0-1.8-1.8m1.8 1.8L11 13" />
-      </svg>
-    );
-  }
-  if (action === 'download') {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M10 2.8v9.2m0 0 3.2-3.2M10 12 6.8 8.8M3.4 14.7v1.15c0 .75.6 1.35 1.35 1.35h10.5c.75 0 1.35-.6 1.35-1.35V14.7" />
-      </svg>
-    );
-  }
-  if (action === 'download-restitched') {
-    /* The download arrow again, over the film strip it re-cuts: the same
-       action as the plain download, done to a different file. */
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M10 1.9v7.4m0 0 2.7-2.7M10 9.3 7.3 6.6" />
-        <rect x="2.6" y="11.6" width="14.8" height="6.1" rx="1.3" />
-        <path d="M6.3 11.6v6.1m3.7-6.1v6.1m3.7-6.1v6.1" />
-      </svg>
-    );
-  }
-  if (action === 'copy-link') {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="m7.65 12.35 4.7-4.7M7.3 15.55l-1.1 1.1a3 3 0 0 1-4.25-4.25l3.05-3.05A3 3 0 0 1 9.25 9m3.45 2a3 3 0 0 1 .75-3.2l1.1-1.1a3 3 0 1 1 4.25 4.25L15.75 14a3 3 0 0 1-4.25 0" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="m7.55 12.45 4.9-4.9M7.15 15.65 5.5 17.3a2.7 2.7 0 0 1-3.8-3.8l3-3M12.85 4.35 14.5 2.7a2.7 2.7 0 0 1 3.8 3.8l-3 3M3 3l14 14" />
-    </svg>
-  );
-}
-
 export function TaskAttachmentTile({
   teamId,
   attachment,
@@ -104,6 +55,7 @@ export function TaskAttachmentTile({
   onDetach,
   onReveal,
   onDownloadRestitched,
+  onProductCatalog,
   restitching = false,
   isDraft = false
 }: {
@@ -119,6 +71,14 @@ export function TaskAttachmentTile({
    * only asks for it.
    */
   onDownloadRestitched?: () => void;
+  /**
+   * Make or open this video's product catalog, without leaving the task.
+   *
+   * This is the whole reason the action surface exists. Doing it used to mean
+   * closing the task, finding the file in the explorer, doing it there, and
+   * coming back — and the task's unsaved edits did not survive the trip.
+   */
+  onProductCatalog?: () => void;
   /** That delivery is this attachment's, and still running. */
   restitching?: boolean;
   /** New attachments remain local until the task itself is saved. */
@@ -145,6 +105,50 @@ export function TaskAttachmentTile({
   const [action, setAction] = useState<'download' | 'copy-link' | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
+
+  const { activeTeam, permissions } = useTeam();
+  const agent = useOptionalAgent();
+
+  /**
+   * This attachment, described the way every other surface describes a file.
+   *
+   * The shape is deliberately the narrow one: a task knows an attachment's id,
+   * name, category and availability, and nothing else — and that is enough to
+   * offer the same actions the explorer offers, which is the point.
+   */
+  const material: MaterialRef = {
+    id: attachment.materialId,
+    teamId,
+    name: attachment.name,
+    kind: attachment.kind === 'folder' ? 'folder' : 'file',
+    category: attachment.category,
+    availability: attachment.availability,
+    trashed: attachment.availability === 'trashed',
+    draft: isDraft
+  };
+
+  const context: ActionContext = {
+    host: 'task-attachment',
+    permissions,
+    isOwner: activeTeam?.role === 'owner',
+    agentConnected: agent?.teamWorkspaceAvailable === true,
+    storageConnected: activeTeam?.connectionState === 'connected',
+    restitchConfigured: true,
+    // The catalog dialog already explains a missing default and links to the
+    // panel that fixes it, so the reason is told once, where it can be acted
+    // on, rather than twice.
+    catalogSettingsReady: true
+  };
+
+  const actions = useMaterialActionList(material, context, {
+    open: () => setPreviewOpen(true),
+    showInFolder: onReveal,
+    copyLink: () => void copyLink(),
+    download: () => void download(),
+    downloadRestitched: onDownloadRestitched,
+    productCatalog: onProductCatalog,
+    detach: onDetach
+  });
 
   useEffect(() => {
     let active = true;
@@ -339,92 +343,22 @@ export function TaskAttachmentTile({
             )}
           </div>
         </div>
-        {/* Icon-only controls with the label as the accessible name and the
-            tooltip. Four labelled buttons did not fit a 158px tile: every one
-            of them broke its word across two lines ("Копіюв / ати посила /
-            ння"), which is the opposite of the quick glance a reference tile
-            is for. */}
-        <div className="team-task-attachment-actions">
-          <Button
-            type="button"
-            variant="ghost"
-            className="team-task-attachment-action is-view"
-            disabled={
-              opensInViewer ? attachment.availability !== 'ready' : !rangeUrl || unavailable
-            }
-            title={t('teamTaskAttachmentView')}
-            aria-label={t('teamTaskAttachmentView')}
-            onClick={() => setPreviewOpen(true)}
-          >
-            <AttachmentActionIcon action="view" />
-          </Button>
-          {onReveal && !isDraft && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="team-task-attachment-action is-reveal"
-              title={t('teamTaskAttachmentReveal')}
-              aria-label={t('teamTaskAttachmentReveal')}
-              onClick={onReveal}
-            >
-              <AttachmentActionIcon action="reveal" />
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            className="team-task-attachment-action is-download"
-            loading={action === 'download'}
-            title={t('teamTaskAttachmentDownload')}
-            aria-label={t('teamTaskAttachmentDownload')}
-            onClick={() => void download()}
-          >
-            <AttachmentActionIcon action="download" />
-          </Button>
-          {/* Only a video has anything to re-stitch, and only a saved one can
-              be handed to the agent by id. */}
-          {onDownloadRestitched && attachment.category === 'video' && !isDraft && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="team-task-attachment-action is-download-restitched"
-              loading={restitching}
-              title={t('teamTaskAttachmentDownloadRestitched')}
-              aria-label={t('teamTaskAttachmentDownloadRestitched')}
-              onClick={onDownloadRestitched}
-            >
-              <AttachmentActionIcon action="download-restitched" />
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            className={`team-task-attachment-action is-copy-link${copied ? ' is-copied' : ''}`}
-            loading={action === 'copy-link'}
-            title={copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')}
-            aria-label={
-              copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')
-            }
-            onClick={() => void copyLink()}
-          >
-            <AttachmentActionIcon action="copy-link" />
-          </Button>
-          {/* No dialog: detaching is reversible, and the Undo in the toast
-              costs one press to fix a mistake that the dialog charged a press
-              to prevent every single time (FR-028). */}
-          {onDetach && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="team-task-attachment-action is-detach"
-              title={t('teamTaskDetach')}
-              aria-label={t('teamTaskDetach')}
-              onClick={() => onDetach()}
-            >
-              <AttachmentActionIcon action="detach" />
-            </Button>
-          )}
-        </div>
+        <MaterialInlineActions
+          list={actions}
+          name={attachment.name}
+          busy={
+            action === 'download'
+              ? 'download'
+              : action === 'copy-link'
+                ? 'copyLink'
+                : restitching
+                  ? 'downloadRestitched'
+                  : null
+          }
+          done={copied ? 'copyLink' : null}
+          size="sm"
+          className="team-task-attachment-actions"
+        />
         {actionFailed && (
           <small className="team-task-attachment-action-error">
             {t('teamTaskAttachmentActionFailed')}

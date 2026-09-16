@@ -363,6 +363,13 @@
   --layer-overlay: 50;
   --layer-modal: 60;
   --layer-modal-nested: 70;
+  /* An anchored surface belongs above whatever raised it, and what raises it is
+     often a dialog: the row menu inside the task editor, the sort menu inside
+     the updater. The pre-024 `--layer-popover` sits below `--layer-modal`,
+     which was true only while no menu had ever been opened from inside a
+     dialog — and the first one that was opened rendered behind it. The legacy
+     rungs are left where they are; the inventory's surfaces use this one. */
+  --layer-anchored: 75;
   --layer-preview: 80;
   --layer-fullbleed: 90;
   --layer-tooltip: 100;

@@ -1338,7 +1338,7 @@
 
 .ui-popover {
   position: absolute;
-  z-index: var(--layer-popover);
+  z-index: var(--layer-anchored);
   min-width: 200px;
   padding: var(--space-2);
   border: 1px solid var(--color-neutral-border);
@@ -1365,6 +1365,9 @@
 
 .ui-menu {
   padding: var(--space-1);
+  /* A menu is read down, not across: past this the eye has to travel to
+     find the next item, and an explanatory line becomes a paragraph. */
+  max-width: min(340px, calc(100vw - var(--space-6)));
 }
 .ui-menu-item {
   display: flex;
@@ -1396,12 +1399,27 @@
   flex: none;
   color: var(--color-neutral-text-muted);
 }
-.ui-menu-label {
+.ui-menu-copy {
+  display: grid;
   flex: 1;
+  min-width: 0;
+}
+.ui-menu-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Why an item that is present cannot be chosen. One line, quieter than the
+   label, and never a sentence where a phrase will do. */
+.ui-menu-note {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  line-height: var(--leading-caption);
+  white-space: normal;
+}
+.ui-menu-item:disabled .ui-menu-note {
+  color: var(--color-warning-text);
 }
 .ui-menu-trailing {
   color: var(--color-neutral-text-muted);
@@ -2151,4 +2169,17 @@
 .ui-alert-text,
 .ui-empty-description {
   max-width: var(--measure);
+}
+
+/* ============================================================
+   Material actions (024)
+
+   One row of controls, wherever a material is shown. Inline actions first,
+   then the one door to the rest — never a row of six unlabelled icons, which
+   is what the task attachment carried in 158 pixels.
+   ============================================================ */
+.ui-material-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-px);
 }

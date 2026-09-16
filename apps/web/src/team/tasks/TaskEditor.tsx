@@ -46,6 +46,7 @@ import { classifyMaterial } from '@video-compressor/shared';
 import { teamErrorMessageFor } from '../errors';
 import { PermissionState, Textarea } from '../../components/ui/index';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
+import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
 
 export interface TaskEditorClient
   extends
@@ -365,6 +366,15 @@ export function TaskEditor({
   const [error, setError] = useState<'read' | 'write' | null>(null);
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  /**
+   * The video whose product catalog is open over this task, if any.
+   *
+   * Mounted here rather than inside the tile because a popover unmounts the
+   * moment it closes, and because this is the point of the whole thing: the
+   * dialog opens *over* the task, the task keeps its state, and nobody has to
+   * go to the explorer and come back.
+   */
+  const [catalogFor, setCatalogFor] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   // The account-wide default for a new task's Maximum. When the field differs
   // from it, a small save control offers to make the current value the default.
@@ -1249,6 +1259,15 @@ export function TaskEditor({
                   onDownloadRestitched={
                     can('download') ? () => deliverRestitched(attachment) : undefined
                   }
+                  onProductCatalog={
+                    attachment.category === 'video' && !attachment.id.startsWith('draft:')
+                      ? () =>
+                          setCatalogFor({
+                            id: attachment.materialId,
+                            name: attachment.name
+                          })
+                      : undefined
+                  }
                   restitching={restitch.states[attachment.materialId]?.kind === 'running'}
                 />
               ))}
@@ -1320,6 +1339,13 @@ export function TaskEditor({
             </div>
           </div>
         </Modal>
+      )}
+      {catalogFor && (
+        <ProductCatalogMenuDialog
+          teamId={teamId}
+          video={catalogFor}
+          onClose={() => setCatalogFor(null)}
+        />
       )}
       {confirmingDelete && onDelete && (
         <ConfirmDialog

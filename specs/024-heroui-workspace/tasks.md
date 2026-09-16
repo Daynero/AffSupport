@@ -111,10 +111,11 @@ whole product inherits the new look at once.
 **Independent Test**: `/design` shows every component in both themes; screens outside the team
 workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
 
-- [ ] T020 [US2] Extend `apps/web/src/components/ui/types.ts`: keep `uiClasses()` emitting the
+- [x] T020 [US2] Extend `apps/web/src/components/ui/types.ts`: keep `uiClasses()` emitting the
       marker grammar, and add — in one place — the variant maps translating Soty's
       `color` × `variant` × `size` onto HeroUI's own props.
-- [ ] T021 [P] [US2] `Button`, `IconButton` onto HeroUI `Button` in
+- [x] T021 [P] [US2] `Button`, `IconButton` (and `Checkbox`, `Switch`, `Slider`,
+      `SegmentedControl`, `RadioGroup` pictos — T026) onto HeroUI in
       `apps/web/src/components/ui/Button.tsx`; `loading` keeps the control's width.
 - [ ] T022 [P] [US2] `Badge`, `Chip` onto HeroUI `Badge` / `Chip` / `Tag` in
       `apps/web/src/components/ui/Badge.tsx`; removable chips use `Tag` inside a `TagGroup`.
@@ -129,7 +130,9 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       `ToggleButtonGroup`), `SegmentedControl`, `Slider`, `Switch` in
       `apps/web/src/components/ui/Choice.tsx`; `indeterminate` becomes a prop and the `ref` poke
       into the DOM is deleted.
-- [ ] T027 [P] [US2] `Empty`, `Progress`, `Skeleton`, `Spinner`, `Tooltip` in
+- [x] T027 [P] [US2] (Tooltip done; Empty/Progress/Skeleton/Spinner keep their own element —
+      the library offers them only a class name) `Empty`, `Progress`, `Skeleton`, `Spinner`,
+      `Tooltip` in
       `apps/web/src/components/ui/Feedback.tsx`; `Progress` keeps `--fill-ratio` + `scaleX()`;
       add `Kbd`.
 - [ ] T028 [US2] `Modal`, `Drawer`, `Popover`, `DropdownMenu` onto HeroUI in
@@ -190,21 +193,21 @@ closing or losing anything.
       into `apps/web/src/team/processing/CompressionProvider.tsx`, mounted at the space level in
       `apps/web/src/team/workspace/WorkspaceShell.tsx` beside `LibraryProcessingProvider`,
       keeping pause / hold / stop-after-current / stop-now and the active-operation tracking.
-- [ ] T044 [US1] Write `apps/web/src/team/materials/actions.ts`: `MaterialRef`, `ActionContext`,
+- [x] T044 [US1] Write `apps/web/src/team/materials/actions.ts`: `MaterialRef`, `ActionContext`,
       `MaterialCompanions`, `MaterialAction`, `Availability`, and the registry of every action in
       `contracts/material-actions.md`, in its five groups and fixed order.
-- [ ] T045 [US1] Write `apps/web/src/team/materials/useMaterialActionList.ts` — resolve the
+- [x] T045 [US1] Write `apps/web/src/team/materials/useMaterialActionList.ts` — resolve the
       registry against a material and a context into `{ inline, groups, count }`, at most four
       inline, empty groups omitted.
-- [ ] T046 [US1] Write `apps/web/src/team/materials/MaterialActionMenu.tsx` on the inventory's
+- [x] T046 [US1] Write `apps/web/src/team/materials/MaterialActionMenu.tsx` on the inventory's
       `DropdownMenu`: grouped with headings, icons, one-line reasons under unavailable items,
       the destructive group separated, last, and never focused first.
-- [ ] T047 [US1] Write `apps/web/src/team/materials/MaterialInlineActions.tsx` — the first N by
+- [x] T047 [US1] Write `apps/web/src/team/materials/MaterialInlineActions.tsx` — the first N by
       `inlinePriority`, labelled or tooltipped per the product's icon rules.
 - [ ] T048 [US1] Write `apps/web/src/team/materials/MaterialActionHost.tsx` — mounts the dialogs
       an action opens (catalog, process flow, folder picker, rename, colour picker, compressor)
       **beside** its host, so nothing closes.
-- [ ] T049 [US1] Add the translation keys for every action, group heading and unavailability
+- [x] T049 [US1] Add the translation keys for every action, group heading and unavailability
       reason to `apps/web/src/i18n.ts`, Ukrainian and English.
 - [ ] T050 [US1] Extend `apps/web/src/team/errors.ts` with the new `UnavailableReason` codes and
       their sentences; no sentence is written anywhere else.
@@ -218,7 +221,7 @@ closing or losing anything.
 - [ ] T054 [US1] Render it from search results in `apps/web/src/team/catalog/MaterialResults.tsx`.
 - [ ] T055 [US1] Render it from the detail pane in `apps/web/src/team/explorer/PreviewPane.tsx`,
       replacing its three raw icon buttons.
-- [ ] T056 [US1] Render it from a task attachment in
+- [x] T056 [US1] Render it from a task attachment in
       `apps/web/src/team/tasks/TaskAttachmentTile.tsx` — the owner's example. Six unlabelled
       icons become up to three inline plus one overflow.
 - [ ] T057 [US1] Render it from the catalog updater's list in
@@ -229,10 +232,10 @@ closing or losing anything.
       re-stitched copy — each with its own direct actions.
 - [ ] T060 [US1] Wire up `editText` in the folder view, which the audit found dead because the
       explorer never passed the handler.
-- [ ] T061 [P] [US1] Write `tests/material-action-registry.test.ts`: every action's translation
+- [x] T061 [P] [US1] Write `tests/material-action-registry.test.ts`: every action's translation
       key exists; no group over seven items without a heading; every destructive action is in
       `remove`; no host resolves more than four inline; the id union is closed.
-- [ ] T062 [P] [US1] Write `tests/material-action-surfaces.test.tsx`: the same `MaterialRef`
+- [x] T062 [P] [US1] Write `tests/material-action-surfaces.test.tsx`: the same `MaterialRef`
       resolved against every host yields an identical label key, icon, group and position for
       every action that applies in more than one host (SC-003).
 - [ ] T063 [P] [US1] Test that each action reports exactly one outcome, through the one toast
