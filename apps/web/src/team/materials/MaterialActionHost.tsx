@@ -2,6 +2,9 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
 import { Button, FormField, Input, Modal } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { teamApi } from '../../api/team';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import { useMaterialActions, type MaterialActionsClient } from '../catalog/useMaterialActions';
 import type { ActionHandlers } from './useMaterialActionList';
@@ -58,6 +61,7 @@ export function useMaterialActionHost({
   onTrashed
 }: MaterialActionHostInput): MaterialActionHostResult {
   const { t } = useI18n();
+  const { push } = useToasts();
   const [prompt, setPrompt] = useState<'rename' | 'move' | null>(null);
   const [newName, setNewName] = useState(material.name);
   const uploadInput = useRef<HTMLInputElement>(null);
@@ -93,7 +97,42 @@ export function useMaterialActionHost({
     onChanged
   });
 
+  /**
+   * A link to this file, made shareable and put on the clipboard.
+   *
+   * It lived in a button of its own that only two surfaces rendered, so the
+   * same file could be linked from a folder row and not from a search result.
+   * `rememberChoice` is what tells the space to keep the sharing it just did,
+   * rather than asking again on the next copy.
+   */
+  const shareLink = async (remember: boolean) => {
+    try {
+      const result = await teamApi.shareLibraryMaterial({
+        teamId,
+        materialId: material.id,
+        allowIfRestricted: true,
+        rememberChoice: remember,
+        idempotencyKey: crypto.randomUUID()
+      });
+      if (result.state !== 'ready') {
+        push({ tone: 'error', text: t('teamShareFailed') });
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(result.url);
+        push({ tone: 'success', text: t('teamShareCopied') });
+      } catch {
+        // A browser that refuses the clipboard still made the link; show it.
+        push({ tone: 'success', text: `${t('teamShareReady')} ${result.url}` });
+      }
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    }
+  };
+
   const handlers: ActionHandlers = {
+    copyLink: () => void shareLink(false),
+    share: () => void shareLink(true),
     download: () => void actions.download(),
     rename: () => {
       setNewName(material.name);

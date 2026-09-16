@@ -1743,6 +1743,8 @@ function ExplorerBody({
         <PreviewPane
           row={focused}
           client={client}
+          browseClient={client}
+          onChanged={changed}
           revision={revision}
           onOpen={onPreview}
           onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
@@ -1751,9 +1753,6 @@ function ExplorerBody({
               ? row => void deliverRestitched([row])
               : undefined
           }
-          restitchPrepared={focused ? preparedIds.has(focused.id) : false}
-          // Shared the way the tile shares: a member who can see a file can hand out a link.
-          onShare={Boolean(permissions)}
           onDelete={permissions?.delete ? row => void trashRows([row]) : undefined}
           onTranscribe={
             permissions?.process

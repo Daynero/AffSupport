@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import type { FolderPage, TeamMaterialRow } from '@video-compressor/shared';
@@ -100,17 +101,16 @@ describe('a video’s card', () => {
     const card = await screen.findByRole('complementary', { name: 'Selected item' });
     await waitFor(() => expect(card.textContent).toContain('clip-1.mp4'));
 
-    const named = (name: string | RegExp) =>
-      Array.from(card.querySelectorAll<HTMLElement>('button')).some(button =>
-        typeof name === 'string'
-          ? button.getAttribute('aria-label') === name
-          : name.test(button.getAttribute('aria-label') ?? '')
-      );
-    // Named "the original" only because there is now something else it could be.
-    expect(named('Download the original')).toBe(true);
-    expect(named('Download re-stitched')).toBe(true);
-    expect(named(/^Share/u)).toBe(true);
-    expect(named('Move to trash')).toBe(true);
+    const user = userEvent.setup();
+    await user.click(within(card).getByRole('button', { name: /^Actions for/ }));
+
+    // One vocabulary now: the card offers the same actions, under the same
+    // names, as the row above it and the task beside it (024). "The original"
+    // and "the re-stitched copy" were two names for downloads that the row
+    // called something else.
+    for (const name of ['Download', 'Download re-stitched', 'Share', 'Move to trash']) {
+      expect(screen.getByRole('menuitem', { name })).toBeTruthy();
+    }
   });
 });
 

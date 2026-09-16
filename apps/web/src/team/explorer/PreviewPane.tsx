@@ -6,9 +6,7 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Download, Replace, Trash2 } from 'lucide-react';
-import { Button, ProgressBar } from '../../components/ui';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { ProgressBar } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { formatSize } from '../../format';
@@ -19,7 +17,8 @@ import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnail
 import { VideoTextActions } from '../library/VideoTextActions';
 import { VideoProductCatalogActions } from '../product-catalog/VideoProductCatalogActions';
 import { useOptionalTeam } from '../TeamContext';
-import { ShareButton } from './ShareButton';
+import { PaneActions } from './PaneActions';
+import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { EmptyState } from '../../components/ui/index';
 
 /**
@@ -45,14 +44,18 @@ export function PreviewPane({
   onCreateTask,
   onDownload,
   onDownloadRestitched,
-  restitchPrepared,
-  onShare,
   onDelete,
+  browseClient,
+  onChanged,
   revision = 0
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
   client: PreviewPaneClient;
+  /** Reads the folder tree for the move picker the shared actions own. */
+  browseClient: FolderPickerClient;
+  /** Something changed on the server; the shell reloads its page. */
+  onChanged: () => void;
   onOpen?: (material: TeamMaterialSummary) => void;
   /** Start (re-)transcribing a video from its card. */
   onTranscribe?: (row: TeamMaterialRow) => void;
@@ -168,73 +171,21 @@ export function PreviewPane({
           )}
         </p>
       )}
-      {/* Everything done to a file often enough to deserve a press rather than a menu, as
-          icons rather than a second column of sentences — the same treatment the compressor
-          gives its own row actions, down to the icon that means re-stitching. Named for screen
-          readers and on hover, because an icon alone is a guess. */}
-      {(onDownload || onDownloadRestitched || onShare || onDelete) && row.kind !== 'folder' && (
-        <div className="team-explorer-pane-icons">
-          {onDownload && (
-            <button
-              type="button"
-              className="team-explorer-pane-icon"
-              aria-label={
-                onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')
-              }
-              data-tip={
-                onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')
-              }
-              onClick={() => onDownload(row)}
-            >
-              <Download size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          )}
-          {onDownloadRestitched && (
-            <button
-              type="button"
-              className="team-explorer-pane-icon"
-              aria-label={t('teamRestitchDownloadRestitched')}
-              /* The tooltip carries what the label cannot: a prepared video is delivered in
-                 seconds, one that is not pays for the looking first. The press works either
-                 way, so this is a hint rather than a warning. */
-              data-tip={`${t('teamRestitchDownloadRestitched')} — ${
-                restitchPrepared
-                  ? t('teamRestitchMaterialPrepared')
-                  : t('teamRestitchMaterialNotPrepared')
-              }`}
-              onClick={() => onDownloadRestitched(row)}
-            >
-              <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          )}
-          {onShare && <ShareButton teamId={teamId} row={row} className="team-explorer-pane-icon" />}
-          {onDelete && (
-            <button
-              type="button"
-              className="team-explorer-pane-icon is-destructive"
-              aria-label={t('teamFileTrash')}
-              data-tip={t('teamFileTrash')}
-              onClick={() => onDelete(row)}
-            >
-              <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      )}
-      {onOpen && PREVIEWABLE_KINDS.has(row.kind) && (
-        <Button type="button" variant="primary" onClick={() => onOpen(previewSummary(row))}>
-          {t('teamExplorerPreviewOpen')}
-        </Button>
-      )}
-      {onCreateTask && row.kind !== 'folder' && (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onCreateTask({ id: row.id, name: row.name })}
-        >
-          {t('teamExplorerCreateTask')}
-        </Button>
-      )}
+      {/* Every action this file can take, from the one registry: the same list,
+          in the same order, as the row above and the task beside it. */}
+      <PaneActions
+        row={row}
+        teamId={teamId}
+        browseClient={browseClient}
+        onChanged={onChanged}
+        onOpen={
+          onOpen && PREVIEWABLE_KINDS.has(row.kind) ? () => onOpen(previewSummary(row)) : undefined
+        }
+        onCreateTask={onCreateTask ? () => onCreateTask({ id: row.id, name: row.name }) : undefined}
+        onDownload={onDownload ? () => onDownload(row) : undefined}
+        onDownloadRestitched={onDownloadRestitched ? () => onDownloadRestitched(row) : undefined}
+        onDelete={onDelete ? () => onDelete(row) : undefined}
+      />
       {row.category === 'video' && onTranscribe && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>

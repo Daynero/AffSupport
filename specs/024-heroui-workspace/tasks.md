@@ -239,7 +239,7 @@ closing or losing anything.
       and the colour tag still live as their own row affordances; they join the surface with the
       detail work in T086–T090.
 - [x] T054 [US1] Render it from search results in `apps/web/src/team/catalog/MaterialResults.tsx`.
-- [ ] T055 [US1] Render it from the detail pane in `apps/web/src/team/explorer/PreviewPane.tsx`,
+- [x] T055 [US1] Render it from the detail pane in `apps/web/src/team/explorer/PreviewPane.tsx`,
       replacing its three raw icon buttons.
 - [x] T056 [US1] Render it from a task attachment in
       `apps/web/src/team/tasks/TaskAttachmentTile.tsx` — the owner's example. Six unlabelled

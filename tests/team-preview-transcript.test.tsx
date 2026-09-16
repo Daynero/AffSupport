@@ -4,6 +4,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LibraryVideoTextVariants, TeamMaterialRow } from '@video-compressor/shared';
+import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { ExplorerProvider } from '../apps/web/src/team/explorer/ExplorerProvider';
 import { PreviewPane } from '../apps/web/src/team/explorer/PreviewPane';
@@ -37,10 +39,31 @@ function renderPane(variants: LibraryVideoTextVariants, onTranscribe = vi.fn()) 
     listFolderTree: vi.fn().mockResolvedValue([])
   } as never;
   render(
+    // The pane offers the file's actions now, and those are the space's to
+    // permit — so it needs the space around it, exactly as it has in the app.
     <ToastProvider>
-      <ExplorerProvider teamId="t-1" client={client} folderId={null}>
-        <PreviewPane row={video} client={client} onTranscribe={onTranscribe} />
-      </ExplorerProvider>
+      <TeamProvider
+        realtime={false}
+        initialTeams={[
+          {
+            id: 't-1',
+            name: 'Space',
+            role: 'editor',
+            permissions: DEFAULT_ROLE_PERMISSIONS.editor,
+            connectionState: 'connected' as const
+          }
+        ]}
+      >
+        <ExplorerProvider teamId="t-1" client={client} folderId={null}>
+          <PreviewPane
+            row={video}
+            client={client}
+            browseClient={client}
+            onChanged={() => {}}
+            onTranscribe={onTranscribe}
+          />
+        </ExplorerProvider>
+      </TeamProvider>
     </ToastProvider>
   );
   return { onTranscribe };
