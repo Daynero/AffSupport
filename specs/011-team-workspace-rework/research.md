@@ -197,3 +197,11 @@ restricted `drive` scope, once approved, is added with `include_granted_scopes` 
 walk reaches the original root without re-selection. For the beta project (publishing
 status Testing) the restricted scope can be turned on now with
 `DRIVE_RESTRICTED_SCOPE_APPROVED=true` — test users can consent to it without verification.
+
+**Contradicted in production, 2026-09-16.** Production requests `drive.file` alone
+(readiness: `scopes: [drive.file]`, `restrictedScopeApproved: false`), and the owner's space
+connected to an existing folder and indexed about 6,000 files, with its initial sync
+`ready` (how those files got into the folder was not checked). Either a picked folder does carry its contents under `drive.file`,
+or that account's grant includes a wider scope from an earlier consent. Not settled; do not
+cite the table above as the rule until a Google account that never consented to anything
+wider connects a folder of files added outside Soty.
