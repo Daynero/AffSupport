@@ -8105,6 +8105,16 @@ body:has(.public-home) {
     justify-self: stretch;
   }
 }
+/* What the chosen role may do, under the whole row. */
+.team-invite-form .team-invite-role-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-invite-form > .ui-button {
+  justify-self: start;
+}
 /* A label never breaks inside a word, whatever the column does. */
 .team-invite-form label > span {
   overflow-wrap: normal;

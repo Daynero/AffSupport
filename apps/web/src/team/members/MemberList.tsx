@@ -11,6 +11,7 @@ import type { TeamBaseRole } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { memberCountKey } from '../accounts/plural';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
@@ -57,7 +58,7 @@ export function MemberList({
   /** The list as read, for a neighbour whose wording depends on it. */
   onLoaded?: (members: TeamMemberSummary[]) => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { push } = useToasts();
   const { activeTeam } = useTeam();
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
@@ -96,32 +97,17 @@ export function MemberList({
       icon={Users}
       titleId="team-members-list-title"
       title={t('teamMembers')}
-      aside={t('teamMembersLimit', { count })}
+      /* "1 of 50 members" read like paging (024). The limit is said once it is near. */
+      aside={
+        count >= 40
+          ? t('teamMembersLimit', { count })
+          : t(memberCountKey(language, count), { count })
+      }
       className="team-member-section"
     >
-      {client && teamId && (
-        <details className="team-role-guide">
-          <summary>{t('teamRolesGuide')}</summary>
-          <dl>
-            <div>
-              <dt>{t('teamRoleOwner')}</dt>
-              <dd>{t('teamRoleOwnerDescription')}</dd>
-            </div>
-            <div>
-              <dt>{t('teamRoleAdmin')}</dt>
-              <dd>{t('teamRoleAdminDescription')}</dd>
-            </div>
-            <div>
-              <dt>{t('teamRoleEditor')}</dt>
-              <dd>{t('teamRoleEditorDescription')}</dd>
-            </div>
-            <div>
-              <dt>{t('teamRoleViewer')}</dt>
-              <dd>{t('teamRoleViewerDescription')}</dd>
-            </div>
-          </dl>
-        </details>
-      )}
+      {/* No "Role permissions" disclosure here (024): it looked like a dropdown and was read
+          nowhere near the choice it explains. What a role may do is said under the role
+          picker when inviting. */}
       {error && (
         <p className="team-inline-error" role="alert">
           {error}

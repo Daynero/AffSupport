@@ -2,10 +2,10 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { UserPlus } from 'lucide-react';
 import type { TeamBaseRole } from '@video-compressor/shared';
 import { TeamApiError, type TeamInvitationSummary, type TeamMemberSummary } from '../../api/team';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
-import { Button } from '../../components/ui';
+import { Button, FormField, Input, Select } from '../../components/ui/index';
 import { Modal } from '../../components/Modal';
 import { SettingsSection } from '../workspace/SettingsSection';
 import { MemberRowMenu } from './MemberList';
@@ -27,6 +27,40 @@ export interface InvitationPanelClient {
   }) => Promise<TeamMemberSummary>;
   resendInvitation?: (invitationId: string) => Promise<TeamInvitationSummary>;
   revokeInvitation?: (invitationId: string) => Promise<void>;
+}
+
+const INVITE_ROLES: readonly TeamBaseRole[] = ['admin', 'editor', 'viewer'];
+const ROLE_LABEL = {
+  admin: 'teamRoleAdmin',
+  editor: 'teamRoleEditor',
+  viewer: 'teamRoleViewer'
+} as const satisfies Partial<Record<TeamBaseRole, TranslationKey>>;
+const ROLE_DESCRIPTION = {
+  admin: 'teamRoleAdminDescription',
+  editor: 'teamRoleEditorDescription',
+  viewer: 'teamRoleViewerDescription'
+} as const satisfies Partial<Record<TeamBaseRole, TranslationKey>>;
+
+/**
+ * The role the last invitation from this browser used, for this space (024). The one invited is
+ * usually the same kind of person as the last — a designer, then another designer — and the
+ * picker used to reset to Viewer, which a designer cannot work with. Editor when nothing is kept.
+ */
+const roleKey = (teamId: string) => `soty.inviteRole.${teamId}`;
+function rememberedRole(teamId: string): TeamBaseRole {
+  try {
+    const kept = localStorage.getItem(roleKey(teamId));
+    return INVITE_ROLES.includes(kept as TeamBaseRole) ? (kept as TeamBaseRole) : 'editor';
+  } catch {
+    return 'editor';
+  }
+}
+function rememberRole(teamId: string, role: TeamBaseRole) {
+  try {
+    localStorage.setItem(roleKey(teamId), role);
+  } catch {
+    // A private window keeps nothing; the next invitation starts at Editor.
+  }
 }
 
 function normalizedInvitation(
@@ -60,7 +94,9 @@ export function InvitationPanel({
   const [confirmingRevoke, setConfirmingRevoke] = useState<string | null>(null);
   const revokeTitleId = useId();
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<TeamBaseRole>('viewer');
+  const [role, setRole] = useState<TeamBaseRole>(() => rememberedRole(teamId));
+  const emailId = useId();
+  const roleId = useId();
   const [invitations, setInvitations] = useState<TeamInvitationSummary[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,9 +133,11 @@ export function InvitationPanel({
         if (!client.directAddMember) {
           throw new TeamApiError('WRONG_STATE', false);
         }
+        rememberRole(teamId, role);
         await client.directAddMember({ teamId, email: normalizedEmail, initialRole: role });
         setSuccess(t('teamDirectAddSucceeded'));
       } else {
+        rememberRole(teamId, role);
         const created = normalizedInvitation(
           await client.createInvitation({ teamId, email: normalizedEmail, initialRole: role }),
           role
@@ -145,6 +183,11 @@ export function InvitationPanel({
     try {
       const updated = await client.resendInvitation(invitationId);
       setInvitations(current => current.map(item => (item.id === invitationId ? updated : item)));
+      // Where mail is not delivered the link comes back; show it, as a new invitation does.
+      if (updated.inviteUrl) {
+        setInviteUrl(updated.inviteUrl);
+        setLinkCopied(false);
+      }
       push({ tone: 'success', text: t('teamToastInvitationResent') });
       onChanged?.();
     } catch (cause) {
@@ -176,26 +219,31 @@ export function InvitationPanel({
       {directAdd && canManage && <p className="team-test-mode-note">{t('teamDirectAddNote')}</p>}
       {canManage && (
         <form className="team-invite-form" onSubmit={event => void submit(event)}>
-          <label>
-            <span>{directAdd ? t('teamDirectAddEmail') : t('teamInviteEmail')}</span>
-            <input
+          <FormField
+            label={directAdd ? t('teamDirectAddEmail') : t('teamInviteEmail')}
+            htmlFor={emailId}
+          >
+            <Input
+              id={emailId}
               type="email"
               value={email}
               maxLength={320}
               onChange={event => setEmail(event.target.value)}
             />
-          </label>
-          <label>
-            <span>{t('teamInviteRole')}</span>
-            <select value={role} onChange={event => setRole(event.target.value as TeamBaseRole)}>
-              <option value="admin">{t('teamRoleAdmin')}</option>
-              <option value="editor">{t('teamRoleEditor')}</option>
-              <option value="viewer">{t('teamRoleViewer')}</option>
-            </select>
-          </label>
+          </FormField>
+          <FormField label={<span id={roleId}>{t('teamInviteRole')}</span>}>
+            <Select
+              aria-labelledby={roleId}
+              value={role}
+              options={INVITE_ROLES.map(value => ({ value, label: t(ROLE_LABEL[value]) }))}
+              onChange={next => setRole(next as TeamBaseRole)}
+            />
+          </FormField>
           <Button type="submit" variant="primary" loading={submitting} disabled={!email.trim()}>
             {directAdd ? t('teamDirectAddSubmit') : t('teamInviteSend')}
           </Button>
+          {/* What the chosen role may do, said where it is chosen (024). */}
+          <p className="team-invite-role-hint">{t(ROLE_DESCRIPTION[role])}</p>
         </form>
       )}
       {error && (
@@ -263,6 +311,20 @@ export function InvitationPanel({
                           ? t('teamInvitationFailed')
                           : t('teamInvitationPending')}
             </span>
+            {/* A failed delivery shows its fix on the row (024), not behind "…". */}
+            {invitation.state === 'pending' &&
+              invitation.deliveryState === 'failed' &&
+              client.resendInvitation && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`${t('teamInvitationResend')}: ${invitation.targetEmail}`}
+                  onClick={() => void resend(invitation.id)}
+                >
+                  {t('teamInvitationResendShort')}
+                </Button>
+              )}
             {invitation.state === 'pending' &&
               (client.resendInvitation || client.revokeInvitation) && (
                 <MemberRowMenu
