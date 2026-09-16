@@ -78,15 +78,15 @@ export function SpaceLobby({
   }
 
   return (
-    <section className="team-space-lobby" aria-labelledby="team-lobby-title">
+    /* One panel, centred, on its own ground (024, benchmarked on Linear's and
+       Notion's workspace pickers): the heading sat straight on the hexagon
+       field and one small card hung in the corner of an empty page. */
+    <section className="team-space-lobby team-space-lobby-list" aria-labelledby="team-lobby-title">
       <header className="team-space-lobby-header">
         <div>
           <h1 id="team-lobby-title">{t('teamSpaceLobbyTitle')}</h1>
           <p className="team-space-lobby-subtitle">{t('teamSpaceLobbySubtitle')}</p>
         </div>
-        <Button type="button" variant="primary" onClick={onCreate}>
-          {t('teamSpaceCreateNew')}
-        </Button>
       </header>
       <InvitationList headingId="team-lobby-invitations" client={invitationClient} hideWhenEmpty />
       {error && (
@@ -106,6 +106,12 @@ export function SpaceLobby({
           </li>
         ))}
       </ul>
+      {/* Secondary where there are spaces to enter: going into one is what
+          this screen is for, as in Linear's picker. The empty state above
+          keeps "create" as its one primary. */}
+      <Button type="button" variant="secondary" onClick={onCreate}>
+        {t('teamSpaceCreateNew')}
+      </Button>
     </section>
   );
 }

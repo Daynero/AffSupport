@@ -129,7 +129,7 @@ export function TrashView({
               {t('teamTrashOrigin')}
             </TableHeaderCell>
             <TableHeaderCell className="team-explorer-row-actions">
-              {t('teamAccountColumnActions')}
+              <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
             </TableHeaderCell>
           </TableHeader>
           {items.map(item => (
@@ -146,9 +146,13 @@ export function TrashView({
                 {item.parentPathHint ?? formatDate(item.trashedAt, language)}
               </TableCell>
               <TableCell className="team-explorer-row-actions">
+                {/* A word, not a bordered button on every row (024, benchmarked on
+                    Drive's trash): the list is read as a list of files, and the
+                    one thing to do to each is said quietly beside it. */}
                 <Button
-                  color="neutral"
-                  variant="outline"
+                  color="primary"
+                  variant="ghost"
+                  size="sm"
                   loading={restoringId === item.id}
                   onClick={() => void restore(item)}
                 >

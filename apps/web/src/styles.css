@@ -17542,3 +17542,30 @@ input[type='number'] {
   transition: opacity var(--dur-control) var(--ease-standard);
 }
 
+/* The space picker (024): a centred panel, spaces as rows in one column. */
+.team-space-lobby-list {
+  width: min(100%, 44rem);
+  margin: var(--space-6) auto 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+.team-space-lobby-list .team-space-card-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Checking, resolving: said on the same ground, not on the hexagons. */
+.team-space-lobby[aria-busy='true'] {
+  width: min(100%, 44rem);
+  margin: var(--space-6) auto 0;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+.team-space-lobby-list > .ui-button,
+.team-space-lobby-list > .soty-button {
+  justify-self: start;
+}
+
