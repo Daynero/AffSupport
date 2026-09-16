@@ -38,12 +38,13 @@ export function TranscriptionIcon() {
   );
 }
 
+/** A space: three cells of a comb — where the work lies, not who sits in it (024). */
 export function TeamWorkspaceIcon() {
   return (
     <svg viewBox="0 0 32 32">
-      <circle cx="12" cy="11" r="4" />
-      <circle cx="22.5" cy="13" r="3" />
-      <path d="M5 25c.6-5 3.1-7.5 7-7.5s6.4 2.5 7 7.5M18.5 19c1.1-1.2 2.4-1.8 4-1.8 3 0 4.8 2 5.3 5.8" />
+      <path d="M9.9 3.7 15.36 6.85 15.36 13.15 9.9 16.3 4.44 13.15 4.44 6.85Z" />
+      <path d="M22.1 3.7 27.56 6.85 27.56 13.15 22.1 16.3 16.64 13.15 16.64 6.85Z" />
+      <path d="M16 14.3 21.46 17.45 21.46 23.75 16 26.9 10.54 23.75 10.54 17.45Z" />
     </svg>
   );
 }

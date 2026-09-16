@@ -1495,6 +1495,16 @@ export const teamApi = {
     return team;
   },
 
+  /** Renames a space (024); owner only. Returns the name as stored. */
+  async renameTeam(teamId: string, name: string): Promise<string> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('rename_team', { p_team: teamId, p_name: name })
+    );
+    throwRpc(error);
+    if (typeof data !== 'string') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
   async listMembers(teamId: string): Promise<TeamMemberSummary[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_team_members', {

@@ -2478,6 +2478,10 @@ export type Database = {
           team_name: string;
         }[];
       };
+      rename_team: {
+        Args: { p_name: string; p_team: string };
+        Returns: string;
+      };
       create_team: {
         Args: { p_name: string };
         Returns: {

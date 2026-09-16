@@ -1,6 +1,6 @@
 begin;
 
-select plan(273);
+select plan(278);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3621,6 +3621,41 @@ select throws_ok(
   '42501',
   'PERMISSION_DENIED',
   'only the space owner can queue a full Drive resync'
+);
+
+-- 024: a space can be renamed by its owner, keeping names unique among the owner's spaces.
+select throws_ok(
+  $$ select public.rename_team((select id from pg_temp.us7_same_root_team), 'Nutra') $$,
+  '42501', 'PERMISSION_DENIED',
+  'someone outside the space cannot rename it'
+);
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+select is(
+  public.rename_team((select id from pg_temp.us7_same_root_team), '  Nutra   PL  '),
+  'Nutra PL',
+  'the owner renames the space; spaces inside the name collapse'
+);
+select is(
+  (select name from public.teams where id = (select id from pg_temp.us7_same_root_team)),
+  'Nutra PL',
+  'the new name is stored'
+);
+select throws_ok(
+  format(
+    $$ select public.rename_team(%L::uuid, %L) $$,
+    (select id from pg_temp.us7_same_root_team),
+    (select upper(name) from public.teams where id = (select id from pg_temp.us1_created_team))
+  ),
+  '23505', 'NAME_CONFLICT',
+  'a name another of the owner''s spaces already has is refused'
+);
+select is(
+  (
+    select count(*) from public.team_audit_events
+    where team_id = (select id from pg_temp.us7_same_root_team) and action = 'team.renamed'
+  ),
+  1::bigint,
+  'a rename is written to the space history'
 );
 
 select * from finish();

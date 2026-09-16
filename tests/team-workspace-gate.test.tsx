@@ -71,6 +71,6 @@ describe('team workspace launch gate', () => {
       screen.getByRole('dialog').parentElement?.classList.contains('team-workspace-gate-backdrop')
     ).toBe(true);
     expect(rpc).toHaveBeenCalledWith('can_access_team_workspace');
-    expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
   });
 });

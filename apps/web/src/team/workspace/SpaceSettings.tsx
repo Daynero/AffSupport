@@ -16,6 +16,7 @@ import {
   type ProductCatalogSettingsClient
 } from '../product-catalog/ProductCatalogSettingsSection';
 import { SettingsSection } from './SettingsSection';
+import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
 import type { TeamSettingsTab } from '../routes';
 import { Tabs } from '../../components/ui/index';
 
@@ -32,7 +33,8 @@ export type SpaceSettingsClient = MemberManagementClient &
   } & RestitchDefaultsClient &
   TaskLabelsSectionClient &
   TeamPreferencesClient &
-  ProductCatalogSettingsClient;
+  ProductCatalogSettingsClient &
+  SpaceNameClient;
 
 export function SharePreferenceSettings({
   teamId,
@@ -174,6 +176,7 @@ export function SpaceSettings({
       >
         {tab === 'general' && (
           <>
+            {activeTeam?.role === 'owner' && <SpaceNameSection teamId={teamId} client={client} />}
             {/* How team mode behaves, first: it is what a person opens these
                 settings to change. */}
             <TeamPreferencesSection teamId={teamId} client={client} />

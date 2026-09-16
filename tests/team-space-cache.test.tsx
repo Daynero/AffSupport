@@ -30,7 +30,7 @@ describe('team space entered-selection cache', () => {
     renderSpace(client);
 
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
   });
 
   it('ignores an invalid cached selection and enters the one ready space', async () => {
@@ -43,7 +43,7 @@ describe('team space entered-selection cache', () => {
     renderSpace(client);
 
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
     // The stale id is replaced rather than left to be retried on every visit.
     await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).toBe(team.id));
   });
@@ -53,6 +53,6 @@ describe('team space entered-selection cache', () => {
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([makeTeam(), other]) });
     renderSpace(client);
 
-    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
   });
 });

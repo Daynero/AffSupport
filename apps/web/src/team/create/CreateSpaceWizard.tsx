@@ -22,7 +22,12 @@ export type CreateSpaceWizardClient = {
    * destructive.
    */
   deleteDraftTeam: (teamId: string) => Promise<true>;
+  /** Names a space after its folder when the suggested name was left as it was (024). */
+  renameTeam?: (teamId: string, name: string) => Promise<string>;
 } & DrivePanelClient;
+
+/** The suggested name, in either language, with the number a second or third one gets. */
+const SUGGESTED_NAME = /^(My space|Мій простір)( \d+)?$/u;
 
 type Step = { kind: 'name' } | { kind: 'folder'; teamId: string };
 
@@ -55,6 +60,19 @@ export function CreateSpaceWizard({
   const [draft, setDraft] = useState<TeamContextSnapshot | null>(null);
 
   const stepNumber = step.kind === 'name' ? 1 : 2;
+  /*
+   * A name to start from (024), so the first step can be a single press: "My space", or "My space
+   * 2" beside one already called that. Left as it is, the space takes the chosen folder's name
+   * once the folder is connected — which is what a person would have typed anyway.
+   */
+  const suggestedName = useMemo(() => {
+    const base = t('teamCreateDefaultName');
+    const taken = new Set(teams.map(team => team.name.trim().toLowerCase()));
+    if (!taken.has(base.toLowerCase())) return base;
+    let index = 2;
+    while (taken.has(`${base} ${index}`.toLowerCase())) index += 1;
+    return `${base} ${index}`;
+  }, [t, teams]);
   const resumeName = useMemo(
     () => (resumeTeamId ? teams.find(team => team.id === resumeTeamId)?.name : undefined),
     [resumeTeamId, teams]
@@ -80,10 +98,20 @@ export function CreateSpaceWizard({
     setStep({ kind: 'folder', teamId: created.id });
   };
 
-  const handleConnected = (teamId: string) => {
+  const handleConnected = async (teamId: string) => {
+    let name = teams.find(team => team.id === teamId)?.name ?? draft?.name ?? '';
+    if (client.renameTeam && SUGGESTED_NAME.test(name.trim())) {
+      try {
+        const folder = (await client.getConnectionStatus(teamId)).rootFolderName?.trim();
+        if (folder) name = await client.renameTeam(teamId, folder);
+      } catch {
+        // A folder name another space already has, or a slow read: the suggested name stays and
+        // can be changed in the space's settings.
+      }
+    }
     replaceTeams(
       teams.map(team =>
-        team.id === teamId ? { ...team, connectionState: 'connected' as const } : team
+        team.id === teamId ? { ...team, name, connectionState: 'connected' as const } : team
       )
     );
     completeTeamOnboardingFlow(onboarding.current, {
@@ -112,7 +140,7 @@ export function CreateSpaceWizard({
           createTeam={submitName}
           onCreated={handleCreated}
           onCancel={onCancel}
-          initialName={draft?.name ?? ''}
+          initialName={draft?.name ?? suggestedName}
         />
       ) : (
         <>
@@ -120,7 +148,7 @@ export function CreateSpaceWizard({
           <ConnectStorageFlow
             teamId={step.teamId}
             client={client}
-            onConnected={() => handleConnected(step.teamId)}
+            onConnected={() => void handleConnected(step.teamId)}
             onBack={() => setStep({ kind: 'name' })}
             onCancel={onCancel}
           />

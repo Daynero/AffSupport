@@ -30,20 +30,20 @@ describe('team space lobby', () => {
     renderSpace(client);
 
     // Lobby first: both spaces listed, no workspace heading yet.
-    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Media buyers/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Archive team/ })).toBeTruthy();
 
     // Enter a space → its workspace shell opens.
     await user.click(screen.getByRole('button', { name: /Media buyers/ }));
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
 
     // Changing space now hangs off the space name itself: open the switcher and
     // take the "all spaces" way back to the lobby.
     await user.click(screen.getByRole('button', { name: /Media buyers/ }));
     await user.click(await screen.findByRole('link', { name: 'All spaces' }));
-    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
   });
 
   it('blocks users without a team behind the workspace launch gate', async () => {

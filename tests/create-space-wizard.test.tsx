@@ -53,10 +53,12 @@ describe('create space wizard', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Create your first space' }));
 
-    // Name step: Continue is blocked until a valid name is entered.
-    const continueButton = screen.getByRole('button', { name: 'Continue' });
-    expect(continueButton).toHaveProperty('disabled', true);
-    await user.type(screen.getByLabelText(/Space name/), 'Media buyers');
+    // Name step: a suggested name is there, and Continue is blocked only once it is cleared.
+    const field = screen.getByLabelText(/Space name/) as HTMLInputElement;
+    expect(field.value).toBe('My space');
+    await user.clear(field);
+    expect(screen.getByRole('button', { name: 'Continue' })).toHaveProperty('disabled', true);
+    await user.type(field, 'Media buyers');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Folder step: two inputs in total — the name, and a folder picked in
@@ -76,6 +78,42 @@ describe('create space wizard', () => {
       );
     });
     expect(screen.queryByRole('button', { name: 'Confirm folder' })).toBeNull();
+  });
+
+  it('names the space after its folder when the suggested name is kept', async () => {
+    const client = makeClient({
+      listTeams: vi.fn().mockResolvedValue([]),
+      createTeam: vi
+        .fn()
+        .mockResolvedValue(makeTeam({ id: NEW_ID, name: 'My space', connectionState: 'none' })),
+      pickFolders: vi.fn().mockResolvedValue([picked]),
+      chooseRoot: vi
+        .fn()
+        .mockResolvedValue({ state: 'connected', folder, syncState: 'queued' } as DriveRootResult)
+    });
+    const getConnectionStatus = client.getConnectionStatus;
+    Object.assign(client, {
+      renameTeam: vi.fn().mockResolvedValue('Team media'),
+      getConnectionStatus: vi.fn(async (teamId: string) => ({
+        ...(await getConnectionStatus(teamId)),
+        rootFolderName: 'Team media'
+      }))
+    });
+    const user = userEvent.setup();
+    renderSpace(client);
+
+    await user.click(await screen.findByRole('button', { name: 'Create your first space' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(client.createTeam).toHaveBeenCalledWith('My space');
+    await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
+    await user.click(await screen.findByRole('button', { name: 'Choose folder in Google Drive' }));
+
+    await waitFor(() =>
+      expect(
+        (client as unknown as { renameTeam: ReturnType<typeof vi.fn> }).renameTeam
+      ).toHaveBeenCalledWith(NEW_ID, 'Team media')
+    );
+    expect(await screen.findByRole('heading', { name: 'Team media' })).toBeTruthy();
   });
 
   it('leaves setup where it was when the chooser is closed, and connects on the next pick', async () => {

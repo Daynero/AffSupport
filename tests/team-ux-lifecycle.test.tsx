@@ -107,7 +107,7 @@ describe('invitations in the lobby', () => {
     });
     renderSpace(client);
 
-    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
   });
 });
 
@@ -192,7 +192,7 @@ describe('discarding an unfinished space', () => {
     });
     renderSpace(client);
 
-    await screen.findByRole('heading', { name: 'Choose a space' });
+    await screen.findByRole('heading', { name: 'Your spaces' });
     expect(screen.queryByRole('button', { name: 'Discard this draft' })).toBeNull();
   });
 });

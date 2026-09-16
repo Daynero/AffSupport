@@ -894,6 +894,18 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 - **FR-114**: Search MUST find a file by a word of its note, and the result MUST show the note.
 - **FR-115**: A file downloaded through Soty carries no note and no other Soty metadata, silently.
 
+### Functional Requirements — a space, not a team (US18)
+
+- **FR-116**: The product MUST call the object a space in every string, in both languages; "team" /
+  «команда» appear nowhere in the interface, the invitation email included. The glossary test
+  enforces it over every key.
+- **FR-117**: A space MUST be renamable by its owner from the space's settings; names stay unique
+  among the owner's spaces.
+- **FR-118**: Creating a space MUST offer a suggested name, so the first step is one press; a
+  suggested name left as it was becomes the chosen folder's name once the folder is connected.
+- **FR-119**: The `/team` address stays until Google's brand verification completes; moving it to
+  `/space` with redirects is deferred, because page addresses are frozen during verification.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,

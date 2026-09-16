@@ -707,6 +707,18 @@ processed copy from the attachment, and see all three on the task without it clo
 - [x] T190 [P] [US17] Component tests; walked on the beta (add in the card, open from the row menu,
       find by a word of it).
 
+## Phase 9I: User Story 18 — a space, not a team (Priority: P1)
+
+- [x] T191 [US18] Copy: every "team" / «команда» string becomes the space's own words; the beta gate,
+      lobby, create steps, folder chooser and invitation email describe the work, not a team.
+- [x] T192 [US18] Glossary test forbids "team" / «команда» across every key, with no exception.
+- [x] T193 [US18] Migration `20260917100000_rename_space.sql` (`rename_team`, owner only, unique
+      among the owner's spaces, audited) and the Name section in settings.
+- [x] T194 [US18] Create flow: suggested name, selected; kept, it becomes the folder's name.
+- [x] T195 [US18] Home card icon: three comb cells instead of people.
+- [ ] T196 [US18] After Google verification: `/team` → `/space`, with the old addresses redirected
+      (the Drive OAuth return and invitation links included).
+
 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the

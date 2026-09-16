@@ -412,7 +412,6 @@ export function TeamSpace({
             initialFocus="[data-team-waitlist]"
             onClose={closeWorkspaceGate}
           >
-            <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
             <h2 id={gateTitleId}>{t('teamWorkspaceGateTitle')}</h2>
             <p>{t('teamWorkspaceGateBody')}</p>
             <div className="team-workspace-gate-actions">

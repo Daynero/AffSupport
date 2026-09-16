@@ -51,6 +51,7 @@ const ACTION_LABEL: Readonly<Record<string, TranslationKey>> = {
   'operation.canceled': 'teamAuditOperationCanceled',
   'task.deleted': 'teamAuditTaskDeleted',
   'team.created': 'teamAuditTeamCreated',
+  'team.renamed': 'teamAuditTeamRenamed',
   'team.draft_deleted': 'teamAuditTeamDraftDeleted'
 };
 
