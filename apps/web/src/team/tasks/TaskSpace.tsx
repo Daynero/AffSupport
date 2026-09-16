@@ -4,7 +4,7 @@ import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shar
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
-import { Empty } from '../../components/ui/index';
+import { Empty, Input } from '../../components/ui/index';
 import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
@@ -251,6 +251,25 @@ export function TaskSpace({
     [client, setOpenTask, t, tasks, teamId]
   );
 
+  /** The board's quick-add: a title in, a task out, focus kept for the next. */
+  const [quickTitle, setQuickTitle] = useState('');
+  const quickAddInput = useRef<HTMLInputElement>(null);
+  const quickAdd = useCallback(async () => {
+    const title = quickTitle.trim();
+    if (!title) return;
+    setBusy(true);
+    setError(false);
+    try {
+      await tasks.create({ title, note: null, initialMaterialId: null });
+      setQuickTitle('');
+      quickAddInput.current?.focus();
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  }, [quickTitle, tasks]);
+
   /**
    * Closing the editor. A draft nobody gave anything to is removed rather than
    * left in the list as an empty row somebody has to tidy up later.
@@ -403,6 +422,8 @@ export function TaskSpace({
   });
 
   const allExpanded = tasks.tasks.length > 0 && expandedIds.size >= tasks.tasks.length;
+  // Nothing on the board and nothing filtering it: the empty state speaks.
+  const boardEmpty = !tasks.loading && !tasks.error && tasks.tasks.length === 0 && !filtered;
   const toggleAll = () =>
     setExpandedIds(allExpanded ? new Set() : new Set(tasks.tasks.map(task => task.id)));
 
@@ -435,10 +456,36 @@ export function TaskSpace({
             )}
           </button>
         )}
-        {can('edit') && (
-          <Button type="button" variant="primary" loading={busy} onClick={() => void startTask()}>
-            {t('teamTaskCreate')}
-          </Button>
+        {/* One way to make a task, and it is the fast one (024, FR-090): type
+            what it is and press Enter, and it is on the board; the next one
+            can be typed straight away. The button opens the editor for a task
+            with more to say. Hidden while the empty state below carries the
+            same invitation — two primaries for one act is one too many. */}
+        {can('edit') && !boardEmpty && (
+          <form
+            className="team-task-quick-add"
+            onSubmit={event => {
+              event.preventDefault();
+              void quickAdd();
+            }}
+          >
+            <Input
+              ref={quickAddInput}
+              aria-label={t('teamTaskQuickAdd')}
+              placeholder={t('teamTaskQuickAdd')}
+              value={quickTitle}
+              maxLength={160}
+              onChange={event => setQuickTitle(event.target.value)}
+            />
+            <Button
+              type={quickTitle.trim() ? 'submit' : 'button'}
+              variant="primary"
+              loading={busy}
+              onClick={quickTitle.trim() ? undefined : () => void startTask()}
+            >
+              {t(quickTitle.trim() ? 'teamTaskQuickAddAction' : 'teamTaskCreate')}
+            </Button>
+          </form>
         )}
       </div>
       <TaskFilterBar

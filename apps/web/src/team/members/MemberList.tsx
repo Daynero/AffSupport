@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MoreHorizontal, Users } from 'lucide-react';
+import { DropdownMenu, IconButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type {
   TeamContextSnapshot,
   TeamMemberSummary,
@@ -156,24 +158,29 @@ export function MemberList({
                     >
                       {t('teamMemberEdit')}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      aria-label={t('teamMemberRemoveFor', { name })}
-                      onClick={() => setRemoving(member)}
-                    >
-                      {t('teamMemberRemove')}
-                    </Button>
-                    {isOwner && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        aria-label={t('teamOwnershipTransferFor', { name })}
-                        onClick={() => setTransferring(member)}
-                      >
-                        {t('teamOwnershipTransferAction')}
-                      </Button>
-                    )}
+                    {/* Rare and heavy, so behind "…" (024, FR-097): three bordered
+                        buttons on every member made removing someone look as
+                        ordinary as editing them. */}
+                    <MemberRowMenu
+                      label={t('teamMemberActionsFor', { name })}
+                      items={[
+                        ...(isOwner
+                          ? [
+                              {
+                                id: 'transfer',
+                                label: t('teamOwnershipTransferAction'),
+                                onSelect: () => setTransferring(member)
+                              }
+                            ]
+                          : []),
+                        {
+                          id: 'remove',
+                          label: t('teamMemberRemove'),
+                          destructive: true,
+                          onSelect: () => setRemoving(member)
+                        }
+                      ]}
+                    />
                   </div>
                 )}
               </li>
@@ -260,5 +267,36 @@ export function MemberList({
         />
       )}
     </SettingsSection>
+  );
+}
+
+function MemberRowMenu({
+  label,
+  items
+}: {
+  label: string;
+  items: { id: string; label: string; destructive?: boolean; onSelect: () => void }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <IconButton
+        ref={trigger}
+        size="sm"
+        variant="ghost"
+        label={label}
+        onClick={() => setOpen(true)}
+      >
+        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </IconButton>
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={trigger}
+        label={label}
+        items={items}
+      />
+    </>
   );
 }

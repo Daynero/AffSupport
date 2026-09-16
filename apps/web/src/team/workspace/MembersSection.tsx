@@ -37,7 +37,11 @@ export function MembersSection({
       className="team-space-settings team-members-section"
       aria-labelledby="team-members-title"
     >
-      <h2 id="team-members-title">{t('teamSectionMembers')}</h2>
+      {/* Named for assistive technology only: the list's own title says
+          "Members" one line below, and the tab above says it too (024, FR-096). */}
+      <h2 id="team-members-title" className="visually-hidden">
+        {t('teamSectionMembers')}
+      </h2>
       <div className="team-space-settings-grid">
         <MemberList
           teamId={teamId}

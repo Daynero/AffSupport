@@ -24,13 +24,9 @@ export function CatalogUpdaterChip({
 }) {
   const { t, language } = useI18n();
 
-  if (!state || state.state !== 'running') {
-    return (
-      <a className="team-space-shell-utility-link" href={href} onClick={onNavigate}>
-        {t('catalogUpdaterEntry')}
-      </a>
-    );
-  }
+  // Idle, the updater is a line in the space's menu (024, FR-094); running,
+  // it is news, and says so here.
+  if (!state || state.state !== 'running') return null;
 
   const attention = state.failingCount > 0;
   const catalogs = t(catalogCountKey(language, state.catalogCount), { count: state.catalogCount });

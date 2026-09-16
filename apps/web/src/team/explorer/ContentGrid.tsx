@@ -14,8 +14,8 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { formatDate, formatSize } from '../../format';
 import { DRAG_TYPE, KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
+import { KindNote } from './KindNote';
 import { RowActions, type RowActionsProps } from './RowActions';
-import { ShareButton } from './ShareButton';
 import { useExplorer } from './ExplorerProvider';
 import { MorePages } from './MorePages';
 import { TagDot } from './TagDot';
@@ -301,7 +301,6 @@ function Tile({
       </label>
       {actions && (
         <div className="team-explorer-tile-actions" onClick={event => event.stopPropagation()}>
-          <ShareButton teamId={actions.teamId} row={row} />
           <RowActions {...actions} row={row} />
         </div>
       )}
@@ -316,7 +315,8 @@ function Tile({
             canTag={Boolean(tagging)}
             onChange={color => tagging?.onSetTag(row, color)}
           />
-          {t(KIND_LABEL[row.kind])}
+          {/* A folder's glyph already says "folder" (024, US14). */}
+          {row.kind === 'folder' ? null : t(KIND_LABEL[row.kind])}
           {row.sizeBytes !== null && row.kind !== 'folder' ? ` · ${formatSize(row.sizeBytes)}` : ''}
         </span>
         {row.modifiedAt && (
@@ -327,7 +327,7 @@ function Tile({
             {t(RENDER_LABEL[row.landingRender.state])}
           </span>
         )}
-        {reason && <span className="team-explorer-tile-reason">{t(reason)}</span>}
+        {reason && <KindNote text={t(reason)} />}
       </div>
     </li>
   );

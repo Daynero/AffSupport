@@ -770,7 +770,8 @@ describe('Creative Library task workflows', () => {
       </TeamProvider>
     );
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Create task' }));
+    // An empty board's one way in is its empty state (024, FR-092).
+    await userEvent.click(await screen.findByRole('button', { name: 'Create your first task' }));
     expect(await screen.findByRole('heading', { name: 'Task details' })).toBeTruthy();
     await waitFor(() => expect(api.createTask).toHaveBeenCalledOnce());
 

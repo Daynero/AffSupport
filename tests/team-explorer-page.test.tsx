@@ -293,8 +293,9 @@ describe('ContentList', () => {
     }));
     renderList(listFolderPage);
     await screen.findByText('Items: 4');
-    expect(screen.getByText('Opens in Google Drive, not in Soty.')).toBeTruthy();
-    expect(screen.getByText(/A shortcut/)).toBeTruthy();
+    // Facts about a kind are icons that say them (024, FR-095).
+    expect(screen.getByRole('img', { name: 'Opens in Google Drive, not in Soty.' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /A shortcut/ })).toBeTruthy();
     expect(screen.getByText('Video')).toBeTruthy();
     expect(screen.getByText('Folder')).toBeTruthy();
   });

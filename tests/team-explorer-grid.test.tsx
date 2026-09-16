@@ -121,8 +121,9 @@ describe('ContentGrid', () => {
       ].sort()
     );
     expect(client.mintThumbnailSession).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/would not hand over a thumbnail/)).toBeTruthy();
-    expect(screen.getByText('Opens in Google Drive, not in Soty.')).toBeTruthy();
+    expect(screen.getByRole('img', { name: /would not hand over a thumbnail/ })).toBeTruthy();
+    // A kind's fact is an icon that says it (024, FR-095).
+    expect(screen.getByRole('img', { name: 'Opens in Google Drive, not in Soty.' })).toBeTruthy();
     expect(container.querySelectorAll('img[loading="lazy"]')).toHaveLength(2);
   });
 

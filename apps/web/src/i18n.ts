@@ -1243,6 +1243,7 @@ const en = {
   teamMemberRemoveAction: 'Remove member',
   teamMemberExternalDriveWarning:
     'Direct Google Drive access is managed separately and may remain after removal from Soty.',
+  teamMemberActionsFor: 'More for {name}',
   teamOwnershipTransferFor: 'Transfer ownership to {name}',
   teamOwnershipTransferTitle: 'Transfer ownership of this space',
   teamOwnershipTransferDescription:
@@ -1756,6 +1757,8 @@ const en = {
   teamTaskResultAttached: '{name} is on the task',
   teamTaskResultTakeOff: 'Take off',
   teamTaskEditorMenu: 'Task actions',
+  teamTaskQuickAdd: 'New task — type its name',
+  teamTaskQuickAddAction: 'Add',
   teamTaskAttachments: 'Attached files',
   teamTaskAttachmentsCount: '{count} attachments',
   teamTaskAttachmentsHint: 'Visual references and source files for this task.',
@@ -1960,6 +1963,8 @@ const en = {
   teamToastRestored: 'Restored',
   teamTrashTitle: 'Trash',
   teamTrashEntry: 'Trash',
+  teamSpaceMenu: 'Space',
+  teamSpaceFind: 'Find',
   teamTrashLoading: 'Loading trashed files…',
   teamTrashLoadFailed: 'Could not load the trash. Try again.',
   teamTrashEmpty: 'Nothing has been moved to trash.',
@@ -3861,6 +3866,7 @@ const uk: Record<keyof typeof en, string> = {
   teamMemberRemoveAction: 'Видалити учасника',
   teamMemberExternalDriveWarning:
     'Прямий доступ до Google Drive керується окремо й може залишитися після видалення з Soty.',
+  teamMemberActionsFor: 'Ще для {name}',
   teamOwnershipTransferFor: 'Передати власність {name}',
   teamOwnershipTransferTitle: 'Передати володіння простором',
   teamOwnershipTransferDescription:
@@ -4377,6 +4383,8 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskResultAttached: '{name} тепер у завданні',
   teamTaskResultTakeOff: 'Зняти',
   teamTaskEditorMenu: 'Дії із завданням',
+  teamTaskQuickAdd: 'Нове завдання — введіть назву',
+  teamTaskQuickAddAction: 'Додати',
   teamTaskAttachments: 'Прикріплені медіа',
   teamTaskAttachmentsCount: 'Вкладень: {count}',
   teamTaskAttachmentsHint: 'Візуальні референси та вихідні файли для цього завдання.',
@@ -4576,6 +4584,8 @@ const uk: Record<keyof typeof en, string> = {
   teamToastRestored: 'Відновлено',
   teamTrashTitle: 'Кошик',
   teamTrashEntry: 'Кошик',
+  teamSpaceMenu: 'Простір',
+  teamSpaceFind: 'Знайти',
   teamTrashLoading: 'Завантажуємо файли з кошика…',
   teamTrashLoadFailed: 'Не вдалося завантажити кошик. Спробуйте ще раз.',
   teamTrashEmpty: 'У кошику нічого немає.',

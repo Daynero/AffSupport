@@ -177,16 +177,22 @@ export function StorageChip({
 
   return (
     <>
-      <WorkspaceChip
-        tone={tone}
-        busy={busyState}
-        className="team-storage-chip"
-        label={chipCopy(health, t)}
-        opensDialog
-        onPress={() => setOpen(true)}
-      >
-        {chipCopy(health, t)}
-      </WorkspaceChip>
+      {/* Healthy storage is the default and says nothing (024, FR-094): "storage
+          up to date · 64 hours ago" was the header's permanent first word. The
+          chip speaks when there is something to know; the detail stays one
+          address away (`storage=1`) and in the settings. */}
+      {health.kind !== 'connected' && (
+        <WorkspaceChip
+          tone={tone}
+          busy={busyState}
+          className="team-storage-chip"
+          label={chipCopy(health, t)}
+          opensDialog
+          onPress={() => setOpen(true)}
+        >
+          {chipCopy(health, t)}
+        </WorkspaceChip>
+      )}
       {open && (
         <Modal
           labelledBy={titleId}

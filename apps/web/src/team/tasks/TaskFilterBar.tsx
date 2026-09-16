@@ -163,7 +163,6 @@ export function TaskFilterBar({
             >
               <SlidersHorizontal size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
               <span>{t('teamTasksMoreFilters')}</span>
-              {chips.length > 0 && <span className="ui-chip">{chips.length}</span>}
             </button>
             <Popover
               open={filtersOpen}
@@ -177,7 +176,9 @@ export function TaskFilterBar({
               {(accounts.length > 0 || scope.kind !== 'all') && (
                 <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
               )}
-              {(members.length > 0 || assignee.kind !== 'all') && (
+              {/* A space of one has nobody to filter by (024, FR-089); a filter
+                  already in force stays visible, so it can be taken off. */}
+              {(members.length > 1 || assignee.kind !== 'all') && (
                 <TaskAssigneeFilter
                   members={members}
                   value={assignee}
@@ -191,11 +192,7 @@ export function TaskFilterBar({
                   onChange={onLabelIdsChange}
                 />
               )}
-              <TaskSortControl
-                value={sort}
-                onChange={onSortChange}
-                hasLabels={labels.length > 0}
-              />
+              <TaskSortControl value={sort} onChange={onSortChange} hasLabels={labels.length > 0} />
             </Popover>
           </div>
           {trailing}

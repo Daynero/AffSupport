@@ -46,7 +46,9 @@ describe('content-first workspace shell', () => {
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
 
     // It is one click away behind the single "Space settings" entry.
-    await user.click(screen.getByRole('link', { name: 'Space settings' }));
+    // The space's surfaces live in its menu (024, FR-094).
+    await user.click(screen.getByRole('button', { name: 'Space' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
     expect(await screen.findByRole('heading', { name: 'Google Drive storage' })).toBeTruthy();
   });
 

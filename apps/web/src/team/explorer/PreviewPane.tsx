@@ -162,19 +162,17 @@ export function PreviewPane({
                 {t(`teamExplorerThumbnail_${row.previewReason}` as never)}
               </p>
             )}
-            {row.kind === 'landing' &&
-              row.landingRender &&
-              row.landingRender.state !== 'ready' && (
-                <p className="team-explorer-tile-reason">
-                  {t(
-                    row.landingRender.state === 'rendering'
-                      ? 'teamExplorerRenderRendering'
-                      : row.landingRender.state === 'failed'
-                        ? 'teamExplorerRenderFailed'
-                        : 'teamExplorerRenderNone'
-                  )}
-                </p>
-              )}
+            {row.kind === 'landing' && row.landingRender && row.landingRender.state !== 'ready' && (
+              <p className="team-explorer-tile-reason">
+                {t(
+                  row.landingRender.state === 'rendering'
+                    ? 'teamExplorerRenderRendering'
+                    : row.landingRender.state === 'failed'
+                      ? 'teamExplorerRenderFailed'
+                      : 'teamExplorerRenderNone'
+                )}
+              </p>
+            )}
           </>
         }
         actions={
@@ -199,24 +197,27 @@ export function PreviewPane({
               onDownloadRestitched ? () => onDownloadRestitched(row) : undefined
             }
             onDelete={onDelete ? () => onDelete(row) : undefined}
-            onTranscribe={onTranscribe ? () => onTranscribe(row) : undefined}
+            /* Not `transcribe` here (024, FR-093): the text section below
+               offers it, with the original and the translation to choose
+               from, and a second "make text" icon above it was the same
+               press twice. */
           />
         }
       />
       {/*
-        * The catalog block that used to stand here is gone (024): "Product
-        * catalog" is in the action list, and the dialog it opens already
-        * offers the one that exists as well as a new one, so the block was a
-        * second vocabulary for something the registry names.
-        *
-        * The text block stays, and deliberately. It is the one surface that
-        * can do something the menu cannot: choose *which* text — the original
-        * or a translation — and read it. A menu item that copies "the text"
-        * is right on a task tile and in a search result, where there is one
-        * press and no room for a question; here there is room for the
-        * question, so the pane asks it and does not also offer the shortcut.
-        * `copyText` is left unwired in `PaneActions` for exactly that reason.
-        */}
+       * The catalog block that used to stand here is gone (024): "Product
+       * catalog" is in the action list, and the dialog it opens already
+       * offers the one that exists as well as a new one, so the block was a
+       * second vocabulary for something the registry names.
+       *
+       * The text block stays, and deliberately. It is the one surface that
+       * can do something the menu cannot: choose *which* text — the original
+       * or a translation — and read it. A menu item that copies "the text"
+       * is right on a task tile and in a search result, where there is one
+       * press and no room for a question; here there is room for the
+       * question, so the pane asks it and does not also offer the shortcut.
+       * `copyText` is left unwired in `PaneActions` for exactly that reason.
+       */}
       {row.category === 'video' && onTranscribe && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>

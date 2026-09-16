@@ -520,7 +520,9 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
             </p>
           )}
         </div>
-        {canEdit && (
+        {/* While the list is empty the empty state carries this same invitation;
+            two primaries for one act is one too many (024, FR-092). */}
+        {canEdit && !listEmpty && (
           <Button type="button" variant="primary" data-account-create="true" onClick={startCreate}>
             <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('teamAccountsCreate')}
@@ -531,91 +533,94 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       {/* The search and the occupancy filter share one row, as the task filters
           do. The pills are the task filter's pills — same class, so the two
           toolbars cannot drift — with a count on each. */}
-      <div className="team-accounts-toolbar">
-        <label className="team-accounts-search">
-          <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          <input
-            type="search"
-            value={search}
-            aria-label={t('teamAccountsSearchLabel')}
-            placeholder={t('teamAccountsSearchPlaceholder')}
-            onChange={event => setSearch(event.target.value)}
-          />
-          {search !== '' && (
-            <IconButton
-              label={t('teamAccountsClearField')}
-              tabIndex={-1}
-              onClick={() => setSearch('')}
-            >
-              <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </IconButton>
-          )}
-        </label>
-        {/* The chips have always counted agents, never accounts; now they say
-            so out loud rather than only to a screen reader. */}
-        <div className="team-accounts-toolbar-end">
-          <div
-            className="team-accounts-occupancy"
-            role="group"
-            aria-label={t('teamAccountsFilterLabel')}
-          >
-            <span className="team-accounts-occupancy-label" aria-hidden="true">
-              {t('teamAccountsFilterInline')}
-            </span>
-            {OCCUPANCY.map(value => (
-              <button
-                key={value}
-                type="button"
-                className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
-                aria-pressed={occupancy === value}
-                onClick={() => setOccupancy(value)}
+      {/* Nothing to search or filter yet: no toolbar of zeros over the invitation. */}
+      {!listEmpty && (
+        <div className="team-accounts-toolbar">
+          <label className="team-accounts-search">
+            <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <input
+              type="search"
+              value={search}
+              aria-label={t('teamAccountsSearchLabel')}
+              placeholder={t('teamAccountsSearchPlaceholder')}
+              onChange={event => setSearch(event.target.value)}
+            />
+            {search !== '' && (
+              <IconButton
+                label={t('teamAccountsClearField')}
+                tabIndex={-1}
+                onClick={() => setSearch('')}
               >
-                {value !== 'all' && (
-                  <span className="team-accounts-occupancy-dot" aria-hidden="true" />
-                )}
-                <span>{occupancyLabel(value)}</span>
-                <b>{occupancyCount(value)}</b>
-              </button>
-            ))}
-          </div>
-          {/* The colours, behind one control: they are the filter reached for
+                <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </IconButton>
+            )}
+          </label>
+          {/* The chips have always counted agents, never accounts; now they say
+            so out loud rather than only to a screen reader. */}
+          <div className="team-accounts-toolbar-end">
+            <div
+              className="team-accounts-occupancy"
+              role="group"
+              aria-label={t('teamAccountsFilterLabel')}
+            >
+              <span className="team-accounts-occupancy-label" aria-hidden="true">
+                {t('teamAccountsFilterInline')}
+              </span>
+              {OCCUPANCY.map(value => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
+                  aria-pressed={occupancy === value}
+                  onClick={() => setOccupancy(value)}
+                >
+                  {value !== 'all' && (
+                    <span className="team-accounts-occupancy-dot" aria-hidden="true" />
+                  )}
+                  <span>{occupancyLabel(value)}</span>
+                  <b>{occupancyCount(value)}</b>
+                </button>
+              ))}
+            </div>
+            {/* The colours, behind one control: they are the filter reached for
             least, and four more chips in this row pushed the fold onto a line
             of its own. Clearing every marker in the space lives in the same
             menu — it is the only other thing on this screen about markers. */}
-          <MarkerFilter
-            value={marker}
-            counts={counts.markers}
-            total={counts.agents}
-            marked={markedRuns}
-            canEdit={canEdit}
-            onChange={setMarker}
-            onClearAll={() => void clearMarkers()}
-          />
-          {/* The fold, for the whole list: with four accounts open the fourth
+            <MarkerFilter
+              value={marker}
+              counts={counts.markers}
+              total={counts.agents}
+              marked={markedRuns}
+              canEdit={canEdit}
+              onChange={setMarker}
+              onClearAll={() => void clearMarkers()}
+            />
+            {/* The fold, for the whole list: with four accounts open the fourth
             one's rows are a screen away, and folding them one at a time is
             four presses to see what is on the page. */}
-          {visible.length > 0 && (
-            <button
-              type="button"
-              className="team-accounts-fold-all"
-              aria-expanded={!allCollapsed}
-              onClick={() =>
-                toggleAll(
-                  visible.map(account => account.id),
-                  !allCollapsed
-                )
-              }
-            >
-              {allCollapsed ? (
-                <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              ) : (
-                <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              )}
-              <span>{t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}</span>
-            </button>
-          )}
+            {visible.length > 0 && (
+              <button
+                type="button"
+                className="team-accounts-fold-all"
+                aria-expanded={!allCollapsed}
+                onClick={() =>
+                  toggleAll(
+                    visible.map(account => account.id),
+                    !allCollapsed
+                  )
+                }
+              >
+                {allCollapsed ? (
+                  <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                ) : (
+                  <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                )}
+                <span>{t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {accounts.loading && accounts.accounts.length === 0 && (
         <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />

@@ -41,7 +41,7 @@ function show(
 }
 
 describe('StorageChip', () => {
-  it('reads as up to date, indexing, preparing or waiting with live counts', () => {
+  it('reads as indexing, preparing or waiting with live counts, and is quiet when up to date', () => {
     show({ kind: 'indexing', indexedFolders: 3, totalFolders: 12, files: 40 });
     expect(
       screen.getByRole('button', { name: /Indexing · 3 of 12 folders · 40 files/ })
@@ -53,8 +53,9 @@ describe('StorageChip', () => {
     show({ kind: 'waiting_provider', since: new Date().toISOString() });
     expect(screen.getByRole('button', { name: 'Waiting for Google Drive…' })).toBeTruthy();
     cleanup();
+    // Healthy is the default and says nothing (024, FR-094).
     show({ kind: 'connected', lastReconciledAt: new Date().toISOString() });
-    expect(screen.getByRole('button', { name: 'Storage up to date · just now' })).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('lets the owner reconnect from the detail and tells a member who can', async () => {

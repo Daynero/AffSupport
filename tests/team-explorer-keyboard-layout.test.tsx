@@ -118,7 +118,8 @@ describe('explorer keyboard', () => {
   it('follows the selected row in the pane', async () => {
     renderShell(makeClient([row(1)]));
     await screen.findByText('file-1.png');
-    expect(screen.getByText('Select a file to see it here.')).toBeTruthy();
+    // Nothing selected, no pane: the list has the width (024, FR-091).
+    expect(screen.queryByRole('complementary', { name: 'Selected item' })).toBeNull();
     fireEvent.click(document.querySelector('.team-explorer-row')!);
     await waitFor(() =>
       expect(screen.getByRole('complementary', { name: 'Selected item' }).textContent).toContain(

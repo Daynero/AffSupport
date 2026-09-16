@@ -38,7 +38,9 @@ describe('space settings surface', () => {
 
     await screen.findByRole('heading', { name: 'Media buyers' });
     // Action 1 (entering the space) is the cached open; action 2 opens settings.
-    await user.click(screen.getByRole('link', { name: 'Space settings' }));
+    // The space's surfaces live in its menu (024, FR-094).
+    await user.click(screen.getByRole('button', { name: 'Space' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
 
     expect(await screen.findByRole('heading', { name: 'Google Drive storage' })).toBeTruthy();
     // The history is a room of its own now, one tab away.
@@ -56,7 +58,9 @@ describe('space settings surface', () => {
     renderEnteredSpace(client, team.id);
 
     await screen.findByRole('heading', { name: 'Media buyers' });
-    await user.click(screen.getByRole('link', { name: 'Space settings' }));
+    // The space's surfaces live in its menu (024, FR-094).
+    await user.click(screen.getByRole('button', { name: 'Space' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
     await screen.findByRole('heading', { name: 'Space settings' });
 
     // Drive connection (owner) and audit (owner/admin) are not shown to a viewer.
@@ -102,7 +106,9 @@ describe('space settings surface', () => {
     renderEnteredSpace(client, disconnectedTeam.id, client);
 
     await screen.findByRole('heading', { name: 'Media buyers' });
-    await user.click(screen.getByRole('link', { name: 'Space settings' }));
+    // The space's surfaces live in its menu (024, FR-094).
+    await user.click(screen.getByRole('button', { name: 'Space' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
     await user.click(await screen.findByRole('button', { name: 'Connect Google Drive' }));
     // No server-side browse and nothing to confirm: pick, and it is connected.
     await user.click(await screen.findByRole('button', { name: 'Choose folder in Google Drive' }));
@@ -132,7 +138,9 @@ describe('space settings surface', () => {
     renderEnteredSpace(client, team.id);
 
     await screen.findByRole('heading', { name: 'Media buyers' });
-    await user.click(screen.getByRole('link', { name: 'Space settings' }));
+    // The space's surfaces live in its menu (024, FR-094).
+    await user.click(screen.getByRole('button', { name: 'Space' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
     await user.click(await screen.findByRole('button', { name: 'Sync now' }));
 
     expect(resyncDrive).toHaveBeenCalledWith(team.id);
@@ -185,7 +193,9 @@ describe('space settings surface', () => {
       renderEnteredSpace(client, team.id);
 
       await screen.findByRole('heading', { name: 'Media buyers' });
-      await user.click(screen.getByRole('link', { name: 'Space settings' }));
+      // The space's surfaces live in its menu (024, FR-094).
+      await user.click(screen.getByRole('button', { name: 'Space' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
       await user.click(await screen.findByRole('button', { name: 'Sync now' }));
 
       expect(resyncDrive).toHaveBeenCalledWith(team.id);

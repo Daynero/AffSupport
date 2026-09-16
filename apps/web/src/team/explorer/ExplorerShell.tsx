@@ -1131,7 +1131,10 @@ function ExplorerBody({
        * column that needed them — the search results were folding their actions
        * under every hit for want of that width.
        */
-      className={`team-panel team-explorer${trash || searching ? '' : ' has-pane'}${
+      /* The detail pane arrives with a selection (024, FR-091). At rest it was a
+         third of the width saying "choose a file to see it here", and the list
+         cut its own last column to make room for that sentence. */
+      className={`team-panel team-explorer${trash || searching || !focused ? '' : ' has-pane'}${
         treeOpen ? ' is-tree-open' : ''
       }`}
     >
@@ -1497,7 +1500,7 @@ function ExplorerBody({
         )}
         {dropping && <p className="team-explorer-muted">{t('teamExplorerDropHint')}</p>}
       </div>
-      {!trash && !searching && (
+      {!trash && !searching && focused && (
         <PreviewPane
           row={focused}
           client={client}

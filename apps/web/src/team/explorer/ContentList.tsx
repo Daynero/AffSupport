@@ -20,8 +20,8 @@ import { useExplorer } from './ExplorerProvider';
 import { MorePages } from './MorePages';
 import type { FolderPageState } from './useFolderPage';
 import { KindIcon } from './KindIcon';
+import { KindNote } from './KindNote';
 import { RowActions, type RowActionsProps } from './RowActions';
-import { ShareButton } from './ShareButton';
 import { TagDot } from './TagDot';
 
 /** Setting a tag is the space owner's; everyone else is handed nothing. */
@@ -265,6 +265,9 @@ function Row({
         >
           {row.name}
         </button>
+        {/* A fact about the kind, not about this file: an icon that says it on
+            hover and focus, rather than a second line under every such row. */}
+        {reason && <KindNote text={t(reason)} />}
       </TableCell>
       <TableCell className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</TableCell>
       <TableCell className="team-explorer-row-date">
@@ -284,11 +287,12 @@ function Row({
       </TableCell>
       {actions && (
         <TableCell className="team-explorer-row-actions" onClick={event => event.stopPropagation()}>
-          <ShareButton teamId={actions.teamId} row={row} />
+          {/* Share lives in the menu beside copy-link (024, FR-093): a share
+              icon next to a "…" that also shares was the same action twice on
+              every row. */}
           <RowActions {...actions} row={row} />
         </TableCell>
       )}
-      {reason && <TableCell className="team-explorer-row-reason">{t(reason)}</TableCell>}
     </TableRow>
   );
 }

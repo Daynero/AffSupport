@@ -3,7 +3,10 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { PaletteHost } from '../palette/PaletteHost';
 import { ShortcutSheet } from '../palette/ShortcutSheet';
-import { matches } from '../palette/shortcuts';
+import { formatShortcut, matches, shortcutOf } from '../palette/shortcuts';
+import { ChevronDown, Keyboard, RefreshCw, Search, Settings, Trash2 } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { DropdownMenu } from '../../components/ui/index';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
@@ -183,6 +186,8 @@ export function WorkspaceShell({
   }, [health?.kind, refreshHealth]);
   const [batchSelectionOpen, setBatchSelectionOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
+  const spaceMenuTrigger = useRef<HTMLButtonElement>(null);
   /** Which materials the batch is about; empty is the whole space. */
   const [batchSources, setBatchSources] = useState<string[]>([]);
   /* The same set said in words, for the window's title. The explorer knows
@@ -524,83 +529,141 @@ export function WorkspaceShell({
           onChanged={() => setBrowserRevision(value => value + 1)}
         >
           <section className="team-space-shell" aria-labelledby="team-space-shell-title">
-            <header className="team-space-shell-header">
-              <div className="team-space-shell-identity">
-                <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
-                <SpaceSwitcher
-                  activeTeam={activeTeam}
-                  teams={teams}
-                  headingId="team-space-shell-title"
-                />
-              </div>
-              <div className="team-space-shell-utilities">
-                {activeTeam && (
-                  <StorageChip
-                    teamId={teamId}
-                    health={health}
-                    client={client}
-                    isOwner={activeTeam.role === 'owner'}
-                    canManage={activeTeam.role === 'owner' || activeTeam.role === 'admin'}
-                    settingsHref={explorerRoute({ settings: true })}
-                    onRefresh={refreshHealth}
-                    open={Boolean(query?.storage)}
-                    onOpenChange={next => navigateTo(hereRoute({ storage: next }), !next)}
+            {/* The space's chrome on its own ground (024, US14): the name, the
+                sections and the utilities sat straight on the hexagon field,
+                and a lit cell swallowed whatever crossed it. */}
+            <div className="team-space-shell-chrome">
+              <header className="team-space-shell-header">
+                <div className="team-space-shell-identity">
+                  <SpaceSwitcher
+                    activeTeam={activeTeam}
+                    teams={teams}
+                    headingId="team-space-shell-title"
                   />
-                )}
-                <RealtimeChip />
-                <BackgroundWorkChip
-                  /* The chip only appears while a batch is running, so opening it
+                </div>
+                <div className="team-space-shell-utilities">
+                  {activeTeam && (
+                    <StorageChip
+                      teamId={teamId}
+                      health={health}
+                      client={client}
+                      isOwner={activeTeam.role === 'owner'}
+                      canManage={activeTeam.role === 'owner' || activeTeam.role === 'admin'}
+                      settingsHref={explorerRoute({ settings: true })}
+                      onRefresh={refreshHealth}
+                      open={Boolean(query?.storage)}
+                      onOpenChange={next => navigateTo(hereRoute({ storage: next }), !next)}
+                    />
+                  )}
+                  <RealtimeChip />
+                  <BackgroundWorkChip
+                    /* The chip only appears while a batch is running, so opening it
                    must show *that* batch. Resetting the scope here retitled a
                    folder run "the whole space" and widened what a second press
                    of Start would touch. */
-                  onOpen={() => navigateTo(hereRoute({ process: true }))}
-                />
-                {/* Trash and settings are the space's own surfaces: real links
-              with their own addresses, so Back closes them and a pasted link
-              opens them (011) — and reachable from every section rather than
-              only from Files, which is where a file you deleted from a task
-              actually went (024, FR-046). */}
-                <a
-                  className="team-space-shell-utility-link"
-                  href={explorerRoute({ trash: true })}
-                  aria-current={query?.trash ? 'page' : undefined}
-                  onClick={event => internalLink(event, explorerRoute({ trash: true }))}
-                >
-                  {t('teamTrashEntry')}
-                </a>
-                <CatalogUpdaterChip
-                  state={catalogUpdater.state}
-                  offsetMs={catalogUpdater.offsetMs}
-                  href={explorerRoute({ updater: true })}
-                  onNavigate={event => internalLink(event, explorerRoute({ updater: true }))}
-                />
-                <a
-                  className="team-space-shell-utility-link"
-                  href={explorerRoute({ settings: true })}
-                  aria-current={query?.settings ? 'page' : undefined}
-                  onClick={event => internalLink(event, explorerRoute({ settings: true }))}
-                >
-                  {t('teamSpaceSettings')}
-                </a>
-              </div>
-            </header>
+                    onOpen={() => navigateTo(hereRoute({ process: true }))}
+                  />
+                  <CatalogUpdaterChip
+                    state={catalogUpdater.state}
+                    offsetMs={catalogUpdater.offsetMs}
+                    href={explorerRoute({ updater: true })}
+                    onNavigate={event => internalLink(event, explorerRoute({ updater: true }))}
+                  />
+                  {/* One way in, said on screen (024, FR-094): the palette had
+                    only a chord, which is a feature for whoever read the code. */}
+                  <button
+                    type="button"
+                    className="team-space-shell-utility-link team-space-shell-find"
+                    aria-label={`${t('teamSpaceFind')} (${formatShortcut(shortcutOf('palette')!.keys)})`}
+                    onClick={() => navigateTo(explorerRoute({ palette: true }), true)}
+                  >
+                    <Search size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    {t('teamSpaceFind')}
+                    <kbd>{formatShortcut(shortcutOf('palette')!.keys)}</kbd>
+                  </button>
+                  {/* The space's own surfaces, in one menu (024, FR-094). Three
+                    links and a chip were the header's loudest row, and each of
+                    them is visited rarely. Trash, the updater and the settings
+                    still have addresses, so Back closes them and a pasted link
+                    opens them (011); they ride over whatever section is open
+                    (FR-045). */}
+                  <button
+                    ref={spaceMenuTrigger}
+                    type="button"
+                    className="team-space-shell-utility-link"
+                    aria-haspopup="menu"
+                    aria-expanded={spaceMenuOpen}
+                    onClick={() => setSpaceMenuOpen(true)}
+                  >
+                    {t('teamSpaceMenu')}
+                    <ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </button>
+                  <DropdownMenu
+                    open={spaceMenuOpen}
+                    onClose={() => setSpaceMenuOpen(false)}
+                    anchor={spaceMenuTrigger}
+                    label={t('teamSpaceMenu')}
+                    items={[
+                      {
+                        id: 'settings',
+                        label: t('teamSpaceSettings'),
+                        icon: (
+                          <Settings size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                        ),
+                        onSelect: () => navigateTo(explorerRoute({ settings: true }))
+                      },
+                      {
+                        id: 'updater',
+                        label: t('catalogUpdaterEntry'),
+                        icon: (
+                          <RefreshCw
+                            size={ICON_SIZE}
+                            strokeWidth={ICON_STROKE}
+                            aria-hidden="true"
+                          />
+                        ),
+                        onSelect: () => navigateTo(explorerRoute({ updater: true }))
+                      },
+                      {
+                        id: 'trash',
+                        label: t('teamTrashEntry'),
+                        icon: (
+                          <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                        ),
+                        onSelect: () => navigateTo(explorerRoute({ trash: true }))
+                      },
+                      'separator',
+                      {
+                        id: 'shortcuts',
+                        label: t('shortcutSheet'),
+                        icon: (
+                          <Keyboard size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                        ),
+                        trailing: formatShortcut(shortcutOf('shortcuts')!.keys),
+                        onSelect: () => setShortcutsOpen(true)
+                      }
+                    ]}
+                  />
+                </div>
+              </header>
 
-            {/* Real links, not toggles: middle-click, copy-link and Back all work,
+              {/* Real links, not toggles: middle-click, copy-link and Back all work,
           and the active one is announced rather than merely coloured. The strip
           is the inventory's (021, T082), which grew the address variant for
           exactly this. */}
-            <Tabs
-              className="team-space-tabs"
-              label={t('teamSectionsNavLabel')}
-              value={section}
-              onChange={next => navigateTo(sectionRoute(next))}
-              onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id))}
-              items={CONTENT_TABS.map(tab => ({
-                id: tab.section,
-                label: t(tab.label),
-                href: sectionRoute(tab.section)
-              }))}
-            />
+              <Tabs
+                className="team-space-tabs"
+                label={t('teamSectionsNavLabel')}
+                value={section}
+                onChange={next => navigateTo(sectionRoute(next))}
+                onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id))}
+                items={CONTENT_TABS.map(tab => ({
+                  id: tab.section,
+                  label: t(tab.label),
+                  href: sectionRoute(tab.section)
+                }))}
+              />
+            </div>
 
             <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
               <div className="team-space-shell-body">

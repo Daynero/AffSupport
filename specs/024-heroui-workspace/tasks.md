@@ -636,20 +636,20 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ## Phase 9D: User Story 14 — calm at rest (Priority: P1)
 
-- [ ] T168 [US14] Files: `has-pane` and the pane only while something is selected.
-- [ ] T169 [US14] Rows and tiles: remove `ShareButton`; the "opens in Google Drive" note becomes
+- [x] T168 [US14] Files: `has-pane` and the pane only while something is selected.
+- [x] T169 [US14] Rows and tiles: remove `ShareButton`; the "opens in Google Drive" note becomes
       an icon with a tooltip; folder tiles drop the "Folder" caption and take a compact size.
-- [ ] T170 [US14] Header: remove the eyebrow; one "Space" `DropdownMenu` (trash, catalog
+- [x] T170 [US14] Header — and, found on the beta, the name, tabs and utilities put on one panel of their own ground, because the tabs vanished over a lit hexagon exactly as the links had: remove the eyebrow; one "Space" `DropdownMenu` (trash, catalog
       updater, settings, shortcuts); a palette trigger with `⌘K` in its tooltip; storage chip
       only for non-healthy states; updater chip only while running.
-- [ ] T171 [US14] Board and Accounts: hide the heading's primary action while the empty state
+- [x] T171 [US14] Board and Accounts: hide the heading's primary action while the empty state
       carries it; Accounts hides its toolbar at zero accounts; the board's filter count badge goes
       (the chips state what is active); the progress toggle gets a visible label.
-- [ ] T172 [US14] Members: one heading (drop `MembersSection`'s duplicate); a member row keeps
+- [x] T172 [US14] Members: one heading (drop `MembersSection`'s duplicate); a member row keeps
       Edit and moves Remove and Transfer into a "…" menu.
-- [ ] T173 [US14] Detail pane: do not wire `transcribe` in `PaneActions` while `VideoTextActions`
+- [x] T173 [US14] Detail pane: do not wire `transcribe` in `PaneActions` while `VideoTextActions`
       is shown.
-- [ ] T174 [P] [US14] Test: `tests/workspace-at-rest.test.tsx` — the empty board, empty accounts,
+- [x] T174 [P] [US14] Test: `tests/workspace-at-rest.test.tsx` — the empty board, empty accounts,
       Files at rest and the header each have at most one primary action and no two controls with
       the same accessible name.
 
@@ -657,12 +657,12 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ## Phase 9E: User Story 13 — solo is not a smaller team (Priority: P2)
 
-- [ ] T175 [US13] `solo = members.length <= 1` from the loaded member list; hide the assignee
+- [x] T175 [US13] `solo = members.length <= 1` from the loaded member list; hide the assignee
       select, the invite button and the assignee filter while solo; they appear live with a
       second member.
-- [ ] T176 [US13] Board quick-add: a field in the board heading; Enter creates a task with that
+- [x] T176 [US13] Board quick-add: a field in the board heading; Enter creates a task with that
       title, does not open the editor, clears, keeps focus.
-- [ ] T177 [P] [US13] Test: `tests/task-solo.test.tsx` — no assignee/invite controls with one
+- [x] T177 [P] [US13] Test (written into `tests/workspace-at-rest.test.tsx`, beside T174's): `tests/task-solo.test.tsx` — no assignee/invite controls with one
       member, present with two; quick-add creates three tasks by typing.
 
 ---

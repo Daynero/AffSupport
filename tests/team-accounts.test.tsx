@@ -284,7 +284,10 @@ describe('reading the list', () => {
   it('says so when there are no accounts, and offers to add one', async () => {
     render(client([]));
     expect(await screen.findByText('No accounts yet')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Add account' })).toHaveLength(2);
+    // One invitation, not two (024, FR-092): the heading's button and the empty
+    // state's were the same press, and there is no toolbar of zeros over it.
+    expect(screen.getAllByRole('button', { name: 'Add account' })).toHaveLength(1);
+    expect(document.querySelector('.team-accounts-toolbar')).toBeNull();
   });
 });
 

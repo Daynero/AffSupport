@@ -100,7 +100,9 @@ describe('guided team space workspace', () => {
 
       // Management lives behind a single "Space settings" entry — a link now, so
       // it is addressable and can be opened in a new tab.
-      await user.click(screen.getByRole('link', { name: 'Space settings' }));
+      // The space's surfaces live in its menu (024, FR-094).
+      await user.click(screen.getByRole('button', { name: 'Space' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
       // Members exist once (024): the settings no longer carry a second copy.
       expect(await screen.findByRole('tab', { name: 'General' })).toBeTruthy();
       expect(screen.queryByRole('tab', { name: 'People' })).toBeNull();

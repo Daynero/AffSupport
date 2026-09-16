@@ -89,7 +89,10 @@ function open(onDelete?: () => Promise<void>) {
         <TaskEditor
           teamId={TEAM_ID}
           task={task()}
-          members={[]}
+          members={[
+            { userId: 'u1', displayName: 'Olena', email: null } as never,
+            { userId: 'u2', displayName: 'Taras', email: null } as never
+          ]}
           canEdit
           client={client() as never}
           onClose={vi.fn()}

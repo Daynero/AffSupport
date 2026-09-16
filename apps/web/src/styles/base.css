@@ -122,6 +122,16 @@ canvas {
   max-width: 100%;
 }
 
+/* An icon set in a line of text stays in the line (024). The rule above makes
+   every svg a block, which is right for a picture and wrong for a glyph beside
+   a word: a "Filters" button drew its sliders over the word instead of before
+   it. In a flex or grid parent the display is moot, so only the inline cases
+   change. */
+svg.lucide {
+  display: inline-block;
+  vertical-align: -0.125em;
+}
+
 button,
 input,
 select,

@@ -8482,6 +8482,20 @@ body:has(.public-home) {
   border-bottom: 1px solid var(--color-border);
   scrollbar-width: thin;
 }
+.team-space-shell-chrome {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-3) var(--space-5) 0;
+}
+/* The panel's own edge closes the strip; a second rule under it doubled it. */
+.team-space-shell-chrome > .team-space-tabs {
+  border-bottom: 0;
+}
 .team-space-tabs .ui-tab {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-label);
@@ -13479,6 +13493,16 @@ button.team-landing-tile:hover {
 /* A folder has no picture to show, so it does not need a picture's worth of
    height: full-size preview boxes full of the same glyph made a folder list
    scroll for no reason. */
+/* A folder is a place to go into, not a picture to look at: a short tile, so a
+   folder full of folders reads as a list of places rather than a wall of the
+   same purple glyph (024, US14). */
+.team-explorer-tile.is-folder .team-explorer-tile-visual {
+  aspect-ratio: 5 / 2;
+}
+/* …and it keeps its own height when a file beside it is taller. */
+.team-explorer-tile.is-folder {
+  align-self: start;
+}
 .team-explorer-tile.is-folder .team-explorer-tile-icon .team-kind-icon {
   color: var(--color-accent);
 }
@@ -14409,6 +14433,9 @@ button.team-landing-tile:hover {
   gap: var(--space-1);
 }
 .task-quick-range {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   min-height: 32px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
@@ -17276,4 +17303,50 @@ input[type='number'] {
 }
 .team-explorer-back-to-task:hover {
   background: var(--color-accent-softer);
+}
+
+/* A kind's fact as a quiet mark beside the name (024, FR-095). */
+.team-explorer-kind-note {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: var(--space-1);
+  color: var(--color-text-muted);
+  vertical-align: -0.125em;
+  cursor: help;
+}
+.team-explorer-kind-note:focus-visible {
+  outline: 2px solid var(--color-focus);
+  border-radius: var(--radius-full);
+}
+
+/* The palette's visible door (024, FR-094): a word, a glass, and the chord. */
+.team-space-shell-find,
+.team-space-shell-utilities button.team-space-shell-utility-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: inherit;
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+.team-space-shell-find kbd {
+  font-family: inherit;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+/* The board's quick-add (024, FR-090): the field grows, the button does not. */
+.team-task-quick-add {
+  display: flex;
+  flex: 1 1 18rem;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 32rem;
+  margin-left: auto;
+}
+.team-task-quick-add > .ui-input,
+.team-task-quick-add > input {
+  flex: 1 1 auto;
+  min-width: 0;
 }
