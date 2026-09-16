@@ -7,6 +7,19 @@ import type { MaterialActionId } from './actions';
 import type { MaterialActionList } from './useMaterialActionList';
 
 /**
+ * "Catalog", or "Catalogs: 2": the product catalog named in words wherever it is inline (024).
+ * As a clipboard glyph between an eye and "…" nobody read it as the catalog.
+ */
+export function catalogActionWords(
+  count: number | undefined,
+  t: ReturnType<typeof useI18n>['t']
+): string {
+  return (count ?? 0) > 1
+    ? t('materialActionProductCatalogs', { count: count ?? 0 })
+    : t('productCatalogMenuEntry');
+}
+
+/**
  * The two or three things this surface is for, and one door to the rest.
  *
  * The rule the tile broke: past four icons nobody reads them. Which ones are

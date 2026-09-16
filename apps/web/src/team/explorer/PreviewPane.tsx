@@ -111,6 +111,7 @@ export function PreviewPane({
   // file rather than a missing preview.
   // One file is in focus here, so what lives beside it is worth two requests.
   // Read once, in the pane, and handed to both the card and the actions.
+  const [madeRevision, setMadeRevision] = useState(0);
   const companions = useMaterialCompanions(
     {
       id: row?.id ?? '',
@@ -118,7 +119,7 @@ export function PreviewPane({
       kind: row?.kind === 'folder' ? 'folder' : 'file',
       category: row?.category ?? null
     },
-    { enabled: Boolean(row), revision }
+    { enabled: Boolean(row), revision: revision + madeRevision }
   );
 
   if (!row) {
@@ -184,6 +185,7 @@ export function PreviewPane({
             browseClient={browseClient}
             onChanged={onChanged}
             companions={companions}
+            onCompanionsChanged={() => setMadeRevision(value => value + 1)}
             onOpen={
               onOpen && PREVIEWABLE_KINDS.has(row.kind)
                 ? () => onOpen(previewSummary(row))

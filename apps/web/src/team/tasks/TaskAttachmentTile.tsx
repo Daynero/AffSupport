@@ -11,7 +11,7 @@ import type {
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
-import { MaterialInlineActions } from '../materials/MaterialInlineActions';
+import { catalogActionWords, MaterialInlineActions } from '../materials/MaterialInlineActions';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
 import { useMaterialCompanions } from '../materials/useMaterialCompanions';
@@ -501,14 +501,7 @@ export function TaskAttachmentTile({
           }
           done={copied ? 'copyLink' : null}
           size="sm"
-          worded={{
-            productCatalog:
-              (companions?.productCatalog?.count ?? 0) > 1
-                ? t('materialActionProductCatalogs', {
-                    count: companions?.productCatalog?.count ?? 0
-                  })
-                : t('productCatalogMenuEntry')
-          }}
+          worded={{ productCatalog: catalogActionWords(companions?.productCatalog?.count, t) }}
           className="team-task-attachment-actions"
         />
         {actionFailed && (

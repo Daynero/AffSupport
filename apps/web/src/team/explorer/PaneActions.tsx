@@ -3,6 +3,7 @@ import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
 import { useState } from 'react';
+import { useI18n } from '../../i18n';
 import {
   spaceOf,
   type ActionContext,
@@ -10,7 +11,7 @@ import {
   type MaterialRef
 } from '../materials/actions';
 import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
-import { MaterialInlineActions } from '../materials/MaterialInlineActions';
+import { catalogActionWords, MaterialInlineActions } from '../materials/MaterialInlineActions';
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
@@ -38,6 +39,7 @@ export function PaneActions({
   onTranscribe,
   browseClient,
   onChanged,
+  onCompanionsChanged,
   companions
 }: {
   row: TeamMaterialRow;
@@ -55,7 +57,10 @@ export function PaneActions({
   onTranscribe?: () => void;
   /** Read once by the pane and handed down, so it is not read twice. */
   companions?: MaterialCompanions;
+  /** Something was made beside this file — a catalog — so the pane reads its companions again. */
+  onCompanionsChanged?: () => void;
 }) {
+  const { t } = useI18n();
   const [catalogOpen, setCatalogOpen] = useState(false);
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, teamId);
@@ -112,13 +117,19 @@ export function PaneActions({
 
   return (
     <>
-      <MaterialInlineActions list={list} name={row.name} className="team-explorer-pane-icons" />
+      <MaterialInlineActions
+        list={list}
+        name={row.name}
+        worded={{ productCatalog: catalogActionWords(companions?.productCatalog?.count, t) }}
+        className="team-explorer-pane-icons"
+      />
       {host.dialogs}
       {catalogOpen && (
         <ProductCatalogMenuDialog
           teamId={teamId}
           video={{ id: row.id, name: row.name }}
           onClose={() => setCatalogOpen(false)}
+          onChanged={onCompanionsChanged}
         />
       )}
     </>
