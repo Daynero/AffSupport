@@ -56,6 +56,14 @@ The change:
   against production Supabase. Not verified live: the whole sign-in round trip (needs the
   console step), the Drive connect notice on screen.
 
+## Hold: no production deploys until the owner says so
+
+**2026-09-17, owner:** do not deploy anything to production (web or functions) now. The owner is
+making other changes in parallel and will ship everything in one release. Do the console-side
+steps that change nothing for users (1, 2, and reading the client list), then stop and report.
+Steps 3–9 wait for an explicit go-ahead from the owner in chat; each production deploy needs its
+own "так".
+
 ## The order is the safety mechanism
 
 Once `drive-connect` is deployed, every new Drive connection and reconnect sends Google
