@@ -1085,18 +1085,31 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 .workspace-shortcuts dl > div {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
+/* An action is read at label size; its keys are keycaps, one per key, and
+   they carry the row (024, benchmarked on Linear's shortcut sheet). */
+.workspace-shortcuts dt {
+  font-size: var(--text-label);
+}
 .workspace-shortcuts dd {
+  display: inline-flex;
+  gap: var(--space-1);
   margin: 0;
 }
 .workspace-shortcuts kbd {
-  padding: 2px 6px;
-  border: 1px solid var(--color-border);
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
   border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
   font-family: inherit;
-  font-size: var(--text-micro);
+  font-size: var(--text-label);
+  line-height: 1;
 }

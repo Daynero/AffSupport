@@ -81,6 +81,24 @@ export function formatShortcut(keys: string, apple = isApple()): string {
     .join(apple ? '' : '+');
 }
 
+/**
+ * The chord as separate keys, for drawing one keycap each (024, benchmarked on
+ * Linear's shortcut sheet) — "⌘" and "K" are two keys a hand presses, and one
+ * pill reading "⌘K" was read as a symbol.
+ */
+export function shortcutKeys(keys: string, apple = isApple()): string[] {
+  if (keys === 'arrows') return ['↑', '↓', '←', '→'];
+  return formatShortcut(keys, apple)
+    .split(apple ? '' : '+')
+    .reduce<string[]>((parts, part) => {
+      // "Esc" and "Ctrl" stay whole on a Mac, where the join is empty.
+      if (apple && /[A-Za-z]/u.test(part) && parts.length > 0 && /[A-Za-z]$/u.test(parts.at(-1)!))
+        parts[parts.length - 1] += part;
+      else parts.push(part);
+      return parts;
+    }, []);
+}
+
 /** Does this event match the chord? Written once so no call site re-derives it. */
 export function matches(event: KeyboardEvent, keys: string): boolean {
   const parts = keys.split('+');

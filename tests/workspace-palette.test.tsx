@@ -10,6 +10,7 @@ import { ShortcutSheet } from '../apps/web/src/team/palette/ShortcutSheet';
 import {
   WORKSPACE_SHORTCUTS,
   formatShortcut,
+  shortcutKeys,
   matches
 } from '../apps/web/src/team/palette/shortcuts';
 import { translationKeys } from '../apps/web/src/i18n';
@@ -133,9 +134,23 @@ describe('the shortcut sheet', () => {
     );
     const terms = screen.getAllByRole('term').map(node => node.textContent);
     expect(terms).toHaveLength(WORKSPACE_SHORTCUTS.length);
+    // One keycap per key (024): each row's caps, read together, are the chord.
+    const rows = Array.from(document.querySelectorAll('.workspace-shortcuts dl > div'));
+    const drawn = rows.map(row =>
+      Array.from(row.querySelectorAll('kbd'))
+        .map(cap => cap.textContent)
+        .join('')
+    );
     for (const shortcut of WORKSPACE_SHORTCUTS) {
-      expect(screen.getAllByText(formatShortcut(shortcut.keys)).length).toBeGreaterThan(0);
+      expect(drawn).toContain(shortcutKeys(shortcut.keys).join(''));
     }
+  });
+
+  it('draws a chord as one cap per key', () => {
+    expect(shortcutKeys('mod+k', true)).toEqual(['⌘', 'K']);
+    expect(shortcutKeys('mod+k', false)).toEqual(['Ctrl', 'K']);
+    expect(shortcutKeys('escape', true)).toEqual(['Esc']);
+    expect(shortcutKeys('arrows', true)).toEqual(['↑', '↓', '←', '→']);
   });
 
   it('has a sentence for every shortcut, in both languages', () => {

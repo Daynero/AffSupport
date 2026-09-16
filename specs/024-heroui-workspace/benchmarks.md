@@ -56,3 +56,9 @@ for "settings" across the product beats matching a different product.
 | -------------------- | -------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Space picker (lobby) | Linear, Notion workspace pickers | One centred panel; the spaces are the choice; "create" is secondary, after them | A centred panel on its own ground (the heading had sat on the hexagons); spaces in one column; "Create a new space" secondary, under the list; the checking state on the same ground |
 | Trash                | Google Drive trash               | A list of files; restore said quietly                                           | "Restore" as a quiet word instead of a bordered button on every row; the "Actions" header text for screen readers only                                                               |
+
+## Round 7 (2026-09-16)
+
+| Surface        | Reference | What they do                                                               | What we did                                                                                        |
+| -------------- | --------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Shortcut sheet | Linear    | The action at reading size; each key its own keycap, which carries the row | Labels at label size; one keycap per key ("⌘" "K", four arrows), raised with a heavier bottom edge |

@@ -1,6 +1,6 @@
 import { Modal } from '../../components/Modal';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { WORKSPACE_SHORTCUTS, formatShortcut, type Shortcut } from './shortcuts';
+import { WORKSPACE_SHORTCUTS, shortcutKeys, type Shortcut } from './shortcuts';
 
 /**
  * What the keyboard can do here, said out loud (024, FR-054).
@@ -42,7 +42,9 @@ export function ShortcutSheet({ onClose }: { onClose: () => void }) {
                   <div key={shortcut.id}>
                     <dt>{t(shortcut.labelKey)}</dt>
                     <dd>
-                      <kbd>{formatShortcut(shortcut.keys)}</kbd>
+                      {shortcutKeys(shortcut.keys).map((key, index) => (
+                        <kbd key={index}>{key}</kbd>
+                      ))}
                     </dd>
                   </div>
                 ))}
