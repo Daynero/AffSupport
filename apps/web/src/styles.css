@@ -15179,11 +15179,15 @@ input[type='number'] {
   max-width: min(560px, calc(100vw - 32px));
   padding: 9px 12px;
   transform: translateX(-50%);
+  border: 1px solid var(--purple-700);
   border-radius: var(--radius-sm);
-  color: var(--color-on-accent);
+  /* Light words on the dark plum, in both themes. It was the accent's own
+     "on" colour, which is dark — dark on dark, and "Готово" over a status
+     button could not be read (024). */
+  color: var(--purple-50);
   background: var(--purple-900);
   box-shadow: var(--shadow-menu);
-  font-size: var(--text-2xl);
+  font-size: var(--text-md);
   font-weight: 500;
   line-height: 1.35;
   text-align: center;

@@ -381,7 +381,7 @@ describe('the editor', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Tag' }));
     // Focus is in the tag field, not left on the task's title: typing names a tag.
-    const field = await screen.findByRole('searchbox', { name: 'Find a tag, or type a new one' });
+    const field = await screen.findByRole('searchbox', { name: 'Find or create a tag' });
     await waitFor(() => expect(document.activeElement).toBe(field));
     await user.keyboard('Launch');
     expect(await screen.findByRole('button', { name: /Launch/u })).toBeTruthy();

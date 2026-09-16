@@ -575,7 +575,8 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 .team-task-label-menu {
   display: flex;
-  width: min(280px, calc(100vw - 32px));
+  width: min(320px, calc(100vw - 32px));
+  font-size: var(--text-sm);
   max-height: min(360px, 55vh);
   flex-direction: column;
   gap: 2px;
@@ -588,8 +589,14 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 
 .team-task-label-menu-search {
+  /* The size of the chips under it, not of a page's search field: at the
+     global input size it stood twice as tall as anything in the menu. */
   width: 100%;
-  min-height: 32px;
+  height: 34px;
+  min-height: 0;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
   margin-bottom: var(--space-1);
 }
 
@@ -1107,4 +1114,11 @@ button.team-task-label-chip:hover:not(:disabled),
   font-family: inherit;
   font-size: var(--text-label);
   line-height: 1;
+}
+
+.team-task-label-menu-search:focus-visible,
+.team-task-label-menu-search:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -1px;
+  box-shadow: none;
 }
