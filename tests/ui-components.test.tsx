@@ -345,10 +345,15 @@ describe('Overlays', () => {
   });
 
   it('walks a menu with the arrow keys and marks a destructive item', () => {
+    // A menu hangs from something: React Aria places it against its trigger,
+    // so a menu with nothing to hang from has nowhere to be.
+    const anchor = { current: document.createElement('button') };
+    document.body.append(anchor.current);
     render(
       <DropdownMenu
         open
         onClose={() => {}}
+        anchor={anchor}
         label="Row actions"
         items={[
           { id: 'open', label: 'Open', onSelect: () => {} },

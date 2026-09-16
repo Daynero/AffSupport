@@ -3,11 +3,16 @@ import {
   useEffect,
   useId,
   useRef,
-  useState,
   type ReactNode,
   type RefObject
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Menu as HeroMenu } from '@heroui/react/menu';
+import { MenuItem as HeroMenuItem } from '@heroui/react/menu-item';
+import { Popover as HeroPopover } from '@heroui/react/popover';
+import { MenuSection as HeroMenuSection } from '@heroui/react/menu-section';
+import { Header } from 'react-aria-components/Header';
+import { Text } from 'react-aria-components/Text';
 import { useAnchoredLayer } from '../useAnchoredLayer';
 import { uiClasses, type UiSize } from './types';
 
@@ -495,8 +500,17 @@ export interface DropdownMenuProps {
 
 /**
  * The product's twelve menus — sort, kind filter, row actions, export, copy,
- * gallery, user — as one. All of them are opened often, so none of them
- * animate.
+ * gallery, user — as one, on React Aria (024).
+ *
+ * The props are unchanged, because the callers' model is right: the surface
+ * that owns the state opens the menu and is told when it closes. React Aria's
+ * popover takes exactly that — a trigger ref and a controlled open — so nothing
+ * had to be inverted to gain real menu semantics.
+ *
+ * What is gained: typeahead, Home and End, focus that actually enters the menu
+ * and comes back, and `disabledBehavior="selection"` — which is the thing this
+ * product hand-rolled last week, a disabled item that stays reachable so the
+ * reason it carries can be read.
  */
 export function DropdownMenu({
   open,
@@ -512,110 +526,109 @@ export function DropdownMenu({
   label,
   className
 }: DropdownMenuProps) {
-  const [active, setActive] = useState(0);
   const rows = items.filter((item): item is MenuItem => item !== 'separator' && !isHeading(item));
+  const byId = new Map(rows.map(item => [item.id, item]));
+  const disabled = rows.filter(item => item.disabled).map(item => item.id);
 
-  useEffect(() => {
-    if (open) setActive(0);
-  }, [open]);
+  /*
+   * The flat list, folded into sections.
+   *
+   * A React Aria collection is built from collection components — items,
+   * sections, headers — and nothing else: a bare paragraph among them is not
+   * rendered late, it stops the whole collection being built. The callers' flat
+   * array with heading markers is the right shape to write, so it is folded
+   * here rather than pushed back onto twelve call sites.
+   */
+  const sections: Array<{ heading: ReactNode | null; items: MenuItem[] }> = [];
+  for (const entry of items) {
+    if (entry === 'separator') continue;
+    if (isHeading(entry)) {
+      sections.push({ heading: entry.heading, items: [] });
+      continue;
+    }
+    if (sections.length === 0) sections.push({ heading: null, items: [] });
+    sections[sections.length - 1]!.items.push(entry);
+  }
+
+  if (!anchor) return null;
 
   return (
-    <Popover
-      open={open}
-      onClose={onClose}
-      anchor={anchor}
-      placement={placement}
-      matchWidth={matchWidth}
-      minWidth={minWidth}
-      maxHeight={maxHeight}
-      frequent
-      label={label}
-      /* The inner element is the menu; the surface around it is scaffolding. */
-      surface="none"
-      className={['ui-menu', className].filter(Boolean).join(' ')}
+    <HeroPopover.Content
+      triggerRef={anchor as RefObject<HTMLElement>}
+      isOpen={open}
+      onOpenChange={next => {
+        if (!next) onClose();
+      }}
+      /* React Aria spells a placement as a side and an alignment, with a
+         space; this product spells it with a hyphen because that is also a
+         class name. */
+      placement={placement.replace('-', ' ') as 'bottom end'}
+      shouldFlip
+      className={['ui-popover', 'is-frequent', `ui-popover--${placement}`, 'ui-menu', className]
+        .filter(Boolean)
+        .join(' ')}
+      style={{
+        minWidth: matchWidth ? undefined : minWidth,
+        maxHeight,
+        ['--trigger-width' as string]: matchWidth ? 'var(--trigger-width)' : undefined
+      }}
     >
-      <div
-        role="menu"
+      <HeroMenu
         aria-label={label}
-        onKeyDown={event => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            setActive(current => {
-              const next = event.key === 'ArrowDown' ? current + 1 : current - 1;
-              return (next + rows.length) % rows.length;
-            });
-          }
+        selectionMode={rows.some(item => item.checked !== undefined) ? selection : 'none'}
+        selectedKeys={rows.filter(item => item.checked).map(item => item.id)}
+        disabledKeys={disabled}
+        onAction={key => {
+          const item = byId.get(String(key));
+          if (!item || item.disabled) return;
+          item.onSelect();
+          if (closeOnSelect) onClose();
         }}
       >
-        {items.map((item, index) =>
-          item === 'separator' ? (
-            <span key={`separator-${index}`} className="ui-menu-separator" role="separator" />
-          ) : isHeading(item) ? (
-            <p key={`heading-${index}`} className="ui-menu-heading" role="presentation">
-              {item.heading}
-            </p>
-          ) : (
-            <button
-              key={item.id}
-              type="button"
-              /* The reason an item cannot run is a description, not part of its
-                 name: concatenated into the name, "Process" becomes "Process
-                 Soty is not running on this computer" and the item can no
-                 longer be found by what it is called — by a reader or by a
-                 test. */
-              aria-labelledby={`${item.id}-label`}
-              aria-describedby={item.note ? `${item.id}-note` : undefined}
-              role={
-                item.checked === undefined
-                  ? 'menuitem'
-                  : selection === 'multiple'
-                    ? 'menuitemcheckbox'
-                    : 'menuitemradio'
-              }
-              aria-checked={item.checked}
-              /* `aria-disabled`, not the attribute: an item that explains why
-                 it cannot run has to stay reachable, or its explanation is
-                 written for nobody. Activation is refused below instead. */
-              aria-disabled={item.disabled || undefined}
-              tabIndex={rows.indexOf(item) === active ? 0 : -1}
-              className={[
-                'ui-menu-item',
-                item.destructive ? 'is-destructive' : '',
-                item.checked ? 'is-checked' : ''
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              onClick={() => {
-                if (item.disabled) return;
-                item.onSelect();
-                if (closeOnSelect) onClose();
-              }}
-            >
-              {item.checked !== undefined && (
-                <span className="ui-menu-check" aria-hidden="true">
-                  {item.checked ? '✓' : ''}
-                </span>
-              )}
-              {item.icon && (
-                <span className="ui-menu-icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-              )}
-              <span className="ui-menu-copy">
-                <span className="ui-menu-label" id={`${item.id}-label`}>
-                  {item.label}
-                </span>
-                {item.note && (
-                  <span className="ui-menu-note" id={`${item.id}-note`}>
-                    {item.note}
+        {sections.map((section, index) => (
+          <HeroMenuSection key={`section-${index}`} className="ui-menu-section">
+            {section.heading !== null && (
+              <Header className="ui-menu-heading">{section.heading}</Header>
+            )}
+            {section.items.map(item => (
+              <HeroMenuItem
+                key={item.id}
+                id={item.id}
+                textValue={typeof item.label === 'string' ? item.label : item.id}
+                className={[
+                  'ui-menu-item',
+                  item.destructive ? 'is-destructive' : '',
+                  item.checked ? 'is-checked' : ''
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {item.checked !== undefined && (
+                  <span className="ui-menu-check" aria-hidden="true">
+                    {item.checked ? '✓' : ''}
                   </span>
                 )}
-              </span>
-              {item.trailing && <span className="ui-menu-trailing">{item.trailing}</span>}
-            </button>
-          )
-        )}
-      </div>
-    </Popover>
+                {item.icon && (
+                  <span className="ui-menu-icon" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                )}
+                <span className="ui-menu-copy">
+                  <Text slot="label" className="ui-menu-label">
+                    {item.label}
+                  </Text>
+                  {item.note && (
+                    <Text slot="description" className="ui-menu-note">
+                      {item.note}
+                    </Text>
+                  )}
+                </span>
+                {item.trailing && <span className="ui-menu-trailing">{item.trailing}</span>}
+              </HeroMenuItem>
+            ))}
+          </HeroMenuSection>
+        ))}
+      </HeroMenu>
+    </HeroPopover.Content>
   );
 }

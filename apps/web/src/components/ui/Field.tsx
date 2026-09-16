@@ -303,8 +303,11 @@ export function Select({
   return (
     <HeroSelect
       {...props}
-      selectedKey={value}
-      defaultSelectedKey={defaultValue}
+      /* An empty value is "nothing chosen", not a key called "": React Aria
+         reads `null` as the placeholder state, and passing the empty string
+         instead left the trigger blank where the word should be. */
+      selectedKey={value === '' ? null : value}
+      defaultSelectedKey={defaultValue === '' ? null : defaultValue}
       onSelectionChange={key => onChange?.(key === null ? '' : String(key))}
       isDisabled={disabled}
       isInvalid={invalid}

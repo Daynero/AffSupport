@@ -138,7 +138,9 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       `Tooltip` in
       `apps/web/src/components/ui/Feedback.tsx`; `Progress` keeps `--fill-ratio` + `scaleX()`;
       add `Kbd`.
-- [ ] T028 [US2] `Modal`, `Drawer`, `Popover`, `DropdownMenu` onto HeroUI in
+- [x] T028 [US2] (DropdownMenu done, on React Aria's Menu with real sections, typeahead and
+      Home/End; Modal, Drawer and Popover still use `useDialogBehaviour`, which now returns focus
+      only if nothing else has taken it) `Modal`, `Drawer`, `Popover`, `DropdownMenu` onto HeroUI in
       `apps/web/src/components/ui/Overlay.tsx`; delete `useDialogBehaviour`, `focusableIn` and
       `FOCUSABLE_SELECTOR`; add `ContextMenu`; keep "a popover that opens a dialog must not
       close" as a prop.

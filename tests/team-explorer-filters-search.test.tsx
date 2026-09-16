@@ -41,6 +41,9 @@ describe('KindFilterMenu', () => {
     expect(onChange).toHaveBeenLastCalledWith(['image']);
     await user.click(screen.getByRole('menuitemcheckbox', { name: 'Video' }));
     expect(onChange).toHaveBeenLastCalledWith(['image', 'video']);
+    // The menu hides the page behind it while it is open, as an overlay
+    // should, so it is closed before reaching for what is underneath.
+    await user.keyboard('{Escape}');
     // With a filter set, a clear control appears and empties it.
     await user.click(screen.getByRole('button', { name: 'Clear filter' }));
     expect(onChange).toHaveBeenLastCalledWith([]);
