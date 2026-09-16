@@ -4,6 +4,7 @@ import {
   restrictedScopeApproval,
   restrictedScopeGate
 } from '../_shared/scopes.ts';
+import { DRIVE_CALLBACK_PATH, driveRedirectUri } from '../_shared/google-redirect.ts';
 
 export type TeamProviderEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -11,13 +12,14 @@ function configured(value: string | undefined, minimumLength = 1): boolean {
   return typeof value === 'string' && value.trim().length >= minimumLength;
 }
 
-function validRedirect(value: string | undefined): boolean {
-  if (!configured(value)) return false;
+function validRedirect(value: string | null): boolean {
+  if (!configured(value ?? undefined)) return false;
   try {
     const redirect = new URL(value!);
     return (
       redirect.protocol === 'https:' &&
-      redirect.pathname.endsWith('/functions/v1/drive-oauth-callback')
+      (redirect.pathname.endsWith('/functions/v1/drive-oauth-callback') ||
+        redirect.pathname === DRIVE_CALLBACK_PATH)
     );
   } catch {
     return false;
@@ -35,12 +37,14 @@ export function evaluateTeamProviderReadiness(
   const approval = restrictedScopeApproval(environment.DRIVE_RESTRICTED_SCOPE_APPROVED);
   const scopes = resolveDriveScopes(environment);
   const scopeGate = restrictedScopeGate(scopes, gate.production, approval);
+  // The address Google returns to, as the authorization will actually send it.
+  const redirectUri = driveRedirectUri(environment);
   const googleDrive =
     gate.allowed &&
     scopeGate === null &&
     configured(environment.GOOGLE_CLIENT_ID) &&
     configured(environment.GOOGLE_CLIENT_SECRET) &&
-    validRedirect(environment.GOOGLE_REDIRECT_URI);
+    validRedirect(redirectUri);
   const invitationEmail =
     configured(environment.RESEND_API_KEY) && configured(environment.INVITE_EMAIL_FROM);
   const directMemberAdd = environment.TEAM_DIRECT_ADD_MODE === 'testing';
@@ -55,6 +59,7 @@ export function evaluateTeamProviderReadiness(
     scopes,
     restrictedScopeApproved: approval === 'approved',
     scopeGate,
+    redirectUri,
     memberOnboarding: directMemberAdd
       ? 'direct_add_testing'
       : invitationEmail

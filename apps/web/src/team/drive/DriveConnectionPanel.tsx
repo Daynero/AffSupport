@@ -17,6 +17,7 @@ import { openFolderPicker, pickerConfig, type PickFolders } from '../storage/loa
 import { SelectionList, selectionModeEnabled } from '../storage/SelectionList';
 import { rememberDriveAuthorization } from './authorizationReturn';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { DriveDataUseNotice } from './DriveDataUseNotice';
 
 type SafeConnectionStatus = Partial<DriveConnectionStatus> & {
   state: DriveConnectionStatus['state'];
@@ -284,6 +285,7 @@ export function DriveConnectionPanel({
       className="team-drive-panel"
     >
       <BetaStorageNotice state={status.state} />
+      {!connected && !rootMissing && !unavailable && <DriveDataUseNotice />}
 
       {!connected && !rootMissing && !unavailable && !authorized && !authorizationUrl && (
         <Button type="button" variant="primary" loading={busy} onClick={() => void connect()}>

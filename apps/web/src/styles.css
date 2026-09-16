@@ -4059,11 +4059,13 @@ input.is-invalid {
     );
 }
 
-/* The OAuth homepage is a single self-contained screen. Never let the
-   honeycomb canvas or a route beneath it peek through while the viewport
-   changes (mobile browser chrome, trackpad overscroll, or a short screen). */
+/* The OAuth homepage is one screen wherever it fits. Where it does not — a
+   phone, a 720-pixel laptop — it scrolls, because the footer carries the
+   Privacy Policy link Google verification requires people to find. The
+   overscroll bounce stays off so the honeycomb canvas beneath never peeks. */
 body:has(.public-home) {
-  overflow: hidden;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
   background: var(--color-surface-3);
 }
 
@@ -4206,6 +4208,20 @@ body:has(.public-home) {
   border-radius: var(--radius-sm);
   font-size: var(--text-12xl);
   text-decoration: none;
+}
+
+.public-drive-note {
+  max-width: 62ch;
+  margin-top: var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--text-3xl);
+  line-height: 1.6;
+}
+
+.public-drive-note a {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .public-home-points {
@@ -5917,6 +5933,11 @@ body:has(.public-home) {
 .legal-content > header p,
 .legal-content section p {
   color: var(--color-text-muted);
+}
+
+.legal-content section[id] {
+  /* Clears the sticky top bar when a link lands on the section (#google-drive). */
+  scroll-margin-top: calc(var(--space-6) * 4);
 }
 
 .legal-content section {

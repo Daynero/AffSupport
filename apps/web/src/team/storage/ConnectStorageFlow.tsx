@@ -6,6 +6,7 @@ import { trackTeamStorageConnected } from '../../analytics/service';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from '../drive/BetaStorageNotice';
 import { openFolderPicker, pickerConfig, type PickFolders } from './loadPicker';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
+import { DriveDataUseNotice } from '../drive/DriveDataUseNotice';
 
 /**
  * Connect a space's storage in two inputs (011, FR-001): authorize Google once,
@@ -151,6 +152,7 @@ export function ConnectStorageFlow({
         <p>{t('teamCreateStepFolderHint')}</p>
         {/* Said once, before the chooser, instead of as a step after it. */}
         <p className="team-connect-acl-note">{t('teamDriveIndependentAcl')}</p>
+        <DriveDataUseNotice />
         <BetaStorageNotice />
       </div>
 

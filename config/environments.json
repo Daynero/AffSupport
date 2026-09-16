@@ -241,7 +241,7 @@
       "required": ["production"],
       "secret": false,
       "format": "url",
-      "note": "Must match the Google console entry exactly, character for character, or the return trip fails after the user has already consented."
+      "note": "Must match the Google console entry exactly, character for character, or the return trip fails after the user has already consented. Production ignores it and returns through <WISHLY_SITE_URL>/oauth/drive/callback (supabase/functions/_shared/google-redirect.ts), because Google brand verification cannot accept a supabase.co redirect."
     },
     {
       "name": "DRIVE_OAUTH_MODE",

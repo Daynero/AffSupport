@@ -47,6 +47,16 @@ export default function PublicHomePage() {
               {t('publicHomeSignIn')}
             </a>
           </div>
+          {/* Google's verification reads the homepage for why Soty asks for Drive. */}
+          <p className="public-drive-note">
+            {t('publicHomeDriveNote')}{' '}
+            <a
+              href="/privacy#google-drive"
+              onClick={event => internalLink(event, '/privacy#google-drive')}
+            >
+              {t('googleDataUseLink')}
+            </a>
+          </p>
         </section>
       </main>
 
