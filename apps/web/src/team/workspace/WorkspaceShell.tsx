@@ -699,7 +699,12 @@ export function WorkspaceShell({
                         teamId={teamId}
                         createFromAsset={taskAsset}
                         onConsumedCreateFromAsset={() => setTaskAsset(null)}
-                        openTaskId={taskQuery?.taskId ?? null}
+                        /* The editor is a dialog, portalled to the page: while Tasks is
+                      hidden it would float over whatever section is showing — "Show
+                      in folder" opened Files under a task that stayed on top of it.
+                      The open task is remembered either way, and comes back with
+                      the tab or the way-back chip. */
+                        openTaskId={section === 'tasks' ? (taskQuery?.taskId ?? null) : null}
                         onOpenTaskChange={onOpenTaskChange}
                         scope={taskScope}
                         onScopeChange={onTaskScopeChange}
