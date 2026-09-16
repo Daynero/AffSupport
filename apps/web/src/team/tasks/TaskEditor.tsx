@@ -351,15 +351,16 @@ export function TaskEditor({
   /** The invite dialog, opened from the assignee field and closed back to it. */
   const [inviting, setInviting] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // The account-wide default for a new task's Maximum. When the field differs
-  // from it, a small save control offers to make the current value the default.
+  // The space's default for a new task's Maximum. When the field differs from
+  // it, someone who may change the space's settings is offered to make the
+  // current value the default for every task anyone creates here.
   const [defaultMax, setDefaultMax] = useState<number | null>(null);
   const [savingDefaultMax, setSavingDefaultMax] = useState(false);
 
   useEffect(() => {
     let active = true;
     void teamApi
-      .getTaskProgressMaxDefault()
+      .getTaskProgressMaxDefault(teamId)
       .then(value => {
         if (active) setDefaultMax(value);
       })
@@ -369,7 +370,7 @@ export function TaskEditor({
     return () => {
       active = false;
     };
-  }, []);
+  }, [teamId]);
 
   /**
    * Refresh the form from the server's copy — but never over typing. The
@@ -1139,29 +1140,32 @@ export function TaskEditor({
                             setProgressMaxInput(String(progressMax));
                         }}
                       />
-                      {canEdit && defaultMax !== null && progressMax !== defaultMax && (
-                        <Button
-                          className="team-task-progress-max-save"
-                          size="sm"
-                          color="neutral"
-                          variant="ghost"
-                          disabled={savingDefaultMax}
-                          onClick={async () => {
-                            setSavingDefaultMax(true);
-                            try {
-                              await teamApi.setTaskProgressMaxDefault(progressMax);
-                              setDefaultMax(progressMax);
-                              push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
-                            } catch {
-                              push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
-                            } finally {
-                              setSavingDefaultMax(false);
-                            }
-                          }}
-                        >
-                          {t('teamTaskProgressMaxSaveDefault')}
-                        </Button>
-                      )}
+                      {canEdit &&
+                        can('manage_metadata') &&
+                        defaultMax !== null &&
+                        progressMax !== defaultMax && (
+                          <Button
+                            className="team-task-progress-max-save"
+                            size="sm"
+                            color="neutral"
+                            variant="ghost"
+                            disabled={savingDefaultMax}
+                            onClick={async () => {
+                              setSavingDefaultMax(true);
+                              try {
+                                await teamApi.setTaskProgressMaxDefault(teamId, progressMax);
+                                setDefaultMax(progressMax);
+                                push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
+                              } catch {
+                                push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
+                              } finally {
+                                setSavingDefaultMax(false);
+                              }
+                            }}
+                          >
+                            {t('teamTaskProgressMaxSaveDefault')}
+                          </Button>
+                        )}
                     </div>
                   </FormField>
                 </div>

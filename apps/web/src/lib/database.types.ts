@@ -3003,6 +3003,14 @@ export type Database = {
         Args: { p_value: number };
         Returns: undefined;
       };
+      get_team_task_progress_max_default: {
+        Args: { p_team: string };
+        Returns: number;
+      };
+      set_team_task_progress_max_default: {
+        Args: { p_team: string; p_value: number };
+        Returns: number;
+      };
       request_landing_render_refresh: {
         Args: { p_team: string; p_material: string };
         Returns: number;

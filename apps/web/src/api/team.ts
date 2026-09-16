@@ -1722,17 +1722,19 @@ export const teamApi = {
     throwRpc(error);
   },
 
-  async getTaskProgressMaxDefault(): Promise<number> {
+  /** The space's starting "Maximum" for a new task — the same for whoever creates it. */
+  async getTaskProgressMaxDefault(teamId: string): Promise<number> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_task_progress_max_default')
+      requireSupabaseClient().rpc('get_team_task_progress_max_default', { p_team: teamId })
     );
     throwRpc(error);
     return typeof data === 'number' && Number.isFinite(data) ? data : 100;
   },
 
-  async setTaskProgressMaxDefault(value: number): Promise<void> {
+  async setTaskProgressMaxDefault(teamId: string, value: number): Promise<void> {
     const { error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_task_progress_max_default', {
+      requireSupabaseClient().rpc('set_team_task_progress_max_default', {
+        p_team: teamId,
         p_value: value
       })
     );

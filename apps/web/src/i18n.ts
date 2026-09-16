@@ -808,7 +808,7 @@ const en = {
   chooseLanguage: 'Choose language',
   marketingConsent: 'Receive news about new Soty tools and updates.',
   accountTranscriptDeleteLabel: 'When deleting a video with a transcript',
-  accountTaskMaxDefaultLabel: 'Default progress maximum for new tasks',
+  accountTaskMaxDefaultLabel: 'Progress maximum for new tasks in this space',
   accountTranscriptDeleteAsk: 'Ask each time',
   accountTranscriptDeleteAlways: 'Delete the transcript too',
   accountTranscriptDeleteNever: 'Keep the transcript',
@@ -1752,7 +1752,7 @@ const en = {
   teamTaskInviteSomeone: 'Invite someone',
   teamTaskUnassigned: 'Unassigned',
   teamTaskProgressMax: 'Maximum',
-  teamTaskProgressMaxSaveDefault: 'Save as the default for all new tasks',
+  teamTaskProgressMaxSaveDefault: 'Make it the default for new tasks in this space',
   teamTaskProgressMaxSaved: 'Default maximum saved',
   teamTaskProgressScale: 'Progress scale',
   teamTaskProgressTitle: 'Progress',
@@ -2471,7 +2471,7 @@ const en = {
   // Task tags (018): the space's own dictionary, hung on tasks.
   teamPreferencesTitle: 'Tasks and transcripts',
   teamPreferencesDescription:
-    'Your own choices about how the workspace behaves. They follow you into every space.',
+    'How tasks start in this space, for everyone, and what happens to your transcripts.',
   teamSettingsTabTags: 'Tags',
   teamTaskTagsTitle: 'Tags',
   teamTaskTagsDescription:
@@ -3452,7 +3452,7 @@ const uk: Record<keyof typeof en, string> = {
   chooseLanguage: 'Оберіть мову',
   marketingConsent: 'Отримувати новини про нові інструменти та оновлення Soty.',
   accountTranscriptDeleteLabel: 'Коли видаляєте відео з транскрипцією',
-  accountTaskMaxDefaultLabel: 'Максимум прогресу за замовчуванням для нових завдань',
+  accountTaskMaxDefaultLabel: 'Максимум прогресу для нових завдань у цьому просторі',
   accountTranscriptDeleteAsk: 'Питати щоразу',
   accountTranscriptDeleteAlways: 'Видаляти транскрипцію теж',
   accountTranscriptDeleteNever: 'Залишати транскрипцію',
@@ -4398,7 +4398,7 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskInviteSomeone: 'Запросити людину',
   teamTaskUnassigned: 'Не призначено',
   teamTaskProgressMax: 'Максимум',
-  teamTaskProgressMaxSaveDefault: 'Зберегти як значення за замовчуванням для всіх нових завдань',
+  teamTaskProgressMaxSaveDefault: 'Зробити типовим для нових завдань простору',
   teamTaskProgressMaxSaved: 'Значення за замовчуванням збережено',
   teamTaskProgressScale: 'Шкала виконання',
   teamTaskProgressTitle: 'Виконання',
@@ -5111,7 +5111,7 @@ const uk: Record<keyof typeof en, string> = {
   // Теги завдань (018): власний словник простору.
   teamPreferencesTitle: 'Завдання і транскрипції',
   teamPreferencesDescription:
-    'Ваші власні налаштування того, як працює робочий простір. Вони діють у всіх ваших просторах.',
+    'З чого починаються завдання в цьому просторі — для всіх, і що робити з вашими транскрипціями.',
   teamSettingsTabTags: 'Теги',
   teamTaskTagsTitle: 'Теги',
   teamTaskTagsDescription:

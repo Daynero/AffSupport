@@ -176,7 +176,7 @@ export function SpaceSettings({
           <>
             {/* How team mode behaves, first: it is what a person opens these
                 settings to change. */}
-            <TeamPreferencesSection client={client} />
+            <TeamPreferencesSection teamId={teamId} client={client} />
             <SharePreferenceSettings teamId={teamId} client={client} />
             {activeTeam?.role === 'owner' && (
               <DriveConnectionPanel
