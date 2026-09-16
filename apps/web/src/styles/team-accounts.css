@@ -2606,3 +2606,103 @@ button.team-task-agent-chip.is-selected {
 .team-task-label-menu:has(.team-empty-action) {
   min-width: 260px;
 }
+
+/*
+ * Calm at rest (024).
+ *
+ * The owner's read of this screen: everything shouts at once. A green badge, an amber word and a
+ * violet pill in every account's head; a tinted row for every free agent; a green outlined
+ * "Release" and a violet "+ Run" on every row; a pencil and a bin on every head; two money fields
+ * on every row. Each was loud for a reason, and together none of them could be seen. So the
+ * colour stays in the dots — free and busy are still one glance down the Status column — the words
+ * go back to the text colour, and the actions come forward on the row they belong to when the
+ * pointer or the focus is there (Linear's list rows). Touch keeps them showing.
+ */
+.team-agent-row.is-free,
+.team-agent-row.is-free:hover {
+  background: none;
+}
+.team-agent-state.is-free,
+.team-agent-state.is-busy,
+:root:not([data-theme='dark']) .team-agent-state.is-free,
+:root:not([data-theme='dark']) .team-agent-state.is-busy {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.team-agent-state.is-free .team-agent-state-dot {
+  background: var(--color-success);
+}
+.team-agent-state.is-busy .team-agent-state-dot {
+  background: var(--color-warning);
+}
+
+.team-account-meta-free,
+:root:not([data-theme='dark']) .team-account-meta-free,
+.team-account-meta-busy,
+:root:not([data-theme='dark']) .team-account-meta-busy {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.team-account-meta > .team-account-meta-free:not(:first-child)::before {
+  content: '·';
+}
+.team-account-tasks-link {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-underline-offset: 3px;
+}
+.team-account-tasks-link:hover {
+  color: var(--color-accent-text);
+}
+
+.team-agent-release,
+.team-agent-run-add,
+.team-agent-run-add.is-assign {
+  border-color: transparent;
+  background: none;
+  color: var(--color-text-muted);
+}
+.team-agent-release svg {
+  color: var(--color-success);
+}
+.team-agent-release:hover:not(:disabled),
+.team-agent-run-add:hover:not(:disabled),
+.team-agent-run-add.is-assign:hover:not(:disabled) {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.team-accounts-money-fold {
+  border-color: transparent;
+  color: var(--color-text-muted);
+}
+
+@media (hover: hover) {
+  .team-agent-actions-stack,
+  .team-agent-menu,
+  .team-account-head:not(.is-editing) .team-account-actions {
+    opacity: 0;
+    transition: opacity var(--dur-control) var(--ease-standard);
+  }
+  .team-agent-row:hover .team-agent-actions-stack,
+  .team-agent-row:focus-within .team-agent-actions-stack,
+  .team-agent-row:hover .team-agent-menu,
+  .team-agent-row:focus-within .team-agent-menu,
+  .team-account-head:hover .team-account-actions,
+  .team-account-head:focus-within .team-account-actions {
+    opacity: 1;
+  }
+  /* A free agent's "+ Run" is what its row is for: it stays, quietly. */
+  .team-agent-row.is-free .team-agent-actions-stack {
+    opacity: 1;
+  }
+}

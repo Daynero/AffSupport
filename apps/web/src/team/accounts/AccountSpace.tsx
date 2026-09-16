@@ -99,9 +99,12 @@ function moneyKey(teamId: string): string {
 
 function readMoneyFolded(teamId: string): boolean {
   try {
-    return window.localStorage.getItem(moneyKey(teamId)) === 'folded';
+    // Folded unless someone opened it (024): the figures are worked on now and
+    // then, and two empty "—" fields on every row were the loudest thing on a
+    // screen read for who is free.
+    return window.localStorage.getItem(moneyKey(teamId)) !== 'open';
   } catch {
-    return false;
+    return true;
   }
 }
 

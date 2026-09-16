@@ -1050,7 +1050,7 @@ describe('the money on an agent', () => {
     );
   });
 
-  it('folds the money column away from its own caption, and remembers it', async () => {
+  it('keeps the money folded until it is opened, and remembers that it was', async () => {
     const user = userEvent.setup();
     const accounts = fixture();
     accounts[0]!.agents[0]!.balance = 300;
@@ -1059,19 +1059,19 @@ describe('the money on an agent', () => {
 
     // The cells stay in the grid and empty through CSS — taking them out of the
     // DOM would slide every later cell one track left — so the state is read
-    // where a person reads it: off the control that holds it.
+    // where a person reads it: off the control that holds it. Folded at first
+    // (024): the figures are worked on now and then, not read on every visit.
     const fold = () => screen.getByRole('button', { name: /money and balances$/ });
-    expect(fold().getAttribute('aria-expanded')).toBe('true');
-    await user.click(screen.getByRole('button', { name: 'Hide money and balances' }));
     expect(fold().getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Show money and balances' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Show money and balances' }));
+    expect(fold().getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Hide money and balances' })).toBeTruthy();
 
     // Remembered per space, like the account fold beside it.
     unmount();
     render(client(fixture()));
     await waitForGroups();
-    expect(screen.getByRole('button', { name: 'Show money and balances' })).toBeTruthy();
-    expect(fold().getAttribute('aria-expanded')).toBe('false');
+    expect(fold().getAttribute('aria-expanded')).toBe('true');
   });
 
   it('closes the tag list on the choice itself', async () => {
