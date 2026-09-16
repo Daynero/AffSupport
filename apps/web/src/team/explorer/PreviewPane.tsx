@@ -240,6 +240,7 @@ export function PreviewPane({
               onTranscribe={() => onTranscribe(row)}
               onRetranscribe={() => onTranscribe(row)}
               onCopied={() => push({ tone: 'success', text: t('teamTranscriptCopied') })}
+              compact
             />
           )}
         </div>

@@ -13953,17 +13953,13 @@ button.team-landing-tile:hover {
 /* On the file's card every action is a control, not a link: the transcript row used to be
    three bare words under two boxed buttons, which read as a caption rather than as things to
    press. Scoped to the card so the creative library's own dense rows keep their look. */
+/* (024) The rule this replaced stacked them in a column and boxed them through
+   the pre-HeroUI `.soty-button` class. The migration dropped the box and kept
+   the column, which produced exactly the bare words it warned against. They are
+   small outlined controls on one line now. */
 .team-explorer-pane .creative-library-text-actions {
-  flex-direction: column;
-  align-items: stretch;
-}
-.team-explorer-pane .creative-library-text-actions > .soty-button {
-  justify-content: center;
-  border: 1px solid var(--color-border);
-  padding: var(--space-2) var(--space-3);
-}
-.team-explorer-pane .creative-library-text-actions > .soty-button:hover:not(:disabled) {
-  border-color: var(--purple-300);
+  flex-direction: row;
+  flex-wrap: wrap;
 }
 
 .team-explorer-pane-transcript {
@@ -17567,5 +17563,10 @@ input[type='number'] {
 .team-space-lobby-list > .ui-button,
 .team-space-lobby-list > .soty-button {
   justify-self: start;
+}
+
+/* The text's three acts as one small group (024, round 8). */
+.team-explorer-pane-transcript .creative-library-text-actions {
+  gap: var(--space-1);
 }
 

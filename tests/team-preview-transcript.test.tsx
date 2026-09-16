@@ -106,7 +106,8 @@ describe('PreviewPane transcript block (012, T016/T017)', () => {
     });
     expect(await screen.findByRole('button', { name: 'View text' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Copy text' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Re-transcribe' })).toBeTruthy();
+    // Short on screen in the narrow pane, named in full for a screen reader (024).
+    expect(screen.getByRole('button', { name: 'Redo the transcript' })).toBeTruthy();
     // A menu lets you pick the original or the translation, and ticks the one
     // in use (021, T133: it was an unlabelled `<select>`).
     await userEvent.click(screen.getByRole('button', { name: 'uk translation' }));
