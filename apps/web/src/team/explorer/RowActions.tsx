@@ -95,6 +95,8 @@ export function RowActions({
     name: row.name,
     kind: row.kind === 'folder' ? 'folder' : row.kind === 'shortcut' ? 'shortcut' : 'file',
     category: row.category,
+    sizeBytes: row.sizeBytes,
+    fileExtension: row.fileExtension,
     parentFolderId: currentFolderId,
     trashed: false,
     availability: 'ready'

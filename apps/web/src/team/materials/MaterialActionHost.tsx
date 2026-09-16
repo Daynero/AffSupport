@@ -89,7 +89,9 @@ export function useMaterialActionHost({
       teamId: material.teamId,
       name: material.name,
       kind: material.kind,
-      category: material.category
+      category: material.category,
+      sizeBytes: material.sizeBytes,
+      fileExtension: material.fileExtension
     },
     client: actionsClient,
     storageKind,
@@ -130,8 +132,35 @@ export function useMaterialActionHost({
     }
   };
 
+  /**
+   * The video's own words, on the clipboard.
+   *
+   * The transcript is a file beside the video, and reading it meant finding
+   * that file — so the text a person had already paid to make was three
+   * screens from the video it belongs to. The action appears only when the
+   * companion says the text is there, which is why it can fetch on demand
+   * rather than holding every transcript in memory.
+   */
+  const copyText = async () => {
+    try {
+      const variants = await teamApi.listVideoTextVariants(teamId, material.id);
+      const ready = variants.variants.find(
+        variant => variant.ingestState === 'full' && !variant.truncated && variant.text
+      );
+      if (!ready?.text) {
+        push({ tone: 'error', text: t('materialReasonNotReady') });
+        return;
+      }
+      await navigator.clipboard.writeText(ready.text);
+      push({ tone: 'success', text: t('creativeLibraryTextCopied') });
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    }
+  };
+
   const handlers: ActionHandlers = {
     copyLink: () => void shareLink(false),
+    copyText: () => void copyText(),
     share: () => void shareLink(true),
     download: () => void actions.download(),
     rename: () => {
@@ -153,6 +182,9 @@ export function useMaterialActionHost({
         ref={uploadInput}
         type="file"
         hidden
+        // Named even though it is hidden: the browser's own picker announces
+        // it, and it is how "upload into this folder" is reached at all.
+        aria-label={t('teamFileUpload')}
         onChange={event => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';

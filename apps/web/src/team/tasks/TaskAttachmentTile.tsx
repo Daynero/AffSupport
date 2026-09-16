@@ -14,6 +14,7 @@ import { useTeam } from '../TeamContext';
 import { MaterialInlineActions } from '../materials/MaterialInlineActions';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
+import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
@@ -117,15 +118,34 @@ export function TaskAttachmentTile({
    * name, category and availability, and nothing else — and that is enough to
    * offer the same actions the explorer offers, which is the point.
    */
+  // The owner's example, finished: a video attached to a task that already has
+  // a catalog says so and opens it, instead of silently offering to make a
+  // second one beside the first.
+  const companions = useMaterialCompanions({
+    id: attachment.materialId,
+    teamId,
+    kind: attachment.kind === 'folder' ? 'folder' : 'file',
+    category: attachment.category,
+    draft: isDraft
+  });
+
   const material: MaterialRef = {
     id: attachment.materialId,
     teamId,
     name: attachment.name,
     kind: attachment.kind === 'folder' ? 'folder' : 'file',
     category: attachment.category,
+    // An attachment does not carry its size, so a download from a task tries
+    // the browser first and falls back to the agent on the cutoff — the same
+    // result, one round trip later. Its bucket reports as unknown until the
+    // attachment summary carries a size.
+    fileExtension: attachment.name.includes('.')
+      ? (attachment.name.split('.').pop() ?? null)
+      : null,
     availability: attachment.availability,
     trashed: attachment.availability === 'trashed',
-    draft: isDraft
+    draft: isDraft,
+    companions
   };
 
   const context: ActionContext = {

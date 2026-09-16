@@ -2,6 +2,7 @@ import type { TeamMaterialRow } from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
+import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import { MaterialInlineActions } from '../materials/MaterialInlineActions';
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
@@ -47,13 +48,26 @@ export function PaneActions({
   const space = spaceOf(teams, activeTeam, teamId);
   const agent = useOptionalAgent();
 
+  // One file is in focus here, so what lives beside it is worth two requests:
+  // a video whose transcript is ready offers its text, and one that already has
+  // a catalog offers to open it instead of making a second.
+  const companions = useMaterialCompanions({
+    id: row.id,
+    teamId: row.teamId,
+    kind: row.kind === 'folder' ? 'folder' : 'file',
+    category: row.category
+  });
+
   const material: MaterialRef = {
     id: row.id,
     teamId: row.teamId,
     name: row.name,
     kind: row.kind === 'folder' ? 'folder' : 'file',
     category: row.category,
-    availability: 'ready'
+    sizeBytes: row.sizeBytes,
+    fileExtension: row.fileExtension,
+    availability: 'ready',
+    companions
   };
 
   const context: ActionContext = {

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import type {
@@ -139,8 +140,15 @@ describe('the registry', () => {
     expect(screen.getByText(/Space root/)).toBeTruthy();
     expect(screen.getByText(/Last update failed/)).toBeTruthy();
     expect(screen.getByText('Not running')).toBeTruthy();
-    expect(screen.getByLabelText('Open catalog polo.mp4 catalog').getAttribute('href')).toBe(
-      'https://docs.google.com/spreadsheets/d/1/edit'
+    // Opening a catalog is the material vocabulary's `open` now (024), not an
+    // anchor of the updater's own — so the row is checked by what pressing it
+    // does rather than by the href it used to carry.
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Open' })[0]!);
+    expect(open).toHaveBeenCalledWith(
+      'https://docs.google.com/spreadsheets/d/1/edit',
+      '_blank',
+      'noopener,noreferrer'
     );
   });
 

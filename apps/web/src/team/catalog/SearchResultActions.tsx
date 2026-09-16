@@ -62,6 +62,8 @@ export function SearchResultActions({
     name: material.name,
     kind: material.kind === 'folder' ? 'folder' : 'file',
     category: material.category,
+    sizeBytes: material.sizeBytes,
+    fileExtension: material.fileExtension,
     parentFolderId: material.parentFolderId ?? null,
     availability: 'ready',
     transcriptReady: material.transcriptIngestState === 'full',

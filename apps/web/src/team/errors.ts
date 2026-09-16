@@ -1,6 +1,7 @@
 import type { TeamErrorCode } from '@video-compressor/shared';
 import { TEAM_ERROR_CODES } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
+import type { UnavailableReason } from './materials/actions';
 
 /**
  * The single code→copy mapper for team mode.
@@ -98,4 +99,32 @@ export function teamErrorMessageFor(error: unknown, t: (key: TranslationKey) => 
     return teamErrorMessage(error.message, t);
   }
   return t('teamErrorUnknown');
+}
+
+/**
+ * Why an action that applies cannot run right now (024).
+ *
+ * Kept beside the error map rather than beside the menu that renders it, for
+ * the same reason the error map is one place: a code becomes a sentence in one
+ * file, or it becomes three slightly different sentences in three.
+ *
+ * These are not errors — nothing failed. They are the reason an offer is
+ * standing but not takeable, and the reader is owed one.
+ */
+const UNAVAILABLE: Record<UnavailableReason, TranslationKey> = {
+  NO_PERMISSION: 'materialReasonNoPermission',
+  AGENT_REQUIRED: 'materialReasonAgentRequired',
+  STORAGE_DISCONNECTED: 'materialReasonStorageDisconnected',
+  CATALOG_SETTINGS_MISSING: 'materialReasonCatalogSettings',
+  RESTITCH_UNCONFIGURED: 'materialReasonRestitchUnconfigured',
+  NOT_READY: 'materialReasonNotReady',
+  TRASHED: 'materialReasonTrashed',
+  MISSING: 'materialReasonMissing'
+};
+
+export function materialUnavailableMessage(
+  reason: UnavailableReason,
+  t: (key: TranslationKey) => string
+): string {
+  return t(UNAVAILABLE[reason]);
 }

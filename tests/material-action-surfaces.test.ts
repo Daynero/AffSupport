@@ -173,3 +173,57 @@ describe('the owner’s example', () => {
     expect(list.inline.map(entry => entry.action.id)).not.toContain('productCatalog');
   });
 });
+
+/**
+ * T059 — a file is not alone, and every surface should say so.
+ *
+ * The transcript and the catalog are companion materials, and before this each
+ * was readable only from the one panel that made it. These hold the two rules
+ * the registry enforces once the companions are supplied: the text is offered
+ * only when there is text, and an existing catalog is openable even where a
+ * new one could not be made.
+ */
+describe('companions', () => {
+  it('offers the text only when a transcript exists', () => {
+    const alone = resolveMaterialActions(video, context('explorer-detail'), everyHandler());
+    expect(alone.groups.flatMap(g => g.actions.map(e => e.action.id))).not.toContain('copyText');
+
+    const withText: MaterialRef = {
+      ...video,
+      companions: { transcript: { ready: true } }
+    };
+    const list = resolveMaterialActions(withText, context('explorer-detail'), everyHandler());
+    const entry = list.groups
+      .flatMap(group => group.actions)
+      .find(action => action.action.id === 'copyText');
+    expect(entry?.availability).toEqual({ ok: true });
+  });
+
+  it('says the text is not ready rather than hiding it mid-transcription', () => {
+    const pending: MaterialRef = {
+      ...video,
+      companions: { transcript: { ready: false } }
+    };
+    const list = resolveMaterialActions(pending, context('explorer-detail'), everyHandler());
+    const entry = list.groups
+      .flatMap(group => group.actions)
+      .find(action => action.action.id === 'copyText');
+    expect(entry?.availability).toEqual({ ok: false, reason: 'NOT_READY' });
+  });
+
+  it('opens a catalog that exists even where a new one could not be made', () => {
+    const hasCatalog: MaterialRef = {
+      ...video,
+      companions: { productCatalog: { link: 'https://docs.google.com/x', productCount: 12 } }
+    };
+    const list = resolveMaterialActions(
+      hasCatalog,
+      context('explorer-detail', { catalogSettingsReady: false }),
+      everyHandler()
+    );
+    const entry = list.groups
+      .flatMap(group => group.actions)
+      .find(action => action.action.id === 'productCatalog');
+    expect(entry?.availability).toEqual({ ok: true });
+  });
+});

@@ -89,8 +89,11 @@ describe('the explorer capability map', () => {
     ]) {
       expect(shell, needle).toContain(needle);
     }
-    // Landing render state and the way into the full viewer.
+    // Landing render state and the way into the full viewer. Opening is the
+    // registry's `open` now rather than a button of the pane's own (024), so
+    // the needle is the route, not the label that used to sit on it.
     expect(pane).toContain('landingRender');
-    expect(pane).toContain('teamExplorerPreviewOpen');
+    expect(pane).toContain('PaneActions');
+    expect(read('apps/web/src/team/explorer/PaneActions.tsx')).toContain('open: onOpen');
   });
 });

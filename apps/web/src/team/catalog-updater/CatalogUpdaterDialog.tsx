@@ -1,19 +1,16 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Copy, ExternalLink, Search, Timer, X } from 'lucide-react';
-import type {
-  CatalogRegistryRow,
-  CatalogUpdaterInterval,
-  CatalogUpdaterState
-} from '../../api/team';
+import { Search, Timer, X } from 'lucide-react';
+import type { CatalogUpdaterInterval, CatalogUpdaterState } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button, Checkbox, IconButton } from '../../components/ui';
+import { Button, Checkbox } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { catalogSelectedCountKey, useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { UpdaterCountdown } from './UpdaterCountdown';
+import { UpdaterRowActions } from './UpdaterRowActions';
 import {
   filterCatalogRows,
   useCatalogRegistry,
@@ -54,7 +51,7 @@ export function CatalogUpdaterDialog({
 }) {
   const { t, language } = useI18n();
   const { push } = useToasts();
-  const { can } = useTeam();
+  const { can, permissions } = useTeam();
   const titleId = useId();
   const searchId = useId();
   const mayRun = can('process');
@@ -159,15 +156,6 @@ export function CatalogUpdaterDialog({
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
       setBusy(false);
-    }
-  };
-
-  const copy = async (row: CatalogRegistryRow) => {
-    try {
-      await navigator.clipboard.writeText(row.sheetUrl);
-      push({ tone: 'success', text: t('catalogUpdaterCopied') });
-    } catch {
-      push({ tone: 'error', text: t('teamToastLinkCopyFailed') });
     }
   };
 
@@ -303,24 +291,14 @@ export function CatalogUpdaterDialog({
                 {row.inUpdater && (
                   <span className="ui-chip team-updater-badge">{t('catalogUpdaterInUpdater')}</span>
                 )}
-                <div className="team-updater-row-actions">
-                  <a
-                    className="icon-button"
-                    href={row.sheetUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={t('catalogUpdaterOpenFor', { name: row.name })}
-                    title={t('catalogUpdaterOpenFor', { name: row.name })}
-                  >
-                    <ExternalLink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </a>
-                  <IconButton
-                    label={t('catalogUpdaterCopyFor', { name: row.name })}
-                    onClick={() => void copy(row)}
-                  >
-                    <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </IconButton>
-                </div>
+                {permissions ? (
+                  <UpdaterRowActions
+                    row={row}
+                    teamId={teamId}
+                    permissions={permissions}
+                    onChanged={() => registry.reload()}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>

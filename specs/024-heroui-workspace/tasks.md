@@ -226,14 +226,22 @@ closing or losing anything.
       **beside** its host, so nothing closes.
 - [x] T049 [US1] Add the translation keys for every action, group heading and unavailability
       reason to `apps/web/src/i18n.ts`, Ukrainian and English.
-- [ ] T050 [US1] Extend `apps/web/src/team/errors.ts` with the new `UnavailableReason` codes and
-      their sentences; no sentence is written anywhere else.
-- [ ] T051 [US1] Preserve analytics through the registry: every action that today opens a
+- [x] T050 [US1] Extend `apps/web/src/team/errors.ts` with the new `UnavailableReason` codes and
+      their sentences; no sentence is written anywhere else. `materialUnavailableMessage` is a
+      total `Record<UnavailableReason, TranslationKey>`, so a new reason without a sentence is a
+      type error, and the menu calls the mapper instead of holding its own copy.
+- [x] T051 [US1] Preserve analytics through the registry: every action that today opens a
       `startTeamFileAttempt` / `startTeamWorkflow` pair keeps doing so, with the same typed event
-      names, so no funnel goes dark when the call site moves.
+      names, so no funnel goes dark when the call site moves. The pairs all live in hooks the
+      registry's handlers call, so none moved — but the host was dropping `sizeBytes` on its way
+      to `useMaterialActions`, which reported every download's size as unknown and made a large
+      file try the browser path first. `MaterialRef` carries it now, and the bucket is pinned by
+      `tests/team-file-operations.test.tsx`.
 - [x] T052 [US1] Replace `apps/web/src/team/catalog/MaterialRowMenu.tsx` at its call sites with
-      the shared menu (explorer rows done; search results and the updater still use it, so the
-      file stays until T054 and T057), then delete it and its hand-rolled roving focus.
+      the shared menu, then delete it and its hand-rolled roving focus. Done: 379 lines gone.
+      The behaviours it carried — trash and its undo, permissions answering separately, one
+      outcome per action, bucketed analytics — moved to `tests/support/material-surface.tsx`,
+      which renders the shared surface for a test rather than a screen.
 - [x] T053 [US1] Render the shared surface from the explorer's rows and tiles —
       `RowActions.tsx` done, which both `ContentList` and `ContentGrid` render. Copy link, share
       and the colour tag still live as their own row affordances; they join the surface with the
@@ -244,12 +252,20 @@ closing or losing anything.
 - [x] T056 [US1] Render it from a task attachment in
       `apps/web/src/team/tasks/TaskAttachmentTile.tsx` — the owner's example. Six unlabelled
       icons become up to three inline plus one overflow.
-- [ ] T057 [US1] Render it from the catalog updater's list in
-      `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`.
+- [x] T057 [US1] Render it from the catalog updater's list in
+      `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`, through the new
+      `UpdaterRowActions.tsx`. Two hand-written icons become the whole vocabulary. `detail` is
+      scoped out of the `updater-row` host, and `showInFolder` is absent until
+      `list_team_product_catalogs` returns the folder's id — the row names the folder but not
+      its id, and the reveal needs the id.
 - [ ] T058 [US1] Render it from the selection bar on the inventory's `SelectionBar`, with
       `host: 'selection'` intersecting over the checked set and labels that say how many.
-- [ ] T059 [US1] Show companions on the material wherever it appears — catalog, transcript,
-      re-stitched copy — each with its own direct actions.
+- [x] T059 [US1] Show companions on the material wherever it appears — catalog, transcript,
+      re-stitched copy — each with its own direct actions. `useMaterialCompanions` reads both
+      where one file is in focus (the detail pane, a task attachment); `copyText` became a real
+      handler on the host instead of an action nothing could run. A list does not call it fifty
+      times: rows get companions from the list query or not at all, which is a column on the
+      folder and search queries and therefore server work this branch does not do.
 - [x] T060 [US1] Wire up `editText` in the folder view, which the audit found dead because the
       explorer never passed the handler.
 - [x] T061 [P] [US1] Write `tests/material-action-registry.test.ts`: every action's translation
@@ -258,8 +274,11 @@ closing or losing anything.
 - [x] T062 [P] [US1] Write `tests/material-action-surfaces.test.tsx`: the same `MaterialRef`
       resolved against every host yields an identical label key, icon, group and position for
       every action that applies in more than one host (SC-003).
-- [ ] T063 [P] [US1] Test that each action reports exactly one outcome, through the one toast
-      channel, from the one error mapper — never a raw machine code on screen.
+- [x] T063 [P] [US1] Test that each action reports exactly one outcome, through the one toast
+      channel, from the one error mapper — never a raw machine code on screen. Held by
+      `tests/team-ux-feedback.test.tsx`, which now runs through the shared surface rather than
+      the deleted row menu, and by the unavailability reasons being a total map in the one
+      mapper (T050).
 
 **Checkpoint**: quickstart Checkpoint 3. The owner's example works.
 

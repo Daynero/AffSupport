@@ -2,6 +2,7 @@ import { MoreHorizontal } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { DropdownMenu, IconButton, type MenuEntry } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { materialUnavailableMessage } from '../errors';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type { MaterialActionGroup } from './actions';
 import type { MaterialActionList, ResolvedAction } from './useMaterialActionList';
@@ -27,16 +28,6 @@ const GROUP_HEADINGS: Record<MaterialActionGroup, TranslationKey> = {
   remove: 'materialGroupRemove'
 };
 
-const REASON_COPY: Record<string, TranslationKey> = {
-  NO_PERMISSION: 'materialReasonNoPermission',
-  AGENT_REQUIRED: 'materialReasonAgentRequired',
-  STORAGE_DISCONNECTED: 'materialReasonStorageDisconnected',
-  CATALOG_SETTINGS_MISSING: 'materialReasonCatalogSettings',
-  RESTITCH_UNCONFIGURED: 'materialReasonRestitchUnconfigured',
-  NOT_READY: 'materialReasonNotReady',
-  TRASHED: 'materialReasonTrashed',
-  MISSING: 'materialReasonMissing'
-};
 
 /** One resolved action as a menu row, carrying its reason when it has one. */
 function toEntry(entry: ResolvedAction, t: (key: TranslationKey) => string): MenuEntry {
@@ -48,7 +39,7 @@ function toEntry(entry: ResolvedAction, t: (key: TranslationKey) => string): Men
     icon: <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
     destructive: action.destructive,
     disabled: !availability.ok,
-    note: availability.ok ? undefined : t(REASON_COPY[availability.reason] ?? 'teamActionFailed'),
+    note: availability.ok ? undefined : materialUnavailableMessage(availability.reason, t),
     onSelect: run
   };
 }

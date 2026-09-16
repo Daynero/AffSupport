@@ -113,6 +113,14 @@ export interface MaterialRef {
   kind: MaterialKind;
   category?: string | null;
   parentFolderId?: string | null;
+  /**
+   * Carried because the file operations need it, not because anything is drawn
+   * from it: the download picks the browser or the agent by size, and the
+   * analytics bucket is computed from it. A surface that leaves it out makes a
+   * large file try the browser path first and reports its size as unknown.
+   */
+  sizeBytes?: number | null;
+  fileExtension?: string | null;
   trashed?: boolean;
   availability?: 'ready' | 'pending' | 'trashed' | 'missing' | 'unavailable';
   transcriptReady?: boolean;
@@ -241,7 +249,10 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     labelKey: 'materialActionDetails',
     icon: SquarePen,
     inlinePriority: null,
-    applies: (_material, context) => context.host !== 'explorer-detail',
+    // Not in the updater: `showInFolder` already answers "where does this
+    // live", and a dialog that owns the address needs one way out, not two.
+    applies: (_material, context) =>
+      context.host !== 'explorer-detail' && context.host !== 'updater-row',
     available: () => OK
   },
   {
