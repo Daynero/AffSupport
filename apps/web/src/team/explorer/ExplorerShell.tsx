@@ -734,6 +734,16 @@ function ExplorerBody({
         onChanged: changed,
         preparedIds,
         onProductCatalog: (row: TeamMaterialRow) => setCatalogFor(row),
+        onOpen: (row: TeamMaterialRow) => {
+          if (row.kind === 'folder') explorer.openFolder(row.driveFileId);
+          else onPreview?.(summaryOf(row));
+        },
+        ...(onCreateTaskFromSelection
+          ? {
+              onCreateTask: (row: TeamMaterialRow) =>
+                onCreateTaskFromSelection([{ id: row.id, name: row.name }])
+            }
+          : {}),
         ...(permissions.download
           ? {
               onDownloadRestitched: (row: TeamMaterialRow) => void deliverRestitched([row])

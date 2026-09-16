@@ -37,3 +37,6 @@ config/keys/
 verification-result.json
 verification-suite.json
 verification-progress.log
+
+# Session-local drivers and probes (beta screenshots, one-off scripts).
+scratchpad/
