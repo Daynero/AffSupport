@@ -39,7 +39,7 @@ describe('user menu', () => {
     render(<UserMenu />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Team workspace' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Spaces' }));
 
     expect(location.pathname).toBe('/team');
   });

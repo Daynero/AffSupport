@@ -14,7 +14,9 @@ export function HomeReview(props: ScreenProps) {
             key={tool}
             title={tool}
             description={
-              index === 0 ? 'Спільні матеріали й робота команди.' : 'Локальний інструмент Soty.'
+              index === 0
+                ? 'Креативи, завдання й акаунти в одному місці.'
+                : 'Локальний інструмент Soty.'
             }
             reviewId={`${props.referencePrefix}/tool-${index}`}
             onOpen={open}

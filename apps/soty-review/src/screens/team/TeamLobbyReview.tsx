@@ -11,7 +11,7 @@ export function TeamLobbyReview(props: ScreenProps) {
           <Card
             key={space}
             title={space}
-            description={index === 2 ? 'Налаштування не завершене' : 'Готовий командний простір'}
+            description={index === 2 ? 'Налаштування не завершене' : 'Готовий простір'}
             reviewId={`${props.referencePrefix}/space-${index}`}
             onOpen={() => props.dispatch({ type: 'advance-demo' })}
           />

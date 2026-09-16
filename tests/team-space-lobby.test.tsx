@@ -51,7 +51,7 @@ describe('team space lobby', () => {
     renderSpace(client);
 
     expect(
-      await screen.findByRole('heading', { name: 'Team spaces are still in closed beta' })
+      await screen.findByRole('heading', { name: 'Spaces are still in closed beta' })
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Notify me when it’s ready' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Speed up development' })).toBeTruthy();
@@ -67,7 +67,7 @@ describe('team space lobby', () => {
     fireEvent.pointerDown(dialog.parentElement!);
 
     expect(
-      screen.queryByRole('heading', { name: 'Team spaces are still in closed beta' })
+      screen.queryByRole('heading', { name: 'Spaces are still in closed beta' })
     ).toBeNull();
     expect(location.pathname).toBe('/');
   });
@@ -80,7 +80,7 @@ describe('team space lobby', () => {
     await user.click(await screen.findByRole('button', { name: 'Speed up development' }));
 
     expect(
-      screen.queryByRole('heading', { name: 'Team spaces are still in closed beta' })
+      screen.queryByRole('heading', { name: 'Spaces are still in closed beta' })
     ).toBeNull();
     expect(screen.getByRole('heading', { name: 'Support the project' })).toBeTruthy();
   });

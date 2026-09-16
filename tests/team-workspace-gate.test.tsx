@@ -65,7 +65,7 @@ describe('team workspace launch gate', () => {
     );
 
     expect(
-      await screen.findByRole('heading', { name: 'Team spaces are still in closed beta' })
+      await screen.findByRole('heading', { name: 'Spaces are still in closed beta' })
     ).toBeTruthy();
     expect(
       screen.getByRole('dialog').parentElement?.classList.contains('team-workspace-gate-backdrop')

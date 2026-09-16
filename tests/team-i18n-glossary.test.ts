@@ -52,35 +52,21 @@ describe('forbidden vocabulary', () => {
 
 describe('the object noun', () => {
   /**
-   * The object is a Space. "Team workspace" names the *mode* and is allowed;
-   * "team" on its own as the thing you belong to is not.
+   * The object is a Space, for one person as much as for fifty (024). "Team workspace" used to be
+   * allowed as the name of the mode; it went, because a name that says "team" tells the media
+   * buyer working alone that this is not for them. People are "members" and "people" — never a
+   * team — and this holds across every string, not only the space's own.
    */
-  const MODE_KEYS = new Set<string>([
-    'teamWorkspace',
-    'teamWorkspaceDescription',
-    'teamWorkspaceGateTitle',
-    'teamWorkspaceGateBody',
-    'teamWorkspaceWaitlist',
-    'teamWorkspaceWaitlistSaved',
-    'teamWorkspaceWaitlistError',
-    'teamWorkspaceAccelerate',
-    'teamWorkspaceWithInvitations'
-  ]);
+  const everyString = (locale: (typeof LOCALES)[number]) =>
+    translationKeys.map(key => ({ key, value: translate(locale, key) }));
 
-  it('never names the object "team" in English', () => {
-    const offenders = teamStrings('en')
-      .filter(({ key }) => !MODE_KEYS.has(key))
-      .filter(({ value }) => /\bteams?\b/iu.test(value))
-      // "your team" means the people, which is what that word is for.
-      .filter(({ value }) => !/your team|the team will|team will recognise/iu.test(value));
+  it('never says "team" in English', () => {
+    const offenders = everyString('en').filter(({ value }) => /\bteam(s|mates?)?\b/iu.test(value));
     expect(offenders).toEqual([]);
   });
 
-  it('never names the object «команда» in Ukrainian', () => {
-    const offenders = teamStrings('uk')
-      .filter(({ key }) => !MODE_KEYS.has(key))
-      .filter(({ value }) => /команд[аиуоєі]/iu.test(value))
-      .filter(({ value }) => !/з командою|команда\b(?=[^.]*впізна)/iu.test(value));
+  it('never says «команда» in Ukrainian', () => {
+    const offenders = everyString('uk').filter(({ value }) => /команд/iu.test(value));
     expect(offenders).toEqual([]);
   });
 });

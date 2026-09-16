@@ -72,21 +72,21 @@ export function buildInvitationEmail(input: InvitationEmailInput): InvitationEma
   return {
     subject: `${inviterName} invited you to ${teamName} in Soty`,
     text: [
-      `${inviterName} invited you to the “${teamName}” team in Soty.`,
+      `${inviterName} invited you to the “${teamName}” space in Soty.`,
       `Accept the invitation: ${inviteUrl}`,
       '',
-      `${inviterName} запрошує вас до команди «${teamName}» у Soty.`,
+      `${inviterName} запрошує вас до простору «${teamName}» у Soty.`,
       `Прийняти запрошення: ${inviteUrl}`
     ].join('\n'),
     html: `<!doctype html>
 <html lang="en">
   <body style="font-family:system-ui,-apple-system,sans-serif;color:#171717;line-height:1.5">
     <h1 style="font-size:20px">You’re invited to ${htmlTeam}</h1>
-    <p>${htmlInviter} invited you to collaborate in Soty.</p>
+    <p>${htmlInviter} invited you to work with them in Soty.</p>
     <p><a href="${htmlUrl}">Accept invitation</a></p>
     <hr style="border:0;border-top:1px solid #e5e5e5">
     <h2 style="font-size:18px">Вас запрошено до ${htmlTeam}</h2>
-    <p>${htmlInviter} запрошує вас до спільної роботи у Soty.</p>
+    <p>${htmlInviter} запрошує вас працювати разом у Soty.</p>
     <p><a href="${htmlUrl}">Прийняти запрошення</a></p>
   </body>
 </html>`
