@@ -442,9 +442,16 @@ closing or losing anything.
         remember four ids would be the most expensive thing a copy ever does.
       Upload, restitch, tags and the keyboard are still in the shell; they are more entangled
       with the folder listing than these two were, and T096 is the reason to come back.
-- [ ] T096 [US5] Make a 500-row folder usable without repeated manual paging (FR-044) — windowing
-      or continuous loading, whichever the split in T095 makes honest. This also closes findings
-      B2 and B3 of feature 021 for the screens this feature touches.
+- [x] T096 [US5] Make a 500-row folder usable without repeated manual paging (FR-044) —
+      continuous loading, in `MorePages.tsx`. Five presses of "Show more" is not a page size; it
+      is a page size somebody forgot to finish, and the search, the arrow keys and the batch
+      scope all worked on whatever had been pressed into existence. The button stays: it is the
+      fallback where there is no `IntersectionObserver`, it is what a keyboard reaches, and a
+      sentinel that silently does nothing is indistinguishable from a list that has ended.
+      **Deliberately not virtualised** — five hundred rows of plain markup is not what made this
+      slow, the hundred-at-a-time fetching was, and windowing costs the browser's own
+      find-on-page, which is how people actually look for a file in a long list. Findings B2 and
+      B3 of 021 close with it.
 
 **Checkpoint**: quickstart Checkpoint 5, items 1 and 5.
 

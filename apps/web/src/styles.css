@@ -13786,6 +13786,12 @@ button.team-landing-tile:hover {
   align-items: center;
   gap: var(--space-2);
 }
+/* The end of the list, which is also where the next page is asked for (024). */
+.team-explorer-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) 0;
+}
 .team-explorer-pane-visual {
   display: grid;
   place-items: center;

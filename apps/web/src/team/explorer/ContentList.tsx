@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import type { TeamMaterialRow, TeamMaterialTagColor } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
 import {
-  Button,
   EmptyState,
   ErrorState,
   Table,
@@ -18,6 +17,7 @@ import { useI18n } from '../../i18n';
 import { formatDate, formatSize } from '../../format';
 import { DRAG_TYPE, KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { useExplorer } from './ExplorerProvider';
+import { MorePages } from './MorePages';
 import type { FolderPageState } from './useFolderPage';
 import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
@@ -154,16 +154,11 @@ export function ContentList({
           ))}
         </Table>
       )}
-      {page.hasMore && (
-        <Button
-          color="neutral"
-          variant="outline"
-          loading={page.loading}
-          onClick={() => void page.loadMore()}
-        >
-          {t('teamExplorerLoadMore')}
-        </Button>
-      )}
+      <MorePages
+        hasMore={page.hasMore}
+        loading={page.loading}
+        onLoadMore={() => void page.loadMore()}
+      />
     </section>
   );
 }

@@ -6,7 +6,7 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Button, EmptyState, ErrorState } from '../../components/ui/index';
+import { EmptyState, ErrorState } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
@@ -17,6 +17,7 @@ import { KindIcon } from './KindIcon';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { ShareButton } from './ShareButton';
 import { useExplorer } from './ExplorerProvider';
+import { MorePages } from './MorePages';
 import { TagDot } from './TagDot';
 import type { TaggingProps } from './ContentList';
 import type { FolderPageClient, FolderPageState } from './useFolderPage';
@@ -175,16 +176,11 @@ export function ContentGrid({
           />
         ))}
       </ul>
-      {page.hasMore && (
-        <Button
-          color="neutral"
-          variant="outline"
-          loading={page.loading}
-          onClick={() => void page.loadMore()}
-        >
-          {t('teamExplorerLoadMore')}
-        </Button>
-      )}
+      <MorePages
+        hasMore={page.hasMore}
+        loading={page.loading}
+        onLoadMore={() => void page.loadMore()}
+      />
     </section>
   );
 }

@@ -200,19 +200,28 @@ export async function probeDuration(
   timeoutMs = PROBE_TIMEOUT_MS
 ): Promise<number | null> {
   return new Promise(resolve => {
-    const child = spawn(
-      ffprobePath,
-      [
-        '-v',
-        'error',
-        '-show_entries',
-        'format=duration',
-        '-of',
-        'default=noprint_wrappers=1:nokey=1',
-        inputPath
-      ],
-      { shell: false }
-    );
+    let child;
+    try {
+      child = spawn(
+        ffprobePath,
+        [
+          '-v',
+          'error',
+          '-show_entries',
+          'format=duration',
+          '-of',
+          'default=noprint_wrappers=1:nokey=1',
+          inputPath
+        ],
+        { shell: false }
+      );
+    } catch {
+      // A binary the system refuses to launch throws from spawn itself rather
+      // than emitting 'error' (see platform/probe.ts); unknown duration is the
+      // same answer this gives for a tool that failed any other way.
+      resolve(null);
+      return;
+    }
     let output = '';
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
@@ -251,7 +260,19 @@ async function probeJson(
 
 function runProbeJson(command: string, args: string[]): Promise<Record<string, any> | null> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { shell: false });
+    let child;
+    try {
+      child = spawn(command, args, { shell: false });
+    } catch (error) {
+      // Same throw-instead-of-emit path as everywhere else spawn is called; the
+      // caller expects the typed error, not a raw ErrnoException.
+      const causeCode =
+        error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : null;
+      reject(new MediaToolUnavailableError('ffprobe', causeCode));
+      return;
+    }
     let output = '';
     let settled = false;
     const finish = (value: Record<string, any> | null) => {
