@@ -11,6 +11,10 @@ import type {
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import {
+  InvitationPanel,
+  type InvitationPanelClient
+} from '../members/InvitationPanel';
+import {
   Badge,
   Button,
   ConfirmDialog,
@@ -51,6 +55,7 @@ import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuD
 
 export interface TaskEditorClient
   extends
+    Partial<InvitationPanelClient>,
     TaskAttachmentPickerClient,
     TaskAttachmentPreviewClient,
     TaskAgentTagsClient,
@@ -62,6 +67,7 @@ export interface TaskEditorClient
     attachmentPageSize?: number;
   }): Promise<{ task: TeamTaskSummary; attachments: TeamTaskAttachmentSummary[] }>;
   updateTask(teamId: string, taskId: string, patch: TeamTaskPatch): Promise<TeamTaskSummary>;
+
   detachTaskMaterial(teamId: string, taskId: string, materialId: string): Promise<boolean>;
   /** The space's one folder for dropped files; made on first use (011). */
   ensureTaskDropFolder?: (
@@ -181,6 +187,7 @@ export function TaskEditor({
   onChanged,
   onTagsChange,
   onLabelsChange,
+  onLabelCreated,
   onDelete
 }: {
   teamId: string;
@@ -196,6 +203,8 @@ export function TaskEditor({
   onTagsChange?: (tags: TeamTaskAgentTag[]) => void;
   /** The team's own tags changed (018), also written at once. */
   onLabelsChange?: (labels: TeamTaskLabelRef[]) => void;
+  /** Raised when a tag is created from inside this task (024). */
+  onLabelCreated?: () => void;
   /** Deletes the task; absent when the viewer may not. */
   onDelete?: (task: TeamTaskSummary) => Promise<void>;
 }) {
@@ -234,7 +243,11 @@ export function TaskEditor({
     let parentFolderId: string | null | undefined;
     for (const query of [attachment.name, stem]) {
       try {
-        const found = await teamApi.searchCatalog(teamId, { query, page: 1, pageSize: 100 });
+        // The picker's client already knows how to search the space; reaching
+        // past it to `teamApi` made this the one call in the editor a test
+        // could not stand in for.
+        const search = client.searchCatalog ?? teamApi.searchCatalog;
+        const found = await search(teamId, { query, page: 1, pageSize: 100 });
         const hit = found.items.find(item => item.id === attachment.materialId);
         if (hit) {
           parentFolderId = hit.parentFolderId ?? null;
@@ -244,7 +257,10 @@ export function TaskEditor({
         break;
       }
     }
-    onClose();
+    // Not `onClose()`: closing the editor writes its own address first, and the
+    // reveal's would land on top of it — so Back came out at the task list
+    // rather than at the task somebody was in the middle of. Changing the
+    // address is enough to close the dialog, and leaves the task one Back away.
     navigateTo(
       buildTeamRoute({
         spaceId: teamId,
@@ -308,6 +324,8 @@ export function TaskEditor({
    * go to the explorer and come back.
    */
   const [catalogFor, setCatalogFor] = useState<{ id: string; name: string } | null>(null);
+  /** The invite dialog, opened from the assignee field and closed back to it. */
+  const [inviting, setInviting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   // The account-wide default for a new task's Maximum. When the field differs
   // from it, a small save control offers to make the current value the default.
@@ -925,33 +943,6 @@ export function TaskEditor({
                 }}
               />
             </section>
-            {/* The accounts this task is about (017). Written at once, like
-                status: a tag is a fact about the task, not a draft of one. */}
-            <TaskAgentTagsEditor
-              teamId={teamId}
-              taskId={task.id}
-              taskTitle={title}
-              tags={task.agents}
-              canEdit={canEdit}
-              client={client}
-              onTagsChange={agents => {
-                setTask(current => ({ ...current, agents }));
-                onTagsChange?.(agents);
-              }}
-            />
-            {/* The team's own tags (018), from the dictionary in settings. */}
-            <TaskLabelsEditor
-              teamId={teamId}
-              taskId={task.id}
-              labels={task.labels}
-              available={labels}
-              canEdit={canEdit}
-              client={client}
-              onLabelsChange={next => {
-                setTask(current => ({ ...current, labels: next }));
-                onLabelsChange?.(next);
-              }}
-            />
             <FormField label={t('teamTaskTitle')} htmlFor="team-task-title" required>
               <Input
                 id="team-task-title"
@@ -992,6 +983,20 @@ export function TaskEditor({
                     if (canEdit) autosave.save({ assigneeId: next || null });
                   }}
                 />
+                {/* The person you want to give this to may not be in the space
+                    yet. Sending them here used to mean leaving the task, going
+                    to the members settings, inviting, and finding the task
+                    again (024, FR-071). */}
+                {canEdit && can('manage_members') && client.createInvitation && (
+                  <Button
+                    size="sm"
+                    color="neutral"
+                    variant="ghost"
+                    onClick={() => setInviting(true)}
+                  >
+                    {t('teamTaskInviteSomeone')}
+                  </Button>
+                )}
               </FormField>
               <FormField
                 className="team-task-progress-max-field"
@@ -1097,6 +1102,36 @@ export function TaskEditor({
             )}
           </form>
 
+            {/* The accounts this task is about (017). Written at once, like
+              status: a tag is a fact about the task, not a draft of one. */}
+          <TaskAgentTagsEditor
+            teamId={teamId}
+            taskId={task.id}
+            taskTitle={title}
+            tags={task.agents}
+            canEdit={canEdit}
+            client={client}
+            onTagsChange={agents => {
+              setTask(current => ({ ...current, agents }));
+              onTagsChange?.(agents);
+            }}
+          />
+          {/* The team's own tags (018), from the dictionary in settings. */}
+          <TaskLabelsEditor
+            teamId={teamId}
+            taskId={task.id}
+            labels={task.labels}
+            available={labels}
+            canEdit={canEdit}
+            client={client}
+            onLabelsChange={next => {
+              setTask(current => ({ ...current, labels: next }));
+              onLabelsChange?.(next);
+            }}
+            // A tag made from inside the task belongs to the space, so the
+            // dictionary the board and the settings read has to learn it too.
+            onLabelCreated={onLabelCreated}
+          />
           <RestitchDeliveryNotices
             states={restitch.states}
             onConfigure={can('manage_metadata') ? openRestitchSettings : null}
@@ -1260,6 +1295,24 @@ export function TaskEditor({
                 {t('teamTaskConflictKeepMine')}
               </Button>
             </div>
+          </div>
+        </Modal>
+      )}
+      {inviting && client.createInvitation && (
+        <Modal
+          nested
+          labelledBy="team-task-invite-title"
+          onClose={() => setInviting(false)}
+          closeLabel={t('teamCancel')}
+          size="md"
+        >
+          <div className="team-task-invite">
+            <h2 id="team-task-invite-title">{t('teamTaskInviteSomeone')}</h2>
+            <InvitationPanel
+              teamId={teamId}
+              client={client as unknown as InvitationPanelClient}
+              canManage
+            />
           </div>
         </Modal>
       )}

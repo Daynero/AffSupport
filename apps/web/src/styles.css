@@ -9930,8 +9930,31 @@ body {
 }
 
 /* Team task workspace */
+/*
+ * The editor, two columns wide and one column narrow (024).
+ *
+ * It was one column of eleven stacked blocks, so on a laptop the attachments —
+ * the thing a performer opens the task to get at — began below the fold, under
+ * a twelve-row description field. The task's own fields go left, everything
+ * that is *about* the task (its materials, its accounts, its tags) goes right,
+ * and the attachments are on screen when the dialog opens.
+ */
+.team-task-editor {
+  display: grid;
+  gap: var(--space-5);
+  align-items: start;
+  min-width: 0;
+}
+@media (min-width: 62rem) {
+  .team-task-editor {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+  /* The form is the left column; everything after it stacks down the right. */
+  .team-task-editor > .team-dialog-form {
+    grid-row: 1 / -1;
+  }
+}
 .team-task-space,
-.team-task-editor,
 .team-task-attachments,
 .team-task-attachment-picker,
 .team-task-picker-content {
@@ -10586,6 +10609,14 @@ body {
   font-weight: 700;
   text-transform: none !important;
 }
+/* Why a tile is not usable, in the caption rather than only in a dimmed
+   preview: trashed reads differently from slow. */
+.team-task-attachment-state {
+  color: var(--color-error-text) !important;
+  font-size: var(--text-micro) !important;
+  font-weight: 700;
+  text-transform: none !important;
+}
 .team-task-attachment-actions {
   display: flex;
   /* Six with "show on Drive": the sixth wraps on the narrowest tile rather than overflowing it. */
@@ -10771,6 +10802,14 @@ body {
 .team-task-conflict h2,
 .team-task-detach-confirmation p,
 .team-task-conflict p {
+  margin: 0;
+}
+/* The invite dialog, raised from the assignee field. */
+.team-task-invite {
+  display: grid;
+  gap: var(--space-4);
+}
+.team-task-invite h2 {
   margin: 0;
 }
 /* The other person's version, quoted so the choice is between two things you

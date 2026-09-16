@@ -597,6 +597,18 @@ button.team-task-label-chip:hover:not(:disabled),
   background: var(--color-accent-softer);
 }
 
+/* "Create the tag «…»" — the word you typed, offered as a thing to make. Set
+   apart from the tags themselves, because it is an action and they are not. */
+.team-task-label-option.is-create {
+  justify-content: flex-start;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
 /* --- The filter pill and the order control --------------------------------- */
 
 .task-label-filter .task-account-filter-trigger {

@@ -303,21 +303,31 @@ closing or losing anything.
 - [x] T067 [US3] Add the quiet saved indicator and the loud retryable failure to the editor's
       header. "Saved" is a receipt that fades; a failure keeps the words on screen, holds the
       value the person typed, and offers the retry.
-- [ ] T068 [US3] Re-lay the editor as two columns on a wide screen and stacked on a narrow one —
+- [x] T068 [US3] Re-lay the editor as two columns on a wide screen and stacked on a narrow one —
       the task's own fields on one side, materials / accounts / tags on the other, attachments
-      visible without scrolling.
-- [ ] T069 [US3] Speak an attachment's availability in words in `TaskAttachmentTile.tsx` —
-      trashed, missing, unavailable, uploading — and offer the action that resolves it.
-- [ ] T070 [US3] Guard the actions that cannot apply to a folder attachment, which today fail
-      into a generic message.
-- [ ] T071 [US3] Let a tag be created from `apps/web/src/team/tasks/TaskLabelsEditor.tsx` and a
-      member invited from the assignee control, without leaving the task.
-- [ ] T072 [US3] Make `revealAttachment` use the injected client rather than `teamApi` directly,
-      and keep the task open behind the explorer.
-- [ ] T073 [US3] Move the progress-eye preference in `apps/web/src/team/tasks/TaskSpace.tsx` into
-      `persistedView`, so every board preference uses one mechanism.
-- [ ] T074 [US3] Keep the sort control present when the space has no tags, explaining itself
-      instead of vanishing.
+      visible without scrolling. Accounts and tags moved out of the form to get there, which the
+      form could afford because it no longer submits anything.
+- [x] T069 [US3] Speak an attachment's availability in words in `TaskAttachmentTile.tsx`. It was
+      said only in `data-availability` and a dimmed preview, so a file somebody had trashed looked
+      exactly like one whose thumbnail was slow. The action that resolves it is the registry's:
+      a trashed attachment offers Restore, which it already did.
+- [x] T070 [US3] Guard the actions that cannot apply to a folder attachment. The registry
+      already keeps file-only actions off a folder; what was left was Open, which raised a
+      preview dialog with nothing to show. It goes into the folder now.
+- [x] T071 [US3] Let a tag be created from `TaskLabelsEditor` and a member invited from the
+      assignee control, without leaving the task. The word typed into the tag search becomes the
+      tag and lands on the task in one press; the assignee field raises the existing
+      `InvitationPanel` over the task rather than sending anyone to the settings.
+- [x] T072 [US3] Make `revealAttachment` use the injected client rather than `teamApi` directly,
+      and keep the task open behind the explorer. It no longer calls `onClose()` first: closing
+      writes its own address, and the reveal's landed on top of it, so Back came out at the task
+      list instead of the task.
+- [x] T073 [US3] Move the progress-eye preference into `persistedView`. It had a key, a reader,
+      a writer and an effect of its own — the same mechanism written twice, and the two disagreed
+      about what happens when you switch spaces.
+- [x] T074 [US3] Keep the sort control present when the space has no tags, explaining itself
+      instead of vanishing — "order by tag" was a feature you could only find by already having
+      used it.
 - [ ] T075 [US3] Add bulk actions to the board for what is safe in bulk — status, assignee, tag,
       delete-with-undo — on the inventory's `SelectionBar`.
 - [ ] T076 [US3] Put the actions that do not need the editor on the task card behind one

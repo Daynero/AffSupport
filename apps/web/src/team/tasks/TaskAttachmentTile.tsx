@@ -17,7 +17,7 @@ import { spaceOf, type ActionContext, type MaterialRef } from '../materials/acti
 import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 import { cachedPreview } from '../preview-url-cache';
 import { MaterialPreview } from '../preview/MaterialPreview';
@@ -48,6 +48,16 @@ export interface TaskAttachmentPreviewClient {
 }
 
 const defaultClient: TaskAttachmentPreviewClient = teamApi;
+
+/** Why an attachment cannot be used, said rather than only styled. */
+const AVAILABILITY_COPY: Record<
+  Exclude<TeamTaskAttachmentSummary['availability'], 'ready'>,
+  TranslationKey
+> = {
+  trashed: 'teamTaskAttachmentTrashed',
+  missing: 'teamTaskAttachmentMissing',
+  unavailable: 'teamTaskAttachmentUnavailable'
+};
 
 export function TaskAttachmentTile({
   teamId,
@@ -161,8 +171,14 @@ export function TaskAttachmentTile({
     catalogSettingsReady: true
   };
 
+  const isFolder = attachment.kind === 'folder';
+
   const actions = useMaterialActionList(material, context, {
-    open: () => setPreviewOpen(true),
+    // Opening a folder means going into it, not previewing it. It used to
+    // raise the preview dialog, which had nothing to show and said so in a
+    // generic sentence about an attachment that could not be loaded (024,
+    // FR-070).
+    open: isFolder ? onReveal : () => setPreviewOpen(true),
     showInFolder: onReveal,
     copyLink: () => void copyLink(),
     download: () => void download(),
@@ -360,7 +376,19 @@ export function TaskAttachmentTile({
                 : t(CATEGORY_LABEL[attachment.category ?? 'other'])}
             </small>
             {isDraft && (
-              <small className="team-task-attachment-draft">{t('teamTaskAttachmentAttaching')}</small>
+              <small className="team-task-attachment-draft">
+                {t('teamTaskAttachmentAttaching')}
+              </small>
+            )}
+            {/* Why this tile is not like the others, in words. It used to say
+                it only in `data-availability` and a dimmed preview, so a file
+                somebody had trashed looked the same as one whose thumbnail was
+                slow, and the actions under it failed into a generic message
+                (024, FR-069). */}
+            {!isDraft && attachment.availability !== 'ready' && (
+              <small className="team-task-attachment-state">
+                {t(AVAILABILITY_COPY[attachment.availability])}
+              </small>
             )}
           </div>
         </div>

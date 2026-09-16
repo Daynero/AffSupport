@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import { sortTeamTaskLabels, type TeamTaskLabelRef } from '@video-compressor/shared';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -27,6 +27,7 @@ export function TaskLabelMenu({
   ariaLabel,
   emptyText,
   emptyTarget,
+  onCreate,
   disabled = false,
   className = ''
 }: {
@@ -38,12 +39,22 @@ export function TaskLabelMenu({
   emptyText: string;
   /** Where those tags are made, so the empty state is a door and not a notice. */
   emptyTarget?: SpaceSettingsTarget;
+  /**
+   * Make the tag from here, when the surface can (024, FR-071).
+   *
+   * Tagging a task with a tag that does not exist yet meant leaving the task,
+   * opening the space settings, making it, coming back and finding the task
+   * again — for a word. Where this is supplied, the word typed into the search
+   * becomes the tag, and the task is tagged with it in the same press.
+   */
+  onCreate?: (name: string) => Promise<TeamTaskLabelRef | null>;
   disabled?: boolean;
   className?: string;
 }) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState('');
+  const [creating, setCreating] = useState(false);
   const sorted = useMemo(() => sortTeamTaskLabels(labels), [labels]);
   const term = search.normalize('NFC').trim().toLocaleLowerCase();
   const shown = term
@@ -83,17 +94,17 @@ export function TaskLabelMenu({
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
     >
-      {sorted.length >= SEARCH_FROM && (
+      {(sorted.length >= SEARCH_FROM || (onCreate && sorted.length > 0)) && (
         <input
           type="search"
           className="team-task-label-menu-search"
           value={search}
-          aria-label={t('teamTaskTagSearch')}
-          placeholder={t('teamTaskTagSearch')}
+          aria-label={t(onCreate ? 'teamTaskTagSearchOrCreate' : 'teamTaskTagSearch')}
+          placeholder={t(onCreate ? 'teamTaskTagSearchOrCreate' : 'teamTaskTagSearch')}
           onChange={event => setSearch(event.target.value)}
         />
       )}
-      {sorted.length === 0 && (
+      {sorted.length === 0 && !onCreate && (
         <EmptyState
           size="sm"
           className="team-task-label-menu-empty"
@@ -101,12 +112,35 @@ export function TaskLabelMenu({
           action={emptyTarget && <SpaceSettingsLink target={emptyTarget} />}
         />
       )}
-      {sorted.length > 0 && shown.length === 0 && (
+      {sorted.length === 0 && onCreate && !term && (
+        <EmptyState size="sm" className="team-task-label-menu-empty" title={emptyText} />
+      )}
+      {sorted.length > 0 && shown.length === 0 && !term && (
         <EmptyState
           size="sm"
           className="team-task-label-menu-empty"
           title={t('teamTaskTagSearchEmpty')}
         />
+      )}
+      {/* The word you just typed, offered as a tag. Only when it is not one
+          already, so the list never shows the same name twice. */}
+      {onCreate && term && !sorted.some(label => label.name.toLocaleLowerCase() === term) && (
+        <button
+          type="button"
+          className="team-task-label-option is-create"
+          disabled={disabled || creating}
+          onClick={() => {
+            setCreating(true);
+            void onCreate(search.normalize('NFC').trim())
+              .then(made => {
+                if (made) setSearch('');
+              })
+              .finally(() => setCreating(false));
+          }}
+        >
+          <Plus size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          <span>{t('teamTaskTagCreateNamed', { name: search.trim() })}</span>
+        </button>
       )}
       {shown.map(label => {
         const selected = selectedIds.has(label.id);

@@ -42,31 +42,6 @@ export interface TaskSourceAsset {
 
 const defaultClient: TaskSpaceClient = teamApi;
 
-/**
- * Whether the board draws each card's progress scale, remembered per space in
- * this browser. A convenience, not data: a missing or unreadable value means
- * the scale is shown, which is what the board has always done.
- */
-function progressKey(teamId: string): string {
-  return `soty.team-tasks.progress:${teamId}`;
-}
-
-function readProgressShown(teamId: string): boolean {
-  try {
-    return window.localStorage.getItem(progressKey(teamId)) !== 'hidden';
-  } catch {
-    return true;
-  }
-}
-
-function writeProgressShown(teamId: string, shown: boolean): void {
-  try {
-    window.localStorage.setItem(progressKey(teamId), shown ? 'shown' : 'hidden');
-  } catch {
-    // Nothing to do: the fold is a convenience and the board works without it.
-  }
-}
-
 function sourceMaterialIds(source: TaskSourceAsset | null): string[] {
   const candidateIds = source?.ids ?? (source?.id ? [source.id] : []);
   return [...new Set(candidateIds.filter(id => typeof id === 'string' && id.length > 0))];
@@ -140,11 +115,17 @@ export function TaskSpace({
    * Whether the cards show their progress scales. Some boards are run on the
    * scale and some never touch it, and for the second kind it is a bar of
    * colour under every title. One press puts it away, and the space remembers.
+   *
+   * Through `persistedView` like every other board preference (024): it had a
+   * storage key, a reader, a writer and an effect of its own, which is four
+   * pieces of the same mechanism written twice — and the two disagreed about
+   * what happens when you switch spaces.
    */
-  const [progressShown, setProgressShown] = useState(true);
-  useEffect(() => {
-    setProgressShown(readProgressShown(teamId));
-  }, [teamId]);
+  const [progressShown, setProgressShown] = usePersistedState<boolean>(
+    persistedViewKey(teamId, 'tasks.progressShown'),
+    true,
+    value => (typeof value === 'boolean' ? value : null)
+  );
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
   const [accounts, setAccounts] = useState<TeamAccountSummary[]>([]);
   const [busy, setBusy] = useState(false);
@@ -329,11 +310,7 @@ export function TaskSpace({
             aria-pressed={!progressShown}
             title={t(progressShown ? 'teamTasksProgressHide' : 'teamTasksProgressShow')}
             aria-label={t(progressShown ? 'teamTasksProgressHide' : 'teamTasksProgressShow')}
-            onClick={() => {
-              const next = !progressShown;
-              setProgressShown(next);
-              writeProgressShown(teamId, next);
-            }}
+            onClick={() => setProgressShown(current => !current)}
           >
             {progressShown ? (
               <Eye size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
@@ -375,9 +352,11 @@ export function TaskSpace({
             onChange={tasks.setLabelIds}
           />
         )}
-        {labels.labels.length > 0 && (
-          <TaskSortControl value={tasks.sort} onChange={tasks.setSort} />
-        )}
+        <TaskSortControl
+          value={tasks.sort}
+          onChange={tasks.setSort}
+          hasLabels={labels.labels.length > 0}
+        />
       </TaskDateFilterControl>
       {error && (
         <p className="team-inline-error" role="alert">
@@ -465,6 +444,7 @@ export function TaskSpace({
             // The counts in settings follow the same tag write.
             void labels.refetch();
           }}
+          onLabelCreated={() => void labels.refetch()}
           onDelete={
             can('edit')
               ? async task => {

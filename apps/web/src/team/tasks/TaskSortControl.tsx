@@ -15,21 +15,39 @@ const OPTIONS: readonly TeamTaskSort[] = ['date', 'label'];
 
 export function TaskSortControl({
   value,
-  onChange
+  onChange,
+  /**
+   * Whether the space has any tags yet.
+   *
+   * The whole control used to disappear when it did not, so "order by tag"
+   * was a feature you could only discover by already having used it. It stays
+   * now and says why it cannot be taken — the same rule the material actions
+   * follow, and the reason a space with no tags can learn that tags order the
+   * board (024, FR-064).
+   */
+  hasLabels = true
 }: {
   value: TeamTaskSort;
   onChange: (sort: TeamTaskSort) => void;
+  hasLabels?: boolean;
 }) {
   const { t } = useI18n();
   return (
     <div className="task-sort-control" role="group" aria-label={t('teamTasksSortLabel')}>
-      {OPTIONS.map(option => (
+      {OPTIONS.map(option => {
+        const blocked = option === 'label' && !hasLabels;
+        return (
         <button
           key={option}
           type="button"
           className={`task-status-filter-option task-sort-option${value === option ? ' is-active' : ''}`}
           aria-pressed={value === option}
-          onClick={() => onChange(option)}
+          aria-disabled={blocked || undefined}
+          title={blocked ? t('teamTasksSortByTagUnavailable') : undefined}
+          onClick={() => {
+            if (blocked) return;
+            onChange(option);
+          }}
         >
           {option === 'date' ? (
             <ArrowDownWideNarrow size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
@@ -38,7 +56,8 @@ export function TaskSortControl({
           )}
           <span>{t(option === 'date' ? 'teamTasksSortByDate' : 'teamTasksSortByTag')}</span>
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }
