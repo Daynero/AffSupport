@@ -114,7 +114,7 @@ Drive, add `https://soty.pp.ua/oauth/drive/callback` to that one too.
 - After deploy, in a clean browser tab:
   - `https://soty.pp.ua/` shows the Drive note under "Відкрити Soty"; the footer links are
     reachable by scrolling on a short window.
-  - `https://soty.pp.ua/privacy#google-drive` lands on "Google Drive team workspace".
+  - `https://soty.pp.ua/privacy#google-drive` lands on "Spaces on Google Drive".
   - `curl -s https://soty.pp.ua/privacy | grep -c noscript` → 1; `curl -s https://soty.pp.ua/robots.txt`
     → `User-agent: *` (not HTML).
   - If a page errors with a missing module, see the Cloudflare cache-poisoning memory before

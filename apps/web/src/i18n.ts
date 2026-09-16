@@ -85,7 +85,7 @@ const en = {
   publicHomeSignIn: 'Open Soty',
   publicHomeFooter: 'Soty · Free local tools for media buyers',
   publicHomeDriveNote:
-    'Team spaces keep the team’s files in a Google Drive folder the owner picks, and Soty uses that access only to catalog, preview, upload and organize those files.',
+    'A space keeps your files in a Google Drive folder you pick — work in it alone or invite people. Soty uses that access only to catalog, preview, upload and organize those files.',
   googleDataUseLink: 'How Soty uses Google data',
   teamDriveDataUse:
     'Soty gets access only to the folders you pick in Google’s chooser and to the files it creates, and uses it only for this space’s files.',
@@ -2606,7 +2606,7 @@ const uk: Record<keyof typeof en, string> = {
   publicHomeSignIn: 'Відкрити Soty',
   publicHomeFooter: 'Soty · Безкоштовні локальні інструменти для медіабаєрів',
   publicHomeDriveNote:
-    'Командні простори зберігають файли команди в папці Google Drive, яку вибирає власник, і Soty використовує цей доступ лише для каталогу, перегляду, завантаження та впорядкування цих файлів.',
+    'Простір зберігає ваші файли в папці Google Drive, яку ви обираєте, — працюйте в ньому самі або запросіть людей. Soty використовує цей доступ лише для каталогу, перегляду, завантаження та впорядкування цих файлів.',
   googleDataUseLink: 'Як Soty використовує дані Google',
   teamDriveDataUse:
     'Soty отримує доступ лише до папок, які ви вибираєте у вікні Google, і до створених ним файлів, і використовує його лише для файлів цього простору.',
