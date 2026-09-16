@@ -46,6 +46,38 @@
   display: contents;
 }
 
+/*
+ * The overflow and the tick box (024).
+ *
+ * Both sit at the ends of the strip and both stay quiet: on a board of fifty
+ * cards a control that is always at full contrast is fifty distractions. They
+ * come up on hover and whenever the keyboard is inside the card — and the tick
+ * box stays up once anything is selected, because a selection you cannot see
+ * is one you will act on by accident.
+ */
+.team-task-card-menu {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+.team-task-card:hover .team-task-card-menu,
+.team-task-card:focus-within .team-task-card-menu {
+  opacity: 1;
+}
+.team-task-card-select {
+  opacity: 0.55;
+}
+.team-task-card:hover .team-task-card-select,
+.team-task-card:focus-within .team-task-card-select,
+.team-task-card-select:has(input:checked) {
+  opacity: 1;
+}
+/* The bar's own trigger anchors its menu. */
+.team-task-bulk {
+  position: relative;
+  display: inline-flex;
+}
+
 /* The same outline as the status control beside it — one border, one fill,
    one radius, one height — so the strip reads as one style. */
 .team-task-card .team-task-agent-chip {

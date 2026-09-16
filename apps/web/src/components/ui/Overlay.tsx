@@ -521,7 +521,6 @@ export function DropdownMenu({
 }: DropdownMenuProps) {
   const rows = items.filter((item): item is MenuItem => item !== 'separator' && !isHeading(item));
   const byId = new Map(rows.map(item => [item.id, item]));
-  const disabled = rows.filter(item => item.disabled).map(item => item.id);
 
   /*
    * The flat list, folded into sections.
@@ -532,9 +531,17 @@ export function DropdownMenu({
    * array with heading markers is the right shape to write, so it is folded
    * here rather than pushed back onto twelve call sites.
    */
+  /** Whether this menu is asking a question at all, or only listing commands. */
+  const menuSelects = rows.some(item => item.checked !== undefined);
   const sections: Array<{ heading: ReactNode | null; items: MenuItem[] }> = [];
   for (const entry of items) {
-    if (entry === 'separator') continue;
+    // A separator starts a section too, not only a heading: it is how a menu
+    // says "and now something else" without naming it, and a group that keeps
+    // collecting past one would put a command in with the answers above it.
+    if (entry === 'separator') {
+      if (sections.at(-1)?.items.length) sections.push({ heading: null, items: [] });
+      continue;
+    }
     if (isHeading(entry)) {
       sections.push({ heading: entry.heading, items: [] });
       continue;
@@ -568,9 +575,19 @@ export function DropdownMenu({
     >
       <HeroMenu
         aria-label={label}
-        selectionMode={rows.some(item => item.checked !== undefined) ? selection : 'none'}
+        /*
+         * Selection belongs to a section, not to the menu (024).
+         *
+         * A menu can ask more than one question and still carry a command: a
+         * task's menu offers a status, an assignee, a tag — three answers —
+         * and a delete. Putting the mode on the menu made every item a radio,
+         * so "Delete" announced itself as one of several states the task could
+         * be in. A section whose items carry a tick is a radio group; a section
+         * of commands is a list of commands.
+         */
+        selectionMode={menuSelects ? selection : 'none'}
         selectedKeys={rows.filter(item => item.checked).map(item => item.id)}
-        disabledKeys={disabled}
+        disabledKeys={rows.filter(item => item.disabled).map(item => item.id)}
         onAction={key => {
           const item = byId.get(String(key));
           if (!item || item.disabled) return;
@@ -579,7 +596,28 @@ export function DropdownMenu({
         }}
       >
         {sections.map((section, index) => (
-          <HeroMenuSection key={`section-${index}`} className="ui-menu-section">
+          <HeroMenuSection
+            key={`section-${index}`}
+            className="ui-menu-section"
+            /*
+             * Only where the menu is asking something.
+             *
+             * A section whose items carry a tick is a radio group; a section of
+             * commands under the same menu says so, or "Delete" announces
+             * itself as one of the states the thing could be in. And where the
+             * menu asks nothing at all, the prop is left off entirely —
+             * setting it switches the collection's disabled behaviour, and an
+             * item that carries a reason has to keep saying it.
+             */
+            {...(menuSelects
+              ? section.items.some(item => item.checked !== undefined)
+                ? {
+                    selectionMode: selection,
+                    selectedKeys: section.items.filter(item => item.checked).map(item => item.id)
+                  }
+                : { selectionMode: 'none' as const }
+              : {})}
+          >
             {section.heading !== null && (
               <Header className="ui-menu-heading">{section.heading}</Header>
             )}

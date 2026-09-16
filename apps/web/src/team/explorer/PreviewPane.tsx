@@ -8,16 +8,15 @@ import type {
 import type { TeamMaterialSummary } from '../../api/team';
 import { ProgressBar } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { useToasts } from '../../components/toast';
-import { formatSize } from '../../format';
 import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
-import { VideoTextActions } from '../library/VideoTextActions';
-import { VideoProductCatalogActions } from '../product-catalog/VideoProductCatalogActions';
-import { useOptionalTeam } from '../TeamContext';
 import { PaneActions } from './PaneActions';
+import { VideoTextActions } from '../library/VideoTextActions';
+import { useToasts } from '../../components/toast';
+import { MaterialDetail } from '../materials/MaterialDetail';
+import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { EmptyState } from '../../components/ui/index';
 
@@ -79,9 +78,6 @@ export function PreviewPane({
   const { t } = useI18n();
   const { push } = useToasts();
   const { teamId } = useExplorer();
-  // The catalog block needs the space (its permissions and Drive state); a pane rendered on its
-  // own, as a preview surface, simply has no catalog.
-  const team = useOptionalTeam();
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
   const [broken, setBroken] = useState(false);
@@ -113,6 +109,18 @@ export function PreviewPane({
   // and the tile already degrades to its kind glyph when that happens. The
   // pane showed the browser's torn-page icon instead, which reads as a broken
   // file rather than a missing preview.
+  // One file is in focus here, so what lives beside it is worth two requests.
+  // Read once, in the pane, and handed to both the card and the actions.
+  const companions = useMaterialCompanions(
+    {
+      id: row?.id ?? '',
+      teamId,
+      kind: row?.kind === 'folder' ? 'folder' : 'file',
+      category: row?.category ?? null
+    },
+    { enabled: Boolean(row), revision }
+  );
+
   if (!row) {
     return (
       <aside className="team-explorer-pane is-empty" aria-label={t('teamExplorerPaneLabel')}>
@@ -128,64 +136,87 @@ export function PreviewPane({
 
   return (
     <aside className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
-      <div className="team-explorer-pane-visual">
-        {image ? (
-          <img src={image} alt="" decoding="async" onError={() => setBroken(true)} />
-        ) : (
-          <span className="team-explorer-tile-icon" aria-hidden="true">
-            <KindIcon kind={row.kind} />
-          </span>
-        )}
-      </div>
-      <h3 className="team-explorer-pane-name">{row.name}</h3>
-      <dl className="team-explorer-pane-facts">
-        <dt>{t('teamExplorerPaneKind')}</dt>
-        <dd>{t(KIND_LABEL[row.kind])}</dd>
-        {row.sizeBytes !== null && row.kind !== 'folder' && (
-          <>
-            <dt>{t('teamExplorerPaneSize')}</dt>
-            <dd>{formatSize(row.sizeBytes)}</dd>
-          </>
-        )}
-        {row.modifiedAt && (
-          <>
-            <dt>{t('teamExplorerPaneModified')}</dt>
-            <dd>{new Date(row.modifiedAt).toLocaleString()}</dd>
-          </>
-        )}
-      </dl>
-      {reason && <p className="team-explorer-tile-reason">{t(reason)}</p>}
-      {row.previewState === 'unavailable' && row.previewReason && (
-        <p className="team-explorer-tile-reason">
-          {t(`teamExplorerThumbnail_${row.previewReason}` as never)}
-        </p>
-      )}
-      {row.kind === 'landing' && row.landingRender && row.landingRender.state !== 'ready' && (
-        <p className="team-explorer-tile-reason">
-          {t(
-            row.landingRender.state === 'rendering'
-              ? 'teamExplorerRenderRendering'
-              : row.landingRender.state === 'failed'
-                ? 'teamExplorerRenderFailed'
-                : 'teamExplorerRenderNone'
-          )}
-        </p>
-      )}
-      {/* Every action this file can take, from the one registry: the same list,
-          in the same order, as the row above and the task beside it. */}
-      <PaneActions
-        row={row}
-        teamId={teamId}
-        browseClient={browseClient}
-        onChanged={onChanged}
-        onOpen={
-          onOpen && PREVIEWABLE_KINDS.has(row.kind) ? () => onOpen(previewSummary(row)) : undefined
+      <MaterialDetail
+        name={row.name}
+        className="team-explorer-pane-detail"
+        facts={{
+          kindLabel: t(KIND_LABEL[row.kind]),
+          sizeBytes: row.kind === 'folder' ? null : row.sizeBytes,
+          modifiedAt: row.modifiedAt
+        }}
+        companions={companions}
+        preview={
+          image ? (
+            <img src={image} alt="" decoding="async" onError={() => setBroken(true)} />
+          ) : (
+            <span className="team-explorer-tile-icon" aria-hidden="true">
+              <KindIcon kind={row.kind} />
+            </span>
+          )
         }
-        onCreateTask={onCreateTask ? () => onCreateTask({ id: row.id, name: row.name }) : undefined}
-        onDownload={onDownload ? () => onDownload(row) : undefined}
-        onDownloadRestitched={onDownloadRestitched ? () => onDownloadRestitched(row) : undefined}
-        onDelete={onDelete ? () => onDelete(row) : undefined}
+        notes={
+          <>
+            {reason && <p className="team-explorer-tile-reason">{t(reason)}</p>}
+            {row.previewState === 'unavailable' && row.previewReason && (
+              <p className="team-explorer-tile-reason">
+                {t(`teamExplorerThumbnail_${row.previewReason}` as never)}
+              </p>
+            )}
+            {row.kind === 'landing' &&
+              row.landingRender &&
+              row.landingRender.state !== 'ready' && (
+                <p className="team-explorer-tile-reason">
+                  {t(
+                    row.landingRender.state === 'rendering'
+                      ? 'teamExplorerRenderRendering'
+                      : row.landingRender.state === 'failed'
+                        ? 'teamExplorerRenderFailed'
+                        : 'teamExplorerRenderNone'
+                  )}
+                </p>
+              )}
+          </>
+        }
+        actions={
+          /* Every action this file can take, from the one registry: the same
+             list, in the same order, as the row above and the task beside it. */
+          <PaneActions
+            row={row}
+            teamId={teamId}
+            browseClient={browseClient}
+            onChanged={onChanged}
+            companions={companions}
+            onOpen={
+              onOpen && PREVIEWABLE_KINDS.has(row.kind)
+                ? () => onOpen(previewSummary(row))
+                : undefined
+            }
+            onCreateTask={
+              onCreateTask ? () => onCreateTask({ id: row.id, name: row.name }) : undefined
+            }
+            onDownload={onDownload ? () => onDownload(row) : undefined}
+            onDownloadRestitched={
+              onDownloadRestitched ? () => onDownloadRestitched(row) : undefined
+            }
+            onDelete={onDelete ? () => onDelete(row) : undefined}
+            onTranscribe={onTranscribe ? () => onTranscribe(row) : undefined}
+          />
+        }
       />
+      {/*
+        * The catalog block that used to stand here is gone (024): "Product
+        * catalog" is in the action list, and the dialog it opens already
+        * offers the one that exists as well as a new one, so the block was a
+        * second vocabulary for something the registry names.
+        *
+        * The text block stays, and deliberately. It is the one surface that
+        * can do something the menu cannot: choose *which* text — the original
+        * or a translation — and read it. A menu item that copies "the text"
+        * is right on a task tile and in a search result, where there is one
+        * press and no room for a question; here there is room for the
+        * question, so the pane asks it and does not also offer the shortcut.
+        * `copyText` is left unwired in `PaneActions` for exactly that reason.
+        */}
       {row.category === 'video' && onTranscribe && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>
@@ -211,14 +242,6 @@ export function PreviewPane({
             />
           )}
         </div>
-      )}
-      {row.category === 'video' && team && (
-        <VideoProductCatalogActions
-          key={row.id}
-          teamId={teamId}
-          video={{ id: row.id, name: row.name }}
-          revision={revision}
-        />
       )}
     </aside>
   );

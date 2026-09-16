@@ -86,10 +86,30 @@ export function Checkbox({
       onChange={next => onChange?.(next, { shiftKey: shiftKey.current })}
       className={uiClasses('checkbox', { size, states: { disabled }, className })}
     >
-      <HeroCheckbox.Control className="ui-checkbox-mark">
-        <HeroCheckbox.Indicator />
-      </HeroCheckbox.Control>
-      {label && <HeroCheckbox.Content className="ui-checkbox-label">{label}</HeroCheckbox.Content>}
+      {/*
+        * `Content` is the control, not the caption.
+        *
+        * HeroUI's checkbox root is a *field* — a wrapper — and `Content` is the
+        * button inside it that takes the press and carries the `checkbox` role.
+        * Rendering it only when there was a visible label left every unlabelled
+        * checkbox in the product as a plain `<div>`: no role, no focus, no
+        * name, nothing for a keyboard or a screen reader to find. It looked
+        * right and could not be used (024).
+        *
+        * The accessible name goes here for the same reason: on the field it
+        * names a wrapper nobody can reach.
+        */}
+      <HeroCheckbox.Content
+        className="ui-checkbox-content"
+        aria-label={props['aria-label']}
+        aria-labelledby={props['aria-labelledby']}
+        aria-describedby={props['aria-describedby']}
+      >
+        <HeroCheckbox.Control className="ui-checkbox-mark">
+          <HeroCheckbox.Indicator />
+        </HeroCheckbox.Control>
+        {label && <span className="ui-checkbox-label">{label}</span>}
+      </HeroCheckbox.Content>
     </HeroCheckbox>
   );
 }

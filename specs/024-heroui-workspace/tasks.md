@@ -328,10 +328,17 @@ closing or losing anything.
 - [x] T074 [US3] Keep the sort control present when the space has no tags, explaining itself
       instead of vanishing — "order by tag" was a feature you could only find by already having
       used it.
-- [ ] T075 [US3] Add bulk actions to the board for what is safe in bulk — status, assignee, tag,
-      delete-with-undo — on the inventory's `SelectionBar`.
-- [ ] T076 [US3] Put the actions that do not need the editor on the task card behind one
-      overflow, keeping the whole card as the open target.
+- [x] T075 [US3] Add bulk actions to the board for what is safe in bulk — status, assignee, tag,
+      delete — on the inventory's `SelectionBar`, from the same list a card uses
+      (`useTaskActions.tsx`). **One deliberate difference**: the delete asks rather than promising
+      an undo. A trashed file comes back because the Drive keeps it; a deleted task does not, and
+      recreating one from what the board still holds would return a title and lose the
+      attachments, the tags, the accounts and the progress. An undo that quietly does something
+      else is worse than no undo, so the question names what goes with them (021, finding R3).
+- [x] T076 [US3] Put the actions that do not need the editor on the task card behind one
+      overflow, keeping the whole card as the open target. The overflow and the tick box stay at
+      low contrast until the pointer or the keyboard is inside the card — on a board of fifty,
+      a control that is always at full contrast is fifty distractions.
 - [x] T077 [US3] Reduce the filter row to a search field, the date control and one "Filters"
       surface showing what is active as removable chips — `TaskFilterBar.tsx`. Thirteen controls
       became four. **One deliberate difference from the task as written**: status stays in the
@@ -379,9 +386,17 @@ closing or losing anything.
 
 ## Phase 7: User Story 5 — one file, one identity (Priority: P2)
 
-- [ ] T086 [US5] Write `apps/web/src/team/materials/MaterialDetail.tsx` — preview, name, kind,
-      size, modified, folder, colour tag, companions, and the full action list.
-- [ ] T087 [US5] Use it in the explorer's detail pane, replacing `PreviewPane`'s bespoke layout.
+- [x] T086 [US5] Write `apps/web/src/team/materials/MaterialDetail.tsx` — preview, name, kind,
+      size, modified, folder, colour tag, companions, and the full action list. The preview is
+      supplied by the host: how a thumbnail is fetched genuinely differs (the explorer holds a
+      session and render pointers, a task holds its own client), but everything a reader
+      recognises the file *by* is in one place and one order.
+- [x] T087 [US5] Use it in the explorer's detail pane, replacing `PreviewPane`'s bespoke layout.
+      The catalog block went with it — "Product catalog" is in the action list and its dialog
+      already offers the existing one — but **the text block stays, deliberately**: it is the one
+      surface that can choose *which* text, the original or a translation. `copyText` is left
+      unwired in `PaneActions` so the pane does not also offer a one-press copy that guesses.
+      A menu item that guesses is right where there is no room to ask; here there is room.
 - [ ] T088 [US5] Use it in search — the shell currently drops `has-pane` while searching; search
       keeps the surface.
 - [ ] T089 [US5] Use it from a task attachment and from the updater's list.

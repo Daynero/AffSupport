@@ -18,7 +18,7 @@ import {
   type KeyboardEvent,
   type MouseEvent
 } from 'react';
-import { ChevronDown, Paperclip, UserRound } from 'lucide-react';
+import { ChevronDown, MoreHorizontal, Paperclip, UserRound } from 'lucide-react';
 import { teamTaskDate } from '@video-compressor/shared';
 import type { TeamTaskPatch, TeamTaskStatus, TeamTaskSummary } from '@video-compressor/shared';
 import { ICON_STROKE } from '../../components/icons';
@@ -29,10 +29,16 @@ import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagList } from './TaskAgentTags';
 import { TaskLabelChips } from '../labels/TaskLabelChip';
 import { formatTaskDate } from './TaskDateField';
-import { Card } from '../../components/ui/index';
+import { Card, Checkbox, DropdownMenu, IconButton } from '../../components/ui/index';
+import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
+import type { TeamMemberSummary } from '../../api/team';
+import type { TeamTaskLabel } from '@video-compressor/shared';
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && Boolean(target.closest('button, a, [role="slider"]'));
+  return (
+    target instanceof Element &&
+    Boolean(target.closest('button, a, label, input, [role="slider"], [role="checkbox"]'))
+  );
 }
 
 export function TaskCard({
@@ -42,7 +48,12 @@ export function TaskCard({
   expanded: expandedProp,
   onExpandedChange,
   onOpen,
-  onUpdate
+  onUpdate,
+  members = [],
+  labels = [],
+  actions,
+  selected,
+  onSelectedChange
 }: {
   task: TeamTaskSummary;
   canEdit: boolean;
@@ -61,8 +72,29 @@ export function TaskCard({
   onExpandedChange?: (expanded: boolean) => void;
   onOpen: () => void;
   onUpdate: (patch: TeamTaskPatch) => Promise<TeamTaskSummary>;
+  /**
+   * What the card can do without opening the task (024, FR-076).
+   *
+   * Behind one overflow, and only that one: the whole card stays the way in,
+   * which is what a board is for. Absent where the board has not wired it, so
+   * a card mounted on its own is still just a card.
+   */
+  members?: readonly TeamMemberSummary[];
+  labels?: readonly TeamTaskLabel[];
+  actions?: TaskActionHandlers;
+  /**
+   * Whether this card is in the set a bulk action applies to.
+   *
+   * Absent means the board is not offering selection at all, and the card
+   * draws no tick box — which is the state it should be in on a board nobody
+   * is doing bulk work on.
+   */
+  selected?: boolean;
+  onSelectedChange?: (next: boolean) => void;
 }) {
   const { t, language } = useI18n();
+  const menuAnchor = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [status, setStatus] = useState<TeamTaskStatus>(task.status);
   const [progressValue, setProgressValue] = useState(task.progressValue);
   const [failed, setFailed] = useState(false);
@@ -89,6 +121,13 @@ export function TaskCard({
    * "more" unfolds it in place — reading the whole brief must not cost
    * opening the editor. Whether there *is* more is measured, not guessed.
    */
+  const menuItems = useTaskActions({
+    tasks: [task],
+    canEdit,
+    members,
+    labels,
+    handlers: actions ?? { patch: () => undefined }
+  });
   const dateValue = teamTaskDate(task);
   const createdOn = teamTaskDate({ dateOn: null, createdAt: task.createdAt });
   const [localExpanded, setLocalExpanded] = useState(false);
@@ -153,6 +192,14 @@ export function TaskCard({
       {/* One strip of chrome: the status, the accounts it is on (017) in the
           same outline, and the date it was made in the corner. */}
       <div className="team-task-card-strip">
+        {onSelectedChange && (
+          <Checkbox
+            className="team-task-card-select"
+            checked={selected === true}
+            aria-label={t('teamTaskSelectCard', { name: task.title })}
+            onChange={next => onSelectedChange(next)}
+          />
+        )}
         <TaskStatusControl
           compact
           value={status}
@@ -180,6 +227,33 @@ export function TaskCard({
         >
           {formatTaskDate(language, dateValue)}
         </time>
+        {/* One door to everything else the card can do. Not a row of icons:
+            past the status control, nothing here is used often enough to earn
+            a permanent place on fifty cards at once (024, FR-076). */}
+        {actions && menuItems.length > 0 && (
+          <>
+            <IconButton
+              ref={menuAnchor}
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              className="team-task-card-menu"
+              label={t('teamTaskCardActions', { name: task.title })}
+              onClick={() => setMenuOpen(current => !current)}
+            >
+              <MoreHorizontal size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </IconButton>
+            <DropdownMenu
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              anchor={menuAnchor}
+              placement="bottom-end"
+              selection="single"
+              items={menuItems}
+              label={t('teamTaskCardActions', { name: task.title })}
+            />
+          </>
+        )}
       </div>
 
       {showProgress && (

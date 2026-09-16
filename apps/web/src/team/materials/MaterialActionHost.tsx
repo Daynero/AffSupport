@@ -144,9 +144,13 @@ export function useMaterialActionHost({
   const copyText = async () => {
     try {
       const variants = await teamApi.listVideoTextVariants(teamId, material.id);
-      const ready = variants.variants.find(
+      // The translation when there is one, as the text block it replaces did:
+      // a person who had a video translated wants the translation, and the
+      // original is one press away in the text editor.
+      const usable = variants.variants.filter(
         variant => variant.ingestState === 'full' && !variant.truncated && variant.text
       );
+      const ready = usable.find(variant => variant.kind === 'translation') ?? usable[0];
       if (!ready?.text) {
         push({ tone: 'error', text: t('materialReasonNotReady') });
         return;

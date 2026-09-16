@@ -1,8 +1,14 @@
 import type { TeamMaterialRow } from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
-import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
-import { useMaterialCompanions } from '../materials/useMaterialCompanions';
+import { useState } from 'react';
+import {
+  spaceOf,
+  type ActionContext,
+  type MaterialCompanions,
+  type MaterialRef
+} from '../materials/actions';
+import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
 import { MaterialInlineActions } from '../materials/MaterialInlineActions';
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
@@ -28,8 +34,10 @@ export function PaneActions({
   onDownload,
   onDownloadRestitched,
   onDelete,
+  onTranscribe,
   browseClient,
-  onChanged
+  onChanged,
+  companions
 }: {
   row: TeamMaterialRow;
   teamId: string;
@@ -43,20 +51,14 @@ export function PaneActions({
   onDownload?: () => void;
   onDownloadRestitched?: () => void;
   onDelete?: () => void;
+  onTranscribe?: () => void;
+  /** Read once by the pane and handed down, so it is not read twice. */
+  companions?: MaterialCompanions;
 }) {
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, teamId);
   const agent = useOptionalAgent();
-
-  // One file is in focus here, so what lives beside it is worth two requests:
-  // a video whose transcript is ready offers its text, and one that already has
-  // a catalog offers to open it instead of making a second.
-  const companions = useMaterialCompanions({
-    id: row.id,
-    teamId: row.teamId,
-    kind: row.kind === 'folder' ? 'folder' : 'file',
-    category: row.category
-  });
 
   const material: MaterialRef = {
     id: row.id,
@@ -94,13 +96,28 @@ export function PaneActions({
     download: onDownload,
     downloadRestitched: onDownloadRestitched,
     createTask: onCreateTask,
-    trash: onDelete
+    trash: onDelete,
+    transcribe: onTranscribe,
+    // Deliberately not `copyText`: the pane carries the text surface itself,
+    // which can choose between the original and a translation. One press that
+    // guesses which one you meant belongs where there is no room to ask.
+    // The catalog dialog opens over the explorer and knows how to offer the
+    // one that exists as well as how to make a new one, so both readings of
+    // "Product catalog" land in the same place.
+    productCatalog: () => setCatalogOpen(true)
   });
 
   return (
     <>
       <MaterialInlineActions list={list} name={row.name} className="team-explorer-pane-icons" />
       {host.dialogs}
+      {catalogOpen && (
+        <ProductCatalogMenuDialog
+          teamId={teamId}
+          video={{ id: row.id, name: row.name }}
+          onClose={() => setCatalogOpen(false)}
+        />
+      )}
     </>
   );
 }

@@ -13670,6 +13670,71 @@ button.team-landing-tile:hover {
 .team-explorer-pane > * {
   flex-shrink: 0;
 }
+/*
+ * The material's card (024), which the detail pane now renders and the other
+ * surfaces will. Its parts keep the class names the pane's own CSS already
+ * draws, so the look did not change with the markup — what changed is that
+ * there is one of it.
+ */
+.team-material-detail {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.team-material-detail-visual {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+.team-material-detail-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.team-material-detail-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+.team-material-detail-facts {
+  display: grid;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+.team-material-detail-facts > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+}
+.team-material-detail-facts dt {
+  color: var(--color-text-muted);
+}
+.team-material-detail-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* What lives beside the file, as facts rather than as offers: the actions are
+   the offers, and saying the same thing twice is what this feature removes. */
+.team-material-detail-companions {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-material-detail-companions li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .team-explorer-pane-visual {
   display: grid;
   place-items: center;
