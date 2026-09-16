@@ -173,6 +173,17 @@ export function TaskFilterBar({
               label={t('teamTasksMoreFilters')}
               className="task-filter-more-popover"
             >
+              {/* Two kinds of thing, named apart the way Linear parts Filter from Display:
+                  what is shown, then in what order. As one unlabelled stack an
+                  account picker sat on top of a sort toggle and read as one control. */}
+              {(accounts.length > 0 ||
+                scope.kind !== 'all' ||
+                members.length > 1 ||
+                assignee.kind !== 'all' ||
+                labels.length > 0 ||
+                labelIds.length > 0) && (
+                <span className="task-filter-more-caption">{t('teamTasksFilterGroup')}</span>
+              )}
               {(accounts.length > 0 || scope.kind !== 'all') && (
                 <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
               )}
@@ -192,6 +203,7 @@ export function TaskFilterBar({
                   onChange={onLabelIdsChange}
                 />
               )}
+              <span className="task-filter-more-caption">{t('teamTasksSortGroup')}</span>
               <TaskSortControl value={sort} onChange={onSortChange} hasLabels={labels.length > 0} />
             </Popover>
           </div>
