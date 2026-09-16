@@ -6094,6 +6094,12 @@ body:has(.public-home) {
     font-size: clamp(33.49px, 7vw, 39.77px);
   }
 
+  /* At 132px tall the wordmark is 450px wide and pushed the hero past a phone's edge. */
+  .public-hero-logo .soty-wordmark-img {
+    width: 100%;
+    height: auto;
+  }
+
   .public-home-actions,
   .public-footer {
     align-items: stretch;
