@@ -141,11 +141,7 @@ export function ContentGrid({
         <h2 id="team-explorer-grid-title" className="visually-hidden">
           {t('teamMaterials')}
         </h2>
-        {page.total !== null && page.total > 0 && (
-          <p className="team-explorer-total" aria-live="polite">
-            {t('teamExplorerTotal', { count: page.total })}
-          </p>
-        )}
+        {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
       {page.loading && page.rows.length === 0 && (
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />

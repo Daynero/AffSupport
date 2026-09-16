@@ -203,7 +203,7 @@ describe('search availability', () => {
     });
     renderSpace(client);
 
-    expect(await screen.findByRole('button', { name: 'Search' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Search files' })).toBeTruthy();
     // The folder is shown as a tile; the name may also appear in a tooltip or crumb.
     expect((await screen.findAllByText('Archive')).length).toBeGreaterThanOrEqual(1);
   });
@@ -259,7 +259,7 @@ describe('search results past the first fifty', () => {
     const user = userEvent.setup();
     renderSpace(client);
 
-    await user.click(await screen.findByRole('button', { name: 'Search' }));
+    await user.click(await screen.findByRole('button', { name: 'Search files' }));
     expect(await screen.findByText('Page 1 of 3')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Next' }));

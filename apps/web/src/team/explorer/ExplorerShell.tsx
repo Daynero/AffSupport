@@ -1890,20 +1890,13 @@ function ProcessMenu({
     else if (event.key === 'End') go(items.length - 1);
   };
 
-  if (!onSpace && !folder) return null;
-
   /*
    * At the root there is no folder, so the menu held exactly one item: a press
    * to open a list of one, then a second press to choose the only thing there.
    * With one scope the button is the scope.
    */
-  if (!folder && onSpace) {
-    return (
-      <Button type="button" variant="secondary" onClick={onSpace}>
-        {t('teamExplorerProcessEverything')}
-      </Button>
-    );
-  }
+  // At the root there is no folder to process; the whole space is in the space's own menu (024).
+  if (!folder) return null;
 
   return (
     <div className="team-explorer-process-menu" ref={box}>

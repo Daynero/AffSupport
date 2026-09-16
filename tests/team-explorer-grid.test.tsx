@@ -108,7 +108,7 @@ describe('ContentGrid', () => {
       })
     ]);
     const { container } = renderGrid(client);
-    await screen.findByText('Items: 5');
+    await waitFor(() => expect(container.querySelectorAll('.team-explorer-tile')).toHaveLength(5));
     await waitFor(() => expect(container.querySelectorAll('img')).toHaveLength(2));
     const images = [...container.querySelectorAll('img')]
       .map(img => img.getAttribute('src'))
@@ -179,7 +179,7 @@ describe('ContentGrid', () => {
       }
     );
     const { container } = renderGrid(client);
-    await screen.findByText('Items: 3');
+    await waitFor(() => expect(container.querySelectorAll('.team-explorer-tile')).toHaveLength(3));
     await waitFor(() =>
       expect(container.querySelector('img')?.getAttribute('src')).toBe('https://render/id-1/0')
     );

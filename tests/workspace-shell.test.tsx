@@ -40,7 +40,7 @@ describe('content-first workspace shell', () => {
 
     // Empty space → zero facet controls until a search is opened; search itself is one click away.
     expect(screen.queryByText('GEO')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Search files' })).toBeTruthy();
 
     // Management is not shown beside the content by default.
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();

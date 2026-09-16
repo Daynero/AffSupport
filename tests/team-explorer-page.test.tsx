@@ -234,7 +234,7 @@ describe('ContentList', () => {
     const user = userEvent.setup();
     const listFolderPage = pages(150, 100);
     renderList(listFolderPage);
-    expect(await screen.findByText('Items: 150')).toBeTruthy();
+    await waitFor(() => expect(fileRows()).toHaveLength(100));
     expect(fileRows()).toHaveLength(100);
     expect(listFolderPage).toHaveBeenCalledWith(
       TEAM,
@@ -262,7 +262,7 @@ describe('ContentList', () => {
         <List client={client} revision={0} />
       </ExplorerProvider>
     );
-    await screen.findByText('Items: 3');
+    await waitFor(() => expect(fileRows()).toHaveLength(3));
     expect(listFolderPage).toHaveBeenCalledTimes(1);
     rerender(
       <ExplorerProvider teamId={TEAM} client={client} revision={1}>
@@ -295,7 +295,7 @@ describe('ContentList', () => {
       next: null
     }));
     renderList(listFolderPage);
-    await screen.findByText('Items: 4');
+    await waitFor(() => expect(fileRows()).toHaveLength(4));
     // Facts about a kind are icons that say them (024, FR-095).
     expect(screen.getByRole('img', { name: 'Opens in Google Drive, not in Soty.' })).toBeTruthy();
     expect(screen.getByRole('img', { name: /A shortcut/ })).toBeTruthy();

@@ -13,7 +13,7 @@ import { internalLink, navigateTo } from '../../lib/navigation';
 import { PaletteHost } from '../palette/PaletteHost';
 import { ShortcutSheet } from '../palette/ShortcutSheet';
 import { formatShortcut, matches, shortcutOf } from '../palette/shortcuts';
-import { ChevronDown, Keyboard, RefreshCw, Search, Settings, Trash2 } from 'lucide-react';
+import { ChevronDown, Keyboard, RefreshCw, Search, Settings, Sparkles, Trash2 } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { DropdownMenu } from '../../components/ui/index';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
@@ -684,6 +684,30 @@ export function WorkspaceShell({
                           ),
                           onSelect: () => navigateTo(explorerRoute({ updater: true }))
                         },
+                        /* The whole space at once, in the space's menu (024): at the root it
+                           was a bare "Process everything" beside "Add files" — rare, heavy,
+                           and it looked like the next step. A folder's own "Process" menu
+                           and a selection's "Process N" stay where the files are. */
+                        ...(can('process') && browsable
+                          ? [
+                              {
+                                id: 'process-space',
+                                label: t('teamProcessWholeSpace'),
+                                icon: (
+                                  <Sparkles
+                                    size={ICON_SIZE}
+                                    strokeWidth={ICON_STROKE}
+                                    aria-hidden="true"
+                                  />
+                                ),
+                                onSelect: () => {
+                                  setBatchSources([]);
+                                  setBatchScope({ kind: 'space' });
+                                  navigateTo(hereRoute({ process: true }));
+                                }
+                              }
+                            ]
+                          : []),
                         {
                           id: 'trash',
                           label: t('teamTrashEntry'),
