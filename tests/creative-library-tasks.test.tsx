@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, fireEvent, render as renderRaw, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render as renderRaw,
+  screen,
+  waitFor
+} from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskAttachmentSummary } from '@video-compressor/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -302,7 +309,10 @@ describe('Creative Library task workflows', () => {
         onReveal={onReveal}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
+    // A tile is a card in a grid: open and its one make stay on it, the rest
+    // are named in "…" (024, US10).
+    fireEvent.click(screen.getByRole('button', { name: /^Actions for / }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Show in folder' }));
     expect(onReveal).toHaveBeenCalledTimes(1);
     unmount();
     render(
@@ -388,7 +398,8 @@ describe('Creative Library task workflows', () => {
     expect(await screen.findByRole('dialog')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Actions for / }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Download' }));
     await waitFor(() =>
       expect(api.requestDownload).toHaveBeenCalledWith(TEAM_ID, ASSET_ID, 'browser')
     );

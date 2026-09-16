@@ -11,6 +11,7 @@ import { useI18n } from '../../i18n';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamErrorMessageFor } from '../errors';
 import { useTeamOperation } from '../processing/useTeamOperation';
+import { announceTaskAttachmentsChanged } from '../tasks/taskAttachmentEvents';
 import type { MaterialActionsClient } from '../catalog/useMaterialActions';
 
 /**
@@ -39,6 +40,12 @@ export type AgentQueueItem = {
   versionOf?: string;
   /** 013 (B5): compress on the agent and save to a locally chosen folder. */
   local?: { embed: boolean; suffix: string };
+  /**
+   * The task this run was started from (024, FR-078). What it writes is put on
+   * that task when it finishes, so a performer never has to go and find the
+   * transcript they just asked for.
+   */
+  attachTo?: { taskId: string };
   options?: Record<string, unknown>;
 };
 
@@ -58,7 +65,9 @@ export interface AgentQueue {
   /** Add jobs, skipping anything already queued or running. */
   enqueue: (items: AgentQueueItem[]) => void;
   /** The convenience the explorer's Transcribe uses. */
-  enqueueTranscriptions: (items: { id: string; name: string; folderId: string | null }[]) => void;
+  enqueueTranscriptions: (
+    items: { id: string; name: string; folderId: string | null; attachTo?: { taskId: string } }[]
+  ) => void;
   active: (AgentQueueItem & { operationId: string | null }) | null;
   queued: readonly AgentQueueItem[];
   done: number;
@@ -89,7 +98,9 @@ export function useAgentQueue({
   const agentCtx = useOptionalAgent();
   const changed = onChanged;
   const [tQueue, setTQueue] = useState<AgentQueueItem[]>([]);
-  const [tActive, setTActive] = useState<(AgentQueueItem & { operationId: string | null }) | null>(null);
+  const [tActive, setTActive] = useState<(AgentQueueItem & { operationId: string | null }) | null>(
+    null
+  );
   const [tDone, setTDone] = useState(0);
   const [tTotal, setTTotal] = useState(0);
   // The batch is held: nothing new starts, and the file already in flight is
@@ -114,7 +125,9 @@ export function useAgentQueue({
     }
   };
 
-  const enqueueTranscriptions = (items: { id: string; name: string; folderId: string | null }[]) =>
+  const enqueueTranscriptions = (
+    items: { id: string; name: string; folderId: string | null; attachTo?: { taskId: string } }[]
+  ) =>
     enqueueJobs(
       items.map(item => ({
         ...item,
@@ -183,6 +196,16 @@ export function useAgentQueue({
          * one more each time. Asking for the canonical name here costs one call
          * and is refused (never duplicated) if something live still holds it.
          */
+        if (next.attachTo && finished.materialId) {
+          await attachResultToTask({
+            teamId,
+            taskId: next.attachTo.taskId,
+            materialId: finished.materialId,
+            name: next.outputName,
+            push,
+            t
+          });
+        }
         if (next.tool === 'transcription' && finished.materialId) {
           await actionsClient
             .renameMaterial({
@@ -320,4 +343,47 @@ export function useAgentQueue({
     stopNow,
     activeProgress
   };
+}
+
+/**
+ * Puts what a run made onto the task it was started from (024, FR-078).
+ *
+ * Quiet about everything that is not news: a result already on the task (a
+ * reload during finalize attaches twice), and a task that is gone — nobody is
+ * looking at it, and the file is still where it was written. The one sentence
+ * worth saying is that it arrived, with the way to take it off again.
+ */
+export async function attachResultToTask({
+  teamId,
+  taskId,
+  materialId,
+  name,
+  push,
+  t
+}: {
+  teamId: string;
+  taskId: string;
+  materialId: string;
+  name: string;
+  push: ReturnType<typeof useToasts>['push'];
+  t: ReturnType<typeof useI18n>['t'];
+}): Promise<void> {
+  try {
+    const result = await teamApi.attachTaskMaterials({ teamId, taskId, materialIds: [materialId] });
+    if (!result.attached.includes(materialId)) return;
+  } catch {
+    return;
+  }
+  announceTaskAttachmentsChanged(taskId);
+  push({
+    tone: 'success',
+    text: t('teamTaskResultAttached', { name }),
+    action: {
+      label: t('teamTaskResultTakeOff'),
+      run: async () => {
+        await teamApi.detachTaskMaterial(teamId, taskId, materialId).catch(() => undefined);
+        announceTaskAttachmentsChanged(taskId);
+      }
+    }
+  });
 }

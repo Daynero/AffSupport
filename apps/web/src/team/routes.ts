@@ -91,6 +91,12 @@ export interface TeamRouteQuery {
   process: boolean;
   /** The storage detail behind the Drive chip is open (024, FR-050). */
   storage: boolean;
+  /**
+   * The task Files was opened from, by "Show in folder" (024, FR-080). While
+   * it is here Files offers the way back to that task; any other move in Files
+   * drops it, because by then Files is where you are working.
+   */
+  back: string | null;
 }
 
 export type TeamRoute =
@@ -180,7 +186,8 @@ export function emptyTeamRouteQuery(): TeamRouteQuery {
     itemId: null,
     open: false,
     process: false,
-    storage: false
+    storage: false,
+    back: null
   };
 }
 
@@ -295,7 +302,8 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     itemId: trimmedParam(params, 'item'),
     open: params.get('open') === '1' && Boolean(trimmedParam(params, 'item')),
     process: params.get('process') === '1',
-    storage: params.get('storage') === '1'
+    storage: params.get('storage') === '1',
+    back: trimmedParam(params, 'back')
   };
   const { section, query } = aliasSection(rawSection, base);
   /*
@@ -362,6 +370,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.scope === 'space') params.set('scope', 'space');
     if (query.itemId) params.set('item', query.itemId);
     if (query.itemId && query.open) params.set('open', '1');
+    if (query.back) params.set('back', query.back);
   }
   /*
    * Four surfaces that belong to the space, not to a section (024, FR-045).

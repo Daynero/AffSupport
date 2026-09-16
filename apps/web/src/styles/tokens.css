@@ -370,6 +370,10 @@
      dialog — and the first one that was opened rendered behind it. The legacy
      rungs are left where they are; the inventory's surfaces use this one. */
   --layer-anchored: 75;
+  /* Long work reporting in its corner (024). It used to sit on the overlay
+     rung, under every dialog — and work started from inside a task is watched
+     from inside that task, where the panel was behind the backdrop. */
+  --layer-work: 77;
   --layer-preview: 80;
   --layer-fullbleed: 90;
   --layer-tooltip: 100;

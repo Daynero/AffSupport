@@ -21,6 +21,13 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 import { cachedPreview } from '../preview-url-cache';
 import { MaterialPreview } from '../preview/MaterialPreview';
+import { useMaterialActionHost } from '../materials/MaterialActionHost';
+import type { FolderPickerClient } from '../catalog/FolderPicker';
+import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+
+/* A member the space has not told us about may read and nothing more. */
+const NO_PERMISSIONS = DEFAULT_ROLE_PERMISSIONS.viewer;
+const NO_BROWSING: FolderPickerClient = { listMaterials: async () => [] };
 
 export function taskVideoPreviewTimeSeconds(durationSeconds: number): number {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
@@ -67,6 +74,11 @@ export function TaskAttachmentTile({
   onReveal,
   onDownloadRestitched,
   onProductCatalog,
+  onTranscribe,
+  onCompress,
+  onProcess,
+  browseClient,
+  companionsRevision = 0,
   restitching = false,
   isDraft = false
 }: {
@@ -90,6 +102,21 @@ export function TaskAttachmentTile({
    * coming back — and the task's unsaved edits did not survive the trip.
    */
   onProductCatalog?: () => void;
+  /**
+   * The rest of "Make", from the task (024, FR-076): a transcript, a
+   * compressed copy, any other tool. The editor owns the dialogs and the queue
+   * hand-off, and what comes out is put back on the task.
+   */
+  onTranscribe?: () => void;
+  onCompress?: () => void;
+  onProcess?: () => void;
+  /**
+   * For the shared operations — rename, move, copy the text, the local app's
+   * download — which need to browse folders. Without it they are not offered.
+   */
+  browseClient?: FolderPickerClient;
+  /** Bumped when something was made from this material, so its companions re-read. */
+  companionsRevision?: number;
   /** That delivery is this attachment's, and still running. */
   restitching?: boolean;
   /** New attachments remain local until the task itself is saved. */
@@ -131,13 +158,16 @@ export function TaskAttachmentTile({
   // The owner's example, finished: a video attached to a task that already has
   // a catalog says so and opens it, instead of silently offering to make a
   // second one beside the first.
-  const companions = useMaterialCompanions({
-    id: attachment.materialId,
-    teamId,
-    kind: attachment.kind === 'folder' ? 'folder' : 'file',
-    category: attachment.category,
-    draft: isDraft
-  });
+  const companions = useMaterialCompanions(
+    {
+      id: attachment.materialId,
+      teamId,
+      kind: attachment.kind === 'folder' ? 'folder' : 'file',
+      category: attachment.category,
+      draft: isDraft
+    },
+    { revision: companionsRevision }
+  );
 
   const material: MaterialRef = {
     id: attachment.materialId,
@@ -173,19 +203,46 @@ export function TaskAttachmentTile({
 
   const isFolder = attachment.kind === 'folder';
 
-  const actions = useMaterialActionList(material, context, {
-    // Opening a folder means going into it, not previewing it. It used to
-    // raise the preview dialog, which had nothing to show and said so in a
-    // generic sentence about an attachment that could not be loaded (024,
-    // FR-070).
-    open: isFolder ? onReveal : () => setPreviewOpen(true),
-    showInFolder: onReveal,
-    copyLink: () => void copyLink(),
-    download: () => void download(),
-    downloadRestitched: onDownloadRestitched,
-    productCatalog: onProductCatalog,
-    detach: onDetach
+  /* The same operations a folder row runs — rename, move, the transcript's text,
+     the local app's download — with the dialogs they open, owned here. */
+  const host = useMaterialActionHost({
+    teamId,
+    material,
+    permissions: space?.permissions ?? NO_PERMISSIONS,
+    browseClient: browseClient ?? NO_BROWSING,
+    onChanged: () => undefined
   });
+
+  const actions = useMaterialActionList(
+    material,
+    context,
+    {
+      ...(browseClient
+        ? {
+            copyText: host.handlers.copyText,
+            rename: host.handlers.rename,
+            move: host.handlers.move
+          }
+        : {}),
+      // Opening a folder means going into it, not previewing it. It used to
+      // raise the preview dialog, which had nothing to show and said so in a
+      // generic sentence about an attachment that could not be loaded (024,
+      // FR-070).
+      open: isFolder ? onReveal : () => setPreviewOpen(true),
+      showInFolder: onReveal,
+      copyLink: () => void copyLink(),
+      download: () => void download(),
+      downloadRestitched: onDownloadRestitched,
+      productCatalog: onProductCatalog,
+      transcribe: onTranscribe,
+      compress: onCompress,
+      process: onProcess,
+      // The viewer is where a transcript is read, and it carries the editor.
+      editText: attachment.category === 'transcript' ? () => setPreviewOpen(true) : undefined,
+      detach: onDetach
+    },
+    { maxInline: 2 }
+  );
 
   useEffect(() => {
     let active = true;
@@ -278,7 +335,15 @@ export function TaskAttachmentTile({
     setActionFailed(false);
     try {
       const grant = await client.requestDownload(teamId, attachment.materialId, 'browser');
-      if (grant.kind !== 'browser') throw new Error('AGENT_REQUIRED');
+      if (grant.kind !== 'browser') {
+        // Too large for the browser (FR-082): the local app takes it, the same
+        // way a folder row's download does, instead of a sentence about failure.
+        if (browseClient && host.handlers.download) {
+          host.handlers.download();
+          return;
+        }
+        throw new Error('AGENT_REQUIRED');
+      }
       const anchor = document.createElement('a');
       anchor.href = grant.rangeUrl;
       anchor.download = attachment.name;
@@ -414,6 +479,7 @@ export function TaskAttachmentTile({
           </small>
         )}
       </div>
+      {host.dialogs}
       {previewOpen && opensInViewer && (
         <MaterialPreview
           teamId={teamId}

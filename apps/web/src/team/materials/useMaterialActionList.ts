@@ -61,7 +61,12 @@ const MAX_INLINE = 4;
 export function resolveMaterialActions(
   material: MaterialRef,
   context: ActionContext,
-  handlers: ActionHandlers
+  handlers: ActionHandlers,
+  /**
+   * Fewer, where the surface is a card in a grid (024, US10): a task's
+   * attachment carries open and its one make, and the rest are named in "…".
+   */
+  { maxInline = MAX_INLINE }: { maxInline?: number } = {}
 ): MaterialActionList {
   const resolved: ResolvedAction[] = [];
   for (const action of MATERIAL_ACTIONS) {
@@ -86,7 +91,7 @@ export function resolveMaterialActions(
   const inline = resolved
     .filter(entry => entry.availability.ok && entry.action.inlinePriority !== null)
     .sort((a, b) => (b.action.inlinePriority ?? 0) - (a.action.inlinePriority ?? 0))
-    .slice(0, MAX_INLINE);
+    .slice(0, Math.min(maxInline, MAX_INLINE));
 
   return { inline, groups, count: resolved.length };
 }
@@ -94,10 +99,12 @@ export function resolveMaterialActions(
 export function useMaterialActionList(
   material: MaterialRef,
   context: ActionContext,
-  handlers: ActionHandlers
+  handlers: ActionHandlers,
+  options: { maxInline?: number } = {}
 ): MaterialActionList {
+  const maxInline = options.maxInline;
   return useMemo(
-    () => resolveMaterialActions(material, context, handlers),
-    [context, handlers, material]
+    () => resolveMaterialActions(material, context, handlers, { maxInline }),
+    [context, handlers, material, maxInline]
   );
 }

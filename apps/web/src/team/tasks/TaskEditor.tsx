@@ -10,10 +10,7 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import {
-  InvitationPanel,
-  type InvitationPanelClient
-} from '../members/InvitationPanel';
+import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
 import {
   Badge,
   Button,
@@ -52,6 +49,16 @@ import { teamErrorMessageFor } from '../errors';
 import { PermissionState, Textarea } from '../../components/ui/index';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
+import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
+import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
+import {
+  compressJobs,
+  TeamCompressorDialog,
+  type CompressPlanItem
+} from '../explorer/TeamCompressorDialog';
+import { attachResultToTask } from '../explorer/useAgentQueue';
+import { onTaskAttachmentsChanged } from './taskAttachmentEvents';
+import { spaceRouteFor } from '../SpaceSettingsLink';
 
 export interface TaskEditorClient
   extends
@@ -225,20 +232,19 @@ export function TaskEditor({
    * shell resumes it once the settings close.
    */
   const openRestitchSettings = () => {
-    const href = buildTeamRoute({
-      spaceId: teamId,
-      section: 'explorer',
-      query: { settings: true }
-    });
-    onClose();
-    navigateTo(href);
+    // Over the task, not instead of it (024, FR-079): the settings ride on the
+    // address the task is on, and closing them comes back here.
+    navigateTo(spaceRouteFor(teamId, { kind: 'settings', tab: 'restitch' }));
   };
   /*
    * "Show on Drive": the explorer opens the attachment's folder with the file selected. The folder
    * comes from the catalogue search, which knows every file's parent; a file it cannot find is
    * searched for across the space instead, so the button never leads nowhere.
    */
-  const revealAttachment = async (attachment: TeamTaskAttachmentSummary) => {
+  /** Where an attachment lives, from the catalogue; `undefined` when it cannot be found. */
+  const findParentFolder = async (
+    attachment: TeamTaskAttachmentSummary
+  ): Promise<string | null | undefined> => {
     const stem = attachment.name.replace(/\.[^.]+$/u, '');
     let parentFolderId: string | null | undefined;
     for (const query of [attachment.name, stem]) {
@@ -257,6 +263,10 @@ export function TaskEditor({
         break;
       }
     }
+    return parentFolderId;
+  };
+  const revealAttachment = async (attachment: TeamTaskAttachmentSummary) => {
+    const parentFolderId = await findParentFolder(attachment);
     // Not `onClose()`: closing the editor writes its own address first, and the
     // reveal's would land on top of it — so Back came out at the task list
     // rather than at the task somebody was in the middle of. Changing the
@@ -267,8 +277,8 @@ export function TaskEditor({
         section: 'explorer',
         query:
           parentFolderId === undefined
-            ? { q: attachment.name, scope: 'space' }
-            : { folderId: parentFolderId, itemId: attachment.materialId }
+            ? { q: attachment.name, scope: 'space', back: task.id }
+            : { folderId: parentFolderId, itemId: attachment.materialId, back: task.id }
       })
     );
   };
@@ -287,20 +297,12 @@ export function TaskEditor({
   const [title, setTitle] = useState(initialTask.title);
   const [note, setNote] = useState(initialTask.note ?? '');
   const [status, setStatus] = useState(initialTask.status);
-  const [assigneeId, setAssigneeId] = useState(
-    initialTask.assigneeId ?? ''
-  );
+  const [assigneeId, setAssigneeId] = useState(initialTask.assigneeId ?? '');
   /** The day the task is for; null is "the day it was created". */
   const [dateOn, setDateOn] = useState<string | null>(initialTask.dateOn);
-  const [progressMax, setProgressMax] = useState(
-    initialTask.progressMax
-  );
-  const [progressMaxInput, setProgressMaxInput] = useState(
-    String(initialTask.progressMax)
-  );
-  const [progressValue, setProgressValue] = useState(
-    initialTask.progressValue
-  );
+  const [progressMax, setProgressMax] = useState(initialTask.progressMax);
+  const [progressMaxInput, setProgressMaxInput] = useState(String(initialTask.progressMax));
+  const [progressValue, setProgressValue] = useState(initialTask.progressValue);
   const [persistedAttachments, setPersistedAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState(false);
@@ -324,6 +326,20 @@ export function TaskEditor({
    * go to the explorer and come back.
    */
   const [catalogFor, setCatalogFor] = useState<{ id: string; name: string } | null>(null);
+  /*
+   * The rest of "Make", from the task (024, FR-076). Each opens over the editor
+   * and hands its run to the space's queue carrying this task, so what comes
+   * out lands back here — even if the editor has closed by then.
+   */
+  const spaceQueue = useOptionalSpaceAgentQueue()?.queue ?? null;
+  const [compressing, setCompressing] = useState<CompressPlanItem | null>(null);
+  const [processing, setProcessing] = useState<{
+    material: { id: string; name: string; category: TeamTaskAttachmentSummary['category'] };
+    folderId: string | null;
+  } | null>(null);
+  /** Bumped when a catalog is made here, so the tile's companions re-read. */
+  const [companionsRevision, setCompanionsRevision] = useState(0);
+  const { push: pushToast } = useToasts();
   /** The invite dialog, opened from the assignee field and closed back to it. */
   const [inviting, setInviting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -405,6 +421,16 @@ export function TaskEditor({
   useEffect(() => {
     void load({ hydrate: true, resetAttachmentDraft: true });
   }, [load]);
+
+  // A result made from this task arrived (or was taken off again).
+  useEffect(
+    () =>
+      onTaskAttachmentsChanged(task.id, () => {
+        void load({ quiet: true, resetAttachmentDraft: true });
+        setCompanionsRevision(value => value + 1);
+      }),
+    [load, task.id]
+  );
 
   // Everything on screen is on the task. There is no third state between
   // "attached" and "not attached" any more, which is what a staged attachment
@@ -1102,7 +1128,7 @@ export function TaskEditor({
             )}
           </form>
 
-            {/* The accounts this task is about (017). Written at once, like
+          {/* The accounts this task is about (017). Written at once, like
               status: a tag is a fact about the task, not a draft of one. */}
           <TaskAgentTagsEditor
             teamId={teamId}
@@ -1217,6 +1243,47 @@ export function TaskEditor({
                           })
                       : undefined
                   }
+                  onTranscribe={
+                    spaceQueue && attachment.category === 'video'
+                      ? () =>
+                          void findParentFolder(attachment).then(folderId =>
+                            spaceQueue.enqueueTranscriptions([
+                              {
+                                id: attachment.materialId,
+                                name: attachment.name,
+                                folderId: folderId ?? null,
+                                attachTo: { taskId: task.id }
+                              }
+                            ])
+                          )
+                      : undefined
+                  }
+                  onCompress={
+                    spaceQueue && attachment.category === 'video'
+                      ? () =>
+                          void findParentFolder(attachment).then(folderId =>
+                            setCompressing({
+                              id: attachment.materialId,
+                              name: attachment.name,
+                              folderId: folderId ?? null
+                            })
+                          )
+                      : undefined
+                  }
+                  onProcess={() =>
+                    void findParentFolder(attachment).then(folderId =>
+                      setProcessing({
+                        material: {
+                          id: attachment.materialId,
+                          name: attachment.name,
+                          category: attachment.category
+                        },
+                        folderId: folderId ?? null
+                      })
+                    )
+                  }
+                  browseClient={client}
+                  companionsRevision={companionsRevision}
                   restitching={restitch.states[attachment.materialId]?.kind === 'running'}
                 />
               ))}
@@ -1321,6 +1388,39 @@ export function TaskEditor({
           teamId={teamId}
           video={catalogFor}
           onClose={() => setCatalogFor(null)}
+          onChanged={() => setCompanionsRevision(value => value + 1)}
+        />
+      )}
+      {compressing && spaceQueue && (
+        <TeamCompressorDialog
+          teamId={teamId}
+          items={[compressing]}
+          client={client}
+          onRun={plan => spaceQueue.enqueue(compressJobs(plan, { taskId: task.id }))}
+          onClose={() => setCompressing(null)}
+        />
+      )}
+      {processing && (
+        <MaterialProcessFlow
+          teamId={teamId}
+          material={{
+            id: processing.material.id,
+            name: processing.material.name,
+            category: processing.material.category ?? 'other'
+          }}
+          destinationFolderId={processing.folderId}
+          browseClient={client}
+          onFinished={materialId =>
+            void attachResultToTask({
+              teamId,
+              taskId: task.id,
+              materialId,
+              name: processing.material.name,
+              push: pushToast,
+              t
+            })
+          }
+          onClose={() => setProcessing(null)}
         />
       )}
       {confirmingDelete && onDelete && (

@@ -10,8 +10,8 @@
  */
 
 import { useTeam } from './TeamContext';
-import { buildTeamRoute, type TeamSection, type TeamSettingsTab } from './routes';
-import { navigateTo } from '../lib/navigation';
+import { buildTeamRoute, parseTeamRoute, type TeamSection, type TeamSettingsTab } from './routes';
+import { currentRoute, navigateTo } from '../lib/navigation';
 import { useI18n } from '../i18n';
 
 /** Where a given emptiness is fixed: a settings tab, or another section. */
@@ -19,13 +19,22 @@ export type SpaceSettingsTarget =
   { kind: 'settings'; tab: TeamSettingsTab } | { kind: 'section'; section: TeamSection };
 
 export function spaceRouteFor(teamId: string, target: SpaceSettingsTarget): string {
-  return target.kind === 'settings'
-    ? buildTeamRoute({
-        spaceId: teamId,
-        section: 'explorer',
-        query: { settings: true, settingsTab: target.tab }
-      })
-    : buildTeamRoute({ spaceId: teamId, section: target.section });
+  if (target.kind === 'section')
+    return buildTeamRoute({ spaceId: teamId, section: target.section });
+  /*
+   * Over wherever you are (024, FR-079). The settings used to be written onto
+   * an explorer address, so a door in a task's catalog dialog closed the task,
+   * threw you into Files, and left you there. The settings are the space's;
+   * the address underneath — the open task, its section — stays, and closing
+   * them puts you back inside what needed them.
+   */
+  const here = parseTeamRoute(currentRoute());
+  const onThisSpace = here?.kind === 'space' && here.spaceId === teamId ? here : null;
+  return buildTeamRoute({
+    spaceId: teamId,
+    section: onThisSpace?.section ?? 'explorer',
+    query: { ...(onThisSpace?.query ?? {}), settings: true, settingsTab: target.tab }
+  });
 }
 
 export function SpaceSettingsLink({

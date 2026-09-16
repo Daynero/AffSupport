@@ -26,6 +26,7 @@ import { SpaceSwitcher } from './SpaceSwitcher';
 import { RealtimeChip } from './RealtimeChip';
 import { BackgroundWorkChip } from './BackgroundWorkChip';
 import { LibraryProcessingProvider } from '../library/LibraryProcessingProvider';
+import { AgentQueueProvider } from '../processing/AgentQueueProvider';
 import { ProcessLibraryDialog, type LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import { SpaceStatePanel } from './SpaceStatePanel';
 import type { ExplorerShellClient } from '../explorer/ExplorerShell';
@@ -436,7 +437,10 @@ export function WorkspaceShell({
   );
 
   const onExplorerFolderChange = useCallback(
-    (folderId: string | null) => updateQuery('explorer', { folderId, itemId: null }),
+    (folderId: string | null) =>
+      // Moving to another folder is working in Files now; the way back to the
+      // task that sent you here goes with it (024, FR-080).
+      updateQuery('explorer', { folderId, itemId: null, back: null }),
     [updateQuery]
   );
 
@@ -513,241 +517,253 @@ export function WorkspaceShell({
         revision={revision}
         onRendered={() => setBrowserRevision(value => value + 1)}
       >
-        <section className="team-space-shell" aria-labelledby="team-space-shell-title">
-          <header className="team-space-shell-header">
-            <div className="team-space-shell-identity">
-              <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
-              <SpaceSwitcher
-                activeTeam={activeTeam}
-                teams={teams}
-                headingId="team-space-shell-title"
-              />
-            </div>
-            <div className="team-space-shell-utilities">
-              {activeTeam && (
-                <StorageChip
-                  teamId={teamId}
-                  health={health}
-                  client={client}
-                  isOwner={activeTeam.role === 'owner'}
-                  canManage={activeTeam.role === 'owner' || activeTeam.role === 'admin'}
-                  settingsHref={explorerRoute({ settings: true })}
-                  onRefresh={refreshHealth}
-                  open={Boolean(query?.storage)}
-                  onOpenChange={next => navigateTo(hereRoute({ storage: next }), !next)}
+        {/* The local app's queue is the space's (024, FR-077): a task can start a
+            transcript as well as Files can, and the run outlives either. */}
+        <AgentQueueProvider
+          teamId={teamId}
+          onChanged={() => setBrowserRevision(value => value + 1)}
+        >
+          <section className="team-space-shell" aria-labelledby="team-space-shell-title">
+            <header className="team-space-shell-header">
+              <div className="team-space-shell-identity">
+                <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
+                <SpaceSwitcher
+                  activeTeam={activeTeam}
+                  teams={teams}
+                  headingId="team-space-shell-title"
                 />
-              )}
-              <RealtimeChip />
-              <BackgroundWorkChip
-                /* The chip only appears while a batch is running, so opening it
+              </div>
+              <div className="team-space-shell-utilities">
+                {activeTeam && (
+                  <StorageChip
+                    teamId={teamId}
+                    health={health}
+                    client={client}
+                    isOwner={activeTeam.role === 'owner'}
+                    canManage={activeTeam.role === 'owner' || activeTeam.role === 'admin'}
+                    settingsHref={explorerRoute({ settings: true })}
+                    onRefresh={refreshHealth}
+                    open={Boolean(query?.storage)}
+                    onOpenChange={next => navigateTo(hereRoute({ storage: next }), !next)}
+                  />
+                )}
+                <RealtimeChip />
+                <BackgroundWorkChip
+                  /* The chip only appears while a batch is running, so opening it
                    must show *that* batch. Resetting the scope here retitled a
                    folder run "the whole space" and widened what a second press
                    of Start would touch. */
-                onOpen={() => navigateTo(hereRoute({ process: true }))}
-              />
-              {/* Trash and settings are the space's own surfaces: real links
+                  onOpen={() => navigateTo(hereRoute({ process: true }))}
+                />
+                {/* Trash and settings are the space's own surfaces: real links
               with their own addresses, so Back closes them and a pasted link
               opens them (011) — and reachable from every section rather than
               only from Files, which is where a file you deleted from a task
               actually went (024, FR-046). */}
-              <a
-                className="team-space-shell-utility-link"
-                href={explorerRoute({ trash: true })}
-                aria-current={query?.trash ? 'page' : undefined}
-                onClick={event => internalLink(event, explorerRoute({ trash: true }))}
-              >
-                {t('teamTrashEntry')}
-              </a>
-              <CatalogUpdaterChip
-                state={catalogUpdater.state}
-                offsetMs={catalogUpdater.offsetMs}
-                href={explorerRoute({ updater: true })}
-                onNavigate={event => internalLink(event, explorerRoute({ updater: true }))}
-              />
-              <a
-                className="team-space-shell-utility-link"
-                href={explorerRoute({ settings: true })}
-                aria-current={query?.settings ? 'page' : undefined}
-                onClick={event => internalLink(event, explorerRoute({ settings: true }))}
-              >
-                {t('teamSpaceSettings')}
-              </a>
-            </div>
-          </header>
+                <a
+                  className="team-space-shell-utility-link"
+                  href={explorerRoute({ trash: true })}
+                  aria-current={query?.trash ? 'page' : undefined}
+                  onClick={event => internalLink(event, explorerRoute({ trash: true }))}
+                >
+                  {t('teamTrashEntry')}
+                </a>
+                <CatalogUpdaterChip
+                  state={catalogUpdater.state}
+                  offsetMs={catalogUpdater.offsetMs}
+                  href={explorerRoute({ updater: true })}
+                  onNavigate={event => internalLink(event, explorerRoute({ updater: true }))}
+                />
+                <a
+                  className="team-space-shell-utility-link"
+                  href={explorerRoute({ settings: true })}
+                  aria-current={query?.settings ? 'page' : undefined}
+                  onClick={event => internalLink(event, explorerRoute({ settings: true }))}
+                >
+                  {t('teamSpaceSettings')}
+                </a>
+              </div>
+            </header>
 
-          {/* Real links, not toggles: middle-click, copy-link and Back all work,
+            {/* Real links, not toggles: middle-click, copy-link and Back all work,
           and the active one is announced rather than merely coloured. The strip
           is the inventory's (021, T082), which grew the address variant for
           exactly this. */}
-          <Tabs
-            className="team-space-tabs"
-            label={t('teamSectionsNavLabel')}
-            value={section}
-            onChange={next => navigateTo(sectionRoute(next))}
-            onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id))}
-            items={CONTENT_TABS.map(tab => ({
-              id: tab.section,
-              label: t(tab.label),
-              href: sectionRoute(tab.section)
-            }))}
-          />
+            <Tabs
+              className="team-space-tabs"
+              label={t('teamSectionsNavLabel')}
+              value={section}
+              onChange={next => navigateTo(sectionRoute(next))}
+              onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id))}
+              items={CONTENT_TABS.map(tab => ({
+                id: tab.section,
+                label: t(tab.label),
+                href: sectionRoute(tab.section)
+              }))}
+            />
 
-          <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
-            <div className="team-space-shell-body">
-              {/* Every section behaves the way the explorer already did: mounted
+            <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
+              <div className="team-space-shell-body">
+                {/* Every section behaves the way the explorer already did: mounted
             on its first visit and hidden afterwards, never unmounted. A filter
             in Tasks, a scroll position in Accounts, a half-typed invitation in
             Members — all of it is still there on the way back, because none of
             it was thrown away. */}
-              {visited.has('members') && (
-                <div hidden={section !== 'members' || trashOver}>
-                  <MembersSection
-                    key={`members:${teamId}`}
-                    teamId={teamId}
-                    client={client}
-                    directAddMode={directAddMode}
-                  />
-                </div>
-              )}
-              {visited.has('tasks') && (
-                <div hidden={section !== 'tasks' || trashOver}>
-                  <TaskSpace
-                    key={`tasks:${teamId}`}
-                    teamId={teamId}
-                    createFromAsset={taskAsset}
-                    onConsumedCreateFromAsset={() => setTaskAsset(null)}
-                    openTaskId={taskQuery?.taskId ?? null}
-                    onOpenTaskChange={onOpenTaskChange}
-                    scope={taskScope}
-                    onScopeChange={onTaskScopeChange}
-                  />
-                </div>
-              )}
-              {visited.has('accounts') && (
-                <div hidden={section !== 'accounts' || trashOver}>
-                  <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
-                </div>
-              )}
-              {/* Nothing was ever indexed, so the connection is genuinely the
+                {visited.has('members') && (
+                  <div hidden={section !== 'members' || trashOver}>
+                    <MembersSection
+                      key={`members:${teamId}`}
+                      teamId={teamId}
+                      client={client}
+                      directAddMode={directAddMode}
+                    />
+                  </div>
+                )}
+                {visited.has('tasks') && (
+                  <div hidden={section !== 'tasks' || trashOver}>
+                    <TaskSpace
+                      key={`tasks:${teamId}`}
+                      teamId={teamId}
+                      createFromAsset={taskAsset}
+                      onConsumedCreateFromAsset={() => setTaskAsset(null)}
+                      openTaskId={taskQuery?.taskId ?? null}
+                      onOpenTaskChange={onOpenTaskChange}
+                      scope={taskScope}
+                      onScopeChange={onTaskScopeChange}
+                    />
+                  </div>
+                )}
+                {visited.has('accounts') && (
+                  <div hidden={section !== 'accounts' || trashOver}>
+                    <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+                  </div>
+                )}
+                {/* Nothing was ever indexed, so the connection is genuinely the
             reason there are no files (finding I4). */}
-              {section === 'explorer' && !browsable && activeTeam && (
-                <SpaceStatePanel space={activeTeam} canManageDrive={activeTeam.role === 'owner'} />
-              )}
-              {/* The explorer stays mounted across a trip to Tasks or Members —
+                {section === 'explorer' && !browsable && activeTeam && (
+                  <SpaceStatePanel
+                    space={activeTeam}
+                    canManageDrive={activeTeam.role === 'owner'}
+                  />
+                )}
+                {/* The explorer stays mounted across a trip to Tasks or Members —
             hidden, not unmounted — so the open folder and the selection are
             still there on return (a section change used to reset both). It
             reads its own remembered query while another section is showing. */}
-              {/* The trash is the explorer wearing a different list, so it is
+                {/* The trash is the explorer wearing a different list, so it is
             shown wherever it is asked for — including from Tasks or Accounts,
             which is where a file you deleted from a task actually went. */}
-              <div
-                hidden={
-                  (section !== 'explorer' && !query?.trash) || (!browsable && Boolean(activeTeam))
-                }
-              >
-                <ExplorerShell
-                  key={`explorer:${teamId}`}
-                  teamId={teamId}
-                  client={client}
-                  revision={revision + browserRevision}
-                  query={(section === 'explorer' || query?.trash) && query ? query : explorerQuery}
-                  onQueryChange={onExplorerQuery}
-                  onFolderChange={onExplorerFolderChange}
-                  onSearched={onSearched}
-                  onReset={resetExplorer}
-                  trashReturnLabel={
-                    trashOver
-                      ? t(CONTENT_TABS.find(tab => tab.section === section)!.label)
-                      : undefined
+                <div
+                  hidden={
+                    (section !== 'explorer' && !query?.trash) || (!browsable && Boolean(activeTeam))
                   }
-                  onPreview={openPreview}
-                  onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
-                  onCreateTaskFromSelection={assets => {
-                    if (assets.length === 0) return;
-                    createTaskFrom({
-                      ids: assets.map(asset => asset.id),
-                      name: t('creativeLibrarySelectionSummary', { count: assets.length })
-                    });
-                  }}
-                  /* The file in hand, not the whole space: the dialog opens on
+                >
+                  <ExplorerShell
+                    key={`explorer:${teamId}`}
+                    teamId={teamId}
+                    client={client}
+                    revision={revision + browserRevision}
+                    query={
+                      (section === 'explorer' || query?.trash) && query ? query : explorerQuery
+                    }
+                    onQueryChange={onExplorerQuery}
+                    onFolderChange={onExplorerFolderChange}
+                    onSearched={onSearched}
+                    onReset={resetExplorer}
+                    trashReturnLabel={
+                      trashOver
+                        ? t(CONTENT_TABS.find(tab => tab.section === section)!.label)
+                        : undefined
+                    }
+                    onPreview={openPreview}
+                    onCreateTask={asset => createTaskFrom({ ids: [asset.id], name: asset.name })}
+                    onCreateTaskFromSelection={assets => {
+                      if (assets.length === 0) return;
+                      createTaskFrom({
+                        ids: assets.map(asset => asset.id),
+                        name: t('creativeLibrarySelectionSummary', { count: assets.length })
+                      });
+                    }}
+                    /* The file in hand, not the whole space: the dialog opens on
                    the material that was chosen. */
-                  onProcessSelection={(materialIds, scope) => {
-                    setBatchSources(materialIds);
-                    setBatchScope(scope ?? { kind: 'selection', count: materialIds.length });
-                    setBatchSelectionOpen(true);
-                  }}
-                  onProcessLibrary={() => {
-                    setBatchSources([]);
-                    setBatchScope({ kind: 'space' });
-                    navigateTo(hereRoute({ process: true }));
-                  }}
-                  onChanged={() => setBrowserRevision(value => value + 1)}
-                  readOnly={storageAttention}
-                />
+                    onProcessSelection={(materialIds, scope) => {
+                      setBatchSources(materialIds);
+                      setBatchScope(scope ?? { kind: 'selection', count: materialIds.length });
+                      setBatchSelectionOpen(true);
+                    }}
+                    onProcessLibrary={() => {
+                      setBatchSources([]);
+                      setBatchScope({ kind: 'space' });
+                      navigateTo(hereRoute({ process: true }));
+                    }}
+                    onChanged={() => setBrowserRevision(value => value + 1)}
+                    readOnly={storageAttention}
+                  />
+                </div>
               </div>
-            </div>
-          </Suspense>
+            </Suspense>
 
-          {query?.settings && (
-            <SettingsDialog
-              teamId={teamId}
-              client={client}
-              initialTab={query.settingsTab}
-              onClose={() => navigateTo(explorerRoute({ settings: false, settingsTab: null }))}
-            />
-          )}
-
-          {/*
-           * One way in, to anything (024, US6). In the address like the
-           * settings and the updater, so Back closes it — a surface the
-           * history does not know about is a surface Back throws you out of.
-           */}
-          {query?.palette && (
-            <PaletteHost
-              teamId={teamId}
-              onClose={() => navigateTo(explorerRoute({ palette: false }), true)}
-              onShortcuts={() => {
-                navigateTo(explorerRoute({ palette: false }), true);
-                setShortcutsOpen(true);
-              }}
-            />
-          )}
-          {shortcutsOpen && <ShortcutSheet onClose={() => setShortcutsOpen(false)} />}
-
-          {query?.updater && (
-            <CatalogUpdaterDialog
-              teamId={teamId}
-              preparing={restitchPreparer.preparing}
-              onClose={() => navigateTo(explorerRoute({ updater: false }))}
-              onChanged={catalogUpdater.reload}
-            />
-          )}
-
-          {/* The whole space is in the address; a batch over picked files is
-              not, because the pick is not (024, FR-050). */}
-          {(batchSelectionOpen || query?.process) && (
-            <ProcessLibraryDialog
-              agentCompatible={agent?.teamWorkspaceAvailable === true}
-              scope={batchScope}
-              onClose={() => {
-                if (batchSelectionOpen) setBatchSelectionOpen(false);
-                else navigateTo(hereRoute({ process: false }), true);
-              }}
-            />
-          )}
-          {previewing &&
-            (previewing.category === 'landing' && previewing.landingRender?.state === 'ready' ? (
-              <LandingFullView
+            {query?.settings && (
+              <SettingsDialog
                 teamId={teamId}
-                material={landingViewerMaterial(previewing)}
-                artifact={{ preset: 'default' }}
-                artifactClient={teamApi}
-                onClose={closePreview}
+                client={client}
+                initialTab={query.settingsTab}
+                onClose={() => navigateTo(explorerRoute({ settings: false, settingsTab: null }))}
               />
-            ) : (
-              <MaterialPreview teamId={teamId} material={previewing} onClose={closePreview} />
-            ))}
-        </section>
+            )}
+
+            {/*
+             * One way in, to anything (024, US6). In the address like the
+             * settings and the updater, so Back closes it — a surface the
+             * history does not know about is a surface Back throws you out of.
+             */}
+            {query?.palette && (
+              <PaletteHost
+                teamId={teamId}
+                onClose={() => navigateTo(explorerRoute({ palette: false }), true)}
+                onShortcuts={() => {
+                  navigateTo(explorerRoute({ palette: false }), true);
+                  setShortcutsOpen(true);
+                }}
+              />
+            )}
+            {shortcutsOpen && <ShortcutSheet onClose={() => setShortcutsOpen(false)} />}
+
+            {query?.updater && (
+              <CatalogUpdaterDialog
+                teamId={teamId}
+                preparing={restitchPreparer.preparing}
+                onClose={() => navigateTo(explorerRoute({ updater: false }))}
+                onChanged={catalogUpdater.reload}
+              />
+            )}
+
+            {/* The whole space is in the address; a batch over picked files is
+              not, because the pick is not (024, FR-050). */}
+            {(batchSelectionOpen || query?.process) && (
+              <ProcessLibraryDialog
+                agentCompatible={agent?.teamWorkspaceAvailable === true}
+                scope={batchScope}
+                onClose={() => {
+                  if (batchSelectionOpen) setBatchSelectionOpen(false);
+                  else navigateTo(hereRoute({ process: false }), true);
+                }}
+              />
+            )}
+            {previewing &&
+              (previewing.category === 'landing' && previewing.landingRender?.state === 'ready' ? (
+                <LandingFullView
+                  teamId={teamId}
+                  material={landingViewerMaterial(previewing)}
+                  artifact={{ preset: 'default' }}
+                  artifactClient={teamApi}
+                  onClose={closePreview}
+                />
+              ) : (
+                <MaterialPreview teamId={teamId} material={previewing} onClose={closePreview} />
+              ))}
+          </section>
+        </AgentQueueProvider>
       </BackgroundRenderProvider>
     </LibraryProcessingProvider>
   );

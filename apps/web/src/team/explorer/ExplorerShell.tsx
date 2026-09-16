@@ -46,7 +46,9 @@ import { SortMenu } from './SortMenu';
 import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
 import { PreviewPane } from './PreviewPane';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
-import { useAgentQueue, type AgentQueueItem } from './useAgentQueue';
+import { useAgentQueue } from './useAgentQueue';
+import { createPortal } from 'react-dom';
+import { AgentQueuePanel, useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
 import { useExplorerClipboard } from './useExplorerClipboard';
 import { formatShortcut, shortcutOf } from '../palette/shortcuts';
 import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
@@ -58,6 +60,7 @@ import {
   type ProcessableFolder
 } from './FolderScopeDialog';
 import {
+  compressJobs,
   TeamCompressorDialog,
   type CompressPlan,
   type CompressPlanItem as CompressPlanItem_
@@ -72,7 +75,7 @@ import {
   type UploadConflictRequest
 } from './UploadConflictDialog';
 import { ProcessPanel } from './ProcessPanel';
-import { navigateTo } from '../../lib/navigation';
+import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { useFolderPage } from './useFolderPage';
 import { usePosterFrames } from './usePosterFrames';
@@ -511,7 +514,20 @@ function ExplorerBody({
    * (024, FR-095) — 250 lines of it were in here, between the upload zone and
    * the keyboard handler.
    */
-  const queue = useAgentQueue({ teamId, actionsClient, onChanged: changed });
+  const localQueue = useAgentQueue({ teamId, actionsClient, onChanged: changed });
+  // The space owns the queue (024, FR-077); a Files shell mounted on its own —
+  // a test, a preview — keeps one of its own, idle unless it is the one used.
+  const space = useOptionalSpaceAgentQueue();
+  const queue = space?.queue ?? localQueue;
+  /* Long jobs report in one corner. Inside a space that corner is the space's,
+     so a re-stitched download and the queue stack instead of covering each
+     other; the explorer's own panels are portalled into it. */
+  const processStack = (panels: React.ReactNode) =>
+    space?.stack ? (
+      createPortal(panels, space.stack)
+    ) : (
+      <div className="team-process-stack">{panels}</div>
+    );
 
   /* Copy, cut and paste, in their own file for the same reason (024). */
   const clipboard = useExplorerClipboard({
@@ -753,6 +769,14 @@ function ExplorerBody({
         ...(permissions.process
           ? {
               onProcess: (row: TeamMaterialRow) => setProcessing({ row }),
+              onCompress: (row: TeamMaterialRow) =>
+                setCompressing([
+                  {
+                    id: row.id,
+                    name: row.name,
+                    folderId: row.parentFolderId ?? currentFolderId ?? null
+                  }
+                ]),
               onProcessFolder: (row: TeamMaterialRow) =>
                 setFolderScope({ folder: row, intent: 'process' })
             }
@@ -927,29 +951,7 @@ function ExplorerBody({
   );
   const tagging = canTag ? { canTag: true as const, onSetTag: setTag } : undefined;
 
-  const runCompressPlan = (plan: CompressPlan) => {
-    const suffix = plan.suffix;
-    const jobs: AgentQueueItem[] = plan.items.map(item => {
-      const stem = item.name.replace(/\.[^.]+$/u, '');
-      const overwrite = plan.destination.kind === 'overwrite';
-      const outputName = overwrite
-        ? suffix
-          ? `${stem}${suffix}.mp4`
-          : item.name
-        : `${stem}${suffix || '_1'}.mp4`;
-      return {
-        id: item.id,
-        name: item.name,
-        folderId: plan.destination.kind === 'folder' ? plan.destination.folderId : item.folderId,
-        tool: 'compressor' as const,
-        outputName,
-        ...(overwrite ? { versionOf: item.id } : {}),
-        ...(plan.destination.kind === 'local' ? { local: { embed: plan.embed, suffix } } : {}),
-        options: plan.embed ? { imageEmbedding: { enabled: true } } : {}
-      };
-    });
-    queue.enqueue(jobs);
-  };
+  const runCompressPlan = (plan: CompressPlan) => queue.enqueue(compressJobs(plan));
 
   /**
    * Landing previews, folder-wide: the same per-row command, said once.
@@ -1153,7 +1155,32 @@ function ExplorerBody({
             ← {trashReturnLabel ?? t('teamExplorerBackToFiles')}
           </Button>
         ) : (
-          <Breadcrumb />
+          <>
+            {/* The task that sent you here, one press away (024, FR-080). */}
+            {query.back && (
+              <a
+                className="team-explorer-back-to-task"
+                href={buildTeamRoute({
+                  spaceId: teamId,
+                  section: 'tasks',
+                  query: { taskId: query.back }
+                })}
+                onClick={event =>
+                  internalLink(
+                    event,
+                    buildTeamRoute({
+                      spaceId: teamId,
+                      section: 'tasks',
+                      query: { taskId: query.back }
+                    })
+                  )
+                }
+              >
+                ← {t('teamExplorerBackToTask')}
+              </a>
+            )}
+            <Breadcrumb />
+          </>
         )}
         <div className="team-explorer-toolbar-actions">
           {!trash && (
@@ -1559,92 +1586,36 @@ function ExplorerBody({
       )}
       {/* One corner, one stack: both panels are reachable from the same
           selection, and pinned to the same pixel the second hid the first. */}
-      <div className="team-process-stack">
-        {(queue.active || queue.queued.length > 0) && (
-          <ProcessPanel
-            title={t(
-              queue.active?.tool === 'compressor'
-                ? 'teamCompressQueueTitle'
-                : 'teamTranscribeQueueTitle'
-            )}
-            detail={
-              queue.active
-                ? t('teamTranscribeQueueProgress', {
-                    done: queue.done + 1,
-                    total: queue.total,
-                    name: queue.active.name
-                  })
-                : null
-            }
-            phase={
-              queue.paused
-                ? t(
-                    queue.active
-                      ? queue.held
-                        ? 'teamQueuePausedHeld'
-                        : 'teamQueuePausedRunning'
-                      : 'teamQueuePausedIdle',
-                    { count: queue.queued.length }
-                  )
-                : null
-            }
-            progress={queue.activeProgress}
-            active={!queue.paused}
-            actions={[
-              {
-                label: t(queue.paused ? 'teamQueueResume' : 'teamQueuePause'),
-                run: () => queue.pause(!queue.paused)
-              },
-              ...(queue.queued.length > (queue.active ? 0 : 1)
-                ? [
-                    {
-                      label: t('teamTranscribeQueueStop'),
-                      run: () => {
-                        queue.clearQueued(Boolean(queue.active));
-                        // "After the current one" has to have a current one that is still
-                        // moving; stopping while paused would leave a suspended file as the
-                        // last thing this panel ever did.
-                        if (queue.paused) queue.pause(false);
-                      }
-                    }
-                  ]
-                : []),
-              ...(queue.active
-                ? [
-                    {
-                      label: t('teamQueueStopNow'),
-                      run: () => void queue.stopNow(),
-                      destructive: true
-                    }
-                  ]
-                : [])
-            ]}
-          />
-        )}
+      {processStack(
+        <>
+          {!space && (queue.active || queue.queued.length > 0) && (
+            <AgentQueuePanel queue={queue} t={t} />
+          )}
 
-        {/* 015 — a re-stitched download reports itself the same way every other long job does:
+          {/* 015 — a re-stitched download reports itself the same way every other long job does:
             one panel, a named step, and a way out. It used to say only "downloading…" in a
             toast, which on a thirty-second wait reads as a hang. */}
-        {deliveringMaterial && (
-          <ProcessPanel
-            title={t('teamRestitchDownloadTitle')}
-            detail={deliveringMaterial.state.fileName}
-            phase={t(RESTITCH_PHASE_KEYS[deliveringMaterial.state.phase])}
-            progress={restitchProgress(
-              deliveringMaterial.state.phase,
-              deliveringMaterial.state.progress
-            )}
-            active
-            actions={[
-              {
-                label: t('teamQueueStopNow'),
-                run: () => restitch.cancel(deliveringMaterial.materialId),
-                destructive: true
-              }
-            ]}
-          />
-        )}
-      </div>
+          {deliveringMaterial && (
+            <ProcessPanel
+              title={t('teamRestitchDownloadTitle')}
+              detail={deliveringMaterial.state.fileName}
+              phase={t(RESTITCH_PHASE_KEYS[deliveringMaterial.state.phase])}
+              progress={restitchProgress(
+                deliveringMaterial.state.phase,
+                deliveringMaterial.state.progress
+              )}
+              active
+              actions={[
+                {
+                  label: t('teamQueueStopNow'),
+                  run: () => restitch.cancel(deliveringMaterial.materialId),
+                  destructive: true
+                }
+              ]}
+            />
+          )}
+        </>
+      )}
 
       {/* 015 — the running deliveries speak for themselves; nothing is rendered inline. */}
       {conflict && <UploadConflictDialog request={conflict.request} onChoose={conflict.settle} />}

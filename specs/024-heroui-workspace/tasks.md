@@ -566,34 +566,34 @@ and what is made comes back onto the task. Plan F1–F5.
 **Independent Test**: on a task with a video, make its catalog, start its transcript and its
 processed copy from the attachment, and see all three on the task without it closing.
 
-- [ ] T149 [US10] Create `apps/web/src/team/processing/AgentQueueProvider.tsx` that calls
+- [x] T149 [US10] Create `apps/web/src/team/processing/AgentQueueProvider.tsx` that calls
       `useAgentQueue` once for the space; mount it in `WorkspaceShell.tsx` inside
       `LibraryProcessingProvider`; make `ExplorerShell.tsx` read the queue from context instead of
       calling the hook. Supersedes T043.
-- [ ] T150 [US10] Add `attachTo?: { taskId: string }` to `AgentQueueItem` and to
+- [x] T150 [US10] Add `attachTo?: { taskId: string }` to `AgentQueueItem` and to
       `enqueueTranscriptions`; on a finished item with a material id, attach it through
       `attachTaskMaterials` — silent on `alreadyAttached` and on a missing task, one toast with
       **Take off** (detach) on success.
-- [ ] T151 [US10] Give `MaterialProcessFlow` an `onFinished(materialId)` prop, called from the
+- [x] T151 [US10] Give `MaterialProcessFlow` an `onFinished(materialId)` prop, called from the
       outcome that already carries `outcome.materialId`.
-- [ ] T152 [US10] Delete the registry's standalone `compress` action (no handler anywhere; the
+- [x] T152 [US10] **Reversed on reading the contract**: `compress` was always meant to enqueue on a space-level queue, and T149 made one. It is kept and wired (Files rows, task attachments) through the compressor dialog, whose job building moved to `compressJobs`. Original text: delete the registry's standalone `compress` action (no handler anywhere; the
       compressor is a tool of `process`) and its strings; update the registry tests.
-- [ ] T153 [US10] Wire `transcribe`, `process`, `copyText` and `editText` in
+- [x] T153 [US10] Wire `transcribe`, `process`, `copyText` and `editText` in
       `TaskAttachmentTile.tsx` / `TaskEditor.tsx`: transcribe enqueues with `attachTo`; process
       opens `MaterialProcessFlow` nested over the task with `onFinished` attaching; transcripts
       get copy and edit. Nothing closes the editor. The catalog dialog is given `onCreated` /
       `onChanged`, so the attachment's companions refresh and the new catalog shows on the tile
       with Open and Copy link (US10 scenario 3) — today the tile never hears about it.
-- [ ] T154 [US10] Cap a task attachment tile at **2** inline actions plus "…" (a `maxInline`
+- [x] T154 [US10] Cap a task attachment tile at **2** inline actions plus "…" (a `maxInline`
       option on `useMaterialActionList`), so a card in a grid carries open and its primary make.
-- [ ] T155 [US10] Re-stitch and catalog settings links in the editor open settings over the task
+- [x] T155 [US10] Re-stitch and catalog settings links in the editor open settings over the task
       (`settings=1&tab=restitch|product-catalog`, `task` kept) instead of closing it for Files.
-- [ ] T156 [US10] "Show in folder" from a task writes `back=<taskId>`; `routes.ts` carries
+- [x] T156 [US10] "Show in folder" from a task writes `back=<taskId>`; `routes.ts` carries
       `back` on explorer addresses; Files' toolbar shows a return chip while it is present; any
       other Files navigation drops it.
-- [ ] T157 [US10] Route the tile's download through the shared download handler the explorer
+- [x] T157 [US10] Route the tile's download through the shared download handler the explorer
       host uses, so a refusal is said in words and the local app is offered where it can take it.
-- [ ] T158 [P] [US10] Tests: `tests/task-attachment-make.test.tsx` — the video tile offers
+- [x] T158 [P] [US10] Tests: `tests/task-attachment-make.test.tsx` — the video tile offers
       catalog, transcript and process; a finished queue item with `attachTo` attaches once and
       toasts; `alreadyAttached` is silent; settings open with `task` still in the address;
       `back` round-trips in `tests/team-routes.test.ts`.

@@ -14409,7 +14409,7 @@ button.team-landing-tile:hover {
   position: fixed;
   right: var(--space-4);
   bottom: var(--space-4);
-  z-index: var(--layer-overlay);
+  z-index: var(--layer-work);
   display: grid;
   gap: var(--space-2);
   justify-items: end;
@@ -17172,4 +17172,21 @@ input[type='number'] {
   .team-updater-badge {
     display: none;
   }
+}
+
+/* The way back to the task that opened this folder (024, FR-080): a chip,
+   because it is a place you came from, not a step of the breadcrumb. */
+.team-explorer-back-to-task {
+  flex: 0 0 auto;
+  padding: 2px var(--space-2);
+  font-size: var(--text-label);
+  color: var(--color-accent);
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+}
+.team-explorer-back-to-task:hover {
+  background: var(--color-accent-softer);
 }

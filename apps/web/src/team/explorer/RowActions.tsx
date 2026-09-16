@@ -47,6 +47,8 @@ export interface RowActionsProps {
   onChanged: () => void;
   onEditText?: (row: TeamMaterialRow) => void;
   onProcess?: (row: TeamMaterialRow) => void;
+  /** Compress this video with the compressor's own settings (024, FR-041). */
+  onCompress?: (row: TeamMaterialRow) => void;
   onProcessFolder?: (row: TeamMaterialRow) => void;
   /**
    * A video that was trashed — the shell decides what to do with its transcript
@@ -87,6 +89,7 @@ export function RowActions({
   onChanged,
   onEditText,
   onProcess,
+  onCompress,
   onProcessFolder,
   onVideoTrashed,
   onDownloadRestitched,
@@ -148,6 +151,7 @@ export function RowActions({
     createTask: onCreateTask ? () => onCreateTask(row) : undefined,
     editText: row.kind === 'transcript' && onEditText ? () => onEditText(row) : undefined,
     process: onProcess ? () => onProcess(row) : undefined,
+    compress: onCompress ? () => onCompress(row) : undefined,
     processInside:
       row.kind === 'folder' && onProcessFolder ? () => onProcessFolder(row) : undefined,
     downloadRestitched:
