@@ -17407,5 +17407,33 @@ input[type='number'] {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: var(--space-2);
   }
+  /* The board on a phone: typing a task gets the whole line, and the filters
+     are one line that scrolls rather than three that each hold one control. */
+  .team-task-quick-add {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .team-task-quick-add > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .task-filter-bar .task-filter-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .task-filter-bar .task-date-filter {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .task-filter-bar .task-status-filter {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    margin-left: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
 }
 

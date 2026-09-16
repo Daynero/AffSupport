@@ -483,7 +483,9 @@ export function TaskSpace({
               loading={busy}
               onClick={quickTitle.trim() ? undefined : () => void startTask()}
             >
-              {t(quickTitle.trim() ? 'teamTaskQuickAddAction' : 'teamTaskCreate')}
+              {/* One short word either way: with a name it adds, without one it
+                  opens the editor to write the task out. */}
+              {t('teamTaskQuickAddAction')}
             </Button>
           </form>
         )}
