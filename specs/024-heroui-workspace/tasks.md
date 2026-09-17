@@ -774,6 +774,17 @@ processed copy from the attachment, and see all three on the task without it clo
 - [x] T219 [US22] Walked on the beta: `4_v2_catalog` went from 3 products to 5 in one update, with
       the snapshot's rows grown to match.
 
+## Phase 9N: User Story 23 — the catalog tab, read in one pass (Priority: P2)
+
+- [x] T220 [US23] "What a catalog will be made of": a line per column with its state, the verdict,
+      and a way to the updater; component tests.
+- [x] T221 [US23] The pool shows three and opens the rest in a searchable browser; generating can
+      add instead of replacing, and says when the pool is full.
+- [x] T222 [US23] The fallbacks move to their own folded section with their own Save and a state
+      word; the price card keeps its own.
+- [x] T223 [US23] Walked on the beta: the verdict line, the pool browser's search (2 of 1000), the
+      full-pool hint and "Held in reserve".
+
 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the

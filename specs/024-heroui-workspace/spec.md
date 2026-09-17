@@ -970,6 +970,20 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 - **FR-143**: The update MUST write the sheet's new product count and its rows back to the
   catalog, so the next update starts from what the sheet now holds.
 
+### Functional Requirements — the catalog tab, read in one pass (US23)
+
+- **FR-144**: The catalog settings MUST open with what a catalog will be made of — one line per
+  column, saying whether it draws from a pool, from the fallback, or from nothing — and MUST say
+  plainly whether a catalog can be made at all, rather than leaving that to a failed creation.
+- **FR-145**: The name pool MUST show a sample of three in the tab and keep the rest behind one
+  button, where they can be searched and edited.
+- **FR-146**: Generating names MUST be able to add to the pool as well as replace it; replacing
+  keeps its confirmation.
+- **FR-147**: The single title, description and picture link MUST live in a section of their own
+  at the end, folded, with their own Save, and MUST say whether they are in use, held in reserve
+  or empty.
+- **FR-148**: The catalog tab MUST link to the updater, where what changes at every update is set.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,
