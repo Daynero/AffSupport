@@ -18476,3 +18476,9 @@ a.history-subject {
   display: grid;
   gap: var(--space-3);
 }
+/* An edit not yet kept, beside the button that keeps it: a quiet word, not another control. */
+.product-catalog-unsaved {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}

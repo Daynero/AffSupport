@@ -113,6 +113,25 @@ describe('a space’s catalog price and fallbacks (024)', () => {
     await screen.findByLabelText('From');
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
+
+  it('offers to save only what differs from what the space holds', async () => {
+    renderSection({
+      getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+      setProductCatalogSettings: vi.fn().mockResolvedValue(stored)
+    });
+    const user = userEvent.setup();
+    const from = await screen.findByLabelText('From');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true)
+    );
+    expect(screen.queryByText('Not saved yet')).toBeNull();
+    await user.clear(from);
+    await user.type(from, '5');
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', false);
+    expect(screen.getByText('Not saved yet')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByText('Not saved yet')).toBeNull());
+  });
 });
 
 describe('the name and description pool (024)', () => {

@@ -23,7 +23,6 @@ import {
   DESCRIPTION_MAX,
   IMAGE_LINK_MAX,
   TITLE_MAX,
-  formatPricePreview,
   validatePrice,
   validateWebLink
 } from './limits';
@@ -485,6 +484,8 @@ function TextEditor({
 // Price and the single fallback values
 // ---------------------------------------------------------------------------------------------
 
+const snapshot = (...values: string[]) => JSON.stringify(values.map(value => value.trim()));
+
 function CatalogValuesSection({
   teamId,
   client
@@ -505,6 +506,10 @@ function CatalogValuesSection({
   const [description, setDescription] = useState('');
   const [link, setLink] = useState('');
   const [fallbackOpen, setFallbackOpen] = useState(false);
+  // What the space holds, to tell an edit from what is already saved: with one button under
+  // both the price and the collapsed fallback, nothing said whether a changed price was kept.
+  // Nothing stored yet (null) is not the defaults stored: without a row a catalog has no price.
+  const [saved, setSaved] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -517,6 +522,15 @@ function CatalogValuesSection({
         setTitle(found.title ?? '');
         setDescription(found.description ?? '');
         setLink(found.imageLink ?? '');
+        setSaved(
+          snapshot(
+            String(found.priceMin),
+            String(found.priceMax),
+            found.title ?? '',
+            found.description ?? '',
+            found.imageLink ?? ''
+          )
+        );
         setFallbackOpen(Boolean(found.title || found.description || found.imageLink));
       })
       .catch(() => undefined)
@@ -536,6 +550,8 @@ function CatalogValuesSection({
   const titleOk = title.trim().length <= TITLE_MAX;
   const descriptionOk = description.trim().length <= DESCRIPTION_MAX;
   const valid = rangeOk && linkOk && titleOk && descriptionOk;
+  const current = snapshot(min, max, title, description, link);
+  const dirty = current !== saved;
 
   const save = async () => {
     if (!valid || !minCheck.ok || !maxCheck.ok) return;
@@ -548,6 +564,7 @@ function CatalogValuesSection({
         priceMin: minCheck.value,
         priceMax: maxCheck.value
       });
+      setSaved(current);
       push({ tone: 'success', text: t('productCatalogSettingsSaved') });
     } catch (error) {
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
@@ -570,7 +587,9 @@ function CatalogValuesSection({
       description={t('productCatalogPriceDescription')}
       aside={
         rangeOk && minCheck.ok && maxCheck.ok
-          ? `${formatPricePreview(minCheck.value)} – ${formatPricePreview(maxCheck.value)}`
+          ? minCheck.value === maxCheck.value
+            ? `${minCheck.value} USD`
+            : `${minCheck.value}–${maxCheck.value} USD`
           : undefined
       }
       className="product-catalog-settings"
@@ -665,11 +684,14 @@ function CatalogValuesSection({
             type="button"
             variant="primary"
             loading={saving}
-            disabled={!loaded || !valid}
+            disabled={!loaded || !valid || !dirty}
             onClick={() => void save()}
           >
             {t('productCatalogSettingsSave')}
           </Button>
+          {loaded && dirty && valid && (
+            <span className="product-catalog-unsaved">{t('productCatalogUnsaved')}</span>
+          )}
         </div>
       )}
     </SettingsSection>

@@ -1552,6 +1552,7 @@ const en = {
   productCatalogPriceInvalid: 'A whole number from 1 to 999999, without currency.',
   productCatalogLinkInvalid: 'Paste a link that starts with http:// or https://.',
   productCatalogSettingsSave: 'Save',
+  productCatalogUnsaved: 'Not saved yet',
   productCatalogSettingsSaved: 'Catalog settings saved',
   productCatalogImagesTitle: 'Pictures',
   productCatalogImagesDescription:
@@ -4327,6 +4328,7 @@ const uk: Record<keyof typeof en, string> = {
   productCatalogPriceInvalid: 'Ціле число від 1 до 999999, без валюти.',
   productCatalogLinkInvalid: 'Вставте посилання, що починається з http:// або https://.',
   productCatalogSettingsSave: 'Зберегти',
+  productCatalogUnsaved: 'Ще не збережено',
   productCatalogSettingsSaved: 'Налаштування каталогу збережено',
   productCatalogImagesTitle: 'Картинки',
   productCatalogImagesDescription:
