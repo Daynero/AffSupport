@@ -11,7 +11,7 @@
  * keeps `PRODUCT_CATALOG_TEMPLATE` equal to its JSON form, header strings byte for byte.
  */
 
-import { contentId, drawProductDetails, inventedBrand } from './product-details.ts';
+import { contentId, drawProductDetails, inventedBrand, pictureFacts } from './product-details.ts';
 
 export const PRODUCT_COUNT_MIN = 1;
 export const PRODUCT_COUNT_MAX = 400;
@@ -67,6 +67,11 @@ export interface ProductCatalogRowDetails {
   /** What distinguishes this row's video link, in place of 022's row number. */
   videoParam: string;
   tags: readonly [string, string];
+  /**
+   * The file name of the picture this row shows (024, US27). Never written to the sheet: it is
+   * kept so a later update can pair the row's words with the picture it already has.
+   */
+  pictureName: string | null;
 }
 
 /**
@@ -123,7 +128,8 @@ export function planCatalogRows(input: {
   count: number;
   settings: ProductCatalogSpaceSettings;
   texts: ReadonlyArray<{ title: string; description: string }>;
-  imageLinks: readonly string[];
+  /** The pictures drawn for this catalog, with the file names that say what they show. */
+  images: ReadonlyArray<{ link: string; name?: string | null }>;
   random?: () => number;
   now?: number;
   /** The catalog's own label; invented when none is given. */
@@ -132,12 +138,15 @@ export function planCatalogRows(input: {
   const random = input.random ?? Math.random;
   const brand = input.brand ?? inventedBrand(random);
   const rows: ProductCatalogRowValues[] = [];
+  const spare = [...input.texts];
   for (let index = 0; index < input.count; index += 1) {
-    const text = input.texts.length > 0 ? input.texts[index % input.texts.length] : null;
-    const imageLink =
-      input.imageLinks.length > 0
-        ? input.imageLinks[index % input.imageLinks.length]
-        : input.settings.imageLink;
+    const image =
+      input.images.length > 0
+        ? input.images[index % input.images.length]
+        : { link: input.settings.imageLink ?? '', name: null };
+    const facts = image?.name ? pictureFacts(image.name) : { garment: null, color: null };
+    const text = takeMatchingText(spare, facts);
+    const imageLink = image?.link || input.settings.imageLink;
     const title = text?.title ?? input.settings.title;
     const description = text?.description ?? input.settings.description;
     if (!title || !description || !imageLink) return null;
@@ -147,10 +156,44 @@ export function planCatalogRows(input: {
       description,
       imageLink,
       price,
-      ...drawProductDetails({ title, price, brand, random, now: input.now })
+      ...drawProductDetails({
+        title,
+        price,
+        brand,
+        random,
+        now: input.now,
+        pictureColor: facts.color
+      }),
+      pictureName: image?.name ?? null
     });
   }
   return rows;
+}
+
+/**
+ * The name that suits this picture, taken out of what was drawn (024, US27).
+ *
+ * The pools are drawn without repeats and paired here rather than by position: a photo named
+ * `hoodie_black_01.jpg` takes a hoodie name, and a black one where the pool has it. When nothing
+ * matches — the picture's name says nothing, or the pool holds no such garment — the next name
+ * is used, which is exactly what happened to every row before.
+ */
+export function takeMatchingText(
+  spare: Array<{ title: string; description: string }>,
+  facts: { garment: { name: string } | null; color: string | null }
+): { title: string; description: string } | null {
+  if (spare.length === 0) return null;
+  const wanted = facts.garment?.name ?? null;
+  if (!wanted) return spare.shift() ?? null;
+  /* The name is read with the same vocabulary as the file name, so "Nova Cotton Oversized Tee"
+     and `tshirt_white_01.jpg` are known to be the same garment. */
+  const reads = spare.map(text => pictureFacts(text.title));
+  const exact = reads.findIndex(
+    read => read.garment?.name === wanted && facts.color !== null && read.color === facts.color
+  );
+  const sameGarment = reads.findIndex(read => read.garment?.name === wanted);
+  const index = exact >= 0 ? exact : sameGarment >= 0 ? sameGarment : 0;
+  return spare.splice(index, 1)[0] ?? null;
 }
 
 type ColumnSource =

@@ -2628,6 +2628,10 @@ export type Database = {
         Args: { p_refresh: boolean; p_team: string };
         Returns: boolean;
       };
+      list_team_product_catalog_pool_names: {
+        Args: { p_limit?: number; p_team: string };
+        Returns: { name: string }[];
+      };
       get_team_catalog_updater_grow: {
         Args: { p_team: string };
         Returns: boolean;

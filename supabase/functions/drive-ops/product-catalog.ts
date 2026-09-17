@@ -97,7 +97,7 @@ export interface ProductCatalogDeps {
   drawImages(
     teamId: string,
     count: number
-  ): Promise<Array<{ driveFileId: string; resourceKey: string | null }>>;
+  ): Promise<Array<{ driveFileId: string; resourceKey: string | null; name?: string | null }>>;
   /** Every live catalog of the video — its variations — oldest number first. */
   readLiveCatalogs(teamId: string, videoId: string): Promise<ExistingCatalog[]>;
   /** The number a new variation of this video takes: one past the highest it ever had. */
@@ -301,7 +301,10 @@ export async function createProductCatalog(
     count: request.productCount,
     settings,
     texts,
-    imageLinks: images.map(image => driveImageLink(image.driveFileId, image.resourceKey))
+    images: images.map(image => ({
+      link: driveImageLink(image.driveFileId, image.resourceKey),
+      name: image.name ?? null
+    }))
   });
   if (!planned) wrongState('settings_missing');
   const first = planned[0]!;

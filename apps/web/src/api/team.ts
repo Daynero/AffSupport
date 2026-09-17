@@ -2106,6 +2106,18 @@ export const teamApi = {
     return { id: text.id, title: row.title, description: row.description };
   },
 
+  /** The names of the pictures a catalog would draw from (024, US27). */
+  async listProductCatalogPoolNames(teamId: string): Promise<string[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_product_catalog_pool_names', { p_team: teamId })
+    );
+    throwRpc(error);
+    return (Array.isArray(data) ? data : []).flatMap(row => {
+      const name = asRecord(row)?.name;
+      return typeof name === 'string' ? [name] : [];
+    });
+  },
+
   async getCatalogUpdaterRefreshImages(teamId: string): Promise<boolean> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('get_team_catalog_updater_refresh_images', { p_team: teamId })

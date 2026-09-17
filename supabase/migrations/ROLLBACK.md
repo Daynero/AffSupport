@@ -16,6 +16,7 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260918170000_pool_picture_names.sql`: drop `public.list_team_product_catalog_pool_names`; drop and re-apply `service_draw_product_catalog_images` from `20260917170000` (without the name column).
 0. `20260918160000_folder_page_companions.sql`: re-apply `public.list_team_folder_page` from `20260906160000_a_file_can_be_tagged.sql`.
 0. `20260918150000_missing_reason.sql`: re-apply `service_tombstone_catalog_files` from `20260801101000` and `private.queue_orphan_cleanups` from `20260918140000`; drop `private.is_gone_for_good` and column `team_materials.missing_reason`.
 0. `20260918140000_orphan_cleanup.sql`: drop `service_claim_orphan_cleanups`, `service_complete_orphan_cleanup` and `private.queue_orphan_cleanups`; drop table `private.orphan_cleanups`. Files already moved to Drive's bin stay there — restore them from Drive.

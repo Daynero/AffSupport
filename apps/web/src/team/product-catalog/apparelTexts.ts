@@ -285,12 +285,60 @@ function description(
     : text;
 }
 
-/** `count` distinct names with a description each. */
+/**
+ * What the space's pictures show, read from their file names (024, US27).
+ *
+ * The owner names them `hoodie_black_01.jpg`, `tank-top_sage_01.jpg`: the garment, then the
+ * colour. A pool written around those names gives every picture words that match it; a pool
+ * written blind gives a photo of a black hoodie the name of a navy pair of jeans.
+ */
+export interface PicturedClothes {
+  garments: string[];
+  colors: string[];
+}
+
+export function clothesInPictures(fileNames: readonly string[]): PicturedClothes {
+  const garments = new Set<string>();
+  const colors = new Set<string>();
+  const known = (phrase: string, values: readonly string[]): string | null =>
+    values.find(value => phrase.includes(value.toLowerCase())) ?? null;
+  for (const fileName of fileNames) {
+    const phrase = fileName
+      .replace(/\.[^.]+$/u, '')
+      .replace(/[_-]+/gu, ' ')
+      .toLowerCase();
+    const garment =
+      known(
+        phrase,
+        GARMENTS.map(item => item.name)
+      ) ?? (phrase.includes('tshirt') || phrase.includes('tee') ? 'T-Shirt' : null);
+    if (garment) garments.add(garment);
+    const color = known(phrase, COLORS);
+    if (color) colors.add(color);
+  }
+  return { garments: [...garments], colors: [...colors] };
+}
+
+/**
+ * `count` distinct names with a description each.
+ *
+ * `pictured` narrows what is written: with it the pool only names clothes the space has pictures
+ * of, in the colours those pictures are, so a catalog's words and its photos agree.
+ */
 export function generateApparelTexts(
   count: number,
-  random: () => number = Math.random
+  random: () => number = Math.random,
+  pictured?: PicturedClothes
 ): ApparelText[] {
   const wanted = Math.max(0, Math.min(APPAREL_POOL_MAX, Math.floor(count)));
+  const garmentPool =
+    pictured && pictured.garments.length > 0
+      ? GARMENTS.filter(item => pictured.garments.includes(item.name))
+      : GARMENTS;
+  const colorPool =
+    pictured && pictured.colors.length > 0
+      ? COLORS.filter(color => pictured.colors.includes(color))
+      : COLORS;
   const seen = new Set<string>();
   const texts: ApparelText[] = [];
   let attempts = 0;
@@ -298,10 +346,10 @@ export function generateApparelTexts(
     attempts += 1;
     const parts = {
       model: modelName(random),
-      color: pick(COLORS, random),
+      color: pick(colorPool.length > 0 ? colorPool : COLORS, random),
       fabric: pick(FABRICS, random),
       fit: pick(FITS, random),
-      garment: pick(GARMENTS, random).name
+      garment: pick(garmentPool.length > 0 ? garmentPool : GARMENTS, random).name
     };
     const name = title(parts, random);
     if (seen.has(name.toLowerCase())) continue;

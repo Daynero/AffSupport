@@ -288,9 +288,10 @@ describe('making a catalog', () => {
         { title: 'Vera Denim Wide Leg Jeans', description: 'Holds its shape.' }
       ],
       images: [
-        { driveFileId: 'img-1', resourceKey: null },
-        { driveFileId: 'img-2', resourceKey: 'rk' },
-        { driveFileId: 'img-3', resourceKey: null }
+        // 024 US27: the owner names a picture for what it shows, and the row follows it.
+        { driveFileId: 'img-1', resourceKey: null, name: 'tshirt_white_01.jpg' },
+        { driveFileId: 'img-2', resourceKey: 'rk', name: 'midi-dress_ivory_01.jpg' },
+        { driveFileId: 'img-3', resourceKey: null, name: 'IMG_2031.png' }
       ]
     });
     await createProductCatalog(deps, body(), ACTOR);
@@ -298,10 +299,17 @@ describe('making a catalog', () => {
     expect(drive.createAnyoneReaderPermission).toHaveBeenCalledWith('img-2');
     const record = vi.mocked(deps.link).mock.calls[0]![0].record;
     const rows = (record.settingsSnapshot as { rows: Array<Record<string, unknown>> }).rows;
+    // Paired with the pictures rather than taken in turn: the tee picture takes the tee name,
+    // the dress picture the dress name, and the unnamed file whatever is left.
     expect(rows.map(row => row.title)).toEqual([
-      'Aurelia Linen Midi Dress',
       'Nova Cotton Oversized Tee',
+      'Aurelia Linen Midi Dress',
       'Vera Denim Wide Leg Jeans'
+    ]);
+    expect(rows.map(row => row.pictureName)).toEqual([
+      'tshirt_white_01.jpg',
+      'midi-dress_ivory_01.jpg',
+      'IMG_2031.png'
     ]);
     expect(rows[1]!.imageLink).toBe(
       'https://drive.google.com/uc?export=view&id=img-2&resourcekey=rk'
@@ -309,13 +317,15 @@ describe('making a catalog', () => {
     for (const row of rows)
       (expect(row.price).toBeGreaterThanOrEqual(9), expect(row.price).toBeLessThanOrEqual(30));
     // 024 US21: what the name already says, the row says too — and one brand covers the catalog.
-    expect(rows[0]).toMatchObject({
+    expect(rows[1]).toMatchObject({
       material: 'linen',
       gender: 'female',
       googleCategory: 'Apparel & Accessories > Clothing > Dresses',
       fbCategory: 'Clothing & Accessories > Clothing > Dresses',
       tags: ['midi-dress', expect.any(String)]
     });
+    // The tee's row takes the colour its picture is named for, since its own name gives none.
+    expect(rows[0]).toMatchObject({ material: 'cotton', color: 'white' });
     expect(rows[2]).toMatchObject({
       material: 'denim',
       googleCategory: 'Apparel & Accessories > Clothing > Pants'

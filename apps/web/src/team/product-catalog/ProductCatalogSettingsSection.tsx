@@ -30,7 +30,12 @@ import {
   TaskAttachmentPicker,
   type TaskAttachmentPickerClient
 } from '../tasks/TaskAttachmentPicker';
-import { APPAREL_POOL_DEFAULT, APPAREL_POOL_MAX, generateApparelTexts } from './apparelTexts';
+import {
+  APPAREL_POOL_DEFAULT,
+  APPAREL_POOL_MAX,
+  clothesInPictures,
+  generateApparelTexts
+} from './apparelTexts';
 import {
   DESCRIPTION_MAX,
   IMAGE_LINK_MAX,
@@ -67,6 +72,8 @@ export interface ProductCatalogSettingsClient {
     teamId: string,
     text: ProductCatalogText
   ) => Promise<ProductCatalogText>;
+  /** The names of the space's pictures, so the generator writes about what they show (US27). */
+  listProductCatalogPoolNames?: (teamId: string) => Promise<string[]>;
 }
 
 export const PRICE_RANGE_DEFAULT = { min: 9, max: 30 } as const;
@@ -433,7 +440,14 @@ function CatalogTextsSection({
     try {
       const kept = mode === 'add' ? (texts ?? []) : [];
       const room = Math.max(0, APPAREL_POOL_MAX - kept.length);
-      const made = generateApparelTexts(Math.min(wanted, room));
+      /* Written around the pictures the space has (US27): the names say hoodie where the
+         pictures are hoodies, in the colours those pictures are. */
+      const pictures = await client.listProductCatalogPoolNames?.(teamId).catch(() => []);
+      const made = generateApparelTexts(
+        Math.min(wanted, room),
+        undefined,
+        pictures && pictures.length > 0 ? clothesInPictures(pictures) : undefined
+      );
       await client.replaceProductCatalogTexts(teamId, [
         ...kept.map(text => ({ title: text.title, description: text.description })),
         ...made

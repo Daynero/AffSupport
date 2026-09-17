@@ -8,11 +8,17 @@ import {
   PRODUCT_COUNT_MAX,
   driveImageLink,
   randomPrice,
+  takeMatchingText,
   type ProductCatalogRowDetails,
   type ProductCatalogRowValues,
   type ProductCatalogSettingsValues
 } from '../_shared/product-catalog.ts';
-import { drawProductDetails, inventedBrand } from '../_shared/product-details.ts';
+import {
+  drawProductDetails,
+  garmentOf,
+  inventedBrand,
+  pictureFacts
+} from '../_shared/product-details.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { buildXlsx } from '../_shared/xlsx.ts';
 
@@ -86,7 +92,7 @@ export interface CatalogUpdaterDeps {
   drawImages?(
     teamId: string,
     count: number
-  ): Promise<Array<{ driveFileId: string; resourceKey: string | null }>>;
+  ): Promise<Array<{ driveFileId: string; resourceKey: string | null; name?: string | null }>>;
   /** Names and texts from the space's pool, the same way (024, US21). */
   drawTexts?(teamId: string, count: number): Promise<Array<{ title: string; description: string }>>;
   openRounds(): Promise<number>;
@@ -244,6 +250,7 @@ function snapshotDetails(entry: Record<string, unknown>): Partial<ProductCatalog
 }
 
 const DETAIL_TEXT_KEYS = [
+  'pictureName',
   'saleWindow',
   'color',
   'size',
@@ -273,7 +280,7 @@ async function refreshedRows(
   count: number
 ): Promise<ProductCatalogRowValues[] | undefined> {
   if (!item.refreshImages || !item.teamId || !deps.drawImages) return rows;
-  let drawn: Array<{ driveFileId: string; resourceKey: string | null }>;
+  let drawn: Array<{ driveFileId: string; resourceKey: string | null; name?: string | null }>;
   try {
     drawn = await deps.drawImages(item.teamId, count);
   } catch {
@@ -286,10 +293,26 @@ async function refreshedRows(
     await ensureAnyoneReader(drive, image.driveFileId);
     shared.add(image.driveFileId);
   }
+  /* A picture for the words this row already has (024, US27): a row named for a hoodie keeps
+     being a hoodie when its picture is drawn afresh. */
   const base = rows ?? rowsOf(item, count);
+  const spare = drawn.map((image, index) => ({ image, index }));
   return base.map((row, index) => {
-    const image = drawn[index % drawn.length]!;
-    return { ...row, imageLink: driveImageLink(image.driveFileId, image.resourceKey) };
+    const wanted = garmentOf(row.title)?.name.toLowerCase() ?? null;
+    const at = wanted
+      ? spare.findIndex(candidate =>
+          (candidate.image.name ?? '').toLowerCase().includes(wanted.replace(/\s+/gu, ''))
+            ? true
+            : pictureFacts(candidate.image.name ?? '').garment?.name.toLowerCase() === wanted
+        )
+      : -1;
+    const chosen =
+      (at >= 0 ? spare.splice(at, 1)[0] : spare.shift())?.image ?? drawn[index % drawn.length]!;
+    return {
+      ...row,
+      imageLink: driveImageLink(chosen.driveFileId, chosen.resourceKey),
+      pictureName: chosen.name ?? null
+    };
   });
 }
 
@@ -379,8 +402,12 @@ async function refreshedTexts(
   if (drawn.length === 0) return rows;
   const base = rows ?? rowsOf(item, count);
   const brand = base[0]?.brand ?? inventedBrand();
+  const spare = [...drawn];
   return base.map((row, index) => {
-    const text = drawn[index % drawn.length]!;
+    /* Words for the picture this row shows (024, US27): the picture is not drawn again here,
+       so the name has to be chosen for it rather than taken in turn. */
+    const facts = row.pictureName ? pictureFacts(row.pictureName) : { garment: null, color: null };
+    const text = takeMatchingText(spare, facts) ?? drawn[index % drawn.length]!;
     const price = item.priceRange
       ? randomPrice(item.priceRange.min, item.priceRange.max)
       : row.price;
@@ -389,7 +416,8 @@ async function refreshedTexts(
       title: text.title,
       description: text.description,
       price,
-      ...drawProductDetails({ title: text.title, price, brand })
+      ...drawProductDetails({ title: text.title, price, brand, pictureColor: facts.color }),
+      pictureName: row.pictureName ?? null
     };
   });
 }

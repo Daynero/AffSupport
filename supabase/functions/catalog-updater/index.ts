@@ -87,6 +87,11 @@ Deno.serve(async request => {
                     resourceKey:
                       typeof (row as Record<string, unknown>).resource_key === 'string'
                         ? ((row as Record<string, unknown>).resource_key as string)
+                        : null,
+                    // What the picture shows, as the owner named the file (024, US27).
+                    name:
+                      typeof (row as Record<string, unknown>).name === 'string'
+                        ? ((row as Record<string, unknown>).name as string)
                         : null
                   }
                 ]

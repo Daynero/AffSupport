@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { generateApparelTexts } from '../apps/web/src/team/product-catalog/apparelTexts';
+import {
+  clothesInPictures,
+  generateApparelTexts
+} from '../apps/web/src/team/product-catalog/apparelTexts';
 
 /** The clothing name generator (024): distinct, 4–6 word names, 10–100 word descriptions, English. */
 
@@ -24,5 +27,27 @@ describe('generated clothing names and descriptions', () => {
 
   it('never makes more than a thousand', () => {
     expect(generateApparelTexts(5000)).toHaveLength(1000);
+  });
+
+  it('writes about the clothes the space has pictures of (024, US27)', () => {
+    // The owner's own folder: the garment and the colour are in the file name.
+    const pictured = clothesInPictures([
+      'hoodie_black_01.jpg',
+      'hoodie_black_02.jpg',
+      'tshirt_white_01.jpg',
+      'tank-top_sage_01.jpg',
+      'IMG_2031.png'
+    ]);
+    expect(pictured.garments.sort()).toEqual(['Hoodie', 'T-Shirt', 'Tank Top']);
+    expect(pictured.colors.sort()).toEqual(['Black', 'Sage', 'White']);
+
+    const texts = generateApparelTexts(40, Math.random, pictured);
+    expect(texts).toHaveLength(40);
+    for (const text of texts) {
+      expect(
+        pictured.garments.some(garment => text.title.includes(garment)),
+        text.title
+      ).toBe(true);
+    }
   });
 });

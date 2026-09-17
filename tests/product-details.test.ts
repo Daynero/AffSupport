@@ -4,6 +4,7 @@ import {
   drawProductDetails,
   garmentOf,
   inventedBrand,
+  pictureFacts,
   salePriceFor,
   saleWindowFrom
 } from '../supabase/functions/_shared/product-details.js';
@@ -81,6 +82,46 @@ describe('what the name decides', () => {
       expect(details.salePrice).toBeLessThan(30);
       expect(details.salePrice).toBeGreaterThanOrEqual(1);
     }
+  });
+});
+
+describe('what a picture’s file name says (024, US27)', () => {
+  it('reads the owner’s naming: garment, colour, shot', () => {
+    // The owner's own folder: `hoodie_black_01.jpg`, `tank-top_sage_01.jpg`, …
+    const read = (name: string) => {
+      const facts = pictureFacts(name);
+      return `${facts.garment?.name ?? '-'}/${facts.color ?? '-'}`;
+    };
+    expect(read('hoodie_black_01.jpg')).toBe('Hoodie/black');
+    expect(read('tank-top_sage_01.jpg')).toBe('Tank Top/sage');
+    expect(read('oxford-shirt_ivory_01.jpg')).toBe('Oxford Shirt/ivory');
+    expect(read('sweater_forest-green_01.jpg')).toBe('Sweater/forest green');
+    expect(read('blouse_dusty-rose_01.jpg')).toBe('Blouse/dusty rose');
+    // `tshirt` is how a file is named; `T-Shirt` is how the pool writes it.
+    expect(read('tshirt_white_02.jpg')).toBe('T-Shirt/white');
+    // A file named anything else says nothing, and the catalog behaves as it did before.
+    expect(read('IMG_2031.png')).toBe('-/-');
+  });
+
+  it('takes the picture’s colour only where the name gives none', () => {
+    expect(
+      drawProductDetails({
+        title: 'Ludia Navy Twill Wide Leg Jeans',
+        price: 20,
+        brand: 'A',
+        pictureColor: 'black',
+        random: () => 0.5
+      }).color
+    ).toBe('navy');
+    expect(
+      drawProductDetails({
+        title: 'Ludia Twill Wide Leg Jeans',
+        price: 20,
+        brand: 'A',
+        pictureColor: 'black',
+        random: () => 0.5
+      }).color
+    ).toBe('black');
   });
 });
 

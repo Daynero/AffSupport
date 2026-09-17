@@ -2432,7 +2432,14 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         const record = isRecord(row) ? row : null;
         const driveFileId = record ? stringValue(record, 'drive_file_id') : null;
         return record && driveFileId
-          ? [{ driveFileId, resourceKey: stringValue(record, 'resource_key') }]
+          ? [
+              {
+                driveFileId,
+                resourceKey: stringValue(record, 'resource_key'),
+                // What the picture shows, as the owner named the file (024, US27).
+                name: stringValue(record, 'name')
+              }
+            ]
           : [];
       });
     },

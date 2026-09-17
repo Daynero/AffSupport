@@ -230,6 +230,55 @@ export function saleWindowFrom(now: number = Date.now()): string {
   return `${start}T00:00+00:00/${end}T23:59+00:00`;
 }
 
+/**
+ * What a picture's file name says it shows (024, US27).
+ *
+ * The owner names them `hoodie_black_01.jpg`, `tank-top_sage_01.jpg`, `oxford-shirt_ivory_01.jpg`:
+ * the garment, the colour, the shot. Read here so a row's words can be paired with its picture
+ * instead of the two being drawn independently — a black hoodie sold as navy jeans is the one
+ * thing a catalog must never do.
+ *
+ * Anything that does not follow the pattern reads as nothing, and the catalog behaves as before.
+ */
+export interface PictureFacts {
+  garment: Garment | null;
+  color: string | null;
+}
+
+const ALIASES: Record<string, string> = {
+  tshirt: 'T-Shirt',
+  tee: 'T-Shirt',
+  'tank top': 'Tank Top',
+  'polo shirt': 'Polo Shirt',
+  'oxford shirt': 'Oxford Shirt',
+  jumper: 'Sweater',
+  trousers: 'Pants'
+};
+
+export function pictureFacts(fileName: string): PictureFacts {
+  // `hoodie_black_01.jpg` → "hoodie black 01": the parts are separated by `_`, the words inside
+  // a part by `-`, and the extension and the shot number carry nothing.
+  const stem = fileName.replace(/\.[^.]+$/u, '');
+  const words = stem
+    .split(/[_\s]+/u)
+    .map(part => part.replace(/-/gu, ' ').trim().toLowerCase())
+    .filter(part => part.length > 0 && !/^\d+$/u.test(part));
+  const phrase = words.join(' ');
+  const named = (values: readonly string[]): string | null =>
+    values.find(value => words.includes(value.toLowerCase())) ??
+    values.find(value => phrase.includes(value.toLowerCase())) ??
+    null;
+  const garmentName =
+    GARMENTS.find(garment => words.includes(garment.name.toLowerCase()))?.name ??
+    Object.entries(ALIASES).find(([alias]) => words.includes(alias))?.[1] ??
+    GARMENTS.find(garment => phrase.includes(garment.name.toLowerCase()))?.name ??
+    null;
+  return {
+    garment: garmentName ? (GARMENTS.find(garment => garment.name === garmentName) ?? null) : null,
+    color: named(COLORS)?.toLowerCase() ?? null
+  };
+}
+
 export interface DrawnProductDetails {
   salePrice: number;
   saleWindow: string;
@@ -257,12 +306,18 @@ export function drawProductDetails(input: {
   brand: string;
   now?: number;
   random?: () => number;
+  /** What the row's picture shows, used where the name says nothing (024, US27). */
+  pictureColor?: string | null;
 }): DrawnProductDetails {
   const random = input.random ?? Math.random;
   const now = input.now ?? Date.now();
   const garment = garmentOf(input.title);
   const kind: GarmentKind = garment?.kind ?? 'top';
-  const color = (found(input.title, COLORS) ?? pickFrom(COLORS, random)).toLowerCase();
+  const color = (
+    found(input.title, COLORS) ??
+    input.pictureColor ??
+    pickFrom(COLORS, random)
+  ).toLowerCase();
   const material = (found(input.title, FABRICS) ?? pickFrom(FABRICS, random)).toLowerCase();
   const weight = (0.2 + Math.floor(random() * 14) / 10).toFixed(1);
   let tail = '';
