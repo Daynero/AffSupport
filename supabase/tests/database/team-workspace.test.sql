@@ -1,6 +1,6 @@
 begin;
 
-select plan(278);
+select plan(282);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3656,6 +3656,53 @@ select is(
   ),
   1::bigint,
   'a rename is written to the space history'
+);
+
+-- 024: the history records the work — a task made, its status moved, a launch marked.
+create temporary table us24_history_task as
+select * from public.create_team_task((select id from pg_temp.us7_same_root_team), 'Launch GlucoSoft');
+select is(
+  (select count(*) from public.team_audit_events
+   where team_id = (select id from pg_temp.us7_same_root_team) and action = 'task.created'
+     and target->>'task_title' = 'Launch GlucoSoft'),
+  1::bigint,
+  'making a task writes task.created with its title'
+);
+select public.update_team_task(
+  (select id from pg_temp.us7_same_root_team),
+  (select id from pg_temp.us24_history_task),
+  '{"status":"in_progress"}'::jsonb
+);
+select is(
+  (select target->>'from' || '>' || (target->>'to') from public.team_audit_events
+   where team_id = (select id from pg_temp.us7_same_root_team) and action = 'task.status_changed'),
+  'todo>in_progress',
+  'moving a task writes task.status_changed with from and to'
+);
+create temporary table us24_account as
+select * from public.create_team_account((select id from pg_temp.us7_same_root_team), 'v31');
+create temporary table us24_agent as
+select public.add_team_account_agent(
+  (select id from pg_temp.us7_same_root_team),
+  (select id from pg_temp.us24_account),
+  '765434'
+) as payload;
+select public.add_team_agent_run(
+  (select id from pg_temp.us7_same_root_team),
+  (select (payload->>'id')::uuid from pg_temp.us24_agent),
+  'GlucoSoft | PL'
+);
+select is(
+  (select target->>'agent' || ' ' || (target->>'note') from public.team_audit_events
+   where team_id = (select id from pg_temp.us7_same_root_team) and action = 'agent.run_added'),
+  'v31-434 GlucoSoft | PL',
+  'marking a launch writes agent.run_added with the agent and the run'
+);
+select is(
+  (select subject_label from public.list_team_audit_events((select id from pg_temp.us7_same_root_team), 50)
+   where action = 'task.created'),
+  'Launch GlucoSoft',
+  'the history names a task by its title'
 );
 
 select * from finish();
