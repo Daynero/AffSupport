@@ -951,6 +951,9 @@ export function WorkspaceShell({
                   teamId={teamId}
                   client={client}
                   initialTab={query.settingsTab}
+                  onTabChange={tab =>
+                    navigateTo(explorerRoute({ settings: true, settingsTab: tab }), true, false)
+                  }
                   onClose={() => navigateTo(explorerRoute({ settings: false, settingsTab: null }))}
                 />
               )}

@@ -127,12 +127,15 @@ export function SpaceSettings({
   teamId,
   client,
   initialTab,
+  onTabChange,
   onBack
 }: {
   teamId: string;
   client: SpaceSettingsClient;
   /** Which room to open in, when something sent the reader to a particular one. */
   initialTab?: TeamSettingsTab | null;
+  /** The room now open — so the address names it, and a reload comes back to it. */
+  onTabChange?: (tab: TeamSettingsTab) => void;
   onBack: () => void;
 }) {
   const { t } = useI18n();
@@ -180,7 +183,10 @@ export function SpaceSettings({
           className="team-space-tabs team-settings-tabs"
           label={t('teamSettingsTabsLabel')}
           value={tab}
-          onChange={setTab}
+          onChange={next => {
+            setTab(next);
+            onTabChange?.(next);
+          }}
           panelId={id => `team-settings-panel-${id}`}
           items={tabs.map(item => ({ id: item.id, label: item.label }))}
         />

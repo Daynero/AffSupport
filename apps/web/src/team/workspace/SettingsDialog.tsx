@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { useI18n } from '../../i18n';
 import { Modal } from '../../components/Modal';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 import type { TeamSettingsTab } from '../routes';
@@ -12,20 +13,29 @@ export function SettingsDialog({
   teamId,
   client,
   initialTab,
+  onTabChange,
   onClose
 }: {
   teamId: string;
   client: SpaceSettingsClient;
   initialTab?: TeamSettingsTab | null;
+  onTabChange?: (tab: TeamSettingsTab) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const titleId = useId();
   return (
     <Modal labelledBy={titleId} size="xl" onClose={onClose} className="team-settings-dialog">
       <span id={titleId} className="visually-hidden">
-        Settings
+        {t('teamSpaceSettings')}
       </span>
-      <SpaceSettings teamId={teamId} client={client} initialTab={initialTab} onBack={onClose} />
+      <SpaceSettings
+        teamId={teamId}
+        client={client}
+        initialTab={initialTab}
+        onTabChange={onTabChange}
+        onBack={onClose}
+      />
     </Modal>
   );
 }

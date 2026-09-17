@@ -45,6 +45,12 @@ describe('space settings surface', () => {
     expect(await screen.findByRole('heading', { name: 'Google Drive storage' })).toBeTruthy();
     // The history is its own panel, from the space's menu (024).
     expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
+
+    // The room open is in the address, so a reload comes back to it.
+    await user.click(screen.getByRole('tab', { name: 'Tags' }));
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get('tab')).toBe('tags')
+    );
   });
 
   it('hides owner-only controls from a viewer', async () => {
