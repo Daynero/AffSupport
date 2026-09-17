@@ -2292,6 +2292,8 @@ const en = {
   teamStorageBodyIndexing: 'Folders become openable as they are listed. You can keep working.',
   teamStorageIndexingServerSide:
     'The reading happens on our side and carries on with this tab closed.',
+  teamStorageIndexingCannotStop:
+    'A first read is not stopped halfway: the folders it had not reached would sit here looking empty. If you must end it, disconnect the storage in settings.',
   teamStorageIndexingElapsed:
     'Going for {count} min. It happens on our side and carries on with this tab closed.',
   teamStorageChipRenderPaused: 'Previews paused on this computer',
@@ -5122,6 +5124,8 @@ const uk: Record<keyof typeof en, string> = {
     'Google Drive попросив Soty пригальмувати. Індексація і превʼю тривають самі; нічого не зламалося.',
   teamStorageBodyIndexing: 'Папки стають доступними в міру читання. Можна працювати далі.',
   teamStorageIndexingServerSide: 'Читання йде на нашому боці й триває навіть із закритою вкладкою.',
+  teamStorageIndexingCannotStop:
+    'Перше читання не спиняють на півдорозі: папки, до яких воно не дійшло, стояли б тут порожніми. Якщо треба обірвати — відключіть сховище в налаштуваннях.',
   teamStorageIndexingElapsed:
     'Триває {count} хв. Читання йде на нашому боці й не спиняється, якщо закрити вкладку.',
   teamStorageChipRenderPaused: 'Превʼю призупинено на цьому комп’ютері',

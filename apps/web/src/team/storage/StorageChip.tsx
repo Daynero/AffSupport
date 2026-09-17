@@ -233,6 +233,10 @@ export function StorageChip({
                   ? t('teamStorageIndexingElapsed', { count: indexingMinutes })
                   : t('teamStorageIndexingServerSide')}
               </p>
+              {/* The question the spinner raises (024): a first read cannot be stopped halfway —
+                  the folders it never reached would sit in the space looking empty. The way out
+                  exists and is named rather than hidden. */}
+              <p className="team-storage-detail-note">{t('teamStorageIndexingCannotStop')}</p>
             </>
           )}
           {health.kind === 'preparing' && (
