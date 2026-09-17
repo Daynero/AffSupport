@@ -341,9 +341,13 @@ function Tile({
             only where there is no picture; then size and date. The colour tag
             shows when there is one — setting it is in the menu. */}
         <span className="team-explorer-tile-meta">
-          {row.tagColor && (
+          {/* A tile with no mark had no dot at all, so the only way to put one on was the row
+              menu — while the tile beside it, already marked, offered the colours on a press.
+              The empty ring is drawn for whoever may tag and shows itself on hover, as the
+              list's does. */}
+          {(row.tagColor || tagging) && row.kind !== 'folder' && (
             <TagDot
-              color={row.tagColor}
+              color={row.tagColor ?? null}
               name={row.name}
               canTag={Boolean(tagging)}
               onChange={color => tagging?.onSetTag(row, color)}

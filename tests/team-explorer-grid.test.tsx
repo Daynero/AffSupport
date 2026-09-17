@@ -72,19 +72,47 @@ function makeClient(
  * The shell holds the folder's page and hands it to whichever view is showing;
  * these components no longer fetch their own. This stands in for the shell.
  */
-function Grid({ client }: { client: ContentGridClient }) {
+function Grid({
+  client,
+  tagging
+}: {
+  client: ContentGridClient;
+  tagging?: { onSetTag: (row: unknown, color: unknown) => void };
+}) {
   const { currentFolderId } = useExplorer();
   const page = useFolderPage({ teamId: TEAM, client, parentFolderId: currentFolderId });
-  return <ContentGrid client={client} page={page} />;
+  return <ContentGrid client={client} page={page} tagging={tagging as never} />;
 }
 
-function renderGrid(client: ContentGridClient) {
+function renderGrid(
+  client: ContentGridClient,
+  tagging?: { onSetTag: (row: unknown, color: unknown) => void }
+) {
   return render(
     <ExplorerProvider teamId={TEAM} client={{ listFolderTree: vi.fn().mockResolvedValue([]) }}>
-      <Grid client={client} />
+      <Grid client={client} tagging={tagging} />
     </ExplorerProvider>
   );
 }
+
+describe('the colour mark on a tile', () => {
+  it('offers a mark on an unmarked file, and offers none to a reader', async () => {
+    /*
+     * The owner's screenshot (024): the tile beside it carried a yellow dot and opened the
+     * colours on a press, while an unmarked tile had no dot at all — the only way to mark it
+     * was the row menu. The empty ring is drawn for whoever may mark, as the list's is.
+     */
+    const onSetTag = vi.fn();
+    renderGrid(makeClient([row(1)]), { onSetTag });
+    expect(await screen.findByRole('button', { name: 'Tag of file-1.png: No tag' })).toBeTruthy();
+
+    cleanup();
+    clearThumbnailSessions();
+    renderGrid(makeClient([row(1)]));
+    await screen.findByText('file-1.png');
+    expect(screen.queryByRole('button', { name: /No tag/ })).toBeNull();
+  });
+});
 
 describe('ContentGrid', () => {
   it('shows prepared thumbnails through one session, and a kind icon with a reason otherwise', async () => {
