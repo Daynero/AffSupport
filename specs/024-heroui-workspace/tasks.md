@@ -747,6 +747,22 @@ processed copy from the attachment, and see all three on the task without it clo
 - [x] T209 [US20] Walked on the beta: a folder of 31 pictures, 200 generated texts, a 3-row catalog
       with distinct rows and public image URLs (200 image/png).
 
+## Phase 9L: User Story 21 — one product per row (Priority: P1)
+
+- [x] T210 [US21] `_shared/product-details.ts`: the garment, colour and fabric a name already
+      says; drawn size, gender, pattern, stock, shipping, weight, style and video tag; the sale
+      price and its window; the minted content ID and the invented brand. Unit tests.
+- [x] T211 [US21] Template: `contentId`, `rowDetail` with Meta's example as the fallback, and
+      `blank` for the barcode and the disclaimers; contract JSON and prose updated.
+- [x] T212 [US21] The updater mints IDs instead of offsetting them (`idOffset` gone from both
+      copies), and carries a catalog's details through its snapshot.
+- [x] T213 [US21] Migration `20260918110000_catalog_updater_refresh_texts.sql`: the second tick,
+      and the claim carries both choices and the space's price range; SQL tests.
+- [x] T214 [US21] Web: "Refresh the names, texts and prices at every update" in the updater dialog.
+- [x] T215 [US21] Walked on the beta: `4_v2_catalog` — three minted IDs, prices 30/16/9 in range,
+      sale prices 19/12/8, one brand, colours and fabrics from the names, empty barcode and
+      disclaimers; "update now" rewrote it.
+
 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the

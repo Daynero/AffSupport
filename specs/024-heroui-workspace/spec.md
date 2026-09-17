@@ -941,6 +941,25 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 - **FR-133**: The single title, description and picture link MUST remain as optional fallbacks for
   an empty pool.
 
+### Functional Requirements — one product per row (US21)
+
+- **FR-134**: Every content ID MUST be minted at the moment a sheet is written — from the time and
+  a drawn tail — and MUST never be a row number or an offset of one, so a re-created catalog can
+  never carry an ID Meta has already rejected.
+- **FR-135**: Each row MUST carry details of its own: the colour and the fabric its name already
+  says, a Google and a Meta category and a style that suit the garment, and a drawn size, gender,
+  pattern, stock count, shipping and weight.
+- **FR-136**: Each row's sale price MUST sit under its own price, with a sale window that is
+  running when it is read.
+- **FR-137**: The barcode, the offer disclaimer and its URL MUST be left empty rather than repeat
+  Meta's example on every row of every catalog.
+- **FR-138**: One invented brand MUST cover a whole catalog.
+- **FR-139**: The updater MUST offer "Refresh the names, texts and prices at every update", on by
+  default; with it on, every row draws a new name and text from the pool and a new price from the
+  space's range, and its details follow the new name.
+- **FR-140**: A catalog made before the pools MUST keep working: its rows fall back to the space's
+  single values and to Meta's example details.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,
