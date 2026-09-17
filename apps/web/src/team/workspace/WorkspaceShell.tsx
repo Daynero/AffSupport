@@ -21,6 +21,9 @@ import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
+import { attachTaskMaterialsInChunks } from '../tasks/TaskAttachmentPicker';
 import type { TeamCatalogClient } from '../catalog/TeamCatalog';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { LandingFullView } from '../landings/LandingFullView';
@@ -167,7 +170,8 @@ export function WorkspaceShell({
   query?: TeamRouteQuery;
 }) {
   const { t } = useI18n();
-  const { activeTeam, teams, revision, can } = useTeam();
+  const { activeTeam, teams, revision, can, notifyStateChanged } = useTeam();
+  const { push } = useToasts();
   const agent = useOptionalAgent();
   const connectedToDrive = activeTeam?.connectionState === 'connected';
   /**
@@ -235,12 +239,10 @@ export function WorkspaceShell({
      whether a set came from a folder or from picking files; the shell only
      passes that description along. */
   const [batchScope, setBatchScope] = useState<LibraryBatchScope>({ kind: 'space' });
-  const [taskAsset, setTaskAsset] = useState<{ ids: string[]; name: string } | null>(null);
   const [previewing, setPreviewing] = useState<TeamMaterialSummary | null>(null);
   const sessionTeam = useRef<string | null>(null);
 
   useEffect(() => {
-    setTaskAsset(null);
     setPreviewing(null);
   }, [teamId]);
 
@@ -505,9 +507,10 @@ export function WorkspaceShell({
 
   const onExplorerFolderChange = useCallback(
     (folderId: string | null) =>
-      // Moving to another folder is working in Files now; the way back to the
-      // task that sent you here goes with it (024, FR-080).
-      updateQuery('explorer', { folderId, itemId: null, back: null }),
+      // The way back to the task that sent you here stays through folder moves (024): picking
+      // creatives means opening a folder or two, and the pill vanished on the first press, which
+      // is what sent people to a second browser tab. Leaving Files, or the pill itself, ends it.
+      updateQuery('explorer', { folderId, itemId: null }),
     [updateQuery]
   );
 
@@ -550,12 +553,53 @@ export function WorkspaceShell({
    * the address like every other one. The shell stays mounted across it, which
    * is what lets the staged asset survive the navigation.
    */
+  /**
+   * A task made from files, without leaving the files (024). It used to move the person to
+   * Tasks and open the new task over the board, so a buyer choosing creatives lost the folder
+   * and came back to find it again. The task is made here, the files attached, and the toast
+   * offers the way to it.
+   */
   const createTaskFrom = useCallback(
-    (asset: { ids: string[]; name: string }) => {
-      setTaskAsset(asset);
-      navigateTo(sectionRoute('tasks'));
+    async (asset: { ids: string[]; name: string }) => {
+      const [first, ...rest] = asset.ids;
+      if (!first || !can('edit')) return;
+      try {
+        const created = await teamApi.createTask({
+          teamId,
+          title: asset.name.slice(0, 160),
+          note: null,
+          initialMaterialId: first
+        });
+        if (rest.length > 0) {
+          await attachTaskMaterialsInChunks({
+            client: teamApi,
+            teamId,
+            taskId: created.id,
+            materialIds: rest
+          });
+        }
+        rememberRecent(teamId, { kind: 'task', id: created.id, name: created.title });
+        notifyStateChanged();
+        push({
+          tone: 'success',
+          text: t('teamTaskCreatedHere', { name: created.title }),
+          action: {
+            label: t('teamTaskOpenCreated'),
+            run: () =>
+              navigateTo(
+                buildTeamRoute({
+                  spaceId: teamId,
+                  section: 'tasks',
+                  query: { taskId: created.id }
+                })
+              )
+          }
+        });
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      }
     },
-    [sectionRoute]
+    [can, notifyStateChanged, push, t, teamId]
   );
 
   return (
@@ -786,8 +830,6 @@ export function WorkspaceShell({
                         <TaskSpace
                           key={`tasks:${teamId}`}
                           teamId={teamId}
-                          createFromAsset={taskAsset}
-                          onConsumedCreateFromAsset={() => setTaskAsset(null)}
                           /* The editor is a dialog, portalled to the page: while Tasks is
                       hidden it would float over whatever section is showing — "Show
                       in folder" opened Files under a task that stayed on top of it.
@@ -848,11 +890,11 @@ export function WorkspaceShell({
                       }
                       onPreview={openPreview}
                       onCreateTask={asset =>
-                        createTaskFrom({ ids: [asset.id], name: taskTitleFor([asset], t) })
+                        void createTaskFrom({ ids: [asset.id], name: taskTitleFor([asset], t) })
                       }
                       onCreateTaskFromSelection={assets => {
                         if (assets.length === 0) return;
-                        createTaskFrom({
+                        void createTaskFrom({
                           ids: assets.map(asset => asset.id),
                           name: taskTitleFor(assets, t)
                         });
