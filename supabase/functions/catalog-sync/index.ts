@@ -311,7 +311,8 @@ function dependencies(input: {
         p_connection: request.connectionId,
         p_items: request.items.map(item => ({
           file_id: item.fileId,
-          lifecycle: item.lifecycle
+          lifecycle: item.lifecycle,
+          reason: item.reason ?? null
         }))
       }),
     requeueTranscripts: request =>

@@ -1,6 +1,6 @@
 begin;
 
-select plan(301);
+select plan(305);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3839,6 +3839,61 @@ select ok(
   (select actor_id is null from public.team_audit_events
     where action = 'catalog.updated' order by occurred_at desc limit 1),
   'with no actor at all, which the column now allows'
+);
+
+-- 024 US24: what a deleted video leaves behind is cleared; what a moved one leaves is not.
+insert into public.team_materials (
+  team_id, connection_id, drive_file_id, parent_folder_id,
+  name, mime_type, file_extension, kind, category, lifecycle, trashed_at
+) values (
+  (select id from pg_temp.us1_created_team),
+  (select connection_id from pg_temp.us1_connection),
+  'us24-deleted-video', 'root-folder-us1', 'gone.mp4', 'video/mp4', 'mp4', 'file', 'video',
+  'trashed', clock_timestamp() - interval '2 days'
+), (
+  (select id from pg_temp.us1_created_team),
+  (select connection_id from pg_temp.us1_connection),
+  'us24-moved-video', 'root-folder-us1', 'moved.mp4', 'video/mp4', 'mp4', 'file', 'video',
+  'active', null
+);
+update public.team_materials
+   set lifecycle = 'missing',
+       missing_at = clock_timestamp() - interval '2 days',
+       missing_reason = 'out_of_root'
+ where drive_file_id = 'us24-moved-video';
+
+insert into public.team_materials (
+  team_id, connection_id, drive_file_id, parent_folder_id,
+  name, mime_type, file_extension, kind, category, companion_of, companion_kind
+)
+select (select id from pg_temp.us1_created_team),
+       (select connection_id from pg_temp.us1_connection),
+       'us24-' || source.drive_file_id || '-text', 'root-folder-us1',
+       source.name || '.txt', 'text/plain', 'txt', 'file', 'transcript',
+       source.id, 'transcript'
+from public.team_materials as source
+where source.drive_file_id in ('us24-deleted-video', 'us24-moved-video');
+
+select is(
+  private.queue_orphan_cleanups(interval '1 day'),
+  1,
+  'only the deleted video''s leftovers are queued for clearing'
+);
+select is(
+  (select file.drive_file_id from private.orphan_cleanups as item
+   join public.team_materials as file on file.id = item.material_id),
+  'us24-us24-deleted-video-text',
+  'and it is the text of the video that was deleted'
+);
+select is(
+  private.is_gone_for_good('missing', 'out_of_root'),
+  false,
+  'a file moved out of the watched folder is not gone'
+);
+select is(
+  (private.is_gone_for_good('trashed', null), private.is_gone_for_good('missing', 'removed'))::text,
+  '(t,t)',
+  'a file in the bin, or gone for good, is'
 );
 
 select * from finish();

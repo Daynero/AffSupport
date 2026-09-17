@@ -147,6 +147,20 @@ Deno.serve(async request => {
               ? { p_product_count: became.productCount, p_settings_snapshot: became.snapshot }
               : {})
           })) === true,
+        claimOrphans: async (limit, leaseSeconds) => {
+          const rows = await rpcValue(service, 'service_claim_orphan_cleanups', {
+            p_worker: workerId,
+            p_limit: limit,
+            p_lease_seconds: leaseSeconds
+          });
+          return Array.isArray(rows) ? rows : [];
+        },
+        clearOrphan: async (materialId, trashed) =>
+          (await rpcValue(service, 'service_complete_orphan_cleanup', {
+            p_material: materialId,
+            p_worker: workerId,
+            p_trashed: trashed
+          })) === true,
         retry: async (catalogId, errorCode, nextAttemptAt) =>
           (await rpcValue(service, 'service_retry_catalog_update', {
             p_item: catalogId,

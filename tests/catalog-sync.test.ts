@@ -164,9 +164,11 @@ describe('durable catalog synchronization', () => {
     expect(deps.tombstoneFiles).toHaveBeenCalledWith(
       expect.objectContaining({
         items: expect.arrayContaining([
-          { fileId: 'removed', lifecycle: 'missing' },
+          // 024 US24: the reason travels with the state — a file moved out of the watched
+          // folder is alive, and its catalog and text must not be cleared.
+          { fileId: 'removed', lifecycle: 'missing', reason: 'removed' },
           { fileId: 'trashed', lifecycle: 'trashed' },
-          { fileId: 'outside', lifecycle: 'missing' }
+          { fileId: 'outside', lifecycle: 'missing', reason: 'out_of_root' }
         ]),
         preserveProvenance: true
       })
@@ -200,7 +202,9 @@ describe('durable catalog synchronization', () => {
     );
     expect(deps.upsertFiles).not.toHaveBeenCalled();
     expect(deps.tombstoneFiles).toHaveBeenCalledWith(
-      expect.objectContaining({ items: [{ fileId: 'segment-0', lifecycle: 'missing' }] })
+      expect.objectContaining({
+        items: [{ fileId: 'segment-0', lifecycle: 'missing', reason: 'out_of_root' }]
+      })
     );
   });
 
@@ -222,7 +226,9 @@ describe('durable catalog synchronization', () => {
       deps
     );
     expect(deps.tombstoneFiles).toHaveBeenCalledWith(
-      expect.objectContaining({ items: [{ fileId: 'unreadable', lifecycle: 'missing' }] })
+      expect.objectContaining({
+        items: [{ fileId: 'unreadable', lifecycle: 'missing', reason: 'removed' }]
+      })
     );
     expect(deps.complete).toHaveBeenCalledWith(
       expect.objectContaining({ changeToken: 'change-unreadable', nextPhase: 'incremental' })

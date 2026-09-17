@@ -34,10 +34,15 @@ const CLAIM_LIMIT = 10;
 const LEASE_SECONDS = 60;
 const PARALLEL = 3;
 const RETIRED_LIMIT = 10;
+const ORPHAN_LIMIT = 10;
 
 export type UpdaterDrive = Pick<
   GoogleDriveClient,
-  'updateConvertedFile' | 'deleteFile' | 'listAnyonePermissions' | 'createAnyoneReaderPermission'
+  | 'updateConvertedFile'
+  | 'deleteFile'
+  | 'updateFileMetadata'
+  | 'listAnyonePermissions'
+  | 'createAnyoneReaderPermission'
 >;
 
 export interface ClaimedCatalog {
@@ -99,6 +104,9 @@ export interface CatalogUpdaterDeps {
   claimRetired(limit: number): Promise<unknown[]>;
   /** `deleted` false records one more failed try; the database gives up after five. */
   forgetCopy(materialId: string, deleted: boolean): Promise<boolean>;
+  /** What a gone video left behind: its sheet and its text, a day after it went (024, US24). */
+  claimOrphans?(limit: number, leaseSeconds: number): Promise<unknown[]>;
+  clearOrphan?(materialId: string, trashed: boolean): Promise<boolean>;
   now(): number;
   log(message: string, detail: string): void;
 }
@@ -110,6 +118,8 @@ export interface TickSummary {
   failed: number;
   skipped: number;
   deletedCopies: number;
+  /** Sheets and texts of deleted videos, put in Drive's bin (024, US24). */
+  clearedOrphans: number;
 }
 
 function text(value: unknown): string | null {
@@ -394,6 +404,46 @@ export function parseRetiredCopy(row: unknown): RetiredCopy | null {
     : null;
 }
 
+interface OrphanFile {
+  materialId: string;
+  driveFileId: string;
+  credentialId: string;
+  name: string;
+}
+
+function parseOrphan(row: unknown): OrphanFile | null {
+  if (!isRecord(row)) return null;
+  const materialId = text(row.material_id);
+  const driveFileId = text(row.drive_file_id);
+  const credentialId = text(row.credential_id);
+  if (!materialId || !driveFileId || !credentialId) return null;
+  return { materialId, driveFileId, credentialId, name: text(row.name) ?? '' };
+}
+
+/**
+ * The leftovers of a deleted video, put in Drive's bin (024, US24).
+ *
+ * Drive's own bin rather than a hard delete: a video restored from it after the day's grace can
+ * have its sheet and its text restored the same way, by the person who deleted them.
+ */
+async function clearOrphans(deps: CatalogUpdaterDeps, summary: TickSummary): Promise<void> {
+  if (!deps.claimOrphans || !deps.clearOrphan) return;
+  const rows = await deps.claimOrphans(ORPHAN_LIMIT, LEASE_SECONDS).catch(() => []);
+  for (const row of rows) {
+    const orphan = parseOrphan(row);
+    if (!orphan) continue;
+    try {
+      const drive = await deps.driveFor(orphan.credentialId);
+      await drive.updateFileMetadata({ fileId: orphan.driveFileId, trashed: true });
+      await deps.clearOrphan(orphan.materialId, true);
+      summary.clearedOrphans += 1;
+    } catch (error) {
+      deps.log('[catalog-updater] orphan not cleared', `${orphan.materialId} ${codeOf(error)}`);
+      await deps.clearOrphan(orphan.materialId, false).catch(() => false);
+    }
+  }
+}
+
 function codeOf(error: unknown): string {
   return error instanceof TeamFunctionError ? error.code : 'DRIVE_UNAVAILABLE';
 }
@@ -476,7 +526,8 @@ export async function runCatalogUpdaterTick(
     updated: 0,
     failed: 0,
     skipped: 0,
-    deletedCopies: 0
+    deletedCopies: 0,
+    clearedOrphans: 0
   };
   summary.rounds = await deps.openRounds();
 
@@ -510,6 +561,8 @@ export async function runCatalogUpdaterTick(
     });
     await Promise.all(runners);
   }
+
+  if (deps.now() - startedAt < options.budgetMs) await clearOrphans(deps, summary);
 
   if (deps.now() - startedAt < options.budgetMs) {
     for (const row of await deps.claimRetired(RETIRED_LIMIT)) {

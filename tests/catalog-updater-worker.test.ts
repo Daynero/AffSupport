@@ -408,6 +408,68 @@ describe('growing a catalog (024, US22)', () => {
   });
 });
 
+describe('clearing what a deleted video left (024, US24)', () => {
+  it('puts the sheet and the text in Drive’s bin, and says so to the database', async () => {
+    const { deps, drive } = setup({ batches: [[]] });
+    const trashed: string[] = [];
+    Object.assign(drive, {
+      updateFileMetadata: vi.fn(async (input: { fileId: string; trashed?: boolean }) => {
+        if (input.trashed) trashed.push(input.fileId);
+        return { id: input.fileId };
+      })
+    });
+    deps.claimOrphans = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          material_id: 'm1',
+          team_id: 'team',
+          drive_file_id: 'drive-sheet',
+          credential_id: 'cred',
+          companion_kind: 'product_catalog',
+          name: 'clip_v1_catalog'
+        },
+        {
+          material_id: 'm2',
+          team_id: 'team',
+          drive_file_id: 'drive-text',
+          credential_id: 'cred',
+          companion_kind: 'transcript',
+          name: 'clip.txt'
+        }
+      ])
+      .mockResolvedValue([]);
+    deps.clearOrphan = vi.fn(async () => true);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(trashed).toEqual(['drive-sheet', 'drive-text']);
+    expect(deps.clearOrphan).toHaveBeenCalledWith('m1', true);
+    expect(summary.clearedOrphans).toBe(2);
+  });
+
+  it('keeps the queue entry when Drive refuses', async () => {
+    const { deps, drive } = setup({ batches: [[]] });
+    Object.assign(drive, {
+      updateFileMetadata: vi.fn(async () => {
+        throw new TeamFunctionError('RATE_LIMITED');
+      })
+    });
+    deps.claimOrphans = vi.fn().mockResolvedValueOnce([
+      {
+        material_id: 'm1',
+        team_id: 'team',
+        drive_file_id: 'drive-sheet',
+        credential_id: 'cred',
+        companion_kind: 'product_catalog',
+        name: 'clip_v1_catalog'
+      }
+    ]);
+    deps.clearOrphan = vi.fn(async () => false);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.clearOrphan).toHaveBeenCalledWith('m1', false);
+    expect(summary.clearedOrphans).toBe(0);
+  });
+});
+
 async function zipEntryAny(bytes: Uint8Array): Promise<string> {
   const names = ['xl/sharedStrings.xml', 'xl/worksheets/sheet1.xml'];
   const parts = await Promise.all(names.map(name => zipEntry(bytes, name).catch(() => '')));

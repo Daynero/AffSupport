@@ -57,7 +57,11 @@ export interface CatalogSyncDependencies {
   tombstoneFiles: (input: {
     jobId: string;
     connectionId: string;
-    items: Array<{ fileId: string; lifecycle: 'trashed' | 'missing' }>;
+    items: Array<{
+      fileId: string;
+      lifecycle: 'trashed' | 'missing';
+      reason?: 'removed' | 'out_of_root';
+    }>;
     preserveProvenance: true;
   }) => Promise<unknown>;
   requeueTranscripts: (input: {
@@ -225,7 +229,11 @@ async function runChanges(
   if (!token) throw new Error('CATALOG_CHANGE_TOKEN_REQUIRED');
   const page = await dependencies.listChanges({ pageToken: token, driveId: job.driveId });
   const active: DriveFileMetadata[] = [];
-  const tombstones: Array<{ fileId: string; lifecycle: 'trashed' | 'missing' }> = [];
+  const tombstones: Array<{
+    fileId: string;
+    lifecycle: 'trashed' | 'missing';
+    reason?: 'removed' | 'out_of_root';
+  }> = [];
 
   if (page.changes.length > 0) {
     await dependencies.invalidateLandingRenders({
@@ -254,7 +262,7 @@ async function runChanges(
       continue;
     }
     if (change.removed || !change.file) {
-      tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
+      tombstones.push({ fileId: change.fileId, lifecycle: 'missing', reason: 'removed' });
       continue;
     }
     if (change.file.trashed) {
@@ -262,11 +270,13 @@ async function runChanges(
       continue;
     }
     if (await dependencies.isHiddenSystemFile(change.file, job.rootFolderId)) {
-      tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
+      tombstones.push({ fileId: change.fileId, lifecycle: 'missing', reason: 'out_of_root' });
       continue;
     }
+    /* Moved somewhere Soty does not watch: the file is alive, so its companions are left
+       alone (024, US24). Only a deletion lets the cleanup touch them. */
     if (!(await dependencies.isWithinRoot(change.file, job.rootFolderId))) {
-      tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
+      tombstones.push({ fileId: change.fileId, lifecycle: 'missing', reason: 'out_of_root' });
       continue;
     }
     active.push(change.file);
