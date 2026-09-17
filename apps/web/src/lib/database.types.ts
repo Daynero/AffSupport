@@ -2628,6 +2628,14 @@ export type Database = {
         Args: { p_refresh: boolean; p_team: string };
         Returns: boolean;
       };
+      get_team_catalog_updater_grow: {
+        Args: { p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_grow: {
+        Args: { p_grow: boolean; p_team: string };
+        Returns: boolean;
+      };
       get_team_catalog_updater_refresh_texts: {
         Args: { p_team: string };
         Returns: boolean;

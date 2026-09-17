@@ -36,6 +36,8 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
   setCatalogUpdaterRefreshImages?: (teamId: string, refresh: boolean) => Promise<boolean>;
   getCatalogUpdaterRefreshTexts?: (teamId: string) => Promise<boolean>;
   setCatalogUpdaterRefreshTexts?: (teamId: string, refresh: boolean) => Promise<boolean>;
+  getCatalogUpdaterGrow?: (teamId: string) => Promise<boolean>;
+  setCatalogUpdaterGrow?: (teamId: string, grow: boolean) => Promise<boolean>;
 }
 
 const defaultClient: CatalogUpdaterDialogClient = teamApi;
@@ -204,6 +206,38 @@ export function CatalogUpdaterDialog({
       setRefreshTexts(await client.setCatalogUpdaterRefreshTexts(teamId, next));
     } catch (error) {
       setRefreshTexts(!next);
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    }
+  };
+
+  /**
+   * A few more products at every update (024 US22), off unless asked for: a catalog that has held
+   * the same hundred products for a month is a catalog Meta has already seen. Off by default —
+   * this one grows the sheet, and a sheet cannot grow past four hundred.
+   */
+  const [grow, setGrow] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!client.getCatalogUpdaterGrow) return;
+    let active = true;
+    void client
+      .getCatalogUpdaterGrow(teamId)
+      .then(value => {
+        if (active) setGrow(value);
+      })
+      .catch(() => {
+        if (active) setGrow(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, teamId]);
+  const changeGrow = async (next: boolean) => {
+    if (!client.setCatalogUpdaterGrow) return;
+    setGrow(next);
+    try {
+      setGrow(await client.setCatalogUpdaterGrow(teamId, next));
+    } catch (error) {
+      setGrow(!next);
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     }
   };
@@ -462,6 +496,17 @@ export function CatalogUpdaterDialog({
               label={t('catalogUpdaterRefreshTexts')}
             />
             <small>{t('catalogUpdaterRefreshTextsHint')}</small>
+          </div>
+        )}
+        {grow !== null && (
+          <div className="team-updater-restitch">
+            <Checkbox
+              checked={grow}
+              disabled={!mayRun}
+              onChange={event => void changeGrow(event.target.checked)}
+              label={t('catalogUpdaterGrow')}
+            />
+            <small>{t('catalogUpdaterGrowHint')}</small>
           </div>
         )}
         <div className="team-updater-restitch">

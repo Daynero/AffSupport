@@ -1,6 +1,6 @@
 begin;
 
-select plan(295);
+select plan(298);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3795,15 +3795,31 @@ select is(
   false,
   'and the choice is what the next read gives back'
 );
+select is(
+  public.get_team_catalog_updater_grow((select id from pg_temp.us7_same_root_team)),
+  false,
+  'an update adds no products unless a space asks for it'
+);
+select is(
+  public.set_team_catalog_updater_grow((select id from pg_temp.us7_same_root_team), true),
+  true,
+  'a space can ask every update for a few more products'
+);
 select ok(
   (select count(*) from pg_catalog.unnest(
-     array['refresh_images', 'refresh_texts', 'price_min', 'price_max']
+     array['refresh_images', 'refresh_texts', 'price_min', 'price_max', 'grow_products']
    ) as wanted(name)
    join information_schema.parameters as parameter
      on parameter.parameter_name = wanted.name
     and parameter.specific_name like 'service_claim_catalog_updater_items%'
-    and parameter.parameter_mode = 'OUT') = 4,
-  'the worker claims both choices and the space price range in one read'
+    and parameter.parameter_mode = 'OUT') = 5,
+  'the worker claims every choice and the space price range in one read'
+);
+select ok(
+  (select count(*) from information_schema.parameters as parameter
+    where parameter.specific_name like 'service_complete_catalog_update%'
+      and parameter.parameter_name in ('p_product_count', 'p_settings_snapshot')) = 2,
+  'and writes back what the sheet became'
 );
 
 select * from finish();

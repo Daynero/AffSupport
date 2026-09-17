@@ -1602,6 +1602,9 @@ const en = {
   catalogUpdaterRefreshTexts: 'Refresh the names, texts and prices at every update',
   catalogUpdaterRefreshTextsHint:
     'Each update draws a new name and text from the space’s pool and a new price from its range, so a catalog is never the same twice.',
+  catalogUpdaterGrow: 'Add 1–5 new products at every update',
+  catalogUpdaterGrowHint:
+    'Each update adds a few products of its own — their own names, pictures and prices — up to the 400 a sheet can hold.',
   productCatalogSettingsReadOnly: 'Only a space manager can change these.',
   productCatalogSection: 'Catalog',
   productCatalogMenuEntry: 'Catalog',
@@ -4383,6 +4386,9 @@ const uk: Record<keyof typeof en, string> = {
   catalogUpdaterRefreshTexts: 'Оновлювати назви, описи й ціни при кожному оновленні',
   catalogUpdaterRefreshTextsHint:
     'Кожне оновлення бере для рядків нову назву й опис із пулу простору та нову ціну з діапазону, тож каталог ніколи не повторюється.',
+  catalogUpdaterGrow: 'Додавати 1–5 нових товарів при кожному оновленні',
+  catalogUpdaterGrowHint:
+    'Кожне оновлення додає кілька нових товарів — зі своїми назвами, картинками й цінами — доки в таблиці не набереться 400.',
   productCatalogSettingsReadOnly: 'Змінювати це може лише керівник простору.',
   productCatalogSection: 'Каталог',
   productCatalogMenuEntry: 'Каталог',

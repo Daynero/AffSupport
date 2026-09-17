@@ -3,6 +3,7 @@ import yauzl from 'yauzl';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors.js';
 import {
   parseClaimedCatalog,
+  grownCount,
   runCatalogUpdaterTick,
   type CatalogUpdaterDeps
 } from '../supabase/functions/catalog-updater/worker.js';
@@ -124,8 +125,18 @@ describe('a tick', () => {
     expect(idsA).toHaveLength(3);
     expect(new Set([...idsA, ...idsB]).size).toBe(6);
     expect(idsA.every(id => /^[0-9A-Z]+-[0-9A-Z]{7}$/u.test(id))).toBe(true);
-    expect(deps.complete).toHaveBeenCalledWith('a', 1, null);
-    expect(deps.complete).toHaveBeenCalledWith('b', 3, null);
+    expect(deps.complete).toHaveBeenCalledWith(
+      'a',
+      1,
+      null,
+      expect.objectContaining({ productCount: 3 })
+    );
+    expect(deps.complete).toHaveBeenCalledWith(
+      'b',
+      3,
+      null,
+      expect.objectContaining({ productCount: 3 })
+    );
   });
 
   it('retries only the sheet that failed, with its back-off, and still updates the others', async () => {
@@ -206,8 +217,8 @@ describe('re-stitched copies', () => {
       'https://drive.google.com/file/d/inuse/view'
     );
     expect(await strings(byFile['drive-c']!)).toContain('file/d/video/view');
-    expect(deps.complete).toHaveBeenCalledWith('a', 1, 'spare-a');
-    expect(deps.complete).toHaveBeenCalledWith('b', 1, null);
+    expect(deps.complete).toHaveBeenCalledWith('a', 1, 'spare-a', expect.anything());
+    expect(deps.complete).toHaveBeenCalledWith('b', 1, null, expect.anything());
   });
 
   it('ignores a spare without a link', () => {
@@ -336,6 +347,64 @@ describe('refreshing names, texts and prices (024, US21)', () => {
     await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
     expect(deps.drawTexts).not.toHaveBeenCalled();
     expect(await zipEntryAny(written[0]!.bytes)).toContain('Polo');
+  });
+});
+
+describe('growing a catalog (024, US22)', () => {
+  it('adds one to five products, with names and pictures of their own, and records the new count', async () => {
+    const { deps, drive, written } = setup({
+      batches: [[claimedRow('a', { grow_products: true, price_min: 12, price_max: 12 })]]
+    });
+    const shared = new Set<string>();
+    Object.assign(drive, {
+      listAnyonePermissions: vi.fn(async (fileId: string) =>
+        shared.has(fileId) ? [{ id: 'p', role: 'reader' }] : []
+      ),
+      createAnyoneReaderPermission: vi.fn(async (fileId: string) => {
+        shared.add(fileId);
+        return { id: 'p', role: 'reader' };
+      })
+    });
+    deps.drawTexts = vi.fn(async (_team: string, count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        title: `Ludia Navy Twill Wide Leg Jeans ${index}`,
+        description: 'Holds its shape.'
+      }))
+    );
+    deps.drawImages = vi.fn(async (_team: string, count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        driveFileId: `img-${index}`,
+        resourceKey: null
+      }))
+    );
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    const grown = vi.mocked(deps.complete).mock.calls[0]![3] as {
+      productCount: number;
+      snapshot: { rows: unknown[] };
+    };
+    expect(grown.productCount).toBeGreaterThan(3);
+    expect(grown.productCount).toBeLessThanOrEqual(8);
+    // The rows travel with the count, or the next update would fall back to the single values.
+    expect(grown.snapshot.rows).toHaveLength(grown.productCount);
+    const ids = await sheetIds(written[0]!.bytes);
+    expect(ids).toHaveLength(grown.productCount);
+    expect(new Set(ids).size).toBe(grown.productCount);
+    // A new product is a product: its own picture, shared by link, and its own price.
+    expect(drive.createAnyoneReaderPermission).toHaveBeenCalled();
+    expect(await zipEntryAny(written[0]!.bytes)).toContain('12,00 USD');
+  });
+
+  it('adds nothing when the tick is off', async () => {
+    const { deps } = setup({ batches: [[claimedRow('a', { grow_products: false })]] });
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(vi.mocked(deps.complete).mock.calls[0]![3]).toMatchObject({ productCount: 3 });
+  });
+
+  it('never grows past the four hundred a sheet may hold', () => {
+    expect(grownCount(400, true, () => 0.99)).toBe(400);
+    expect(grownCount(398, true, () => 0.99)).toBe(400);
+    expect(grownCount(10, true, () => 0)).toBe(11);
+    expect(grownCount(10, false, () => 0.99)).toBe(10);
   });
 });
 

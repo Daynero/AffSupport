@@ -138,6 +138,8 @@ describe('what an update refreshes (024: US20, US21)', () => {
       getCatalogUpdaterRefreshImages: vi.fn().mockResolvedValue(true),
       setCatalogUpdaterRefreshImages: vi.fn().mockResolvedValue(false),
       getCatalogUpdaterRefreshTexts: vi.fn().mockResolvedValue(true),
+      getCatalogUpdaterGrow: vi.fn().mockResolvedValue(false),
+      setCatalogUpdaterGrow: vi.fn().mockResolvedValue(true),
       setCatalogUpdaterRefreshTexts
     });
     renderDialog(api);
@@ -148,6 +150,10 @@ describe('what an update refreshes (024: US20, US21)', () => {
     expect(
       (screen.getByLabelText('Refresh the pictures at every update') as HTMLInputElement).checked
     ).toBe(true);
+    // 024 US22: growing the sheet is the one that starts off.
+    expect(
+      (screen.getByLabelText('Add 1–5 new products at every update') as HTMLInputElement).checked
+    ).toBe(false);
     await userEvent.click(texts);
     await waitFor(() => expect(setCatalogUpdaterRefreshTexts).toHaveBeenCalledWith(TEAM_ID, false));
   });

@@ -137,12 +137,15 @@ Deno.serve(async request => {
           }
           return drive;
         },
-        complete: async (catalogId, updateCount, swappedCopy) =>
+        complete: async (catalogId, updateCount, swappedCopy, became) =>
           (await rpcValue(service, 'service_complete_catalog_update', {
             p_item: catalogId,
             p_worker: workerId,
             p_update_count: updateCount,
-            p_swapped_copy: swappedCopy
+            p_swapped_copy: swappedCopy,
+            ...(became
+              ? { p_product_count: became.productCount, p_settings_snapshot: became.snapshot }
+              : {})
           })) === true,
         retry: async (catalogId, errorCode, nextAttemptAt) =>
           (await rpcValue(service, 'service_retry_catalog_update', {

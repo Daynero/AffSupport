@@ -5,6 +5,7 @@ import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
 import {
   PRODUCT_CATALOG_SHEET_NAME,
   SPREADSHEET_MIME_TYPE,
+  PRODUCT_COUNT_MAX,
   driveImageLink,
   randomPrice,
   type ProductCatalogRowDetails,
@@ -57,6 +58,8 @@ export interface ClaimedCatalog {
   refreshTexts?: boolean;
   /** The space's price range, for a row whose price is drawn again. */
   priceRange?: { min: number; max: number } | null;
+  /** Add one to five products at this update (024 US22, off unless turned on). */
+  growProducts?: boolean;
   driveFileId: string;
   resourceKey: string | null;
   credentialId: string;
@@ -84,7 +87,13 @@ export interface CatalogUpdaterDeps {
   openRounds(): Promise<number>;
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
-  complete(catalogId: string, updateCount: number, swappedCopy: string | null): Promise<boolean>;
+  complete(
+    catalogId: string,
+    updateCount: number,
+    swappedCopy: string | null,
+    /** What the sheet became (024 US22): its product count and the rows behind it. */
+    became?: { productCount: number; snapshot: Record<string, unknown> }
+  ): Promise<boolean>;
   retry(catalogId: string, errorCode: string, nextAttemptAt: Date): Promise<boolean>;
   markNeedsReauth(credentialId: string): Promise<void>;
   claimRetired(limit: number): Promise<unknown[]>;
@@ -164,6 +173,7 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     refreshImages: row.refresh_images !== false,
     refreshTexts: row.refresh_texts !== false,
     priceRange: priceRangeOf(row),
+    growProducts: row.grow_products === true,
     driveFileId,
     resourceKey: text(row.resource_key),
     credentialId,
@@ -248,31 +258,91 @@ const DETAIL_NUMBER_KEYS = ['salePrice', 'quantity'] as const;
 async function refreshedRows(
   deps: CatalogUpdaterDeps,
   item: ClaimedCatalog,
-  drive: UpdaterDrive
+  drive: UpdaterDrive,
+  rows: ProductCatalogRowValues[] | undefined,
+  count: number
 ): Promise<ProductCatalogRowValues[] | undefined> {
-  if (!item.refreshImages || !item.teamId || !deps.drawImages) return item.rows;
+  if (!item.refreshImages || !item.teamId || !deps.drawImages) return rows;
   let drawn: Array<{ driveFileId: string; resourceKey: string | null }>;
   try {
-    drawn = await deps.drawImages(item.teamId, item.productCount);
+    drawn = await deps.drawImages(item.teamId, count);
   } catch {
-    return item.rows;
+    return rows;
   }
-  if (drawn.length === 0) return item.rows;
+  if (drawn.length === 0) return rows;
   const shared = new Set<string>();
   for (const image of drawn) {
     if (shared.has(image.driveFileId)) continue;
     await ensureAnyoneReader(drive, image.driveFileId);
     shared.add(image.driveFileId);
   }
-  const base = rowsOf(item);
+  const base = rows ?? rowsOf(item, count);
   return base.map((row, index) => {
     const image = drawn[index % drawn.length]!;
     return { ...row, imageLink: driveImageLink(image.driveFileId, image.resourceKey) };
   });
 }
 
-const rowsOf = (item: ClaimedCatalog): ProductCatalogRowValues[] =>
-  item.rows ?? Array.from({ length: item.productCount }, () => ({ ...item.settings }));
+const rowsOf = (item: ClaimedCatalog, count: number): ProductCatalogRowValues[] =>
+  Array.from({ length: count }, (_, index) => item.rows?.[index] ?? { ...item.settings });
+
+/** One to five more products than the sheet holds, and never past the 400 a sheet may hold. */
+export function grownCount(
+  productCount: number,
+  grow: boolean,
+  random: () => number = Math.random
+): number {
+  if (!grow) return productCount;
+  return Math.min(PRODUCT_COUNT_MAX, productCount + 1 + Math.floor(random() * 5));
+}
+
+/**
+ * The products an update adds (024 US22).
+ *
+ * They are new products, so they get a name, a text and a picture of their own whatever the two
+ * refresh ticks say — a row that repeated the space's fallback title would be the one thing in the
+ * catalog that looks machine-made. When a pool has nothing left to give, the new rows fall back to
+ * the space's single values, so the count still grows.
+ */
+async function addedRows(
+  deps: CatalogUpdaterDeps,
+  item: ClaimedCatalog,
+  drive: UpdaterDrive,
+  count: number
+): Promise<ProductCatalogRowValues[] | undefined> {
+  const added = count - item.productCount;
+  if (added <= 0) return item.rows;
+  const base = rowsOf(item, item.productCount);
+  const teamId = item.teamId;
+  const texts = teamId && deps.drawTexts ? await deps.drawTexts(teamId, added).catch(() => []) : [];
+  const images =
+    teamId && deps.drawImages ? await deps.drawImages(teamId, added).catch(() => []) : [];
+  const shared = new Set<string>();
+  for (const image of images) {
+    if (shared.has(image.driveFileId)) continue;
+    await ensureAnyoneReader(drive, image.driveFileId);
+    shared.add(image.driveFileId);
+  }
+  const brand = base[0]?.brand ?? inventedBrand();
+  for (let index = 0; index < added; index += 1) {
+    const text = texts[index % texts.length] ?? null;
+    const image = images[index % images.length] ?? null;
+    const title = text?.title ?? item.settings.title;
+    const price = item.priceRange
+      ? randomPrice(item.priceRange.min, item.priceRange.max)
+      : item.settings.price;
+    base.push({
+      title,
+      description: text?.description ?? item.settings.description,
+      imageLink: image
+        ? driveImageLink(image.driveFileId, image.resourceKey)
+        : item.settings.imageLink,
+      price,
+      ...drawProductDetails({ title, price, brand })
+    });
+  }
+  return base;
+}
 
 /**
  * Fresh names, texts and prices for the rows (024, US21).
@@ -286,17 +356,18 @@ const rowsOf = (item: ClaimedCatalog): ProductCatalogRowValues[] =>
 async function refreshedTexts(
   deps: CatalogUpdaterDeps,
   item: ClaimedCatalog,
-  rows: ProductCatalogRowValues[] | undefined
+  rows: ProductCatalogRowValues[] | undefined,
+  count: number
 ): Promise<ProductCatalogRowValues[] | undefined> {
   if (!item.refreshTexts || !item.teamId || !deps.drawTexts) return rows;
   let drawn: Array<{ title: string; description: string }>;
   try {
-    drawn = await deps.drawTexts(item.teamId, item.productCount);
+    drawn = await deps.drawTexts(item.teamId, count);
   } catch {
     return rows;
   }
   if (drawn.length === 0) return rows;
-  const base = rows ?? rowsOf(item);
+  const base = rows ?? rowsOf(item, count);
   const brand = base[0]?.brand ?? inventedBrand();
   return base.map((row, index) => {
     const text = drawn[index % drawn.length]!;
@@ -335,7 +406,13 @@ async function updateOne(
   const nextCount = item.updateCount + 1;
   try {
     const drive = await deps.driveFor(item.credentialId);
-    const rows = await refreshedTexts(deps, item, await refreshedRows(deps, item, drive));
+    const count = grownCount(item.productCount, item.growProducts === true);
+    const rows = await refreshedTexts(
+      deps,
+      item,
+      await refreshedRows(deps, item, drive, await addedRows(deps, item, drive, count), count),
+      count
+    );
     const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       rows: rebuildCatalogRows({
@@ -343,7 +420,7 @@ async function updateOne(
           settings: item.settings,
           sourceLink: item.sourceLink,
           videoLink: item.videoLink,
-          productCount: item.productCount,
+          productCount: count,
           rows
         },
         videoLinkOverride: item.spare?.link ?? item.currentVideoLink
@@ -356,7 +433,20 @@ async function updateOne(
       targetMimeType: SPREADSHEET_MIME_TYPE,
       bytes
     });
-    if (await deps.complete(item.catalogId, nextCount, item.spare?.materialId ?? null)) {
+    const first = rows?.[0];
+    const became = first
+      ? {
+          productCount: count,
+          snapshot: {
+            title: first.title,
+            description: first.description,
+            price: first.price,
+            imageLink: first.imageLink,
+            rows
+          }
+        }
+      : { productCount: count, snapshot: { ...item.settings } };
+    if (await deps.complete(item.catalogId, nextCount, item.spare?.materialId ?? null, became)) {
       summary.updated += 1;
     } else {
       // The sheet was written, but someone else holds the lease now; their write wins.
