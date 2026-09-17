@@ -785,6 +785,20 @@ processed copy from the attachment, and see all three on the task without it clo
 - [x] T223 [US23] Walked on the beta: the verdict line, the pool browser's search (2 of 1000), the
       full-pool hint and "Held in reserve".
 
+## Phase 9O: User Stories 24-26 — generated files know their place (Priority: P1)
+
+- [x] T224 [US24] Migration `20260918140000_orphan_cleanup.sql`: the cleanup queue, its claim and
+      completion, the retiring of copies, and the system audit line; SQL tests.
+- [x] T225 [US24] Migration `20260918150000_missing_reason.sql`: why a file went missing, carried
+      from the sync (`removed` / `out_of_root`), and `private.is_gone_for_good`.
+- [x] T226 [US24] The updater's tick clears queued orphans into Drive's bin; worker tests.
+- [x] T227 [US25] Migration `20260918160000_folder_page_companions.sql`: the listing says what a
+      row belongs to; `explorer/companions.ts` folds them, the grid and the list show the count.
+- [x] T228 [US26] `drive-ops/restitched-folder.ts` and the claim override: every copy lands in the
+      space's one `Restitched` folder.
+- [x] T229 [US24-26] Walked on the beta: a folder of ten creatives reads as ten tiles, the two
+      catalogs open from the video's tile.
+
 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the

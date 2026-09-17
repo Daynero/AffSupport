@@ -984,6 +984,32 @@ press. Variations must not pile up: removing one is one action and leaves nothin
   or empty.
 - **FR-148**: The catalog tab MUST link to the updater, where what changes at every update is set.
 
+### Functional Requirements — what a deleted video leaves behind (US24)
+
+- **FR-149**: A catalog sheet or a transcript whose video was deleted MUST be cleared — moved to
+  Drive's own bin, so it can be restored the way anything deleted in Drive can — a day after the
+  video went, and the space's history MUST say so.
+- **FR-150**: A video merely moved out of the watched folder MUST keep its catalog, its
+  transcript and its copies: the catalogue records why a file went missing, and only a deletion
+  lets the cleanup touch anything.
+- **FR-151**: The re-stitched copies of a catalog nobody can use again MUST join the deletion
+  queue that already clears retired copies.
+
+### Functional Requirements — a video's own files (US25)
+
+- **FR-152**: The folder listing MUST say what a file belongs to, and the explorer MUST fold a
+  video's transcript and catalogs under it — counted on the video, shown on a press, hidden by
+  default.
+- **FR-153**: A companion whose video is not in the same listing (filtered out, on a later page,
+  deleted) MUST stand on its own, because a file that cannot be reached any other way must never
+  be hidden.
+
+### Functional Requirements — one folder for the copies (US26)
+
+- **FR-154**: Every re-stitched copy MUST be created in the space's own `Restitched` folder,
+  found by the mark Soty writes rather than by its name, and made on first use; a space where the
+  folder cannot be made keeps the old behaviour (beside the video).
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,
