@@ -88,6 +88,7 @@ import {
 import { ProcessPanel } from './ProcessPanel';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
+import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
 import { usePosterFrames } from './usePosterFrames';
 
@@ -377,7 +378,25 @@ function ExplorerBody({
     kinds: query.kinds,
     revision
   });
-  const sortedRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+  const allRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+  /*
+   * A transcript and a catalog belong to their video (024, US25): the folder shows the video with
+   * a count, and they come out under it on a press. Opened ones are remembered per folder only.
+   */
+  const [openedCompanions, setOpenedCompanions] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => setOpenedCompanions(new Set()), [currentFolderId]);
+  const folded = useMemo(
+    () => foldCompanions(allRows, openedCompanions),
+    [allRows, openedCompanions]
+  );
+  const sortedRows = folded.rows;
+  const toggleCompanions = useCallback((rowId: string) => {
+    setOpenedCompanions(current => {
+      const next = new Set(current);
+      if (!next.delete(rowId)) next.add(rowId);
+      return next;
+    });
+  }, []);
 
   /*
    * A file the address names (`item`) — from "show in folder" on a search result or a task's
@@ -1547,6 +1566,9 @@ function ExplorerBody({
                 onPreview={onPreview}
                 actions={actions}
                 rows={sortedRows}
+                companionCounts={folded.counts}
+                openedCompanions={openedCompanions}
+                onToggleCompanions={toggleCompanions}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
               />
@@ -1557,6 +1579,9 @@ function ExplorerBody({
                 onPreview={onPreview}
                 actions={actions}
                 rows={sortedRows}
+                companionCounts={folded.counts}
+                openedCompanions={openedCompanions}
+                onToggleCompanions={toggleCompanions}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
               />

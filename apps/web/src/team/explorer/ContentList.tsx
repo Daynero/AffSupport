@@ -11,7 +11,7 @@ import {
   TableRow
 } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
-import { FolderOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n } from '../../i18n';
 import { displayedSize, formatDate } from '../../format';
@@ -21,6 +21,7 @@ import { MorePages } from './MorePages';
 import type { FolderPageState } from './useFolderPage';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
+import { companionOf } from './companions';
 import { useMaterialDrag } from './materialDrag';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { TagDot } from './TagDot';
@@ -43,6 +44,9 @@ export function ContentList({
   actions,
   tagging,
   emptyAction,
+  companionCounts,
+  openedCompanions,
+  onToggleCompanions,
   onDropMaterials
 }: {
   /** The folder's rows, held by the shell so one listing serves everything. */
@@ -72,6 +76,10 @@ export function ContentList({
    * which is the same rule as the toolbar's (FR-021, FR-004).
    */
   emptyAction?: ReactNode;
+  /** How many companions each video holds, folded away until opened (024, US25). */
+  companionCounts?: ReadonlyMap<string, number>;
+  openedCompanions?: ReadonlySet<string>;
+  onToggleCompanions?: (rowId: string) => void;
   /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
 }) {
@@ -155,6 +163,10 @@ export function ContentList({
               onPreview={onPreview}
               actions={actions}
               tagging={tagging}
+              companions={companionCounts?.get(row.id) ?? 0}
+              companionsOpen={openedCompanions?.has(row.id) ?? false}
+              onToggleCompanions={onToggleCompanions}
+              nested={Boolean(companionOf(row))}
             />
           ))}
         </Table>
@@ -179,7 +191,11 @@ function Row({
   actions,
   tagging,
   drag,
-  dropTarget
+  dropTarget,
+  companions = 0,
+  companionsOpen = false,
+  onToggleCompanions,
+  nested = false
 }: {
   row: TeamMaterialRow;
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
@@ -192,6 +208,11 @@ function Row({
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
   tagging?: TaggingProps;
+  /** Its own companions, folded away (024, US25), and whether this row is one of them. */
+  companions?: number;
+  companionsOpen?: boolean;
+  onToggleCompanions?: (rowId: string) => void;
+  nested?: boolean;
 }) {
   const { t, language } = useI18n();
   const reason = KIND_REASON[row.kind];
@@ -246,7 +267,32 @@ function Row({
           <span aria-hidden="true" />
         </label>
       </TableCell>
-      <TableCell className="team-explorer-row-name">
+      <TableCell className={`team-explorer-row-name${nested ? ' is-nested' : ''}`}>
+        {companions > 0 && onToggleCompanions ? (
+          /* The video's own files, on a press (024, US25). */
+          <button
+            type="button"
+            className="team-explorer-row-companions"
+            aria-expanded={companionsOpen}
+            aria-label={t(
+              companionsOpen ? 'teamExplorerCompanionsHide' : 'teamExplorerCompanions',
+              {
+                count: companions
+              }
+            )}
+            onClick={event => {
+              event.stopPropagation();
+              onToggleCompanions(row.id);
+            }}
+          >
+            {companionsOpen ? (
+              <ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            ) : (
+              <ChevronRight size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            )}
+            <span>{companions}</span>
+          </button>
+        ) : null}
         <KindIcon kind={row.kind} />{' '}
         <button
           type="button"

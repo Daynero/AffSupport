@@ -8,13 +8,14 @@ import type {
 import type { TeamMaterialSummary } from '../../api/team';
 import { EmptyState, ErrorState } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Paperclip } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
+import { companionOf } from './companions';
 import { useMaterialDrag } from './materialDrag';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { useExplorer } from './ExplorerProvider';
@@ -56,7 +57,10 @@ export function ContentGrid({
   actions,
   tagging,
   emptyAction,
-  onDropMaterials
+  onDropMaterials,
+  companionCounts,
+  openedCompanions,
+  onToggleCompanions
 }: {
   client: ContentGridClient;
   /** The folder's rows, held by the shell so one listing serves everything. */
@@ -85,6 +89,10 @@ export function ContentGrid({
    * which is the same rule as the toolbar's (FR-021, FR-004).
    */
   emptyAction?: ReactNode;
+  /** How many companions each video holds, folded away until opened (024, US25). */
+  companionCounts?: ReadonlyMap<string, number>;
+  openedCompanions?: ReadonlySet<string>;
+  onToggleCompanions?: (rowId: string) => void;
   /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
 }) {
@@ -176,6 +184,10 @@ export function ContentGrid({
             onPreview={onPreview}
             actions={actions}
             tagging={tagging}
+            companions={companionCounts?.get(row.id) ?? 0}
+            companionsOpen={openedCompanions?.has(row.id) ?? false}
+            onToggleCompanions={onToggleCompanions}
+            nested={Boolean(companionOf(row))}
           />
         ))}
       </ul>
@@ -202,7 +214,11 @@ function Tile({
   actions,
   tagging,
   drag,
-  dropTarget
+  dropTarget,
+  companions = 0,
+  companionsOpen = false,
+  onToggleCompanions,
+  nested = false
 }: {
   row: TeamMaterialRow;
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
@@ -218,6 +234,11 @@ function Tile({
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
   tagging?: TaggingProps;
+  /** Its own companions, folded away (024, US25), and whether this tile is one of them. */
+  companions?: number;
+  companionsOpen?: boolean;
+  onToggleCompanions?: (rowId: string) => void;
+  nested?: boolean;
 }) {
   const { t, language } = useI18n();
   const [broken, setBroken] = useState(false);
@@ -249,7 +270,7 @@ function Tile({
     <li
       className={`team-explorer-tile is-${row.kind}${selected ? ' is-selected' : ''}${
         checked ? ' is-checked' : ''
-      }${dropTarget ? ' is-drop-target' : ''}`}
+      }${dropTarget ? ' is-drop-target' : ''}${nested ? ' is-nested' : ''}`}
       data-material-id={row.id}
       aria-selected={selected}
       {...drag}
@@ -338,6 +359,24 @@ function Tile({
               .join(' · ')}
           </span>
         </span>
+        {companions > 0 && onToggleCompanions && (
+          /* The video's own files — its text, its catalogs — on a press rather than spread
+             through the folder (024, US25). */
+          <button
+            type="button"
+            className="team-explorer-tile-companions"
+            aria-expanded={companionsOpen}
+            onClick={event => {
+              event.stopPropagation();
+              onToggleCompanions(row.id);
+            }}
+          >
+            <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t(companionsOpen ? 'teamExplorerCompanionsHide' : 'teamExplorerCompanions', {
+              count: companions
+            })}
+          </button>
+        )}
         {row.kind === 'landing' && row.landingRender && (
           <span className={`team-explorer-tile-render is-${row.landingRender.state}`}>
             {t(RENDER_LABEL[row.landingRender.state])}

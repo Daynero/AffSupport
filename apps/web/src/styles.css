@@ -18566,3 +18566,41 @@ a.history-subject {
   justify-self: start;
   color: var(--color-accent-text);
 }
+
+/* A file that belongs to another file (024, US25): the count on the video, the child indented. */
+.team-explorer-tile-companions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  min-height: 0;
+  padding: 2px var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  cursor: pointer;
+}
+.team-explorer-tile-companions:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+.team-explorer-tile.is-nested {
+  box-shadow: inset 3px 0 0 var(--color-border-strong);
+}
+.team-explorer-row-companions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 0;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  cursor: pointer;
+}
+.team-explorer-row-name.is-nested {
+  padding-left: var(--space-5);
+}
