@@ -172,6 +172,15 @@ export function ProcessLibraryDialog({
         {batch.phase === 'ready' && alreadyDone > 0 && (
           <p className="team-batch-note">{t('teamBatchAlreadyDone', { count: alreadyDone })}</p>
         )}
+        {/* "215" beside "Transcripts" under "Everything this space holds" read as every video
+            being done again — the counts are only what is missing, and that is worth a line
+            before a button that starts two hundred jobs. */}
+        {batch.phase === 'ready' &&
+          alreadyDone === 0 &&
+          batch.scan &&
+          totalOf(batch.scan, batch.supportedKinds) > 0 && (
+            <p className="team-batch-note">{t('teamBatchMissingOnly')}</p>
+          )}
         {batch.phase === 'ready' &&
           batch.scan &&
           totalOf(batch.scan, batch.supportedKinds) === 0 && (
