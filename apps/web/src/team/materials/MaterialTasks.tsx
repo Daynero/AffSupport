@@ -8,6 +8,7 @@ import { useI18n } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { useOptionalAddToTask } from '../tasks/AddToTask';
+import { onAnyTaskAttachmentsChanged } from '../tasks/taskAttachmentEvents';
 import { TaskStatusIcon, taskStatusLabel } from '../tasks/TaskStatusControl';
 
 export interface MaterialTasksClient {
@@ -41,6 +42,10 @@ export function MaterialTasks({
     []
   );
 
+  // Added to a task from right here, the card said nothing until the file was opened again.
+  const [heard, setHeard] = useState(0);
+  useEffect(() => onAnyTaskAttachmentsChanged(() => setHeard(value => value + 1)), []);
+
   useEffect(() => {
     if (!client.listMaterialTasks) return;
     let active = true;
@@ -55,7 +60,7 @@ export function MaterialTasks({
     return () => {
       active = false;
     };
-  }, [client, material.id, revision, teamId]);
+  }, [client, heard, material.id, revision, teamId]);
 
   if (tasks.length === 0 && !addToTask) return null;
 

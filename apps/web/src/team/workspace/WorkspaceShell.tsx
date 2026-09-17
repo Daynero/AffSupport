@@ -54,6 +54,7 @@ import { BackgroundWorkChip } from './BackgroundWorkChip';
 import { LibraryProcessingProvider } from '../library/LibraryProcessingProvider';
 import { AgentQueueProvider } from '../processing/AgentQueueProvider';
 import { AddToTaskProvider } from '../tasks/AddToTask';
+import { announceTaskAttachmentsChanged } from '../tasks/taskAttachmentEvents';
 import { ProcessLibraryDialog, type LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import { SpaceStatePanel } from './SpaceStatePanel';
 import type { ExplorerShellClient } from '../explorer/ExplorerShell';
@@ -588,6 +589,7 @@ export function WorkspaceShell({
             materialIds: rest
           });
         }
+        announceTaskAttachmentsChanged(created.id);
         rememberRecent(teamId, { kind: 'task', id: created.id, name: created.title });
         notifyStateChanged();
         push({

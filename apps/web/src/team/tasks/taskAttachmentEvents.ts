@@ -20,3 +20,9 @@ export function onTaskAttachmentsChanged(taskId: string, listener: () => void): 
   window.addEventListener(EVENT, handler);
   return () => window.removeEventListener(EVENT, handler);
 }
+
+/** Any task's attachments — for a file that wants to know which tasks it is on. */
+export function onAnyTaskAttachmentsChanged(listener: () => void): () => void {
+  window.addEventListener(EVENT, listener);
+  return () => window.removeEventListener(EVENT, listener);
+}

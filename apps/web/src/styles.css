@@ -17979,6 +17979,14 @@ input[type='number'] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The name typed, as a new task: the last option, in the accent, a plus before it. */
+.team-add-to-task-list > li.team-add-to-task-create {
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
 .team-add-to-task-meta,
 .team-add-to-task-note {
   flex: 0 0 auto;

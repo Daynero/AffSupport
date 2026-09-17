@@ -99,6 +99,44 @@ describe('add to a task', () => {
     );
   });
 
+  it('turns a name no task has into a new task holding the files', async () => {
+    const user = userEvent.setup();
+    const createTask = vi.fn(async ({ title }: { title: string }) =>
+      task('created', title, '2026-09-17T10:00:00.000Z')
+    );
+    const api = client({ createTask });
+    const { onClose } = open(api);
+    const search = await screen.findByRole('combobox', { name: 'Find a task by name' });
+
+    // A name some task already has offers no duplicate.
+    await user.type(search, 'catalog leggings');
+    expect(screen.queryByRole('option', { name: /Create task/ })).toBeNull();
+
+    await user.clear(search);
+    await user.type(search, '  Horses   launch ');
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    expect(screen.getByRole('option', { name: 'Create task “Horses launch”' })).toBeTruthy();
+    await user.keyboard('{Enter}');
+
+    await waitFor(() =>
+      expect(createTask).toHaveBeenCalledWith({
+        teamId: TEAM_ID,
+        title: 'Horses launch',
+        note: null,
+        initialMaterialId: 'm1'
+      })
+    );
+    await waitFor(() =>
+      expect(api.attachTaskMaterials).toHaveBeenCalledWith({
+        teamId: TEAM_ID,
+        taskId: 'created',
+        materialIds: ['m2']
+      })
+    );
+    expect(onClose).toHaveBeenCalled();
+    expect(await screen.findByText('Created “Horses launch” with 2 file(s)')).toBeTruthy();
+  });
+
   it('says a file already there is already there', async () => {
     const user = userEvent.setup();
     open(
