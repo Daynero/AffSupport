@@ -102,6 +102,8 @@ export function useAgentQueue({
     null
   );
   const [tDone, setTDone] = useState(0);
+  /** How many of them did not come out (024): a failure is not a transcript. */
+  const [tFailed, setTFailed] = useState(0);
   const [tTotal, setTTotal] = useState(0);
   // The batch is held: nothing new starts, and the file already in flight is
   // suspended too when the local app can do that (`tHeld`). Both are needed —
@@ -221,7 +223,10 @@ export function useAgentQueue({
         // A run somebody stopped on purpose is not a failure, and saying so in red is how a
         // deliberate act starts looking like a fault. Everything below still happens — the
         // space is told the run is over either way.
-        if (!deliberateStop(cause)) push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        if (!deliberateStop(cause)) {
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+          setTFailed(current => current + 1);
+        }
         // Tell the space the run is over. Without this a failed item stays
         // `running` for good: nothing else ever revisits it, it holds its
         // output name reserved, and the next attempt at the same file is
@@ -240,12 +245,28 @@ export function useAgentQueue({
   // queue it was holding; leaving it set would silently swallow the next batch.
   useEffect(() => {
     if (tActive || tQueue.length > 0 || tTotal === 0) return;
-    push({ tone: 'success', text: t('teamTranscribeQueueDone', { count: tDone }) });
+    /*
+     * What actually came out of the queue (024). "Transcriptions finished: 1" was said after the
+     * only file in the queue had failed, one toast under the red one that said it had — two
+     * answers to the same question, and the cheerful one was wrong. A run that failed says
+     * nothing here: the error toast has already spoken.
+     */
+    const made = Math.max(0, tDone - tFailed);
+    if (made > 0) {
+      push({
+        tone: 'success',
+        text:
+          tFailed > 0
+            ? t('teamTranscribeQueueDoneSome', { count: made, failed: tFailed })
+            : t('teamTranscribeQueueDone', { count: made })
+      });
+    }
     setTDone(0);
+    setTFailed(0);
     setTTotal(0);
     setTPaused(false);
     setTHeld(false);
-  }, [push, t, tActive, tDone, tQueue.length, tTotal]);
+  }, [push, t, tActive, tDone, tFailed, tQueue.length, tTotal]);
 
   /**
    * Holds the batch, and the running file with it where that is possible.

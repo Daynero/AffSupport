@@ -94,12 +94,26 @@ export function teamErrorMessageFor(error: unknown, t: (key: TranslationKey) => 
   if (error && typeof error === 'object' && 'code' in error) {
     const { code } = error as { code: unknown };
     if (typeof code === 'string' && isTeamErrorCode(code)) return teamErrorMessage(code, t);
+    if (typeof code === 'string' && code in LOCAL_RUN) return t(LOCAL_RUN[code]!);
   }
-  if (error instanceof Error && isTeamErrorCode(error.message)) {
-    return teamErrorMessage(error.message, t);
+  if (error instanceof Error) {
+    if (isTeamErrorCode(error.message)) return teamErrorMessage(error.message, t);
+    if (error.message in LOCAL_RUN) return t(LOCAL_RUN[error.message]!);
   }
   return t('teamErrorUnknown');
 }
+
+/**
+ * What a run on this computer says when it goes wrong (024).
+ *
+ * These are not the server's codes — they are raised by the local app and travel in the error's
+ * message. They used to fall through to "something went wrong, try again in a moment", which for
+ * a video the transcriber could not read is both wrong and useless: there is nothing to try.
+ */
+const LOCAL_RUN: Record<string, TranslationKey> = {
+  PROCESS_FAILED: 'teamErrorProcessFailed',
+  PROCESS_CANCELED: 'teamErrorProcessCanceled'
+};
 
 /**
  * Why an action that applies cannot run right now (024).
