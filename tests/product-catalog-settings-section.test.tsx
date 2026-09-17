@@ -169,6 +169,90 @@ describe('the name and description pool (024)', () => {
   });
 });
 
+describe('whether a catalog can be made (024, US23)', () => {
+  it('says what every column will draw from, and what is missing', async () => {
+    renderSection({
+      getProductCatalogSettings: vi.fn().mockResolvedValue({ ...stored, imageLink: null }),
+      setProductCatalogSettings: vi.fn(),
+      listProductCatalogTexts: vi.fn(async () => []),
+      replaceProductCatalogTexts: vi.fn(),
+      listProductCatalogImageSources: vi.fn(async () => ({ sources: [], poolSize: 0 })),
+      setProductCatalogImageSources: vi.fn()
+    });
+    expect(
+      await screen.findByText(
+        'Names and descriptions — nothing to write: the pool is empty and there is no fallback'
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Pictures — nothing to show: the pool is empty and there is no fallback link'
+      )
+    ).toBeTruthy();
+    expect(screen.getByText('Price — 9 to 30 USD, a whole number per row')).toBeTruthy();
+    expect(
+      screen.getByText('A catalog cannot be made yet — fill what is marked above.')
+    ).toBeTruthy();
+  });
+
+  it('says a catalog can be made once both pools have something', async () => {
+    renderSection({
+      getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+      setProductCatalogSettings: vi.fn(),
+      listProductCatalogTexts: vi.fn(async () => [
+        { id: 't1', title: 'Nova Sage Jersey Hoodie', description: 'Soft.' }
+      ]),
+      replaceProductCatalogTexts: vi.fn(),
+      listProductCatalogImageSources: vi.fn(async () => ({
+        sources: [{ materialId: 'f1', kind: 'folder' as const, name: 'Shirts', imageCount: 4 }],
+        poolSize: 4
+      })),
+      setProductCatalogImageSources: vi.fn()
+    });
+    expect(await screen.findByText('A catalog can be made from this.')).toBeTruthy();
+    expect(screen.getByText('Names and descriptions — 1 in the pool')).toBeTruthy();
+    expect(screen.getByText('Pictures — 4 in the pool')).toBeTruthy();
+    // Nothing typed into the single values, so they are empty rather than in use.
+    expect(screen.getByText('Empty')).toBeTruthy();
+  });
+});
+
+describe('the pool, browsed and added to (024, US23)', () => {
+  it('shows three, opens the rest with a search, and adds without replacing', async () => {
+    const texts = Array.from({ length: 6 }, (_, index) => ({
+      id: `t${index}`,
+      title: index === 5 ? 'Ludia Navy Twill Wide Leg Jeans' : `Nova Sage Jersey Hoodie ${index}`,
+      description: 'Soft.'
+    }));
+    const replace = vi.fn(async () => texts.length);
+    renderSection({
+      getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+      setProductCatalogSettings: vi.fn(),
+      listProductCatalogTexts: vi.fn(async () => [...texts]),
+      replaceProductCatalogTexts: replace,
+      updateProductCatalogText: vi.fn()
+    });
+    const user = userEvent.setup();
+    expect(await screen.findByText('Nova Sage Jersey Hoodie 0')).toBeTruthy();
+    // Three of six in the tab; the rest behind one button.
+    expect(screen.queryByText('Nova Sage Jersey Hoodie 4')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'View all (6)' }));
+    await user.type(screen.getByLabelText('Search the pool'), 'ludia');
+    expect(await screen.findByText('Found: 1')).toBeTruthy();
+    expect(screen.getByText('Ludia Navy Twill Wide Leg Jeans')).toBeTruthy();
+    await user.keyboard('{Escape}');
+
+    const count = screen.getByLabelText('How many');
+    await user.clear(count);
+    await user.type(count, '2');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    // The six it had, then the two it made: adding is not replacing.
+    expect(replace.mock.calls[0]![1]).toHaveLength(8);
+    expect(replace.mock.calls[0]![1]![0]!.title).toBe('Nova Sage Jersey Hoodie 0');
+  });
+});
+
 describe('the picture pool (024)', () => {
   it('lists images and folders with how many pictures they hold, and removes one', async () => {
     const setSources = vi.fn(async () => undefined);

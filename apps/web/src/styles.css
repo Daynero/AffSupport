@@ -18494,3 +18494,42 @@ a.history-subject {
   align-items: center;
   gap: var(--space-2);
 }
+
+/* Whether a catalog can be made at all (024, US23): one line per column of the sheet. */
+.product-catalog-summary-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.product-catalog-summary-list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.product-catalog-summary-list > li.is-ready svg {
+  color: var(--color-success);
+}
+.product-catalog-summary-list > li.is-spare svg {
+  color: var(--color-text-muted);
+}
+.product-catalog-summary-list > li.is-missing svg,
+.product-catalog-summary-list > li.is-missing span {
+  color: var(--color-error-text);
+}
+.product-catalog-updater-link {
+  justify-self: start;
+  color: var(--color-accent-text);
+  font-size: var(--text-caption);
+}
+/* The whole pool, searched: the field, how many matched, then the list. */
+.product-catalog-browser {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.product-catalog-browser .product-catalog-texts {
+  max-height: 24rem;
+}
