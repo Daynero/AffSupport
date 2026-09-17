@@ -8274,6 +8274,12 @@ body:has(.public-home) {
   flex-wrap: wrap;
 }
 
+/* The header rides the same axis as what is under it (024): the workspace takes a wide screen,
+   and a bar still pinned to the narrower page axis left the logo adrift from the panel below. */
+.app-shell:has(.team-space-page) .topbar {
+  --shell-gutter: max(var(--app-header-padding-inline), calc((100% - var(--shell-width-team)) / 2));
+}
+
 /* --- Guided team space: lobby, create wizard, content-first shell --- */
 .team-space-page {
   width: min(calc(100% - 32px), var(--shell-width-team));
