@@ -504,6 +504,56 @@ describe('Creative Library task workflows', () => {
     expect(api.detachTaskMaterial).not.toHaveBeenCalled();
   });
 
+  it('replaces the draft tile with the attached file, so one file counts once', async () => {
+    const api = client();
+    api.listMaterials = vi.fn().mockResolvedValue([
+      {
+        id: SECOND_ASSET_ID,
+        teamId: TEAM_ID,
+        providerId: 'drive-new-image',
+        parentFolderId: 'drive-root',
+        name: 'new-image.png',
+        kind: 'file',
+        category: 'image',
+        previewState: 'ready'
+      }
+    ]);
+    const saved = {
+      id: '31000000-0000-4000-8000-000000000009',
+      taskId: TASK_ID,
+      materialId: SECOND_ASSET_ID,
+      name: 'new-image.png',
+      category: 'image' as const,
+      availability: 'ready' as const,
+      previewState: 'ready' as const,
+      position: 1,
+      driveVersion: null
+    };
+    render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />
+    );
+    await screen.findByText('launch.mp4');
+    const first = await api.getTask({ teamId: TEAM_ID, taskId: TASK_ID });
+    vi.mocked(api.getTask).mockResolvedValue({
+      ...first,
+      attachments: [...first.attachments, saved]
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
+
+    await waitFor(() => expect(screen.getByText('2 attachments')).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText('new-image.png')).toHaveLength(1));
+  });
+
   it('writes a typed field after the typing stops, so a discarded tab loses nothing', async () => {
     vi.useFakeTimers();
     const api = client();

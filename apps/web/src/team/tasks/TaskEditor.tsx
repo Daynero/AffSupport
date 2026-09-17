@@ -105,7 +105,17 @@ function uniqueAttachments(
 ) {
   const byId = new Map(current.map(item => [item.id, item]));
   for (const item of incoming) byId.set(item.id, item);
-  return [...byId.values()].sort((left, right) => left.position - right.position);
+  /*
+   * A draft tile stands in for a file until the server's own row for it arrives (024). The two
+   * have different ids, so merging by id alone kept both: one file attached read "3 attachments"
+   * with a copy stuck on "Attaching…". The real row replaces the draft for the same file.
+   */
+  const real = new Set(
+    [...byId.values()].filter(item => !item.id.startsWith('draft:')).map(item => item.materialId)
+  );
+  return [...byId.values()]
+    .filter(item => !item.id.startsWith('draft:') || !real.has(item.materialId))
+    .sort((left, right) => left.position - right.position);
 }
 
 /**
@@ -528,7 +538,7 @@ export function TaskEditor({
       });
       if (result.rejected.length > 0) throw new Error('ATTACHMENT_REJECTED');
       await load({ quiet: true });
-      onChanged({ ...task, attachmentCount: persistedAttachments.length + additions.length });
+      onChanged({ ...task, attachmentCount: known.size + additions.length });
     } catch (cause) {
       setPersistedAttachments(current =>
         current.filter(item => !optimistic.some(added => added.id === item.id))
