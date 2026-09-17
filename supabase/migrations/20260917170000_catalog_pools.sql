@@ -247,10 +247,11 @@ begin
        or (item ->> 'kind') not in ('file', 'folder') then
       raise exception 'INVALID_INPUT' using errcode = '22023';
     end if;
+    -- A folder picker hands back the folder's Drive id; a file picker its material id. Both do.
     insert into public.team_product_catalog_image_sources (team_id, material_id, kind)
     select p_team, material.id, item ->> 'kind'
     from public.team_materials as material
-    where material.id = (item ->> 'materialId')::uuid
+    where (material.id::text = (item ->> 'materialId') or material.drive_file_id = (item ->> 'materialId'))
       and material.team_id = p_team
       and material.lifecycle = 'active'
       and ((item ->> 'kind') = 'folder') = (material.kind = 'folder')

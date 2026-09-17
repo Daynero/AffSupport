@@ -1039,6 +1039,8 @@ function taskTitleFor(
 ): string {
   const first = assets[0]?.name ?? '';
   const dot = first.lastIndexOf('.');
-  const name = dot > 0 ? first.slice(0, dot) : first;
+  const stem = dot > 0 ? first.slice(0, dot) : first;
+  // "4" or "12" says nothing on a board; "4.MP4" at least says what the file was (024).
+  const name = stem.length < 4 || /^\d+$/u.test(stem) ? first : stem;
   return assets.length > 1 ? t('teamTaskFromFilesTitle', { name, count: assets.length - 1 }) : name;
 }

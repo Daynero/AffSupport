@@ -185,7 +185,11 @@ function CatalogImagesSection({
           <TaskAttachmentPicker
             teamId={teamId}
             client={client as TaskAttachmentPickerClient}
-            attachedMaterialIds={new Set(current.map(item => item.materialId))}
+            /* Files only: a chosen folder stays open to browse, so single images inside it can be
+               picked too. */
+            attachedMaterialIds={
+              new Set(current.filter(item => item.kind === 'file').map(item => item.materialId))
+            }
             accept={(material: TeamMaterialSummary) => material.category === 'image'}
             title={t('productCatalogImagesPickTitle')}
             confirmLabel={count => t('productCatalogImagesPickConfirm', { count })}
