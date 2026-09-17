@@ -12,6 +12,7 @@ import {
   PRODUCT_CATALOG_TEMPLATE,
   buildProductCatalogRows,
   type Cell,
+  type ProductCatalogRowValues,
   type ProductCatalogSettingsValues
 } from './product-catalog.ts';
 
@@ -53,6 +54,8 @@ export function idOffset(updateCount: number): number {
 
 export interface CatalogRecord {
   settings: ProductCatalogSettingsValues;
+  /** Each row's own values, for a catalog made from pools (024). */
+  rows?: readonly ProductCatalogRowValues[];
   sourceLink: string;
   videoLink: string;
   productCount: number;
@@ -79,7 +82,8 @@ export function rebuildCatalogRows(input: {
     settings: input.record.settings,
     sourceLink: input.record.sourceLink,
     videoLink: input.videoLinkOverride ?? input.record.videoLink,
-    count: input.record.productCount
+    count: input.record.productCount,
+    rows: input.record.rows
   });
   for (let index = PRODUCT_CATALOG_HEADER_ROWS; index < rows.length; index += 1) {
     const productNumber = index - PRODUCT_CATALOG_HEADER_ROWS + 1;

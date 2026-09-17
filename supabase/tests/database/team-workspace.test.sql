@@ -1,6 +1,6 @@
 begin;
 
-select plan(284);
+select plan(289);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3725,6 +3725,44 @@ select is(
   (private.team_agent_json((select (payload->>'id')::uuid from pg_temp.us24_agent))->>'task_count')::int,
   0,
   'a done task no longer counts on the agent'
+);
+
+-- 024: catalog pools draw without repeats until a pool is spent, then start over.
+select public.replace_team_product_catalog_texts(
+  (select id from pg_temp.us7_same_root_team),
+  '[{"title":"Aurelia Linen Midi Dress","description":"Soft and light."},
+    {"title":"Nova Cotton Oversized Tee","description":"Made for warm days."}]'::jsonb
+);
+create temporary table us24_draw_one as
+select * from public.service_draw_product_catalog_texts((select id from pg_temp.us7_same_root_team), 2);
+select is(
+  (select count(distinct title) from pg_temp.us24_draw_one),
+  2::bigint,
+  'a draw the size of the pool uses every text once'
+);
+create temporary table us24_draw_two as
+select * from public.service_draw_product_catalog_texts((select id from pg_temp.us7_same_root_team), 3);
+select is(
+  (select count(*) from pg_temp.us24_draw_two),
+  3::bigint,
+  'a spent pool starts over and a larger draw goes round again'
+);
+select is(
+  (select count(*) from public.service_draw_product_catalog_images((select id from pg_temp.us7_same_root_team), 5)),
+  0::bigint,
+  'a space with no picture sources draws no pictures'
+);
+select throws_ok(
+  $$ select public.set_team_product_catalog_settings((select id from pg_temp.us7_same_root_team),
+       '{"priceMin":30,"priceMax":9}'::jsonb) $$,
+  '22023', 'INVALID_INPUT',
+  'a price range must not run backwards'
+);
+select is(
+  (public.set_team_product_catalog_settings((select id from pg_temp.us7_same_root_team),
+     '{"priceMin":9,"priceMax":30}'::jsonb)).price_max,
+  30,
+  'a range alone is enough settings when the pools carry the rest'
 );
 
 select * from finish();

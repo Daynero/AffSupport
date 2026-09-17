@@ -35,6 +35,76 @@ export interface ProductCatalogSettingsValues {
   imageLink: string;
 }
 
+/**
+ * What one product row says (024): its own name, text, price and picture. A catalog made from the
+ * space's pools gives every row different ones; a catalog from before pools repeats the settings.
+ */
+export interface ProductCatalogRowValues {
+  title: string;
+  description: string;
+  price: number;
+  imageLink: string;
+}
+
+/** A space's settings as stored now: single values are fallbacks, price is a range. */
+export interface ProductCatalogSpaceSettings {
+  title: string | null;
+  description: string | null;
+  imageLink: string | null;
+  priceMin: number;
+  priceMax: number;
+}
+
+/**
+ * A picture file as Meta can fetch it. The viewer page (`/file/d/…/view`) is HTML, not an image;
+ * `uc?export=view` answers with the file itself once it is shared by link.
+ */
+export function driveImageLink(fileId: string, resourceKey: string | null): string {
+  const base = `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`;
+  return resourceKey ? `${base}&resourcekey=${encodeURIComponent(resourceKey)}` : base;
+}
+
+/** A whole number of dollars in the range, both ends included. */
+export function randomPrice(min: number, max: number, random: () => number = Math.random): number {
+  const low = Math.min(min, max);
+  const high = Math.max(min, max);
+  return low + Math.floor(random() * (high - low + 1));
+}
+
+/**
+ * Every row's values, from the draws and the settings (024).
+ *
+ * A drawn text and a drawn picture go to a row each, in order; a pool that was empty leaves the
+ * settings' single value in its place. Null when some row would have no name, text or picture at
+ * all — the space is not ready to make a catalog.
+ */
+export function planCatalogRows(input: {
+  count: number;
+  settings: ProductCatalogSpaceSettings;
+  texts: ReadonlyArray<{ title: string; description: string }>;
+  imageLinks: readonly string[];
+  random?: () => number;
+}): ProductCatalogRowValues[] | null {
+  const rows: ProductCatalogRowValues[] = [];
+  for (let index = 0; index < input.count; index += 1) {
+    const text = input.texts.length > 0 ? input.texts[index % input.texts.length] : null;
+    const imageLink =
+      input.imageLinks.length > 0
+        ? input.imageLinks[index % input.imageLinks.length]
+        : input.settings.imageLink;
+    const title = text?.title ?? input.settings.title;
+    const description = text?.description ?? input.settings.description;
+    if (!title || !description || !imageLink) return null;
+    rows.push({
+      title,
+      description,
+      imageLink,
+      price: randomPrice(input.settings.priceMin, input.settings.priceMax, input.random)
+    });
+  }
+  return rows;
+}
+
 type ColumnSource =
   | { kind: 'rowNumber' }
   | { kind: 'setting'; setting: 'title' | 'description' | 'price' | 'imageLink' }
@@ -346,14 +416,18 @@ export function buildProductCatalogRows(input: {
   sourceLink: string;
   videoLink: string;
   count: number;
+  /** Per-row values (024); a row without one repeats the settings. */
+  rows?: readonly ProductCatalogRowValues[];
 }): Cell[][] {
   const text = (v: string): Cell => ({ t: 'string', v });
   const rows: Cell[][] = [
     PRODUCT_CATALOG_TEMPLATE.map(column => text(column.description)),
     PRODUCT_CATALOG_TEMPLATE.map(column => text(column.key))
   ];
-  const settingCell = (setting: keyof ProductCatalogSettingsValues): Cell =>
-    setting === 'price' ? text(formatPrice(input.settings.price)) : text(input.settings[setting]);
+  const settingCell = (setting: keyof ProductCatalogSettingsValues, index: number): Cell => {
+    const values = input.rows?.[index - 1] ?? input.settings;
+    return setting === 'price' ? text(formatPrice(values.price)) : text(values[setting]);
+  };
   for (let index = 1; index <= input.count; index += 1) {
     const byColumn = new Map<string, Cell>();
     const row = PRODUCT_CATALOG_TEMPLATE.map(column => {
@@ -364,7 +438,7 @@ export function buildProductCatalogRows(input: {
           cell = { t: 'number', v: index };
           break;
         case 'setting':
-          cell = settingCell(source.setting);
+          cell = settingCell(source.setting, index);
           break;
         case 'sourceLink':
           cell = text(input.sourceLink);

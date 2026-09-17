@@ -253,3 +253,47 @@ describe('reading a claimed row', () => {
     expect(parseClaimedCatalog('nope')).toBeNull();
   });
 });
+
+describe('refreshing pictures (024)', () => {
+  it('draws the rows pictures afresh from the pool and shares them', async () => {
+    const { deps, drive, written } = setup({
+      batches: [[claimedRow('a', { refresh_images: true })]]
+    });
+    const shared = new Set<string>();
+    Object.assign(drive, {
+      listAnyonePermissions: vi.fn(async (fileId: string) =>
+        shared.has(fileId) ? [{ id: 'p', role: 'reader' }] : []
+      ),
+      createAnyoneReaderPermission: vi.fn(async (fileId: string) => {
+        shared.add(fileId);
+        return { id: 'p', role: 'reader' };
+      })
+    });
+    deps.drawImages = vi.fn(async () => [
+      { driveFileId: 'img-1', resourceKey: null },
+      { driveFileId: 'img-2', resourceKey: null },
+      { driveFileId: 'img-3', resourceKey: null }
+    ]);
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.drawImages).toHaveBeenCalledWith('team', 3);
+    const sheet = await zipEntryAny(written[0]!.bytes);
+    expect(sheet).toContain('id=img-2');
+    expect(sheet).not.toContain('img.example.test');
+  });
+
+  it('keeps the pictures it had when the refresh is off', async () => {
+    const { deps, written } = setup({
+      batches: [[claimedRow('a', { refresh_images: false })]]
+    });
+    deps.drawImages = vi.fn(async () => [{ driveFileId: 'img-1', resourceKey: null }]);
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.drawImages).not.toHaveBeenCalled();
+    expect(await zipEntryAny(written[0]!.bytes)).toContain('img.example.test');
+  });
+});
+
+async function zipEntryAny(bytes: Uint8Array): Promise<string> {
+  const names = ['xl/sharedStrings.xml', 'xl/worksheets/sheet1.xml'];
+  const parts = await Promise.all(names.map(name => zipEntry(bytes, name).catch(() => '')));
+  return parts.join('\n');
+}

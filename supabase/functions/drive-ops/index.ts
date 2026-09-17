@@ -2397,12 +2397,43 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       const row = firstRecord(
         await rpcValue(service, 'service_get_team_product_catalog_settings', { p_team: teamId })
       );
-      const title = row ? stringValue(row, 'title') : null;
-      const description = row ? stringValue(row, 'description') : null;
-      const imageLink = row ? stringValue(row, 'image_link') : null;
-      const price = row ? safeInteger(row.price) : null;
-      if (!title || !description || !imageLink || price === null) return null;
-      return { title, description, price, imageLink };
+      if (!row) return null;
+      const price = safeInteger(row.price);
+      const priceMin = safeInteger(row.price_min) ?? price;
+      const priceMax = safeInteger(row.price_max) ?? price;
+      if (priceMin === null || priceMax === null) return null;
+      return {
+        title: stringValue(row, 'title'),
+        description: stringValue(row, 'description'),
+        imageLink: stringValue(row, 'image_link'),
+        priceMin,
+        priceMax
+      };
+    },
+    async drawTexts(teamId, count) {
+      const rows = await rpcValue(service, 'service_draw_product_catalog_texts', {
+        p_team: teamId,
+        p_count: count
+      });
+      return (Array.isArray(rows) ? rows : []).flatMap(row => {
+        const record = isRecord(row) ? row : null;
+        const title = record ? stringValue(record, 'title') : null;
+        const description = record ? stringValue(record, 'description') : null;
+        return title && description ? [{ title, description }] : [];
+      });
+    },
+    async drawImages(teamId, count) {
+      const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
+        p_team: teamId,
+        p_count: count
+      });
+      return (Array.isArray(rows) ? rows : []).flatMap(row => {
+        const record = isRecord(row) ? row : null;
+        const driveFileId = record ? stringValue(record, 'drive_file_id') : null;
+        return record && driveFileId
+          ? [{ driveFileId, resourceKey: stringValue(record, 'resource_key') }]
+          : [];
+      });
     },
     async readLiveCatalogs(teamId, videoId) {
       const rows = await rpcValue(caller, 'list_material_product_catalogs', {

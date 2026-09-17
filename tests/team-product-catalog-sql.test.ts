@@ -168,7 +168,6 @@ describe('space catalog settings', () => {
 
   it.each([
     ['a title over 200 characters', { title: 'x'.repeat(201) }],
-    ['an empty description', { description: '   ' }],
     ['a zero price', { price: 0 }],
     ['a price over 999999', { price: 1_000_000 }],
     ['a fractional price', { price: 10.5 }],

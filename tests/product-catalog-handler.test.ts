@@ -27,8 +27,9 @@ const ACTOR = '22000000-0000-4000-8000-000000000005';
 const settings = {
   title: 'Polo',
   description: 'Knit',
-  price: 10,
-  imageLink: 'https://img.example.test/a.png'
+  imageLink: 'https://img.example.test/a.png',
+  priceMin: 10,
+  priceMax: 10
 };
 
 function metadata(overrides: Partial<DriveFileMetadata> = {}): DriveFileMetadata {
@@ -98,6 +99,8 @@ function setup(
     reused?: { state: 'succeeded' | 'running' };
     link?: Awaited<ReturnType<ProductCatalogDeps['link']>>;
     failAt?: 'create' | 'share-sheet' | 'finalize' | 'link';
+    texts?: Array<{ title: string; description: string }>;
+    images?: Array<{ driveFileId: string; resourceKey: string | null }>;
   } = {}
 ) {
   const sheetId = 'drive-sheet';
@@ -142,6 +145,9 @@ function setup(
       };
     }),
     readSettings: vi.fn(async () => (options.settings === undefined ? settings : options.settings)),
+    // No pools in these fixtures: every row repeats the settings, as before pools (024).
+    drawTexts: vi.fn(async () => options.texts ?? []),
+    drawImages: vi.fn(async () => options.images ?? []),
     readLiveCatalogs: vi.fn(async () => options.catalogs ?? (options.live ? [options.live] : [])),
     nextVariant: vi.fn(async () => options.next ?? 1),
     driveFor: vi.fn(async () => drive as unknown as CatalogDrive),
@@ -267,6 +273,58 @@ describe('refusals leave nothing behind', () => {
 });
 
 describe('making a catalog', () => {
+  it('gives each row its own drawn text, picture and a price in the range (024)', async () => {
+    const { deps, drive } = setup({
+      settings: {
+        title: null,
+        description: null,
+        imageLink: null,
+        priceMin: 9,
+        priceMax: 30
+      } as never,
+      texts: [
+        { title: 'Aurelia Linen Midi Dress', description: 'Soft and light.' },
+        { title: 'Nova Cotton Oversized Tee', description: 'Made for warm days.' },
+        { title: 'Vera Denim Wide Leg Jeans', description: 'Holds its shape.' }
+      ],
+      images: [
+        { driveFileId: 'img-1', resourceKey: null },
+        { driveFileId: 'img-2', resourceKey: 'rk' },
+        { driveFileId: 'img-3', resourceKey: null }
+      ]
+    });
+    await createProductCatalog(deps, body(), ACTOR);
+    // The pictures are opened by link, or Meta cannot fetch them.
+    expect(drive.createAnyoneReaderPermission).toHaveBeenCalledWith('img-2');
+    const record = vi.mocked(deps.link).mock.calls[0]![0].record;
+    const rows = (record.settingsSnapshot as { rows: Array<Record<string, unknown>> }).rows;
+    expect(rows.map(row => row.title)).toEqual([
+      'Aurelia Linen Midi Dress',
+      'Nova Cotton Oversized Tee',
+      'Vera Denim Wide Leg Jeans'
+    ]);
+    expect(rows[1]!.imageLink).toBe(
+      'https://drive.google.com/uc?export=view&id=img-2&resourcekey=rk'
+    );
+    for (const row of rows)
+      (expect(row.price).toBeGreaterThanOrEqual(9), expect(row.price).toBeLessThanOrEqual(30));
+  });
+
+  it('refuses when neither a pool nor the settings give a row its name', async () => {
+    const { deps } = setup({
+      settings: {
+        title: null,
+        description: null,
+        imageLink: 'https://img.example.test/a.png',
+        priceMin: 9,
+        priceMax: 30
+      } as never
+    });
+    await expect(createProductCatalog(deps, body(), ACTOR)).rejects.toMatchObject({
+      code: 'WRONG_STATE'
+    });
+  });
+
   it('shares the video, uploads one converted workbook, shares it and links it', async () => {
     const { deps, drive } = setup();
     const result = await createProductCatalog(deps, body(), ACTOR);
@@ -304,7 +362,20 @@ describe('making a catalog', () => {
         record: expect.objectContaining({
           productCount: 3,
           videoLink: 'https://drive.google.com/file/d/drive-video/view?usp=sharing',
-          settingsSnapshot: settings,
+          settingsSnapshot: expect.objectContaining({
+            title: 'Polo',
+            description: 'Knit',
+            price: 10,
+            imageLink: 'https://img.example.test/a.png',
+            rows: expect.arrayContaining([
+              {
+                title: 'Polo',
+                description: 'Knit',
+                price: 10,
+                imageLink: 'https://img.example.test/a.png'
+              }
+            ])
+          }),
           createdBy: ACTOR,
           variant: 1
         })

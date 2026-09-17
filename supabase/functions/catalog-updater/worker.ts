@@ -1,9 +1,12 @@
 import { rebuildCatalogRows, retryDelaySeconds } from '../_shared/catalog-updater.ts';
 import type { GoogleDriveClient } from '../_shared/drive.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
+import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
 import {
   PRODUCT_CATALOG_SHEET_NAME,
   SPREADSHEET_MIME_TYPE,
+  driveImageLink,
+  type ProductCatalogRowValues,
   type ProductCatalogSettingsValues
 } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
@@ -28,7 +31,10 @@ const LEASE_SECONDS = 60;
 const PARALLEL = 3;
 const RETIRED_LIMIT = 10;
 
-export type UpdaterDrive = Pick<GoogleDriveClient, 'updateConvertedFile' | 'deleteFile'>;
+export type UpdaterDrive = Pick<
+  GoogleDriveClient,
+  'updateConvertedFile' | 'deleteFile' | 'listAnyonePermissions' | 'createAnyoneReaderPermission'
+>;
 
 export interface ClaimedCatalog {
   catalogId: string;
@@ -38,6 +44,12 @@ export interface ClaimedCatalog {
   sourceLink: string;
   videoLink: string;
   settings: ProductCatalogSettingsValues;
+  /** Each row's own values, when the catalog was made from pools (024). */
+  rows?: ProductCatalogRowValues[];
+  /** The space whose picture pool a refresh draws from. */
+  teamId?: string | null;
+  /** Draw the rows' pictures afresh at this update (024, on unless turned off). */
+  refreshImages?: boolean;
   driveFileId: string;
   resourceKey: string | null;
   credentialId: string;
@@ -55,6 +67,11 @@ export interface RetiredCopy {
 
 export interface CatalogUpdaterDeps {
   workerId: string;
+  /** Pictures from the space's pool, none repeated until the pool is spent (024). */
+  drawImages?(
+    teamId: string,
+    count: number
+  ): Promise<Array<{ driveFileId: string; resourceKey: string | null }>>;
   openRounds(): Promise<number>;
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
@@ -119,6 +136,7 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
   ) {
     return null;
   }
+  const rows = parseSnapshotRows(settings.rows, productCount);
   return {
     catalogId,
     attempts,
@@ -132,12 +150,71 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
       price,
       imageLink: settings.imageLink
     },
+    ...(rows ? { rows } : {}),
+    teamId: text(row.team_id),
+    refreshImages: row.refresh_images !== false,
     driveFileId,
     resourceKey: text(row.resource_key),
     credentialId,
     currentVideoLink: text(row.current_video_link),
     spare: spareMaterialId && spareLink ? { materialId: spareMaterialId, link: spareLink } : null
   };
+}
+
+/** A snapshot's per-row values, when they are all there and whole; otherwise none. */
+function parseSnapshotRows(value: unknown, count: number): ProductCatalogRowValues[] | null {
+  if (!Array.isArray(value) || value.length !== count) return null;
+  const rows: ProductCatalogRowValues[] = [];
+  for (const entry of value) {
+    if (
+      !isRecord(entry) ||
+      typeof entry.title !== 'string' ||
+      typeof entry.description !== 'string' ||
+      typeof entry.imageLink !== 'string' ||
+      typeof entry.price !== 'number' ||
+      !Number.isSafeInteger(entry.price)
+    ) {
+      return null;
+    }
+    rows.push({
+      title: entry.title,
+      description: entry.description,
+      imageLink: entry.imageLink,
+      price: entry.price
+    });
+  }
+  return rows;
+}
+
+/**
+ * Fresh pictures for the rows (024): drawn from the space's pool and shared by link. None when
+ * the refresh is off, the pool is empty, or the draw fails — the rows keep the pictures they had.
+ */
+async function refreshedRows(
+  deps: CatalogUpdaterDeps,
+  item: ClaimedCatalog,
+  drive: UpdaterDrive
+): Promise<ProductCatalogRowValues[] | undefined> {
+  if (!item.refreshImages || !item.teamId || !deps.drawImages) return item.rows;
+  let drawn: Array<{ driveFileId: string; resourceKey: string | null }>;
+  try {
+    drawn = await deps.drawImages(item.teamId, item.productCount);
+  } catch {
+    return item.rows;
+  }
+  if (drawn.length === 0) return item.rows;
+  const shared = new Set<string>();
+  for (const image of drawn) {
+    if (shared.has(image.driveFileId)) continue;
+    await ensureAnyoneReader(drive, image.driveFileId);
+    shared.add(image.driveFileId);
+  }
+  const base: ProductCatalogRowValues[] =
+    item.rows ?? Array.from({ length: item.productCount }, () => ({ ...item.settings }));
+  return base.map((row, index) => {
+    const image = drawn[index % drawn.length]!;
+    return { ...row, imageLink: driveImageLink(image.driveFileId, image.resourceKey) };
+  });
 }
 
 export function parseRetiredCopy(row: unknown): RetiredCopy | null {
@@ -162,6 +239,7 @@ async function updateOne(
   const nextCount = item.updateCount + 1;
   try {
     const drive = await deps.driveFor(item.credentialId);
+    const rows = await refreshedRows(deps, item, drive);
     const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       rows: rebuildCatalogRows({
@@ -169,7 +247,8 @@ async function updateOne(
           settings: item.settings,
           sourceLink: item.sourceLink,
           videoLink: item.videoLink,
-          productCount: item.productCount
+          productCount: item.productCount,
+          rows
         },
         updateCount: nextCount,
         videoLinkOverride: item.spare?.link ?? item.currentVideoLink

@@ -72,6 +72,27 @@ Deno.serve(async request => {
     const summary = await runCatalogUpdaterTick(
       {
         workerId,
+        drawImages: async (teamId, count) => {
+          const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
+            p_team: teamId,
+            p_count: count
+          });
+          return (Array.isArray(rows) ? rows : []).flatMap(row =>
+            row &&
+            typeof row === 'object' &&
+            typeof (row as Record<string, unknown>).drive_file_id === 'string'
+              ? [
+                  {
+                    driveFileId: (row as Record<string, unknown>).drive_file_id as string,
+                    resourceKey:
+                      typeof (row as Record<string, unknown>).resource_key === 'string'
+                        ? ((row as Record<string, unknown>).resource_key as string)
+                        : null
+                  }
+                ]
+              : []
+          );
+        },
         openRounds: async () =>
           Number(await rpcValue(service, 'service_open_catalog_updater_rounds', {})) || 0,
         claim: async (limit, leaseSeconds) => {

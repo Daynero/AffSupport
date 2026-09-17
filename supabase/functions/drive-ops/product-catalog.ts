@@ -9,9 +9,11 @@ import {
   buildProductCatalogRows,
   parseProductCount,
   parseWebLink,
+  driveImageLink,
+  planCatalogRows,
   productCatalogName,
   videoShareLink,
-  type ProductCatalogSettingsValues
+  type ProductCatalogSpaceSettings
 } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { buildXlsx } from '../_shared/xlsx.ts';
@@ -88,7 +90,14 @@ export interface ProductCatalogDeps {
     actorId: string;
     permission: 'view' | 'edit';
   }): Promise<CatalogVideo>;
-  readSettings(teamId: string): Promise<ProductCatalogSettingsValues | null>;
+  readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
+  /** Texts from the space's pool, none repeated until the pool is spent (024). */
+  drawTexts(teamId: string, count: number): Promise<Array<{ title: string; description: string }>>;
+  /** Pictures from the space's pool, likewise. */
+  drawImages(
+    teamId: string,
+    count: number
+  ): Promise<Array<{ driveFileId: string; resourceKey: string | null }>>;
   /** Every live catalog of the video — its variations — oldest number first. */
   readLiveCatalogs(teamId: string, videoId: string): Promise<ExistingCatalog[]>;
   /** The number a new variation of this video takes: one past the highest it ever had. */
@@ -273,6 +282,38 @@ export async function createProductCatalog(
   }
   const videoLink = videoShareLink(liveVideo.id, liveVideo.resourceKey ?? video.resourceKey);
 
+  /*
+   * Each row its own name, text, price and picture (024): drawn from the space's pools without
+   * repeats, the settings' single values where a pool is empty. The pictures are shared by link,
+   * as the video is, or Meta cannot fetch them.
+   */
+  const [texts, images] = await Promise.all([
+    deps.drawTexts(teamId, request.productCount),
+    deps.drawImages(teamId, request.productCount)
+  ]);
+  const sharedImages = new Set<string>();
+  for (const image of images) {
+    if (sharedImages.has(image.driveFileId)) continue;
+    await ensureAnyoneReader(drive, image.driveFileId);
+    sharedImages.add(image.driveFileId);
+  }
+  const planned = planCatalogRows({
+    count: request.productCount,
+    settings,
+    texts,
+    imageLinks: images.map(image => driveImageLink(image.driveFileId, image.resourceKey))
+  });
+  if (!planned) wrongState('settings_missing');
+  const first = planned[0]!;
+  /* Kept for sheets and workers that read one value: the first row's. */
+  const snapshot = {
+    title: first.title,
+    description: first.description,
+    price: first.price,
+    imageLink: first.imageLink,
+    rows: planned
+  };
+
   const variant = live ? (live.variant ?? 1) : await deps.nextVariant(teamId, videoId);
   const plan = await deps.planName({
     teamId,
@@ -308,10 +349,11 @@ export async function createProductCatalog(
     const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       rows: buildProductCatalogRows({
-        settings,
+        settings: first,
         sourceLink: request.sourceLink,
         videoLink,
-        count: request.productCount
+        count: request.productCount,
+        rows: planned
       })
     });
     const file = await drive.createConvertedFile({
@@ -344,7 +386,7 @@ export async function createProductCatalog(
           productCount: request.productCount,
           sheetUrl,
           videoLink,
-          settingsSnapshot: settings,
+          settingsSnapshot: snapshot,
           createdBy: actorId,
           variant
         }
