@@ -182,12 +182,30 @@ export interface ProductCatalogSummary {
 
 /** 022 — the four values every catalog in a space is filled from. */
 export interface ProductCatalogSettings {
+  /** One name for every row, used only while the name pool is empty (024). */
+  title: string | null;
+  description: string | null;
+  /** Whole dollars; the sheet writes `${price},00 USD`. The low end of the range. */
+  price: number;
+  /** The range each row's price is drawn from, whole dollars. */
+  priceMin: number;
+  priceMax: number;
+  /** A picture link for every row, used only while the picture pool is empty. */
+  imageLink: string | null;
+  updatedAt: string;
+}
+
+export interface ProductCatalogImageSource {
+  materialId: string;
+  kind: 'file' | 'folder';
+  name: string;
+  imageCount: number;
+}
+
+export interface ProductCatalogText {
+  id: string;
   title: string;
   description: string;
-  /** Whole dollars; the sheet writes `${price},00 USD`. */
-  price: number;
-  imageLink: string;
-  updatedAt: string;
 }
 
 export interface ProductCatalogCreateResult {
@@ -351,22 +369,25 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
 
 function productCatalogSettingsFrom(value: unknown): ProductCatalogSettings | null {
   const row = asRecord(value);
+  const optional = (value: unknown) => (typeof value === 'string' ? value : null);
   if (
     !row ||
-    typeof row.title !== 'string' ||
-    typeof row.description !== 'string' ||
+    !(row.title === null || typeof row.title === 'string') ||
+    !(row.description === null || typeof row.description === 'string') ||
     typeof row.price !== 'number' ||
     !Number.isInteger(row.price) ||
-    typeof row.image_link !== 'string' ||
+    !(row.image_link === null || typeof row.image_link === 'string') ||
     typeof row.updated_at !== 'string'
   ) {
     return null;
   }
   return {
-    title: row.title,
-    description: row.description,
+    title: optional(row.title),
+    description: optional(row.description),
     price: row.price,
-    imageLink: row.image_link,
+    priceMin: typeof row.price_min === 'number' ? row.price_min : row.price,
+    priceMax: typeof row.price_max === 'number' ? row.price_max : row.price,
+    imageLink: optional(row.image_link),
     updatedAt: row.updated_at
   };
 }
@@ -1980,7 +2001,13 @@ export const teamApi = {
 
   async setProductCatalogSettings(
     teamId: string,
-    input: { title: string; description: string; price: number; imageLink: string }
+    input: {
+      title: string | null;
+      description: string | null;
+      priceMin: number;
+      priceMax: number;
+      imageLink: string | null;
+    }
   ): Promise<ProductCatalogSettings> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('set_team_product_catalog_settings', {
@@ -1988,7 +2015,8 @@ export const teamApi = {
         p_settings: {
           title: input.title,
           description: input.description,
-          price: input.price,
+          priceMin: input.priceMin,
+          priceMax: input.priceMax,
           imageLink: input.imageLink
         }
       })
@@ -1997,6 +2025,104 @@ export const teamApi = {
     const parsed = productCatalogSettingsFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed;
+  },
+
+  /** The picture pool's sources — images and folders — and how many pictures each holds (024). */
+  async listProductCatalogImageSources(
+    teamId: string
+  ): Promise<{ sources: ProductCatalogImageSource[]; poolSize: number }> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_product_catalog_image_sources', { p_team: teamId })
+    );
+    throwRpc(error);
+    const rows = data ?? [];
+    return {
+      sources: rows.map(row => ({
+        materialId: row.material_id,
+        kind: row.kind === 'folder' ? 'folder' : 'file',
+        name: row.name,
+        imageCount: Number(row.image_count)
+      })),
+      poolSize: rows.length > 0 ? Number(rows[0]!.pool_size) : 0
+    };
+  },
+
+  async setProductCatalogImageSources(
+    teamId: string,
+    sources: ReadonlyArray<{ materialId: string; kind: 'file' | 'folder' }>
+  ): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_product_catalog_image_sources', {
+        p_team: teamId,
+        p_items: sources.map(source => ({ materialId: source.materialId, kind: source.kind }))
+      })
+    );
+    throwRpc(error);
+  },
+
+  async listProductCatalogTexts(teamId: string): Promise<ProductCatalogText[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_product_catalog_texts', { p_team: teamId })
+    );
+    throwRpc(error);
+    return (data ?? []).map(row => ({
+      id: row.id,
+      title: row.title,
+      description: row.description
+    }));
+  },
+
+  async replaceProductCatalogTexts(
+    teamId: string,
+    texts: ReadonlyArray<{ title: string; description: string }>
+  ): Promise<number> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('replace_team_product_catalog_texts', {
+        p_team: teamId,
+        p_items: texts.map(text => ({ title: text.title, description: text.description }))
+      })
+    );
+    throwRpc(error);
+    return typeof data === 'number' ? data : texts.length;
+  },
+
+  async updateProductCatalogText(
+    teamId: string,
+    text: ProductCatalogText
+  ): Promise<ProductCatalogText> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('update_team_product_catalog_text', {
+        p_team: teamId,
+        p_id: text.id,
+        p_title: text.title,
+        p_description: text.description
+      })
+    );
+    throwRpc(error);
+    const row = asRecord(data);
+    if (!row || typeof row.title !== 'string' || typeof row.description !== 'string') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { id: text.id, title: row.title, description: row.description };
+  },
+
+  async getCatalogUpdaterRefreshImages(teamId: string): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater_refresh_images', { p_team: teamId })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
+  async setCatalogUpdaterRefreshImages(teamId: string, refresh: boolean): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_catalog_updater_refresh_images', {
+        p_team: teamId,
+        p_refresh: refresh
+      })
+    );
+    throwRpc(error);
+    return data !== false;
   },
 
   async createProductCatalog(input: {

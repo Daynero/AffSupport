@@ -22,7 +22,8 @@ export function FolderPicker({
   client,
   title,
   onSelect,
-  onClose
+  onClose,
+  nested = false
 }: {
   teamId: string;
   client: FolderPickerClient;
@@ -30,6 +31,8 @@ export function FolderPicker({
   title: string;
   onSelect: (folder: { id: string; name: string }) => void;
   onClose: () => void;
+  /** Raised over another dialog — the space settings, for one. */
+  nested?: boolean;
 }) {
   const { t } = useI18n();
   const titleId = useId();
@@ -58,7 +61,13 @@ export function FolderPicker({
   }, [client, currentFolder?.id, teamId]);
 
   return (
-    <Modal labelledBy={titleId} size="sm" className="team-folder-picker" onClose={onClose}>
+    <Modal
+      labelledBy={titleId}
+      size="sm"
+      nested={nested}
+      className="team-folder-picker"
+      onClose={onClose}
+    >
       <h3 id={titleId}>{title}</h3>
 
       <nav className="team-folder-picker-trail" aria-label={t('teamFolderPickerTrailLabel')}>

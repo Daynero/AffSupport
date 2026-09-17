@@ -2594,6 +2594,40 @@ export type Database = {
         Args: { p_material: string; p_team: string };
         Returns: { id: string; status: string; title: string }[];
       };
+      list_team_product_catalog_image_sources: {
+        Args: { p_team: string };
+        Returns: {
+          image_count: number;
+          kind: string;
+          material_id: string;
+          name: string;
+          pool_size: number;
+        }[];
+      };
+      set_team_product_catalog_image_sources: {
+        Args: { p_items: Json; p_team: string };
+        Returns: number;
+      };
+      list_team_product_catalog_texts: {
+        Args: { p_team: string };
+        Returns: { description: string; id: string; sort_order: number; title: string }[];
+      };
+      replace_team_product_catalog_texts: {
+        Args: { p_items: Json; p_team: string };
+        Returns: number;
+      };
+      update_team_product_catalog_text: {
+        Args: { p_description: string; p_id: string; p_team: string; p_title: string };
+        Returns: Json;
+      };
+      get_team_catalog_updater_refresh_images: {
+        Args: { p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_refresh_images: {
+        Args: { p_refresh: boolean; p_team: string };
+        Returns: boolean;
+      };
       get_team_landing_source_status: {
         Args: { p_team: string };
         Returns: {

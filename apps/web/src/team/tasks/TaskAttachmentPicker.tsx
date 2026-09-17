@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronLeft, FileText, FileVideo, Folder, Image, Plus, Search, X } from 'lucide-react';
 import type { CatalogMaterialItem, MaterialCategory } from '@video-compressor/shared';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
@@ -88,7 +88,11 @@ export function TaskAttachmentPicker({
   attachedMaterialIds,
   onAdd,
   startTrail,
-  pathOf
+  pathOf,
+  accept,
+  trigger,
+  title,
+  confirmLabel
 }: {
   teamId: string;
   client?: TaskAttachmentPickerClient;
@@ -98,6 +102,13 @@ export function TaskAttachmentPicker({
   startTrail?: { id: string; name: string }[];
   /** A found file's folder path, so same-named results say where each lives. */
   pathOf?: (parentFolderId: string | null | undefined) => string;
+  /** Only these files are offered (folders are always there to open). */
+  accept?: (material: TeamMaterialSummary) => boolean;
+  /** Draws the control that opens the picker, instead of the attachment tile. */
+  trigger?: (open: () => void) => ReactNode;
+  /** The dialog's title and its confirm button's words, when not attaching to a task. */
+  title?: string;
+  confirmLabel?: (count: number) => string;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -119,7 +130,13 @@ export function TaskAttachmentPicker({
   const parentId = path.at(-1)?.id ?? null;
   const pickerTitleId = 'team-task-attachment-picker-title';
   /** What the list shows: search answers while a term is typed, the folder otherwise. */
-  const shown = useMemo(() => (found ? found : materials), [found, materials]);
+  const shown = useMemo(
+    () =>
+      (found ? found : materials).filter(
+        material => material.kind === 'folder' || !accept || accept(material)
+      ),
+    [accept, found, materials]
+  );
 
   useEffect(() => {
     setPath([]);
@@ -214,24 +231,31 @@ export function TaskAttachmentPicker({
 
   return (
     <>
-      <button
-        type="button"
-        // No drop handling: the only thing that ever produced this payload was
-        // the browser's dead drag plumbing, so advertising a drop target here
-        // promised something nothing could deliver.
-        className="team-task-attachment-add"
-        onClick={() => {
-          // Where this task's files already are, not the root four folders up (024).
+      {trigger ? (
+        trigger(() => {
           if (startTrail && startTrail.length > 0) setPath(startTrail);
           setOpen(true);
-        }}
-      >
-        <span className="team-task-attachment-add-icon">
-          <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </span>
-        <strong>{t('teamTaskAttachMedia')}</strong>
-        <small>{t('teamTaskAttachmentAddHint')}</small>
-      </button>
+        })
+      ) : (
+        <button
+          type="button"
+          // No drop handling: the only thing that ever produced this payload was
+          // the browser's dead drag plumbing, so advertising a drop target here
+          // promised something nothing could deliver.
+          className="team-task-attachment-add"
+          onClick={() => {
+            // Where this task's files already are, not the root four folders up (024).
+            if (startTrail && startTrail.length > 0) setPath(startTrail);
+            setOpen(true);
+          }}
+        >
+          <span className="team-task-attachment-add-icon">
+            <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </span>
+          <strong>{t('teamTaskAttachMedia')}</strong>
+          <small>{t('teamTaskAttachmentAddHint')}</small>
+        </button>
+      )}
       {open && (
         <Modal
           nested
@@ -243,7 +267,7 @@ export function TaskAttachmentPicker({
         >
           <div className="team-task-picker-dialog">
             <div className="team-task-picker-dialog-heading">
-              <h2 id={pickerTitleId}>{t('teamTaskAttachmentPickerTitle')}</h2>
+              <h2 id={pickerTitleId}>{title ?? t('teamTaskAttachmentPickerTitle')}</h2>
             </div>
             {searchable && (
               <div className="team-task-picker-search">
@@ -385,7 +409,9 @@ export function TaskAttachmentPicker({
                 }}
               >
                 <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                {t('teamTaskAddSelected', { count: selected.size })}
+                {confirmLabel
+                  ? confirmLabel(selected.size)
+                  : t('teamTaskAddSelected', { count: selected.size })}
               </Button>
             </div>
           </div>

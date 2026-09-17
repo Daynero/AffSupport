@@ -32,6 +32,8 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
   ) => Promise<CatalogUpdaterState>;
   runCatalogUpdateNow: (teamId: string, catalogIds: string[]) => Promise<number>;
   setCatalogUpdaterRestitch: (teamId: string, restitch: boolean) => Promise<CatalogUpdaterState>;
+  getCatalogUpdaterRefreshImages?: (teamId: string) => Promise<boolean>;
+  setCatalogUpdaterRefreshImages?: (teamId: string, refresh: boolean) => Promise<boolean>;
 }
 
 const defaultClient: CatalogUpdaterDialogClient = teamApi;
@@ -141,6 +143,37 @@ export function CatalogUpdaterDialog({
             : t('catalogUpdaterNowStarted', { count: opened })
       });
     });
+
+  /*
+   * New pictures at every update (024), on unless turned off: a catalog whose rows keep the same
+   * white pictures week after week is the one part of it that never changes.
+   */
+  const [refreshImages, setRefreshImages] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!client.getCatalogUpdaterRefreshImages) return;
+    let active = true;
+    void client
+      .getCatalogUpdaterRefreshImages(teamId)
+      .then(value => {
+        if (active) setRefreshImages(value);
+      })
+      .catch(() => {
+        if (active) setRefreshImages(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, teamId]);
+  const changeRefreshImages = async (next: boolean) => {
+    if (!client.setCatalogUpdaterRefreshImages) return;
+    setRefreshImages(next);
+    try {
+      setRefreshImages(await client.setCatalogUpdaterRefreshImages(teamId, next));
+    } catch (error) {
+      setRefreshImages(!next);
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    }
+  };
 
   const setRestitch = (restitch: boolean) =>
     withBusy([], async () => {
@@ -375,6 +408,17 @@ export function CatalogUpdaterDialog({
           <p className="field-hint team-updater-reason">
             {mayRun ? t('catalogUpdaterHowTo') : t('catalogUpdaterNoPermission')}
           </p>
+        )}
+        {refreshImages !== null && (
+          <div className="team-updater-restitch">
+            <Checkbox
+              checked={refreshImages}
+              disabled={!mayRun}
+              onChange={event => void changeRefreshImages(event.target.checked)}
+              label={t('catalogUpdaterRefreshImages')}
+            />
+            <small>{t('catalogUpdaterRefreshImagesHint')}</small>
+          </div>
         )}
         <div className="team-updater-restitch">
           <Checkbox

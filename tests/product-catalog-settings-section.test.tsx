@@ -34,10 +34,12 @@ const viewing: TeamContextSnapshot = {
 };
 
 const stored: ProductCatalogSettings = {
-  title: 'Polo',
-  description: 'Knit',
-  price: 25,
-  imageLink: 'https://drive.google.com/file/d/img/view?usp=sharing',
+  title: null,
+  description: null,
+  price: 9,
+  priceMin: 9,
+  priceMax: 30,
+  imageLink: null,
   updatedAt: '2026-09-15T00:00:00.000Z'
 };
 
@@ -62,59 +64,45 @@ function renderSection(client: Client, team: TeamContextSnapshot = owned) {
   );
 }
 
-describe('a space’s catalog settings', () => {
-  it('says they are not set, and saves what a manager fills in', async () => {
-    const set = vi
-      .fn()
-      .mockImplementation(async (_team: string, input: Record<string, unknown>) => ({
-        ...stored,
-        ...input
-      }));
+describe('a space’s catalog price and fallbacks (024)', () => {
+  it('starts at 9–30 and saves a range with no single values', async () => {
+    const set = vi.fn().mockResolvedValue(stored);
     renderSection({
       getProductCatalogSettings: vi.fn().mockResolvedValue(null),
       setProductCatalogSettings: set
     });
-    expect(await screen.findByText('Not set')).toBeTruthy();
-
+    expect(((await screen.findByLabelText('From')) as HTMLInputElement).value).toBe('9');
+    expect((screen.getByLabelText('to') as HTMLInputElement).value).toBe('30');
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Title'), '  Polo shirt ');
-    await user.type(screen.getByLabelText('Description'), 'Lightweight knit');
-    await user.type(screen.getByLabelText('Price, USD'), '10');
-    await user.type(screen.getByLabelText('Image link'), 'https://img.example.test/a.png');
-    expect(screen.getByText('A whole number. In the sheet: 10,00 USD')).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', false)
+    );
     await user.click(screen.getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => expect(set).toHaveBeenCalledTimes(1));
-    expect(set).toHaveBeenCalledWith(TEAM_ID, {
-      title: 'Polo shirt',
-      description: 'Lightweight knit',
-      price: 10,
-      imageLink: 'https://img.example.test/a.png'
-    });
-    expect(await screen.findByText('Catalog settings saved')).toBeTruthy();
+    await waitFor(() =>
+      expect(set).toHaveBeenCalledWith(TEAM_ID, {
+        title: null,
+        description: null,
+        imageLink: null,
+        priceMin: 9,
+        priceMax: 30
+      })
+    );
   });
 
-  it.each(['10.5', '10,00', 'USD 10', '0'])(
-    'refuses the price %j without sending it',
-    async price => {
-      const set = vi.fn();
-      renderSection({
-        getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
-        setProductCatalogSettings: set
-      });
-      const user = userEvent.setup();
-      const field = await screen.findByDisplayValue('25');
-      await user.clear(field);
-      await user.type(field, price);
-      await user.click(screen.getByRole('button', { name: 'Save' }));
-      expect(
-        await screen.findByText('A whole number from 1 to 999999, without currency.')
-      ).toBeTruthy();
-      expect(set).not.toHaveBeenCalled();
-    }
-  );
+  it('will not save a range that runs backwards', async () => {
+    renderSection({
+      getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+      setProductCatalogSettings: vi.fn()
+    });
+    const user = userEvent.setup();
+    const from = await screen.findByLabelText('From');
+    await user.clear(from);
+    await user.type(from, '40');
+    expect(screen.getByText('Whole dollars, and "from" no higher than "to".')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+  });
 
-  it('shows the saved values read-only to a member who does not manage the space', async () => {
+  it('reads, and does not offer to save, for a member who does not manage the space', async () => {
     renderSection(
       {
         getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
@@ -122,10 +110,67 @@ describe('a space’s catalog settings', () => {
       },
       viewing
     );
-    expect(await screen.findByText('Only a space manager can change these.')).toBeTruthy();
-    const title = (await screen.findByDisplayValue('Polo')) as HTMLInputElement;
-    expect(title.readOnly).toBe(true);
+    await screen.findByLabelText('From');
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
-    expect(screen.getByText('25,00 USD')).toBeTruthy();
+  });
+});
+
+describe('the name and description pool (024)', () => {
+  it('generates the number asked for, says it is clothing only, and lists them', async () => {
+    const texts: Array<{ id: string; title: string; description: string }> = [];
+    const replace = vi.fn(
+      async (_team: string, items: Array<{ title: string; description: string }>) => {
+        texts.splice(
+          0,
+          texts.length,
+          ...items.map((item, index) => ({ id: `t${index}`, ...item }))
+        );
+        return items.length;
+      }
+    );
+    renderSection({
+      getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+      setProductCatalogSettings: vi.fn(),
+      listProductCatalogTexts: vi.fn(async () => [...texts]),
+      replaceProductCatalogTexts: replace,
+      updateProductCatalogText: vi.fn()
+    });
+    expect(await screen.findByText(/for clothing only/)).toBeTruthy();
+    const user = userEvent.setup();
+    const count = screen.getByLabelText('How many');
+    await user.clear(count);
+    await user.type(count, '3');
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(replace.mock.calls[0]![1]).toHaveLength(3);
+    expect(await screen.findByText('3 in the pool')).toBeTruthy();
+    // A pool that exists is replaced only after saying so.
+    await user.click(screen.getByRole('button', { name: 'Generate again' }));
+    expect(await screen.findByText('Replace the pool?')).toBeTruthy();
+  });
+});
+
+describe('the picture pool (024)', () => {
+  it('lists images and folders with how many pictures they hold, and removes one', async () => {
+    const setSources = vi.fn(async () => undefined);
+    renderSection({
+      getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+      setProductCatalogSettings: vi.fn(),
+      listProductCatalogImageSources: vi.fn(async () => ({
+        sources: [
+          { materialId: 'f1', kind: 'folder' as const, name: 'White shirts', imageCount: 12 },
+          { materialId: 'i1', kind: 'file' as const, name: 'plain.png', imageCount: 1 }
+        ],
+        poolSize: 13
+      })),
+      setProductCatalogImageSources: setSources
+    });
+    expect(await screen.findByText('13 pictures')).toBeTruthy();
+    expect(screen.getByText('12 images')).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Remove plain.png from the pictures' }));
+    await waitFor(() =>
+      expect(setSources).toHaveBeenCalledWith(TEAM_ID, [{ materialId: 'f1', kind: 'folder' }])
+    );
   });
 });
