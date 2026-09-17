@@ -960,6 +960,16 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 - **FR-140**: A catalog made before the pools MUST keep working: its rows fall back to the space's
   single values and to Meta's example details.
 
+### Functional Requirements — a catalog that grows (US22)
+
+- **FR-141**: The updater MUST offer "Add 1–5 new products at every update", off by default;
+  with it on, every update adds one to five rows, never past the 400 a sheet may hold.
+- **FR-142**: An added row MUST get its own name, text, picture and price from the space's pools,
+  whatever the two refresh choices say, and MUST fall back to the space's single values when a
+  pool has nothing left.
+- **FR-143**: The update MUST write the sheet's new product count and its rows back to the
+  catalog, so the next update starts from what the sheet now holds.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,

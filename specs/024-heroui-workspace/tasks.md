@@ -763,6 +763,17 @@ processed copy from the attachment, and see all three on the task without it clo
       sale prices 19/12/8, one brand, colours and fabrics from the names, empty barcode and
       disclaimers; "update now" rewrote it.
 
+## Phase 9M: User Story 22 — a catalog that grows (Priority: P2)
+
+- [x] T216 [US22] Migration `20260918120000_catalog_updater_grow.sql`: `grow_products`, its two
+      RPCs, the claim, and a completion that writes back the product count and the rows; SQL tests.
+- [x] T217 [US22] Worker: `grownCount` (1–5, capped at 400) and `addedRows` — new products draw
+      their own name, text, picture and price whatever the refresh ticks say.
+- [x] T218 [US22] Web: "Add 1–5 new products at every update" in the updater dialog, off by
+      default.
+- [x] T219 [US22] Walked on the beta: `4_v2_catalog` went from 3 products to 5 in one update, with
+      the snapshot's rows grown to match.
+
 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the
