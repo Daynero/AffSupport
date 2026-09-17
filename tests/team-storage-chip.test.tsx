@@ -69,6 +69,19 @@ describe('StorageChip', () => {
     ).toBeTruthy();
   });
 
+  it('asks before re-reading a healthy space, and says what the re-read costs', async () => {
+    // The owner pressed "Check now" by accident and set ten thousand files walking (024).
+    const resyncDrive = vi.fn().mockResolvedValue(undefined);
+    show({ kind: 'preparing', ready: 5, pending: 7 }, { canManage: true, client: { resyncDrive } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Preparing previews/ }));
+    await user.click(await screen.findByRole('button', { name: 'Check now' }));
+    expect(resyncDrive).not.toHaveBeenCalled();
+    expect(screen.getByText(/reads the whole Drive again/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Yes, read it all again' }));
+    expect(resyncDrive).toHaveBeenCalledWith('team-1');
+  });
+
   it('lets the owner reconnect from the detail and tells a member who can', async () => {
     const user = userEvent.setup();
     const startDriveOAuth = vi.fn(async () => ({

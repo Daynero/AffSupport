@@ -116,6 +116,10 @@ export function StorageChip({
   const open = openProp ?? localOpen;
   const setOpen = (next: boolean) => (onOpenChange ? onOpenChange(next) : setLocalOpen(next));
   const [busy, setBusy] = useState(false);
+  /* A full re-read of the Drive, asked for twice on a healthy space (024): the button says
+     "Check now", works on one press, and walks ten thousand files — the owner pressed it by
+     accident and then watched a spinner he could not stop. */
+  const [confirmingResync, setConfirmingResync] = useState(false);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
   const titleId = useId();
   /*
@@ -246,6 +250,11 @@ export function StorageChip({
               the storage, and saying so in red reads as something they did
               wrong (FR-004). */}
           {fixerCopy && <PermissionState message={fixerCopy} />}
+          {confirmingResync && (
+            <p className="team-storage-detail-note" role="status">
+              {t('teamStorageResyncConfirm')}
+            </p>
+          )}
           <div className="team-dialog-actions">
             {health.kind === 'attention' &&
               health.reason === 'needs_reauth' &&
@@ -294,11 +303,17 @@ export function StorageChip({
                   color="neutral"
                   variant="outline"
                   loading={busy}
-                  onClick={() =>
-                    void run(() => client.resyncDrive!(teamId), 'teamToastResyncQueued')
-                  }
+                  onClick={() => {
+                    // After a failed sync the re-read is the fix, so it stays one press.
+                    if (health.kind !== 'attention' && !confirmingResync) {
+                      setConfirmingResync(true);
+                      return;
+                    }
+                    setConfirmingResync(false);
+                    void run(() => client.resyncDrive!(teamId), 'teamToastResyncQueued');
+                  }}
                 >
-                  {t('teamStorageCheckNow')}
+                  {t(confirmingResync ? 'teamStorageResyncYes' : 'teamStorageCheckNow')}
                 </Button>
               )}
             {/* Quiet: this one changes how this computer behaves, and it was

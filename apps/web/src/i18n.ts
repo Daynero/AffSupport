@@ -2303,6 +2303,9 @@ const en = {
   teamStorageFixerOwner: 'Only the owner can fix this.',
   teamStorageFixerManager: 'Someone who manages the space can ask for a new scan.',
   teamStorageCheckNow: 'Check now',
+  teamStorageResyncYes: 'Yes, read it all again',
+  teamStorageResyncConfirm:
+    'This reads the whole Drive again — minutes on a large space, and it cannot be stopped. New files appear on their own within a minute; a re-read is only for when something is missing.',
   teamStorageReconnect: 'Reconnect',
   teamStoragePauseRender: 'Pause previews on this computer',
   teamStorageResumeRender: 'Resume previews on this computer',
@@ -5135,6 +5138,9 @@ const uk: Record<keyof typeof en, string> = {
   teamStorageFixerOwner: 'Виправити це може лише власник.',
   teamStorageFixerManager: 'Той, хто керує простором, може запросити нове сканування.',
   teamStorageCheckNow: 'Перевірити зараз',
+  teamStorageResyncYes: 'Так, перечитати все',
+  teamStorageResyncConfirm:
+    'Це перечитає весь диск заново — на великому просторі це хвилини, і зупинити не можна. Нові файли й так з’являються самі за хвилину; перечитувати варто, лише якщо чогось бракує.',
   teamStorageReconnect: 'Перепідключити',
   teamStoragePauseRender: 'Призупинити превʼю на цьому комп’ютері',
   teamStorageResumeRender: 'Відновити превʼю на цьому комп’ютері',
