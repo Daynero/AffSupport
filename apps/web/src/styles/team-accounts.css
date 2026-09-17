@@ -1619,6 +1619,12 @@
   .team-account-meta > span:not(:first-child)::before {
     content: none;
   }
+
+  /* The note has the line to itself here, so the day starts the next one —
+     a middot in front of it separated it from nothing. */
+  .team-agent-run-age::before {
+    content: none;
+  }
 }
 
 /*
@@ -2713,6 +2719,17 @@ button.team-task-agent-chip.is-selected {
   }
   /* A free agent's "+ Run" is what its row is for: it stays, quietly. */
   .team-agent-row.is-free .team-agent-actions-stack {
+    opacity: 1;
+  }
+}
+
+/* On a phone-wide window the buttons have a line of their own — under the
+   account's name, under the agent's run; hidden until hover, that line was an
+   empty band under every one of them. */
+@media (hover: hover) and (max-width: 560px) {
+  .team-agent-actions-stack,
+  .team-agent-menu,
+  .team-account-head:not(.is-editing) .team-account-actions {
     opacity: 1;
   }
 }

@@ -1079,6 +1079,16 @@ button.team-task-label-chip:hover:not(:disabled),
 .team-task-attachment-actions.ui-material-actions {
   gap: var(--space-px);
 }
+/* The eye, "Catalog" and "…" came to 148px in a 144px tile, and "…" still went down a line.
+   Two pixels off each square, and the row reaching into the caption's padding — the ghost
+   buttons carry their own air — buy the room. */
+.team-task-attachment-actions.ui-material-actions {
+  margin-inline: calc(var(--space-1) * -1);
+}
+.team-task-attachment-actions.ui-material-actions .ui-icon-button {
+  width: 32px;
+  min-width: 32px;
+}
 
 /*
  * What is behind a count, on the count (024): small tiles in a popover — an

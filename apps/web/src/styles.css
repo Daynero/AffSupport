@@ -10123,6 +10123,11 @@ body {
     flex: 1 1 11rem;
     min-width: 0;
   }
+  /* The status takes its line; who and when share the next one rather than a
+     15rem select leaving the date alone on a third. */
+  .team-task-editor-facts > .team-task-assignee-select {
+    flex: 1 1 10rem;
+  }
 }
 /* The brief is as tall as what is written in it. */
 .team-task-editor .team-task-description-input {
@@ -18095,7 +18100,8 @@ input[type='number'] {
   clip-path: inset(50%);
   white-space: nowrap;
 }
-@media (hover: hover) {
+/* Not on a phone-wide window, where the buttons sit on a line of their own. */
+@media (hover: hover) and (min-width: 561px) {
   .team-agent-row:not(:hover):not(:focus-within) .team-agent-money-step,
   .team-agent-row:not(.is-free):not(:hover):not(:focus-within)
     .team-agent-actions-stack
