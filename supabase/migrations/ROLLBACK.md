@@ -16,6 +16,7 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260918100000_search_by_word_start.sql`: re-apply `public.search_materials` from `20260916230000`; drop `private.material_search_query(text)`.
 0. `20260917180000_history_events_in_order.sql`: `alter table public.team_audit_events alter column occurred_at set default now();`
 0. `20260917170000_catalog_pools.sql`: drop functions `service_draw_product_catalog_images`, `service_draw_product_catalog_texts`, `private.draw_product_catalog_items`, `private.product_catalog_pool_images`, `list/set_team_product_catalog_image_sources`, `list/replace/update_team_product_catalog_text(s)`, `set/get_team_catalog_updater_refresh_images`; drop tables `private.product_catalog_draws`, `team_product_catalog_texts`, `team_product_catalog_image_sources`; drop column `team_catalog_updaters.refresh_images`; re-apply `service_claim_catalog_updater_items` from `20260916120000` and `set_team_product_catalog_settings` from `20260915010000`; fill null title/description/image_link, drop `price_min`/`price_max`, restore the original checks and NOT NULLs.
 0. `20260917160000_catalog_name_and_file_tasks.sql`: drop `public.next_product_catalog_variant(uuid, uuid)` and `public.list_material_tasks(uuid, uuid)`.

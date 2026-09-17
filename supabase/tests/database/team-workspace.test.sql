@@ -1,6 +1,6 @@
 begin;
 
-select plan(289);
+select plan(291);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -2013,6 +2013,20 @@ select ok(
      and not ((payload #> '{items,0}') ? 'driveFileId')
    from pg_temp.us3_safe_search),
   'search returns one closed safe result without transcript or provider identity'
+);
+select is(
+  (
+    public.search_materials(
+      (select id from pg_temp.us1_created_team), 'Benchmark need', '{}'::jsonb, 1, 50
+    ) #>> '{items,0,name}'
+  ),
+  'Benchmark needle creative',
+  'a word typed only part of the way finds the name it starts'
+);
+select is(
+  private.material_search_query('"benchmark needle" -draft')::text,
+  pg_catalog.websearch_to_tsquery('simple', '"benchmark needle" -draft')::text,
+  'a query written in web-search syntax keeps that meaning'
 );
 select ok(
   (select (payload #> '{catalogFreshness}') ? 'discoveredCount'
