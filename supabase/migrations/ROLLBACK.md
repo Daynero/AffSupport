@@ -16,6 +16,7 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260918130000_catalog_update_in_history.sql`: delete the actorless rows first (`delete from public.team_audit_events where actor_id is null`), then `alter table public.team_audit_events alter column actor_id set not null`; re-apply `service_complete_catalog_update` from `20260918120000` and drop `private.record_team_system_audit`; delete the `catalog.updated` rows from `team_audit_events` if they are unwanted.
 0. `20260918120000_catalog_updater_grow.sql`: drop `set/get_team_catalog_updater_grow`; drop column `team_catalog_updaters.grow_products`; re-apply `service_claim_catalog_updater_items` from `20260918110000` and `service_complete_catalog_update` from `20260916120000` (dropping the six-argument form first).
 0. `20260918110000_catalog_updater_refresh_texts.sql`: drop `set/get_team_catalog_updater_refresh_texts`; drop column `team_catalog_updaters.refresh_texts`; re-apply `service_claim_catalog_updater_items` from `20260917170000`.
 1. `20260918100000_search_by_word_start.sql`: re-apply `public.search_materials` from `20260916230000`; drop `private.material_search_query(text)`.

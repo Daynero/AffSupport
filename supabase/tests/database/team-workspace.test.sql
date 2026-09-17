@@ -1,6 +1,6 @@
 begin;
 
-select plan(298);
+select plan(301);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3820,6 +3820,25 @@ select ok(
     where parameter.specific_name like 'service_complete_catalog_update%'
       and parameter.parameter_name in ('p_product_count', 'p_settings_snapshot')) = 2,
   'and writes back what the sheet became'
+);
+
+-- 024 US23: what the space's own machinery does is in the history, under a name of its own.
+select lives_ok(
+  $$ select private.record_team_system_audit(
+       (select id from pg_temp.us7_same_root_team), 'catalog.updated', '{}'::jsonb) $$,
+  'the space itself can write an event with no actor'
+);
+select is(
+  (select actor_label_snapshot from public.team_audit_events
+    where action = 'catalog.updated'
+    order by occurred_at desc limit 1),
+  'Soty',
+  'and it is signed by the product rather than by a member'
+);
+select ok(
+  (select actor_id is null from public.team_audit_events
+    where action = 'catalog.updated' order by occurred_at desc limit 1),
+  'with no actor at all, which the column now allows'
 );
 
 select * from finish();

@@ -44,6 +44,7 @@ const FOLD_MS = 10 * 60 * 1000;
 
 function areaOf(action: string): Exclude<Area, 'all'> | 'storage' {
   if (action.startsWith('task.')) return 'tasks';
+  if (action.startsWith('catalog.')) return 'files';
   if (action.startsWith('agent.')) return 'accounts';
   if (action.startsWith('material.') || action.startsWith('operation.')) return 'files';
   if (action.startsWith('membership.') || action.startsWith('invitation.')) return 'people';
@@ -64,6 +65,7 @@ const WORK_LABEL: Record<string, TranslationKey> = {
   'task.assigned': 'historyTaskAssigned',
   'task.file_attached': 'historyTaskFileAttached',
   'task.agent_tagged': 'historyTaskAgentTagged',
+  'catalog.updated': 'historyCatalogUpdated',
   'agent.run_added': 'historyRunAdded',
   'agent.run_removed': 'historyRunRemoved'
 };
