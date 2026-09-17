@@ -108,6 +108,26 @@ describe('claiming', () => {
     });
   });
 
+  it('puts the copy in the space’s one re-stitched folder, and beside the video without it', async () => {
+    // 024 US26: machinery does not belong in the folder that holds the buyer's own work.
+    const here = setup();
+    here.deps.restitchedFolder = vi.fn(async () => 'restitched-folder');
+    await claimRestitchJob(here.deps, ACTOR, { teamId: TEAM });
+    expect(here.deps.restitchedFolder).toHaveBeenCalledWith(TEAM, ACTOR);
+    expect(vi.mocked(here.deps.startProcess).mock.calls[0]![1]).toMatchObject({
+      destinationFolderId: 'restitched-folder'
+    });
+
+    const broken = setup();
+    broken.deps.restitchedFolder = vi.fn(async () => {
+      throw new Error('drive down');
+    });
+    await claimRestitchJob(broken.deps, ACTOR, { teamId: TEAM });
+    expect(vi.mocked(broken.deps.startProcess).mock.calls[0]![1]).toMatchObject({
+      destinationFolderId: 'folder'
+    });
+  });
+
   it('answers nothing to do', async () => {
     const { deps } = setup({ claim: null });
     expect(await claimRestitchJob(deps, ACTOR, { teamId: TEAM })).toEqual({ job: null });

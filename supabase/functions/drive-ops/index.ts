@@ -51,6 +51,7 @@ import {
   type OperationAuthority
 } from '../_shared/operations.ts';
 import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/library.ts';
+import { resolveRestitchedFolder } from './restitched-folder.ts';
 import { resolveTaskDropFolder } from './task-drop-folder.ts';
 import { resolveWorkspaceFolder } from './workspace-folder.ts';
 import {
@@ -2613,6 +2614,16 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
 function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterRestitchDeps {
   return {
     rpc: (name, parameters) => rpcValue(service, name, parameters),
+    restitchedFolder: async (teamId, actorId) => {
+      const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
+      const drive = await driveClient(service, root.credentialId, request);
+      const resolved = await resolveRestitchedFolder({
+        teamId,
+        rootFolderId: root.driveFolderId,
+        drive
+      });
+      return resolved.folder.id;
+    },
     startProcess: async (actorId, body) => {
       const started = await handleProcessStart(request, body, service, actorId);
       return {
