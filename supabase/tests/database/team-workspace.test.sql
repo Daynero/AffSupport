@@ -3779,7 +3779,7 @@ select is(
   'a range alone is enough settings when the pools carry the rest'
 );
 
--- 025: the same choice for the words as 024 gave the pictures, and the claim carries both.
+-- 024 US21: the same choice for the words as 024 gave the pictures, and the claim carries both.
 select is(
   public.get_team_catalog_updater_refresh_texts((select id from pg_temp.us7_same_root_team)),
   true,

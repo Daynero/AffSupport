@@ -9,7 +9,7 @@ import {
 } from '../supabase/functions/_shared/product-details.js';
 
 /**
- * Feature 025 — a catalog that reads as a shop, not as one product typed a hundred times.
+ * Feature 024 (US21) — a catalog that reads as a shop, not as one product typed a hundred times.
  *
  * 022 wrote Meta's example into every row: royal blue, size M, cotton, "stripes", one barcode and
  * a sale that ended in 2020. Pinned here: what the name decides, the row follows; what nothing

@@ -11,7 +11,7 @@ import { buildProductCatalogRows } from '../supabase/functions/_shared/product-c
 import { contentId } from '../supabase/functions/_shared/product-details.js';
 
 /**
- * Feature 023, as 025 left it: how an update moves a catalog on. IDs were the row number plus a
+ * Feature 023, as 024 US21 left it: how an update moves a catalog on. IDs were the row number plus a
  * growing offset; a re-created catalog started at 1 again and Meta remembered what it had rejected
  * under those IDs. Now every write mints IDs of its own, and nothing else in the sheet moves.
  */
@@ -36,7 +36,7 @@ describe('the ID rule', () => {
     const first = ids(rebuildCatalogRows({ record }));
     const again = ids(rebuildCatalogRows({ record }));
     expect(new Set(first).size).toBe(100);
-    // 025: row numbers came back to 1 whenever a catalog was re-created, and Meta remembered the
+    // 024 US21: row numbers came back to 1 whenever a catalog was re-created, and Meta remembered the
     // rejections they carried. Nothing an update writes may repeat what an earlier write wrote.
     expect(first.some(id => again.includes(id))).toBe(false);
     expect(first.every(id => /^[0-9A-Z]+-[0-9A-Z]{7}$/u.test(id))).toBe(true);

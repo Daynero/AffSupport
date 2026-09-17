@@ -121,7 +121,7 @@ describe('the rows of a catalog', () => {
   });
 
   it('gives every product an ID of its own and a video link of its own', () => {
-    // 025: an ID is minted per write, never a row number — a re-created catalog would repeat those.
+    // 024 US21: an ID is minted per write, never a row number — a re-created catalog would repeat those.
     const ids = rows.slice(2).map(row => row[0]!);
     expect(new Set(ids.map(cell => cell.v)).size).toBe(400);
     expect(
@@ -150,7 +150,7 @@ describe('the rows of a catalog', () => {
     expect(cellAt(rows, 'L', 3)).toEqual({ t: 'number', v: 75 });
     expect(cellAt(rows, 'O', 3).v).toBe('');
     expect(cellAt(rows, 'AE', 3).v).toBe('Bodycon');
-    // 025: an expired sale, a shared barcode and a placeholder disclaimer say nothing true.
+    // 024 US21: an expired sale, a shared barcode and a placeholder disclaimer say nothing true.
     for (const column of ['M', 'N', 'X', 'Y', 'AB']) {
       expect(cellAt(rows, column, 3)).toEqual({ t: 'string', v: '' });
     }

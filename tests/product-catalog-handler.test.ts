@@ -308,7 +308,7 @@ describe('making a catalog', () => {
     );
     for (const row of rows)
       (expect(row.price).toBeGreaterThanOrEqual(9), expect(row.price).toBeLessThanOrEqual(30));
-    // 025: what the name already says, the row says too — and one brand covers the catalog.
+    // 024 US21: what the name already says, the row says too — and one brand covers the catalog.
     expect(rows[0]).toMatchObject({
       material: 'linen',
       gender: 'female',
@@ -387,7 +387,7 @@ describe('making a catalog', () => {
                 description: 'Knit',
                 price: 10,
                 imageLink: 'https://img.example.test/a.png',
-                // 025: the details the row was planned with travel with it, for every update after.
+                // 024 US21: the details the row was planned with travel with it, for every update after.
                 brand: expect.any(String),
                 color: expect.any(String),
                 size: expect.any(String),

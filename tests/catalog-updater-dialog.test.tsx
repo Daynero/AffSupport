@@ -131,7 +131,7 @@ function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
 
 const box = (name: string) => screen.getByLabelText(`Select ${name} catalog`) as HTMLInputElement;
 
-describe('what an update refreshes (024, 025)', () => {
+describe('what an update refreshes (024: US20, US21)', () => {
   it('offers both choices, on by default, and saves the one that is changed', async () => {
     const setCatalogUpdaterRefreshTexts = vi.fn().mockResolvedValue(false);
     const api = client([row('1', 'polo.mp4')], stopped, {

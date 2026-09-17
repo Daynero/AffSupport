@@ -54,7 +54,7 @@ const VIDEO_COLUMN = PRODUCT_CATALOG_TEMPLATE.findIndex(
 /**
  * The sheet as it should read after this update.
  *
- * Everything the catalog holds, written again with content IDs made now (025): IDs used to be the
+ * Everything the catalog holds, written again with content IDs made now (024, US21): IDs used to be the
  * row number plus a growing offset, which came back to 1 as soon as a catalog was re-created, and
  * Meta remembered what it had rejected under those IDs. `buildProductCatalogRows` mints a fresh
  * one per row on every write. When `videoLinkOverride` is given, every row points at the

@@ -1,4 +1,4 @@
--- Feature 025 — an update can draw new names, texts and prices as well as new pictures.
+-- Feature 024 (US21) — an update can draw new names, texts and prices as well as new pictures.
 --
 -- 024 gave the updater a "refresh pictures" tick. A catalog whose rows keep the same names and
 -- the same prices for weeks still reads as the same catalog to Meta, so the same choice is

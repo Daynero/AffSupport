@@ -1,6 +1,6 @@
 /**
  * The catalog updater's rules as the web needs them (feature 023): the intervals. How IDs move is
- * no longer among them — since 025 every write mints content IDs of its own, on the server.
+ * no longer among them — since 024 US21 every write mints content IDs of its own, on the server.
  *
  * A copy of `supabase/functions/_shared/catalog-updater.ts`, which decides; the shared package
  * cannot change in a web-only release. `tests/catalog-updater-parity.test.ts` holds them together.

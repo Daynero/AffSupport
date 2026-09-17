@@ -38,7 +38,7 @@ export interface ProductCatalogSettingsValues {
 }
 
 /**
- * The rest of what one product says (025).
+ * The rest of what one product says (024, US21).
  *
  * Every row used to carry Meta's own example — royal blue, size M, cotton, "stripes", one barcode,
  * a sale that ended in 2020 — under a hundred different names, which reads as one product typed a
@@ -72,7 +72,7 @@ export interface ProductCatalogRowDetails {
 /**
  * What one product row says (024): its own name, text, price and picture. A catalog made from the
  * space's pools gives every row different ones; a catalog from before pools repeats the settings.
- * The 025 details come with a catalog planned from pools; a sheet from before them keeps Meta's
+ * The US21 details come with a catalog planned from pools; a sheet from before them keeps Meta's
  * example values, which is what `PRODUCT_CATALOG_TEMPLATE` falls back to.
  */
 export interface ProductCatalogRowValues extends Partial<ProductCatalogRowDetails> {
@@ -108,13 +108,13 @@ export function randomPrice(min: number, max: number, random: () => number = Mat
 }
 
 /**
- * Every row's values, from the draws and the settings (024, 025).
+ * Every row's values, from the draws and the settings (024, US21).
  *
  * A drawn text and a drawn picture go to a row each, in order; a pool that was empty leaves the
  * settings' single value in its place. Null when some row would have no name, text or picture at
  * all — the space is not ready to make a catalog.
  *
- * The rest of the row is made up around its name (025): the colour and the fabric the name
+ * The rest of the row is made up around its name (024, US21): the colour and the fabric the name
  * already says, a category and a style that suit the garment, and a size, a pattern, a weight and
  * a stock count drawn per row. One invented brand covers the whole catalog, the way a shop has
  * one name.
@@ -467,7 +467,7 @@ export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
 /**
  * The whole sheet as cells: the template's description row, its key row, then one row per
  * product. A row planned from the space's pools carries its own name, text, price, picture and
- * details (025); one without falls back to the settings and to Meta's example values.
+ * details (024, US21); one without falls back to the settings and to Meta's example values.
  *
  * Content IDs are made here rather than taken from the rows, so every write of a sheet — the
  * first one and every update after it — carries IDs no catalog has used before. The video link

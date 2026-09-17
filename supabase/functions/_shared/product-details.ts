@@ -1,5 +1,5 @@
 /**
- * The rest of a product row, made up per row (025).
+ * The rest of a product row, made up per row (024, US21).
  *
  * Meta's template ships one example product, and 022 wrote that example into every row: royal
  * blue, size M, cotton, "stripes", the same barcode, a sale that ended in 2020. A hundred rows of

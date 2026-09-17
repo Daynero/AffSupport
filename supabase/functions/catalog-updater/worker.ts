@@ -53,7 +53,7 @@ export interface ClaimedCatalog {
   teamId?: string | null;
   /** Draw the rows' pictures afresh at this update (024, on unless turned off). */
   refreshImages?: boolean;
-  /** Draw fresh names, texts and prices at this update (025, on unless turned off). */
+  /** Draw fresh names, texts and prices at this update (024 US21, on unless turned off). */
   refreshTexts?: boolean;
   /** The space's price range, for a row whose price is drawn again. */
   priceRange?: { min: number; max: number } | null;
@@ -79,7 +79,7 @@ export interface CatalogUpdaterDeps {
     teamId: string,
     count: number
   ): Promise<Array<{ driveFileId: string; resourceKey: string | null }>>;
-  /** Names and texts from the space's pool, the same way (025). */
+  /** Names and texts from the space's pool, the same way (024, US21). */
   drawTexts?(teamId: string, count: number): Promise<Array<{ title: string; description: string }>>;
   openRounds(): Promise<number>;
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
@@ -205,7 +205,7 @@ function parseSnapshotRows(value: unknown, count: number): ProductCatalogRowValu
   return rows;
 }
 
-/** The 025 details a catalog was planned with, as far as the snapshot carries them. */
+/** The US21 details a catalog was planned with, as far as the snapshot carries them. */
 function snapshotDetails(entry: Record<string, unknown>): Partial<ProductCatalogRowDetails> {
   const details: Record<string, unknown> = {};
   for (const key of DETAIL_TEXT_KEYS) {
@@ -275,7 +275,7 @@ const rowsOf = (item: ClaimedCatalog): ProductCatalogRowValues[] =>
   item.rows ?? Array.from({ length: item.productCount }, () => ({ ...item.settings }));
 
 /**
- * Fresh names, texts and prices for the rows (025).
+ * Fresh names, texts and prices for the rows (024, US21).
  *
  * A catalog whose every row keeps its name and its price for weeks is the same catalog however
  * often it is written. With the tick on, each row draws a new pair from the space's text pool and

@@ -54,7 +54,7 @@ function zipEntry(bytes: Uint8Array, name: string): Promise<string> {
   });
 }
 
-/** Column A, resolved through the workbook's shared strings: IDs are text since 025. */
+/** Column A, resolved through the workbook's shared strings: IDs are text since 024 US21. */
 async function sheetIds(bytes: Uint8Array): Promise<string[]> {
   const sheet = await zipEntry(bytes, 'xl/worksheets/sheet1.xml');
   const strings = [
@@ -120,7 +120,7 @@ describe('a tick', () => {
     const byFile = Object.fromEntries(written.map(entry => [entry.fileId, entry.bytes]));
     const idsA = await sheetIds(byFile['drive-a']!);
     const idsB = await sheetIds(byFile['drive-b']!);
-    // 025: minted per write, so no two sheets — and no two updates — share one.
+    // 024 US21: minted per write, so no two sheets — and no two updates — share one.
     expect(idsA).toHaveLength(3);
     expect(new Set([...idsA, ...idsB]).size).toBe(6);
     expect(idsA.every(id => /^[0-9A-Z]+-[0-9A-Z]{7}$/u.test(id))).toBe(true);
@@ -302,7 +302,7 @@ describe('refreshing pictures (024)', () => {
   });
 });
 
-describe('refreshing names, texts and prices (025)', () => {
+describe('refreshing names, texts and prices (024, US21)', () => {
   it('draws a fresh pair and a fresh price for every row, and re-reads the name', async () => {
     const { deps, written } = setup({
       batches: [[claimedRow('a', { refresh_texts: true, price_min: 40, price_max: 40 })]]

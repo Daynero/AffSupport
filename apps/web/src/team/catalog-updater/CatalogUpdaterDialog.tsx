@@ -178,7 +178,7 @@ export function CatalogUpdaterDialog({
   };
 
   /**
-   * New names, texts and prices at every update (025), on unless turned off: pictures alone left
+   * New names, texts and prices at every update (024, US21), on unless turned off: pictures alone left
    * the same hundred products under the same hundred names, at the same price, week after week.
    */
   const [refreshTexts, setRefreshTexts] = useState<boolean | null>(null);
