@@ -20,6 +20,7 @@ import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { EmptyState } from '../../components/ui/index';
 import { MaterialNoteBlock } from '../materials/MaterialNote';
+import { MaterialCatalogFacts } from '../materials/MaterialCatalogFacts';
 import { MaterialTasks } from '../materials/MaterialTasks';
 import { useTeam } from '../TeamContext';
 
@@ -147,10 +148,20 @@ export function PreviewPane({
         className="team-explorer-pane-detail"
         facts={{
           kindLabel: t(KIND_LABEL[row.kind]),
-          sizeBytes: row.kind === 'folder' ? null : row.sizeBytes,
+          /* A Google-native file has no bytes of its own: Drive reports 0 or 1 for a sheet or
+             a doc, and "Size 1 B" beside a hundred-row catalog says something untrue. */
+          sizeBytes:
+            row.kind === 'folder' || row.mimeType?.startsWith('application/vnd.google-apps')
+              ? null
+              : row.sizeBytes,
           modifiedAt: row.modifiedAt
         }}
         companions={companions}
+        catalogFacts={
+          row.kind === 'folder' ? null : (
+            <MaterialCatalogFacts teamId={teamId} material={{ id: row.id, name: row.name }} />
+          )
+        }
         inTasks={
           row.kind === 'folder' ? null : (
             <MaterialTasks

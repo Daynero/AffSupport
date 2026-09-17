@@ -40,6 +40,7 @@ export function MaterialDetail({
   notes,
   note,
   inTasks,
+  catalogFacts,
   companions,
   tag,
   actions,
@@ -53,6 +54,8 @@ export function MaterialDetail({
   notes?: ReactNode;
   /** The note a person left on the file (024), read and edited in place. */
   note?: ReactNode;
+  /** What a catalog sheet is: its video, its products, its last update (024, US23). */
+  catalogFacts?: ReactNode;
   /** The tasks the file is on, and the way onto one more (024). */
   inTasks?: ReactNode;
   companions?: MaterialCompanions;
@@ -144,6 +147,7 @@ export function MaterialDetail({
           )}
         </ul>
       )}
+      {catalogFacts}
       {inTasks}
       {actions}
     </div>
