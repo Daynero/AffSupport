@@ -988,9 +988,15 @@ button.team-task-label-chip:hover:not(:disabled),
   white-space: nowrap;
 }
 .workspace-palette-option small {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
   margin-left: auto;
+  overflow: hidden;
   color: var(--color-text-muted);
-  font-size: var(--text-micro);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .workspace-palette-footer {
   display: flex;

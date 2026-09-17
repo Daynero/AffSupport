@@ -11,6 +11,7 @@ import {
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { PaletteHost } from '../palette/PaletteHost';
+import { rememberRecent } from '../palette/recent';
 import { ShortcutSheet } from '../palette/ShortcutSheet';
 import { formatShortcut, matches, shortcutOf } from '../palette/shortcuts';
 import { ChevronDown, Keyboard, RefreshCw, Search, Settings, Sparkles, Trash2 } from 'lucide-react';
@@ -438,10 +439,16 @@ export function WorkspaceShell({
   const openPreview = useCallback(
     (material: TeamMaterialSummary) => {
       setPreviewing(material);
+      rememberRecent(teamId, {
+        kind: 'material',
+        id: material.id,
+        name: material.name,
+        parentFolderId: material.parentFolderId ?? null
+      });
       if (query?.open && query.itemId === material.id) return;
       navigateTo(hereRoute({ itemId: material.id, open: true }));
     },
-    [hereRoute, query?.itemId, query?.open]
+    [hereRoute, query?.itemId, query?.open, teamId]
   );
   // Replaced, not pushed: Back after closing goes to where the file was opened
   // from, not to the preview that was just closed.

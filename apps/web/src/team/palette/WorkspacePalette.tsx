@@ -40,6 +40,8 @@ export type PaletteKind = 'material' | 'folder' | 'task' | 'account';
 export interface PaletteResult {
   id: string;
   kind: PaletteKind;
+  /** Offered because it was opened lately, not because it matched (024). */
+  recent?: boolean;
   name: string;
   /** Where it lives, or what it is about — one line, never two. */
   hint?: string;
@@ -54,6 +56,8 @@ export interface PaletteResult {
     status?: TeamTaskStatus;
     /** A video's product catalog sheet: said as one, not as a spreadsheet file. */
     catalog?: boolean;
+    /** The folder a file is in, top down. */
+    path?: string;
   };
   run: () => void;
 }
@@ -86,9 +90,10 @@ function hintOf(
   const facts = item.facts;
   if (!facts) return null;
   if (facts.status) return taskStatusLabel(facts.status, t);
-  if (facts.catalog) return t('productCatalogSection');
+  if (facts.catalog) return [facts.path, t('productCatalogSection')].filter(Boolean).join(' · ');
   return (
     [
+      facts.path ?? null,
       facts.category ? t(CATEGORY_LABEL[facts.category]) : null,
       // A Google document has no size worth saying ("1 B"), so none is said.
       facts.sizeBytes && facts.category !== 'other' ? formatSize(facts.sizeBytes, language) : null
@@ -120,13 +125,33 @@ export function WorkspacePalette({
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const groups = useMemo(
-    () =>
-      ORDER.map(kind => ({ kind, items: results.filter(result => result.kind === kind) })).filter(
-        group => group.items.length > 0
-      ),
-    [results]
-  );
+  const groups = useMemo(() => {
+    // Recent items keep the order they were opened in, under one heading of their own.
+    const recent = results.filter(result => result.recent);
+    if (recent.length > 0) return [{ kind: 'recent' as const, items: recent }];
+    return ORDER.map(kind => ({
+      kind: kind as PaletteKind | 'recent',
+      items: results.filter(result => result.kind === kind)
+    })).filter(group => group.items.length > 0);
+  }, [results]);
+  const input = useRef<HTMLInputElement>(null);
+  // The field has the caret the moment the palette opens (024): the dialog's own first focus
+  // could land on it a frame late, and the first letters typed went nowhere.
+  useEffect(() => {
+    let frame = 0;
+    let tries = 0;
+    const focus = () => {
+      const node = input.current;
+      if (!node) return;
+      node.focus();
+      if (document.activeElement !== node && tries < 10) {
+        tries += 1;
+        frame = requestAnimationFrame(focus);
+      }
+    };
+    focus();
+    return () => cancelAnimationFrame(frame);
+  }, []);
   /* The list as one sequence, because that is how the arrows move through it. */
   const flat = useMemo(() => groups.flatMap(group => group.items), [groups]);
 
@@ -190,7 +215,9 @@ export function WorkspacePalette({
         <div className="workspace-palette-field">
           <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           <input
+            ref={input}
             id="workspace-palette-input"
+            autoFocus
             type="search"
             value={query}
             role="combobox"
@@ -219,7 +246,9 @@ export function WorkspacePalette({
           )}
           {groups.map(group => (
             <div key={group.kind} className="workspace-palette-group" role="group">
-              <p className="workspace-palette-heading">{t(KIND_HEADING[group.kind])}</p>
+              <p className="workspace-palette-heading">
+                {t(group.kind === 'recent' ? 'paletteGroupRecent' : KIND_HEADING[group.kind])}
+              </p>
               {group.items.map(item => {
                 const index = flat.indexOf(item);
                 const Icon = KIND_ICON[item.kind];

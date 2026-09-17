@@ -27,11 +27,12 @@ export function PaletteHost({
   /** The way from here to the list of everything the keyboard can do. */
   onShortcuts: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [query, setQuery] = useState('');
 
   const { results, loading } = usePaletteResults(query, {
     teamId,
+    language,
     openMaterial: material =>
       navigateTo(
         buildTeamRoute({

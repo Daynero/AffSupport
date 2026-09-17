@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { TeamTaskStatus } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import type { PaletteResult } from './WorkspacePalette';
+import { folderPathLabel, indexFolders, type FolderPathNode } from '../explorer/folderPath';
+import { translate, type Language } from '../../i18n';
+import { readRecent, rememberRecent } from './recent';
 
 /**
  * What the palette finds, and how it avoids getting in the way (024, FR-098).
@@ -27,10 +30,12 @@ export interface PaletteSources {
   openFolder: (driveFileId: string) => void;
   openTask: (id: string) => void;
   openAccount: (id: string) => void;
+  /** For the root folder's name in a path. */
+  language?: Language;
 }
 
 interface Small {
-  folders: Array<{ id: string; driveFileId: string; name: string }>;
+  folders: Array<{ id: string; driveFileId: string; parentFolderId: string | null; name: string }>;
   tasks: Array<{ id: string; title: string; note: string | null; status: TeamTaskStatus }>;
   accounts: Array<{ id: string; name: string }>;
 }
@@ -88,6 +93,9 @@ export function usePaletteResults(
   const latest = useRef(0);
   const at = useRef(sources);
   at.current = sources;
+  const foldersRef = useRef<ReadonlyMap<string, FolderPathNode>>(new Map());
+  const languageRef = useRef<Language>(sources.language ?? 'en');
+  languageRef.current = sources.language ?? 'en';
 
   /*
    * The three small lists, read once when the palette opens rather than on
@@ -105,10 +113,18 @@ export function usePaletteResults(
       teamApi.listAccounts(teamId).catch(() => [])
     ]).then(([folders, tasks, accounts]) => {
       if (!active) return;
+      foldersRef.current = indexFolders(
+        folders.map(node => ({
+          driveFileId: node.driveFileId,
+          parentFolderId: node.parentFolderId,
+          name: node.name
+        }))
+      );
       setSmall({
         folders: folders.map(node => ({
           id: node.id,
           driveFileId: node.driveFileId,
+          parentFolderId: node.parentFolderId,
           name: node.name
         })),
         tasks: tasks.map(task => ({
@@ -147,16 +163,29 @@ export function usePaletteResults(
               kind: 'material' as const,
               name: item.name,
               facts: {
+                // The folder first: it is what tells same-named files apart (024).
+                path: folderPathLabel(
+                  item.parentFolderId,
+                  foldersRef.current,
+                  translate(languageRef.current, 'teamExplorerRootLabel')
+                ),
                 category: item.category,
                 sizeBytes: item.sizeBytes,
                 catalog: isCatalogSheet(item.name, item.mimeType)
               },
-              run: () =>
+              run: () => {
+                rememberRecent(at.current.teamId, {
+                  kind: 'material',
+                  id: item.id,
+                  name: item.name,
+                  parentFolderId: item.parentFolderId ?? null
+                });
                 at.current.openMaterial({
                   id: item.id,
                   name: item.name,
                   parentFolderId: item.parentFolderId ?? null
-                })
+                });
+              }
             }))
           );
         })
@@ -170,7 +199,36 @@ export function usePaletteResults(
     return () => window.clearTimeout(timer);
   }, [term]);
 
-  if (term === '') return { results: [], loading: false };
+  if (term === '') {
+    // An empty field is where you left off (024): the last things opened, most recent first.
+    const rootLabel = translate(languageRef.current, 'teamExplorerRootLabel');
+    return {
+      results: readRecent(teamId).map(entry => ({
+        id: `recent:${entry.kind}:${entry.id}`,
+        kind: entry.kind,
+        recent: true,
+        name: entry.name,
+        ...(entry.kind === 'material'
+          ? {
+              facts: { path: folderPathLabel(entry.parentFolderId, foldersRef.current, rootLabel) }
+            }
+          : {}),
+        run: () => {
+          rememberRecent(teamId, entry);
+          if (entry.kind === 'task') at.current.openTask(entry.id);
+          else if (entry.kind === 'account') at.current.openAccount(entry.id);
+          else if (entry.kind === 'folder') at.current.openFolder(entry.driveFileId ?? entry.id);
+          else
+            at.current.openMaterial({
+              id: entry.id,
+              name: entry.name,
+              parentFolderId: entry.parentFolderId ?? null
+            });
+        }
+      })),
+      loading: false
+    };
+  }
 
   const local: PaletteResult[] = [
     ...rankByName(
@@ -183,7 +241,15 @@ export function usePaletteResults(
         id: `folder:${folder.id}`,
         kind: 'folder' as const,
         name: folder.name,
-        run: () => at.current.openFolder(folder.driveFileId)
+        run: () => {
+          rememberRecent(teamId, {
+            kind: 'folder',
+            id: folder.id,
+            name: folder.name,
+            driveFileId: folder.driveFileId
+          });
+          at.current.openFolder(folder.driveFileId);
+        }
       })),
     ...rankByName(
       small.tasks.filter(
@@ -198,7 +264,10 @@ export function usePaletteResults(
         kind: 'task' as const,
         name: task.title,
         facts: { status: task.status },
-        run: () => at.current.openTask(task.id)
+        run: () => {
+          rememberRecent(teamId, { kind: 'task', id: task.id, name: task.title });
+          at.current.openTask(task.id);
+        }
       })),
     ...rankByName(
       small.accounts.filter(account => matchesTerm(account.name, term)),
@@ -210,7 +279,10 @@ export function usePaletteResults(
         id: `account:${account.id}`,
         kind: 'account' as const,
         name: account.name,
-        run: () => at.current.openAccount(account.id)
+        run: () => {
+          rememberRecent(teamId, { kind: 'account', id: account.id, name: account.name });
+          at.current.openAccount(account.id);
+        }
       }))
   ];
 

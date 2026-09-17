@@ -71,6 +71,21 @@ function palette() {
 }
 
 describe('the workspace palette', () => {
+  it('says which folder a file is in, and offers what was opened lately on an empty field', async () => {
+    const user = userEvent.setup();
+    const { unmount } = palette();
+    await user.type(screen.getByRole('combobox'), 'creative');
+    // The folder tells same-named files apart (024).
+    const file = await screen.findByRole('option', { name: /creative\.mp4/ });
+    expect(file.textContent).toContain('Creatives');
+    await user.click(file);
+    unmount();
+
+    palette();
+    expect(await screen.findByText('Recent')).toBeTruthy();
+    expect(screen.getByRole('option', { name: /creative\.mp4/ })).toBeTruthy();
+  });
+
   it('reaches a file, a folder, a task and an account from one field', async () => {
     const user = userEvent.setup();
     palette();
@@ -80,7 +95,7 @@ describe('the workspace palette', () => {
     await waitFor(() =>
       expect(within(list).getByRole('option', { name: /creative\.mp4/ })).toBeTruthy()
     );
-    expect(within(list).getByRole('option', { name: /Creatives/ })).toBeTruthy();
+    expect(within(list).getByRole('option', { name: /^Creatives$/ })).toBeTruthy();
     expect(within(list).getByRole('option', { name: /Creative for TR/ })).toBeTruthy();
     expect(within(list).getByRole('option', { name: /Creative Team/ })).toBeTruthy();
 
@@ -95,12 +110,12 @@ describe('the workspace palette', () => {
     const user = userEvent.setup();
     palette();
     await user.type(screen.getByRole('combobox'), 'creative');
-    await waitFor(() => expect(screen.getByRole('option', { name: /Creatives/ })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('option', { name: /^Creatives$/ })).toBeTruthy());
 
     // A second keystroke: what is on screen stays on screen. A list that
     // empties itself while you type is a list that makes you stop typing.
     await user.type(screen.getByRole('combobox'), ' ');
-    expect(screen.getByRole('option', { name: /Creatives/ })).toBeTruthy();
+    expect(screen.getByRole('option', { name: /^Creatives$/ })).toBeTruthy();
   });
 
   it('walks the whole list with the arrows, across the group boundaries', async () => {

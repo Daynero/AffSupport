@@ -7,6 +7,7 @@ import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
 import { TaskFilterBar } from './TaskFilterBar';
+import { rememberRecent } from '../palette/recent';
 import { TaskEditor, type TaskEditorClient } from './TaskEditor';
 import { useTasks, type TaskAccountScope, type TasksClient } from './useTasks';
 import { persistedViewKey, usePersistedState } from '../persistedView';
@@ -180,6 +181,13 @@ export function TaskSpace({
     ? (tasks.allTasks.find(task => task.id === effectiveOpenId) ?? null)
     : null;
   if (listedOpenTask) lastOpenTask.current = listedOpenTask;
+  // Whatever way a task was opened — board, link, palette — it is the palette's most recent (024).
+  const rememberedOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!listedOpenTask || rememberedOpen.current === listedOpenTask.id) return;
+    rememberedOpen.current = listedOpenTask.id;
+    rememberRecent(teamId, { kind: 'task', id: listedOpenTask.id, name: listedOpenTask.title });
+  }, [listedOpenTask, teamId]);
   const openTask =
     listedOpenTask ??
     (effectiveOpenId && lastOpenTask.current?.id === effectiveOpenId ? lastOpenTask.current : null);
