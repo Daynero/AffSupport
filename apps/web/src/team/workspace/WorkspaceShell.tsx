@@ -735,6 +735,10 @@ export function WorkspaceShell({
                           ),
                           onSelect: () => navigateTo(explorerRoute({ settings: true }))
                         },
+                        /* Grouped by what they are about (024): the space itself, the work it
+                           runs, its record and its bin, then help. Six rows in one run read as
+                           one block. */
+                        'separator',
                         {
                           id: 'updater',
                           label: t('catalogUpdaterEntry'),
@@ -771,6 +775,7 @@ export function WorkspaceShell({
                               }
                             ]
                           : []),
+                        'separator',
                         ...(activeTeam?.role === 'owner' || activeTeam?.role === 'admin'
                           ? [
                               {

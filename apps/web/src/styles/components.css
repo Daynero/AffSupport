@@ -1508,8 +1508,10 @@
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: var(--control-height-sm);
-  padding: 0 var(--space-2);
+  /* A notch over the small control (024): at 30px with nothing between them, six rows read as
+     one block and the pointer landed on the neighbour — the owner said so of the space's menu. */
+  min-height: calc(var(--control-height-sm) + var(--space-1));
+  padding: 0 var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -1517,6 +1519,9 @@
   font-size: var(--text-label);
   text-align: left;
   cursor: pointer;
+}
+.ui-menu-item + .ui-menu-item {
+  margin-top: var(--space-px);
 }
 .ui-menu-item:hover:not(:disabled) {
   background: var(--color-neutral-surface-muted);
@@ -1561,11 +1566,20 @@
   color: var(--color-neutral-text-muted);
   font-size: var(--text-caption);
 }
+/* A separator in the items becomes a new section in the collection, so the line is drawn between
+   sections: without it groups were told apart by a gap nobody could read (024). */
+.ui-menu-section + .ui-menu-section {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-neutral-border-strong);
+}
 .ui-menu-separator {
   display: block;
   height: 1px;
-  margin: var(--space-1) 0;
-  background: var(--color-neutral-border);
+  /* Seen, and with air on both sides (024): on the raised surface the hairline border vanished,
+     so groups were told apart by a gap nobody could explain. */
+  margin: var(--space-2) var(--space-2);
+  background: var(--color-neutral-border-strong);
 }
 /* The question a run of radio items answers. Quiet: it is a label, not a row
    anyone can press. */
