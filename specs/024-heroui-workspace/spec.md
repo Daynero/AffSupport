@@ -925,6 +925,22 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 - **FR-127**: The catalog form MUST show the name the catalog will have, with a copy, before it
   is made; a file's card MUST list the tasks it is on.
 
+### Functional Requirements — catalog pools (US20)
+
+- **FR-128**: A space's catalog pictures MUST be chosen from the space — single images and folders
+  (subfolders included) — and each catalog row MUST get its own picture, shared by link and
+  written as a direct image URL.
+- **FR-129**: A space MUST keep a pool of product names (4–6 words) and descriptions (10–100 words),
+  generated in English for clothing only (the settings say so), listable, editable field by field,
+  and regenerable after a confirmation; up to 1000.
+- **FR-130**: Each row's price MUST be a random whole dollar amount in the space's range (9–30 by
+  default).
+- **FR-131**: Pictures and texts MUST be drawn without repeats until the pool is spent, then from
+  all again, across catalogs and updates.
+- **FR-132**: The catalog updater MUST offer "Refresh the pictures at every update", on by default.
+- **FR-133**: The single title, description and picture link MUST remain as optional fallbacks for
+  an empty pool.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,

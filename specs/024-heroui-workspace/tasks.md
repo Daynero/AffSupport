@@ -737,6 +737,16 @@ processed copy from the attachment, and see all three on the task without it clo
 - [ ] T205 [US19] Grid freeze / blank thumbnails from the buyer walkthrough: not reproduced in a
       visible tab (thumbnails 200 in 4 ms, no long tasks); watch for it with a real session.
 
+## Phase 9K: User Story 20 — catalog pools (Priority: P1)
+
+- [x] T206 [US20] Migration `20260917170000_catalog_pools.sql`: optional fallbacks and a price
+      range, picture sources, text pool, no-repeat draws, updater `refresh_images`; SQL tests.
+- [x] T207 [US20] Edge: rows drawn per row in `drive-ops` create; the updater re-draws pictures.
+- [x] T208 [US20] Web: settings for pictures, the clothing text pool with its generator, the price
+      range, and the updater checkbox; component and generator tests.
+- [x] T209 [US20] Walked on the beta: a folder of 31 pictures, 200 generated texts, a 3-row catalog
+      with distinct rows and public image URLs (200 image/png).
+
 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the
