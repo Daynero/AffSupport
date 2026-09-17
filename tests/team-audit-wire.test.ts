@@ -61,14 +61,14 @@ describe('space history over the wire', () => {
    * all-or-nothing on purpose — a partial history is a history you cannot
    * trust — so this asserts the throw, not a filtered row.
    */
-  it('still refuses a target key no one declared', async () => {
+  it('keeps the history when a newer server adds a detail, and leaves that detail out', async () => {
+    // A key this build does not know no longer empties the whole panel (024).
     rpc.mockResolvedValue({
       data: [auditRow({ task_id: 'b4fd7077-7384-49a9-a529-8cb04f8de9ea', email: 'a@b.test' })],
       error: null
     });
 
-    await expect(
-      teamApi.listAuditEvents('22222222-2222-4222-8222-222222222222')
-    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    const [event] = await teamApi.listAuditEvents('22222222-2222-4222-8222-222222222222');
+    expect(event!.target).toEqual({ task_id: 'b4fd7077-7384-49a9-a529-8cb04f8de9ea' });
   });
 });

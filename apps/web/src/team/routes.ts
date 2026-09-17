@@ -17,13 +17,7 @@ import {
 export const TEAM_SECTIONS = ['explorer', 'tasks', 'accounts', 'members'] as const;
 
 /** The settings dialog's tabs, named in the address as they are in the dialog. */
-export const TEAM_SETTINGS_TABS = [
-  'general',
-  'tags',
-  'restitch',
-  'product-catalog',
-  'history'
-] as const;
+export const TEAM_SETTINGS_TABS = ['general', 'tags', 'restitch', 'product-catalog'] as const;
 export type TeamSettingsTab = (typeof TEAM_SETTINGS_TABS)[number];
 export type TeamSection = (typeof TEAM_SECTIONS)[number];
 
@@ -66,6 +60,8 @@ export interface TeamRouteQuery {
   settingsTab: TeamSettingsTab | null;
   /** The catalog updater's dialog is open over the explorer (023). */
   updater: boolean;
+  /** The space's history panel is open (024). */
+  history: boolean;
   /**
    * The ⌘K palette is open (024).
    *
@@ -183,6 +179,7 @@ export function emptyTeamRouteQuery(): TeamRouteQuery {
     settings: false,
     settingsTab: null,
     updater: false,
+    history: false,
     palette: false,
     itemId: null,
     open: false,
@@ -299,6 +296,10 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     settings: params.get('settings') === '1',
     settingsTab: readSettingsTab(params),
     updater: params.get('updater') === '1',
+    // The history was a settings tab; a link to that tab opens the history (024).
+    history:
+      params.get('history') === '1' ||
+      (params.get('settings') === '1' && params.get('tab')?.trim() === 'history'),
     palette: params.get('palette') === '1',
     itemId: trimmedParam(params, 'item'),
     open: params.get('open') === '1' && Boolean(trimmedParam(params, 'item')),
@@ -318,6 +319,14 @@ export function parseTeamRoute(route: string): TeamRoute | null {
       kind: 'space',
       spaceId,
       section: 'members',
+      query: { ...query, settings: false, settingsTab: null }
+    };
+  }
+  if (query.history && query.settings && params.get('tab')?.trim() === 'history') {
+    return {
+      kind: 'space',
+      spaceId,
+      section,
       query: { ...query, settings: false, settingsTab: null }
     };
   }
@@ -386,6 +395,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
   if (query.settings) params.set('settings', '1');
   if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
   if (query.updater) params.set('updater', '1');
+  if (query.history) params.set('history', '1');
   if (query.palette) params.set('palette', '1');
   if (query.process) params.set('process', '1');
   if (query.storage) params.set('storage', '1');

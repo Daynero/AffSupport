@@ -43,9 +43,8 @@ describe('space settings surface', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
 
     expect(await screen.findByRole('heading', { name: 'Google Drive storage' })).toBeTruthy();
-    // The history is a room of its own now, one tab away.
-    await user.click(screen.getByRole('tab', { name: 'History' }));
-    expect(await screen.findByRole('heading', { name: 'Space history' })).toBeTruthy();
+    // The history is its own panel, from the space's menu (024).
+    expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
   });
 
   it('hides owner-only controls from a viewer', async () => {
@@ -65,7 +64,6 @@ describe('space settings surface', () => {
 
     // Drive connection (owner) and audit (owner/admin) are not shown to a viewer.
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Space history' })).toBeNull();
   });
 

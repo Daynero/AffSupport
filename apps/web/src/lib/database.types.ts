@@ -2807,6 +2807,7 @@ export type Database = {
           result: string;
           target: Json;
           subject_label: string;
+          actor_id: string;
         }[];
       };
       list_team_invitations: {

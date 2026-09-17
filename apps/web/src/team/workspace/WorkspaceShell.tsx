@@ -11,10 +11,20 @@ import {
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { PaletteHost } from '../palette/PaletteHost';
+import { HistoryDialog } from './HistoryDialog';
 import { rememberRecent } from '../palette/recent';
 import { ShortcutSheet } from '../palette/ShortcutSheet';
 import { formatShortcut, matches, shortcutOf } from '../palette/shortcuts';
-import { ChevronDown, Keyboard, RefreshCw, Search, Settings, Sparkles, Trash2 } from 'lucide-react';
+import {
+  ChevronDown,
+  History as HistoryIcon,
+  Keyboard,
+  RefreshCw,
+  Search,
+  Settings,
+  Sparkles,
+  Trash2
+} from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { DropdownMenu } from '../../components/ui/index';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
@@ -759,6 +769,22 @@ export function WorkspaceShell({
                               }
                             ]
                           : []),
+                        ...(activeTeam?.role === 'owner' || activeTeam?.role === 'admin'
+                          ? [
+                              {
+                                id: 'history',
+                                label: t('teamAuditTitle'),
+                                icon: (
+                                  <HistoryIcon
+                                    size={ICON_SIZE}
+                                    strokeWidth={ICON_STROKE}
+                                    aria-hidden="true"
+                                  />
+                                ),
+                                onSelect: () => navigateTo(explorerRoute({ history: true }))
+                              }
+                            ]
+                          : []),
                         {
                           id: 'trash',
                           label: t('teamTrashEntry'),
@@ -944,6 +970,13 @@ export function WorkspaceShell({
               )}
               {shortcutsOpen && <ShortcutSheet onClose={() => setShortcutsOpen(false)} />}
 
+              {query?.history && (
+                <HistoryDialog
+                  teamId={teamId}
+                  client={client}
+                  onClose={() => navigateTo(explorerRoute({ history: false }))}
+                />
+              )}
               {query?.updater && (
                 <CatalogUpdaterDialog
                   teamId={teamId}

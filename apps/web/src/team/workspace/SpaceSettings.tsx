@@ -7,7 +7,7 @@ import { useTeam } from '../TeamContext';
 import type { MemberManagementClient } from '../members/MemberList';
 import type { InvitationPanelClient } from '../members/InvitationPanel';
 import type { LeaveSpaceClient } from '../members/LeaveSpacePanel';
-import { TeamAuditPanel, type TeamAuditClient } from '../members/TeamAuditPanel';
+import type { TeamAuditClient } from '../members/TeamAuditPanel';
 import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConnectionPanel';
 import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
@@ -143,8 +143,7 @@ export function SpaceSettings({
     { id: 'general' as const, label: t('teamSettingsTabGeneral') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },
     { id: 'restitch' as const, label: t('teamSettingsTabRestitch') },
-    { id: 'product-catalog' as const, label: t('teamSettingsTabProductCatalog') },
-    ...(canSeeHistory ? [{ id: 'history' as const, label: t('teamSettingsTabHistory') }] : [])
+    { id: 'product-catalog' as const, label: t('teamSettingsTabProductCatalog') }
   ];
   const [tab, setTab] = useState<(typeof tabs)[number]['id']>(() =>
     initialTab && tabs.some(item => item.id === initialTab) ? initialTab : 'general'
@@ -236,10 +235,6 @@ export function SpaceSettings({
 
         {tab === 'product-catalog' && (
           <ProductCatalogSettingsSection teamId={teamId} client={client} />
-        )}
-
-        {tab === 'history' && (
-          <TeamAuditPanel teamId={teamId} client={client} revision={revision} />
         )}
       </div>
     </section>

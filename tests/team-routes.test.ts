@@ -361,8 +361,9 @@ describe('members, once', () => {
         query: { settings: true, settingsTab: 'tags' }
       })
     ).toBe('/team/space-1/tasks?settings=1&tab=tags');
+    // The history left the settings (024); an old link to its tab opens the history panel.
     expect(parseTeamRoute('/team/space-1?settings=1&tab=history')).toMatchObject({
-      query: { settings: true, settingsTab: 'history' }
+      query: { settings: false, history: true }
     });
   });
 });

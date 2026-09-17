@@ -509,6 +509,8 @@ export interface TeamMemberSummary {
 export interface TeamAuditEventSummary {
   id: string;
   actorLabel: string | null;
+  /** Who did it, for "Mine" (024); null from an older server. */
+  actorId?: string | null;
   action: string;
   target: Partial<
     Record<
@@ -520,7 +522,13 @@ export interface TeamAuditEventSummary {
       | 'relation'
       | 'role'
       | 'state'
-      | 'warning_code',
+      | 'warning_code'
+      | 'task_id'
+      | 'task_title'
+      | 'from'
+      | 'to'
+      | 'agent'
+      | 'note',
       string
     >
   >;
@@ -880,7 +888,11 @@ const AUDIT_TARGET_KEYS = new Set([
   'state',
   'warning_code',
   'task_id',
-  'task_title'
+  'task_title',
+  'from',
+  'to',
+  'agent',
+  'note'
 ]);
 
 function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {
@@ -892,9 +904,6 @@ function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {
     typeof row.id !== 'string' ||
     typeof row.action !== 'string' ||
     !target ||
-    Object.entries(target).some(
-      ([key, entry]) => !AUDIT_TARGET_KEYS.has(key) || typeof entry !== 'string'
-    ) ||
     !['succeeded', 'denied', 'failed', 'canceled'].includes(String(result)) ||
     typeof row.occurred_at !== 'string'
   ) {
@@ -905,7 +914,14 @@ function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {
     actorLabel: typeof row.actor_label === 'string' ? row.actor_label : null,
     subjectLabel: typeof row.subject_label === 'string' ? row.subject_label : null,
     action: row.action,
-    target: target as TeamAuditEventSummary['target'],
+    /* The keys this build knows, as strings; anything newer is left out rather than refusing
+       the whole history (024): a server that learned a new detail emptied the panel before. */
+    target: Object.fromEntries(
+      Object.entries(target).filter(
+        ([key, entry]) => AUDIT_TARGET_KEYS.has(key) && typeof entry === 'string'
+      )
+    ) as TeamAuditEventSummary['target'],
+    actorId: typeof row.actor_id === 'string' ? row.actor_id : null,
     result: result as TeamAuditEventSummary['result'],
     errorCode: errorCode(row.error_code),
     occurredAt: row.occurred_at

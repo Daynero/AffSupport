@@ -18195,3 +18195,93 @@ input[type='number'] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ============================================================
+   Space history (024): days, one line per event
+   ============================================================ */
+.history {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.history-close {
+  margin-left: auto;
+}
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.history-day h3 {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-raised);
+  margin: 0 0 var(--space-1);
+  padding: var(--space-1) 0;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 650;
+}
+.history-day ol {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.history-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 38px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-label);
+}
+.history-line > svg {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+.history-what {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.history-subject {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.history-subject {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  text-underline-offset: 3px;
+}
+.history-count {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.history-actor {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-line time {
+  flex: 0 0 auto;
+  width: 3.2rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

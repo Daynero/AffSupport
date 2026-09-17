@@ -12,7 +12,7 @@ import { EmptyState } from '../../components/ui/index';
  * its raw name is better than a blank row — but every action this application
  * writes has one.
  */
-const ACTION_LABEL: Readonly<Record<string, TranslationKey>> = {
+export const ACTION_LABEL: Readonly<Record<string, TranslationKey>> = {
   'drive.connected': 'teamAuditDriveConnected',
   'drive.detached': 'teamAuditDriveDetached',
   'drive.resynced': 'teamAuditDriveResynced',
