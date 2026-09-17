@@ -11,6 +11,7 @@ import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { EmptyState, ErrorState, LoadingState } from '../../components/ui/index';
+import { searchFieldEscape } from '../../lib/searchField';
 import { useI18n } from '../../i18n';
 
 export interface TaskAttachmentCandidate {
@@ -278,6 +279,7 @@ export function TaskAttachmentPicker({
                   aria-label={t('teamTaskAttachmentSearch')}
                   placeholder={t('teamTaskAttachmentSearch')}
                   onChange={event => setSearch(event.target.value)}
+                  onKeyDown={searchFieldEscape(search, () => setSearch(''), close)}
                 />
                 {term.length > 0 && (
                   <button

@@ -153,6 +153,20 @@ describe('what an update refreshes (024: US20, US21)', () => {
   });
 });
 
+describe('leaving the dialog', () => {
+  it('closes on Escape from the search field, once the field is empty', async () => {
+    const { onClose } = renderDialog(client([row('1', 'polo.mp4')], stopped));
+    const search = await screen.findByLabelText('Search by video or catalog');
+    await userEvent.type(search, 'polo');
+    // A field with something in it is emptied first: Escape is the way out of a search, too.
+    fireEvent.keyDown(search, { key: 'Escape' });
+    expect((search as HTMLInputElement).value).toBe('');
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(search, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
 describe('the registry', () => {
   it('lists every catalog with its folder, its schedule and its state', async () => {
     renderDialog(

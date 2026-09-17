@@ -12,6 +12,7 @@ import { Button, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { catalogSelectedCountKey, useI18n } from '../../i18n';
+import { searchFieldEscape } from '../../lib/searchField';
 import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { UpdaterCountdown } from './UpdaterCountdown';
@@ -311,6 +312,7 @@ export function CatalogUpdaterDialog({
             placeholder={t('catalogUpdaterSearch')}
             aria-label={t('catalogUpdaterSearch')}
             onChange={event => setQuery(event.target.value)}
+            onKeyDown={searchFieldEscape(query, () => setQuery(''), onClose)}
           />
           {query && (
             <button
