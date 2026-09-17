@@ -14,7 +14,7 @@ import { ICON_STROKE } from '../../components/icons';
 import { FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n } from '../../i18n';
-import { formatDate, formatSize } from '../../format';
+import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { useExplorer } from './ExplorerProvider';
 import { MorePages } from './MorePages';
@@ -287,7 +287,7 @@ function Row({
           before the row's own buttons, which is where the eye already ends its
           run across the row. */}
       <TableCell className="team-explorer-row-meta">
-        {row.sizeBytes !== null && row.kind !== 'folder' ? formatSize(row.sizeBytes) : ''}
+        {row.kind === 'folder' ? '' : (displayedSize(row.sizeBytes, row.mimeType) ?? '')}
       </TableCell>
       {actions && (
         <TableCell className="team-explorer-row-actions" onClick={event => event.stopPropagation()}>

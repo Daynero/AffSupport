@@ -91,3 +91,12 @@ export function formatDate(value: string | null | undefined, locale = 'en'): str
     ...(sameYear ? {} : { year: 'numeric' })
   }).format(date);
 }
+
+/**
+ * A Google-native file (a sheet, a doc) has no bytes of its own: Drive reports 0 or 1, and
+ * "1 B" beside a hundred-row catalog says something untrue (024, US23).
+ */
+export function displayedSize(sizeBytes: number | null, mimeType: string | null): string | null {
+  if (sizeBytes === null || mimeType?.startsWith('application/vnd.google-apps')) return null;
+  return formatSize(sizeBytes);
+}

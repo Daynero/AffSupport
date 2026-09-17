@@ -11,7 +11,7 @@ import { ICON_STROKE } from '../../components/icons';
 import { FolderOpen } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { formatDate, formatSize } from '../../format';
+import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
@@ -331,7 +331,7 @@ function Tile({
           <span className="team-explorer-tile-facts">
             {[
               image || row.kind === 'folder' ? null : t(KIND_LABEL[row.kind]),
-              row.sizeBytes !== null && row.kind !== 'folder' ? formatSize(row.sizeBytes) : null,
+              row.kind === 'folder' ? null : displayedSize(row.sizeBytes, row.mimeType),
               row.modifiedAt ? formatDate(row.modifiedAt, language) : null
             ]
               .filter(Boolean)
