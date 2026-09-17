@@ -23,7 +23,7 @@ import type {
 } from '@video-compressor/shared';
 import { ImageEmbeddingSection } from '../../components/ImageEmbeddingSection';
 import { Button } from '../../components/ui';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { useTeam } from '../TeamContext';
@@ -41,7 +41,7 @@ import {
   type RestitchPreparationState
 } from '../restitch/useRestitchPreparation';
 import { SettingsSection } from './SettingsSection';
-import { Alert, PermissionState, RadioGroup } from '../../components/ui/index';
+import { Alert, PermissionState, SegmentedControl } from '../../components/ui/index';
 
 export interface RestitchDefaultsClient {
   getRestitchDefaults: (teamId: string) => Promise<TeamRestitchDefaults | null>;
@@ -207,11 +207,11 @@ export function RestitchDefaultsSection({
         <div className="field-label">
           <span>{t('teamRestitchOperation')}</span>
         </div>
-        {/* The compressor's picto group, taken from the inventory rather than
-            written again (021, T125). */}
-        <RadioGroup
-          className="fit-mode-pictos"
-          variant="pictos"
+        {/* Words, each with its picture (024). Three bare pictograms needed a hint under them
+            to name the chosen one, and that hint ("Stitch") read as the caption of the image
+            fold below it. A settings page has the width for the names. */}
+        <SegmentedControl
+          className="team-restitch-operation"
           label={t('teamRestitchOperation')}
           value={operation}
           disabled={!editable}
@@ -220,14 +220,15 @@ export function RestitchDefaultsSection({
             const Icon = value === 'restitch' ? Replace : value === 'stitch' ? Plus : Eraser;
             return {
               value,
-              label: t(OPERATION_KEYS[value]),
-              icon: <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              label: (
+                <>
+                  <Icon size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t(OPERATION_KEYS[value])}
+                </>
+              )
             };
           })}
         />
-        {/* The chosen option, named — the group below this one does exactly
-            this, and without it these are three unlabelled pictograms. */}
-        <p className="field-hint">{t(OPERATION_KEYS[operation])}</p>
       </div>
 
       {compressor?.imageEmbedding && (

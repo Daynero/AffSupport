@@ -9147,6 +9147,9 @@ button,
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
+  /* Its own size, not the inherited body step: in the re-stitch settings it came out larger
+     than the controls above it. */
+  font-size: var(--text-label);
   font-weight: 600;
   cursor: pointer;
   list-style: none;
@@ -18481,4 +18484,13 @@ a.history-subject {
   align-self: center;
   color: var(--color-text-muted);
   font-size: var(--text-caption);
+}
+/* Re-stitch · Stitch · Remove: a picture and its word in each segment, wrapping on a phone. */
+.team-restitch-operation {
+  flex-wrap: wrap;
+}
+.team-restitch-operation button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
