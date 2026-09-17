@@ -224,7 +224,15 @@ export function useAgentQueue({
         // deliberate act starts looking like a fault. Everything below still happens — the
         // space is told the run is over either way.
         if (!deliberateStop(cause)) {
-          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+          /* Named for what it was trying to do: "this file could not be processed" says
+             nothing a person can act on, and this queue is always transcribing. */
+          const ranAndFailed = cause instanceof Error && cause.message === 'PROCESS_FAILED';
+          push({
+            tone: 'error',
+            text: ranAndFailed
+              ? t('teamTranscribeFailedFile', { name: next.name })
+              : teamErrorMessageFor(cause, t)
+          });
           setTFailed(current => current + 1);
         }
         // Tell the space the run is over. Without this a failed item stays

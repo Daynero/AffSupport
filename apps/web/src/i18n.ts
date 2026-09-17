@@ -2716,8 +2716,9 @@ const en = {
     'It may have been removed, or you may not be a member of it. Ask whoever shared the link to invite you.',
   teamSpaceNoAccessAction: 'Go to my spaces',
   teamErrorUnknown: 'Something went wrong. Try again in a moment.',
-  teamErrorProcessFailed:
-    'This file could not be processed — it may have no sound, or nothing the transcriber could read.',
+  teamErrorProcessFailed: 'This file could not be processed on this computer.',
+  teamTranscribeFailedFile:
+    'Nothing could be transcribed from “{name}” — it may have no speech, or no sound at all.',
   teamErrorProcessCanceled: 'The run was stopped.',
   teamErrorAuthRequired: 'Sign in again to continue.',
   teamErrorPermissionDenied: 'You do not have permission for this.',
@@ -5534,8 +5535,9 @@ const uk: Record<keyof typeof en, string> = {
     'Можливо, його видалили або ви не є його учасником. Попросіть того, хто дав посилання, надіслати запрошення.',
   teamSpaceNoAccessAction: 'До моїх просторів',
   teamErrorUnknown: 'Щось пішло не так. Спробуйте ще раз за мить.',
-  teamErrorProcessFailed:
-    'Цей файл не вдалося обробити — можливо, у ньому немає звуку або нічого, що можна розпізнати.',
+  teamErrorProcessFailed: 'Цей файл не вдалося обробити на цьому комп’ютері.',
+  teamTranscribeFailedFile:
+    'З «{name}» не вдалося зробити транскрипт — можливо, у відео немає мови або й звуку.',
   teamErrorProcessCanceled: 'Роботу зупинено.',
   teamErrorAuthRequired: 'Увійдіть ще раз, щоб продовжити.',
   teamErrorPermissionDenied: 'У вас немає дозволу на цю дію.',

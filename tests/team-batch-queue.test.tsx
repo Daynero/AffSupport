@@ -283,7 +283,7 @@ describe('pausing the team batch', () => {
 
     expect(
       await screen.findByText(
-        'This file could not be processed — it may have no sound, or nothing the transcriber could read.'
+        'Nothing could be transcribed from “clip-1.mp4” — it may have no speech, or no sound at all.'
       )
     ).toBeTruthy();
     await waitFor(() => expect(shared.canceled).toEqual(['op-1']));
