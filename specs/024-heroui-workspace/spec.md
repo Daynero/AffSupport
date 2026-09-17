@@ -906,6 +906,25 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 - **FR-119**: The `/team` address stays until Google's brand verification completes; moving it to
   `/space` with redirects is deferred, because page addresses are frozen during verification.
 
+### Functional Requirements — the audit round (US19)
+
+- **FR-120**: One attached file MUST count once; a draft tile gives way to the saved row.
+- **FR-121**: Every place a file is chosen or shown beside same-named files (⌘K, the task file
+  picker, a task's attachment tile) MUST say its folder path; the picker opens in the folder of
+  the task's files.
+- **FR-122**: ⌘K MUST focus its field on open and offer recently opened tasks, files, folders and
+  accounts on an empty field.
+- **FR-123**: Creating a task from files MUST keep the person in Files, with a toast to open the
+  task; "Back to the task" MUST survive folder moves.
+- **FR-124**: The history MUST record task creation, status and assignee changes, attached files
+  and agents, and launches added or removed.
+- **FR-125**: The history MUST be a panel from the Space menu: day groups, one line per event,
+  badges only for problems, folded repeats, area filters and Mine, and paging.
+- **FR-126**: Launching on an agent from a task MUST be one clearly named action that moves a
+  to-do task into progress; today's runs show their time; an agent counts only open tasks.
+- **FR-127**: The catalog form MUST show the name the catalog will have, with a copy, before it
+  is made; a file's card MUST list the tasks it is on.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,

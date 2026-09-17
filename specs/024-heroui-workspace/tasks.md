@@ -719,6 +719,24 @@ processed copy from the attachment, and see all three on the task without it clo
 - [ ] T196 [US18] After Google verification: `/team` → `/space`, with the old addresses redirected
       (the Drive OAuth return and invitation links included).
 
+## Phase 9J: User Story 19 — the three-agent audit round (Priority: P1)
+
+- [x] T197 [US19] Ghost attachment: the saved row replaces the draft tile.
+- [x] T198 [US19] Folder paths in ⌘K, the file picker and attachment tiles; picker opens in the
+      task's folder (`list_task_attachment_folders`, migration 20260917120000, which also restores
+      `kind` on `get_team_task`).
+- [x] T199 [US19] ⌘K focus and Recent.
+- [x] T200 [US19] Task from files stays in Files; back link survives folder moves.
+- [x] T201 [US19] History triggers for tasks, attachments, agents and runs (20260917130000).
+- [x] T202 [US19] History panel from the Space menu with days, lines, filters, Mine, paging
+      (`actor_id`, 20260917140000); the web tolerates unknown target keys.
+- [x] T203 [US19] Launch action wording, task moves to In progress, today's run time, agents
+      count open tasks (20260917150000).
+- [x] T204 [US19] Catalog name before creation (`next_product_catalog_variant`) and a file's
+      tasks in its card (`list_material_tasks`, 20260917160000).
+- [ ] T205 [US19] Grid freeze / blank thumbnails from the buyer walkthrough: not reproduced in a
+      visible tab (thumbnails 200 in 4 ms, no long tasks); watch for it with a real session.
+
 — accounts, agents and members (Priority: P3)
 
 - [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the
