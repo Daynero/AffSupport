@@ -721,8 +721,8 @@ describe('when a run was written', () => {
     return at.toISOString();
   };
 
-  it('says nothing for today, because nearly every line would say it', () => {
-    expect(runAgeLabel(day(0), 'en')).toBeNull();
+  it('says the time for today, so a launch marked a minute ago says when', () => {
+    expect(runAgeLabel(day(0), 'en')).toMatch(/\d{1,2}:\d{2}/);
   });
 
   it('names the day inside the week and dates what is older', () => {
@@ -834,7 +834,7 @@ describe('deleting an agent', () => {
 });
 
 describe('how many tasks name an agent', () => {
-  it('sits under the agent\'s state, and is nothing at all when there are none', async () => {
+  it("sits under the agent's state, and is nothing at all when there are none", async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();

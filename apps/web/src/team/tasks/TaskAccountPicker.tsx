@@ -328,6 +328,10 @@ export function TaskAccountPicker({
           </>
         )}
 
+        {/* What the two buttons differ by, said once above them (024). */}
+        {onAddWithRun && selected.size > 0 && (
+          <p className="team-task-account-picker-hint">{t('teamTaskAccountPickerHint')}</p>
+        )}
         <div className="team-dialog-actions team-task-picker-dialog-actions">
           <Button type="button" variant="ghost" onClick={onClose}>
             {t('teamCancel')}

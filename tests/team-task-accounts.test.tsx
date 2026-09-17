@@ -307,7 +307,7 @@ describe('the editor', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Free' }));
     expect(within(dialog).queryByText('v31-434')).toBeNull();
     await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
-    await user.click(within(dialog).getByRole('button', { name: 'Tag (1)' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Only tag (1)' }));
 
     await waitFor(() =>
       expect(api.attachTaskAgent).toHaveBeenCalledWith({
@@ -330,8 +330,8 @@ describe('the editor', () => {
     await user.click(within(dialog).getByText('v31', { selector: 'strong' }).closest('button')!);
     await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
     // The old way out is still there for an edit or a re-cut, which launched nothing.
-    expect(within(dialog).getByRole('button', { name: 'Tag (1)' })).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Tag and log the run (1)' }));
+    expect(within(dialog).getByRole('button', { name: 'Only tag (1)' })).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Launch on it (1)' }));
 
     await waitFor(() =>
       expect(api.attachTaskAgent).toHaveBeenCalledWith({

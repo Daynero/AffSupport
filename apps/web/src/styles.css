@@ -18285,3 +18285,9 @@ a.history-subject {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+
+.team-task-account-picker-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}

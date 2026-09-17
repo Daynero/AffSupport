@@ -1130,6 +1130,11 @@ export function TaskEditor({
                     setTask(current => ({ ...current, agents }));
                     onTagsChange?.(agents);
                   }}
+                  /* A launch means the work has started (024): a task still "To do" after its
+                     launch was marked read as if nothing had happened. */
+                  onLaunched={() => {
+                    if (status === 'todo') void saveStatus('in_progress');
+                  }}
                 />
                 {/* The team's own tags (018), from the dictionary in settings. */}
                 <TaskLabelsEditor

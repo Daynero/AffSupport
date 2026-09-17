@@ -73,9 +73,16 @@ export function runAgeLabel(createdAt: string, language: Language): string | nul
   const startOfDay = (date: Date) =>
     new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const days = Math.round((startOfDay(at) - startOfDay(new Date())) / 86_400_000);
-  // A stamp from the future says nothing a person can use, and today is what
-  // almost every line would say. Both leave the line bare.
-  if (days >= 0) return null;
+  // A stamp from the future says nothing a person can use.
+  if (days > 0) return null;
+  // Today says when (024): a launch marked a minute ago left the line bare, and "is it on yet?"
+  // is the question asked of today's runs.
+  if (days === 0) {
+    return new Intl.DateTimeFormat(localeOf(language), {
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(at);
+  }
   if (days >= -6) {
     return new Intl.RelativeTimeFormat(localeOf(language), { numeric: 'auto' }).format(days, 'day');
   }

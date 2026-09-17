@@ -1,6 +1,6 @@
 begin;
 
-select plan(282);
+select plan(284);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3703,6 +3703,28 @@ select is(
    where action = 'task.created'),
   'Launch GlucoSoft',
   'the history names a task by its title'
+);
+
+-- 024: an agent counts only the tasks still open on it.
+select public.attach_team_task_agent(
+  (select id from pg_temp.us7_same_root_team),
+  (select id from pg_temp.us24_history_task),
+  (select (payload->>'id')::uuid from pg_temp.us24_agent)
+);
+select is(
+  (private.team_agent_json((select (payload->>'id')::uuid from pg_temp.us24_agent))->>'task_count')::int,
+  1,
+  'an open task on an agent counts'
+);
+select public.update_team_task(
+  (select id from pg_temp.us7_same_root_team),
+  (select id from pg_temp.us24_history_task),
+  '{"status":"done"}'::jsonb
+);
+select is(
+  (private.team_agent_json((select (payload->>'id')::uuid from pg_temp.us24_agent))->>'task_count')::int,
+  0,
+  'a done task no longer counts on the agent'
 );
 
 select * from finish();

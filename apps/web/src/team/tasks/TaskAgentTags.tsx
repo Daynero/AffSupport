@@ -150,10 +150,13 @@ export function TaskAgentTagsEditor({
   tags,
   canEdit,
   client,
-  onTagsChange
+  onTagsChange,
+  onLaunched
 }: {
   teamId: string;
   taskId: string;
+  /** A launch was written from this task: the editor moves a to-do task into progress (024). */
+  onLaunched?: () => void;
   /** Prefills a run written onto an agent from this task. */
   taskTitle: string;
   tags: TeamTaskAgentTag[];
@@ -225,6 +228,7 @@ export function TaskAgentTagsEditor({
         );
       }
       if (chosen.length === 0) return;
+      onLaunched?.();
       push({
         tone: 'success',
         text:
