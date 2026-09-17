@@ -86,12 +86,18 @@ export function TaskAttachmentPicker({
   teamId,
   client = defaultClient,
   attachedMaterialIds,
-  onAdd
+  onAdd,
+  startTrail,
+  pathOf
 }: {
   teamId: string;
   client?: TaskAttachmentPickerClient;
   attachedMaterialIds: ReadonlySet<string>;
   onAdd: (materials: TaskAttachmentCandidate[]) => void;
+  /** The folder to open in — the one the task's files are already in (024). */
+  startTrail?: { id: string; name: string }[];
+  /** A found file's folder path, so same-named results say where each lives. */
+  pathOf?: (parentFolderId: string | null | undefined) => string;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -214,7 +220,11 @@ export function TaskAttachmentPicker({
         // the browser's dead drag plumbing, so advertising a drop target here
         // promised something nothing could deliver.
         className="team-task-attachment-add"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          // Where this task's files already are, not the root four folders up (024).
+          if (startTrail && startTrail.length > 0) setPath(startTrail);
+          setOpen(true);
+        }}
       >
         <span className="team-task-attachment-add-icon">
           <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
@@ -234,7 +244,6 @@ export function TaskAttachmentPicker({
           <div className="team-task-picker-dialog">
             <div className="team-task-picker-dialog-heading">
               <h2 id={pickerTitleId}>{t('teamTaskAttachmentPickerTitle')}</h2>
-              <small>{t('teamTaskAttachmentAddDraftHint')}</small>
             </div>
             {searchable && (
               <div className="team-task-picker-search">
@@ -348,7 +357,9 @@ export function TaskAttachmentPicker({
                               ? t('teamTaskAttachmentAlreadyAdded')
                               : isFolder
                                 ? t('teamTaskFolderOpen')
-                                : t(CATEGORY_LABEL[material.category ?? 'other'])}
+                                : found && pathOf
+                                  ? `${pathOf(material.parentFolderId)} · ${t(CATEGORY_LABEL[material.category ?? 'other'])}`
+                                  : t(CATEGORY_LABEL[material.category ?? 'other'])}
                           </small>
                         </span>
                         <span className="team-task-picker-check" aria-hidden="true">

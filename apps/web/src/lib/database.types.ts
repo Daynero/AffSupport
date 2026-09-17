@@ -2582,6 +2582,10 @@ export type Database = {
           state: string;
         }[];
       };
+      list_task_attachment_folders: {
+        Args: { p_task: string; p_team: string };
+        Returns: { material_id: string; parent_folder_id: string }[];
+      };
       get_team_landing_source_status: {
         Args: { p_team: string };
         Returns: {

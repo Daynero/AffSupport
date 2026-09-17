@@ -706,6 +706,46 @@ describe('Creative Library task workflows', () => {
     ]);
   });
 
+  it("says where each found file lives, and opens where the task's files are", async () => {
+    const api = client();
+    api.listMaterials = vi.fn().mockResolvedValue([]);
+    api.searchCatalog = vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: SECOND_ASSET_ID,
+          teamId: TEAM_ID,
+          parentFolderId: 'drive-glucosoft',
+          name: 'Gs2_2.mp4',
+          kind: 'file' as const,
+          category: 'video' as const,
+          previewState: 'ready'
+        }
+      ],
+      total: 1
+    });
+    render(
+      <TaskAttachmentPicker
+        teamId={TEAM_ID}
+        client={api}
+        attachedMaterialIds={new Set()}
+        onAdd={vi.fn()}
+        startTrail={[
+          { id: 'drive-creo', name: 'Creo' },
+          { id: 'drive-glucosoft', name: 'GlucoSoft' }
+        ]}
+        pathOf={parent => (parent === 'drive-glucosoft' ? 'Creo / GlucoSoft' : 'All files')}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
+    // Opens in the folder the task's files are in (024).
+    await waitFor(() => expect(api.listMaterials).toHaveBeenCalledWith(TEAM_ID, 'drive-glucosoft'));
+    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search the space by name' }), {
+      target: { value: 'Gs2_2' }
+    });
+    const found = await screen.findByRole('button', { name: /Gs2_2\.mp4/ });
+    expect(found.textContent).toContain('Creo / GlucoSoft');
+  });
+
   it('finds media by name across the space instead of walking folders', async () => {
     const api = client();
     api.listMaterials = vi.fn().mockResolvedValue([]);

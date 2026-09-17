@@ -2119,6 +2119,26 @@ export const teamApi = {
   // the interface could not render is refused here, not painted blank.
   // ---------------------------------------------------------------------
 
+  /** Where each file attached to a task lives: material id → parent folder's Drive id (024). */
+  async listTaskAttachmentFolders(
+    teamId: string,
+    taskId: string
+  ): Promise<Map<string, string | null>> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_task_attachment_folders', {
+        p_team: teamId,
+        p_task: taskId
+      })
+    );
+    throwRpc(error);
+    return new Map(
+      (data ?? []).map(row => [
+        row.material_id,
+        typeof row.parent_folder_id === 'string' ? row.parent_folder_id : null
+      ])
+    );
+  },
+
   async listFolderTree(teamId: string): Promise<TeamFolderNode[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_team_folder_tree', {

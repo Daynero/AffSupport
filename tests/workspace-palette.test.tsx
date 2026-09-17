@@ -209,3 +209,16 @@ describe('the shortcut sheet', () => {
     expect(matches(event({ key: 'k', metaKey: true, shiftKey: true }), 'mod+k')).toBe(false);
   });
 });
+
+describe('a folder path', () => {
+  it('names the folders top down, and the root by its label', async () => {
+    const { folderPathLabel, indexFolders } =
+      await import('../apps/web/src/team/explorer/folderPath');
+    const folders = indexFolders([
+      { driveFileId: 'a', parentFolderId: null, name: 'Creo' },
+      { driveFileId: 'b', parentFolderId: 'a', name: 'GlucoSoft' }
+    ]);
+    expect(folderPathLabel('b', folders, 'All files')).toBe('Creo / GlucoSoft');
+    expect(folderPathLabel(null, folders, 'All files')).toBe('All files');
+  });
+});

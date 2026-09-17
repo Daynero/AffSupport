@@ -18186,3 +18186,12 @@ input[type='number'] {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* The attached file's folder, when it tells same-named files apart (024). */
+.team-task-attachment-path {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

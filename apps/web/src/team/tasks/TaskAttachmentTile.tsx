@@ -96,7 +96,8 @@ export function TaskAttachmentTile({
   browseClient,
   companionsRevision = 0,
   restitching = false,
-  isDraft = false
+  isDraft = false,
+  folderPath = null
 }: {
   teamId: string;
   attachment: TeamTaskAttachmentSummary;
@@ -133,6 +134,8 @@ export function TaskAttachmentTile({
   browseClient?: FolderPickerClient;
   /** Bumped when something was made from this material, so its companions re-read. */
   companionsRevision?: number;
+  /** Where the file lives, top down (024): tells same-named files on one task apart. */
+  folderPath?: string | null;
   /** That delivery is this attachment's, and still running. */
   restitching?: boolean;
   /** New attachments remain local until the task itself is saved. */
@@ -471,6 +474,11 @@ export function TaskAttachmentTile({
                 ? t('teamTaskAttachmentFolder')
                 : t(CATEGORY_LABEL[attachment.category ?? 'other'])}
             </small>
+            {folderPath && (
+              <small className="team-task-attachment-path" title={folderPath}>
+                {folderPath}
+              </small>
+            )}
             {isDraft && (
               <small className="team-task-attachment-draft">
                 {t('teamTaskAttachmentAttaching')}

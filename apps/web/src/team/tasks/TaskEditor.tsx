@@ -11,6 +11,8 @@ import type {
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
+import { useAttachmentFolders, type AttachmentFoldersClient } from './useAttachmentFolders';
+import { folderPathLabel } from '../explorer/folderPath';
 import {
   Badge,
   Button,
@@ -489,6 +491,21 @@ export function TaskEditor({
   }, [load, unsettled, persistedAttachments]);
 
   const attachmentCount = persistedAttachments.length;
+  const attachmentFolders = useAttachmentFolders({
+    teamId,
+    taskId: task.id,
+    materialKey: persistedAttachments
+      .filter(item => !item.id.startsWith('draft:'))
+      .map(item => item.materialId)
+      .join(','),
+    rootLabel: t('teamExplorerRootLabel'),
+    client: client as AttachmentFoldersClient
+  });
+  /* Paths only where they tell files apart: on a task whose files all share one folder the
+     same line under every tile says nothing. */
+  const pathsDiffer =
+    new Set(persistedAttachments.map(item => attachmentFolders.pathOf(item.materialId))).size > 1 ||
+    new Set(persistedAttachments.map(item => item.name)).size < persistedAttachments.length;
 
   const loadMore = async () => {
     const cursor = persistedAttachments.at(-1)?.position;
@@ -1368,6 +1385,9 @@ export function TaskEditor({
                       }
                       browseClient={client}
                       companionsRevision={companionsRevision}
+                      folderPath={
+                        pathsDiffer ? attachmentFolders.pathOf(attachment.materialId) : null
+                      }
                       restitching={restitch.states[attachment.materialId]?.kind === 'running'}
                     />
                   ))}
@@ -1401,6 +1421,18 @@ export function TaskEditor({
                       teamId={teamId}
                       client={client}
                       attachedMaterialIds={visibleMaterialIds}
+                      startTrail={
+                        persistedAttachments[0]
+                          ? attachmentFolders.trailOf(persistedAttachments[0].materialId)
+                          : undefined
+                      }
+                      pathOf={parent =>
+                        folderPathLabel(
+                          parent,
+                          attachmentFolders.folders,
+                          t('teamExplorerRootLabel')
+                        )
+                      }
                       onAdd={addAttachments}
                     />
                   )}
