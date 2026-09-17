@@ -20,6 +20,7 @@ import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { EmptyState } from '../../components/ui/index';
 import { MaterialNoteBlock } from '../materials/MaterialNote';
+import { MaterialTasks } from '../materials/MaterialTasks';
 import { useTeam } from '../TeamContext';
 
 /**
@@ -150,6 +151,15 @@ export function PreviewPane({
           modifiedAt: row.modifiedAt
         }}
         companions={companions}
+        inTasks={
+          row.kind === 'folder' ? null : (
+            <MaterialTasks
+              teamId={teamId}
+              material={{ id: row.id, name: row.name }}
+              revision={revision}
+            />
+          )
+        }
         note={
           row.kind === 'folder' ? null : (
             <MaterialNoteBlock

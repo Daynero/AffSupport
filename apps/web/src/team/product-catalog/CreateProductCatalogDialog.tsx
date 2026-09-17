@@ -12,6 +12,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { useTeam } from '../TeamContext';
+import { productCatalogNameFor } from '../materials/tail';
 import {
   PRODUCT_COUNT_DEFAULT,
   SOURCE_LINK_MAX,
@@ -29,6 +30,8 @@ export interface CreateProductCatalogClient {
     replacesMaterialId: string | null;
     idempotencyKey: string;
   }) => Promise<ProductCatalogCreateResult>;
+  /** The number the next variation will take, so its name shows before it is made (024). */
+  nextProductCatalogVariant?: (teamId: string, videoMaterialId: string) => Promise<number>;
 }
 
 interface ShownCatalog {
@@ -99,6 +102,25 @@ export function CreateProductCatalogDialog({
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
   const [failure, setFailure] = useState<string | null>(null);
+  /*
+   * The name the sheet will have, up front (024): it is what the owner types on Meta, and the
+   * form used to show it only after the catalog existed. Re-creating keeps its number.
+   */
+  const [plannedVariant, setPlannedVariant] = useState<number | null>(replaces?.variant ?? null);
+  useEffect(() => {
+    if (replaces || !client.nextProductCatalogVariant) return;
+    let active = true;
+    void client
+      .nextProductCatalogVariant(teamId, video.id)
+      .then(value => {
+        if (active) setPlannedVariant(value);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [client, replaces, teamId, video.id]);
+  const plannedName = plannedVariant ? productCatalogNameFor(video.name, plannedVariant) : null;
 
   useEffect(() => {
     let active = true;
@@ -236,7 +258,24 @@ export function CreateProductCatalogDialog({
                 : 'productCatalogCreate'
           )}
         </h2>
-        <p className="product-catalog-dialog-name">{video.name}</p>
+        {plannedName ? (
+          <div className="product-catalog-dialog-name-row">
+            <p className="product-catalog-dialog-name" title={video.name}>
+              {plannedName}
+            </p>
+            <InventoryButton
+              type="button"
+              size="sm"
+              variant="secondary"
+              aria-label={t('productCatalogCopyNameOf', { name: plannedName })}
+              onClick={() => void copy(plannedName, 'productCatalogNameCopied')}
+            >
+              {t('productCatalogCopyName')}
+            </InventoryButton>
+          </div>
+        ) : (
+          <p className="product-catalog-dialog-name">{video.name}</p>
+        )}
 
         {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}
 
@@ -270,7 +309,11 @@ export function CreateProductCatalogDialog({
             onBlur={() => setTouched(current => ({ ...current, link: true }))}
           />
         </label>
-        {linkError && <p className="team-inline-error">{t('productCatalogLinkInvalid')}</p>}
+        {linkError ? (
+          <p className="team-inline-error">{t('productCatalogLinkInvalid')}</p>
+        ) : (
+          <p className="field-hint">{t('productCatalogSourceLinkHint')}</p>
+        )}
 
         <label htmlFor={countId}>
           <span>{t('productCatalogCountLabel')}</span>

@@ -39,6 +39,7 @@ export function MaterialDetail({
   preview,
   notes,
   note,
+  inTasks,
   companions,
   tag,
   actions,
@@ -52,6 +53,8 @@ export function MaterialDetail({
   notes?: ReactNode;
   /** The note a person left on the file (024), read and edited in place. */
   note?: ReactNode;
+  /** The tasks the file is on, and the way onto one more (024). */
+  inTasks?: ReactNode;
   companions?: MaterialCompanions;
   /** The colour tag, where the reader is allowed to set one. */
   tag?: {
@@ -141,6 +144,7 @@ export function MaterialDetail({
           )}
         </ul>
       )}
+      {inTasks}
       {actions}
     </div>
   );

@@ -123,6 +123,15 @@ function renderDialog(
 const confirm = () => screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement;
 
 describe('creating a catalog', () => {
+  it('shows the name the catalog will have, with a copy, before it is made (024)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderDialog(dialogClient({ nextProductCatalogVariant: vi.fn().mockResolvedValue(2) }));
+    expect(await screen.findByText('clip_v2_catalog')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy the name clip_v2_catalog' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('clip_v2_catalog'));
+  });
+
   it('opens with the count at 100 and confirm waiting for a link', async () => {
     renderDialog(dialogClient());
     expect((screen.getByLabelText('Products') as HTMLInputElement).value).toBe('100');

@@ -18291,3 +18291,59 @@ a.history-subject {
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
+
+/* The tasks a file is on, in its card (024). */
+.material-tasks {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-label);
+}
+.material-tasks-caption {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.material-tasks ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.material-tasks a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 28px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.material-tasks a:hover .material-tasks-title {
+  text-decoration: underline;
+}
+.material-tasks-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.material-tasks-status svg {
+  width: 16px;
+  height: 16px;
+}
+.material-tasks li.is-todo .material-tasks-status {
+  color: var(--color-text-muted);
+}
+.material-tasks li.is-in_progress .material-tasks-status {
+  color: var(--color-warning);
+}
+.material-tasks li.is-done .material-tasks-status {
+  color: var(--color-success);
+}
+.material-tasks-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.material-tasks-add {
+  justify-self: start;
+}

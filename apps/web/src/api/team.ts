@@ -2155,6 +2155,33 @@ export const teamApi = {
     );
   },
 
+  /** The variation number the next catalog of this video will take (024). */
+  async nextProductCatalogVariant(teamId: string, videoMaterialId: string): Promise<number> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('next_product_catalog_variant', {
+        p_team: teamId,
+        p_video: videoMaterialId
+      })
+    );
+    throwRpc(error);
+    if (typeof data !== 'number') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  /** The tasks a file is attached to, open ones first (024). */
+  async listMaterialTasks(
+    teamId: string,
+    materialId: string
+  ): Promise<Array<{ id: string; title: string; status: TeamTaskStatus }>> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_material_tasks', { p_team: teamId, p_material: materialId })
+    );
+    throwRpc(error);
+    return (data ?? [])
+      .filter(row => row.status === 'todo' || row.status === 'in_progress' || row.status === 'done')
+      .map(row => ({ id: row.id, title: row.title, status: row.status as TeamTaskStatus }));
+  },
+
   async listFolderTree(teamId: string): Promise<TeamFolderNode[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_team_folder_tree', {

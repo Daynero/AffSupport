@@ -2586,6 +2586,14 @@ export type Database = {
         Args: { p_task: string; p_team: string };
         Returns: { material_id: string; parent_folder_id: string }[];
       };
+      next_product_catalog_variant: {
+        Args: { p_team: string; p_video: string };
+        Returns: number;
+      };
+      list_material_tasks: {
+        Args: { p_material: string; p_team: string };
+        Returns: { id: string; status: string; title: string }[];
+      };
       get_team_landing_source_status: {
         Args: { p_team: string };
         Returns: {

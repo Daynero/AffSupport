@@ -16,6 +16,7 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260917160000_catalog_name_and_file_tasks.sql`: drop `public.next_product_catalog_variant(uuid, uuid)` and `public.list_material_tasks(uuid, uuid)`.
 0. `20260917150000_agent_counts_open_tasks.sql`: re-apply `private.team_agent_json` from `20260906220000`.
 0. `20260917140000_history_actor_id.sql`: drop `public.list_team_audit_events(uuid, integer, timestamptz)` and re-apply it with its grants from `20260917130000`.
 0. `20260917130000_history_records_work.sql`: drop triggers `team_tasks_audit_work`, `team_task_attachments_audit`, `team_task_agents_audit`, `team_agent_runs_audit` and functions `private.audit_team_task_work()`, `private.audit_team_task_links()`, `private.audit_team_agent_runs()`, `private.team_agent_label(uuid)`; re-apply `private.record_team_audit` from `20260823120000` and `public.list_team_audit_events` from `20260906140000`.
