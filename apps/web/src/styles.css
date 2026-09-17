@@ -28,7 +28,10 @@
      the rule can only be changed in one place. */
   --shell-width: max(1440px, 80vw);
   --shell-width-narrow: max(1120px, 80vw);
-  --shell-width-team: max(1240px, 80vw);
+  /* The workspace is a place to work in, not a page to read: on a wide screen it takes the
+     screen, leaving only a margin, rather than sitting as a column with the hexagons showing on
+     both sides (024). The pixel value still decides on a laptop. */
+  --shell-width-team: max(1240px, 94vw);
   /* Gutter that keeps a full-bleed header on the same axis as the shell below
      it: the header padding on narrow screens, the shell margin once the shell
      stops filling the viewport. */

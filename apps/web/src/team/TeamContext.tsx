@@ -9,7 +9,7 @@ import {
 } from 'react';
 import type { TeamPermissionFlag, TeamPermissions } from '@video-compressor/shared';
 import type { TeamContextSnapshot } from '../api/team';
-import { navigateTo } from '../lib/navigation';
+import { navigateTo, useBrowserRoute } from '../lib/navigation';
 import { buildTeamRoute, teamResolverRoute } from './routes';
 import { useTeamRealtime, type TeamRealtimeState } from './useTeamRealtime';
 
@@ -158,11 +158,19 @@ export function TeamProvider({
   }, [activeTeamId]);
   const acknowledgeMembershipLoss = useCallback(() => setMembershipLostTeamId(null), []);
 
+  /*
+   * A space is open only while it is on the screen (024).
+   *
+   * Pressing the logo shows the tools again, but the space went on living behind them: its
+   * realtime channel stayed subscribed and every change in it woke this tab. The space closes
+   * when the address leaves it; which space to reopen is remembered, and `/team` walks back in.
+   */
+  const insideSpace = useBrowserRoute().startsWith('/team');
   const realtimeState = useTeamRealtime({
-    teamId: activeTeam?.id ?? null,
+    teamId: insideSpace ? (activeTeam?.id ?? null) : null,
     onRefetch: handleRealtimeRefetch,
     onMembershipLost: handleMembershipLost,
-    enabled: realtime
+    enabled: realtime && insideSpace
   });
 
   const can = useCallback(
