@@ -1457,6 +1457,10 @@
 .ui-modal--drawer {
   align-self: stretch;
   justify-self: start;
+  /* A drawer is as tall as the screen, and a grid shares spare height between its rows: with a
+     short list the header drifted to the middle and every change of filter moved it again. The
+     rows keep their own height and the panel scrolls (024). */
+  align-content: start;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
   max-height: none;
   height: 100%;

@@ -35,6 +35,9 @@ import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
 import type { TeamMemberSummary } from '../../api/team';
 import type { TeamTaskLabel } from '@video-compressor/shared';
 
+/** Farther than this and the press was a drag — macOS uses about five pixels. */
+const PRESS_SLOP = 6;
+
 function isInteractiveTarget(target: EventTarget | null): boolean {
   return (
     target instanceof Element &&
@@ -166,8 +169,23 @@ export function TaskCard({
     return () => observer?.disconnect();
   }, [task.note, task.title, expanded]);
 
+  /*
+   * A press that travelled is not a press (024).
+   *
+   * The whole card opens the task, so selecting its title — press at the first letter, drag to
+   * the last — opened the task on release and took the selection with it. A pointer that moved
+   * more than a few pixels, or a release with text selected inside the card, is somebody reading
+   * rather than opening.
+   */
+  const pressedAt = useRef<{ x: number; y: number } | null>(null);
   const openFromClick = (event: MouseEvent<HTMLElement>) => {
-    if (!isInteractiveTarget(event.target)) onOpen();
+    const from = pressedAt.current;
+    pressedAt.current = null;
+    if (isInteractiveTarget(event.target)) return;
+    if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > PRESS_SLOP) return;
+    const selection = event.currentTarget.ownerDocument.defaultView?.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) return;
+    onOpen();
   };
   const openFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
     if (isInteractiveTarget(event.target)) return;
@@ -187,6 +205,9 @@ export function TaskCard({
       data-status={status}
       tabIndex={0}
       aria-label={t('teamTaskOpenCard', { name: task.title })}
+      onPointerDown={event => {
+        pressedAt.current = { x: event.clientX, y: event.clientY };
+      }}
       onClick={openFromClick}
       onKeyDown={openFromKeyboard}
     >

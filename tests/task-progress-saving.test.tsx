@@ -110,6 +110,46 @@ describe('a coalesced write', () => {
   });
 });
 
+describe('opening a card', () => {
+  function renderOpenable(onOpen: () => void) {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    render(
+      <ToastProvider>
+        <TeamProvider
+          realtime={false}
+          initialTeams={[
+            {
+              id: TEAM_ID,
+              name: 'Space',
+              role: 'editor',
+              permissions: DEFAULT_ROLE_PERMISSIONS.editor,
+              connectionState: 'connected'
+            }
+          ]}
+        >
+          <TaskCard task={task()} canEdit onOpen={onOpen} onUpdate={vi.fn() as never} />
+        </TeamProvider>
+      </ToastProvider>
+    );
+    return screen.getByRole('article');
+  }
+
+  it('opens on a press, and not on a press that was a drag across the title', () => {
+    // The owner (024): press at the first letter, drag to the last, and the task opened —
+    // taking the selection with it. A pointer that travelled was selecting, not opening.
+    const onOpen = vi.fn();
+    const card = renderOpenable(onOpen);
+
+    fireEvent.pointerDown(card, { clientX: 40, clientY: 80 });
+    fireEvent.click(card, { clientX: 220, clientY: 82 });
+    expect(onOpen).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(card, { clientX: 40, clientY: 80 });
+    fireEvent.click(card, { clientX: 42, clientY: 81 });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('the card', () => {
   function renderCard(onUpdate: (patch: unknown) => Promise<TeamTaskSummary>) {
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);

@@ -49,7 +49,7 @@ export type TeamSpaceClient = {
 export type TeamEntry =
   | { kind: 'checking' }
   | { kind: 'space'; teamId: string; section: TeamSection; query: TeamRouteQuery }
-  | { kind: 'no-access' }
+  | { kind: 'no-access'; taskLink: boolean }
   | { kind: 'lobby' }
   | { kind: 'redirect'; to: string };
 
@@ -97,7 +97,10 @@ export function resolveTeamEntry(input: {
     // Absent and denied are the same answer on purpose (001 FR-016): the
     // membership list is all this client can see, so it cannot leak the
     // difference even by accident.
-    return { kind: 'no-access' };
+    /* A link to one task says so (024): "this space is not available" is true but leaves the
+       reader wondering what they were sent. Naming the task leaks nothing the address did not
+       already carry. */
+    return { kind: 'no-access', taskLink: Boolean(route.query.taskId) };
   }
 
   if (!teamsLoaded) return { kind: 'checking' };
@@ -497,7 +500,7 @@ export function TeamSpace({
           /* This state is the screen, so its title is the screen's heading. */
           titleAs="h2"
           title={<span id="team-no-access">{t('teamSpaceNoAccessTitle')}</span>}
-          description={t('teamSpaceNoAccessBody')}
+          description={t(entry.taskLink ? 'teamSpaceNoAccessTask' : 'teamSpaceNoAccessBody')}
           action={
             <Button
               type="button"

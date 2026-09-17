@@ -1207,3 +1207,25 @@ button.team-task-label-chip:hover:not(:disabled),
 .team-peek-tile.is-done:hover {
   background: var(--color-surface-raised);
 }
+
+/* The status marks inside the card's menu: the board's own icons, at the size the menu's other
+   icons are, in the board's colours (024). */
+.team-task-menu-status {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+.team-task-menu-status svg {
+  width: 18px;
+  height: 18px;
+}
+.team-task-menu-status.is-todo {
+  color: var(--color-text-muted);
+}
+.team-task-menu-status.is-in_progress {
+  color: var(--color-warning);
+}
+.team-task-menu-status.is-done {
+  color: var(--color-success);
+}

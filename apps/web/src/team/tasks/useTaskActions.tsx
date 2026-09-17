@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { CircleDashed, CircleDot, CircleCheck, Tag, Trash2, UserRound } from 'lucide-react';
+import { Link2, Tag, Trash2, UserRound } from 'lucide-react';
 import {
   TEAM_TASK_STATUSES,
   type TeamTaskLabel,
@@ -10,7 +10,7 @@ import type { TeamMemberSummary } from '../../api/team';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import type { MenuEntry } from '../../components/ui/index';
-import { taskStatusLabel } from './TaskStatusControl';
+import { TaskStatusIcon, taskStatusLabel } from './TaskStatusControl';
 
 /**
  * What can be done to a task without opening it — one list, two surfaces (024).
@@ -28,13 +28,19 @@ import { taskStatusLabel } from './TaskStatusControl';
  * an array even when it holds one.
  */
 
-const STATUS_ICON: Record<TeamTaskStatus, typeof CircleDot> = {
-  todo: CircleDashed,
-  in_progress: CircleDot,
-  done: CircleCheck
-};
+/* The board's own marks, not a second set of circles (024): a menu that draws "in progress" as a
+   dotted ring while the card beside it draws a clock teaches two vocabularies for one thing. */
+function StatusMark({ status }: { status: TeamTaskStatus }) {
+  return (
+    <span className={`team-task-menu-status is-${status}`}>
+      <TaskStatusIcon status={status} />
+    </span>
+  );
+}
 
 export interface TaskActionHandlers {
+  /** Put a link to this one task on the clipboard (024). Absent for a set of them. */
+  copyLink?: () => void;
   /** Write a patch to every task in the set. */
   patch: (patch: { status?: TeamTaskStatus; assigneeId?: string | null }) => void;
   /** Hang one tag on every task in the set. */
@@ -64,11 +70,10 @@ export function useTaskActions({
 
     entries.push({ heading: t('teamTaskStatus') });
     for (const status of TEAM_TASK_STATUSES) {
-      const Icon = STATUS_ICON[status];
       entries.push({
         id: `status:${status}`,
         label: taskStatusLabel(status, t),
-        icon: <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+        icon: <StatusMark status={status} />,
         // A tick only where there is one answer to tick: across seven tasks
         // "done" is a thing to do, not a state the set is in.
         checked: single ? single.status === status : undefined,
@@ -107,6 +112,16 @@ export function useTaskActions({
           onSelect: () => handlers.tag?.(label)
         });
       }
+    }
+
+    if (single && handlers.copyLink) {
+      entries.push('separator');
+      entries.push({
+        id: 'copy-link',
+        label: t('teamTaskCopyLink'),
+        icon: <Link2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+        onSelect: () => handlers.copyLink?.()
+      });
     }
 
     if (handlers.remove) {

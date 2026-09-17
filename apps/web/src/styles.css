@@ -18231,11 +18231,25 @@ input[type='number'] {
    ============================================================ */
 .history {
   display: grid;
+  /* The panel is as tall as the screen, and a grid's auto rows share out whatever is left: two
+     events made two day-blocks half a screen tall each, and every change of filter re-dealt the
+     heights. The list starts at the top and keeps its rows the size of their contents (024). */
+  align-content: start;
   gap: var(--space-4);
   min-width: 0;
 }
 .history-close {
   margin-left: auto;
+}
+/* A filter, not a sixth area: it sits apart from the segmented control and shows a tick when it
+   is on, so "Only mine" reads as a switch rather than as another tab. */
+.history-mine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.history-mine[aria-pressed='true'] {
+  color: var(--color-accent-text);
 }
 .history-filters {
   display: flex;

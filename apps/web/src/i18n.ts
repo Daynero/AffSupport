@@ -1278,7 +1278,7 @@ const en = {
   teamAuditTitle: 'Space history',
   historyToday: 'Today',
   historyYesterday: 'Yesterday',
-  historyMine: 'Mine',
+  historyMine: 'Only mine',
   historyAreaLabel: 'What to show',
   historyAreaAll: 'Everything',
   historyAreaTasks: 'Tasks',
@@ -2171,6 +2171,8 @@ const en = {
   teamTaskSelectedCount: 'Selected: {count}',
   teamTaskClearSelection: 'Clear the selection ({count})',
   teamTaskSelectCard: 'Select “{name}”',
+  teamTaskCopyLink: 'Copy a link to the task',
+  teamTaskLinkCopied: 'Link copied. Whoever opens it lands on this task.',
   teamTaskDelete: 'Delete task',
   teamTaskDeleteConfirmTitle: 'Delete this task?',
   teamTaskDeleteConfirmBody:
@@ -2714,6 +2716,8 @@ const en = {
   teamSpaceNoAccessTitle: 'This space is not available',
   teamSpaceNoAccessBody:
     'It may have been removed, or you may not be a member of it. Ask whoever shared the link to invite you.',
+  teamSpaceNoAccessTask:
+    'The task from this link is in a space you are not in. Ask whoever shared it to add you.',
   teamSpaceNoAccessAction: 'Go to my spaces',
   teamErrorUnknown: 'Something went wrong. Try again in a moment.',
   teamErrorProcessFailed: 'This file could not be processed on this computer.',
@@ -4104,7 +4108,7 @@ const uk: Record<keyof typeof en, string> = {
   teamAuditTitle: 'Історія простору',
   historyToday: 'Сьогодні',
   historyYesterday: 'Учора',
-  historyMine: 'Мої',
+  historyMine: 'Лише мої',
   historyAreaLabel: 'Що показувати',
   historyAreaAll: 'Усе',
   historyAreaTasks: 'Завдання',
@@ -4991,6 +4995,8 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskSelectedCount: 'Обрано: {count}',
   teamTaskClearSelection: 'Зняти виділення ({count})',
   teamTaskSelectCard: 'Обрати «{name}»',
+  teamTaskCopyLink: 'Скопіювати посилання на завдання',
+  teamTaskLinkCopied: 'Посилання скопійовано. Хто відкриє — потрапить одразу на це завдання.',
   teamTaskDelete: 'Видалити завдання',
   teamTaskDeleteConfirmTitle: 'Видалити це завдання?',
   teamTaskDeleteConfirmBody:
@@ -5533,6 +5539,8 @@ const uk: Record<keyof typeof en, string> = {
   teamSpaceNoAccessTitle: 'Цей простір недоступний',
   teamSpaceNoAccessBody:
     'Можливо, його видалили або ви не є його учасником. Попросіть того, хто дав посилання, надіслати запрошення.',
+  teamSpaceNoAccessTask:
+    'Завдання з цього посилання лежить у просторі, до якого вас не додали. Попросіть того, хто надіслав посилання, додати вас.',
   teamSpaceNoAccessAction: 'До моїх просторів',
   teamErrorUnknown: 'Щось пішло не так. Спробуйте ще раз за мить.',
   teamErrorProcessFailed: 'Цей файл не вдалося обробити на цьому комп’ютері.',

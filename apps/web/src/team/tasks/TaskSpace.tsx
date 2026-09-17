@@ -21,6 +21,7 @@ import {
   ErrorState,
   SelectionBar
 } from '../../components/ui/index';
+import { buildTeamRoute } from '../routes';
 import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
@@ -364,6 +365,20 @@ export function TaskSpace({
           .attachTaskLabel({ teamId, taskId: task.id, labelId: label.id })
           .then(next => tasks.setTaskLabels(task.id, next))
           .catch((cause: unknown) => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }));
+      },
+      /* A link to this one task (024): a member who opens it lands on the task, and anyone else
+         lands on the space and is told they are not in it. */
+      copyLink: () => {
+        const href = buildTeamRoute({
+          spaceId: teamId,
+          section: 'tasks',
+          query: { taskId: task.id }
+        });
+        const link = `${window.location.origin}${href}`;
+        void navigator.clipboard
+          .writeText(link)
+          .then(() => push({ tone: 'success', text: t('teamTaskLinkCopied') }))
+          .catch(() => push({ tone: 'error', text: t('teamErrorUnknown') }));
       },
       // Asked the same way the bulk delete asks, for the same reason: a task
       // does not come back, so the question names what goes with it.

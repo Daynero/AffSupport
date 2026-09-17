@@ -28,4 +28,40 @@ describe('the new-space address', () => {
     });
     expect(entry.kind).toBe('lobby');
   });
+
+  it('marks a shared task link when the reader is not in that space (024)', () => {
+    // The screen must stay one answer for "gone" and for "not yours", but it may say what the
+    // link was for — the address already carried it.
+    const shared = resolveTeamEntry({
+      route: {
+        kind: 'space',
+        spaceId: 'space-9',
+        section: 'tasks',
+        query: { taskId: 'task-1' },
+        driveReturn: null
+      } as never,
+      teams: [ready],
+      teamsLoaded: true,
+      pendingInvitations: 0,
+      rememberedTeamId: null,
+      driveTarget: null
+    });
+    expect(shared).toEqual({ kind: 'no-access', taskLink: true });
+
+    const plain = resolveTeamEntry({
+      route: {
+        kind: 'space',
+        spaceId: 'space-9',
+        section: 'explorer',
+        query: {},
+        driveReturn: null
+      } as never,
+      teams: [ready],
+      teamsLoaded: true,
+      pendingInvitations: 0,
+      rememberedTeamId: null,
+      driveTarget: null
+    });
+    expect(plain).toEqual({ kind: 'no-access', taskLink: false });
+  });
 });

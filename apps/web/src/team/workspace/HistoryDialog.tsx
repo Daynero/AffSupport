@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Check,
   FileText,
   FolderSync,
   ListChecks,
@@ -251,10 +252,16 @@ export function HistoryDialog({
           />
           <Button
             type="button"
+            className="history-mine"
             variant={mine ? 'secondary' : 'ghost'}
             aria-pressed={mine}
             onClick={() => setMine(current => !current)}
           >
+            {mine ? (
+              <Check size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            ) : (
+              <UserRound size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            )}
             {t('historyMine')}
           </Button>
           <IconButton

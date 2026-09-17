@@ -76,7 +76,7 @@ describe('the space history', () => {
     await screen.findByText('Launch marked on v31-434');
     fireEvent.click(screen.getByRole('radio', { name: 'Launches' }));
     expect(screen.queryByText('IN 40.mp4')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Mine' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Only mine' }));
     expect(screen.queryByText('Launch marked on v31-434')).toBeNull();
     expect(auth).toBeTruthy();
   });
