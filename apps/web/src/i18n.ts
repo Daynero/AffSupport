@@ -2290,6 +2290,13 @@ const en = {
   teamStorageBodyWaiting:
     'Google Drive asked Soty to slow down. Indexing and previews continue on their own; nothing failed.',
   teamStorageBodyIndexing: 'Folders become openable as they are listed. You can keep working.',
+  teamStorageIndexingServerSide:
+    'The reading happens on our side and carries on with this tab closed.',
+  teamStorageIndexingElapsed:
+    'Going for {count} min. It happens on our side and carries on with this tab closed.',
+  teamStorageChipRenderPaused: 'Previews paused on this computer',
+  teamStorageBodyRenderPaused:
+    'Previews are paused on this computer. The files themselves are untouched, and another member’s computer can still make them.',
   teamStorageBodyPreparing: 'Thumbnails and landing previews are being prepared in the background.',
   teamStorageFixerOwner: 'Only the owner can fix this.',
   teamStorageFixerManager: 'Someone who manages the space can ask for a new scan.',
@@ -5114,6 +5121,12 @@ const uk: Record<keyof typeof en, string> = {
   teamStorageBodyWaiting:
     'Google Drive попросив Soty пригальмувати. Індексація і превʼю тривають самі; нічого не зламалося.',
   teamStorageBodyIndexing: 'Папки стають доступними в міру читання. Можна працювати далі.',
+  teamStorageIndexingServerSide: 'Читання йде на нашому боці й триває навіть із закритою вкладкою.',
+  teamStorageIndexingElapsed:
+    'Триває {count} хв. Читання йде на нашому боці й не спиняється, якщо закрити вкладку.',
+  teamStorageChipRenderPaused: 'Превʼю призупинено на цьому комп’ютері',
+  teamStorageBodyRenderPaused:
+    'Превʼю призупинено на цьому комп’ютері. Самі файли не змінюються, і комп’ютер іншого учасника може їх готувати далі.',
   teamStorageBodyPreparing: 'Мініатюри й превʼю лендінгів готуються у фоні.',
   teamStorageFixerOwner: 'Виправити це може лише власник.',
   teamStorageFixerManager: 'Той, хто керує простором, може запросити нове сканування.',

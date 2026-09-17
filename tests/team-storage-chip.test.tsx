@@ -58,6 +58,17 @@ describe('StorageChip', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('says where the indexing runs, so a spinner is not mistaken for a stuck one', async () => {
+    // The owner (024): "I pressed pause and it keeps animating — forever?"
+    show({ kind: 'indexing', indexedFolders: 185, totalFolders: null, files: 750 });
+    await userEvent.click(screen.getByRole('button', { name: /Indexing/ }));
+    expect(
+      await screen.findByText(
+        'The reading happens on our side and carries on with this tab closed.'
+      )
+    ).toBeTruthy();
+  });
+
   it('lets the owner reconnect from the detail and tells a member who can', async () => {
     const user = userEvent.setup();
     const startDriveOAuth = vi.fn(async () => ({

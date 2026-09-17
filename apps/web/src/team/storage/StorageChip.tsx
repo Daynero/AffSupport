@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { StorageHealth, TeamStorageAttentionReason } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
@@ -46,7 +46,13 @@ function ago(iso: string, t: ReturnType<typeof useI18n>['t']): string {
   return t('teamStorageHoursAgo', { count: Math.round(minutes / 60) });
 }
 
-export function chipCopy(health: StorageHealth, t: ReturnType<typeof useI18n>['t']): string {
+export function chipCopy(
+  health: StorageHealth,
+  t: ReturnType<typeof useI18n>['t'],
+  /* Previews held on this computer (024): the chip said "preparing previews" while the person
+     had just pressed pause, so the one control in the panel looked like it did nothing. */
+  renderPaused?: boolean
+): string {
   switch (health.kind) {
     case 'connected':
       return t('teamStorageChipConnected', { ago: ago(health.lastReconciledAt, t) });
@@ -62,6 +68,7 @@ export function chipCopy(health: StorageHealth, t: ReturnType<typeof useI18n>['t
             files: health.files
           });
     case 'preparing':
+      if (renderPaused) return t('teamStorageChipRenderPaused');
       return t('teamStorageChipPreparing', {
         ready: health.ready,
         total: health.ready + health.pending
@@ -111,6 +118,18 @@ export function StorageChip({
   const [busy, setBusy] = useState(false);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
   const titleId = useId();
+  /*
+   * How long the indexing has been going (024).
+   *
+   * The chip counted files and folders and nothing else, so a walk through a large Drive read as
+   * a spinner with no end — the owner asked, fairly, whether it would spin forever. The count of
+   * minutes is the one thing that says it is a job with a length.
+   */
+  const indexingSince = useRef<number | null>(null);
+  if (health?.kind === 'indexing') indexingSince.current ??= Date.now();
+  else indexingSince.current = null;
+  const indexingMinutes =
+    indexingSince.current === null ? 0 : Math.floor((Date.now() - indexingSince.current) / 60_000);
   if (!health) return null;
 
   /* The chip's colour is the state's role, so storage needing attention is the
@@ -186,11 +205,11 @@ export function StorageChip({
           tone={tone}
           busy={busyState}
           className="team-storage-chip"
-          label={chipCopy(health, t)}
+          label={chipCopy(health, t, render?.paused)}
           opensDialog
           onPress={() => setOpen(true)}
         >
-          {chipCopy(health, t)}
+          {chipCopy(health, t, render?.paused)}
         </WorkspaceChip>
       )}
       {open && (
@@ -201,11 +220,24 @@ export function StorageChip({
           closeLabel={t('teamClose')}
         >
           <h3 id={titleId}>{t('teamStorageDetailTitle')}</h3>
-          <p className="team-storage-detail-state">{chipCopy(health, t)}</p>
+          <p className="team-storage-detail-state">{chipCopy(health, t, render?.paused)}</p>
           {health.kind === 'attention' && <p>{t(ATTENTION_BODY[health.reason])}</p>}
           {health.kind === 'waiting_provider' && <p>{t('teamStorageBodyWaiting')}</p>}
-          {health.kind === 'indexing' && <p>{t('teamStorageBodyIndexing')}</p>}
-          {health.kind === 'preparing' && <p>{t('teamStorageBodyPreparing')}</p>}
+          {health.kind === 'indexing' && (
+            <>
+              <p>{t('teamStorageBodyIndexing')}</p>
+              {/* Where it runs and how long it has run: the panel's own buttons cannot stop it,
+                  and a reader owed that before they start looking for a way to. */}
+              <p className="team-storage-detail-note">
+                {indexingMinutes > 0
+                  ? t('teamStorageIndexingElapsed', { count: indexingMinutes })
+                  : t('teamStorageIndexingServerSide')}
+              </p>
+            </>
+          )}
+          {health.kind === 'preparing' && (
+            <p>{t(render?.paused ? 'teamStorageBodyRenderPaused' : 'teamStorageBodyPreparing')}</p>
+          )}
           {/* Not a failure — a boundary. Whoever is reading this cannot fix
               the storage, and saying so in red reads as something they did
               wrong (FR-004). */}
