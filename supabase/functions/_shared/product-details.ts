@@ -279,6 +279,27 @@ export function pictureFacts(fileName: string): PictureFacts {
   };
 }
 
+/**
+ * The same words, in the colour the picture actually is (024, US27).
+ *
+ * The pool is written before anyone knows which picture a row will get, so a hoodie name in navy
+ * can land on a photo of a black one. The pool is left as it is; this row's copy of the words is
+ * recoloured, which is the one change that removes the contradiction without inventing anything.
+ */
+export function recolour(text: string, from: string, to: string): string {
+  const pattern = new RegExp(from.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'giu');
+  return text.replace(pattern, match =>
+    match.charAt(0) === match.charAt(0).toUpperCase()
+      ? to.replace(/\b[a-z]/gu, letter => letter.toUpperCase())
+      : to
+  );
+}
+
+/** The colour a name says, or none. */
+export function colorOf(text: string): string | null {
+  return found(text, COLORS)?.toLowerCase() ?? null;
+}
+
 export interface DrawnProductDetails {
   salePrice: number;
   saleWindow: string;

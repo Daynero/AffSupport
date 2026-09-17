@@ -13712,7 +13712,12 @@ button.team-landing-tile:hover {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  /* A tile keeps its size; only how many fit changes (024, US28). With `1fr` the tiles grew to
+     fill whatever width was left, so opening the details pane — which takes a third of the row —
+     resized every tile on the page at once. A capped track re-flows instead of re-sizing, which
+     is what a file manager does. */
+  grid-template-columns: repeat(auto-fill, minmax(184px, 232px));
+  justify-content: start;
   gap: var(--space-3);
 }
 .team-explorer-tile {
@@ -13773,7 +13778,10 @@ button.team-landing-tile:hover {
    folder full of folders reads as a list of places rather than a wall of the
    same purple glyph (024, US14). */
 .team-explorer-tile.is-folder .team-explorer-tile-visual {
-  aspect-ratio: 5 / 2;
+  /* A height of its own rather than a share of the width: a wide tile turned the folder's strip
+     into a field of empty purple with a small glyph adrift in it. */
+  aspect-ratio: auto;
+  height: 84px;
 }
 /* …and it keeps its own height when a file beside it is taller. */
 .team-explorer-tile.is-folder {
@@ -15176,6 +15184,10 @@ button.team-landing-tile:hover {
 .team-explorer > .team-explorer-main {
   grid-column: 2;
   grid-row: 2;
+  /* Files are dropped here, and the zone was as tall as whatever the folder held: one file made
+     it a strip a few pixels deep, which is not a target anyone can hit (024, US28). */
+  align-self: stretch;
+  min-height: 24rem;
 }
 .team-explorer > .team-explorer-pane {
   grid-column: 3;
@@ -18009,6 +18021,7 @@ input[type='number'] {
   }
   .team-explorer-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    justify-content: stretch;
     gap: var(--space-2);
   }
   /* The board on a phone: typing a task gets the whole line, and the filters

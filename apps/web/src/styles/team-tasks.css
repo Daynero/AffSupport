@@ -72,6 +72,14 @@
 .team-task-card-select {
   opacity: 0.55;
 }
+/* The same box as a file's in the explorer (024): at the inventory's 18px it was the smallest
+   target on a card whose every other control is 28px or more, and ticking cards is how a batch
+   starts. */
+.team-task-card-select .ui-checkbox-mark {
+  width: 24px;
+  height: 24px;
+  border-width: 1.5px;
+}
 .team-task-card:hover .team-task-card-select,
 .team-task-card:focus-within .team-task-card-select,
 .team-task-card-select:has(input:checked) {

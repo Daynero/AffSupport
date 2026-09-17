@@ -1320,7 +1320,12 @@ function ExplorerBody({
           event.preventDefault();
           setDropping(true);
         }}
-        onDragLeave={() => setDropping(false)}
+        /* Only when the pointer actually leaves the zone: moving over a tile inside it fired
+           this and the outline blinked all the way across the folder. */
+        onDragLeave={event => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+          setDropping(false);
+        }}
         onDrop={event => {
           if (!event.dataTransfer.types.includes('Files')) return;
           event.preventDefault();

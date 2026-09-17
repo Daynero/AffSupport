@@ -11,7 +11,14 @@
  * keeps `PRODUCT_CATALOG_TEMPLATE` equal to its JSON form, header strings byte for byte.
  */
 
-import { contentId, drawProductDetails, inventedBrand, pictureFacts } from './product-details.ts';
+import {
+  colorOf,
+  contentId,
+  drawProductDetails,
+  inventedBrand,
+  pictureFacts,
+  recolour
+} from './product-details.ts';
 
 export const PRODUCT_COUNT_MIN = 1;
 export const PRODUCT_COUNT_MAX = 400;
@@ -147,8 +154,18 @@ export function planCatalogRows(input: {
     const facts = image?.name ? pictureFacts(image.name) : { garment: null, color: null };
     const text = takeMatchingText(spare, facts);
     const imageLink = image?.link || input.settings.imageLink;
-    const title = text?.title ?? input.settings.title;
-    const description = text?.description ?? input.settings.description;
+    /* The picture decides the colour: a name in navy over a photo of a black hoodie is the one
+       contradiction a reader sees without opening anything (024, US27). */
+    const said = text ? colorOf(text.title) : null;
+    const recoloured =
+      text && facts.color && said && said !== facts.color
+        ? {
+            title: recolour(text.title, said, facts.color),
+            description: recolour(text.description, said, facts.color)
+          }
+        : text;
+    const title = recoloured?.title ?? input.settings.title;
+    const description = recoloured?.description ?? input.settings.description;
     if (!title || !description || !imageLink) return null;
     const price = randomPrice(input.settings.priceMin, input.settings.priceMax, random);
     rows.push({
