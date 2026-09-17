@@ -1,6 +1,6 @@
 begin;
 
-select plan(291);
+select plan(295);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -3777,6 +3777,33 @@ select is(
      '{"priceMin":9,"priceMax":30}'::jsonb)).price_max,
   30,
   'a range alone is enough settings when the pools carry the rest'
+);
+
+-- 025: the same choice for the words as 024 gave the pictures, and the claim carries both.
+select is(
+  public.get_team_catalog_updater_refresh_texts((select id from pg_temp.us7_same_root_team)),
+  true,
+  'an update refreshes names, texts and prices unless a space says otherwise'
+);
+select is(
+  public.set_team_catalog_updater_refresh_texts((select id from pg_temp.us7_same_root_team), false),
+  false,
+  'a space can turn the refresh off'
+);
+select is(
+  public.get_team_catalog_updater_refresh_texts((select id from pg_temp.us7_same_root_team)),
+  false,
+  'and the choice is what the next read gives back'
+);
+select ok(
+  (select count(*) from pg_catalog.unnest(
+     array['refresh_images', 'refresh_texts', 'price_min', 'price_max']
+   ) as wanted(name)
+   join information_schema.parameters as parameter
+     on parameter.parameter_name = wanted.name
+    and parameter.specific_name like 'service_claim_catalog_updater_items%'
+    and parameter.parameter_mode = 'OUT') = 4,
+  'the worker claims both choices and the space price range in one read'
 );
 
 select * from finish();

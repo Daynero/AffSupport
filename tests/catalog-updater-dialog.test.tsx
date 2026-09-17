@@ -131,6 +131,28 @@ function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
 
 const box = (name: string) => screen.getByLabelText(`Select ${name} catalog`) as HTMLInputElement;
 
+describe('what an update refreshes (024, 025)', () => {
+  it('offers both choices, on by default, and saves the one that is changed', async () => {
+    const setCatalogUpdaterRefreshTexts = vi.fn().mockResolvedValue(false);
+    const api = client([row('1', 'polo.mp4')], stopped, {
+      getCatalogUpdaterRefreshImages: vi.fn().mockResolvedValue(true),
+      setCatalogUpdaterRefreshImages: vi.fn().mockResolvedValue(false),
+      getCatalogUpdaterRefreshTexts: vi.fn().mockResolvedValue(true),
+      setCatalogUpdaterRefreshTexts
+    });
+    renderDialog(api);
+    const texts = (await screen.findByLabelText(
+      'Refresh the names, texts and prices at every update'
+    )) as HTMLInputElement;
+    expect(texts.checked).toBe(true);
+    expect(
+      (screen.getByLabelText('Refresh the pictures at every update') as HTMLInputElement).checked
+    ).toBe(true);
+    await userEvent.click(texts);
+    await waitFor(() => expect(setCatalogUpdaterRefreshTexts).toHaveBeenCalledWith(TEAM_ID, false));
+  });
+});
+
 describe('the registry', () => {
   it('lists every catalog with its folder, its schedule and its state', async () => {
     renderDialog(

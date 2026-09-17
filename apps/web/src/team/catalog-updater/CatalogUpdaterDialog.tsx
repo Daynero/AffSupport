@@ -34,6 +34,8 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
   setCatalogUpdaterRestitch: (teamId: string, restitch: boolean) => Promise<CatalogUpdaterState>;
   getCatalogUpdaterRefreshImages?: (teamId: string) => Promise<boolean>;
   setCatalogUpdaterRefreshImages?: (teamId: string, refresh: boolean) => Promise<boolean>;
+  getCatalogUpdaterRefreshTexts?: (teamId: string) => Promise<boolean>;
+  setCatalogUpdaterRefreshTexts?: (teamId: string, refresh: boolean) => Promise<boolean>;
 }
 
 const defaultClient: CatalogUpdaterDialogClient = teamApi;
@@ -171,6 +173,37 @@ export function CatalogUpdaterDialog({
       setRefreshImages(await client.setCatalogUpdaterRefreshImages(teamId, next));
     } catch (error) {
       setRefreshImages(!next);
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    }
+  };
+
+  /**
+   * New names, texts and prices at every update (025), on unless turned off: pictures alone left
+   * the same hundred products under the same hundred names, at the same price, week after week.
+   */
+  const [refreshTexts, setRefreshTexts] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!client.getCatalogUpdaterRefreshTexts) return;
+    let active = true;
+    void client
+      .getCatalogUpdaterRefreshTexts(teamId)
+      .then(value => {
+        if (active) setRefreshTexts(value);
+      })
+      .catch(() => {
+        if (active) setRefreshTexts(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, teamId]);
+  const changeRefreshTexts = async (next: boolean) => {
+    if (!client.setCatalogUpdaterRefreshTexts) return;
+    setRefreshTexts(next);
+    try {
+      setRefreshTexts(await client.setCatalogUpdaterRefreshTexts(teamId, next));
+    } catch (error) {
+      setRefreshTexts(!next);
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     }
   };
@@ -418,6 +451,17 @@ export function CatalogUpdaterDialog({
               label={t('catalogUpdaterRefreshImages')}
             />
             <small>{t('catalogUpdaterRefreshImagesHint')}</small>
+          </div>
+        )}
+        {refreshTexts !== null && (
+          <div className="team-updater-restitch">
+            <Checkbox
+              checked={refreshTexts}
+              disabled={!mayRun}
+              onChange={event => void changeRefreshTexts(event.target.checked)}
+              label={t('catalogUpdaterRefreshTexts')}
+            />
+            <small>{t('catalogUpdaterRefreshTextsHint')}</small>
           </div>
         )}
         <div className="team-updater-restitch">

@@ -308,6 +308,20 @@ describe('making a catalog', () => {
     );
     for (const row of rows)
       (expect(row.price).toBeGreaterThanOrEqual(9), expect(row.price).toBeLessThanOrEqual(30));
+    // 025: what the name already says, the row says too — and one brand covers the catalog.
+    expect(rows[0]).toMatchObject({
+      material: 'linen',
+      gender: 'female',
+      googleCategory: 'Apparel & Accessories > Clothing > Dresses',
+      fbCategory: 'Clothing & Accessories > Clothing > Dresses',
+      tags: ['midi-dress', expect.any(String)]
+    });
+    expect(rows[2]).toMatchObject({
+      material: 'denim',
+      googleCategory: 'Apparel & Accessories > Clothing > Pants'
+    });
+    expect(new Set(rows.map(row => row.brand)).size).toBe(1);
+    for (const row of rows) expect(row.salePrice as number).toBeLessThan(row.price as number);
   });
 
   it('refuses when neither a pool nor the settings give a row its name', async () => {
@@ -368,12 +382,17 @@ describe('making a catalog', () => {
             price: 10,
             imageLink: 'https://img.example.test/a.png',
             rows: expect.arrayContaining([
-              {
+              expect.objectContaining({
                 title: 'Polo',
                 description: 'Knit',
                 price: 10,
-                imageLink: 'https://img.example.test/a.png'
-              }
+                imageLink: 'https://img.example.test/a.png',
+                // 025: the details the row was planned with travel with it, for every update after.
+                brand: expect.any(String),
+                color: expect.any(String),
+                size: expect.any(String),
+                salePrice: expect.any(Number)
+              })
             ])
           }),
           createdBy: ACTOR,

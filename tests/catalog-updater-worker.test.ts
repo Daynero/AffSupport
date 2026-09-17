@@ -54,9 +54,15 @@ function zipEntry(bytes: Uint8Array, name: string): Promise<string> {
   });
 }
 
-async function sheetIds(bytes: Uint8Array): Promise<number[]> {
+/** Column A, resolved through the workbook's shared strings: IDs are text since 025. */
+async function sheetIds(bytes: Uint8Array): Promise<string[]> {
   const sheet = await zipEntry(bytes, 'xl/worksheets/sheet1.xml');
-  return [...sheet.matchAll(/<c r="A(\d+)"><v>(\d+)<\/v><\/c>/gu)].map(match => Number(match[2]));
+  const strings = [
+    ...(await zipEntry(bytes, 'xl/sharedStrings.xml')).matchAll(/<si><t[^>]*>([^<]*)<\/t><\/si>/gu)
+  ].map(match => match[1]!);
+  return [...sheet.matchAll(/<c r="A(\d+)" t="s"><v>(\d+)<\/v><\/c>/gu)]
+    .filter(match => Number(match[1]) > 2)
+    .map(match => strings[Number(match[2])]!);
 }
 
 function setup(
@@ -112,8 +118,12 @@ describe('a tick', () => {
     const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
     expect(summary).toMatchObject({ rounds: 1, claimed: 2, updated: 2, failed: 0 });
     const byFile = Object.fromEntries(written.map(entry => [entry.fileId, entry.bytes]));
-    expect(await sheetIds(byFile['drive-a']!)).toEqual([501, 502, 503]);
-    expect(await sheetIds(byFile['drive-b']!)).toEqual([1504, 1505, 1506]);
+    const idsA = await sheetIds(byFile['drive-a']!);
+    const idsB = await sheetIds(byFile['drive-b']!);
+    // 025: minted per write, so no two sheets — and no two updates — share one.
+    expect(idsA).toHaveLength(3);
+    expect(new Set([...idsA, ...idsB]).size).toBe(6);
+    expect(idsA.every(id => /^[0-9A-Z]+-[0-9A-Z]{7}$/u.test(id))).toBe(true);
     expect(deps.complete).toHaveBeenCalledWith('a', 1, null);
     expect(deps.complete).toHaveBeenCalledWith('b', 3, null);
   });
@@ -289,6 +299,43 @@ describe('refreshing pictures (024)', () => {
     await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
     expect(deps.drawImages).not.toHaveBeenCalled();
     expect(await zipEntryAny(written[0]!.bytes)).toContain('img.example.test');
+  });
+});
+
+describe('refreshing names, texts and prices (025)', () => {
+  it('draws a fresh pair and a fresh price for every row, and re-reads the name', async () => {
+    const { deps, written } = setup({
+      batches: [[claimedRow('a', { refresh_texts: true, price_min: 40, price_max: 40 })]]
+    });
+    deps.drawTexts = vi.fn(async () => [
+      { title: 'Ludia Navy Twill Wide Leg Jeans', description: 'Holds its shape.' }
+    ]);
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.drawTexts).toHaveBeenCalledWith('team', 3);
+    const sheet = await zipEntryAny(written[0]!.bytes);
+    expect(sheet).toContain('Ludia Navy Twill Wide Leg Jeans');
+    expect(sheet).toContain('40,00 USD');
+    expect(sheet).not.toContain('Polo');
+    // The details follow the new name rather than the one the catalog was made with.
+    expect(sheet).toContain('navy');
+    expect(sheet).toContain('Apparel &amp; Accessories &gt; Clothing &gt; Pants');
+  });
+
+  it('keeps the price it had when the space keeps no range', async () => {
+    const { deps, written } = setup({ batches: [[claimedRow('a', { refresh_texts: true })]] });
+    deps.drawTexts = vi.fn(async () => [
+      { title: 'Nova Sage Jersey Hoodie', description: 'Soft.' }
+    ]);
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(await zipEntryAny(written[0]!.bytes)).toContain('10,00 USD');
+  });
+
+  it('keeps the words it had when the refresh is off', async () => {
+    const { deps, written } = setup({ batches: [[claimedRow('a', { refresh_texts: false })]] });
+    deps.drawTexts = vi.fn(async () => [{ title: 'Other', description: 'Other.' }]);
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.drawTexts).not.toHaveBeenCalled();
+    expect(await zipEntryAny(written[0]!.bytes)).toContain('Polo');
   });
 });
 

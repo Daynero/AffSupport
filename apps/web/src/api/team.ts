@@ -2125,6 +2125,25 @@ export const teamApi = {
     return data !== false;
   },
 
+  async getCatalogUpdaterRefreshTexts(teamId: string): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater_refresh_texts', { p_team: teamId })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
+  async setCatalogUpdaterRefreshTexts(teamId: string, refresh: boolean): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_catalog_updater_refresh_texts', {
+        p_team: teamId,
+        p_refresh: refresh
+      })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
   async createProductCatalog(input: {
     teamId: string;
     videoMaterialId: string;

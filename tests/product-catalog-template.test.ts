@@ -68,8 +68,21 @@ describe('the embedded template matches the owner’s example', () => {
       const expected = contract.columns[index]!.source;
       const actual = column.source;
       switch (expected.kind) {
-        case 'rowNumber':
-          expect(actual.kind).toBe('rowNumber');
+        case 'contentId':
+          expect(actual.kind).toBe('contentId');
+          break;
+        case 'blank':
+          expect(actual.kind).toBe('blank');
+          break;
+        case 'rowDetail':
+          expect(actual).toEqual({
+            kind: 'rowDetail',
+            detail: expected.detail,
+            fallback:
+              expected.fallback.cellType === 'number'
+                ? { t: 'number', v: expected.fallback.value }
+                : { t: 'string', v: expected.fallback.value }
+          });
           break;
         case 'dialogLink':
           expect(actual.kind).toBe('sourceLink');
@@ -107,9 +120,13 @@ describe('the rows of a catalog', () => {
     expect(rows.every(row => row.length === 31)).toBe(true);
   });
 
-  it('numbers the products from 1 and gives each its own video link', () => {
-    expect(cellAt(rows, 'A', 3)).toEqual({ t: 'number', v: 1 });
-    expect(cellAt(rows, 'A', 402)).toEqual({ t: 'number', v: 400 });
+  it('gives every product an ID of its own and a video link of its own', () => {
+    // 025: an ID is minted per write, never a row number — a re-created catalog would repeat those.
+    const ids = rows.slice(2).map(row => row[0]!);
+    expect(new Set(ids.map(cell => cell.v)).size).toBe(400);
+    expect(
+      ids.every(cell => cell.t === 'string' && /^[0-9A-Z]+-[0-9A-Z]{7}$/u.test(String(cell.v)))
+    ).toBe(true);
     expect(cellAt(rows, 'Z', 3)).toEqual({ t: 'string', v: `${videoLink}?v=001` });
     expect(cellAt(rows, 'Z', 12)).toEqual({ t: 'string', v: `${videoLink}?v=010` });
     expect(cellAt(rows, 'Z', 402)).toEqual({ t: 'string', v: `${videoLink}?v=400` });
@@ -122,20 +139,21 @@ describe('the rows of a catalog', () => {
       expect(cellAt(rows, 'B', row).v).toBe(settings.title);
       expect(cellAt(rows, 'C', row).v).toBe(settings.description);
       expect(cellAt(rows, 'F', row)).toEqual({ t: 'string', v: '10,00 USD' });
-      expect(cellAt(rows, 'M', row)).toEqual(cellAt(rows, 'F', row));
       expect(cellAt(rows, 'G', row).v).toBe(sourceLink);
       expect(cellAt(rows, 'H', row).v).toBe(settings.imageLink);
     }
   });
 
-  it('keeps the fixed values, with gtin as text and the quantity as a number', () => {
+  it('keeps Meta’s example values for a catalog planned without details, and blanks the rest', () => {
     expect(cellAt(rows, 'D', 3).v).toBe('in stock');
     expect(cellAt(rows, 'I', 3).v).toBe('Facebook');
     expect(cellAt(rows, 'L', 3)).toEqual({ t: 'number', v: 75 });
-    expect(cellAt(rows, 'N', 3).v).toBe('2020-04-30T09:30-08:00/2020-05-30T23:59-08:00');
     expect(cellAt(rows, 'O', 3).v).toBe('');
-    expect(cellAt(rows, 'AB', 3)).toEqual({ t: 'string', v: '8806088573892' });
     expect(cellAt(rows, 'AE', 3).v).toBe('Bodycon');
+    // 025: an expired sale, a shared barcode and a placeholder disclaimer say nothing true.
+    for (const column of ['M', 'N', 'X', 'Y', 'AB']) {
+      expect(cellAt(rows, column, 3)).toEqual({ t: 'string', v: '' });
+    }
   });
 });
 
@@ -209,13 +227,10 @@ describe('names and links', () => {
 });
 
 describe('the updater leaves 022 alone (023)', () => {
-  it('still numbers a fresh catalog from 1 once the updater module is loaded', async () => {
+  it('still writes distinct IDs for a fresh catalog once the updater module is loaded', async () => {
     await import('../supabase/functions/_shared/catalog-updater.js');
     const rows = buildProductCatalogRows({ settings, sourceLink, videoLink, count: 3 });
-    expect([3, 4, 5].map(row => cellAt(rows, 'A', row))).toEqual([
-      { t: 'number', v: 1 },
-      { t: 'number', v: 2 },
-      { t: 'number', v: 3 }
-    ]);
+    const ids = [3, 4, 5].map(row => cellAt(rows, 'A', row).v);
+    expect(new Set(ids).size).toBe(3);
   });
 });

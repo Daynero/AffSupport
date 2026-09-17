@@ -93,6 +93,20 @@ Deno.serve(async request => {
               : []
           );
         },
+        drawTexts: async (teamId, count) => {
+          const rows = await rpcValue(service, 'service_draw_product_catalog_texts', {
+            p_team: teamId,
+            p_count: count
+          });
+          return (Array.isArray(rows) ? rows : []).flatMap(row => {
+            const record = row && typeof row === 'object' ? (row as Record<string, unknown>) : null;
+            return record &&
+              typeof record.title === 'string' &&
+              typeof record.description === 'string'
+              ? [{ title: record.title, description: record.description }]
+              : [];
+          });
+        },
         openRounds: async () =>
           Number(await rpcValue(service, 'service_open_catalog_updater_rounds', {})) || 0,
         claim: async (limit, leaseSeconds) => {

@@ -6,9 +6,12 @@ import {
   PRODUCT_CATALOG_SHEET_NAME,
   SPREADSHEET_MIME_TYPE,
   driveImageLink,
+  randomPrice,
+  type ProductCatalogRowDetails,
   type ProductCatalogRowValues,
   type ProductCatalogSettingsValues
 } from '../_shared/product-catalog.ts';
+import { drawProductDetails, inventedBrand } from '../_shared/product-details.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { buildXlsx } from '../_shared/xlsx.ts';
 
@@ -50,6 +53,10 @@ export interface ClaimedCatalog {
   teamId?: string | null;
   /** Draw the rows' pictures afresh at this update (024, on unless turned off). */
   refreshImages?: boolean;
+  /** Draw fresh names, texts and prices at this update (025, on unless turned off). */
+  refreshTexts?: boolean;
+  /** The space's price range, for a row whose price is drawn again. */
+  priceRange?: { min: number; max: number } | null;
   driveFileId: string;
   resourceKey: string | null;
   credentialId: string;
@@ -72,6 +79,8 @@ export interface CatalogUpdaterDeps {
     teamId: string,
     count: number
   ): Promise<Array<{ driveFileId: string; resourceKey: string | null }>>;
+  /** Names and texts from the space's pool, the same way (025). */
+  drawTexts?(teamId: string, count: number): Promise<Array<{ title: string; description: string }>>;
   openRounds(): Promise<number>;
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
@@ -153,12 +162,21 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     ...(rows ? { rows } : {}),
     teamId: text(row.team_id),
     refreshImages: row.refresh_images !== false,
+    refreshTexts: row.refresh_texts !== false,
+    priceRange: priceRangeOf(row),
     driveFileId,
     resourceKey: text(row.resource_key),
     credentialId,
     currentVideoLink: text(row.current_video_link),
     spare: spareMaterialId && spareLink ? { materialId: spareMaterialId, link: spareLink } : null
   };
+}
+
+/** The space's price range as the claim carries it; none when the space keeps no settings row. */
+function priceRangeOf(row: Record<string, unknown>): { min: number; max: number } | null {
+  const min = wholeNumber(row.price_min);
+  const max = wholeNumber(row.price_max);
+  return min === null || max === null ? null : { min, max };
 }
 
 /** A snapshot's per-row values, when they are all there and whole; otherwise none. */
@@ -180,11 +198,48 @@ function parseSnapshotRows(value: unknown, count: number): ProductCatalogRowValu
       title: entry.title,
       description: entry.description,
       imageLink: entry.imageLink,
-      price: entry.price
+      price: entry.price,
+      ...snapshotDetails(entry)
     });
   }
   return rows;
 }
+
+/** The 025 details a catalog was planned with, as far as the snapshot carries them. */
+function snapshotDetails(entry: Record<string, unknown>): Partial<ProductCatalogRowDetails> {
+  const details: Record<string, unknown> = {};
+  for (const key of DETAIL_TEXT_KEYS) {
+    if (typeof entry[key] === 'string') details[key] = entry[key];
+  }
+  for (const key of DETAIL_NUMBER_KEYS) {
+    if (typeof entry[key] === 'number' && Number.isSafeInteger(entry[key])) {
+      details[key] = entry[key];
+    }
+  }
+  const tags = entry.tags;
+  if (Array.isArray(tags) && tags.length === 2 && tags.every(tag => typeof tag === 'string')) {
+    details.tags = [tags[0], tags[1]];
+  }
+  return details as Partial<ProductCatalogRowDetails>;
+}
+
+const DETAIL_TEXT_KEYS = [
+  'saleWindow',
+  'color',
+  'size',
+  'material',
+  'pattern',
+  'gender',
+  'style',
+  'googleCategory',
+  'fbCategory',
+  'brand',
+  'shippingWeight',
+  'shipping',
+  'videoTag',
+  'videoParam'
+] as const;
+const DETAIL_NUMBER_KEYS = ['salePrice', 'quantity'] as const;
 
 /**
  * Fresh pictures for the rows (024): drawn from the space's pool and shared by link. None when
@@ -209,11 +264,52 @@ async function refreshedRows(
     await ensureAnyoneReader(drive, image.driveFileId);
     shared.add(image.driveFileId);
   }
-  const base: ProductCatalogRowValues[] =
-    item.rows ?? Array.from({ length: item.productCount }, () => ({ ...item.settings }));
+  const base = rowsOf(item);
   return base.map((row, index) => {
     const image = drawn[index % drawn.length]!;
     return { ...row, imageLink: driveImageLink(image.driveFileId, image.resourceKey) };
+  });
+}
+
+const rowsOf = (item: ClaimedCatalog): ProductCatalogRowValues[] =>
+  item.rows ?? Array.from({ length: item.productCount }, () => ({ ...item.settings }));
+
+/**
+ * Fresh names, texts and prices for the rows (025).
+ *
+ * A catalog whose every row keeps its name and its price for weeks is the same catalog however
+ * often it is written. With the tick on, each row draws a new pair from the space's text pool and
+ * a new price from its range, and the details that follow a name — its colour, its fabric, its
+ * category — are worked out again from the new name. Off, or with nothing to draw, the rows keep
+ * what they had.
+ */
+async function refreshedTexts(
+  deps: CatalogUpdaterDeps,
+  item: ClaimedCatalog,
+  rows: ProductCatalogRowValues[] | undefined
+): Promise<ProductCatalogRowValues[] | undefined> {
+  if (!item.refreshTexts || !item.teamId || !deps.drawTexts) return rows;
+  let drawn: Array<{ title: string; description: string }>;
+  try {
+    drawn = await deps.drawTexts(item.teamId, item.productCount);
+  } catch {
+    return rows;
+  }
+  if (drawn.length === 0) return rows;
+  const base = rows ?? rowsOf(item);
+  const brand = base[0]?.brand ?? inventedBrand();
+  return base.map((row, index) => {
+    const text = drawn[index % drawn.length]!;
+    const price = item.priceRange
+      ? randomPrice(item.priceRange.min, item.priceRange.max)
+      : row.price;
+    return {
+      ...row,
+      title: text.title,
+      description: text.description,
+      price,
+      ...drawProductDetails({ title: text.title, price, brand })
+    };
   });
 }
 
@@ -239,7 +335,7 @@ async function updateOne(
   const nextCount = item.updateCount + 1;
   try {
     const drive = await deps.driveFor(item.credentialId);
-    const rows = await refreshedRows(deps, item, drive);
+    const rows = await refreshedTexts(deps, item, await refreshedRows(deps, item, drive));
     const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       rows: rebuildCatalogRows({
@@ -250,7 +346,6 @@ async function updateOne(
           productCount: item.productCount,
           rows
         },
-        updateCount: nextCount,
         videoLinkOverride: item.spare?.link ?? item.currentVideoLink
       })
     });
@@ -264,7 +359,7 @@ async function updateOne(
     if (await deps.complete(item.catalogId, nextCount, item.spare?.materialId ?? null)) {
       summary.updated += 1;
     } else {
-      // The sheet was written, but someone else holds the lease now; they will write the same IDs.
+      // The sheet was written, but someone else holds the lease now; their write wins.
       deps.log('[catalog-updater] lease lost after update', item.catalogId);
       summary.skipped += 1;
     }

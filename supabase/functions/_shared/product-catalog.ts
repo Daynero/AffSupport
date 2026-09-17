@@ -2,14 +2,16 @@
  * A video's product catalog sheet (feature 022) — everything about it that is not I/O.
  *
  * The owner's Meta catalog template, the four limits a person can hit, and the rows a sheet is
- * made of. No imports on purpose: this file is read by the Edge Function and by vitest, and the
- * web keeps its own copy of the limits (`apps/web/src/team/product-catalog/limits.ts`) because
+ * made of. Its only import is the per-row details beside it: this file is read by the Edge
+ * Function and by vitest, and the web keeps its own copy of the limits (`apps/web/src/team/product-catalog/limits.ts`) because
  * the one shared package cannot change without a desktop release. A parity test holds the two
  * together.
  *
  * The template itself is the contract in `specs/022-video-catalog-sheet/contracts/`; a test
  * keeps `PRODUCT_CATALOG_TEMPLATE` equal to its JSON form, header strings byte for byte.
  */
+
+import { contentId, drawProductDetails, inventedBrand } from './product-details.ts';
 
 export const PRODUCT_COUNT_MIN = 1;
 export const PRODUCT_COUNT_MAX = 400;
@@ -36,10 +38,44 @@ export interface ProductCatalogSettingsValues {
 }
 
 /**
+ * The rest of what one product says (025).
+ *
+ * Every row used to carry Meta's own example — royal blue, size M, cotton, "stripes", one barcode,
+ * a sale that ended in 2020 — under a hundred different names, which reads as one product typed a
+ * hundred times. These follow the name where the name decides them (a Navy Twill Jeans row is navy
+ * and twill) and are drawn where nothing decides them.
+ */
+export interface ProductCatalogRowDetails {
+  /** The discounted price, under the row's own price. */
+  salePrice: number;
+  /** When the sale runs, as Meta's `start/end`. */
+  saleWindow: string;
+  color: string;
+  size: string;
+  material: string;
+  pattern: string;
+  gender: string;
+  style: string;
+  googleCategory: string;
+  fbCategory: string;
+  /** The made-up label the whole catalog sells under. */
+  brand: string;
+  quantity: number;
+  shippingWeight: string;
+  shipping: string;
+  videoTag: string;
+  /** What distinguishes this row's video link, in place of 022's row number. */
+  videoParam: string;
+  tags: readonly [string, string];
+}
+
+/**
  * What one product row says (024): its own name, text, price and picture. A catalog made from the
  * space's pools gives every row different ones; a catalog from before pools repeats the settings.
+ * The 025 details come with a catalog planned from pools; a sheet from before them keeps Meta's
+ * example values, which is what `PRODUCT_CATALOG_TEMPLATE` falls back to.
  */
-export interface ProductCatalogRowValues {
+export interface ProductCatalogRowValues extends Partial<ProductCatalogRowDetails> {
   title: string;
   description: string;
   price: number;
@@ -72,11 +108,16 @@ export function randomPrice(min: number, max: number, random: () => number = Mat
 }
 
 /**
- * Every row's values, from the draws and the settings (024).
+ * Every row's values, from the draws and the settings (024, 025).
  *
  * A drawn text and a drawn picture go to a row each, in order; a pool that was empty leaves the
  * settings' single value in its place. Null when some row would have no name, text or picture at
  * all — the space is not ready to make a catalog.
+ *
+ * The rest of the row is made up around its name (025): the colour and the fabric the name
+ * already says, a category and a style that suit the garment, and a size, a pattern, a weight and
+ * a stock count drawn per row. One invented brand covers the whole catalog, the way a shop has
+ * one name.
  */
 export function planCatalogRows(input: {
   count: number;
@@ -84,7 +125,12 @@ export function planCatalogRows(input: {
   texts: ReadonlyArray<{ title: string; description: string }>;
   imageLinks: readonly string[];
   random?: () => number;
+  now?: number;
+  /** The catalog's own label; invented when none is given. */
+  brand?: string;
 }): ProductCatalogRowValues[] | null {
+  const random = input.random ?? Math.random;
+  const brand = input.brand ?? inventedBrand(random);
   const rows: ProductCatalogRowValues[] = [];
   for (let index = 0; index < input.count; index += 1) {
     const text = input.texts.length > 0 ? input.texts[index % input.texts.length] : null;
@@ -95,23 +141,30 @@ export function planCatalogRows(input: {
     const title = text?.title ?? input.settings.title;
     const description = text?.description ?? input.settings.description;
     if (!title || !description || !imageLink) return null;
+    const price = randomPrice(input.settings.priceMin, input.settings.priceMax, random);
     rows.push({
       title,
       description,
       imageLink,
-      price: randomPrice(input.settings.priceMin, input.settings.priceMax, input.random)
+      price,
+      ...drawProductDetails({ title, price, brand, random, now: input.now })
     });
   }
   return rows;
 }
 
 type ColumnSource =
-  | { kind: 'rowNumber' }
+  | { kind: 'contentId' }
   | { kind: 'setting'; setting: 'title' | 'description' | 'price' | 'imageLink' }
   | { kind: 'sourceLink' }
   | { kind: 'copyOf'; column: string }
   | { kind: 'videoLink' }
+  | { kind: 'rowDetail'; detail: RowDetailSource; fallback: Cell }
+  | { kind: 'blank' }
   | { kind: 'fixed'; cell: Cell };
+
+/** A column filled from the row's own details, with `tag0`/`tag1` for the two product tags. */
+type RowDetailSource = keyof ProductCatalogRowDetails | 'tag0' | 'tag1';
 
 export interface ProductCatalogColumn {
   column: string;
@@ -187,7 +240,7 @@ export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
     key: 'id',
     description:
       "# Обязательно | A unique content ID for the item. Use the item's SKU if you can. Each content ID must appear only once in your catalog. To run dynamic ads this ID must exactly match the content ID for the same item in your Meta Pixel code. Character limit: 100",
-    source: { kind: 'rowNumber' }
+    source: { kind: 'contentId' }
   },
   {
     column: 'B',
@@ -242,45 +295,50 @@ export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
     column: 'I',
     key: 'brand',
     description: '# Обязательно | Фирменное название товара. Не более 100 символов.',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'Facebook' } }
+    source: { kind: 'rowDetail', detail: 'brand', fallback: { t: 'string', v: 'Facebook' } }
   },
   {
     column: 'J',
     key: 'google_product_category',
     description:
       '# Необязательно | The Google product category for the item. Learn more about product categories: https://www.facebook.com/business/help/526764014610932.',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'Apparel & Accessories > Clothing' } }
+    source: {
+      kind: 'rowDetail',
+      detail: 'googleCategory',
+      fallback: { t: 'string', v: 'Apparel & Accessories > Clothing' }
+    }
   },
   {
     column: 'K',
     key: 'fb_product_category',
     description:
       '# Необязательно | The Facebook product category for the item. Learn more about product categories: https://www.facebook.com/business/help/526764014610932.',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'Clothing & Accessories > Clothing' } }
+    source: {
+      kind: 'rowDetail',
+      detail: 'fbCategory',
+      fallback: { t: 'string', v: 'Clothing & Accessories > Clothing' }
+    }
   },
   {
     column: 'L',
     key: 'quantity_to_sell_on_facebook',
     description:
       "# Необязательно | The quantity of this item you have to sell on Facebook and Instagram with checkout. Must be 1 or higher or the item won't be buyable",
-    source: { kind: 'fixed', cell: { t: 'number', v: 75 } }
+    source: { kind: 'rowDetail', detail: 'quantity', fallback: { t: 'number', v: 75 } }
   },
   {
     column: 'M',
     key: 'sale_price',
     description:
       "# Необязательно | The discounted price of the item if it's on sale. Format the price as a number followed by the 3-letter currency code (ISO 4217 standards). Use a period (.) as the decimal point; don't use a comma. A sale price is required if you want to use an overlay for discounted prices.",
-    source: { kind: 'copyOf', column: 'F' }
+    source: { kind: 'rowDetail', detail: 'salePrice', fallback: { t: 'string', v: '' } }
   },
   {
     column: 'N',
     key: 'sale_price_effective_date',
     description:
       "# Необязательно | The time range for your sale period. Includes the date and time/time zone when your sale starts and ends. If this field is blank any items with a sale_price remain on sale until you remove the sale price. Use this format: YYYY-MM-DDT23:59+00:00/YYYY-MM-DDT23:59+00:00. Enter the start date as YYYY-MM-DD. Enter a 'T'. Enter the start time in 24-hour format (00:00 to 23:59) followed by the UTC time zone (-12:00 to +14:00). Enter '/' and then repeat the same format for your end date and time. The example row below uses PST time zone (-08:00).",
-    source: {
-      kind: 'fixed',
-      cell: { t: 'string', v: '2020-04-30T09:30-08:00/2020-05-30T23:59-08:00' }
-    }
+    source: { kind: 'rowDetail', detail: 'saleWindow', fallback: { t: 'string', v: '' } }
   },
   {
     column: 'O',
@@ -294,21 +352,21 @@ export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
     key: 'gender',
     description:
       '# Необязательно | Пол человека; на которого рассчитан этот товар. | Поддерживаемые значения: female; male; unisex',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'unisex' } }
+    source: { kind: 'rowDetail', detail: 'gender', fallback: { t: 'string', v: 'unisex' } }
   },
   {
     column: 'Q',
     key: 'color',
     description:
       "# Необязательно | The color of the item. Use one or more words to describe the color. Don't use a hex code. Character limit: 200.",
-    source: { kind: 'fixed', cell: { t: 'string', v: 'royal blue' } }
+    source: { kind: 'rowDetail', detail: 'color', fallback: { t: 'string', v: 'royal blue' } }
   },
   {
     column: 'R',
     key: 'size',
     description:
       '# Необязательно | The size of the item written as a word or abbreviation or number. For example: small; XL; 12. Character limit: 200.',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'M' } }
+    source: { kind: 'rowDetail', detail: 'size', fallback: { t: 'string', v: 'M' } }
   },
   {
     column: 'S',
@@ -322,45 +380,46 @@ export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
     key: 'material',
     description:
       '# Необязательно | Материал; из которого изготовлен товар; например хлопок; деним или кожа. Лимит: 200\u00a0символов.',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'cotton' } }
+    source: { kind: 'rowDetail', detail: 'material', fallback: { t: 'string', v: 'cotton' } }
   },
   {
     column: 'U',
     key: 'pattern',
     description:
       '# Необязательно | The pattern or graphic print on the item. Character limit: 100.',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'stripes' } }
+    source: { kind: 'rowDetail', detail: 'pattern', fallback: { t: 'string', v: 'stripes' } }
   },
   {
     column: 'V',
     key: 'shipping',
     description:
       '# Необязательно | Информация о доставке товара в следующем формате: "Страна:Регион:Служба:Цена". В цене следует указать 3-буквенный код валюты по стандарту ISO 4217. Чтобы использовать в рекламе оверлей "Бесплатная доставка"; для цены доставки укажите значение "0.0". Данные о доставке в разные регионы или страны нужно отделять точкой с запятой (";") или запятой (";"). Только люди из определенного региона или страны увидят информацию о доставке в этот регион или страну. Если данные о доставке для всей страны одинаковы; регион можно не указывать (оставьте последовательность символов "::").',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'US:CA:Ground:9.99 USD;US:NY:Air:15.99 USD' } }
+    source: {
+      kind: 'rowDetail',
+      detail: 'shipping',
+      fallback: { t: 'string', v: 'US:CA:Ground:9.99 USD;US:NY:Air:15.99 USD' }
+    }
   },
   {
     column: 'W',
     key: 'shipping_weight',
     description:
       '# Необязательно | The shipping weight of the item. Include the unit of measurement (lb/oz/g/kg).',
-    source: { kind: 'fixed', cell: { t: 'string', v: '10 kg' } }
+    source: { kind: 'rowDetail', detail: 'shippingWeight', fallback: { t: 'string', v: '10 kg' } }
   },
   {
     column: 'X',
     key: 'offer_disclaimer',
     description:
       '# Необязательно | Legal disclaimer text for product offers. This text provides important legal or regulatory information that must be displayed with the product offer. For example: "Valid while supplies last. Terms and conditions apply."',
-    source: {
-      kind: 'fixed',
-      cell: { t: 'string', v: 'Valid while supplies last. Terms and conditions apply.' }
-    }
+    source: { kind: 'blank' }
   },
   {
     column: 'Y',
     key: 'offer_disclaimer_url',
     description:
       '# Необязательно | URL linking to the full disclaimer text. This provides a link to a page containing the complete disclaimer information for the product offer. For example: "https://example.com/terms-and-conditions"',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'https://example.com/terms-and-conditions' } }
+    source: { kind: 'blank' }
   },
   {
     column: 'Z',
@@ -374,42 +433,45 @@ export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
     key: 'video[0].tag[0]',
     description:
       '# Необязательно | URL видео о товаре. Добавьте ссылку на видеофайл в файловом хранилище; а не на видеопроигрыватель. Поддерживаемые форматы видео: .3g2; .3gp; .3gpp; .asf; .avi; .dat; .divx; .dv; .f4v; .flv; .gif; .m2ts; .m4v; .mkv; .mod; .mov; .mp4; .mpe; .mpeg; .mpeg4; .mpg; .mts; .nsv; .ogm; .ogv; .qt; .tod; .ts; .vob и .wmv.',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'Gym' } }
+    source: { kind: 'rowDetail', detail: 'videoTag', fallback: { t: 'string', v: 'Gym' } }
   },
   {
     column: 'AB',
     key: 'gtin',
     description:
       '# Необязательно | Международный торговый код товара (GTIN). Рекомендуется для классификации товара. Может отображаться на штрихкоде; упаковке или обложке книги. Указывайте GTIN только в том случае; если вы уверены в его правильности. К типам GTIN относятся UPC (12 цифр); EAN (13 цифр); JAN (8 или 13 цифр); ISBN (13 цифр) или ITF-14 (14 цифр)',
-    source: { kind: 'fixed', cell: { t: 'string', v: '8806088573892' } }
+    source: { kind: 'blank' }
   },
   {
     column: 'AC',
     key: 'product_tags[0]',
     description:
       '# Необязательно | Add labels to products to help filter them into product sets. Max characters: 110 per label; 5000 labels per product',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'some_string' } }
+    source: { kind: 'rowDetail', detail: 'tag0', fallback: { t: 'string', v: 'some_string' } }
   },
   {
     column: 'AD',
     key: 'product_tags[1]',
     description:
       '# Необязательно | Add labels to products to help filter them into product sets. Max characters: 110 per label; 5000 labels per product',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'other' } }
+    source: { kind: 'rowDetail', detail: 'tag1', fallback: { t: 'string', v: 'other' } }
   },
   {
     column: 'AE',
     key: 'style[0]',
     description: '# Необязательно | Опишите стиль этого товара.',
-    source: { kind: 'fixed', cell: { t: 'string', v: 'Bodycon' } }
+    source: { kind: 'rowDetail', detail: 'style', fallback: { t: 'string', v: 'Bodycon' } }
   }
 ];
 
 /**
  * The whole sheet as cells: the template's description row, its key row, then one row per
- * product. Every product carries the same values except its number and its video link, which
- * gets `?v=001`, `?v=002`… appended as the owner's example does — literally, even though the
- * link already has a `?` — so no two products share a video URL.
+ * product. A row planned from the space's pools carries its own name, text, price, picture and
+ * details (025); one without falls back to the settings and to Meta's example values.
+ *
+ * Content IDs are made here rather than taken from the rows, so every write of a sheet — the
+ * first one and every update after it — carries IDs no catalog has used before. The video link
+ * gets a distinct query appended per row, as 022's `?v=001` did.
  */
 export function buildProductCatalogRows(input: {
   settings: ProductCatalogSettingsValues;
@@ -418,15 +480,30 @@ export function buildProductCatalogRows(input: {
   count: number;
   /** Per-row values (024); a row without one repeats the settings. */
   rows?: readonly ProductCatalogRowValues[];
+  /** A fresh content ID; injectable so a test can hold it still. */
+  newId?: () => string;
 }): Cell[][] {
   const text = (v: string): Cell => ({ t: 'string', v });
   const rows: Cell[][] = [
     PRODUCT_CATALOG_TEMPLATE.map(column => text(column.description)),
     PRODUCT_CATALOG_TEMPLATE.map(column => text(column.key))
   ];
+  const newId = input.newId ?? (() => contentId());
   const settingCell = (setting: keyof ProductCatalogSettingsValues, index: number): Cell => {
     const values = input.rows?.[index - 1] ?? input.settings;
     return setting === 'price' ? text(formatPrice(values.price)) : text(values[setting]);
+  };
+  const detailCell = (detail: RowDetailSource, index: number, fallback: Cell): Cell => {
+    const values = input.rows?.[index - 1];
+    if (!values) return fallback;
+    if (detail === 'tag0' || detail === 'tag1') {
+      const tag = values.tags?.[detail === 'tag0' ? 0 : 1];
+      return tag === undefined ? fallback : text(tag);
+    }
+    const value = values[detail];
+    if (value === undefined) return fallback;
+    if (detail === 'salePrice') return text(formatPrice(value as number));
+    return typeof value === 'number' ? { t: 'number', v: value } : text(String(value));
   };
   for (let index = 1; index <= input.count; index += 1) {
     const byColumn = new Map<string, Cell>();
@@ -434,8 +511,8 @@ export function buildProductCatalogRows(input: {
       const source = column.source;
       let cell: Cell;
       switch (source.kind) {
-        case 'rowNumber':
-          cell = { t: 'number', v: index };
+        case 'contentId':
+          cell = text(newId());
           break;
         case 'setting':
           cell = settingCell(source.setting, index);
@@ -446,8 +523,16 @@ export function buildProductCatalogRows(input: {
         case 'copyOf':
           cell = byColumn.get(source.column) ?? text('');
           break;
-        case 'videoLink':
-          cell = text(`${input.videoLink}?v=${String(index).padStart(3, '0')}`);
+        case 'videoLink': {
+          const mark = input.rows?.[index - 1]?.videoParam ?? String(index).padStart(3, '0');
+          cell = text(`${input.videoLink}?v=${mark}`);
+          break;
+        }
+        case 'rowDetail':
+          cell = detailCell(source.detail, index, source.fallback);
+          break;
+        case 'blank':
+          cell = text('');
           break;
         case 'fixed':
           cell = source.cell;

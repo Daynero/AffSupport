@@ -8,7 +8,6 @@
  */
 
 import {
-  PRODUCT_CATALOG_HEADER_ROWS,
   PRODUCT_CATALOG_TEMPLATE,
   buildProductCatalogRows,
   type Cell,
@@ -38,20 +37,6 @@ export function updaterIntervalSeconds(interval: UpdaterInterval): number {
     : Number(interval.slice(0, -1)) * 3_600;
 }
 
-/**
- * How far every ID has moved after `updateCount` updates.
- *
- * The owner's rule: the first update adds 500, the second 501, the third 502 — the step itself
- * grows, so the sequence does not read as a fixed pattern. Summed, that is 500·k + k·(k−1)/2. Every
- * step is at least 500 and a sheet has at most 400 products, so no ID can come back.
- */
-export function idOffset(updateCount: number): number {
-  if (!Number.isSafeInteger(updateCount) || updateCount < 0) {
-    throw new RangeError('update count must be a non-negative integer');
-  }
-  return 500 * updateCount + (updateCount * (updateCount - 1)) / 2;
-}
-
 export interface CatalogRecord {
   settings: ProductCatalogSettingsValues;
   /** Each row's own values, for a catalog made from pools (024). */
@@ -61,35 +46,33 @@ export interface CatalogRecord {
   productCount: number;
 }
 
-const ID_COLUMN = PRODUCT_CATALOG_TEMPLATE.findIndex(column => column.source.kind === 'rowNumber');
+const ID_COLUMN = PRODUCT_CATALOG_TEMPLATE.findIndex(column => column.source.kind === 'contentId');
 const VIDEO_COLUMN = PRODUCT_CATALOG_TEMPLATE.findIndex(
   column => column.source.kind === 'videoLink'
 );
 
 /**
- * The sheet as it should read after `updateCount` updates.
+ * The sheet as it should read after this update.
  *
- * 022's rows untouched except column A (the ID) and, when `videoLinkOverride` is given, column Z —
- * the re-stitched copy's link, still made distinct per row with `?v=NNN` as 022 does.
+ * Everything the catalog holds, written again with content IDs made now (025): IDs used to be the
+ * row number plus a growing offset, which came back to 1 as soon as a catalog was re-created, and
+ * Meta remembered what it had rejected under those IDs. `buildProductCatalogRows` mints a fresh
+ * one per row on every write. When `videoLinkOverride` is given, every row points at the
+ * re-stitched copy instead, still distinct per row.
  */
 export function rebuildCatalogRows(input: {
   record: CatalogRecord;
-  updateCount: number;
   videoLinkOverride?: string | null;
+  newId?: () => string;
 }): Cell[][] {
-  const offset = idOffset(input.updateCount);
-  const rows = buildProductCatalogRows({
+  return buildProductCatalogRows({
     settings: input.record.settings,
     sourceLink: input.record.sourceLink,
     videoLink: input.videoLinkOverride ?? input.record.videoLink,
     count: input.record.productCount,
-    rows: input.record.rows
+    rows: input.record.rows,
+    newId: input.newId
   });
-  for (let index = PRODUCT_CATALOG_HEADER_ROWS; index < rows.length; index += 1) {
-    const productNumber = index - PRODUCT_CATALOG_HEADER_ROWS + 1;
-    rows[index]![ID_COLUMN] = { t: 'number', v: productNumber + offset };
-  }
-  return rows;
 }
 
 export const CATALOG_UPDATER_COLUMNS = { id: ID_COLUMN, video: VIDEO_COLUMN } as const;
