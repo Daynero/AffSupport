@@ -143,17 +143,11 @@ describe('what an update refreshes (024: US20, US21)', () => {
       setCatalogUpdaterRefreshTexts
     });
     renderDialog(api);
-    const texts = (await screen.findByLabelText(
-      'Refresh the names, texts and prices at every update'
-    )) as HTMLInputElement;
+    const texts = (await screen.findByLabelText('Names, texts and prices')) as HTMLInputElement;
     expect(texts.checked).toBe(true);
-    expect(
-      (screen.getByLabelText('Refresh the pictures at every update') as HTMLInputElement).checked
-    ).toBe(true);
+    expect((screen.getByLabelText('Pictures') as HTMLInputElement).checked).toBe(true);
     // 024 US22: growing the sheet is the one that starts off.
-    expect(
-      (screen.getByLabelText('Add 1–5 new products at every update') as HTMLInputElement).checked
-    ).toBe(false);
+    expect((screen.getByLabelText('1–5 new products') as HTMLInputElement).checked).toBe(false);
     await userEvent.click(texts);
     await waitFor(() => expect(setCatalogUpdaterRefreshTexts).toHaveBeenCalledWith(TEAM_ID, false));
   });
@@ -330,7 +324,7 @@ describe('a selection', () => {
     const api = client([row('1', 'polo.mp4')], stopped);
     renderDialog(api);
     await screen.findByText('polo.mp4 catalog');
-    fireEvent.click(screen.getByLabelText('Re-stitch videos'));
+    fireEvent.click(screen.getByLabelText('Re-stitched video'));
     await waitFor(() => expect(api.setCatalogUpdaterRestitch).toHaveBeenCalledWith(TEAM_ID, true));
   });
 });

@@ -1596,13 +1596,14 @@ const en = {
   productCatalogFallbackToggle: 'One name, description and picture link for every row',
   productCatalogFallbackHint:
     'Used only where a pool above is empty. All optional once the pools are filled.',
-  catalogUpdaterRefreshImages: 'Refresh the pictures at every update',
+  catalogUpdaterChangesTitle: 'What an update changes',
+  catalogUpdaterRefreshImages: 'Pictures',
   catalogUpdaterRefreshImagesHint:
     'Each update draws new pictures for the rows from the space’s pictures, none repeated until all have been used.',
-  catalogUpdaterRefreshTexts: 'Refresh the names, texts and prices at every update',
+  catalogUpdaterRefreshTexts: 'Names, texts and prices',
   catalogUpdaterRefreshTextsHint:
     'Each update draws a new name and text from the space’s pool and a new price from its range, so a catalog is never the same twice.',
-  catalogUpdaterGrow: 'Add 1–5 new products at every update',
+  catalogUpdaterGrow: '1–5 new products',
   catalogUpdaterGrowHint:
     'Each update adds a few products of its own — their own names, pictures and prices — up to the 400 a sheet can hold.',
   productCatalogSettingsReadOnly: 'Only a space manager can change these.',
@@ -1727,7 +1728,7 @@ const en = {
   catalogUpdaterIntervalHours: 'Hours between updates',
   catalogUpdaterHoursUnit: 'hours',
   catalogUpdaterIntervalInvalid: 'Enter whole hours from 1 to 720.',
-  catalogUpdaterRestitch: 'Re-stitch videos',
+  catalogUpdaterRestitch: 'Re-stitched video',
   catalogUpdaterRestitchHint:
     'Copies are prepared while Soty is open in a browser on a computer with the Soty app. With none open, updates change the IDs and keep the current video.',
   catalogUpdaterSparesReady: 'Copies ready: {ready} of {count}',
@@ -4408,13 +4409,14 @@ const uk: Record<keyof typeof en, string> = {
   productCatalogFallbackToggle: 'Одна назва, опис і посилання на картинку для всіх рядків',
   productCatalogFallbackHint:
     'Використовується лише там, де пул вище порожній. Коли пули заповнені, усе це необов’язкове.',
-  catalogUpdaterRefreshImages: 'Оновлювати картинки при кожному оновленні',
+  catalogUpdaterChangesTitle: 'Що змінює оновлення',
+  catalogUpdaterRefreshImages: 'Картинки',
   catalogUpdaterRefreshImagesHint:
     'Кожне оновлення бере для рядків нові картинки з картинок простору, без повторів, доки не використаються всі.',
-  catalogUpdaterRefreshTexts: 'Оновлювати назви, описи й ціни при кожному оновленні',
+  catalogUpdaterRefreshTexts: 'Назви, описи й ціни',
   catalogUpdaterRefreshTextsHint:
     'Кожне оновлення бере для рядків нову назву й опис із пулу простору та нову ціну з діапазону, тож каталог ніколи не повторюється.',
-  catalogUpdaterGrow: 'Додавати 1–5 нових товарів при кожному оновленні',
+  catalogUpdaterGrow: '1–5 нових товарів',
   catalogUpdaterGrowHint:
     'Кожне оновлення додає кілька нових товарів — зі своїми назвами, картинками й цінами — доки в таблиці не набереться 400.',
   productCatalogSettingsReadOnly: 'Змінювати це може лише керівник простору.',
@@ -4538,7 +4540,7 @@ const uk: Record<keyof typeof en, string> = {
   catalogUpdaterIntervalHours: 'Годин між оновленнями',
   catalogUpdaterHoursUnit: 'год',
   catalogUpdaterIntervalInvalid: 'Введіть цілу кількість годин від 1 до 720.',
-  catalogUpdaterRestitch: 'Перезашивати відео',
+  catalogUpdaterRestitch: 'Перезашите відео',
   catalogUpdaterRestitchHint:
     'Копії готуються, поки Soty відкритий у браузері на комп’ютері із застосунком Soty. Якщо ніде не відкрито, оновлення змінюють ID і лишають поточне відео.',
   catalogUpdaterSparesReady: 'Готових копій: {ready} з {count}',

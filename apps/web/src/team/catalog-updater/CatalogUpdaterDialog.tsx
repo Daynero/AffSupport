@@ -476,57 +476,62 @@ export function CatalogUpdaterDialog({
             {mayRun ? t('catalogUpdaterHowTo') : t('catalogUpdaterNoPermission')}
           </p>
         )}
-        {refreshImages !== null && (
-          <div className="team-updater-restitch">
-            <Checkbox
-              checked={refreshImages}
-              disabled={!mayRun}
-              onChange={event => void changeRefreshImages(event.target.checked)}
-              label={t('catalogUpdaterRefreshImages')}
-            />
-            <small>{t('catalogUpdaterRefreshImagesHint')}</small>
-          </div>
-        )}
-        {refreshTexts !== null && (
-          <div className="team-updater-restitch">
-            <Checkbox
-              checked={refreshTexts}
-              disabled={!mayRun}
-              onChange={event => void changeRefreshTexts(event.target.checked)}
-              label={t('catalogUpdaterRefreshTexts')}
-            />
-            <small>{t('catalogUpdaterRefreshTextsHint')}</small>
-          </div>
-        )}
-        {grow !== null && (
-          <div className="team-updater-restitch">
-            <Checkbox
-              checked={grow}
-              disabled={!mayRun}
-              onChange={event => void changeGrow(event.target.checked)}
-              label={t('catalogUpdaterGrow')}
-            />
-            <small>{t('catalogUpdaterGrowHint')}</small>
-          </div>
-        )}
-        <div className="team-updater-restitch">
-          <Checkbox
-            checked={updater.state?.restitch ?? false}
-            disabled={!mayRun || updater.state === null || busyIds.size > 0}
-            onChange={event => void setRestitch(event.target.checked)}
-            label={t('catalogUpdaterRestitch')}
-          />
-          <small>{t('catalogUpdaterRestitchHint')}</small>
-          {running && updater.state?.restitch && updater.state.spareReadyCount !== null && (
-            <small>
-              {t('catalogUpdaterSparesReady', {
-                ready: updater.state.spareReadyCount,
-                count: updater.state.catalogCount
-              })}
-            </small>
+        {/* What an update changes, as one group (024, US23): four ticks that each repeated "at
+            every update" in their own label, under a heading that says it once. */}
+        <fieldset className="team-updater-choices">
+          <legend>{t('catalogUpdaterChangesTitle')}</legend>
+          {refreshImages !== null && (
+            <div className="team-updater-restitch">
+              <Checkbox
+                checked={refreshImages}
+                disabled={!mayRun}
+                onChange={event => void changeRefreshImages(event.target.checked)}
+                label={t('catalogUpdaterRefreshImages')}
+              />
+              <small>{t('catalogUpdaterRefreshImagesHint')}</small>
+            </div>
           )}
-          {preparing && <small>{t('catalogUpdaterPreparingHere')}</small>}
-        </div>
+          {refreshTexts !== null && (
+            <div className="team-updater-restitch">
+              <Checkbox
+                checked={refreshTexts}
+                disabled={!mayRun}
+                onChange={event => void changeRefreshTexts(event.target.checked)}
+                label={t('catalogUpdaterRefreshTexts')}
+              />
+              <small>{t('catalogUpdaterRefreshTextsHint')}</small>
+            </div>
+          )}
+          {grow !== null && (
+            <div className="team-updater-restitch">
+              <Checkbox
+                checked={grow}
+                disabled={!mayRun}
+                onChange={event => void changeGrow(event.target.checked)}
+                label={t('catalogUpdaterGrow')}
+              />
+              <small>{t('catalogUpdaterGrowHint')}</small>
+            </div>
+          )}
+          <div className="team-updater-restitch">
+            <Checkbox
+              checked={updater.state?.restitch ?? false}
+              disabled={!mayRun || updater.state === null || busyIds.size > 0}
+              onChange={event => void setRestitch(event.target.checked)}
+              label={t('catalogUpdaterRestitch')}
+            />
+            <small>{t('catalogUpdaterRestitchHint')}</small>
+            {running && updater.state?.restitch && updater.state.spareReadyCount !== null && (
+              <small>
+                {t('catalogUpdaterSparesReady', {
+                  ready: updater.state.spareReadyCount,
+                  count: updater.state.catalogCount
+                })}
+              </small>
+            )}
+            {preparing && <small>{t('catalogUpdaterPreparingHere')}</small>}
+          </div>
+        </fieldset>
       </footer>
     </Modal>
   );

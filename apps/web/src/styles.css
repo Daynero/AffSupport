@@ -18533,3 +18533,19 @@ a.history-subject {
 .product-catalog-browser .product-catalog-texts {
   max-height: 24rem;
 }
+
+/* What an update changes (024, US23): four short ticks under one heading, each with its line. */
+.team-updater-choices {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+.team-updater-choices legend {
+  padding: 0;
+  color: var(--color-text);
+  font-size: var(--text-label);
+  font-weight: 650;
+}
