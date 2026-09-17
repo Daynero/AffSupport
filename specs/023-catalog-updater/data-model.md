@@ -15,7 +15,10 @@ Additive migrations only. Security as in 022 and constitution III: RLS enabled a
 | `last_updated_at`   | `timestamptz` | null until the first update                               |
 | `last_update_error` | `text`        | null or a `TeamErrorCode`; cleared by a successful update |
 
-IDs after `update_count = k`: `row + 500·k + k·(k−1)/2` (research R5).
+IDs after `update_count = k` were `row + 500·k + k·(k−1)/2` (research R5). **Superseded by
+024 US21**: every write of a sheet mints a content ID per row from the time it was written and a
+drawn tail, because the offset started from `1` again whenever a catalog was re-created and Meta
+remembered the rejections those IDs carried. `update_count` stays as the count of updates.
 
 ### `team_catalog_updaters` — one per space
 

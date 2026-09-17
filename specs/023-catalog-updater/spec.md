@@ -29,7 +29,8 @@
 A product catalog built by feature 022 is a feed that ad platforms read again and again. Keeping it
 looking fresh today would mean re-creating each catalog by hand — and re-creating changes the sheet
 link the platform is already pointed at. The owner wants the same sheets, at the same links, to
-renew themselves on a schedule: new product IDs every interval and, when wanted, a freshly
+renew themselves on a schedule: new product IDs every interval (minted per write since 024 US21,
+not the `+500` offset the brief suggested) and, when wanted, a freshly
 re-stitched video behind every product — with no pile of old video copies left behind.
 
 ## What already exists and constrains this feature
