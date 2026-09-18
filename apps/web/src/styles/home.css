@@ -94,14 +94,14 @@
   min-width: 0;
 }
 
+/* A label that can be read at a glance. At micro, uppercase and muted it was a whisper: the
+   grouping it announced did no work, and the eye went back to reading captions. */
 .home-section-title {
   margin: 0;
-  color: var(--color-neutral-text-muted);
-  font-size: var(--text-micro);
+  color: var(--color-neutral-text);
+  font-size: var(--text-caption);
   font-weight: var(--weight-label);
   line-height: var(--leading-caption);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .home-section-link {
@@ -120,24 +120,44 @@
 
 /* One column on a phone, two from a small tablet, three on a laptop. A row of
    spaces and a row of tools share the grid, so their edges agree. */
+/* The spaces row, which fills whatever width it is given: one space is a wide way in, three
+   share the row. A single tile stranded at a third of the page was the loudest thing on the
+   screen and looked like an afterthought. */
 .home-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* The tools: one column per errand, side by side, so nothing is left empty and a tool keeps its
+   place for ever — the thing that lets somebody stop reading and start pointing. */
+.home-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.home-stack {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 @media (min-width: 720px) {
-  .home-grid {
+  .home-tools {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-4);
   }
 }
 
 @media (min-width: 1100px) {
-  .home-grid {
+  .home-tools {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -215,11 +235,13 @@
   content: '';
 }
 
+/* Big enough to be the thing that is recognized. At 44 with a 26px glyph every tool was a small
+   outline in a rounded square, and telling six of them apart meant reading the name under it. */
 .home-tile-icon {
   display: grid;
   flex: none;
-  width: var(--icon-plate-row-width);
-  height: var(--icon-plate-row-width);
+  width: 52px;
+  height: 52px;
   place-items: center;
   border-radius: var(--radius-lg);
   color: var(--color-secondary-text);
@@ -227,11 +249,11 @@
 }
 
 .home-tile-icon svg {
-  width: 26px;
+  width: 32px;
   height: auto;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -253,13 +275,13 @@
 .home-tile-title {
   min-width: 0;
   margin: 0;
+  font-size: var(--text-body);
   /* The sheet's bare `h4` is an uppercase, spaced, muted eyebrow; a tile's name
      is the loudest words on it. */
   color: var(--color-neutral-text);
   letter-spacing: normal;
   text-transform: none;
-  font-size: var(--text-body);
-  font-weight: var(--weight-label);
+  font-weight: var(--weight-heading);
   line-height: var(--leading-heading);
   overflow-wrap: anywhere;
 }

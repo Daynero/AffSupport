@@ -52,10 +52,34 @@
  * - Spaces: the spaces themselves, remembered one first, each a link to its own
  *   address. Nobody's member yet — one tile that creates the first space; the
  *   empty state carries the action, not a sentence about where it lives.
- * - Tools in three rows named by the errand — video, landing pages, other. A
- *   tile is icon, name, one line of caption, and it is a link. The only thing a
- *   tile ever adds is the reason it will not open right now: «Потрібен локальний
- *   застосунок». Nothing is said while everything is fine.
+ * - Tools in three columns named by the errand — video, landing pages, other.
+ *   A tile is icon, name, one line of caption, and it is a link. The only thing
+ *   a tile ever adds is the reason it will not open right now: «Потрібен
+ *   локальний застосунок». Nothing is said while everything is fine.
+ *
+ * ## What the second pass changed (the owner, 024: "дрібно, і щоразу доводиться
+ * читати, куди тицьнути")
+ *
+ * - Three *rows* of a three-wide grid meant two of them ended in blank cells:
+ *   six tools read as a small cluster in a wide dark panel. One column per
+ *   group fills the width, and — the point — a tool never moves: the compressor
+ *   is the top of the first column on every visit, so the hand learns the page
+ *   and the eye stops reading it.
+ * - The icon was a 26px outline in a 44px plate, six of them the same violet:
+ *   nothing to recognize, so the name had to be read. It is 32px in 52px now,
+ *   which is what carries recognition; the name is bold above a quieter caption
+ *   rather than the same weight beside it.
+ * - The group label was 11px uppercase muted — a whisper announcing a grouping
+ *   that then did no work. It is caption-sized and in the text colour.
+ * - A single space sat at a third of the width with two empty cells beside it.
+ *   The spaces row now fills whatever it is given: one space is a wide way in,
+ *   three share the row.
+ * - And spaces are no longer offered to people who cannot have one. The
+ *   workspace opens in batches (`can_access_team_workspace`; `create_team`
+ *   answers a stranger with a refusal), so a new customer's first sight used to
+ *   be «Створіть перший простір» — above the tools that work — leading to a
+ *   waiting-list gate. Asked here: inside the gate it is the first row and an
+ *   offer, outside it is the last row and a fact.
  *
  * There is no primary button on this page, deliberately: a launcher has no
  * single action, and an honest zero reads calmer than a dishonest seven.
@@ -313,6 +337,32 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
     };
   }, []);
 
+  /*
+   * May this person have a space at all? Only asked when they are in none — being in one is the
+   * answer. Never blocking and never an error: the home screen renders for somebody with no team
+   * access whatsoever, and "not yet" is a perfectly good answer to draw (finding I1).
+   */
+  const [spacesOpen, setSpacesOpen] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (teamsLoading) return;
+    if (teams.length > 0) {
+      setSpacesOpen(true);
+      return;
+    }
+    let active = true;
+    void teamApi.canAccessTeamWorkspace().then(allowed => {
+      if (active) setSpacesOpen(allowed);
+    });
+    return () => {
+      active = false;
+    };
+  }, [teams.length, teamsLoading]);
+  /* Above the tools while it is somewhere to go, below them while it is only news. */
+  const spacesFirst = spacesOpen !== false;
+  /* Nothing at all until the answer is in: a create tile that turns into a waiting list a moment
+     later is worse than a row that arrives a moment late. */
+  const spacesKnown = teamsLoading || teams.length > 0 || spacesOpen !== null;
+
   /* Read once: the provider rewrites the stored id as spaces are entered, and
      a row that reshuffled itself while being looked at would be worse than one
      that is a visit out of date. */
@@ -355,6 +405,110 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
 
   const allSpacesHref = teamResolverRoute({ showAll: true });
   const createSpaceHref = teamResolverRoute({ create: true });
+
+  /*
+   * Spaces are the first thing here for somebody who has one, and the last for somebody who
+   * cannot have one yet (024). The workspace opens gradually — `can_access_team_workspace`
+   * decides — and the home screen used to lead with "create your first space" for everybody,
+   * which for a person outside the gate was a button that ended at a waiting list, above the
+   * tools that do work. Asked here, the answer decides both the words and the order.
+   */
+  const spacesSection = (
+    <section className="home-section home-section--spaces" aria-labelledby={spacesTitleId}>
+      <div className="home-section-head">
+        <h3 className="home-section-title" id={spacesTitleId}>
+          {t('teamWorkspace')}
+        </h3>
+        {(teams.length > 0 || pendingInvitations > 0) && (
+          <a
+            className="home-section-link"
+            href={allSpacesHref}
+            aria-label={
+              pendingInvitations > 0
+                ? t('teamWorkspaceWithInvitations', { count: pendingInvitations })
+                : undefined
+            }
+            onClick={event => {
+              if (!plainClick(event)) return;
+              event.preventDefault();
+              navigate(allSpacesHref);
+            }}
+          >
+            {pendingInvitations > 0 && (
+              <Badge color="info" variant="soft">
+                {t('teamInvitationBadge', { count: pendingInvitations })}
+              </Badge>
+            )}
+            {t('homeAllSpaces')}
+            <ArrowRight size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </a>
+        )}
+      </div>
+
+      {teamsLoading && teams.length === 0 ? (
+        <Skeleton shape="block" label={t('teamWorkspace')} className="home-spaces-loading" />
+      ) : spaces.length > 0 ? (
+        <ul className="home-grid">
+          {spaces.map(space => {
+            const readiness = spaceReadiness(space);
+            // Only a connected space has somewhere to go; the lobby is
+            // where an unfinished one is resumed or waited for.
+            const href =
+              readiness === 'ready' ? buildTeamRoute({ spaceId: space.id }) : allSpacesHref;
+            return (
+              <Tile
+                key={space.id}
+                href={href}
+                onFollow={() => navigate(href)}
+                icon={<TeamWorkspaceIcon />}
+                title={space.name}
+                caption={t(roleKey(space.role))}
+                note={
+                  readiness === 'setup_incomplete'
+                    ? t('teamSpaceCardContinueSetup')
+                    : readiness === 'preparing'
+                      ? t('teamSpaceCardPreparingHint')
+                      : undefined
+                }
+                badge={
+                  space.id === rememberedSpaceId && teams.length > 1 ? (
+                    <Badge color="secondary" variant="subtle" size="xs">
+                      {t('homeSpaceLast')}
+                    </Badge>
+                  ) : undefined
+                }
+                trailing={
+                  readiness === 'ready' ? (
+                    <>
+                      {t('teamSpaceCardEnter')}
+                      <ArrowRight size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} />
+                    </>
+                  ) : undefined
+                }
+              />
+            );
+          })}
+        </ul>
+      ) : (
+        <ul className="home-grid">
+          <Tile
+            href={spacesOpen ? createSpaceHref : allSpacesHref}
+            onFollow={() => navigate(spacesOpen ? createSpaceHref : allSpacesHref)}
+            icon={
+              spacesOpen ? (
+                <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+              ) : (
+                <TeamWorkspaceIcon />
+              )
+            }
+            title={t(spacesOpen ? 'teamSpaceEmptyAction' : 'homeSpacesClosed')}
+            caption={t(spacesOpen ? 'teamSpaceEmptyBody' : 'homeSpacesClosedBody')}
+            quiet={!spacesOpen}
+          />
+        </ul>
+      )}
+    </section>
+  );
 
   return (
     <>
@@ -406,146 +560,72 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
           </div>
         )}
 
-        <section className="home-section home-section--spaces" aria-labelledby={spacesTitleId}>
-          <div className="home-section-head">
-            <h3 className="home-section-title" id={spacesTitleId}>
-              {t('teamWorkspace')}
-            </h3>
-            {(teams.length > 0 || pendingInvitations > 0) && (
-              <a
-                className="home-section-link"
-                href={allSpacesHref}
-                aria-label={
-                  pendingInvitations > 0
-                    ? t('teamWorkspaceWithInvitations', { count: pendingInvitations })
-                    : undefined
-                }
-                onClick={event => {
-                  if (!plainClick(event)) return;
-                  event.preventDefault();
-                  navigate(allSpacesHref);
-                }}
-              >
-                {pendingInvitations > 0 && (
-                  <Badge color="info" variant="soft">
-                    {t('teamInvitationBadge', { count: pendingInvitations })}
-                  </Badge>
-                )}
-                {t('homeAllSpaces')}
-                <ArrowRight size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </a>
-            )}
-          </div>
+        {spacesKnown && spacesFirst && spacesSection}
 
-          {teamsLoading && teams.length === 0 ? (
-            <Skeleton shape="block" label={t('teamWorkspace')} className="home-spaces-loading" />
-          ) : spaces.length > 0 ? (
-            <ul className="home-grid">
-              {spaces.map(space => {
-                const readiness = spaceReadiness(space);
-                // Only a connected space has somewhere to go; the lobby is
-                // where an unfinished one is resumed or waited for.
-                const href =
-                  readiness === 'ready' ? buildTeamRoute({ spaceId: space.id }) : allSpacesHref;
-                return (
-                  <Tile
-                    key={space.id}
-                    href={href}
-                    onFollow={() => navigate(href)}
-                    icon={<TeamWorkspaceIcon />}
-                    title={space.name}
-                    caption={t(roleKey(space.role))}
-                    note={
-                      readiness === 'setup_incomplete'
-                        ? t('teamSpaceCardContinueSetup')
-                        : readiness === 'preparing'
-                          ? t('teamSpaceCardPreparingHint')
-                          : undefined
-                    }
-                    badge={
-                      space.id === rememberedSpaceId && teams.length > 1 ? (
-                        <Badge color="secondary" variant="subtle" size="xs">
-                          {t('homeSpaceLast')}
-                        </Badge>
-                      ) : undefined
-                    }
-                    trailing={
-                      readiness === 'ready' ? (
-                        <>
-                          {t('teamSpaceCardEnter')}
-                          <ArrowRight size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} />
-                        </>
-                      ) : undefined
-                    }
-                  />
-                );
-              })}
-            </ul>
-          ) : (
-            <ul className="home-grid">
-              <Tile
-                href={createSpaceHref}
-                onFollow={() => navigate(createSpaceHref)}
-                icon={<Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
-                title={t('teamSpaceEmptyAction')}
-                caption={t('teamSpaceEmptyBody')}
-              />
-            </ul>
-          )}
-        </section>
-
-        {catalogueByGroup().map(({ group, tools }) => (
-          <section className="home-section" key={group} aria-label={t(GROUP_LABEL[group])}>
-            <div className="home-section-head">
-              <h3 className="home-section-title">{t(GROUP_LABEL[group])}</h3>
-            </div>
-            <ul className="home-grid">
-              {tools.map(tool => {
-                const openable = tool.status !== 'coming-soon';
-                // Asked only of agent tools: a browser tool has no contract to
-                // be compatible with, and `toolAvailable` takes a `SotyToolId`.
-                // Nothing is said while the first check is still in flight —
-                // a note that appears and vanishes on every visit is noise.
-                const note = !openable
-                  ? undefined
-                  : tool.runtime !== 'agent' || connection === 'checking'
+        {/*
+         * One column per errand, side by side (024).
+         *
+         * Three rows of a three-wide grid left the right half of two of them empty, so six tools
+         * read as a small cluster in a large panel — and every visit began by reading captions,
+         * because a tool moved whenever the row above it changed length. A column per group fills
+         * the width, and every tool keeps the same place for ever: the compressor is the top of
+         * the first column, and after a week nobody reads to find it.
+         */}
+        <div className="home-tools">
+          {catalogueByGroup().map(({ group, tools }) => (
+            <section className="home-section" key={group} aria-label={t(GROUP_LABEL[group])}>
+              <div className="home-section-head">
+                <h3 className="home-section-title">{t(GROUP_LABEL[group])}</h3>
+              </div>
+              <ul className="home-stack">
+                {tools.map(tool => {
+                  const openable = tool.status !== 'coming-soon';
+                  // Asked only of agent tools: a browser tool has no contract to
+                  // be compatible with, and `toolAvailable` takes a `SotyToolId`.
+                  // Nothing is said while the first check is still in flight —
+                  // a note that appears and vanishes on every visit is noise.
+                  const note = !openable
                     ? undefined
-                    : !connected
-                      ? t('agentRequired')
-                      : toolAvailable(tool.id)
-                        ? undefined
-                        : t('agentUpdateRequired');
-                return (
-                  <Tile
-                    key={tool.id}
-                    href={openable ? tool.path : undefined}
-                    onFollow={() => openTool(tool)}
-                    icon={<tool.icon />}
-                    title={t(tool.labelKey)}
-                    caption={t(tool.captionKey)}
-                    note={note}
-                    quiet={!openable}
-                    badge={
-                      tool.status === 'coming-soon' ? (
-                        <Badge color="neutral" variant="subtle" size="xs">
-                          {t('comingSoon')}
-                        </Badge>
-                      ) : tool.status === 'in-development' ? (
-                        <Badge color="warning" variant="soft" size="xs">
-                          {t('inDevelopment')}
-                        </Badge>
-                      ) : tool.status === 'beta' ? (
-                        <Badge color="info" variant="soft" size="xs">
-                          {t('betaTesting')}
-                        </Badge>
-                      ) : undefined
-                    }
-                  />
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+                    : tool.runtime !== 'agent' || connection === 'checking'
+                      ? undefined
+                      : !connected
+                        ? t('agentRequired')
+                        : toolAvailable(tool.id)
+                          ? undefined
+                          : t('agentUpdateRequired');
+                  return (
+                    <Tile
+                      key={tool.id}
+                      href={openable ? tool.path : undefined}
+                      onFollow={() => openTool(tool)}
+                      icon={<tool.icon />}
+                      title={t(tool.labelKey)}
+                      caption={t(tool.captionKey)}
+                      note={note}
+                      quiet={!openable}
+                      badge={
+                        tool.status === 'coming-soon' ? (
+                          <Badge color="neutral" variant="subtle" size="xs">
+                            {t('comingSoon')}
+                          </Badge>
+                        ) : tool.status === 'in-development' ? (
+                          <Badge color="warning" variant="soft" size="xs">
+                            {t('inDevelopment')}
+                          </Badge>
+                        ) : tool.status === 'beta' ? (
+                          <Badge color="info" variant="soft" size="xs">
+                            {t('betaTesting')}
+                          </Badge>
+                        ) : undefined
+                      }
+                    />
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+        {spacesKnown && !spacesFirst && spacesSection}
       </main>
 
       {lockedTool?.featureFlag && (

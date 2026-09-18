@@ -50,6 +50,7 @@ import { catalogueTools, routeKind, toolByPath, webTools } from '../apps/web/src
 import { featureFlags } from '../apps/web/src/lib/feature-flags';
 import { translate } from '../apps/web/src/i18n';
 import { markAgentSeen } from '../apps/web/src/api/pairing-token';
+import { teamApi } from '../apps/web/src/api/team';
 
 /**
  * The home reads the reader's spaces from the provider every signed-in page
@@ -85,6 +86,10 @@ beforeEach(() => {
   agent.capabilities = ['landing'];
   agent.toolAvailable.mockClear();
   agent.toolAvailable.mockImplementation(() => true);
+  // The workspace opens gradually, and the home screen asks whether this reader is inside the
+  // gate. Inside, unless a test says otherwise; nothing here should reach the network.
+  vi.spyOn(teamApi, 'canAccessTeamWorkspace').mockResolvedValue(true);
+  vi.spyOn(teamApi, 'listMyInvitations').mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -170,8 +175,11 @@ describe('web tool registry', () => {
     expect(document.querySelectorAll('.ui-color-primary')).toHaveLength(0);
   });
 
-  it('draws one row per group, in reading order', () => {
+  it('draws one row per group, in reading order', async () => {
     renderHome();
+    // Spaces arrive with the answer to "may this reader have one", so the row order is read
+    // once that has landed.
+    await screen.findByText(translate('en', 'teamSpaceEmptyAction'));
     const headings = screen
       .getAllByRole('heading', { level: 3 })
       .map(heading => heading.textContent);
@@ -194,15 +202,32 @@ describe('web tool registry', () => {
     expect(screen.queryByRole('button', { name: translate('en', 'homeHowToStart') })).toBeNull();
   });
 
-  it('offers the first space to someone who has none, without requiring the local agent', () => {
+  it('offers the first space to someone who has none, without requiring the local agent', async () => {
     agent.connection = 'disconnected';
     const navigate = vi.fn();
     renderHome(navigate);
 
-    const create = screen.getByRole('link', { name: translate('en', 'teamSpaceEmptyAction') });
+    const create = await screen.findByRole('link', {
+      name: translate('en', 'teamSpaceEmptyAction')
+    });
     expect(create.getAttribute('href')).toBe('/team?new=1');
     fireEvent.click(create);
     expect(navigate).toHaveBeenCalledWith('/team?new=1');
+  });
+
+  it('tells somebody outside the gate, after the tools that do work (024)', async () => {
+    // The workspace opens in batches, and `create_team` answers a stranger with a refusal. The
+    // home screen used to lead with "create your first space" for everybody, so the first thing
+    // a new customer saw was a button that ends at a waiting list.
+    vi.mocked(teamApi.canAccessTeamWorkspace).mockResolvedValue(false);
+    renderHome();
+
+    expect(await screen.findByText(translate('en', 'homeSpacesClosed'))).toBeTruthy();
+    expect(
+      screen.queryByRole('link', { name: translate('en', 'teamSpaceEmptyAction') })
+    ).toBeNull();
+    const sections = [...document.querySelectorAll('.home-section, .home-tools')];
+    expect(sections.at(-1)?.classList.contains('home-section--spaces')).toBe(true);
   });
 
   it('lists the spaces themselves, the remembered one first, each at its own address', () => {

@@ -1646,6 +1646,23 @@ export const teamApi = {
     }
     return invitations.filter((item): item is TeamInvitationSummary => item !== null);
   },
+  /**
+   * Whether this person may have a space at all (024, US28).
+   *
+   * The workspace opens gradually: the database decides, and until it says yes there is nothing
+   * to create. The home screen asks so it can offer the truth — a way onto the list — instead of
+   * a "create your first space" button that ends at a gate. Never throws: a refusal, a missing
+   * session or a network failure all mean "not yet", because this only decides what to offer.
+   */
+  async canAccessTeamWorkspace(): Promise<boolean> {
+    try {
+      const { data, error } = await requireSupabaseClient().rpc('can_access_team_workspace');
+      return !error && data === true;
+    } catch {
+      return false;
+    }
+  },
+
   async listMyInvitations(): Promise<TeamInvitationSummary[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_my_invitations')
