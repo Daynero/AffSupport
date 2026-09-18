@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import type { TeamAccountSummary, TeamTaskLabel } from '@video-compressor/shared';
 import type { TeamMemberSummary } from '../../api/team';
@@ -84,6 +84,7 @@ export function TaskFilterBar({
   const { t } = useI18n();
   const filtersRoot = useRef<HTMLDivElement | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const headingId = useId();
 
   /**
    * What is on right now, as things you can take off.
@@ -158,14 +159,27 @@ export function TaskFilterBar({
           onStatusChange={onStatusChange}
         >
           <div ref={filtersRoot} className="task-filter-more">
+            {/* The chip says how many are on before the panel is opened: a
+                count in the chip, and the chip lit the way the date chip is
+                once it narrows the board. */}
             <button
               type="button"
               className={`task-quick-range${chips.length > 0 ? ' is-active' : ''}`}
               aria-expanded={filtersOpen}
+              aria-label={
+                chips.length > 0
+                  ? t('teamTasksMoreFiltersActive', { count: chips.length })
+                  : undefined
+              }
               onClick={() => setFiltersOpen(current => !current)}
             >
               <SlidersHorizontal size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
               <span>{t('teamTasksMoreFilters')}</span>
+              {chips.length > 0 && (
+                <span className="task-filter-more-count" aria-hidden="true">
+                  {chips.length}
+                </span>
+              )}
             </button>
             <Popover
               open={filtersOpen}
@@ -176,43 +190,70 @@ export function TaskFilterBar({
               label={t('teamTasksMoreFilters')}
               className="task-filter-more-popover"
             >
-              {/* Two kinds of thing, named apart the way Linear parts Filter from Display:
-                  what is shown, then in what order. As one unlabelled stack an
-                  account picker sat on top of a sort toggle and read as one control. */}
+              {/* Three kinds of thing, named apart the way Linear parts Filter
+                  from Display: what is shown, in what order, and how the cards
+                  are drawn. One column, every control the panel's full width,
+                  a hairline between the sections. */}
               {(accounts.length > 0 ||
                 scope.kind !== 'all' ||
                 members.length > 1 ||
                 assignee.kind !== 'all' ||
                 labels.length > 0 ||
                 labelIds.length > 0) && (
-                <span className="task-filter-more-caption">{t('teamTasksFilterGroup')}</span>
+                <div
+                  className="task-filter-section"
+                  role="group"
+                  aria-labelledby={`${headingId}-show`}
+                >
+                  <span id={`${headingId}-show`} className="task-filter-heading">
+                    {t('teamTasksFilterGroup')}
+                  </span>
+                  {(accounts.length > 0 || scope.kind !== 'all') && (
+                    <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
+                  )}
+                  {/* A space of one has nobody to filter by (024, FR-089); a filter
+                      already in force stays visible, so it can be taken off. */}
+                  {(members.length > 1 || assignee.kind !== 'all') && (
+                    <TaskAssigneeFilter
+                      members={members}
+                      value={assignee}
+                      onChange={onAssigneeChange}
+                    />
+                  )}
+                  {(labels.length > 0 || labelIds.length > 0) && (
+                    <TaskLabelFilter
+                      labels={labels}
+                      selectedIds={labelIds}
+                      onChange={onLabelIdsChange}
+                    />
+                  )}
+                </div>
               )}
-              {(accounts.length > 0 || scope.kind !== 'all') && (
-                <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
-              )}
-              {/* A space of one has nobody to filter by (024, FR-089); a filter
-                  already in force stays visible, so it can be taken off. */}
-              {(members.length > 1 || assignee.kind !== 'all') && (
-                <TaskAssigneeFilter
-                  members={members}
-                  value={assignee}
-                  onChange={onAssigneeChange}
+              <div
+                className="task-filter-section"
+                role="group"
+                aria-labelledby={`${headingId}-sort`}
+              >
+                <span id={`${headingId}-sort`} className="task-filter-heading">
+                  {t('teamTasksSortGroup')}
+                </span>
+                <TaskSortControl
+                  value={sort}
+                  onChange={onSortChange}
+                  hasLabels={labels.length > 0}
                 />
-              )}
-              {(labels.length > 0 || labelIds.length > 0) && (
-                <TaskLabelFilter
-                  labels={labels}
-                  selectedIds={labelIds}
-                  onChange={onLabelIdsChange}
-                />
-              )}
-              <span className="task-filter-more-caption">{t('teamTasksSortGroup')}</span>
-              <TaskSortControl value={sort} onChange={onSortChange} hasLabels={labels.length > 0} />
+              </div>
               {display && (
-                <>
-                  <span className="task-filter-more-caption">{t('teamTasksDisplayGroup')}</span>
+                <div
+                  className="task-filter-section"
+                  role="group"
+                  aria-labelledby={`${headingId}-view`}
+                >
+                  <span id={`${headingId}-view`} className="task-filter-heading">
+                    {t('teamTasksDisplayGroup')}
+                  </span>
                   <div className="task-filter-display">{display}</div>
-                </>
+                </div>
               )}
             </Popover>
           </div>

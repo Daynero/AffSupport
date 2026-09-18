@@ -474,7 +474,8 @@ describe('the board', () => {
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
     await openMoreFilters(user);
-    await user.click(await screen.findByRole('button', { name: 'By tag' }));
+    // The order is a segmented control (024): one radio per option.
+    await user.click(await screen.findByRole('radio', { name: 'By tag' }));
     await waitFor(() =>
       expect(api.listTasks).toHaveBeenCalledWith(expect.objectContaining({ sort: 'label' }))
     );

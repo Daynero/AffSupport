@@ -1013,13 +1013,21 @@
   background: var(--color-neutral-text-muted);
   box-shadow: var(--shadow-sm);
   transition: transform var(--motion-fast) var(--ease-out-curve);
+  /* The travel is this sheet's `translateX`, and only that (024). The library moves its thumb
+     with a margin of its own when selected; the two added up, and an "on" thumb rode 8px past
+     the end of its track and was cut off by it. */
+  margin-inline-start: 2px;
 }
 .ui-switch[data-selected='true'] .ui-switch-track {
   background: var(--color-secondary-solid);
 }
 .ui-switch[data-selected='true'] .ui-switch-thumb {
+  margin-inline-start: 2px;
   transform: translateX(16px);
-  background: var(--color-neutral-surface);
+  /* The colour that belongs on the violet (024): the surface colour is near-black in the dark
+     theme, so an "on" switch showed a dark disc at the end of its track and read as a switch
+     with a bite taken out of it. */
+  background: var(--color-white);
 }
 .ui-switch[data-selected='true'] .ui-switch-track {
   box-shadow: none;
@@ -1064,6 +1072,11 @@
   background: var(--color-neutral-surface);
   color: var(--color-neutral-text);
   box-shadow: var(--shadow-sm);
+}
+/* One option out of reach while the rest stay live; its `title` says why. */
+.ui-segmented button[data-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 /* Picto group — docs/DESIGN.md, to the pixel. */
@@ -2384,7 +2397,11 @@
 .ui-calendar {
   display: grid;
   gap: var(--space-2);
-  width: fit-content;
+  /* Not `fit-content` (024): the library makes the calendar an inline-size container, and a
+     container has no intrinsic width — "as wide as its content" came out as zero, the month
+     stacked one letter to a line and the days piled on top of each other. It takes the width it
+     is given, up to the library's own cap. */
+  width: 100%;
 }
 .ui-calendar-header {
   display: flex;
@@ -2418,7 +2435,13 @@
   color: var(--color-neutral-text);
 }
 .ui-calendar-grid {
-  border-collapse: collapse;
+  /* Cells touch side to side, so a range is one band rather than a row of tiles; a hairline of
+     air between the weeks keeps two bands from fusing into a block. */
+  border-collapse: separate;
+  border-spacing: 0 var(--space-px);
+}
+.ui-calendar-grid td {
+  padding: 0;
 }
 .ui-calendar-weekday {
   padding-bottom: var(--space-1);
@@ -2427,41 +2450,85 @@
   font-weight: var(--weight-label);
   text-transform: uppercase;
 }
+/*
+ * A day is two boxes (024): the cell, which carries the band of a range, and the disc inside it,
+ * which carries the day itself. They were styled as one, so a range came out as a row of violet
+ * rounded rectangles with the library's orange circles sitting inside the first and the last —
+ * two shapes and two colours for one selection. The cell is now only ever the band, the disc only
+ * ever the circle.
+ *
+ * Nothing here animates: a range is drawn under a moving pointer, and a 100 ms fade on forty
+ * cells read as lag — the highlight arriving behind the hand.
+ */
 .ui-calendar-day {
-  width: 34px;
+  display: grid;
+  place-items: center;
+  width: 36px;
   height: 34px;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
+  background: none;
   color: var(--color-neutral-text);
   font-size: var(--text-caption);
   text-align: center;
-  vertical-align: middle;
   cursor: pointer;
   outline: none;
+  transition: none;
+}
+.ui-calendar-day .range-calendar__cell-button,
+.ui-calendar-day .calendar__cell-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: none;
+  color: inherit;
+  box-shadow: none;
+  transition: none;
+}
+.ui-calendar-day::before,
+.ui-calendar-day::after,
+.ui-calendar-day .range-calendar__cell-button::before,
+.ui-calendar-day .range-calendar__cell-button::after {
+  content: none;
 }
 .ui-calendar-day[data-outside-month='true'] {
   color: var(--color-neutral-text-muted);
   opacity: 0.5;
 }
-.ui-calendar-day[data-hovered='true'] {
-  background: var(--color-neutral-surface-subtle);
+.ui-calendar-day[data-hovered='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-hovered='true'] .calendar__cell-button {
+  background: var(--color-neutral-surface-muted);
 }
-/* Selection is violet — the product's "this one is chosen" — rather than the
-   honey that means "the one action this surface exists for". The library fills
-   a chosen day with a pseudo-element rather than a background, so recolouring
-   the cell alone leaves the fill accent-coloured, exactly as with the
-   checkbox. */
-.ui-calendar-day[data-selected='true'],
-.ui-calendar-day[data-selection-start='true'],
-.ui-calendar-day[data-selection-end='true'] {
-  background: var(--color-secondary-solid);
-  color: var(--color-secondary-on-solid);
+/* Today is marked, not chosen: a ring, so it never reads as one end of a range. */
+.ui-calendar-day[data-today='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-today='true'] .calendar__cell-button {
+  box-shadow: inset 0 0 0 1px var(--color-secondary-solid);
 }
-.ui-calendar-day[data-selected='true'][data-selection-start='false'][data-selection-end='false'] {
+/* The band: every chosen day, end to end. */
+.ui-calendar-day[data-selected='true'] {
   background: var(--color-secondary-soft);
   color: var(--color-secondary-text);
-  border-radius: 0;
 }
-.ui-calendar-day[data-focus-visible='true'] {
+.ui-calendar-day[data-selection-start='true'] {
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+}
+.ui-calendar-day[data-selection-end='true'] {
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+.ui-calendar-day[data-selection-start='true'][data-selection-end='true'] {
+  border-radius: var(--radius-full);
+}
+/* The two ends, and a single chosen day: the disc, solid. */
+.ui-calendar-day[data-selection-start='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-selection-end='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-selected='true'] .calendar__cell-button {
+  background: var(--color-secondary-solid);
+  color: var(--color-white);
+  box-shadow: none;
+}
+.ui-calendar-day[data-focus-visible='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-focus-visible='true'] .calendar__cell-button {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
 }

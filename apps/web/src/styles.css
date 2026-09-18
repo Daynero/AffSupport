@@ -10313,30 +10313,8 @@ body {
   font: inherit;
   outline: none;
 }
-.task-filter-more {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-.task-filter-more-popover {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 15rem;
-  font-size: var(--text-sm);
-}
-.task-filter-display {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-1) 0;
-}
-.task-filter-more-caption {
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  font-weight: 600;
-}
-.task-filter-more-caption:not(:first-child) {
-  margin-top: var(--space-2);
-}
+/* The "Filters" chip and its panel are styled in styles/team-tasks.css (024),
+   in one place, beside the rest of the row. */
 .task-filter-chips {
   display: flex;
   flex-wrap: wrap;
@@ -10372,62 +10350,11 @@ body {
   gap: 4px;
   margin-top: var(--space-2);
 }
-.task-date-filter-calendar {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.task-date-filter-trigger,
-.task-date-filter-clear,
+/* The date chip — `.task-date-filter-calendar`, its trigger, its × and its
+   popover — is styled in team-tasks.css (024) and nowhere else. */
 .task-status-filter-option,
 .team-task-status-option {
   font: inherit;
-}
-.task-date-filter-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 38px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  padding: 0 11px;
-  cursor: pointer;
-}
-.task-date-filter-trigger:hover,
-.task-date-filter-trigger.is-active {
-  border-color: color-mix(in oklab, var(--color-accent) 54%, var(--color-border));
-  color: var(--color-text);
-}
-.task-date-filter-trigger svg {
-  width: 18px;
-  height: 18px;
-}
-.task-date-filter-clear {
-  width: 24px;
-  height: 24px;
-  margin-left: -31px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-.task-date-filter-clear:hover {
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-}
-/* Placed by the component (021): portalled past the filter row and flipped
-   when the window is short. */
-.task-date-filter-popover {
-  z-index: var(--layer-popover);
-  width: min(304px, calc(100vw - 32px));
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-3);
 }
 /* The listbox, between the popover surface and its options so the arrow-key
    walk has something to own. */
@@ -11421,10 +11348,6 @@ body {
   .task-date-filter {
     align-items: stretch;
     flex-direction: column;
-  }
-  .task-date-filter-calendar,
-  .task-date-filter-trigger {
-    width: 100%;
   }
   .task-status-filter {
     margin-left: 0;
@@ -13441,6 +13364,8 @@ button.team-landing-tile:hover {
 }
 .team-tag-dot.is-button {
   cursor: pointer;
+  /* The press that opens the colours is held and slid: a finger must not scroll the page. */
+  touch-action: none;
 }
 /* Untagged, for the one person who can tag: a ring, so there is something to
    aim at. It stays invisible until the row is hovered or focused — a column of
@@ -13485,16 +13410,21 @@ button.team-landing-tile:hover {
 .team-tag-swatches {
   display: flex;
   align-items: center;
-  gap: 6px;
+  /* Room for the chosen one's ring, which stands outside its circle. */
+  gap: var(--space-3);
+  padding: var(--space-1);
+  /* Held and slid over with a finger (024): without this the page scrolled under the gesture
+     and the browser cancelled it halfway to a colour. */
+  touch-action: none;
 }
 .team-tag-swatch {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   /* A 44px minimum from the app's own button floor was making every swatch a
      tall pill whose lower half hung over the file list behind the menu, so a
      press landed on a folder instead of on a colour. */
-  min-width: 20px;
-  min-height: 20px;
+  min-width: 24px;
+  min-height: 24px;
   /* A circle, not a column: inside a grid-shaped menu the button stretched to
      the row's height and its lower half hung over the file list behind it,
      where a press landed on a folder instead of on a colour. */
@@ -13506,13 +13436,21 @@ button.team-landing-tile:hover {
   background-clip: padding-box;
   cursor: pointer;
 }
+/* The chosen colour wears a ring of its own colour with a gap between — the swatch picker the
+   component library draws (the owner, 024) — instead of a white border that read as a different
+   swatch. The gap is the menu's own surface showing through. */
 .team-tag-swatch.is-active {
-  border-color: var(--color-text);
+  box-shadow:
+    0 0 0 2px var(--color-surface-raised),
+    0 0 0 4px var(--team-tag-color, var(--color-text-muted));
 }
 /* Under the finger or pointer while the dot is held: the colour that letting go will choose. */
 .team-tag-swatch.is-aimed,
 .team-tag-swatch:hover:not(:disabled) {
-  transform: scale(1.2);
+  transform: scale(1.15);
+  box-shadow:
+    0 0 0 2px var(--color-surface-raised),
+    0 0 0 4px color-mix(in srgb, var(--team-tag-color, var(--color-text-muted)) 55%, transparent);
 }
 @media (prefers-reduced-motion: no-preference) {
   .team-tag-swatch {

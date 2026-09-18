@@ -248,20 +248,10 @@
 
 /* --- The filter row on a phone ----------------------------------------------- */
 
-/* styles.css stacks the filter row and stretches the calendar trigger to the
-   full width — a bare wide box around one icon. The trigger keeps its icon
-   width; it is the account pill that may take a row of its own. */
+/* styles.css stacks the filter row; the date chip and the account pill keep
+   their own width rather than stretching into a bare wide box. */
 @media (max-width: 720px) {
-  .task-date-filter-calendar,
-  .task-date-filter-trigger {
-    width: auto;
-  }
-
   .task-date-filter-calendar {
-    align-self: flex-start;
-  }
-
-  .task-account-filter {
     align-self: flex-start;
   }
 }
@@ -277,8 +267,8 @@
    thing that changes between them is what they say. */
 .task-date-filter .task-quick-range,
 .task-date-filter .task-status-filter-option,
-.task-date-filter .task-date-filter-trigger {
-  min-height: 34px;
+.task-date-filter .task-date-filter-calendar {
+  min-height: var(--control-height-sm);
   border: 1px solid transparent;
   border-radius: var(--radius-full);
   background: none;
@@ -287,13 +277,9 @@
   font-weight: 600;
 }
 
-.task-date-filter .task-date-filter-trigger {
-  padding: 0 10px;
-}
-
 .task-date-filter .task-quick-range:hover,
 .task-date-filter .task-status-filter-option:hover,
-.task-date-filter .task-date-filter-trigger:hover {
+.task-date-filter .task-date-filter-calendar:hover {
   border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-text);
@@ -305,7 +291,7 @@
    for their text sat at 2.9:1 on this surface. */
 .task-date-filter .task-quick-range.is-active,
 .task-date-filter .task-status-filter-option.is-active,
-.task-date-filter .task-date-filter-trigger.is-active {
+.task-date-filter .task-date-filter-calendar.is-active {
   border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
   background: color-mix(in srgb, var(--color-accent) 16%, transparent);
   color: var(--color-accent-text);
@@ -315,6 +301,100 @@
 .task-date-filter .task-status-filter-option svg {
   width: 15px;
   height: 15px;
+}
+
+/* --- The date chip ----------------------------------------------------------- */
+
+/* One pill, two buttons. The wrapper is the chip — it takes the row's face
+   above — and the trigger and the × inside it draw no chrome of their own, so
+   the mark has a place of its own at the pill's end and never sits on the
+   label. It used to be two chrome-bearing buttons: the × was pulled 31px back
+   over the trigger by a negative margin, and stood 44px tall from the global
+   `button { min-height: 44.2px }` floor while the trigger stood 34 — a dark
+   disc on the last letters of "18 вер.". The chip itself is styled here and
+   nowhere else; styles.css no longer knows it. */
+.task-date-filter-calendar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.task-date-filter-calendar .task-date-filter-trigger {
+  display: inline-flex;
+  min-height: 0;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: stretch;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  padding: 0 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* With a range chosen the × takes the pill's right end, so the label needs no
+   room of its own on that side. */
+.task-date-filter-calendar.is-active .task-date-filter-trigger {
+  padding-right: var(--space-1);
+}
+
+.task-date-filter-calendar .task-date-filter-trigger svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+/* The × that takes the date filter off. Shared with the account filter, which
+   sets its own size beside its own pill (team-accounts.css). `min-height: 0`
+   is what keeps it at 24px under the global button floor. */
+.task-date-filter-clear {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-label);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.task-date-filter-clear:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: var(--color-text);
+}
+
+/* Inside the pill the mark speaks in the pill's colour — accent when a range
+   is on — and keeps a hair off the outline, so its hover disc stays a disc
+   inside the chip rather than a bite out of its edge. */
+.task-date-filter-calendar .task-date-filter-clear {
+  margin-right: 2px;
+  color: inherit;
+}
+
+/* The calendar's surface is the inventory's popover; what is the chip's own
+   is its width and the room its sections get. Shared with the account and
+   label pickers, which carry this class as well, so every filter popover in
+   the row opens at one width and one padding. */
+.task-date-filter-popover {
+  width: min(280px, calc(100vw - var(--space-4) * 2));
+  padding: var(--space-3);
+}
+
+/* Under the grid, the presets take a row and the hint takes the next: the
+   calendar's footer is a wrapping flex row, and a short hint would otherwise
+   climb up beside the last preset. */
+.task-date-filter-popover .task-quick-ranges,
+.task-date-filter-popover .task-calendar-hint {
+  flex: 1 1 100%;
 }
 
 /* ============================================================
@@ -635,20 +715,216 @@ button.team-task-label-chip:hover:not(:disabled),
   font-weight: 600;
 }
 
-/* --- The filter pill and the order control --------------------------------- */
+/* ============================================================
+   The "Filters" chip and its panel (024)
+   ============================================================ */
 
-.task-label-filter .task-account-filter-trigger {
-  max-width: 200px;
+/* The chip is one of the row's pills — same height, radius and face as the
+   date chip beside it — and once anything inside is on it lights the way that
+   chip does, with the count beside the word. */
+.task-filter-more {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
-.task-sort-control {
+.task-filter-more-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-white);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  line-height: 1;
+}
+
+/* One column, one width, every control the full width of it. Linear's
+   "Display" and Notion's view options are the benchmark: a heading, its
+   controls, a hairline, the next heading. Nothing is sized by what it says. */
+.task-filter-more-popover {
+  display: grid;
+  gap: var(--space-3);
+  /* The date chip's popover opens at this width too (`.task-date-filter-popover`). */
+  width: min(280px, calc(100vw - var(--space-4) * 2));
+  padding: var(--space-3);
+  font-size: var(--text-caption);
+}
+
+.task-filter-section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.task-filter-section + .task-filter-section {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-neutral-border);
+}
+
+/* The heading is the calendar's weekday, so every popover in the bar speaks
+   one voice: micro, uppercase, muted. */
+.task-filter-heading {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  text-transform: uppercase;
+}
+
+/* A field: the inventory select's box, holding a trigger and — once a value
+   is in force — a clear mark as its sibling. The box carries the edge, so the
+   field is the same width whichever of the two is showing. */
+.task-filter-field {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 2px;
+  width: 100%;
+  min-height: var(--control-height-sm);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text);
 }
 
-.task-sort-option {
+.task-filter-field:hover {
+  border-color: var(--color-accent);
+}
+
+.task-filter-field.is-active {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.task-filter-field-trigger {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
+.task-filter-field-trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* What the field is for, then what is in force; the name gives way first. */
+.task-filter-field-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--color-neutral-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-filter-field-value {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-neutral-text-muted);
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  justify-content: flex-end;
+}
+
+.task-filter-field.is-active .task-filter-field-value {
+  color: var(--color-neutral-text);
+}
+
+.task-filter-field-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-filter-field-caret {
+  flex: 0 0 auto;
+  color: var(--color-neutral-text-muted);
+}
+
+/* The clear mark stands where the caret stood. */
+.task-filter-field-clear {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  margin-right: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+}
+
+.task-filter-field-clear:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+/* The list a field opens takes the field's width, as a select's does. */
+.task-filter-field-popover {
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+/* The order: the inventory's segmented control, stretched to the column, the
+   two options sharing it equally. */
+.task-filter-more-popover .task-sort-control {
+  display: flex;
+  width: 100%;
+}
+
+.task-filter-more-popover .task-sort-control button {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* The view: a switch per row, the words on the left and the control on the
+   right, every row the height of a field. */
+.task-filter-display {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.task-filter-display .ui-switch {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  width: 100%;
+  min-height: var(--control-height-sm);
+}
+
+.task-filter-display .ui-switch-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-neutral-text);
+  font-size: var(--text-caption);
 }
 
 /* --- The dictionary, in space settings ------------------------------------- */
@@ -820,9 +1096,7 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 
 .task-date-filter > *,
-.task-quick-ranges,
-.task-sort-control,
-.task-label-filter {
+.task-quick-ranges {
   flex: 0 0 auto;
 }
 
@@ -862,8 +1136,7 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 
 .task-quick-range,
-.task-status-filter-option,
-.task-sort-option {
+.task-status-filter-option {
   white-space: nowrap;
 }
 
@@ -873,48 +1146,47 @@ button.team-task-label-chip:hover:not(:disabled),
   flex-wrap: nowrap;
 }
 
-/* One tag chosen: the pill borrows that tag's colour, so the row says which
-   tag is in force the same way the chips do. Several, and it stays neutral —
-   a pill cannot be two colours. */
-.task-label-filter .task-account-filter-trigger[data-color] {
-  border-color: color-mix(in srgb, var(--task-tag-color, var(--task-tag-slate)) 55%, transparent);
-  background: color-mix(in srgb, var(--task-tag-color, var(--task-tag-slate)) 14%, transparent);
-  color: var(--color-text);
+/* One tag chosen: the field's value carries that tag's dot, so the panel says
+   which tag is in force the same way the chips do. Several, and there is no
+   dot — a dot cannot be two colours. */
+.task-filter-field-dot {
+  --task-tag-color: var(--task-tag-slate);
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--task-tag-color);
 }
 
-.task-label-filter .task-account-filter-trigger[data-color='purple'] {
+.task-filter-field-dot[data-color='purple'] {
   --task-tag-color: var(--task-tag-purple);
 }
-.task-label-filter .task-account-filter-trigger[data-color='blue'] {
+.task-filter-field-dot[data-color='blue'] {
   --task-tag-color: var(--task-tag-blue);
 }
-.task-label-filter .task-account-filter-trigger[data-color='teal'] {
+.task-filter-field-dot[data-color='teal'] {
   --task-tag-color: var(--task-tag-teal);
 }
-.task-label-filter .task-account-filter-trigger[data-color='green'] {
+.task-filter-field-dot[data-color='green'] {
   --task-tag-color: var(--task-tag-green);
 }
-.task-label-filter .task-account-filter-trigger[data-color='honey'] {
+.task-filter-field-dot[data-color='honey'] {
   --task-tag-color: var(--task-tag-honey);
 }
-.task-label-filter .task-account-filter-trigger[data-color='orange'] {
+.task-filter-field-dot[data-color='orange'] {
   --task-tag-color: var(--task-tag-orange);
 }
-.task-label-filter .task-account-filter-trigger[data-color='red'] {
+.task-filter-field-dot[data-color='red'] {
   --task-tag-color: var(--task-tag-red);
 }
-.task-label-filter .task-account-filter-trigger[data-color='pink'] {
+.task-filter-field-dot[data-color='pink'] {
   --task-tag-color: var(--task-tag-pink);
 }
-.task-label-filter .task-account-filter-trigger[data-color='slate'] {
+.task-filter-field-dot[data-color='slate'] {
   --task-tag-color: var(--task-tag-slate);
 }
 
 /* --- Whose tasks (018 part 2) --------------------------------------------- */
-
-.task-assignee-filter .task-account-filter-trigger {
-  max-width: 220px;
-}
 
 /* The name is what the row is scanned by; the address gives way first. */
 .task-assignee-filter-name {

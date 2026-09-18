@@ -1,18 +1,17 @@
 /**
  * Narrowing the board to a set of tags (018).
  *
- * A pill in the filter row beside the dates, the accounts and the statuses.
+ * A field in the "Filters" panel (024), under the account and the assignee.
  * Several tags at once, and a task matching any of them stays: the filter is
  * opened to gather work — "everything hot or urgent" — not to intersect it.
  */
 
 import { useRef, useState } from 'react';
-import { ChevronDown, X } from 'lucide-react';
 import { sortTeamTaskLabels, type TeamTaskLabel } from '@video-compressor/shared';
-import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskLabelMenu } from '../labels/TaskLabelMenu';
 import { Popover } from '../../components/ui/index';
+import { TaskFilterField } from './TaskFilterField';
 
 export function TaskLabelFilter({
   labels,
@@ -30,44 +29,41 @@ export function TaskLabelFilter({
   const selected = new Set(selectedIds);
   const active = selectedIds.length > 0;
 
-  /** What the pill says: the tag, the first one and how many more, or the word. */
+  /**
+   * What the field says: the tag in its own colour, the first one and how
+   * many more, or the word for "any".
+   */
   const chosen = sortTeamTaskLabels(labels.filter(label => selected.has(label.id)));
-  const label =
+  const value =
     chosen.length === 0
-      ? t('teamTaskTagFilter')
+      ? t('teamTaskTagFilterAll')
       : chosen.length === 1
         ? chosen[0]!.name
         : `${chosen[0]!.name} +${chosen.length - 1}`;
+  const marker =
+    chosen.length === 1 ? (
+      <span className="task-filter-field-dot" data-color={chosen[0]!.color} aria-hidden="true" />
+    ) : undefined;
 
   return (
-    <div ref={root} className="task-account-filter task-label-filter">
-      <button
-        ref={trigger}
-        type="button"
-        className={`task-status-filter-option task-account-filter-trigger${active ? ' is-active' : ''}`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={t('teamTaskTagFilterLabel')}
-        data-color={chosen.length === 1 ? chosen[0]!.color : undefined}
-        onClick={() => setOpen(current => !current)}
-      >
-        <span>{label}</span>
-        {!active && <ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-      </button>
-      {active && (
-        <button
-          type="button"
-          className="task-date-filter-clear"
-          aria-label={t('teamTaskTagFilterClear')}
-          onClick={() => {
-            onChange([]);
-            setOpen(false);
-            window.requestAnimationFrame(() => trigger.current?.focus());
-          }}
-        >
-          <X size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
-      )}
+    <TaskFilterField
+      rootRef={root}
+      triggerRef={trigger}
+      className="task-label-filter"
+      name={t('teamTaskTagFilter')}
+      value={value}
+      marker={marker}
+      active={active}
+      open={open}
+      label={t('teamTaskTagFilterLabel')}
+      clearLabel={t('teamTaskTagFilterClear')}
+      onToggle={() => setOpen(current => !current)}
+      onClear={() => {
+        onChange([]);
+        setOpen(false);
+        window.requestAnimationFrame(() => trigger.current?.focus());
+      }}
+    >
       <Popover
         open={open}
         /* Escape and an outside press close onto the trigger, so a keyboard
@@ -93,6 +89,6 @@ export function TaskLabelFilter({
           }
         />
       </Popover>
-    </div>
+    </TaskFilterField>
   );
 }

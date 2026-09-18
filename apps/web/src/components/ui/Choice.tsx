@@ -87,18 +87,18 @@ export function Checkbox({
       className={uiClasses('checkbox', { size, states: { disabled }, className })}
     >
       {/*
-        * `Content` is the control, not the caption.
-        *
-        * HeroUI's checkbox root is a *field* — a wrapper — and `Content` is the
-        * button inside it that takes the press and carries the `checkbox` role.
-        * Rendering it only when there was a visible label left every unlabelled
-        * checkbox in the product as a plain `<div>`: no role, no focus, no
-        * name, nothing for a keyboard or a screen reader to find. It looked
-        * right and could not be used (024).
-        *
-        * The accessible name goes here for the same reason: on the field it
-        * names a wrapper nobody can reach.
-        */}
+       * `Content` is the control, not the caption.
+       *
+       * HeroUI's checkbox root is a *field* — a wrapper — and `Content` is the
+       * button inside it that takes the press and carries the `checkbox` role.
+       * Rendering it only when there was a visible label left every unlabelled
+       * checkbox in the product as a plain `<div>`: no role, no focus, no
+       * name, nothing for a keyboard or a screen reader to find. It looked
+       * right and could not be used (024).
+       *
+       * The accessible name goes here for the same reason: on the field it
+       * names a wrapper nobody can reach.
+       */}
       <HeroCheckbox.Content
         className="ui-checkbox-content"
         aria-label={props['aria-label']}
@@ -180,7 +180,13 @@ function TitledToggleButton({
 
 export interface SegmentedControlProps<T extends string> {
   value: T;
-  options: ReadonlyArray<{ value: T; label: ReactNode; title?: string }>;
+  options: ReadonlyArray<{
+    value: T;
+    label: ReactNode;
+    title?: string;
+    /** One option that cannot be taken right now; `title` should say why. */
+    disabled?: boolean;
+  }>;
   onChange: (value: T) => void;
   /** Names the group for assistive technology. */
   label: string;
@@ -217,6 +223,7 @@ export function SegmentedControl<T extends string>({
           key={option.value}
           id={option.value}
           title={option.title}
+          isDisabled={option.disabled}
           className={option.value === value ? 'is-selected' : undefined}
         >
           {option.label}

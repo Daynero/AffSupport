@@ -80,13 +80,44 @@ export function TagDot({
         swatch.click();
       }
     };
+    const cancel = () => {
+      pressed.current = false;
+      setAimed(null);
+    };
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', release);
+    document.addEventListener('pointercancel', cancel);
     return () => {
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', release);
+      document.removeEventListener('pointercancel', cancel);
     };
   }, [open]);
+
+  /*
+   * The row under the dot can be dragged (024), and a press that slides is exactly how a drag
+   * starts: the browser took the gesture for "move this file", cancelled the pointer, and the
+   * colours never heard the release. While the dot is held, the row it sits in is not draggable.
+   */
+  const heldHost = useRef<HTMLElement | null>(null);
+  const releaseHost = () => {
+    heldHost.current?.setAttribute('draggable', 'true');
+    heldHost.current = null;
+  };
+  useEffect(() => {
+    if (open) return;
+    releaseHost();
+  }, [open]);
+  useEffect(() => {
+    const up = () => releaseHost();
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+    return () => {
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      releaseHost();
+    };
+  }, []);
 
   if (!canTag) {
     // Nothing at all rather than an empty ring: an untagged file has nothing
@@ -120,6 +151,11 @@ export function TagDot({
           if (event.button !== 0 || open) return;
           // Touch captures the pointer to the dot; release it so the colours can be reached.
           event.currentTarget.releasePointerCapture?.(event.pointerId);
+          const host = event.currentTarget.closest<HTMLElement>('[draggable="true"]');
+          if (host) {
+            host.setAttribute('draggable', 'false');
+            heldHost.current = host;
+          }
           pressed.current = true;
           setOpen(true);
         }}
