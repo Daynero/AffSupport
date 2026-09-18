@@ -589,7 +589,6 @@ export function useTasks({
       ...matching.filter(task => placed.get(task.id))
     ];
     // boardKey resets the placement; it is read through the ref above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, term, boardKey]);
 
   return {

@@ -1681,6 +1681,13 @@ const en = {
   productCatalogCancel: 'Cancel',
   productCatalogDone: 'Done',
   productCatalogCreating: 'Creating the catalog…',
+  productCatalogStageVideo: 'Checking the video and opening it by link…',
+  productCatalogStageDraw: 'Picking texts and pictures from your sets…',
+  productCatalogStagePictures: 'Matching pictures to products and opening them by link — {count}…',
+  productCatalogStageRows: 'Writing the products: names, prices, colours, IDs…',
+  productCatalogStageUpload: 'Uploading the sheet to Google Drive…',
+  productCatalogStageSlow: 'Google Drive is taking its time. Still working — do not close this.',
+  productCatalogStageOf: 'Step {step} of {total}',
   productCatalogMissingSettingsNoAccess:
     'A space manager needs to fill in the catalog settings first.',
   productCatalogOpenSettings: 'Open catalog settings',
@@ -4542,6 +4549,15 @@ const uk: Record<keyof typeof en, string> = {
   productCatalogCancel: 'Скасувати',
   productCatalogDone: 'Готово',
   productCatalogCreating: 'Створюємо каталог…',
+  productCatalogStageVideo: 'Перевіряємо відео й відкриваємо його за посиланням…',
+  productCatalogStageDraw: 'Беремо тексти й картинки з ваших наборів…',
+  productCatalogStagePictures:
+    'Співставляємо картинки з товарами й відкриваємо їх за посиланням — {count} шт.…',
+  productCatalogStageRows: 'Генеруємо товари: назви, ціни, кольори, ID…',
+  productCatalogStageUpload: 'Завантажуємо таблицю на Google Drive…',
+  productCatalogStageSlow:
+    'Google Drive відповідає довше, ніж зазвичай. Працюємо — не закривайте вікно.',
+  productCatalogStageOf: 'Крок {step} з {total}',
   productCatalogMissingSettingsNoAccess:
     'Спершу керівник простору має заповнити налаштування каталогу.',
   productCatalogOpenSettings: 'Відкрити налаштування каталогу',

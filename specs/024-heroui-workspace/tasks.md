@@ -804,6 +804,8 @@ processed copy from the attachment, and see all three on the task without it clo
       `group`, whole-tile links, one stage panel; `styles/home.css`.
 - [x] T232 [US29] `pages/AccountPage.tsx` writes on change with a state word; spaces list, local
       app facts, session; `styles/account.css`.
+- [x] T233 [US30] `product-catalog/useStagedStatus.ts` and the create form's step line; walked on
+      the beta, a six-product re-create names four steps in nine seconds.
 
 — accounts, agents and members (Priority: P3)
 

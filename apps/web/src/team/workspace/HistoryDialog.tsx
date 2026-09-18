@@ -132,7 +132,6 @@ export function HistoryDialog({
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   const shown = useMemo(

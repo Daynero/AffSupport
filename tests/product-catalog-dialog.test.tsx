@@ -208,6 +208,34 @@ describe('creating a catalog', () => {
     expect(writeText).toHaveBeenCalledWith(catalog.sheetUrl);
   });
 
+  it('says which step it is on while the request is out, instead of only spinning (024)', async () => {
+    let finish: (value: typeof created) => void = () => undefined;
+    const client = dialogClient({
+      createProductCatalog: vi.fn().mockReturnValue(
+        new Promise<typeof created>(resolve => {
+          finish = resolve;
+        })
+      )
+    });
+    renderDialog(client);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test/');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+
+    const status = await screen.findByRole('status');
+    expect(status.textContent).toContain('Checking the video');
+    expect(status.textContent).toContain('Step 1 of 5');
+    // The next step arrives on its own, with nothing from the server.
+    await waitFor(() => expect(status.textContent).toContain('Picking texts and pictures'), {
+      timeout: 3000
+    });
+
+    finish(created);
+    expect(await screen.findByText('The catalog is ready')).toBeTruthy();
+    expect(screen.queryByText(/Step \d of 5/u)).toBeNull();
+  });
+
   it('shows the catalog that already exists as a result, not an error', async () => {
     renderDialog(
       dialogClient({

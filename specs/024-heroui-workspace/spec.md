@@ -1027,6 +1027,14 @@ press. Variations must not pile up: removing one is one action and leaves nothin
   when there is one. The local app's version and the result of the update check are two separate
   facts.
 
+### Functional Requirements — a long request says what it is doing (US30)
+
+- **FR-158**: While a catalog is being made, the form MUST name the step under way — the
+  server's own steps in the server's order — with which step it is, instead of one unchanging
+  sentence under a spinner. The steps are walked on an estimate, so the form MUST NOT show a
+  percentage or finish on its own: the last step holds until the answer arrives, and says so
+  when Drive is slow.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,

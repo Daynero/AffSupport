@@ -261,7 +261,6 @@ function CatalogImagesSection({
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   const save = async (next: ReadonlyArray<{ materialId: string; kind: 'file' | 'folder' }>) => {
@@ -811,7 +810,6 @@ function CatalogValuesSection({
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, teamId]);
 
   const minCheck = validatePrice(min);

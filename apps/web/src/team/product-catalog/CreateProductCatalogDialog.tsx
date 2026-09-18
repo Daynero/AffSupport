@@ -19,6 +19,7 @@ import {
   validateProductCount,
   validateWebLink
 } from './limits';
+import { useStagedStatus, type StatusStage } from './useStagedStatus';
 
 export interface CreateProductCatalogClient {
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
@@ -142,6 +143,28 @@ export function CreateProductCatalogDialog({
   const countCheck = validateProductCount(count);
   const settingsMissing = settings === null;
   const canConfirm = linkCheck.ok && countCheck.ok && !settingsMissing && phase.kind === 'form';
+
+  /*
+   * The server's own steps, in its own order (`drive-ops/product-catalog.ts`):
+   * prove the video and open it by link, draw texts and pictures, open every
+   * picture by link — one Drive call each, which is where a catalog of fifty
+   * spends its time — build the sheet, upload and convert it, register it. The
+   * per-picture stage is sized by the count; the last stage waits for the answer.
+   */
+  const productTotal = countCheck.ok ? countCheck.value : 0;
+  const stages: ReadonlyArray<StatusStage<TranslationKey>> = [
+    { key: 'productCatalogStageVideo', ms: 1600 },
+    { key: 'productCatalogStageDraw', ms: 1400 },
+    { key: 'productCatalogStagePictures', ms: Math.max(2000, productTotal * 260) },
+    { key: 'productCatalogStageRows', ms: 1600 },
+    { key: 'productCatalogStageUpload', ms: 9000 },
+    { key: 'productCatalogStageSlow', ms: 0 }
+  ];
+  const stageIndex = useStagedStatus(phase.kind === 'busy', stages);
+  const stage = stages[stageIndex];
+  // The last entry is not a step, it is what the last step says when Drive is slow.
+  const stepTotal = stages.length - 1;
+  const stepNow = Math.min(stageIndex, stepTotal - 1);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -333,10 +356,21 @@ export function CreateProductCatalogDialog({
           {t(countError ? 'productCatalogCountInvalid' : 'productCatalogCountHint')}
         </p>
 
-        {busy && (
-          <p className="field-hint" role="status">
-            {t('productCatalogCreating')}
-          </p>
+        {busy && stage && (
+          <div className="product-catalog-progress" role="status">
+            <p className="product-catalog-progress-step">{t(stage.key, { count: productTotal })}</p>
+            <p className="product-catalog-progress-count" aria-hidden="true">
+              {t('productCatalogStageOf', { step: stepNow + 1, total: stepTotal })}
+            </p>
+            <div className="product-catalog-progress-track" aria-hidden="true">
+              {stages.slice(0, stepTotal).map((entry, position) => (
+                <span
+                  key={entry.key}
+                  className={position < stepNow ? 'is-done' : position === stepNow ? 'is-now' : ''}
+                />
+              ))}
+            </div>
+          </div>
         )}
         {failure && (
           <p className="team-inline-error" role="alert">
