@@ -491,6 +491,9 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
         </ul>
       ) : (
         <ul className="home-grid">
+          {/* Outside the gate the tile is the gate, in the gate's own words: the same title, the
+              same sentence, and the button it will offer written on it. Not dimmed — it is a
+              real way somewhere, only the last row rather than the first. */}
           <Tile
             href={spacesOpen ? createSpaceHref : allSpacesHref}
             onFollow={() => navigate(spacesOpen ? createSpaceHref : allSpacesHref)}
@@ -501,9 +504,16 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                 <TeamWorkspaceIcon />
               )
             }
-            title={t(spacesOpen ? 'teamSpaceEmptyAction' : 'homeSpacesClosed')}
-            caption={t(spacesOpen ? 'teamSpaceEmptyBody' : 'homeSpacesClosedBody')}
-            quiet={!spacesOpen}
+            title={t(spacesOpen ? 'teamSpaceEmptyAction' : 'teamWorkspaceGateTitle')}
+            caption={t(spacesOpen ? 'teamSpaceEmptyBody' : 'teamWorkspaceGateBody')}
+            trailing={
+              spacesOpen ? undefined : (
+                <>
+                  {t('teamWorkspaceWaitlist')}
+                  <ArrowRight size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} />
+                </>
+              )
+            }
           />
         </ul>
       )}

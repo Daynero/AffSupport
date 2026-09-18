@@ -222,7 +222,12 @@ describe('web tool registry', () => {
     vi.mocked(teamApi.canAccessTeamWorkspace).mockResolvedValue(false);
     renderHome();
 
-    expect(await screen.findByText(translate('en', 'homeSpacesClosed'))).toBeTruthy();
+    // The tile is the gate it opens: same title, same sentence, and the button it will offer.
+    expect(await screen.findByText(translate('en', 'teamWorkspaceGateTitle'))).toBeTruthy();
+    const waitlist = screen.getByRole('link', {
+      name: new RegExp(translate('en', 'teamWorkspaceGateTitle'), 'u')
+    });
+    expect(waitlist.getAttribute('href')).toBe('/team?all=1');
     expect(
       screen.queryByRole('link', { name: translate('en', 'teamSpaceEmptyAction') })
     ).toBeNull();
