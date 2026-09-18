@@ -393,7 +393,7 @@ export async function runCatalogSyncJob(
   let current = job;
   let processed = 0;
   let slices = 0;
-  let phase = job.phase;
+  let phase: CatalogSyncPhase;
   // Held in an object: the closure below writes it, and a plain `let` would be
   // narrowed to `null` by the assignment before the loop.
   const seen: { checkpoint: CheckpointInput | null } = { checkpoint: null };
