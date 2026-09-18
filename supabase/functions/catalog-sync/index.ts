@@ -205,8 +205,38 @@ function catalogJob(row: Record<string, unknown>): CatalogSyncJob {
   };
 }
 
+/**
+ * One Drive read per file per invocation (024).
+ *
+ * Placing a change means walking its parents up to the root — once to look for `.soty`, once more
+ * to prove the ancestry — and a page holds a hundred changes, most of them siblings. Read one at a
+ * time that was a thousand sequential requests for the same two dozen folders: a page took longer
+ * than the job's lease, the lease was re-claimed while the worker was still walking, its checkpoint
+ * was refused, and the next worker began the same page again. A space sat on "indexing" for twelve
+ * hours with the counter at 117 and the cursor where it started.
+ *
+ * The memo lives for one invocation, seconds long, and only answers the catalog's own question of
+ * where a file sits; nothing that authorizes an operation reads through it. A failed read is not
+ * remembered, so a throttled request is asked again rather than turned into a missing folder.
+ */
+type DriveReader = Pick<GoogleDriveClient, 'getFile'>;
+
+function memoizedReader(drive: GoogleDriveClient): DriveReader {
+  const seen = new Map<string, Promise<DriveFileMetadata>>();
+  return {
+    getFile: (fileId, resourceKey) => {
+      const known = seen.get(fileId);
+      if (known) return known;
+      const read = drive.getFile(fileId, resourceKey);
+      seen.set(fileId, read);
+      read.catch(() => seen.delete(fileId));
+      return read;
+    }
+  };
+}
+
 async function isHiddenSystemFile(
-  drive: GoogleDriveClient,
+  drive: DriveReader,
   file: DriveFileMetadata,
   rootFolderId: string
 ): Promise<boolean> {
@@ -234,6 +264,7 @@ function dependencies(input: {
   job: CatalogSyncJob;
 }): CatalogSyncDependencies {
   const { service, drive, worker, job } = input;
+  const reader = memoizedReader(drive);
   return {
     listChildren: request => drive.listChildren(request),
     listChanges: request => drive.listChanges(request),
@@ -249,7 +280,7 @@ function dependencies(input: {
       for (const rootFolderId of roots) {
         try {
           await proveLiveAncestry({
-            client: drive,
+            client: reader,
             fileId: file.id,
             rootFolderId,
             resourceKey: file.resourceKey
@@ -271,7 +302,7 @@ function dependencies(input: {
     },
     isHiddenSystemFile: async (file, rootFolderId) => {
       try {
-        return await isHiddenSystemFile(drive, file, rootFolderId);
+        return await isHiddenSystemFile(reader, file, rootFolderId);
       } catch (cause) {
         const error = mapUnknownError(cause);
         // An incomplete ancestor response is not sufficient to prove an asset
@@ -394,7 +425,9 @@ Deno.serve(async request => {
         // scheduler invocation to one job so its lease can finish inside the
         // worker request budget instead of leaving a batch half-leased.
         p_limit: 1,
-        p_lease_seconds: 60
+        // Longer than a page can take, not as long as a page should take (024): a lease that ends
+        // mid-page does not slow the job down, it restarts the page for ever.
+        p_lease_seconds: 180
       })
     );
     let completed = 0;

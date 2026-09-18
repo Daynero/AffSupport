@@ -16,6 +16,7 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 ## Team media workspace migrations (development recovery only)
 
+0. `20260918180000_indexing_must_be_getting_somewhere.sql`: re-apply `public.get_team_storage_health` from `20260913000500_preview_chip_counts_only_live_work.sql`.
 0. `20260918170000_pool_picture_names.sql`: drop `public.list_team_product_catalog_pool_names`; drop and re-apply `service_draw_product_catalog_images` from `20260917170000` (without the name column).
 0. `20260918160000_folder_page_companions.sql`: re-apply `public.list_team_folder_page` from `20260906160000_a_file_can_be_tagged.sql`.
 0. `20260918150000_missing_reason.sql`: re-apply `service_tombstone_catalog_files` from `20260801101000` and `private.queue_orphan_cleanups` from `20260918140000`; drop `private.is_gone_for_good` and column `team_materials.missing_reason`.
