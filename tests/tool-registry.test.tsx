@@ -44,9 +44,38 @@ vi.mock('../apps/web/src/analytics/service.js', () => ({
 }));
 
 import HomePage from '../apps/web/src/HomePage';
+import { TeamProvider } from '../apps/web/src/team/TeamContext';
+import type { TeamContextSnapshot } from '../apps/web/src/api/team';
 import { catalogueTools, routeKind, toolByPath, webTools } from '../apps/web/src/lib/tool-registry';
 import { featureFlags } from '../apps/web/src/lib/feature-flags';
 import { translate } from '../apps/web/src/i18n';
+import { markAgentSeen } from '../apps/web/src/api/pairing-token';
+
+/**
+ * The home reads the reader's spaces from the provider every signed-in page
+ * sits in. Given here with a fixed list and no client, so nothing is fetched
+ * and no realtime channel is opened.
+ */
+function renderHome(
+  navigate: (path: string) => void = () => {},
+  teams: TeamContextSnapshot[] = []
+) {
+  return render(
+    <TeamProvider initialTeams={teams} realtime={false}>
+      <HomePage navigate={navigate} />
+    </TeamProvider>
+  );
+}
+
+function space(id: string, name: string, role: TeamContextSnapshot['role']): TeamContextSnapshot {
+  return {
+    id,
+    name,
+    role,
+    permissions: {} as TeamContextSnapshot['permissions'],
+    connectionState: 'connected'
+  } as TeamContextSnapshot;
+}
 
 beforeEach(() => {
   localStorage.clear();
@@ -126,27 +155,84 @@ describe('web tool registry', () => {
     }
   });
 
-  it('renders a home-page tile for every registered tool', () => {
-    render(<HomePage navigate={() => {}} />);
+  it('renders a home-page tile for every registered tool, and the tile is a link', () => {
+    renderHome();
     for (const tool of webTools) {
-      expect(
-        screen.getByRole('heading', { level: 3, name: translate('en', tool.labelKey) })
-      ).toBeTruthy();
-      expect(screen.getByText(translate('en', tool.descriptionKey))).toBeTruthy();
+      // The tile's title is the link, so its accessible name is the tool's name
+      // and nothing else; the caption describes it rather than being part of it.
+      const link = screen.getByRole('link', { name: translate('en', tool.labelKey) });
+      expect(link.getAttribute('href')).toBe(tool.path);
+      expect(link.closest('h4')).toBeTruthy();
+      expect(screen.getByText(translate('en', tool.captionKey))).toBeTruthy();
     }
+    // No button inside a tile, and no primary action on the page at all.
+    expect(document.querySelectorAll('.home-tile button')).toHaveLength(0);
+    expect(document.querySelectorAll('.ui-color-primary')).toHaveLength(0);
   });
 
-  it('routes Team Workspace to its authorization gate without requiring the local agent', () => {
+  it('draws one row per group, in reading order', () => {
+    renderHome();
+    const headings = screen
+      .getAllByRole('heading', { level: 3 })
+      .map(heading => heading.textContent);
+    expect(headings).toEqual([
+      translate('en', 'teamWorkspace'),
+      translate('en', 'homeGroupVideo'),
+      translate('en', 'homeGroupLanding'),
+      translate('en', 'homeGroupOther')
+    ]);
+  });
+
+  it('leaves "connected" to the header, and says nothing per tile', () => {
+    renderHome();
+    // The fact is still in the tree for a reader that asks; it is not drawn twice.
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('status', { hidden: true }).textContent).toBe(
+      translate('en', 'agentConnected')
+    );
+    expect(screen.queryByText(translate('en', 'agentRequired'))).toBeNull();
+    expect(screen.queryByRole('button', { name: translate('en', 'homeHowToStart') })).toBeNull();
+  });
+
+  it('offers the first space to someone who has none, without requiring the local agent', () => {
+    agent.connection = 'disconnected';
     const navigate = vi.fn();
-    render(<HomePage navigate={navigate} />);
+    renderHome(navigate);
 
-    const workspace = screen.getByRole('button', {
-      name: translate('en', 'teamWorkspace')
-    });
-    expect(workspace).toBeTruthy();
+    const create = screen.getByRole('link', { name: translate('en', 'teamSpaceEmptyAction') });
+    expect(create.getAttribute('href')).toBe('/team?new=1');
+    fireEvent.click(create);
+    expect(navigate).toHaveBeenCalledWith('/team?new=1');
+  });
 
-    fireEvent.click(workspace);
-    expect(navigate).toHaveBeenCalledWith('/team');
+  it('lists the spaces themselves, the remembered one first, each at its own address', () => {
+    const first = '11111111-1111-4111-8111-111111111111';
+    const second = '22222222-2222-4222-8222-222222222222';
+    localStorage.setItem('wishly.active-team.v1', second);
+    const navigate = vi.fn();
+    renderHome(navigate, [space(first, 'Nutra', 'owner'), space(second, 'Gambling', 'editor')]);
+
+    const links = screen
+      .getAllByRole('link')
+      .filter(link => link.getAttribute('href')?.startsWith('/team/'));
+    expect(links.map(link => link.textContent)).toEqual(['Gambling', 'Nutra']);
+    expect(screen.getByText(translate('en', 'homeSpaceLast'))).toBeTruthy();
+    expect(screen.getByText(translate('en', 'teamRoleEditor'))).toBeTruthy();
+
+    fireEvent.click(links[0]);
+    expect(navigate).toHaveBeenCalledWith(`/team/${second}`);
+    // The way to everything else — the lobby — is in the row's heading.
+    expect(
+      screen.getByRole('link', { name: translate('en', 'homeAllSpaces') }).getAttribute('href')
+    ).toBe('/team?all=1');
+  });
+
+  it('leaves a modified click to the browser', () => {
+    const navigate = vi.fn();
+    renderHome(navigate);
+    const link = screen.getByRole('link', { name: translate('en', 'twoFactorNotebook') });
+    fireEvent.click(link, { metaKey: true });
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
 
@@ -165,16 +251,9 @@ describe('a tool that runs in the browser', () => {
    */
   const browserTools = webTools.filter(tool => tool.runtime === 'browser');
 
-  /**
-   * A tile's accessible name is everything inside it — heading, description,
-   * badges, the readiness line — so it is found the way the cases above find
-   * one: by its heading, then up to the element that actually takes the click.
-   */
+  /** A tile is followed through its title, which is a link named after the tool. */
   function tileFor(labelKey: Parameters<typeof translate>[1]): HTMLElement {
-    const heading = screen.getByRole('heading', { level: 3, name: translate('en', labelKey) });
-    const tile = heading.closest('[role="button"]');
-    expect(tile).toBeTruthy();
-    return tile as HTMLElement;
+    return screen.getByRole('link', { name: translate('en', labelKey) });
   }
 
   it('has at least one, or these cases prove nothing', () => {
@@ -197,11 +276,13 @@ describe('a tool that runs in the browser', () => {
       if (tool.featureFlag)
         localStorage.setItem(`wishly.feature-unlock.${tool.featureFlag}`, 'true');
     }
-    render(<HomePage navigate={navigate} />);
+    renderHome(navigate);
 
     for (const tool of browserTools) {
       fireEvent.click(tileFor(tool.labelKey));
       expect(navigate).toHaveBeenCalledWith(tool.path);
+      // And it does not claim to need what it never calls.
+      expect(tileFor(tool.labelKey).getAttribute('aria-describedby')).not.toMatch(/-note/);
     }
     // Not merely "it navigated anyway": the agent was never consulted at all.
     for (const call of agent.toolAvailable.mock.calls) {
@@ -219,9 +300,31 @@ describe('a tool that runs in the browser', () => {
     if (target.featureFlag) {
       localStorage.setItem(`wishly.feature-unlock.${target.featureFlag}`, 'true');
     }
-    render(<HomePage navigate={navigate} />);
+    renderHome(navigate);
 
+    // The tile says why before anyone presses it …
+    const described = tileFor(target.labelKey).getAttribute('aria-describedby') ?? '';
+    const note = document.getElementById(described.split(' ').pop() ?? '');
+    expect(note?.textContent).toBe(translate('en', 'agentRequired'));
+
+    // … and pressing it answers with the setup dialog, in place, not with an
+    // empty tool page.
     fireEvent.click(tileFor(target.labelKey));
     expect(navigate).not.toHaveBeenCalled();
+    expect(screen.getByText(`setup-dialog:${target.id}`)).toBeTruthy();
+  });
+
+  it('puts the way to start the local app beside its state, once', () => {
+    agent.connection = 'not_installed_or_not_running';
+    agent.toolAvailable.mockImplementation(() => false);
+    // This browser has met the app before, so this is "it is closed", not
+    // onboarding: the badge and the link, and no install panel.
+    markAgentSeen();
+    renderHome();
+
+    const how = screen.getAllByRole('button', { name: translate('en', 'homeHowToStart') });
+    expect(how).toHaveLength(1);
+    fireEvent.click(how[0]);
+    expect(screen.getByText(/^setup-dialog:/)).toBeTruthy();
   });
 });

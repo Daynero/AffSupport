@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { routeKind, webTools } from '../apps/web/src/lib/tool-registry';
+import {
+  HOME_GROUPS,
+  catalogueByGroup,
+  routeKind,
+  webTools
+} from '../apps/web/src/lib/tool-registry';
 import { translate } from '../apps/web/src/i18n';
 import { isProtected } from '../apps/web/src/lib/feature-flags';
 
@@ -42,14 +47,48 @@ describe('Soty product launcher', () => {
     expect(webTools.find(tool => tool.id === 'landingPreview')?.capability).toBe('landing-preview');
   });
 
+  it('groups the tools by errand without reordering the registry', () => {
+    // The declaration order above is untouched; the group is a field, and the
+    // home screen draws one row per group in `HOME_GROUPS` order.
+    expect(HOME_GROUPS).toEqual(['video', 'landing', 'other']);
+    expect(
+      catalogueByGroup().map(row => ({ group: row.group, ids: row.tools.map(tool => tool.id) }))
+    ).toEqual([
+      { group: 'video', ids: ['compressor', 'stitcher', 'transcription'] },
+      { group: 'landing', ids: ['landingOptimizer', 'landingPreview'] },
+      { group: 'other', ids: ['twoFactor'] }
+    ]);
+  });
+
+  it('keeps the home styles in their own sheet, on tokens, with the three widths', async () => {
+    const home = await readFile('apps/web/src/styles/home.css', 'utf8');
+    expect(home).toContain('.home-tile-link::after');
+    expect(home).toContain(':focus-visible');
+    expect(home).toContain('@media (min-width: 720px)');
+    expect(home).toContain('@media (min-width: 1100px)');
+    expect(home).toContain('@media (max-width: 500px)');
+    // The legacy launcher is gone from the big sheet rather than shadowed.
+    const legacy = await readFile('apps/web/src/styles.css', 'utf8');
+    expect(legacy).not.toMatch(/\.launcher\b|\.tool-card\b|\.tool-grid\b/);
+  });
+
   it('opens the landing optimizer to every Soty user without a developer pass', () => {
     expect(isProtected('landingOptimizer')).toBe(false);
     expect(isProtected('landingPreview')).toBe(false);
   });
 
   it('localizes launcher content in EN and UA', () => {
-    expect(translate('en', 'toolsTitle')).toBe('Soty Tools');
-    expect(translate('uk', 'toolsTitle')).toBe('Інструменти Soty');
+    // The home is a launcher now, not a hero: a short title on the content
+    // axis, and the tools in three rows named by the errand.
+    expect(translate('en', 'homeTitle')).toBe('Tools');
+    expect(translate('uk', 'homeTitle')).toBe('Інструменти');
+    expect(translate('en', 'homeGroupVideo')).toBe('Video');
+    expect(translate('uk', 'homeGroupVideo')).toBe('Відео');
+    expect(translate('en', 'homeGroupLanding')).toBe('Landing pages');
+    expect(translate('uk', 'homeGroupLanding')).toBe('Лендінги');
+    expect(translate('en', 'homeGroupOther')).toBe('Other');
+    expect(translate('uk', 'homeGroupOther')).toBe('Інше');
+    expect(translate('uk', 'homeHowToStart')).toBe('Як запустити');
     expect(translate('en', 'comingSoon')).toBe('Coming soon');
     expect(translate('uk', 'comingSoon')).toBe('Незабаром');
     expect(translate('en', 'inDevelopment')).toBe('In development');

@@ -798,6 +798,12 @@ processed copy from the attachment, and see all three on the task without it clo
       space's one `Restitched` folder.
 - [x] T229 [US24-26] Walked on the beta: a folder of ten creatives reads as ten tiles, the two
       catalogs open from the video's tile.
+- [x] T230 [US27] `components/UserMenu.tsx` on the inventory `DropdownMenu`; the bar on one
+      control height; `styles/shell.css` owns both, the legacy `.user-menu*` rules are gone.
+- [x] T231 [US28] `HomePage.tsx` as a launcher: spaces first, tools grouped by the registry's new
+      `group`, whole-tile links, one stage panel; `styles/home.css`.
+- [x] T232 [US29] `pages/AccountPage.tsx` writes on change with a state word; spaces list, local
+      app facts, session; `styles/account.css`.
 
 — accounts, agents and members (Priority: P3)
 

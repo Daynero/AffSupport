@@ -1010,6 +1010,23 @@ press. Variations must not pile up: removing one is one action and leaves nothin
   found by the mark Soty writes rather than by its name, and made on first use; a space where the
   folder cannot be made keeps the old behaviour (beside the video).
 
+### Functional Requirements — the shell's own screens (US27–US29)
+
+- **FR-155** (US27): The account menu MUST be the inventory menu — identity first (avatar, name,
+  e-mail, read not pressed), then places, then help, then sign-out alone and quiet — with an icon
+  on every row and a mark on the place the reader is already on. The bar's controls MUST share one
+  height.
+- **FR-156** (US28): The tools home MUST be a launcher for a daily visitor: the reader's spaces
+  first (the last opened one leading), tools in named rows as whole-tile links with one line of
+  caption, no button inside a tile and no primary button on the page. The local app's state MUST
+  be said at most once, and only where the header does not already say it; a tile speaks about
+  the local app only when it cannot open without it.
+- **FR-157** (US29): The account page MUST write what is changed when it is changed — name on
+  blur or Enter, language and newsletter at once — and show the result as a state word beside the
+  section title, with no standing Save. E-mail appears once. Invitations appear as a card only
+  when there is one. The local app's version and the result of the update check are two separate
+  facts.
+
 ### Key Entities
 
 - **Material action**: an intent that can be performed on a material — its identity, its group,

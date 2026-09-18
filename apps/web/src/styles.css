@@ -298,14 +298,6 @@ a {
   min-width: 0;
 }
 
-/* The account keeps its face and its menu; the name is what a narrow bar can
-   do without, and it was the last thing pushing the menu off the screen. */
-@media (max-width: 1000px) {
-  .user-menu-trigger-name {
-    display: none;
-  }
-}
-
 @media (max-width: 560px) {
   .topbar {
     /* The wordmark is what does not fit on a phone: the controls together need
@@ -476,132 +468,6 @@ a {
   }
 }
 
-/* Product launcher */
-.launcher {
-  width: min(80%, var(--shell-width));
-  margin: 0 auto;
-  padding: clamp(28px, 5vh, 48px) 0 64px;
-}
-
-.launcher-heading {
-  margin-bottom: 28px;
-  text-align: center;
-}
-
-.launcher-heading h2 {
-  font-size: clamp(35.88px, 4vw, 47.84px);
-  letter-spacing: -0.025em;
-}
-
-.launcher-heading p {
-  margin-top: 8px;
-  color: var(--color-text-muted);
-  font-size: var(--text-4xl);
-}
-
-.agent-panel-slot {
-  min-height: 0;
-  margin-bottom: 24px;
-  border-radius: var(--radius-lg);
-  transition: transform var(--dur-section) var(--ease-standard);
-}
-
-.agent-panel-slot:empty {
-  margin-bottom: 0;
-}
-.agent-panel-slot.attention {
-  animation: panel-attention var(--dur-complete) var(--ease-standard);
-}
-.agent-checking {
-  width: max-content;
-  margin: 0 auto;
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-  font-size: var(--text-xl);
-}
-
-.launcher-notice {
-  width: max-content;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-  font-size: var(--text-xl);
-}
-
-.launcher .onboarding-panel,
-.launcher .blocking-message {
-  max-width: 680px;
-  margin-inline: auto;
-}
-
-/* When a panel genuinely changes (connected, pairing, update), ease it in
-   instead of popping — the common "checking" case no longer swaps at all. */
-.agent-panel-slot > * {
-  animation: fade-rise var(--dur-section) var(--ease-enter);
-}
-
-.launcher .onboarding-panel {
-  margin-top: 0;
-}
-
-.team-workspace-launcher-card {
-  display: flex;
-  min-height: 126px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 24px;
-  background:
-    radial-gradient(
-      circle at 12% 10%,
-      color-mix(in srgb, var(--purple-200) 55%, transparent),
-      transparent 42%
-    ),
-    var(--color-surface);
-}
-
-.team-workspace-launcher-copy {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-5);
-}
-
-.team-workspace-launcher-copy h3 {
-  font-size: var(--text-8xl);
-  letter-spacing: -0.015em;
-}
-
-.team-workspace-launcher-title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.team-workspace-launcher-copy p {
-  max-width: 620px;
-  margin-top: 6px;
-  color: var(--color-text-muted);
-  line-height: 1.55;
-}
-
-.team-workspace-launcher-card > .soty-button,
-.team-workspace-launcher-card > .ui-button {
-  flex: 0 0 auto;
-}
-
-.tool-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-5);
-}
-
 /* Shared card surface; per-card modifiers add their unique traits. */
 .soty-card {
   padding: var(--space-6);
@@ -626,105 +492,10 @@ a {
   transform: translateY(-1px) scale(0.992);
 }
 
-.tool-card {
-  display: flex;
-  min-height: 290px;
-  flex-direction: column;
-  font-size: var(--text-3xl);
-}
-
-.tool-coming-soon {
-  background: var(--color-surface-subtle);
-  cursor: pointer;
-}
-
-.tool-card,
-.tool-icon,
-.tool-readiness {
-  transition:
-    transform var(--dur-control) var(--ease-standard),
-    border-color var(--dur-control) var(--ease-standard),
-    box-shadow var(--dur-control) var(--ease-standard),
-    color var(--dur-control) var(--ease-standard),
-    background var(--dur-control) var(--ease-standard);
-}
-
-.tool-card-top,
-.tool-action-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.tool-action-row:has(> .soty-button:only-child),
-.tool-action-row:has(> .ui-button:only-child) {
-  justify-content: flex-end;
-}
-
-/* A removed rule left `.tool-card .tool-action-row` dangling here, which glued
-   itself onto the next selector as `.tool-card .tool-action-row .tool-icon` and
-   quietly unstyled every tool icon (found in the 024 audit).
-   `.soty-button` already sets both of these where it is defined; this repeat was
-   added during a touch-target pass and changes nothing. The two rules that do
-   reduce a button's height — the job actions and the update notice — are more
-   specific and win regardless of order, so removing this affects nothing at
-   all, which is the point. */
-
-.tool-icon {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border-radius: var(--radius-lg);
-  color: var(--purple-600);
-  background: linear-gradient(145deg, var(--purple-50), var(--purple-200));
-}
-.tool-icon svg {
-  width: 30px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.tool-coming-soon .tool-icon {
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-}
-
-.tool-copy {
-  flex: 1;
-  padding: 24px 0;
-}
-.tool-copy h3 {
-  font-size: var(--text-7xl);
-}
-.tool-copy p {
-  margin-top: var(--space-2);
-  color: var(--color-text-muted);
-}
-.tool-readiness {
-  color: var(--color-warning);
-  font-size: var(--text-lg);
-  font-weight: 650;
-}
-.tool-readiness.ready {
-  color: var(--color-success);
-}
-.tool-readiness.beta {
-  color: var(--color-action-hover);
-}
 .soty-button.is-disabled,
 .ui-button.is-disabled {
   opacity: 0.58;
   pointer-events: none;
-}
-
-@keyframes panel-attention {
-  50% {
-    transform: translateY(-3px);
-  }
 }
 
 .soty-mark {
@@ -2559,8 +2330,6 @@ input.is-invalid {
   border-bottom: 0;
 }
 
-.account-skeleton,
-.account-loaded,
 .admin-skeleton,
 .admin-loaded {
   display: grid;
@@ -3257,60 +3026,6 @@ input.is-invalid {
     display: none;
   }
 
-  .launcher {
-    width: min(100% - 24px, 600px);
-    padding: 22px 0 48px;
-  }
-
-  .launcher-heading {
-    margin-bottom: var(--space-6);
-    padding-inline: 8px;
-  }
-
-  .launcher-heading h2 {
-    font-size: clamp(34.39px, 7vw, 43.36px);
-  }
-
-  .launcher-heading p {
-    max-width: 440px;
-    margin-inline: auto;
-    font-size: var(--text-3xl);
-  }
-
-  .agent-panel-slot {
-    margin-bottom: var(--space-5);
-  }
-
-  .team-workspace-launcher-card {
-    align-items: stretch;
-    flex-direction: column;
-    gap: var(--space-5);
-    padding: 20px;
-  }
-
-  .team-workspace-launcher-card > .soty-button,
-  .team-workspace-launcher-card > .ui-button {
-    width: 100%;
-  }
-
-  .tool-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-4);
-  }
-
-  .tool-card {
-    min-height: 238px;
-    padding: 20px;
-  }
-
-  .tool-copy {
-    padding: 20px 0;
-  }
-
-  .tool-copy p {
-    max-width: 520px;
-  }
-
   .workspace {
     padding: var(--space-3);
   }
@@ -3430,10 +3145,6 @@ input.is-invalid {
     align-items: flex-start;
     flex-wrap: wrap;
   }
-
-  .launcher .blocking-message .ui-alert-action {
-    margin-left: 40px;
-  }
 }
 
 @media (max-width: 500px) {
@@ -3489,88 +3200,12 @@ input.is-invalid {
     font-size: 0;
   }
 
-  .launcher {
-    width: calc(100% - 20px);
-    padding-top: var(--space-5);
-  }
-
-  .launcher-heading {
-    margin-bottom: var(--space-5);
-  }
-
-  .launcher-heading p {
-    line-height: 1.5;
-  }
-
-  .agent-checking {
-    max-width: 100%;
-    text-align: center;
-  }
-
-  .team-workspace-launcher-copy {
-    align-items: flex-start;
-  }
-
-  .team-workspace-launcher-copy h3 {
-    font-size: var(--text-7xl);
-  }
-
-  .launcher .onboarding-panel {
-    gap: 11px;
-    padding: var(--space-5);
-  }
-
-  .launcher .onboarding-panel > .inline-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .launcher .onboarding-panel > .inline-actions .soty-button,
-  .launcher .blocking-message .inline-actions,
-  .launcher .blocking-message .ui-button,
-  .launcher .onboarding-panel > .inline-actions .ui-button {
-    width: 100%;
-  }
-
-  .launcher .blocking-message .ui-alert-action {
-    margin-left: 0;
-  }
-
   .installation-help {
     overflow-wrap: anywhere;
   }
 
   .installation-help ol {
     padding-left: var(--space-5);
-  }
-
-  .tool-card {
-    min-height: 224px;
-    padding: var(--space-5);
-  }
-
-  .tool-icon {
-    width: 48px;
-    height: 48px;
-  }
-
-  .tool-copy {
-    padding: 18px 0;
-  }
-
-  .tool-copy h3 {
-    font-size: var(--text-6xl);
-  }
-
-  .tool-action-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .tool-action-row .soty-button,
-  .tool-action-row .ui-button {
-    min-height: 42px;
-    width: 100%;
   }
 
   .drop-zone {
@@ -4177,130 +3812,7 @@ body:has(.public-home) {
   font-size: var(--text-10xl);
 }
 
-.user-menu {
-  position: relative;
-}
-
-.user-menu-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 40px;
-  min-height: 40px;
-  padding: 3px 8px 3px 3px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  color: var(--color-text);
-  background: transparent;
-  cursor: pointer;
-  transition: background var(--dur-control) var(--ease-standard);
-}
-
-.topbar .user-menu-trigger {
-  gap: 9.2px;
-  min-width: 46px;
-  min-height: 46px;
-  padding: 3.45px 9.2px 3.45px 3.45px;
-}
-
-.topbar .avatar-small {
-  width: 37px;
-  height: 37px;
-  font-size: var(--text-lg);
-}
-
-.topbar .user-menu-trigger-name {
-  font-size: var(--text-2xl);
-}
-
-.topbar .user-menu-chevron {
-  width: 18px;
-  height: 18px;
-}
-
-.user-menu-trigger:hover,
-.user-menu-trigger[aria-expanded='true'] {
-  background: var(--color-surface-muted);
-}
-
-.user-menu-trigger-name {
-  max-width: 160px;
-  overflow: hidden;
-  font-size: var(--text-2xl);
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-menu-chevron {
-  color: var(--color-text-muted);
-  transform: translateY(-1px);
-}
-
-/* Placed by the component (021): portalled to the body and flipped when the
-   window is short. What is left here is what it looks like. */
-.user-menu-popover {
-  z-index: var(--layer-popover);
-  display: grid;
-  width: 248px;
-  padding: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-menu);
-  /* No entrance: this is opened many times an hour, and the rule about
-     frequency is in docs/DESIGN-PRINCIPLES.md. It used to name `menu-pop`,
-     which no `@keyframes` ever declared — so it already did not animate, it
-     just did not say so. */
-  transform-origin: top right;
-}
-
-/* The list, between the popover surface and its entries so the arrow-key walk
-   has something to own. */
-.user-menu-items {
-  display: contents;
-}
-
-.user-menu-identity {
-  display: grid;
-  gap: 2px;
-  padding: var(--space-3);
-  overflow: hidden;
-}
-
-.user-menu-identity strong,
-.user-menu-identity span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-menu-identity span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-}
-
-.user-menu-items > button {
-  width: 100%;
-  padding: 9px var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.user-menu-items > button:hover,
-.user-menu-items > button:focus-visible {
-  background: var(--color-surface-muted);
-}
-
-.user-menu-separator {
-  height: 1px;
-  margin: var(--space-2) var(--space-1);
-  background: var(--color-border);
-}
+/* The account menu lives in styles/shell.css (024, US27). */
 
 .modal-backdrop {
   position: fixed;
@@ -4909,49 +4421,11 @@ body:has(.public-home) {
   color: var(--color-text-muted);
 }
 
-.account-page {
-  display: grid;
-  gap: var(--space-5);
-  max-width: 880px;
-}
-
-.account-page > .page-heading {
-  margin-bottom: 0;
-}
-
-.account-card,
+/* The account page's own rules moved to styles/account.css (024). */
 .admin-card {
   display: grid;
   gap: var(--space-5);
   box-shadow: var(--shadow-sm);
-}
-
-.profile-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.profile-summary > div {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.profile-summary h3 {
-  font-size: var(--text-7xl);
-}
-
-.profile-summary span {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  text-overflow: ellipsis;
-}
-
-.account-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
 }
 
 .field {
@@ -4984,69 +4458,6 @@ body:has(.public-home) {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
   outline: 0;
-}
-
-.profile-card > .button-primary {
-  justify-self: start;
-}
-
-.account-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 var(--space-6);
-  margin: 0;
-}
-
-.account-details > div {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.account-details dt {
-  color: var(--color-text-muted);
-}
-
-.account-details dd {
-  min-width: 0;
-  margin: 0;
-  font-weight: 600;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-
-.account-version-detail {
-  flex-wrap: wrap;
-}
-
-.account-version-detail dt {
-  flex: 1 1 180px;
-}
-
-.account-version-detail dd {
-  flex: 1 1 180px;
-}
-
-.account-card > .button-secondary {
-  justify-self: start;
-}
-
-.agent-version-note {
-  font-weight: 400;
-  color: var(--color-text-muted);
-}
-
-.agent-version-note a {
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.agent-version-note a:hover {
-  color: var(--color-accent-hover);
 }
 
 .confirm-dialog form {
@@ -5521,21 +4932,10 @@ body:has(.public-home) {
     padding: 34px 26px 28px;
   }
 
-  .user-menu-trigger-name,
-  .user-menu-chevron {
-    display: none;
-  }
-
-  .user-menu-trigger {
-    padding-right: 3px;
-  }
-
   .connection-badge {
     max-width: 130px;
   }
 
-  .account-form-grid,
-  .account-details,
   .admin-split-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -5623,13 +5023,8 @@ body:has(.public-home) {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .account-card,
   .admin-card {
     padding: var(--space-4);
-  }
-
-  .profile-summary {
-    align-items: flex-start;
   }
 
   .metric-grid,
@@ -5665,7 +5060,6 @@ body:has(.public-home) {
 
 @media (prefers-reduced-motion: reduce) {
   .login-accent,
-  .user-menu-popover,
   .transcription-copy-popover,
   .release-update-notice,
   .modal-backdrop,
@@ -9498,7 +8892,7 @@ button,
   background: color-mix(in oklab, var(--grey-950) 88%, transparent);
 }
 .team-preview-dialog:not(.landing-full-view) {
-  width: min(100%, 1600px);
+  width: min(100%, var(--dialog-full));
   max-height: calc(100vh - 2 * var(--space-4));
 }
 /* The picture sits on black in both themes; the bar above it keeps the theme. */
@@ -9983,18 +9377,6 @@ button,
   stroke-width: 1;
 }
 
-/* Two honey cells land directly behind the centred "Інструменти Soty" launcher
-   title and washed it out. The hex grid is deterministic, so pin them by
-   coordinate and drop them to plain (unfilled, unlit) field cells — the field
-   already has many empty cells, so this reads as the honey accent simply not
-   being there rather than a hole. */
-.soty-cell[data-cx='1031'][data-cy='204'],
-.soty-cell[data-cx='1296'][data-cy='153'] {
-  fill: none !important;
-  stroke: none !important;
-  filter: none !important;
-}
-
 /* Electric "bug" traces — one long glowing spark crawls each conduit */
 .soty-trace-layer > g {
   stroke: var(--ice-50);
@@ -10045,12 +9427,6 @@ body {
   min-height: 44.2px;
   padding-inline: var(--space-4);
   font-size: inherit;
-}
-
-@media (max-width: 720px) {
-  .launcher {
-    width: calc(100% - 32px);
-  }
 }
 
 /* Team task workspace */

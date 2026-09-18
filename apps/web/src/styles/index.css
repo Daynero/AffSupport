@@ -118,6 +118,12 @@
 @import './team-accounts.css' layer(soty);
 @import './team-tasks.css' layer(soty);
 @import './transcription.css' layer(soty);
+/* The shell's own screens, redone on the inventory (024, US27–US29): the
+   header and its account menu, the tools home, the account page. Loaded last
+   so they refine everything above. */
+@import './shell.css' layer(soty);
+@import './home.css' layer(soty);
+@import './account.css' layer(soty);
 @import './landing-viewer.css' layer(soty);
 
 @import './skin.css' layer(soty);
