@@ -919,9 +919,12 @@ export function ConnectionBadge({ state, t }: { state: ConnectionState; t: Trans
     disconnected: 'agentDisconnected'
   };
   return (
-    <span className={`connection-badge connection-${state}`}>
+    <span className={`connection-badge connection-${state}`} title={t(keys[state])}>
       <i aria-hidden="true" />
-      {t(keys[state])}
+      {/* Its own element, so a phone can keep the dot and drop the words from
+          sight without dropping them from the page (024): cut to fit, the chip
+          read "підк". */}
+      <span className="connection-badge-text">{t(keys[state])}</span>
     </span>
   );
 }

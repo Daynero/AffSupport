@@ -24,6 +24,25 @@
   font-size: var(--text-caption);
 }
 
+/* On a phone the chip is its dot: the colour is the state, and the words stay
+   in the page for a reader that asks for them. */
+@media (max-width: 560px) {
+  .topbar .connection-badge {
+    justify-content: center;
+    min-width: var(--control-height-md);
+    max-width: none;
+    padding: 0;
+  }
+  .topbar .connection-badge-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 /* ---- The account button ------------------------------------------------ */
 
 .user-menu {
