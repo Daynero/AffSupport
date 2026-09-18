@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   LandingRenderPointer,
   RenderArtifactRef,
@@ -6,16 +6,15 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { EmptyState, ErrorState } from '../../components/ui/index';
+import { EmptyState, ErrorState, Popover } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
-import { FolderOpen, Paperclip } from 'lucide-react';
+import { ExternalLink, FolderOpen, Paperclip } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
-import { companionOf } from './companions';
 import { useMaterialDrag } from './materialDrag';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { useExplorer } from './ExplorerProvider';
@@ -58,9 +57,7 @@ export function ContentGrid({
   tagging,
   emptyAction,
   onDropMaterials,
-  companionCounts,
-  openedCompanions,
-  onToggleCompanions
+  companionRows
 }: {
   client: ContentGridClient;
   /** The folder's rows, held by the shell so one listing serves everything. */
@@ -89,10 +86,8 @@ export function ContentGrid({
    * which is the same rule as the toolbar's (FR-021, FR-004).
    */
   emptyAction?: ReactNode;
-  /** How many companions each video holds, folded away until opened (024, US25). */
-  companionCounts?: ReadonlyMap<string, number>;
-  openedCompanions?: ReadonlySet<string>;
-  onToggleCompanions?: (rowId: string) => void;
+  /** Each video's own files — its text, its catalogs — listed on its tile (024, US25). */
+  companionRows?: ReadonlyMap<string, readonly TeamMaterialRow[]>;
   /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
 }) {
@@ -184,10 +179,10 @@ export function ContentGrid({
             onPreview={onPreview}
             actions={actions}
             tagging={tagging}
-            companions={companionCounts?.get(row.id) ?? 0}
-            companionsOpen={openedCompanions?.has(row.id) ?? false}
-            onToggleCompanions={onToggleCompanions}
-            nested={Boolean(companionOf(row))}
+            companions={companionRows?.get(row.id) ?? NO_COMPANIONS}
+            companionSelected={Boolean(
+              companionRows?.get(row.id)?.some(companion => companion.id === selectedId)
+            )}
           />
         ))}
       </ul>
@@ -215,10 +210,8 @@ function Tile({
   tagging,
   drag,
   dropTarget,
-  companions = 0,
-  companionsOpen = false,
-  onToggleCompanions,
-  nested = false
+  companions = NO_COMPANIONS,
+  companionSelected = false
 }: {
   row: TeamMaterialRow;
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
@@ -234,11 +227,10 @@ function Tile({
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
   tagging?: TaggingProps;
-  /** Its own companions, folded away (024, US25), and whether this tile is one of them. */
-  companions?: number;
-  companionsOpen?: boolean;
-  onToggleCompanions?: (rowId: string) => void;
-  nested?: boolean;
+  /** Its own files, listed from a badge on the picture (024, US25). */
+  companions?: readonly TeamMaterialRow[];
+  /** The file open in the pane is one of them: the tile says whose it is. */
+  companionSelected?: boolean;
 }) {
   const { t, language } = useI18n();
   const [broken, setBroken] = useState(false);
@@ -270,7 +262,7 @@ function Tile({
     <li
       className={`team-explorer-tile is-${row.kind}${selected ? ' is-selected' : ''}${
         checked ? ' is-checked' : ''
-      }${dropTarget ? ' is-drop-target' : ''}${nested ? ' is-nested' : ''}`}
+      }${dropTarget ? ' is-drop-target' : ''}${companionSelected ? ' has-selected-companion' : ''}`}
       data-material-id={row.id}
       aria-selected={selected}
       {...drag}
@@ -311,6 +303,9 @@ function Tile({
           </span>
         )}
       </button>
+      {companions.length > 0 && (
+        <TileCompanions owner={row} rows={companions} onSelect={onSelect} onPreview={onPreview} />
+      )}
       {/* Selection and the menu sit over the picture, the way every file
           manager puts them: out of the caption, where they competed with the
           name, and out of the flow, where the bare checkbox floated loose. */}
@@ -363,24 +358,6 @@ function Tile({
               .join(' · ')}
           </span>
         </span>
-        {companions > 0 && onToggleCompanions && (
-          /* The video's own files — its text, its catalogs — on a press rather than spread
-             through the folder (024, US25). */
-          <button
-            type="button"
-            className="team-explorer-tile-companions"
-            aria-expanded={companionsOpen}
-            onClick={event => {
-              event.stopPropagation();
-              onToggleCompanions(row.id);
-            }}
-          >
-            <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t(companionsOpen ? 'teamExplorerCompanionsHide' : 'teamExplorerCompanions', {
-              count: companions
-            })}
-          </button>
-        )}
         {row.kind === 'landing' && row.landingRender && (
           <span className={`team-explorer-tile-render is-${row.landingRender.state}`}>
             {t(RENDER_LABEL[row.landingRender.state])}
@@ -389,5 +366,117 @@ function Tile({
         {reason && <KindNote text={t(reason)} />}
       </div>
     </li>
+  );
+}
+
+const NO_COMPANIONS: readonly TeamMaterialRow[] = [];
+
+/** What a companion is, in a word: the name says "catalog", the kind says "transcript". */
+function companionLabel(row: TeamMaterialRow): TranslationKey {
+  if (/_catalog$/iu.test(row.name.trim())) return 'teamExplorerCompanionCatalog';
+  return KIND_LABEL[row.kind];
+}
+
+/**
+ * A video's own files, on its tile (024, US25).
+ *
+ * The list unfolds them as rows under the video, which a list can do for free. A grid cannot: the
+ * first attempt was a line of micro text under the caption — nobody saw it, and it made that one
+ * tile taller than its row — and pressing it dealt the catalogs out as full-size grey tiles that
+ * pushed every video after them down and looked like strangers in the folder.
+ *
+ * So the tile carries a badge on its picture — a paperclip and a count, where Frame.io puts a
+ * version stack's — and the badge opens a short list anchored to the tile. Nothing in the grid
+ * moves. A press on a line chooses that file, so the pane beside the grid shows what it is and
+ * everything that can be done with it; two presses, or the arrow, open it.
+ */
+function TileCompanions({
+  owner,
+  rows,
+  onSelect,
+  onPreview
+}: {
+  owner: TeamMaterialRow;
+  rows: readonly TeamMaterialRow[];
+  onSelect: (id: string) => void;
+  onPreview?: (material: TeamMaterialSummary) => void;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const badge = useRef<HTMLButtonElement>(null);
+  const label = t('teamExplorerCompanions', { count: rows.length });
+
+  return (
+    <>
+      {/* The picture's own box, laid over it: the badge sits in the picture's corner without
+          being inside the button that is the picture. */}
+      <span className="team-explorer-tile-badge-layer">
+        <button
+          ref={badge}
+          type="button"
+          className="team-explorer-tile-badge"
+          aria-label={`${owner.name}: ${label}`}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          title={label}
+          onClick={event => {
+            event.stopPropagation();
+            setOpen(value => !value);
+          }}
+          onDoubleClick={event => event.stopPropagation()}
+        >
+          <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          {rows.length}
+        </button>
+      </span>
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={badge}
+        placement="bottom-start"
+        frequent
+        label={label}
+        className="team-explorer-companions"
+      >
+        <p className="team-explorer-companions-title">{t('teamExplorerCompanionsOf')}</p>
+        <ul role="list" onClick={event => event.stopPropagation()}>
+          {rows.map(row => (
+            <li key={row.id}>
+              <button
+                type="button"
+                className="team-explorer-companion"
+                onClick={() => {
+                  onSelect(row.id);
+                  setOpen(false);
+                }}
+                onDoubleClick={() => onPreview?.(previewSummary(row))}
+              >
+                <KindIcon kind={row.kind} />
+                <span className="team-explorer-companion-copy">
+                  <span className="team-explorer-companion-name" title={row.name}>
+                    {row.name}
+                  </span>
+                  <span className="team-explorer-companion-kind">{t(companionLabel(row))}</span>
+                </span>
+              </button>
+              {onPreview && (
+                <button
+                  type="button"
+                  className="team-explorer-companion-open"
+                  aria-label={t('teamExplorerOpenNamed', { name: row.name })}
+                  title={t('teamExplorerOpenNamed', { name: row.name })}
+                  onClick={() => {
+                    onPreview(previewSummary(row));
+                    setOpen(false);
+                  }}
+                >
+                  <ExternalLink size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </Popover>
+    </>
   );
 }

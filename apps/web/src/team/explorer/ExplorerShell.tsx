@@ -153,6 +153,9 @@ function restitchProgress(phase: keyof typeof RESTITCH_PHASE_SPAN, within?: numb
   return Math.round(span.from + (span.to - span.from) * fraction);
 }
 
+/** The grid never unfolds companions in place; a stable empty set keeps the memo quiet. */
+const NO_COMPANIONS_OPEN: ReadonlySet<string> = new Set();
+
 export function ExplorerShell({
   teamId,
   client,
@@ -385,9 +388,14 @@ function ExplorerBody({
    */
   const [openedCompanions, setOpenedCompanions] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => setOpenedCompanions(new Set()), [currentFolderId]);
+  /*
+   * Only the list unfolds them in place. In the grid a catalog is a grey document tile the size of
+   * a thumbnail: opened, two of them pushed every video after them down a row and looked like
+   * strangers in the folder. There the video's tile lists them itself, so the grid never unfolds.
+   */
   const folded = useMemo(
-    () => foldCompanions(allRows, openedCompanions),
-    [allRows, openedCompanions]
+    () => foldCompanions(allRows, view === 'grid' ? NO_COMPANIONS_OPEN : openedCompanions),
+    [allRows, openedCompanions, view]
   );
   const sortedRows = folded.rows;
   const toggleCompanions = useCallback((rowId: string) => {
@@ -1571,9 +1579,7 @@ function ExplorerBody({
                 onPreview={onPreview}
                 actions={actions}
                 rows={sortedRows}
-                companionCounts={folded.counts}
-                openedCompanions={openedCompanions}
-                onToggleCompanions={toggleCompanions}
+                companionRows={folded.children}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
               />

@@ -75,38 +75,34 @@ describe('the grid', () => {
     reload: vi.fn()
   } as never;
 
-  it('opens a video’s files from the tile and closes them again', async () => {
-    const rows = [row('v1', 'clip.mp4'), companion('t1', 'clip.txt', 'v1')];
-    function Harness() {
-      const [opened, setOpened] = React.useState<ReadonlySet<string>>(new Set());
-      const folded = foldCompanions(rows, opened);
-      return (
+  it('lists a video’s files from a badge on its tile, without dealing them out as tiles', async () => {
+    const rows = [row('v1', 'clip.mp4'), companion('t1', 'clip_v1_catalog', 'v1')];
+    const folded = foldCompanions(rows, new Set());
+    const onPreview = vi.fn();
+    render(
+      <ExplorerProvider teamId="team-1" client={{ listFolderTree: vi.fn().mockResolvedValue([]) }}>
         <ContentGrid
           page={page}
           rows={folded.rows}
-          companionCounts={folded.counts}
-          openedCompanions={opened}
-          onToggleCompanions={id =>
-            setOpened(current => {
-              const next = new Set(current);
-              if (!next.delete(id)) next.add(id);
-              return next;
-            })
-          }
+          companionRows={folded.children}
+          onPreview={onPreview}
           client={{ thumbnailUrl: () => null, openSession: async () => null } as never}
         />
-      );
-    }
-    render(
-      <ExplorerProvider teamId="team-1" client={{ listFolderTree: vi.fn().mockResolvedValue([]) }}>
-        <Harness />
       </ExplorerProvider>
     );
-    expect(screen.queryByText('clip.txt')).toBeNull();
+    // One tile, and the catalog is not among them.
+    expect(document.querySelectorAll('.team-explorer-tile')).toHaveLength(1);
+    expect(screen.queryByText('clip_v1_catalog')).toBeNull();
+
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Its files: 1' }));
-    expect(screen.getByText('clip.txt')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Hide its files' }));
-    expect(screen.queryByText('clip.txt')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'clip.mp4: Its files: 1' }));
+    expect(screen.getByText('clip_v1_catalog')).toBeTruthy();
+    expect(screen.getByText('Product catalog')).toBeTruthy();
+    // Still one tile: the list is on the tile, the grid has not moved.
+    expect(document.querySelectorAll('.team-explorer-tile')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Open clip_v1_catalog' }));
+    expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }));
+    expect(screen.queryByText('clip_v1_catalog')).toBeNull();
   });
 });

@@ -25,6 +25,8 @@ export interface FoldedRows {
   rows: TeamMaterialRow[];
   /** How many companions each video holds, for the count on its tile. */
   counts: Map<string, number>;
+  /** The companions themselves, by video — the grid lists them on the tile instead of as tiles. */
+  children: Map<string, TeamMaterialRow[]>;
 }
 
 /**
@@ -54,5 +56,5 @@ export function foldCompanions(
     folded.push(row);
     if (opened.has(row.id)) folded.push(...(children.get(row.id) ?? []));
   }
-  return { rows: folded, counts };
+  return { rows: folded, counts, children };
 }

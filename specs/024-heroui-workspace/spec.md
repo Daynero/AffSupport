@@ -999,7 +999,9 @@ press. Variations must not pile up: removing one is one action and leaves nothin
 
 - **FR-152**: The folder listing MUST say what a file belongs to, and the explorer MUST fold a
   video's transcript and catalogs under it — counted on the video, shown on a press, hidden by
-  default.
+  default. The list unfolds them as rows under the video. The grid MUST NOT: it carries a badge
+  with the count on the video's picture, and the badge lists the files on the tile — a press
+  chooses one into the pane, the arrow opens it — so no tile changes size and no tile moves.
 - **FR-153**: A companion whose video is not in the same listing (filtered out, on a later page,
   deleted) MUST stand on its own, because a file that cannot be reached any other way must never
   be hidden.

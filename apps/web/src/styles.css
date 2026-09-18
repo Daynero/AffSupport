@@ -17972,26 +17972,125 @@ a.history-subject {
 }
 
 /* A file that belongs to another file (024, US25): the count on the video, the child indented. */
-.team-explorer-tile-companions {
+/* A video's own files, on its picture (024, US25): a paperclip and a count where a version stack
+   sits, always drawn — a thing that only shows on hover is a thing nobody finds. */
+.team-explorer-tile-badge-layer {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  aspect-ratio: 4 / 3;
+  padding: var(--space-2);
+  pointer-events: none;
+}
+.team-explorer-tile-badge {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  align-self: flex-start;
+  height: var(--control-height-xs);
   min-height: 0;
-  padding: 2px var(--space-1);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-black) 62%, transparent);
+  color: var(--color-white);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.team-explorer-tile-badge:hover,
+.team-explorer-tile-badge[aria-expanded='true'],
+.team-explorer-tile.has-selected-companion .team-explorer-tile-badge {
+  background: var(--color-secondary-solid);
+}
+/* The pane is showing one of this video's files: the tile it came from keeps a quiet edge, so
+   the file in the pane is not an orphan. */
+.team-explorer-tile.has-selected-companion {
+  border-color: var(--color-secondary-border);
+}
+.team-explorer-companions {
+  display: grid;
+  gap: var(--space-1);
+  width: 280px;
+  max-width: calc(100vw - var(--space-6));
+  padding: var(--space-2);
+}
+.team-explorer-companions-title {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.team-explorer-companions ul {
+  display: grid;
+  gap: var(--space-px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-explorer-companions li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-explorer-companion {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-height-md);
+  padding: var(--space-1) var(--space-2);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--color-text-muted);
-  font-size: var(--text-micro);
+  color: var(--color-neutral-text);
+  text-align: left;
   cursor: pointer;
 }
-.team-explorer-tile-companions:hover {
-  background: var(--color-surface-muted);
-  color: var(--color-text);
+.team-explorer-companion svg {
+  flex: none;
+  color: var(--color-neutral-text-muted);
 }
-.team-explorer-tile.is-nested {
-  box-shadow: inset 3px 0 0 var(--color-border-strong);
+.team-explorer-companion:hover,
+.team-explorer-companion-open:hover {
+  background: var(--color-neutral-surface-muted);
+}
+.team-explorer-companion-copy {
+  display: grid;
+  min-width: 0;
+}
+.team-explorer-companion-name {
+  overflow: hidden;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-explorer-companion-kind {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+}
+.team-explorer-companion-open {
+  display: grid;
+  flex: none;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  min-height: 0;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
 }
 .team-explorer-row-companions {
   display: inline-flex;
