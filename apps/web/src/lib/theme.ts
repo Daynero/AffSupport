@@ -7,14 +7,6 @@ const CHANGE_EVENT = 'wishly-theme-changed';
 const META_LIGHT = '#7557e8';
 const META_DARK = '#120e1f';
 
-function systemPrefersDark(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  );
-}
-
 /** Reads the theme the FOUC-prevention inline script already committed to <html>. */
 export function getInitialTheme(): Theme {
   if (typeof document !== 'undefined') {
@@ -25,7 +17,7 @@ export function getInitialTheme(): Theme {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark') return stored;
   }
-  return systemPrefersDark() ? 'dark' : 'light';
+  return 'dark';
 }
 
 /** Commits a theme to the DOM without any transition animation. */

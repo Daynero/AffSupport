@@ -16,6 +16,8 @@
    margin after that. This is the same measure said from the inside. The page
    used to be 80% wide, which lined up with nothing above it. */
 .home {
+  --home-tile-height: calc((var(--control-height-xl) + var(--space-6) * 3) * 0.85);
+  position: relative;
   display: grid;
   gap: var(--space-6);
   width: min(calc(100% - 2 * var(--app-header-padding-inline)), var(--shell-width));
@@ -23,11 +25,31 @@
   /* One opaque stage, the way the workspace stands on the field: small grey
      labels straight on lit hexagons were the least readable thing on the page,
      and a halo only dimmed the problem. */
-  padding: var(--space-5) var(--space-6) var(--space-6);
+  padding: var(--space-6);
   border: 1px solid var(--color-neutral-border);
   border-radius: var(--radius-xl);
   background: var(--color-neutral-surface);
   box-shadow: var(--shadow-sm);
+}
+
+/* A quiet brand mark on the page field, kept behind the opaque launcher. */
+.home::before {
+  position: absolute;
+  z-index: 1;
+  right: 3vw;
+  bottom: var(--space-6);
+  left: auto;
+  width: min(13vw, 174px);
+  aspect-ratio: 1920 / 720;
+  content: '';
+  pointer-events: none;
+  background: url('/build-by-buyers.png') right bottom / contain no-repeat;
+  opacity: 0.92;
+}
+
+.home > * {
+  position: relative;
+  z-index: 2;
 }
 
 .home-head {
@@ -174,19 +196,81 @@
 
 /* A tile stands on the stage, so it is the raised step, not the same ground. */
 .home .home-tile {
-  min-height: calc(var(--control-height-xl) + var(--space-6));
+  min-height: var(--home-tile-height);
   background: var(--color-neutral-surface-raised);
 }
 
 /* A space is where the reader lives; a tool is what they pick up. The space
    says so with the product's second colour, and nothing else on the page does. */
 .home-section--spaces .home-tile {
-  border-color: var(--color-secondary-border);
+  border-color: transparent;
   background-image: linear-gradient(var(--color-secondary-soft), var(--color-secondary-soft));
 }
+
+/* A connected space is the main destination on this launcher. Its banner gets
+   enough height for the supplied scene to read as part of the surface rather
+   than as a small thumbnail beside the title. */
+.home-section--spaces .home-tile.has-artwork {
+  min-height: var(--home-tile-height);
+  background: var(--color-neutral-surface-raised);
+  overflow: visible;
+  isolation: isolate;
+}
+
+.home-tile-artwork {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 58%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.home-tile-boxes-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, var(--color-neutral-solid) 32%);
+  mask-image: linear-gradient(90deg, transparent, var(--color-neutral-solid) 32%);
+}
+
+.home-tile-boxes {
+  position: absolute;
+  right: calc(var(--space-6) * 5 - var(--space-1-5) + var(--space-1) + var(--space-1-5));
+  bottom: calc(var(--space-6) * -1);
+  height: 170%;
+  max-width: none;
+  object-fit: contain;
+  filter: blur(calc(var(--space-1) * 0.175));
+}
+
+.home-tile-bee {
+  position: absolute;
+  z-index: 1;
+  right: calc(var(--space-6) * 10 - var(--space-1-5) + var(--space-1) + var(--space-1-5));
+  bottom: calc((var(--space-6) + var(--space-1)) * -1 + var(--space-1-5));
+  height: 156.975%;
+  max-width: none;
+  object-fit: contain;
+  transform: rotate(-3deg);
+  transform-origin: 50% 100%;
+}
+
+.home-tile.has-artwork > :not(.home-tile-artwork) {
+  position: relative;
+  z-index: 1;
+}
+
 .home-section--spaces .home-tile-icon {
-  color: var(--color-white);
-  background: var(--color-secondary-solid);
+  color: var(--color-secondary-text);
+  background: color-mix(in srgb, var(--color-secondary-soft) 90%, var(--color-neutral-surface) 10%);
+}
+
+.home-section--spaces .home-tile-icon svg {
+  color: color-mix(in srgb, var(--home-workspace) 82%, var(--color-neutral-text-muted) 18%);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
 }
 
 /* A lift small enough to be felt rather than watched: this is pointed at dozens
@@ -240,22 +324,57 @@
 .home-tile-icon {
   display: grid;
   flex: none;
-  width: 52px;
-  height: 52px;
+  width: calc(var(--home-tile-height) - var(--space-5));
+  height: calc(var(--home-tile-height) - var(--space-5));
   place-items: center;
   border-radius: var(--radius-lg);
   color: var(--color-secondary-text);
-  background: var(--color-secondary-soft);
+  background: color-mix(in srgb, var(--color-secondary-soft) 90%, var(--color-neutral-surface) 10%);
 }
 
 .home-tile-icon svg {
-  width: 32px;
+  width: var(--control-height-xl);
   height: auto;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Tool identity lives on the glyph, while every icon plate keeps the same
+   quiet violet surface. The small local halo follows that glyph only. */
+.home-section--video .home-tile-icon svg {
+  color: var(--home-compressor);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+.home-section--video .home-stack > li:nth-child(2) .home-tile-icon svg {
+  color: var(--home-stitch);
+}
+
+.home-section--video .home-stack > li:nth-child(3) .home-tile-icon svg {
+  color: var(--home-transcription);
+}
+
+.home-section--landing .home-stack > li:first-child .home-tile-icon svg {
+  color: var(--home-optimizer);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+.home-section--landing .home-stack > li:nth-child(2) .home-tile-icon svg {
+  color: var(--home-preview);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+.home-section--other .home-tile-icon svg {
+  color: var(--home-two-factor);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+.home-tile-icon svg .compressor-play {
+  fill: currentColor;
+  stroke: none;
 }
 
 .home-tile-copy {
@@ -359,6 +478,19 @@
   .home-tile {
     gap: var(--space-3);
     padding: var(--space-3);
+  }
+
+  .home-tile-artwork {
+    width: 52%;
+    opacity: 0.72;
+  }
+
+  .home-tile-boxes {
+    right: calc(var(--space-1-5) + var(--space-1) + var(--space-1-5));
+  }
+
+  .home-tile-bee {
+    right: calc(var(--space-1-5) + var(--space-1) + var(--space-1-5));
   }
 
   .home-panel .onboarding-panel {

@@ -899,6 +899,7 @@
  * which is what survives on a screen too bright to read a 16% tint on.
  */
 .team-agent-run {
+  cursor: pointer;
   position: relative;
   display: flex;
   align-items: center;

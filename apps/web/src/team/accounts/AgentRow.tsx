@@ -582,6 +582,13 @@ export function AgentRow({
               className={`team-agent-run${item.marker ? ` is-marked is-${item.marker}` : ''}`}
               data-run-id={item.id}
               data-marker={item.marker ?? 'none'}
+              onClick={event => {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) return;
+                if (target.closest('button, a, input, textarea, select, [role="button"]')) return;
+                if (waiting || editingRun) return;
+                void run(() => onSetRunMarker(item, nextTeamAgentRunMarker(item.marker)));
+              }}
             >
               {/*
                * The whole run is the target, as a button laid under its own
@@ -596,7 +603,6 @@ export function AgentRow({
                   type="button"
                   className="team-agent-run-mark"
                   aria-label={`${t('teamAgentRunMark')}: ${item.note} · ${t(markerLabelKey(item.marker))}`}
-                  title={t('teamAgentRunMarkHint')}
                   disabled={waiting || editingRun}
                   onClick={() =>
                     void run(() => onSetRunMarker(item, nextTeamAgentRunMarker(item.marker)))

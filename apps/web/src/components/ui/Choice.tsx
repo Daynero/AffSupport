@@ -148,10 +148,12 @@ export function Switch({
       onChange={onChange}
       className={uiClasses('switch', { size, states: { disabled }, className })}
     >
-      <HeroSwitch.Control className="ui-switch-track">
-        <HeroSwitch.Thumb className="ui-switch-thumb" />
-      </HeroSwitch.Control>
-      {label && <HeroSwitch.Content className="ui-switch-label">{label}</HeroSwitch.Content>}
+      <HeroSwitch.Content className="ui-switch-label">
+        <HeroSwitch.Control className="ui-switch-track">
+          <HeroSwitch.Thumb className="ui-switch-thumb" />
+        </HeroSwitch.Control>
+        {label}
+      </HeroSwitch.Content>
     </HeroSwitch>
   );
 }

@@ -3,14 +3,7 @@ import type { SotyToolId } from '@video-compressor/shared';
 import type { AnalyticsTool } from '../analytics/events';
 import type { TranslationKey } from '../i18n';
 import { isProtected, type FeatureId } from './feature-flags';
-import {
-  CompressorIcon,
-  LandingIcon,
-  LandingPreviewIcon,
-  StitcherIcon,
-  TranscriptionIcon,
-  TwoFactorIcon
-} from '../components/tool-icons';
+import { AudioLines, Combine, Eye, KeyRound, Shrink, SlidersHorizontal } from 'lucide-react';
 import { lazy } from 'react';
 
 /**
@@ -151,7 +144,7 @@ export const webTools: readonly WebTool[] = [
     labelKey: 'videoCompressor',
     captionKey: 'videoCompressorCaption',
     group: 'video',
-    icon: CompressorIcon,
+    icon: Shrink,
     featureFlag: 'videoCompressor',
     status: statusFor('videoCompressor'),
     capability: null,
@@ -167,7 +160,7 @@ export const webTools: readonly WebTool[] = [
     labelKey: 'videoStitcher',
     captionKey: 'videoStitcherCaption',
     group: 'video',
-    icon: StitcherIcon,
+    icon: Combine,
     featureFlag: 'videoStitcher',
     status: statusFor('videoStitcher'),
     capability: 'stitcher',
@@ -181,7 +174,7 @@ export const webTools: readonly WebTool[] = [
     labelKey: 'transcription',
     captionKey: 'transcriptionCaption',
     group: 'video',
-    icon: TranscriptionIcon,
+    icon: AudioLines,
     featureFlag: 'transcription',
     status: statusFor('transcription'),
     capability: null,
@@ -199,7 +192,7 @@ export const webTools: readonly WebTool[] = [
     labelKey: 'landingOptimizer',
     captionKey: 'landingOptimizerCaption',
     group: 'landing',
-    icon: LandingIcon,
+    icon: SlidersHorizontal,
     featureFlag: 'landingOptimizer',
     status: statusFor('landingOptimizer'),
     capability: 'landing',
@@ -216,7 +209,7 @@ export const webTools: readonly WebTool[] = [
     labelKey: 'twoFactorNotebook',
     captionKey: 'twoFactorNotebookCaption',
     group: 'other',
-    icon: TwoFactorIcon,
+    icon: KeyRound,
     featureFlag: 'twoFactorNotebook',
     status: statusFor('twoFactorNotebook'),
     page: TwoFactorPage
@@ -229,7 +222,7 @@ export const webTools: readonly WebTool[] = [
     labelKey: 'landingGallery',
     captionKey: 'landingGalleryCaption',
     group: 'landing',
-    icon: LandingPreviewIcon,
+    icon: Eye,
     featureFlag: 'landingPreview',
     status: statusFor('landingPreview'),
     capability: 'landing-preview',

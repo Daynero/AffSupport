@@ -85,7 +85,7 @@
  * single action, and an honest zero reads calmer than a dishonest seven.
  */
 import { useEffect, useId, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
-import { ArrowRight, Plus } from 'lucide-react';
+import { ArrowRight, LayoutDashboard, Plus } from 'lucide-react';
 import { Onboarding } from './App';
 import { useAgent } from './AgentContext';
 import { useI18n, type TranslationKey } from './i18n';
@@ -96,7 +96,6 @@ import { Badge, Button, Card, Skeleton } from './components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from './components/icons';
 import FeatureLockDialog from './components/FeatureLockDialog';
 import LocalAppDialog from './components/LocalAppDialog';
-import { TeamWorkspaceIcon } from './components/tool-icons';
 import type { ConnectionState } from './connection';
 import { isLocked } from './lib/feature-flags';
 import { usePageEntrance } from './lib/navigation';
@@ -185,6 +184,7 @@ function Tile({
   href,
   onFollow,
   icon,
+  artwork,
   title,
   caption,
   note,
@@ -196,6 +196,8 @@ function Tile({
   href?: string;
   onFollow?: () => void;
   icon: ReactNode;
+  /** Decorative artwork reserved for the wider space banner. */
+  artwork?: ReactNode;
   title: string;
   caption?: ReactNode;
   /** Why it will not simply open right now. Muted, and never colour alone. */
@@ -212,8 +214,13 @@ function Tile({
     <Card
       as="li"
       interactive={Boolean(href)}
-      className={quiet ? 'home-tile is-quiet' : 'home-tile'}
+      className={`${quiet ? 'home-tile is-quiet' : 'home-tile'}${artwork ? ' has-artwork' : ''}`}
     >
+      {artwork && (
+        <span className="home-tile-artwork" aria-hidden="true">
+          {artwork}
+        </span>
+      )}
       <span className="home-tile-icon" aria-hidden="true">
         {icon}
       </span>
@@ -460,7 +467,15 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                 key={space.id}
                 href={href}
                 onFollow={() => navigate(href)}
-                icon={<TeamWorkspaceIcon />}
+                icon={<LayoutDashboard />}
+                artwork={
+                  <>
+                    <span className="home-tile-boxes-frame">
+                      <img className="home-tile-boxes" src="/workspace-banner.png" alt="" />
+                    </span>
+                    <img className="home-tile-bee" src="/workspace-bee.png" alt="" />
+                  </>
+                }
                 title={space.name}
                 caption={t(roleKey(space.role))}
                 note={
@@ -498,11 +513,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             href={spacesOpen ? createSpaceHref : allSpacesHref}
             onFollow={() => navigate(spacesOpen ? createSpaceHref : allSpacesHref)}
             icon={
-              spacesOpen ? (
-                <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-              ) : (
-                <TeamWorkspaceIcon />
-              )
+              spacesOpen ? <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} /> : <LayoutDashboard />
             }
             title={t(spacesOpen ? 'teamSpaceEmptyAction' : 'teamWorkspaceGateTitle')}
             caption={t(spacesOpen ? 'teamSpaceEmptyBody' : 'teamWorkspaceGateBody')}
@@ -525,8 +536,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       <main className={entering ? 'home page-enter' : 'home'}>
         {/* A `div`, not a `header`: the shell has the page's one header, and a
             second landmark of the same kind would need a name to be told apart. */}
-        <div className="home-head">
-          <h2 className="home-title">{t('homeTitle')}</h2>
+        <div className="home-head" hidden={connection === 'connected'}>
           {/* Only when there is something to say. The header above already
               carries "connected" on every page; repeating it four lines lower
               put the same green chip on the screen twice. What the header does
@@ -583,7 +593,11 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
          */}
         <div className="home-tools">
           {catalogueByGroup().map(({ group, tools }) => (
-            <section className="home-section" key={group} aria-label={t(GROUP_LABEL[group])}>
+            <section
+              className={`home-section home-section--${group}`}
+              key={group}
+              aria-label={t(GROUP_LABEL[group])}
+            >
               <div className="home-section-head">
                 <h3 className="home-section-title">{t(GROUP_LABEL[group])}</h3>
               </div>

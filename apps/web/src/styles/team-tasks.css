@@ -914,13 +914,15 @@ button.team-task-label-chip:hover:not(:disabled),
 
 .task-filter-display .ui-switch {
   display: flex;
-  flex-direction: row-reverse;
-  justify-content: space-between;
   width: 100%;
   min-height: var(--control-height-sm);
 }
 
 .task-filter-display .ui-switch-label {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  width: 100%;
   flex: 1 1 auto;
   min-width: 0;
   color: var(--color-neutral-text);

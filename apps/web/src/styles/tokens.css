@@ -113,6 +113,15 @@
   --slate-500: #94a3b8;
   --slate-600: #808080;
   --sky-300: #7cb2ff;
+
+  /* Home tool identity colours. */
+  --home-workspace: #f59e0b;
+  --home-compressor: #a78bfa;
+  --home-stitch: #f472b6;
+  --home-transcription: #22d3ee;
+  --home-optimizer: #22c55e;
+  --home-preview: #f6c453;
+  --home-two-factor: #3b82f6;
   --ice-50: #eafcff;
 
   /* ---- Identity hues ------------------------------------------------------
@@ -250,6 +259,7 @@
   --space-0: 0;
   --space-px: 1px;
   --space-1: 4px;
+  --space-1-5: 6px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
