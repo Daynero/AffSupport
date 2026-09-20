@@ -2056,6 +2056,11 @@ export type Database = {
           update_count: number;
           in_updater: boolean;
           last_update_error: string | null;
+          update_interval: string | null;
+          next_run_at: string | null;
+          update_pending: boolean;
+          folder_drive_id: string | null;
+          update_stage: string | null;
         }[];
       };
       get_team_catalog_updater: {
@@ -2474,6 +2479,10 @@ export type Database = {
           team_name: string;
         }[];
       };
+      rename_team: {
+        Args: { p_name: string; p_team: string };
+        Returns: string;
+      };
       create_team: {
         Args: { p_name: string };
         Returns: {
@@ -2569,9 +2578,76 @@ export type Database = {
           initial_sync_state: string;
           last_error_code: string;
           last_synced_at: string;
+          root_folder_id: string;
           root_folder_name: string;
           state: string;
         }[];
+      };
+      list_task_attachment_folders: {
+        Args: { p_task: string; p_team: string };
+        Returns: { material_id: string; parent_folder_id: string }[];
+      };
+      next_product_catalog_variant: {
+        Args: { p_team: string; p_video: string };
+        Returns: number;
+      };
+      list_material_tasks: {
+        Args: { p_material: string; p_team: string };
+        Returns: { id: string; status: string; title: string }[];
+      };
+      list_team_product_catalog_image_sources: {
+        Args: { p_team: string };
+        Returns: {
+          image_count: number;
+          kind: string;
+          material_id: string;
+          name: string;
+          pool_size: number;
+        }[];
+      };
+      set_team_product_catalog_image_sources: {
+        Args: { p_items: Json; p_team: string };
+        Returns: number;
+      };
+      list_team_product_catalog_texts: {
+        Args: { p_team: string };
+        Returns: { description: string; id: string; sort_order: number; title: string }[];
+      };
+      replace_team_product_catalog_texts: {
+        Args: { p_items: Json; p_team: string };
+        Returns: number;
+      };
+      update_team_product_catalog_text: {
+        Args: { p_description: string; p_id: string; p_team: string; p_title: string };
+        Returns: Json;
+      };
+      get_team_catalog_updater_refresh_images: {
+        Args: { p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_refresh_images: {
+        Args: { p_refresh: boolean; p_team: string };
+        Returns: boolean;
+      };
+      list_team_product_catalog_pool_names: {
+        Args: { p_limit?: number; p_team: string };
+        Returns: { name: string }[];
+      };
+      get_team_catalog_updater_grow: {
+        Args: { p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_grow: {
+        Args: { p_grow: boolean; p_team: string };
+        Returns: boolean;
+      };
+      get_team_catalog_updater_refresh_texts: {
+        Args: { p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_refresh_texts: {
+        Args: { p_refresh: boolean; p_team: string };
+        Returns: boolean;
       };
       get_team_landing_source_status: {
         Args: { p_team: string };
@@ -2651,6 +2727,10 @@ export type Database = {
           p_team: string;
         };
         Returns: Json;
+      };
+      get_team_material_note: {
+        Args: { p_material: string; p_team: string };
+        Returns: string;
       };
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
       get_upload_batch: {
@@ -2790,6 +2870,7 @@ export type Database = {
           result: string;
           target: Json;
           subject_label: string;
+          actor_id: string;
         }[];
       };
       list_team_invitations: {
@@ -3003,6 +3084,39 @@ export type Database = {
         Args: { p_value: number };
         Returns: undefined;
       };
+      set_team_catalog_update_interval: {
+        Args: { p_team: string; p_catalogs: string[]; p_interval: string | null };
+        Returns: Json;
+      };
+      run_team_catalog_update_now: {
+        Args: { p_team: string; p_catalogs: string[] };
+        Returns: number;
+      };
+      set_team_catalog_updater_restitch: {
+        Args: { p_team: string; p_restitch: boolean };
+        Returns: Json;
+      };
+      list_material_product_catalogs: {
+        Args: { p_team: string; p_video: string };
+        Returns: {
+          id: string;
+          name: string;
+          drive_file_id: string;
+          sheet_url: string;
+          source_link: string;
+          product_count: number;
+          variant: number;
+          created_at: string;
+        }[];
+      };
+      get_team_task_progress_max_default: {
+        Args: { p_team: string };
+        Returns: number;
+      };
+      set_team_task_progress_max_default: {
+        Args: { p_team: string; p_value: number };
+        Returns: number;
+      };
       request_landing_render_refresh: {
         Args: { p_team: string; p_material: string };
         Returns: number;
@@ -3059,6 +3173,7 @@ export type Database = {
         Args: {
           p_commit?: boolean;
           p_interface_language: string;
+          p_kinds?: string[];
           p_sources?: string[];
           p_team: string;
         };

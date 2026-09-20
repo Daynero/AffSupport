@@ -66,7 +66,16 @@ async function link(
     existing?: Record<string, unknown> | null;
     discarded?: { materialId: string } | null;
     retired: Array<{ materialId: string }>;
+    variant?: number;
   };
+}
+
+async function catalogs(videoId: string, as = OWNER) {
+  return harness.asUser<{ id: string; variant: number; product_count: number }>(
+    as,
+    'select * from public.list_material_product_catalogs($1, $2)',
+    [teamId, videoId]
+  );
 }
 
 async function liveCatalog(videoId: string, as = OWNER) {
@@ -159,7 +168,6 @@ describe('space catalog settings', () => {
 
   it.each([
     ['a title over 200 characters', { title: 'x'.repeat(201) }],
-    ['an empty description', { description: '   ' }],
     ['a zero price', { price: 0 }],
     ['a price over 999999', { price: 1_000_000 }],
     ['a fractional price', { price: 10.5 }],
@@ -210,33 +218,56 @@ describe('a video and its catalog', () => {
     });
   }, 60_000);
 
-  it('lets the second of two creates lose, and trashes its sheet', async () => {
+  it('holds several variations of one video at once, numbered in turn (024, US15)', async () => {
     const v = await video('race.mp4');
-    const first = await sheet('race catalog');
-    const second = await sheet('race catalog (2)');
-    expect((await link(v, first)).linked).toBe(true);
-    const lost = await link(v, second);
-    expect(lost).toMatchObject({ linked: false, reason: 'EXISTS' });
-    expect(lost.existing).toMatchObject({ id: first, productCount: 100 });
-    expect(lost.discarded).toMatchObject({ materialId: second });
-    expect((await row(second)).lifecycle).toBe('trashed');
-    expect((await liveCatalog(v))[0]!.id).toBe(first);
+    const first = await sheet('race_v1_catalog');
+    const second = await sheet('race_v2_catalog');
+    expect(await link(v, first)).toMatchObject({ linked: true, variant: 1 });
+    expect(
+      await link(v, second, null, { sourceLink: 'https://example.test/offer?sub=2' })
+    ).toMatchObject({ linked: true, variant: 2 });
+    expect((await catalogs(v)).map(item => [item.id, item.variant])).toEqual([
+      [first, 1],
+      [second, 2]
+    ]);
+    // The newest stays what the released client reads.
+    expect((await liveCatalog(v))[0]!.id).toBe(second);
   }, 60_000);
 
-  it('re-creates: retires the old sheet and links the new one', async () => {
+  it('never hands a removed variation’s number out again', async () => {
+    const v = await video('numbers.mp4');
+    await link(v, await sheet('numbers_v1_catalog'));
+    const two = await sheet('numbers_v2_catalog');
+    await link(v, two);
+    await harness.root(
+      `update public.team_materials set lifecycle = 'trashed', trashed_at = now() where id = $1`,
+      [two]
+    );
+    expect(await link(v, await sheet('numbers_v3_catalog'))).toMatchObject({ variant: 3 });
+    const next = await harness.root<{ value: number }>(
+      'select public.service_next_product_catalog_variant($1, $2) as value',
+      [teamId, v]
+    );
+    expect(Number(next[0]!.value)).toBe(4);
+  }, 60_000);
+
+  it('re-creates one variation: keeps its number and retires only its own sheet', async () => {
     const v = await video('again.mp4');
     const old = await sheet('again catalog');
     await link(v, old);
+    const other = await sheet('again_v2_catalog');
+    await link(v, other);
     const next = await sheet('again catalog (2)');
     const result = await link(v, next, old, { productCount: 5 });
-    expect(result.linked).toBe(true);
+    expect(result).toMatchObject({ linked: true, variant: 1 });
+    expect((await catalogs(v)).map(item => item.id).sort()).toEqual([next, other].sort());
     expect(result.retired.map(entry => entry.materialId)).toEqual([old]);
     expect(await row(old)).toMatchObject({
       lifecycle: 'trashed',
       companion_of: null,
       companion_kind: null
     });
-    expect((await liveCatalog(v))[0]).toMatchObject({ id: next, product_count: 5 });
+    expect((await catalogs(v)).find(item => item.id === next)).toMatchObject({ product_count: 5 });
   }, 60_000);
 
   it('treats a re-create naming a catalog someone already replaced as losing the race', async () => {
@@ -250,24 +281,23 @@ describe('a video and its catalog', () => {
     expect((await liveCatalog(v))[0]!.id).toBe(b);
   }, 60_000);
 
-  it('unlinks a sheet trashed directly once a new catalog is linked, so restoring it cannot collide', async () => {
+  it('brings a removed variation back as itself when it is restored', async () => {
     const v = await video('restore.mp4');
-    const trashedDirectly = await sheet('restore catalog');
-    await link(v, trashedDirectly);
+    const removed = await sheet('restore_v1_catalog');
+    await link(v, removed);
     await harness.root(
       `update public.team_materials set lifecycle = 'trashed', trashed_at = now() where id = $1`,
-      [trashedDirectly]
+      [removed]
     );
-    expect(await liveCatalog(v)).toHaveLength(0);
+    expect(await catalogs(v)).toHaveLength(0);
 
-    const replacement = await sheet('restore catalog (2)');
-    expect((await link(v, replacement)).linked).toBe(true);
-    expect(await row(trashedDirectly)).toMatchObject({ companion_of: null, companion_kind: null });
+    const made = await sheet('restore_v2_catalog');
+    expect(await link(v, made)).toMatchObject({ linked: true, variant: 2 });
     await harness.root(
       `update public.team_materials set lifecycle = 'active', trashed_at = null where id = $1`,
-      [trashedDirectly]
+      [removed]
     );
-    expect((await liveCatalog(v))[0]!.id).toBe(replacement);
+    expect((await catalogs(v)).map(item => item.variant)).toEqual([1, 2]);
   }, 60_000);
 
   it('lets one video hold a transcript and a catalog at once', async () => {

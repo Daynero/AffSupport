@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest';
 
 const WEB_SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../apps/web/src');
 
-const css = readFileSync('apps/web/src/styles.css', 'utf8');
+// The shell's own screens keep their rules in their own sheets (024); the home
+// is one of them, and its container answers to the same measure as the rest.
+const css = [
+  readFileSync('apps/web/src/styles.css', 'utf8'),
+  readFileSync('apps/web/src/styles/home.css', 'utf8')
+].join('\n');
 // Comments are stripped first: a comment ahead of a rule would otherwise be
 // read as part of its selector.
 const source = css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -63,7 +68,8 @@ describe('page shell width', () => {
     const root = block(':root');
     expect(root).toMatch(/--shell-width:\s*max\(1440px,\s*80vw\)/);
     expect(root).toMatch(/--shell-width-narrow:\s*max\(1120px,\s*80vw\)/);
-    expect(root).toMatch(/--shell-width-team:\s*max\(1240px,\s*80vw\)/);
+    // The workspace fills a wide screen (024): at 80vw a 2560px display left a fifth of itself empty.
+    expect(root).toMatch(/--shell-width-team:\s*max\(1240px,\s*94vw\)/);
   });
 
   // Every full-page container reads one of the three shell tokens, so the shell
@@ -72,7 +78,7 @@ describe('page shell width', () => {
   // takes the measure from the row above.
   it.each([
     ['.workspace', '--shell-width'],
-    ['.launcher', '--shell-width'],
+    ['.home', '--shell-width'],
     ['.public-home-content', '--shell-width'],
     ['.page-container', '--shell-width-narrow'],
     ['.public-footer', '--shell-width-narrow'],

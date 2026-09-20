@@ -629,9 +629,7 @@ export default function CompressorPage() {
                     className="select-all-box"
                     checked={selectableIds.length > 0 && selected.size === selectableIds.length}
                     disabled={!connected || selectableIds.length === 0}
-                    onChange={event =>
-                      setSelected(event.target.checked ? new Set(selectableIds) : new Set())
-                    }
+                    onChange={all => setSelected(all ? new Set(selectableIds) : new Set())}
                     label={<strong>{t('selectAll')}</strong>}
                   />
                   <Button
@@ -792,7 +790,7 @@ export default function CompressorPage() {
             /* An empty queue is filled by choosing files, so the state carries
                the same control the intake above it does (FR-021). */
             <EmptyState
-              className="empty-state"
+              className="soty-empty-state"
               title={t('queueEmpty')}
               description={t('queueEmptyBody')}
               action={
@@ -921,9 +919,12 @@ export function ConnectionBadge({ state, t }: { state: ConnectionState; t: Trans
     disconnected: 'agentDisconnected'
   };
   return (
-    <span className={`connection-badge connection-${state}`}>
+    <span className={`connection-badge connection-${state}`} title={t(keys[state])}>
       <i aria-hidden="true" />
-      {t(keys[state])}
+      {/* Its own element, so a phone can keep the dot and drop the words from
+          sight without dropping them from the page (024): cut to fit, the chip
+          read "підк". */}
+      <span className="connection-badge-text">{t(keys[state])}</span>
     </span>
   );
 }
@@ -1167,9 +1168,9 @@ function BatchProgress({ metrics, t }: { metrics: ReturnType<typeof batchMetrics
 
 function ToastRegion({ toasts }: { toasts: ToastMessage[] }) {
   return (
-    <div className="toast-region" aria-live="polite" aria-atomic="false">
+    <div className="soty-toast-region" aria-live="polite" aria-atomic="false">
       {toasts.map(toast => (
-        <div className={`toast toast-${toast.tone}`} key={toast.id}>
+        <div className={`soty-toast toast-${toast.tone}`} key={toast.id}>
           {toast.text}
         </div>
       ))}
@@ -1263,7 +1264,10 @@ function localizedError(value: unknown, t: Translate) {
     DISK_FULL: 'errorDiskFull',
     PERMISSION_DENIED: 'errorPermissionDenied',
     PATH_NOT_GRANTED: 'errorPathNotGranted',
-    TOOL_UNAVAILABLE: 'errorToolUnavailable',
+    TOOL_UNAVAILABLE: 'engineUnavailable',
+    MEDIA_TOOL_UNAVAILABLE: 'engineUnavailable',
+    NATIVE_PICKER_UNAVAILABLE: 'nativePickerUnavailable',
+    NATIVE_PICKER_TIMEOUT: 'nativePickerTimeout',
     OPERATION_FAILED: 'genericError'
   };
   return t(map[raw] ?? 'genericError');

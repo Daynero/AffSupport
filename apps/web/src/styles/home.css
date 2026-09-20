@@ -1,0 +1,521 @@
+/*
+ * The tools home (024, US28).
+ *
+ * A launcher, not a landing page: a header row that says once whether the local
+ * app is running, the reader's spaces, and the tools in three short rows. Every
+ * tile is one shape — icon, name, a line of caption — and the whole of it is
+ * the link. There is no button on this page and no colour of its own; the
+ * reasoning is at the top of `HomePage.tsx`.
+ *
+ * Everything here names a token. The hexagon field is behind all of it, so
+ * whatever carries text paints an opaque ground first.
+ */
+
+/* On the header's axis: the topbar pads itself by `--shell-gutter`, which is
+   the header padding until the shell stops filling the window and the shell's
+   margin after that. This is the same measure said from the inside. The page
+   used to be 80% wide, which lined up with nothing above it. */
+.home {
+  --home-tile-height: calc((var(--control-height-xl) + var(--space-6) * 3) * 0.85);
+  position: relative;
+  display: grid;
+  gap: var(--space-6);
+  width: min(calc(100% - 2 * var(--app-header-padding-inline)), var(--shell-width));
+  margin: var(--space-6) auto calc(var(--space-6) * 2);
+  /* One opaque stage, the way the workspace stands on the field: small grey
+     labels straight on lit hexagons were the least readable thing on the page,
+     and a halo only dimmed the problem. */
+  padding: var(--space-6);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-neutral-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* A quiet brand mark on the page field, kept behind the opaque launcher. */
+.home::before {
+  position: absolute;
+  z-index: 1;
+  right: 3vw;
+  bottom: var(--space-6);
+  left: auto;
+  width: min(13vw, 174px);
+  aspect-ratio: 1920 / 720;
+  content: '';
+  pointer-events: none;
+  background: url('/build-by-buyers.png') right bottom / contain no-repeat;
+  opacity: 0.92;
+}
+
+.home > * {
+  position: relative;
+  z-index: 2;
+}
+
+.home-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.home-title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading);
+}
+
+.home-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+/* Always on screen, so it is opaque first and tinted over that — the storage
+   chip's answer to the same field. */
+.home-status-badge {
+  background-color: var(--color-neutral-surface);
+  background-image: linear-gradient(var(--ui-soft), var(--ui-soft));
+}
+
+.home-status-dot {
+  display: block;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* The panel that asks for something — pair, update, install. It keeps its own
+   look; here it only stops centring itself under a title that no longer is. */
+.home-panel .onboarding-panel,
+.home-panel .blocking-message {
+  max-width: var(--dialog-sm);
+}
+
+.home-panel .onboarding-panel {
+  justify-self: start;
+  margin-top: 0;
+}
+
+.home-section {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* A label that can be read at a glance. At micro, uppercase and muted it was a whisper: the
+   grouping it announced did no work, and the eye went back to reading captions. */
+.home-section-title {
+  margin: 0;
+  color: var(--color-neutral-text);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+  line-height: var(--leading-caption);
+}
+
+.home-section-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+  text-decoration: none;
+}
+
+.home-section-link:hover {
+  color: var(--color-neutral-text);
+}
+
+/* One column on a phone, two from a small tablet, three on a laptop. A row of
+   spaces and a row of tools share the grid, so their edges agree. */
+/* The spaces row, which fills whatever width it is given: one space is a wide way in, three
+   share the row. A single tile stranded at a third of the page was the loudest thing on the
+   screen and looked like an afterthought. */
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The tools: one column per errand, side by side, so nothing is left empty and a tool keeps its
+   place for ever — the thing that lets somebody stop reading and start pointing. */
+.home-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.home-stack {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 720px) {
+  .home-tools {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+}
+
+@media (min-width: 1100px) {
+  .home-tools {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The tile: the inventory's surface card, laid out as a row. */
+.home-tile {
+  position: relative;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  align-content: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+/* A tile stands on the stage, so it is the raised step, not the same ground. */
+.home .home-tile {
+  min-height: var(--home-tile-height);
+  background: var(--color-neutral-surface-raised);
+}
+
+/* A space is where the reader lives; a tool is what they pick up. The space
+   says so with the product's second colour, and nothing else on the page does. */
+.home-section--spaces .home-tile {
+  border-color: transparent;
+  background-image: linear-gradient(var(--color-secondary-soft), var(--color-secondary-soft));
+}
+
+/* A connected space is the main destination on this launcher. Its banner gets
+   enough height for the supplied scene to read as part of the surface rather
+   than as a small thumbnail beside the title. */
+.home-section--spaces .home-tile.has-artwork {
+  min-height: var(--home-tile-height);
+  background: var(--color-neutral-surface-raised);
+  overflow: visible;
+  isolation: isolate;
+}
+
+.home-tile-artwork {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 58%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.home-tile-boxes-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, var(--color-neutral-solid) 32%);
+  mask-image: linear-gradient(90deg, transparent, var(--color-neutral-solid) 32%);
+}
+
+.home-tile-boxes {
+  position: absolute;
+  right: calc(var(--space-6) * 5 - var(--space-1-5) + var(--space-1) + var(--space-1-5));
+  bottom: calc(var(--space-6) * -1);
+  height: 170%;
+  max-width: none;
+  object-fit: contain;
+  filter: blur(calc(var(--space-1) * 0.175));
+}
+
+.home-tile-bee {
+  position: absolute;
+  z-index: 1;
+  right: calc(var(--space-6) * 10 - var(--space-1-5) + var(--space-1) + var(--space-1-5));
+  bottom: calc((var(--space-6) + var(--space-1)) * -1 + var(--space-1-5));
+  height: 156.975%;
+  max-width: none;
+  object-fit: contain;
+  transform: rotate(-3deg);
+  transform-origin: 50% 100%;
+}
+
+.home-tile.has-artwork > :not(.home-tile-artwork) {
+  /* These are grid items, so z-index works without positioning them. Keeping
+     the copy positioned made it the containing block for the title link's
+     stretched ::after target, limiting clicks to the middle of the banner. */
+  z-index: 1;
+}
+
+.home-section--spaces .home-tile-icon {
+  color: var(--color-secondary-text);
+  background: color-mix(in srgb, var(--color-secondary-soft) 90%, var(--color-neutral-surface) 10%);
+}
+
+.home-section--spaces .home-tile-icon svg {
+  color: color-mix(in srgb, var(--home-workspace) 82%, var(--color-neutral-text-muted) 18%);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+/* A lift small enough to be felt rather than watched: this is pointed at dozens
+   of times a day, and anything larger would become the thing one notices. */
+.home-tile.is-interactive {
+  transition:
+    transform var(--motion-fast) var(--ease-out-curve),
+    box-shadow var(--motion-fast) var(--ease-out-curve),
+    border-color var(--motion-fast) var(--ease-out-curve);
+}
+
+@media (hover: hover) {
+  .home-tile.is-interactive:hover {
+    border-color: var(--color-secondary-border);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+}
+
+.home-tile.is-interactive:active {
+  box-shadow: none;
+  transform: none;
+}
+
+/* The ring belongs to the thing that will be followed, which to the eye is the
+   whole tile and not the three words of its title. */
+.home-tile:has(.home-tile-link:focus-visible) {
+  border-color: var(--color-secondary-solid);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.home-tile-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The title is an anchor inside the heading. `inherit` makes it follow the
+   heading visually, but inherited colour changes cannot be interpolated by a
+   CSS transition on the link, so the name snaps while the caption fades. Give
+   the link its own theme colour so the global theme transition can animate it. */
+.home-tile-title .home-tile-link {
+  color: var(--color-neutral-text);
+}
+
+.home-tile-link:focus-visible {
+  outline: none;
+}
+
+/* The link covers the card it names, so the whole surface is one target. */
+.home-tile-link::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
+/* Big enough to be the thing that is recognized. At 44 with a 26px glyph every tool was a small
+   outline in a rounded square, and telling six of them apart meant reading the name under it. */
+.home-tile-icon {
+  display: grid;
+  flex: none;
+  width: calc(var(--home-tile-height) - var(--space-5));
+  height: calc(var(--home-tile-height) - var(--space-5));
+  place-items: center;
+  border-radius: var(--radius-lg);
+  color: var(--color-secondary-text);
+  background: color-mix(in srgb, var(--color-secondary-soft) 90%, var(--color-neutral-surface) 10%);
+}
+
+.home-tile-icon svg {
+  width: var(--control-height-xl);
+  height: auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Tool identity lives on the glyph, while every icon plate keeps the same
+   quiet violet surface. The small local halo follows that glyph only. */
+.home-section--video .home-tile-icon svg {
+  color: var(--home-compressor);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+.home-section--video .home-stack > li:nth-child(2) .home-tile-icon svg {
+  color: var(--home-stitch);
+}
+
+.home-section--video .home-stack > li:nth-child(3) .home-tile-icon svg {
+  color: var(--home-transcription);
+}
+
+.home-section--landing .home-stack > li:first-child .home-tile-icon svg {
+  color: var(--home-optimizer);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+.home-section--landing .home-stack > li:nth-child(2) .home-tile-icon svg {
+  color: var(--home-preview);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+.home-section--other .home-tile-icon svg {
+  color: var(--home-two-factor);
+  filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
+}
+
+.home-tile-icon svg .compressor-play {
+  fill: currentColor;
+  stroke: none;
+}
+
+.home-tile-copy {
+  display: grid;
+  gap: var(--space-px);
+  min-width: 0;
+}
+
+.home-tile-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.home-tile-title {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-body);
+  /* The sheet's bare `h4` is an uppercase, spaced, muted eyebrow; a tile's name
+     is the loudest words on it. */
+  color: var(--color-neutral-text);
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading);
+  overflow-wrap: anywhere;
+}
+
+/* One line where there is room for one, two where there is not, never three. */
+.home-tile-caption,
+.home-tile-note {
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+
+.home-tile-caption {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.home-tile-note {
+  font-weight: var(--weight-label);
+}
+
+.home-tile-trailing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+}
+
+@media (hover: hover) {
+  .home-tile:hover .home-tile-trailing {
+    color: var(--color-neutral-text);
+  }
+}
+
+/* Announced, not yet there: present and explained, never present and dead. */
+.home-tile.is-quiet {
+  background: var(--color-neutral-surface-subtle);
+}
+
+.home-tile.is-quiet .home-tile-icon {
+  color: var(--color-neutral-text-muted);
+  background: var(--color-neutral-surface-muted);
+}
+
+/* The row the spaces will take, held while they load, so nothing below jumps. */
+.home-spaces-loading {
+  max-width: 100%;
+}
+
+/* When the alert wraps, its action lines up under the words, past the icon. */
+@media (max-width: 760px) {
+  .home-panel .blocking-message .ui-alert-action {
+    margin-left: calc(var(--space-6) + var(--space-4));
+  }
+}
+
+@media (max-width: 500px) {
+  .home-panel .blocking-message .ui-alert-action {
+    margin-left: 0;
+  }
+
+  .home {
+    gap: var(--space-5);
+    margin-top: var(--space-3);
+    padding: var(--space-4) var(--space-3) var(--space-5);
+  }
+
+  .home-tile {
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .home-tile-artwork {
+    width: 52%;
+    opacity: 0.72;
+  }
+
+  .home-tile-boxes {
+    right: calc(var(--space-1-5) + var(--space-1) + var(--space-1-5));
+  }
+
+  .home-tile-bee {
+    right: calc(var(--space-1-5) + var(--space-1) + var(--space-1-5));
+  }
+
+  .home-panel .onboarding-panel {
+    gap: var(--space-3);
+    padding: var(--space-5);
+  }
+
+  .home-panel .onboarding-panel > .inline-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-panel .onboarding-panel > .inline-actions .ui-button,
+  .home-panel .blocking-message .inline-actions,
+  .home-panel .blocking-message .ui-button {
+    width: 100%;
+  }
+}

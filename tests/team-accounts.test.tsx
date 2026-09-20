@@ -284,7 +284,10 @@ describe('reading the list', () => {
   it('says so when there are no accounts, and offers to add one', async () => {
     render(client([]));
     expect(await screen.findByText('No accounts yet')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Add account' })).toHaveLength(2);
+    // One invitation, not two (024, FR-092): the heading's button and the empty
+    // state's were the same press, and there is no toolbar of zeros over it.
+    expect(screen.getAllByRole('button', { name: 'Add account' })).toHaveLength(1);
+    expect(document.querySelector('.team-accounts-toolbar')).toBeNull();
   });
 });
 
@@ -385,14 +388,12 @@ describe('marking a run', () => {
     expect(api.setAgentRunMarker).toHaveBeenCalledTimes(4);
   });
 
-  it('paints the run and counts it in the marker menu', async () => {
+  it('paints the run and counts it in the marker menu, which appears with the first marker', async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
-    expect((await openMarkers(user)).getByRole('button', { name: /^Green/ }).textContent).toBe(
-      'Green0'
-    );
-    await user.keyboard('{Escape}');
+    // No run carries a marker: there is nothing to filter by, so no filter (024, FR-092).
+    expect(screen.queryByRole('button', { name: /^Markers/ })).toBeNull();
     await user.click(markButton());
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeTruthy()
@@ -443,23 +444,11 @@ describe('marking a run', () => {
     );
   });
 
-  it('has nothing to clear until something is marked', async () => {
-    const user = userEvent.setup();
-    render(client());
-    await waitForGroups();
-    const menu = await openMarkers(user);
-    expect(menu.getByRole('button', { name: 'Clear all markers' }).hasAttribute('disabled')).toBe(
-      true
-    );
-  });
-
   it('gives a viewer no marker to press and nothing to clear', async () => {
-    const user = userEvent.setup();
     render(client(), 'viewer');
     await waitForGroups();
     expect(screen.queryByRole('button', { name: /^Mark the run/ })).toBeNull();
-    const menu = await openMarkers(user);
-    expect(menu.queryByRole('button', { name: 'Clear all markers' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Markers/ })).toBeNull();
   });
 });
 
@@ -732,8 +721,8 @@ describe('when a run was written', () => {
     return at.toISOString();
   };
 
-  it('says nothing for today, because nearly every line would say it', () => {
-    expect(runAgeLabel(day(0), 'en')).toBeNull();
+  it('says the time for today, so a launch marked a minute ago says when', () => {
+    expect(runAgeLabel(day(0), 'en')).toMatch(/\d{1,2}:\d{2}/);
   });
 
   it('names the day inside the week and dates what is older', () => {
@@ -845,14 +834,16 @@ describe('deleting an agent', () => {
 });
 
 describe('how many tasks name an agent', () => {
-  it('is a link on the line of the run, and nothing at all when there are none', async () => {
+  it("sits under the agent's state, and is nothing at all when there are none", async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
     const busy = rows().find(item => item.textContent?.includes('Pro Caps'))!;
     const link = within(busy).getByRole('link', { name: '2 tasks' });
-    // On the line of the run it is read with, not in a column of its own.
-    expect(link.closest('.team-agent-run')).not.toBeNull();
+    // Under the state, the same place on every row (024): on a run's line it pushed that
+    // run's age out of line with the others.
+    expect(link.closest('.team-agent-status')).not.toBeNull();
+    expect(link.closest('.team-agent-run')).toBeNull();
 
     // An agent no task names says nothing. It used to say "—", and the owner
     // read that dash as a delete mark and pressed it.
@@ -905,9 +896,6 @@ describe('searching', () => {
     expect(within(v31).getAllByText('v31', { selector: 'mark' }).length).toBeGreaterThan(0);
     await user.clear(screen.getByRole('searchbox', { name: 'Search accounts' }));
     await user.type(screen.getByRole('searchbox', { name: 'Search accounts' }), 'pro caps');
-    // The page's own totals do not quietly become the matches.
-    expect(screen.getByText('1 of 3 accounts')).toBeTruthy();
-    expect(screen.getByText('1 of 3 agents')).toBeTruthy();
   });
 
   it('says how many agents of an account are on screen', async () => {
@@ -957,11 +945,11 @@ describe('the head of an account', () => {
     expect(within(v31).getByText('1 running')).toBeTruthy();
   });
 
-  it('counts accounts and agents apart, above the chips that count agents', async () => {
+  it('says its counts once, in the chips and the heads, with no totals line under the title', async () => {
     render(client());
     await waitForGroups();
-    expect(screen.getByText('3 accounts')).toBeTruthy();
-    expect(screen.getByText('3 agents')).toBeTruthy();
+    expect(screen.queryByText('3 accounts')).toBeNull();
+    expect(document.querySelector('.team-accounts-summary')).toBeNull();
   });
 });
 
@@ -1061,7 +1049,7 @@ describe('the money on an agent', () => {
     );
   });
 
-  it('folds the money column away from its own caption, and remembers it', async () => {
+  it('keeps the money folded until it is opened, and remembers that it was', async () => {
     const user = userEvent.setup();
     const accounts = fixture();
     accounts[0]!.agents[0]!.balance = 300;
@@ -1070,19 +1058,19 @@ describe('the money on an agent', () => {
 
     // The cells stay in the grid and empty through CSS — taking them out of the
     // DOM would slide every later cell one track left — so the state is read
-    // where a person reads it: off the control that holds it.
+    // where a person reads it: off the control that holds it. Folded at first
+    // (024): the figures are worked on now and then, not read on every visit.
     const fold = () => screen.getByRole('button', { name: /money and balances$/ });
-    expect(fold().getAttribute('aria-expanded')).toBe('true');
-    await user.click(screen.getByRole('button', { name: 'Hide money and balances' }));
     expect(fold().getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Show money and balances' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Show money and balances' }));
+    expect(fold().getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Hide money and balances' })).toBeTruthy();
 
     // Remembered per space, like the account fold beside it.
     unmount();
     render(client(fixture()));
     await waitForGroups();
-    expect(screen.getByRole('button', { name: 'Show money and balances' })).toBeTruthy();
-    expect(fold().getAttribute('aria-expanded')).toBe('false');
+    expect(fold().getAttribute('aria-expanded')).toBe('true');
   });
 
   it('closes the tag list on the choice itself', async () => {

@@ -1,127 +1,177 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Popover } from './ui/index';
+import { useRef, useState } from 'react';
+import {
+  ChevronDown,
+  CircleUserRound,
+  LayoutGrid,
+  LifeBuoy,
+  LogOut,
+  ShieldCheck,
+  type LucideIcon
+} from 'lucide-react';
+import { Button, DropdownMenu, type MenuEntry } from './ui/index';
+import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useAuth } from '../auth/AuthContext';
 import { useI18n } from '../i18n';
-import { navigateTo } from '../lib/navigation';
+import { navigateTo, useBrowserRoute } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { SupportDialog } from './SupportDialog';
 import { UserAvatar } from './UserAvatar';
 
+/**
+ * The account menu (024, US27).
+ *
+ * What was wrong. The menu was a hand-rolled dropdown: a column of six bare
+ * text rows, no icons, no grouping, nothing to say which of them was the place
+ * the reader was already standing in, and a separator only before "Sign out".
+ * It looked like a 2015 dropdown because it was built like one — its own
+ * arrow-key walk, its own focus dance — while every other menu in the product
+ * had already moved to the inventory's `DropdownMenu`.
+ *
+ * What a buyer wants from this corner, in the order they want it: get to
+ * their space; manage the account; find help; sign out. That order is the
+ * menu. Language and theme stay in the bar, which keeps them at every width —
+ * offering them here too made the menu twice as long to say nothing new.
+ *
+ * What changed and why.
+ * - It is the inventory `DropdownMenu` — the space's menu in the workspace
+ *   header is the same component with the same sections, so the product has
+ *   one menu, not two. Keyboard walk, typeahead, Escape and focus return come
+ *   with it instead of being maintained here.
+ * - The identity is the first section's header: avatar, name, e-mail. It is
+ *   read, not pressed, and the e-mail is muted and truncated because it is the
+ *   one line here that can be forty characters long.
+ * - Places, then help, then the way out. Each row carries an icon, and the
+ *   place the reader is on says "You are here" — the thing the old menu never
+ *   said.
+ * - Sign out is last, on its own, in the error colour — the destructive item
+ *   is quieter than its neighbours and never next to them.
+ * - The trigger is the inventory `Button`: avatar, name and a chevron in
+ *   a pill at the small control height, so it stands on the same baseline as
+ *   the chips beside it. Under 720px only the avatar remains.
+ */
 export function UserMenu() {
   const { user, profile, isAdmin, signOut, status } = useAuth();
   const { t } = useI18n();
+  const route = useBrowserRoute();
   const [open, setOpen] = useState(false);
   const [technicalSupportOpen, setTechnicalSupportOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  const display = profile?.display_name || profile?.email || user?.email || '';
   const email = profile?.email || user?.email || '';
-
-  useEffect(() => {
-    if (!open) return;
-    // Dismissal is the shared Popover's; what is left is the menu taking the
-    // keyboard when it opens.
-    const frame = requestAnimationFrame(() =>
-      menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
-    );
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
-
-  const menuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
-    if (!items.length) return;
-    const current = items.indexOf(document.activeElement as HTMLElement);
-    const next =
-      event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? items.length - 1
-          : event.key === 'ArrowDown'
-            ? (current + 1) % items.length
-            : (current - 1 + items.length) % items.length;
-    items[next]?.focus();
-  };
-
-  const go = (path: string) => {
-    setOpen(false);
-    navigateTo(path);
-  };
+  const fullName = profile?.display_name || '';
+  // The whole name, cut by the stylesheet when it is long: a first name alone
+  // turned "Beta Tester" into "Beta", which is nobody.
+  const shortName = fullName || email.split('@')[0] || '';
+  const here = (path: string) =>
+    route === path || route.startsWith(`${path}/`) || route.startsWith(`${path}?`);
+  const hereMark = <span className="user-menu-here">{t('userMenuHere')}</span>;
 
   const openTechnicalSupport = () => {
-    setOpen(false);
     setTechnicalSupportOpen(true);
     analytics.track('support_opened', { source_kind: 'technical_support' });
   };
 
+  const icon = (Icon: LucideIcon) => (
+    <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+  );
+
+  const items: MenuEntry[] = [
+    /* The reader, as a section header: a React Aria collection is built from
+       items, sections and headers, so the identity rides as the first
+       section's header rather than as a stray element the menu would reject. */
+    {
+      heading: (
+        <span className="user-menu-identity">
+          <UserAvatar
+            url={profile?.avatar_url}
+            name={fullName}
+            email={email}
+            alt={t('avatarAlt')}
+            size="medium"
+          />
+          <span className="user-menu-identity-copy">
+            <strong>{fullName || email}</strong>
+            {fullName && <span>{email}</span>}
+          </span>
+        </span>
+      )
+    },
+    {
+      id: 'spaces',
+      label: t('teamWorkspace'),
+      icon: icon(LayoutGrid),
+      trailing: here('/team') ? hereMark : undefined,
+      onSelect: () => navigateTo('/team')
+    },
+    {
+      id: 'account',
+      label: t('account'),
+      icon: icon(CircleUserRound),
+      trailing: here('/account') ? hereMark : undefined,
+      onSelect: () => navigateTo('/account')
+    },
+    'separator',
+    {
+      id: 'support',
+      label: t('technicalSupport'),
+      icon: icon(LifeBuoy),
+      onSelect: openTechnicalSupport
+    },
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin',
+            label: t('adminPanel'),
+            icon: icon(ShieldCheck),
+            trailing: here('/admin') ? hereMark : undefined,
+            onSelect: () => navigateTo('/admin')
+          } satisfies MenuEntry
+        ]
+      : []),
+    'separator',
+    {
+      id: 'sign-out',
+      label: t('signOut'),
+      icon: icon(LogOut),
+      destructive: true,
+      disabled: status === 'signing-out',
+      onSelect: () => void signOut()
+    }
+  ];
+
   return (
-    <div className="user-menu" ref={root}>
-      <button
+    <div className="user-menu">
+      <Button
         ref={trigger}
-        type="button"
+        variant="ghost"
+        size="sm"
         className="user-menu-trigger"
         aria-label={t('userMenu')}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen(value => !value)}
+        leading={
+          <UserAvatar
+            url={profile?.avatar_url}
+            name={fullName}
+            email={email}
+            alt={t('avatarAlt')}
+            size="small"
+          />
+        }
+        trailing={<ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+        onClick={() => setOpen(true)}
       >
-        <UserAvatar
-          url={profile?.avatar_url}
-          name={profile?.display_name}
-          email={email}
-          alt={t('avatarAlt')}
-          size="small"
-        />
-        <span className="user-menu-trigger-name">{display}</span>
-        <span className="user-menu-chevron" aria-hidden="true">
-          ⌄
-        </span>
-      </button>
-      <Popover
+        {shortName}
+      </Button>
+      <DropdownMenu
         open={open}
-        onClose={() => {
-          setOpen(false);
-          trigger.current?.focus();
-        }}
-        anchor={root}
+        onClose={() => setOpen(false)}
+        anchor={trigger}
         placement="bottom-end"
-        frequent
+        minWidth={264}
         label={t('userMenu')}
-        surface="none"
-        className="user-menu-popover"
-      >
-        <div className="user-menu-items" role="menu" ref={menu} onKeyDown={menuKeyDown}>
-          <div className="user-menu-identity">
-            <strong>{profile?.display_name || email}</strong>
-            {profile?.display_name && <span>{email}</span>}
-          </div>
-          <button type="button" role="menuitem" onClick={() => go('/team')}>
-            {t('teamWorkspace')}
-          </button>
-          <button type="button" role="menuitem" onClick={() => go('/account')}>
-            {t('account')}
-          </button>
-          <button type="button" role="menuitem" onClick={openTechnicalSupport}>
-            {t('technicalSupport')}
-          </button>
-          {isAdmin && (
-            <button type="button" role="menuitem" onClick={() => go('/admin')}>
-              {t('adminPanel')}
-            </button>
-          )}
-          <span className="user-menu-separator" aria-hidden="true" />
-          <button
-            type="button"
-            role="menuitem"
-            disabled={status === 'signing-out'}
-            onClick={() => void signOut()}
-          >
-            {t('signOut')}
-          </button>
-        </div>
-      </Popover>
+        className="user-menu-panel"
+        items={items}
+      />
       {technicalSupportOpen && (
         <SupportDialog
           mode="technical"

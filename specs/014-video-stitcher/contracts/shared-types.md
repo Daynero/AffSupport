@@ -14,28 +14,51 @@ export type StitchOperation = 'stitch' | 'restitch' | 'unstitch';
 export type StitchStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
 
 /** Declared on the ToolModule so legality lives in one table (Principle V). */
-export const STITCH_LIFECYCLE = { /* queued → running → done|failed|cancelled */ } as const;
+export const STITCH_LIFECYCLE = {/* queued → running → done|failed|cancelled */} as const;
 
 export type StitchUnsupportedReason =
   'video-codec' | 'audio-codec' | 'variable-frame-rate' | 'container' | 'unreadable';
 
 export type StitchDestination =
-  | { kind: 'beside' }
-  | { kind: 'folder'; path: string }
-  | { kind: 'overwrite' };
+  { kind: 'beside' } | { kind: 'folder'; path: string } | { kind: 'overwrite' };
 
-export interface SourceProfile { /* data-model.md § SourceProfile */ }
-export interface DetectedStitching { startSeconds: number; endSeconds: number; adjustedByUser: boolean }
-export interface StitchScreens { /* data-model.md § StitchScreens */ }
-export interface StitchPlan { /* data-model.md § StitchPlan */ }
-export interface StitchJob { /* data-model.md § StitchJob */ }
-export interface StitchVerification { /* data-model.md § StitchVerification */ }
-export interface StitchSettings { screens: StitchScreens; destination: StitchDestination; outputSuffix: string }
-export interface StitcherState { settings: StitchSettings; jobs: StitchJob[]; busy: boolean }
+export interface SourceProfile {
+  /* data-model.md § SourceProfile */
+}
+export interface DetectedStitching {
+  startSeconds: number;
+  endSeconds: number;
+  adjustedByUser: boolean;
+}
+export interface StitchScreens {
+  /* data-model.md § StitchScreens */
+}
+export interface StitchPlan {
+  /* data-model.md § StitchPlan */
+}
+export interface StitchJob {
+  /* data-model.md § StitchJob */
+}
+export interface StitchVerification {
+  /* data-model.md § StitchVerification */
+}
+export interface StitchSettings {
+  screens: StitchScreens;
+  destination: StitchDestination;
+  outputSuffix: string;
+}
+export interface StitcherState {
+  settings: StitchSettings;
+  jobs: StitchJob[];
+  busy: boolean;
+}
 
 /** The AAC-frame snapping rule from research.md D4 — one definition, used by the
  *  planner, the argument builders and the verifier. */
-export function snapToAacFrames(seconds: number, sampleRate: number): { aacFrames: number; seconds: number };
+export function snapToAacFrames(
+  seconds: number,
+  sampleRate: number
+): { aacFrames: number; seconds: number };
 
 /** Bounds, clamped rather than rejected, matching the compressor's clamp* idiom. */
 export const STITCH_END_DURATION_MIN_SECONDS: number;
@@ -43,8 +66,12 @@ export const STITCH_END_DURATION_MAX_SECONDS: number;
 export function clampStitchEndDuration(value: number): number;
 
 /** Narrowing guards — every one returns a discriminated result, never a cast. */
-export function parseSourceProfile(value: unknown): { ok: true; value: SourceProfile } | { ok: false; error: string };
-export function parseStitchSettingsPatch(value: unknown): { ok: true; value: Partial<StitchSettings> } | { ok: false; error: string };
+export function parseSourceProfile(
+  value: unknown
+): { ok: true; value: SourceProfile } | { ok: false; error: string };
+export function parseStitchSettingsPatch(
+  value: unknown
+): { ok: true; value: Partial<StitchSettings> } | { ok: false; error: string };
 
 /** Pure, shared by the agent (to run) and the web app (to preview) so the promise
  *  shown to the user and the file produced can never come from different maths. */
@@ -53,7 +80,9 @@ export function planStitch(
   detected: DetectedStitching,
   screens: StitchScreens,
   operation?: StitchOperation
-): { ok: true; value: StitchPlan } | { ok: false; error: StitchUnsupportedReason | 'nothing-to-remove' };
+):
+  | { ok: true; value: StitchPlan }
+  | { ok: false; error: StitchUnsupportedReason | 'nothing-to-remove' };
 ```
 
 **Reused, not redefined**: `ImageAsset`, `ImageEmbeddingSettings`, `ImageFitMode`,

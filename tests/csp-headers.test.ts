@@ -94,6 +94,14 @@ describe('the content policy', () => {
     }
   });
 
+  it('lets a video preview play from the Supabase transfer endpoint', () => {
+    // The ticketed Range stream (`drive-transfer/range`) is a Supabase URL.
+    // `<video>` answers to media-src, not connect-src: with only connect-src
+    // naming Supabase, fetching the stream worked and playing it did not, so
+    // every team video preview failed in production.
+    expect(directive('media-src')).toMatch(/https:\/\/\*\.supabase\.co/u);
+  });
+
   it('admits exactly the Google Picker origins and nothing wider', () => {
     // Feature 011: the storage root is chosen in Google's own folder chooser.
     expect(directive('script-src')).toContain('https://apis.google.com');

@@ -17,14 +17,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronsDownUp,
-  ChevronsLeftRight,
-  ChevronsRightLeft,
   ChevronsUpDown,
   Copy,
   Eraser,
   Plus,
   Search,
   UserRound,
+  Wallet,
   X
 } from 'lucide-react';
 import {
@@ -53,7 +52,6 @@ import { useTeam } from '../TeamContext';
 import { teamErrorMessageFor } from '../errors';
 import { AccountGroup, AccountNameRow, type AgentEditing } from './AccountGroup';
 import { MarkerFilter } from './MarkerFilter';
-import { accountCountKey, agentCountKey } from './plural';
 import { copyText } from '../../two-factor/clipboard';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
@@ -99,9 +97,12 @@ function moneyKey(teamId: string): string {
 
 function readMoneyFolded(teamId: string): boolean {
   try {
-    return window.localStorage.getItem(moneyKey(teamId)) === 'folded';
+    // Folded unless someone opened it (024): the figures are worked on now and
+    // then, and two empty "—" fields on every row were the loudest thing on a
+    // screen read for who is free.
+    return window.localStorage.getItem(moneyKey(teamId)) !== 'open';
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -226,12 +227,6 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
     () => countTeamAccounts(filterTeamAccounts(accounts.accounts, { occupancy: 'all', search })),
     [accounts.accounts, search]
   );
-  /** The same two numbers for the whole space, whatever is typed in the search. */
-  const totals = useMemo(() => countTeamAccounts(accounts.accounts), [accounts.accounts]);
-  /* Each number says "2 of 4" only when that number is the one the search
-     narrowed: "3 of 4 accounts · 3 of 3 agents" is true and reads as a bug. */
-  const fewerAccounts = counts.accounts !== totals.accounts;
-  const fewerAgents = counts.agents !== totals.agents;
 
   /**
    * What the filter leaves — plus the account being edited, whatever the
@@ -496,31 +491,12 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       <div className="team-panel-heading team-account-space-heading">
         <div className="team-account-space-title">
           <h2 id="team-accounts-title">{t('teamAccountsTitle')}</h2>
-          {/* The two numbers, apart: the page is called Accounts and the chips
-              below count agents, which is a different figure and used to be
-              the only one on screen. */}
-          {accounts.accounts.length > 0 && (
-            <p className="team-accounts-summary">
-              {/* Under a search the totals do not quietly become the matches:
-                  the page says "2 of 4 accounts", the way the head of an
-                  account says "2 of 3 agents" a few pixels below. */}
-              <span>
-                {fewerAccounts
-                  ? t('teamAccountsShownAccounts', {
-                      shown: counts.accounts,
-                      count: totals.accounts
-                    })
-                  : t(accountCountKey(language, counts.accounts), { count: counts.accounts })}
-              </span>
-              <span>
-                {fewerAgents
-                  ? t('teamAccountsShownAgents', { shown: counts.agents, count: totals.agents })
-                  : t(agentCountKey(language, counts.agents), { count: counts.agents })}
-              </span>
-            </p>
-          )}
+          {/* No totals line (024): the chips below count agents, and each account's head
+              counts its own — a third count under the title said the same numbers again. */}
         </div>
-        {canEdit && (
+        {/* While the list is empty the empty state carries this same invitation;
+            two primaries for one act is one too many (024, FR-092). */}
+        {canEdit && !listEmpty && (
           <Button type="button" variant="primary" data-account-create="true" onClick={startCreate}>
             <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('teamAccountsCreate')}
@@ -531,91 +507,97 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       {/* The search and the occupancy filter share one row, as the task filters
           do. The pills are the task filter's pills — same class, so the two
           toolbars cannot drift — with a count on each. */}
-      <div className="team-accounts-toolbar">
-        <label className="team-accounts-search">
-          <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          <input
-            type="search"
-            value={search}
-            aria-label={t('teamAccountsSearchLabel')}
-            placeholder={t('teamAccountsSearchPlaceholder')}
-            onChange={event => setSearch(event.target.value)}
-          />
-          {search !== '' && (
-            <IconButton
-              label={t('teamAccountsClearField')}
-              tabIndex={-1}
-              onClick={() => setSearch('')}
-            >
-              <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </IconButton>
-          )}
-        </label>
-        {/* The chips have always counted agents, never accounts; now they say
-            so out loud rather than only to a screen reader. */}
-        <div className="team-accounts-toolbar-end">
-          <div
-            className="team-accounts-occupancy"
-            role="group"
-            aria-label={t('teamAccountsFilterLabel')}
-          >
-            <span className="team-accounts-occupancy-label" aria-hidden="true">
-              {t('teamAccountsFilterInline')}
-            </span>
-            {OCCUPANCY.map(value => (
-              <button
-                key={value}
-                type="button"
-                className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
-                aria-pressed={occupancy === value}
-                onClick={() => setOccupancy(value)}
+      {/* Nothing to search or filter yet: no toolbar of zeros over the invitation. */}
+      {!listEmpty && (
+        <div className="team-accounts-toolbar">
+          <label className="team-accounts-search">
+            <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <input
+              type="search"
+              value={search}
+              aria-label={t('teamAccountsSearchLabel')}
+              placeholder={t('teamAccountsSearchPlaceholder')}
+              onChange={event => setSearch(event.target.value)}
+            />
+            {search !== '' && (
+              <IconButton
+                label={t('teamAccountsClearField')}
+                tabIndex={-1}
+                onClick={() => setSearch('')}
               >
-                {value !== 'all' && (
-                  <span className="team-accounts-occupancy-dot" aria-hidden="true" />
-                )}
-                <span>{occupancyLabel(value)}</span>
-                <b>{occupancyCount(value)}</b>
-              </button>
-            ))}
-          </div>
-          {/* The colours, behind one control: they are the filter reached for
+                <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </IconButton>
+            )}
+          </label>
+          {/* The chips have always counted agents, never accounts; now they say
+            so out loud rather than only to a screen reader. */}
+          <div className="team-accounts-toolbar-end">
+            <div
+              className="team-accounts-occupancy"
+              role="group"
+              aria-label={t('teamAccountsFilterLabel')}
+            >
+              {OCCUPANCY.map(value => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
+                  aria-pressed={occupancy === value}
+                  onClick={() => setOccupancy(value)}
+                >
+                  {value !== 'all' && (
+                    <span className="team-accounts-occupancy-dot" aria-hidden="true" />
+                  )}
+                  <span>{occupancyLabel(value)}</span>
+                  <b>{occupancyCount(value)}</b>
+                </button>
+              ))}
+            </div>
+            {/* The colours, behind one control: they are the filter reached for
             least, and four more chips in this row pushed the fold onto a line
             of its own. Clearing every marker in the space lives in the same
-            menu — it is the only other thing on this screen about markers. */}
-          <MarkerFilter
-            value={marker}
-            counts={counts.markers}
-            total={counts.agents}
-            marked={markedRuns}
-            canEdit={canEdit}
-            onChange={setMarker}
-            onClearAll={() => void clearMarkers()}
-          />
-          {/* The fold, for the whole list: with four accounts open the fourth
+            menu — it is the only other thing on this screen about markers.
+            Absent while no run carries a marker (024, FR-092): "Markers 0" was
+            a filter with nothing to filter, read as one more thing to learn. */}
+            {(markedRuns > 0 || marker !== 'all') && (
+              <MarkerFilter
+                value={marker}
+                counts={counts.markers}
+                total={counts.agents}
+                marked={markedRuns}
+                canEdit={canEdit}
+                onChange={setMarker}
+                onClearAll={() => void clearMarkers()}
+              />
+            )}
+            {/* The fold, for the whole list: with four accounts open the fourth
             one's rows are a screen away, and folding them one at a time is
             four presses to see what is on the page. */}
-          {visible.length > 0 && (
-            <button
-              type="button"
-              className="team-accounts-fold-all"
-              aria-expanded={!allCollapsed}
-              onClick={() =>
-                toggleAll(
-                  visible.map(account => account.id),
-                  !allCollapsed
-                )
-              }
-            >
-              {allCollapsed ? (
-                <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              ) : (
-                <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              )}
-              <span>{t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}</span>
-            </button>
-          )}
+            {/* Only with two accounts or more (024): with one, folding everything is the
+                same press as folding its own head. */}
+            {visible.length > 1 && (
+              <button
+                type="button"
+                className="team-accounts-fold-all"
+                aria-expanded={!allCollapsed}
+                onClick={() =>
+                  toggleAll(
+                    visible.map(account => account.id),
+                    !allCollapsed
+                  )
+                }
+              >
+                {allCollapsed ? (
+                  <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                ) : (
+                  <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                )}
+                <span>{t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {accounts.loading && accounts.accounts.length === 0 && (
         <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
@@ -648,6 +630,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               className="team-accounts-money-fold"
               aria-expanded={!moneyFolded}
               aria-controls="team-accounts-list"
+              data-open={moneyFolded ? undefined : 'true'}
               title={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
               aria-label={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
               onClick={() => {
@@ -656,14 +639,16 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                 writeMoneyFolded(teamId, next);
               }}
             >
-              {moneyFolded ? (
-                <ChevronsLeftRight size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              ) : (
-                <ChevronsRightLeft size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              )}
+              {/* A wallet, not arrows (024): "<>" read as code. Pressed while the column
+                  is open; the tooltip says which way the press goes. */}
+              <Wallet size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
               <span>{t('teamAccountColumnMoney')}</span>
             </button>
-            <span>{t('teamAccountColumnActions')}</span>
+            {/* Named for a screen reader only; the row's buttons speak for
+                themselves, as they do in Airtable and Linear lists. */}
+            <span>
+              <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
+            </span>
           </div>
           <div className="team-accounts-list" id="team-accounts-list">
             {creating && (
@@ -781,7 +766,10 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               in: the two ways to copy the day's top-ups out, and the way to
               clear them once they are paid. Quiet until there is anything to
               copy — the count on the buttons is the whole state of the thing. */}
-          {canEdit && accounts.accounts.length > 0 && (
+          {/* Only once there is something to copy or clear (024, benchmarked on
+              Airtable's selection bar): four disabled buttons over "nothing to
+              top up" were a toolbar for a job nobody had started. */}
+          {canEdit && accounts.accounts.length > 0 && (topupCount > 0 || balanceCount > 0) && (
             <div className="team-accounts-footer">
               <span className="team-accounts-footer-count">
                 {topupCount > 0

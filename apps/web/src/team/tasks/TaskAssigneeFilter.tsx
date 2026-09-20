@@ -1,20 +1,19 @@
 /**
  * Narrowing the board to one person (018, part 2).
  *
- * A pill in the filter row beside the dates, the accounts and the tags. Three
- * kinds of answer: everyone, one member, or the tasks nobody is on — that last
- * one is not "no filter", it is the pile a stand-up is held over, so it gets a
- * line of its own rather than an absent id.
+ * A field in the "Filters" panel (024), under the account and above the
+ * tags. Three kinds of answer: everyone, one member, or the tasks nobody is
+ * on — that last one is not "no filter", it is the pile a stand-up is held
+ * over, so it gets a line of its own rather than an absent id.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, UserRound, X } from 'lucide-react';
-import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import type { TeamMemberSummary } from '../../api/team';
 import type { TaskAssigneeFilter as AssigneeFilter } from './useTasks';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { Popover } from '../../components/ui/index';
+import { TaskFilterField } from './TaskFilterField';
 
 /** What a member is called on screen: their name, else their address, else nothing. */
 export function memberLabel(member: TeamMemberSummary): string {
@@ -62,13 +61,14 @@ export function TaskAssigneeFilter({
     options[next]?.focus();
   };
 
+  /** What is in force: a name, "nobody yet", or the word for everyone. */
   const label = (() => {
     if (value.kind === 'unassigned') return t('teamTaskAssigneeFilterNobody');
     if (value.kind === 'member') {
       const member = members.find(item => item.userId === value.userId);
       return member ? memberLabel(member) : t('teamTaskAssigneeFilter');
     }
-    return t('teamTaskAssigneeFilter');
+    return t('teamTaskAssigneeFilterEveryone');
   })();
 
   /** Choosing closes the list and hands focus back to the pill that opened it. */
@@ -79,30 +79,19 @@ export function TaskAssigneeFilter({
   };
 
   return (
-    <div ref={root} className="task-account-filter task-assignee-filter">
-      <button
-        ref={trigger}
-        type="button"
-        className={`task-status-filter-option task-account-filter-trigger${active ? ' is-active' : ''}`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={t('teamTaskAssigneeFilterLabel')}
-        onClick={() => setOpen(current => !current)}
-      >
-        <UserRound size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        <span>{label}</span>
-        {!active && <ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-      </button>
-      {active && (
-        <button
-          type="button"
-          className="task-date-filter-clear"
-          aria-label={t('teamTaskAssigneeFilterClear')}
-          onClick={() => choose({ kind: 'all' })}
-        >
-          <X size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
-      )}
+    <TaskFilterField
+      rootRef={root}
+      triggerRef={trigger}
+      className="task-assignee-filter"
+      name={t('teamTaskAssigneeFilter')}
+      value={label}
+      active={active}
+      open={open}
+      label={t('teamTaskAssigneeFilterLabel')}
+      clearLabel={t('teamTaskAssigneeFilterClear')}
+      onToggle={() => setOpen(current => !current)}
+      onClear={() => choose({ kind: 'all' })}
+    >
       <Popover
         open={open}
         /* Escape and an outside press close onto the trigger, so a keyboard
@@ -114,8 +103,9 @@ export function TaskAssigneeFilter({
         anchor={root}
         placement="bottom-start"
         frequent
+        matchWidth
         label={t('teamTaskAssigneeFilterLabel')}
-        className="task-date-filter-popover task-account-filter-popover"
+        className="task-filter-field-popover"
       >
         <div
           ref={popover}
@@ -150,8 +140,8 @@ export function TaskAssigneeFilter({
             <div className="task-account-filter-empty" role="presentation">
               <p>{t('teamTaskAssigneeFilterEmpty')}</p>
               <SpaceSettingsLink
-                target={{ kind: 'settings', tab: 'members' }}
-                label={t('teamSettingsTabMembers')}
+                target={{ kind: 'section', section: 'members' }}
+                label={t('teamSectionMembers')}
               />
             </div>
           )}
@@ -177,6 +167,6 @@ export function TaskAssigneeFilter({
           ))}
         </div>
       </Popover>
-    </div>
+    </TaskFilterField>
   );
 }

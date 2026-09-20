@@ -7,14 +7,14 @@ loaded machine. Each is its own commit on `011-team-workspace-rework`.
 
 ### Done and tested
 
-| Task | What shipped | Proof |
-| --- | --- | --- |
-| T001 | `companion_of` / `companion_kind` / `audio_fingerprint` on `team_materials`; one live transcript companion per video; content-fingerprint index | `tests/team-companions-sql.test.ts` |
-| T002 | `get_material_transcript_companion` — a video's transcript, for a member | same |
+| Task       | What shipped                                                                                                                                                        | Proof                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| T001       | `companion_of` / `companion_kind` / `audio_fingerprint` on `team_materials`; one live transcript companion per video; content-fingerprint index                     | `tests/team-companions-sql.test.ts`       |
+| T002       | `get_material_transcript_companion` — a video's transcript, for a member                                                                                            | same                                      |
 | T005 (SQL) | `service_link_transcript_companion` (link + retire the old + keep transcript identity consistent) and `service_find_transcript_by_fingerprint` (compute-time dedup) | same, incl. the re-transcribe replacement |
-| T013 | A trashed landing stops serving its preview: `list_landing_renders` now requires an active material | same |
-| T014 | "Перегенерувати превʼю" from the row menu → `request_landing_render_refresh` marks the render stale for the loop | live (RPC 200, render → stale) + test |
-| T015 | Confirmed: an optimized landing already gets its own preview by fingerprint (feature 011 §J) | — |
+| T013       | A trashed landing stops serving its preview: `list_landing_renders` now requires an active material                                                                 | same                                      |
+| T014       | "Перегенерувати превʼю" from the row menu → `request_landing_render_refresh` marks the render stale for the loop                                                    | live (RPC 200, render → stale) + test     |
+| T015       | Confirmed: an optimized landing already gets its own preview by fingerprint (feature 011 §J)                                                                        | —                                         |
 
 So **Phase 1 (data model) and Phase 4 (landing preview lifecycle) are complete**, and the SQL
 half of the transcribe→companion path is in.
@@ -74,7 +74,7 @@ checkbox and skips the question thereafter. Deleting the companion runs an ordin
 
 The card's **Транскрибувати** ran whisper (proved: the result was `text/plain`, 3 KB) but the
 output landed as **`16-optimized.mp4`** — the compressor's suggested name — so it was categorised
-as a *video*, and the companion link (T006) skipped it (a `.mp4` is not a transcript).
+as a _video_, and the companion link (T006) skipped it (a `.mp4` is not a transcript).
 
 `ProcessMaterialDialog` initialised the tool from `initialTool` (transcription, correct) but the
 output **name** from `tools[0]` (always the compressor for a video) — the two disagreed whenever a
@@ -108,21 +108,21 @@ Two things the owner hit while testing, both fixed and verified live:
 
 Everything below was reproduced, fixed, and verified in the browser during the run:
 
-| # | What | Root cause → fix |
-| --- | --- | --- |
-| 1 | Transcription progress in the video card | `ActiveOperation` now reports progress up; the card shows an "n%" bar instead of the Transcribe button while that video runs (no double-clicking). |
-| 2 | Selection accumulates across folders | The provider kept ids per folder and cleared them on navigation; it now keeps the selected rows in a map and only the focus resets. Batch actions act on the accumulated rows. |
-| 3 | Oval refresh / stretched share buttons | The global 44px button tap-target min-height fought fixed icon sizes; cleared on both. |
-| 4 | Explorer list rows overflowed their border | Fixed columns summed wider than the row on a mid pane; the name column now shrinks (minmax(0,1fr)), columns drop earlier. |
-| 5 | Big tile glyphs + visible checkboxes | Folder/no-preview tiles show a 72cqmin glyph; the empty checkbox got a legible border/fill on dark. |
-| 6 | Cmd/Ctrl+C/X/V | New `drive-ops/copy` (Drive `files.copy` as an upload-kind operation, immediate row); cut pastes as move. Live: copy landed in another folder, cut moved it on. |
-| 7 | Create-task from the card | Button on a file's preview card. |
-| 8 | Task attachment buttons | Fixed 32px squares (three-action tiles no longer wider than four-action ones); view=blue, download=green, copy-link=violet, detach=red at rest. |
-| 9 | Per-account default for task Maximum | Save-as-default icon beside the field (appears when it differs), account-settings field, `create_team_task` starts from it. Live: saved 12, knob button behaved. |
-| 10 | Manual progress bar | Green fills from the left; Done no longer snaps the marker to max (server) and status flips no longer re-sync it (client). Live: drag→1, Done→still 1. |
-| 11 | Folder attachments said "Готуємо превʼю…" forever | previewState='unavailable' returned early without marking unavailable; now says "Превʼю недоступне". |
-| 12 | "Нова версія" removed from the ⋯ menu | Owner: unclear/unused; replace-on-conflict still covers it. |
-| 13 | Folder batch processing | ⋯ on a folder → "Обробити вміст…": transcribe all videos (skips ones with transcripts), refresh landing previews, or everything; sequential with "n of m" progress. Folders got the ⋯ menu at all. |
+| #   | What                                              | Root cause → fix                                                                                                                                                                                   |
+| --- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Transcription progress in the video card          | `ActiveOperation` now reports progress up; the card shows an "n%" bar instead of the Transcribe button while that video runs (no double-clicking).                                                 |
+| 2   | Selection accumulates across folders              | The provider kept ids per folder and cleared them on navigation; it now keeps the selected rows in a map and only the focus resets. Batch actions act on the accumulated rows.                     |
+| 3   | Oval refresh / stretched share buttons            | The global 44px button tap-target min-height fought fixed icon sizes; cleared on both.                                                                                                             |
+| 4   | Explorer list rows overflowed their border        | Fixed columns summed wider than the row on a mid pane; the name column now shrinks (minmax(0,1fr)), columns drop earlier.                                                                          |
+| 5   | Big tile glyphs + visible checkboxes              | Folder/no-preview tiles show a 72cqmin glyph; the empty checkbox got a legible border/fill on dark.                                                                                                |
+| 6   | Cmd/Ctrl+C/X/V                                    | New `drive-ops/copy` (Drive `files.copy` as an upload-kind operation, immediate row); cut pastes as move. Live: copy landed in another folder, cut moved it on.                                    |
+| 7   | Create-task from the card                         | Button on a file's preview card.                                                                                                                                                                   |
+| 8   | Task attachment buttons                           | Fixed 32px squares (three-action tiles no longer wider than four-action ones); view=blue, download=green, copy-link=violet, detach=red at rest.                                                    |
+| 9   | Per-account default for task Maximum              | Save-as-default icon beside the field (appears when it differs), account-settings field, `create_team_task` starts from it. Live: saved 12, knob button behaved.                                   |
+| 10  | Manual progress bar                               | Green fills from the left; Done no longer snaps the marker to max (server) and status flips no longer re-sync it (client). Live: drag→1, Done→still 1.                                             |
+| 11  | Folder attachments said "Готуємо превʼю…" forever | previewState='unavailable' returned early without marking unavailable; now says "Превʼю недоступне".                                                                                               |
+| 12  | "Нова версія" removed from the ⋯ menu             | Owner: unclear/unused; replace-on-conflict still covers it.                                                                                                                                        |
+| 13  | Folder batch processing                           | ⋯ on a folder → "Обробити вміст…": transcribe all videos (skips ones with transcripts), refresh landing previews, or everything; sequential with "n of m" progress. Folders got the ⋯ menu at all. |
 
 Also: cancelling a transcription no longer raises "Щось пішло не так" (the
 expected abort rejection is swallowed for operations the person cancelled), and

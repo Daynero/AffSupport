@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  CATALOG_FILTER_KEYS,
   MATERIAL_CATEGORIES,
   type CatalogSearchFilters,
   type CatalogSearchResponse,
   type CatalogVocabulary,
-  type MaterialCategory
+  type MaterialCategory,
+  type TeamMaterialTagColor
 } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
+import { COLOR_LABEL } from '../explorer/TagDot';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { Select } from '../../components/ui/index';
 
@@ -18,7 +21,8 @@ const LABEL_KEYS: Record<Exclude<keyof CatalogSearchFilters, 'geo'>, Translation
   category: 'teamCatalogCategory',
   originalType: 'teamCatalogOriginalType',
   kind: 'teamCatalogKind',
-  unfilled: 'teamCatalogMissingMetadata'
+  unfilled: 'teamCatalogMissingMetadata',
+  marker: 'teamCatalogMarker'
 };
 
 const KIND_KEYS: Record<string, TranslationKey> = {
@@ -72,15 +76,17 @@ export function CatalogFilters({
   onRemove: (key: keyof CatalogSearchFilters, value: string) => void;
   onClear: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const visible = new Set<keyof CatalogSearchFilters>(
-    visibleKeys ?? (Object.keys(filters) as Array<keyof CatalogSearchFilters>)
+    visibleKeys ?? CATALOG_FILTER_KEYS
   );
   const selections = (Object.keys(filters) as Array<keyof CatalogSearchFilters>).flatMap(key =>
     visible.has(key) ? (filters[key] as readonly string[]).map(value => ({ key, value })) : []
   );
-  const hasFacets =
-    vocabulary.geo.length > 0 || vocabulary.languages.length > 0 || vocabulary.offers.length > 0;
+  const usedGeo = (vocabulary as TeamVocabulary).usedGeo ?? vocabulary.geo;
+  const usedMarkers = (vocabulary as TeamVocabulary).usedMarkers ?? [];
+  const usedLanguages = (vocabulary as TeamVocabulary).usedLanguages ?? vocabulary.languages;
+  const hasFacets = usedGeo.length > 0 || usedLanguages.length > 0 || vocabulary.offers.length > 0;
   // No junk filters for an empty space: show nothing to filter unless there is
   // content or the user already has an active selection to clear.
   /* Open when something is narrowing the search, and then whatever the person
@@ -111,6 +117,10 @@ export function CatalogFilters({
     if (key === 'unfilled')
       return value === 'geo' ? 'GEO' : t(UNFILLED_KEYS[value] ?? 'teamCatalogAny');
     if (key === 'originalType') return originalTypeLabel(value);
+    if (key === 'marker') return t(COLOR_LABEL[value as TeamMaterialTagColor] ?? 'teamCatalogAny');
+    // Names, not codes (024): "DE" and "de" said nothing to a person picking one.
+    if (key === 'geo') return displayName('region', value.toUpperCase(), language) ?? value;
+    if (key === 'language') return displayName('language', value, language) ?? value;
     return value;
   };
 
@@ -118,20 +128,27 @@ export function CatalogFilters({
      labels are unchanged — what goes is this file's own idea of what a select
      looks like. */
   const select = (key: keyof CatalogSearchFilters, options: readonly string[]) => (
-    <label>
-      <span>{filterLabel(key)}</span>
+    /* Not a wrapping `<label>` any more: the control is a listbox with a button
+       for a trigger, and a label that wraps one names nothing. The name is
+       said, and the id ties it to the control the reader actually operates. */
+    <div className="team-catalog-facet">
+      <span id={`catalog-facet-${key}`}>{filterLabel(key)}</span>
       <Select
-        value={filters[key][0] ?? ''}
+        aria-labelledby={`catalog-facet-${key}`}
+        value={filters[key]?.[0] ?? ''}
         placeholder={t('teamCatalogAny')}
         options={options.map(option => ({
           value: option,
           label: valueLabel(key, option),
           title: option
         }))}
-        onChange={event => onSet(key, event.target.value || null)}
+        onChange={next => onSet(key, next || null)}
       />
-    </label>
+    </div>
   );
+
+  const offered = (key: keyof CatalogSearchFilters, options: readonly string[]) =>
+    visible.has(key) && options.length > 0 ? select(key, options) : null;
 
   /* Facet values narrow with the search, so the chosen one is kept in the list:
      without it, picking a type removed every other type and there was no way
@@ -164,11 +181,18 @@ export function CatalogFilters({
           : t('teamCatalogFiltersIdle')}
       </summary>
       <div className="team-catalog-filters">
-        {visible.has('geo') && select('geo', vocabulary.geo)}
-        {visible.has('language') && select('language', vocabulary.languages)}
-        {visible.has('offer') && select('offer', vocabulary.offers)}
+        {/* Only what the space's files carry (024): a filter offering every
+            country and language in the dictionary found nothing for most of
+            them. The chosen value stays in the list so it can be changed. */}
+        {/* A filter with nothing to find is not offered at all (the owner, 024):
+            no GEO on any file, no GEO select. One already in force stays, so it
+            can be taken off. */}
+        {offered('geo', inUse(usedGeo, filters.geo))}
+        {offered('language', inUse(usedLanguages, filters.language))}
+        {offered('offer', inUse(vocabulary.offers, filters.offer))}
+        {offered('marker', inUse(usedMarkers, filters.marker ?? []))}
         {visible.has('category') && select('category', MATERIAL_CATEGORIES)}
-        {visible.has('originalType') && select('originalType', originalTypeOptions)}
+        {offered('originalType', originalTypeOptions)}
         {visible.has('kind') && select('kind', ['file', 'folder', 'shortcut'])}
         {visible.has('unfilled') && select('unfilled', ['geo', 'offer', 'language'])}
       </div>
@@ -195,4 +219,28 @@ export function CatalogFilters({
       )}
     </details>
   );
+}
+
+/** The vocabulary with what the space's files actually carry (024); absent from an older server. */
+type TeamVocabulary = CatalogVocabulary & {
+  usedGeo?: string[];
+  usedLanguages?: string[];
+  usedMarkers?: string[];
+};
+
+function inUse(used: readonly string[], chosen: readonly string[]): string[] {
+  return [...new Set([...used, ...chosen])];
+}
+
+export function displayName(
+  type: 'region' | 'language',
+  code: string,
+  language: string
+): string | undefined {
+  try {
+    const name = new Intl.DisplayNames([language === 'uk' ? 'uk' : 'en'], { type }).of(code);
+    return name && name !== code ? name : undefined;
+  } catch {
+    return undefined;
+  }
 }

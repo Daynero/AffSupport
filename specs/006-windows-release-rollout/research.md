@@ -21,13 +21,13 @@ fallback.
 - The runner image already ships every tool the pipeline needs, so no installation step is
   required (verified against `actions/runner-images` `Windows2022-Readme.md`):
 
-  | Tool | Preinstalled version | Used for |
-  | --- | --- | --- |
-  | Inno Setup | 6.7.1 | compiling `packaging/windows-installer.iss` (`iscc`) |
-  | .NET SDK | 8.0.x (plus 9/10) | `dotnet publish` of `SotyAgentHost` |
-  | Node.js | 22.23.2 | `npm ci`, `npm run build`, all `.mjs` scripts |
-  | 7-Zip | 26.02 | unpacking vendored `.7z`/`.zip` inputs |
-  | Windows SDK | 10.0.26100.0 | `dumpbin`-equivalent dependency checks (not signing — out of scope) |
+  | Tool        | Preinstalled version | Used for                                                            |
+  | ----------- | -------------------- | ------------------------------------------------------------------- |
+  | Inno Setup  | 6.7.1                | compiling `packaging/windows-installer.iss` (`iscc`)                |
+  | .NET SDK    | 8.0.x (plus 9/10)    | `dotnet publish` of `SotyAgentHost`                                 |
+  | Node.js     | 22.23.2              | `npm ci`, `npm run build`, all `.mjs` scripts                       |
+  | 7-Zip       | 26.02                | unpacking vendored `.7z`/`.zip` inputs                              |
+  | Windows SDK | 10.0.26100.0         | `dumpbin`-equivalent dependency checks (not signing — out of scope) |
 
 - The maintainer owns no Windows machine (confirmed in the spec), so this is the only option that
   satisfies FR-026 without renting a persistent VM.
@@ -38,8 +38,8 @@ fallback.
   stateful machine, which is exactly the failure mode FR-026 forbids. Retained only as the
   one-off venue for the human checks in FR-038.
 - _Cross-compiling the installer on macOS_ — rejected: `iscc` and `dotnet publish -r win-x64`
-  with WinForms can be *compiled* cross-platform (`EnableWindowsTargeting`), but nothing can
-  *verify* the result, and FR-036/FR-037 require real execution.
+  with WinForms can be _compiled_ cross-platform (`EnableWindowsTargeting`), but nothing can
+  _verify_ the result, and FR-036/FR-037 require real execution.
 
 ---
 
@@ -126,7 +126,7 @@ configure flags macOS uses.
 both platforms) rather than merely testing for divergence, and it makes the GPL
 obligation trivially correct: the corresponding source we must offer is the
 archive we built from, exactly as the macOS package already ships. Bundling a
-third-party binary would instead oblige us to reproduce *that builder's* exact
+third-party binary would instead oblige us to reproduce _that builder's_ exact
 tree and scripts, for a version that does not match macOS anyway.
 
 **Cost, and why it is acceptable**: an MSYS2 static build is slow, so it is
@@ -194,17 +194,17 @@ Metal backend), not an official release asset — which is why no version was re
 
 All four resolved from macOS, with no Windows machine involved:
 
-| Input | Version | sha256 | Bytes |
-| --- | --- | --- | --- |
-| Node.js `node-v24.13.0-win-x64.zip` (matches the version the macOS package bundles) | 24.13.0 | `ca2742695be8de44027d71b3f53a4bdb36009b95575fe1ae6f7f0b5ce091cb88` (nodejs.org `SHASUMS256.txt`) | 36 363 905 |
-| whisper.cpp `whisper-bin-x64.zip` (CPU) | v1.9.1 | `7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539` | 7 982 101 |
-| Silero VAD `ggml-silero-v5.1.2.bin` — hashed from the **shipped macOS package**, so both platforms provably bundle identical bytes | v5.1.2 | `29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf` | 885 098 |
-| llama.cpp `llama-b10092-bin-win-cpu-x64.zip` | b10092 | `c842fa7dc90e32b327c62903f4310ef251a902c90ef5b3a6c01c6b675dce078e` | 18 021 876 |
+| Input                                                                                                                              | Version | sha256                                                                                           | Bytes      |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------ | ---------- |
+| Node.js `node-v24.13.0-win-x64.zip` (matches the version the macOS package bundles)                                                | 24.13.0 | `ca2742695be8de44027d71b3f53a4bdb36009b95575fe1ae6f7f0b5ce091cb88` (nodejs.org `SHASUMS256.txt`) | 36 363 905 |
+| whisper.cpp `whisper-bin-x64.zip` (CPU)                                                                                            | v1.9.1  | `7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539`                               | 7 982 101  |
+| Silero VAD `ggml-silero-v5.1.2.bin` — hashed from the **shipped macOS package**, so both platforms provably bundle identical bytes | v5.1.2  | `29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf`                               | 885 098    |
+| llama.cpp `llama-b10092-bin-win-cpu-x64.zip`                                                                                       | b10092  | `c842fa7dc90e32b327c62903f4310ef251a902c90ef5b3a6c01c6b675dce078e`                               | 18 021 876 |
 
 Only FFmpeg/FFprobe (and their GPL source archives) remain unpinned, blocked on the R3 decision.
 
-**Note on the whisper Windows build**: the official `whisper-bin-x64.zip` is a *release* artifact
-while macOS ships a *local Metal build* of the same version. They are the same source revision but
+**Note on the whisper Windows build**: the official `whisper-bin-x64.zip` is a _release_ artifact
+while macOS ships a _local Metal build_ of the same version. They are the same source revision but
 different builds, so transcription output parity (SC-003) must be measured, not assumed.
 
 ---
@@ -216,12 +216,12 @@ constant, and replace every hard-coded `darwin` route guard with a capability ch
 
 **Findings (verified in source)**:
 
-| Site | Current state | Problem on Windows |
-| --- | --- | --- |
-| `packages/shared/src/types.ts:483` `AGENT_CAPABILITIES` | static array including `finder-image-conversion` | a Windows agent would advertise a macOS-only capability it cannot serve |
-| `apps/agent/src/compressor/routes.ts:48` | `if (process.platform !== 'darwin') → 501` on `/api/files/select` | the native picker **is** implemented for win32 (`files/picker.ts`) and `capabilities().nativeFilePicker` is already `true` there — the route contradicts the platform layer and silently disables FR-010 |
-| `apps/agent/src/media-actions/routes.ts:21` | `if (process.platform !== 'darwin') → 501` | correct behaviour, but expressed as a platform check rather than a declared capability |
-| `apps/agent/src/server/app.ts:196` `/health` | already returns `capabilities: [...]` | the transport for platform capabilities already exists — no new endpoint needed |
+| Site                                                    | Current state                                                     | Problem on Windows                                                                                                                                                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/types.ts:483` `AGENT_CAPABILITIES` | static array including `finder-image-conversion`                  | a Windows agent would advertise a macOS-only capability it cannot serve                                                                                                                                  |
+| `apps/agent/src/compressor/routes.ts:48`                | `if (process.platform !== 'darwin') → 501` on `/api/files/select` | the native picker **is** implemented for win32 (`files/picker.ts`) and `capabilities().nativeFilePicker` is already `true` there — the route contradicts the platform layer and silently disables FR-010 |
+| `apps/agent/src/media-actions/routes.ts:21`             | `if (process.platform !== 'darwin') → 501`                        | correct behaviour, but expressed as a platform check rather than a declared capability                                                                                                                   |
+| `apps/agent/src/server/app.ts:196` `/health`            | already returns `capabilities: [...]`                             | the transport for platform capabilities already exists — no new endpoint needed                                                                                                                          |
 
 **Design**: `AGENT_CAPABILITIES` becomes a function of `capabilities()` from
 `apps/agent/src/platform/platform.ts`. `finder-image-conversion` is emitted only where
@@ -230,7 +230,7 @@ constant, and replace every hard-coded `darwin` route guard with a capability ch
 the same list it already reads (`App.tsx:434`, `TranscriptionPage.tsx:111` consume
 `capabilities.includes(...)` today), so no new client mechanism is introduced.
 
-**Non-issue found**: job *pausing* is internal only — `queue.ts:1170-1199` pauses the estimator
+**Non-issue found**: job _pausing_ is internal only — `queue.ts:1170-1199` pauses the estimator
 child so a prioritized job can run, and already falls through cleanly on platforms without
 `SIGSTOP` ("Platforms without pause support (Windows) fall through"). There is **no user-facing
 pause control** in the web UI, so FR-014's pause clause needs no UI work; it is satisfied by the
@@ -268,18 +268,18 @@ compiled, executing the full install → use → uninstall path unattended; plus
 
 **Split of what is automatable** (this is the closed list FR-039 demands):
 
-| Behaviour | Automated on the runner | Why |
-| --- | --- | --- |
-| Silent install/uninstall, installed layout, Run-key autostart | yes | `iscc` output supports `/VERYSILENT /SUPPRESSMSGBOXES`; registry and filesystem are inspectable |
-| Host supervises the agent; `/health` reachable; version/contracts correct | yes | loopback HTTP, same shape as `scripts/real-agent-check.mjs` on macOS |
-| Single-instance lock, crash restart (exit 75), kill-host → agent exits via ppid watchdog | yes | process-level, no UI |
-| One real job per tool (compress, image convert, transcribe, landing preview, translate) | yes | all are HTTP-driven; fixtures already exist for the macOS e2e harness |
-| Archive create/extract via `tar.exe`, `%APPDATA%` resolution, `sanitizeFileName` | yes | pure functions plus filesystem |
-| llama.cpp zip layout assumption (R4) | yes | one archive listing |
-| **Native chooser dialog: foreground behaviour, multi-select UX, unicode rendering** | **no** | requires an interactive desktop and a real human eye; only spawn arguments and output parsing are unit-testable |
-| **SmartScreen / unknown-publisher warning wording and flow** | **no** | reputation-driven, not reproducible in CI |
-| **Antivirus quarantine behaviour** | **no** | depends on the end user's security product |
-| **Windows Firewall prompt for loopback (expected: silent)** | **no** | policy-dependent |
+| Behaviour                                                                                | Automated on the runner | Why                                                                                                             |
+| ---------------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Silent install/uninstall, installed layout, Run-key autostart                            | yes                     | `iscc` output supports `/VERYSILENT /SUPPRESSMSGBOXES`; registry and filesystem are inspectable                 |
+| Host supervises the agent; `/health` reachable; version/contracts correct                | yes                     | loopback HTTP, same shape as `scripts/real-agent-check.mjs` on macOS                                            |
+| Single-instance lock, crash restart (exit 75), kill-host → agent exits via ppid watchdog | yes                     | process-level, no UI                                                                                            |
+| One real job per tool (compress, image convert, transcribe, landing preview, translate)  | yes                     | all are HTTP-driven; fixtures already exist for the macOS e2e harness                                           |
+| Archive create/extract via `tar.exe`, `%APPDATA%` resolution, `sanitizeFileName`         | yes                     | pure functions plus filesystem                                                                                  |
+| llama.cpp zip layout assumption (R4)                                                     | yes                     | one archive listing                                                                                             |
+| **Native chooser dialog: foreground behaviour, multi-select UX, unicode rendering**      | **no**                  | requires an interactive desktop and a real human eye; only spawn arguments and output parsing are unit-testable |
+| **SmartScreen / unknown-publisher warning wording and flow**                             | **no**                  | reputation-driven, not reproducible in CI                                                                       |
+| **Antivirus quarantine behaviour**                                                       | **no**                  | depends on the end user's security product                                                                      |
+| **Windows Firewall prompt for loopback (expected: silent)**                              | **no**                  | policy-dependent                                                                                                |
 
 **Rationale**: this is the honest boundary. Everything left in the "no" column goes on the
 FR-038 human-check list and is exercised once, before the first public release, on a rented cloud

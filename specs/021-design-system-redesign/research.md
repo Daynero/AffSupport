@@ -10,7 +10,7 @@ rejected.
 
 ## R1 — How a Vue component library becomes a React product's vocabulary
 
-**Decision**: Adopt Nuxt UI's *catalogue, naming, prop model and anatomy*; implement in
+**Decision**: Adopt Nuxt UI's _catalogue, naming, prop model and anatomy_; implement in
 React with plain CSS. Nothing from the library is installed.
 
 **Rationale**: Constitution VI fixes the web app as function components, one global
@@ -23,13 +23,14 @@ semantic colours, six variants, five sizes — and it maps onto CSS custom prope
 loss.
 
 **Alternatives considered**:
-- *Install a React equivalent (shadcn/ui, Radix, Ark).* Rejected: contradicts constitution
+
+- _Install a React equivalent (shadcn/ui, Radix, Ark)._ Rejected: contradicts constitution
   VI, adds a dependency tree to a product whose whole pitch is that it is small and local,
   and would rewrite behaviour while claiming to restyle it.
-- *Invent a bespoke system from the existing screens.* Rejected: the existing screens are the
+- _Invent a bespoke system from the existing screens._ Rejected: the existing screens are the
   problem; a system distilled from them inherits the disagreements. An outside reference
   settles arguments that have no local answer.
-- *Port Nuxt UI's Tailwind classes into the stylesheet.* Rejected: utility classes fight the
+- _Port Nuxt UI's Tailwind classes into the stylesheet._ Rejected: utility classes fight the
   one-stylesheet, semantic-class idiom the codebase uses everywhere.
 
 ---
@@ -45,13 +46,14 @@ text ramp.
 **Rationale**: The product currently has two "important" colours — accent (violet) and action
 (honey) — and which one a control uses is historical rather than meaningful. Roles make the
 question answerable: the one action a surface exists for is `primary`; a second, weaker
-action is `secondary`; a destructive one is `error` and is *de-emphasised* per DESIGN.md.
+action is `secondary`; a destructive one is `error` and is _de-emphasised_ per DESIGN.md.
 The brand is unchanged; only the reason for reaching for a colour is.
 
 **Alternatives considered**:
-- *Keep `accent`/`action` and document when to use each.* Rejected: it has been documented in
+
+- _Keep `accent`/`action` and document when to use each._ Rejected: it has been documented in
   comments for a year and the drift continued, because the names carry no rule.
-- *Collapse to one brand colour.* Rejected: the honey CTA is part of the product's look and
+- _Collapse to one brand colour._ Rejected: the honey CTA is part of the product's look and
   the owner's screenshots.
 
 **Shade set per role**: `-50…-950` is not required for every role; components need
@@ -77,7 +79,8 @@ call to action → `xl`. The existing 44px control floor becomes `md`; `xs`/`sm`
 surfaces (accounts table, explorer rows) use instead of one-off heights.
 
 **Alternatives considered**:
-- *Fewer variants (solid/outline/ghost).* Rejected: `soft` and `subtle` are what the product
+
+- _Fewer variants (solid/outline/ghost)._ Rejected: `soft` and `subtle` are what the product
   uses for chips, badges and selected states, and folding them into `outline` would flatten
   distinctions that carry meaning.
 
@@ -94,7 +97,8 @@ Retaining the values keeps every migrated screen visually stable; adding roles m
 screen answerable without measuring an existing one.
 
 **Alternatives considered**:
-- *Adopt Tailwind's `text-xs…text-3xl` scale.* Rejected: it would resize every screen in the
+
+- _Adopt Tailwind's `text-xs…text-3xl` scale._ Rejected: it would resize every screen in the
   product for no gain, and the existing ratio is deliberately tighter — this is a dense tool.
 
 ---
@@ -118,14 +122,15 @@ menus, toggling a row's selection, the explorer's row hover, keyboard shortcuts,
 toggle, and the tag popover — all of them things done dozens of times an hour.
 
 **Alternatives considered**:
-- *A spring library for organic motion.* Rejected: new dependency for decorative gain;
+
+- _A spring library for organic motion._ Rejected: new dependency for decorative gain;
   DESIGN.md reserves springs for decorative interactions, of which this product has few.
 
 ---
 
 ## R6 — Where the component boundary sits
 
-**Decision**: One component per *family* file (`Button.tsx`, `Field.tsx`, `Overlay.tsx`, …)
+**Decision**: One component per _family_ file (`Button.tsx`, `Field.tsx`, `Overlay.tsx`, …)
 under `components/ui/`, with `components/ui.tsx` re-exporting them so no existing import
 breaks.
 
@@ -136,9 +141,10 @@ component) match the existing `ui.tsx` habit and keep related variants honest ab
 styles.
 
 **Alternatives considered**:
-- *One file per component.* Rejected: 45 files for a product this size fragments related
+
+- _One file per component._ Rejected: 45 files for a product this size fragments related
   styling decisions (Checkbox and Switch share nearly everything).
-- *Keep everything in `ui.tsx`.* Rejected: it is already the kind of multi-responsibility
+- _Keep everything in `ui.tsx`._ Rejected: it is already the kind of multi-responsibility
   file the constitution names as a debt.
 
 ---
@@ -152,7 +158,7 @@ Screens then migrate group by group, each group self-contained and shippable.
 **Rationale**: The alternative — migrating screens one at a time while the old and new token
 sets coexist — guarantees a period where two systems are live and a shared class means
 different things on different screens. Aliasing inverts it: the system is live everywhere
-from day one, and each group's migration is a *cleanup* (replace bespoke classes with
+from day one, and each group's migration is a _cleanup_ (replace bespoke classes with
 inventory components), not a switch-over.
 
 **Consequence to accept**: a handful of screens will change appearance slightly the moment
@@ -174,9 +180,10 @@ the dialects grew precisely because nothing said no. The colour/background/borde
 are allowed because they do not affect layout and the product's hover states depend on them.
 
 **Alternatives considered**:
-- *Stylelint with a config.* Rejected: a new dependency and a config language to learn, for a
+
+- _Stylelint with a config._ Rejected: a new dependency and a config language to learn, for a
   rule set this small and this project-specific.
-- *Review discipline alone.* Rejected: that is what produced the current state.
+- _Review discipline alone._ Rejected: that is what produced the current state.
 
 ---
 
@@ -190,9 +197,10 @@ also the fastest way to verify the reduced-motion and light-theme requirements �
 instead of fifteen routes.
 
 **Alternatives considered**:
-- *Storybook.* Rejected: a large dependency and a second build for a product with one
+
+- _Storybook._ Rejected: a large dependency and a second build for a product with one
   stylesheet and a deliberately small toolchain.
-- *A markdown reference only.* Rejected: prose does not catch a broken focus ring.
+- _A markdown reference only._ Rejected: prose does not catch a broken focus ring.
 
 ---
 
@@ -239,7 +247,6 @@ stronger and immune to the next restyle.
 project does not have, and the demo route plus the five-width manual pass covers the same
 ground at this scale.
 
-
 ---
 
 ## R13 — Two design documents, and which one wins
@@ -253,7 +260,7 @@ and yield to both.
 specific to Soty and already describes patterns the product ships: lucide at 20/1.75 with
 "grow the plate, never shrink the icon", the picto-group anatomy with `is-selected` (and the
 explicit note that `is-active` does not exist in this system), inline fields with the unit
-*outside* the border at 72–150px, validation shown only after invalid input, settings as left
+_outside_ the border at 72–150px, validation shown only after invalid input, settings as left
 shelves rather than half-empty grid columns, red for destructive and green for positive, and
 30×30 / 44×38 icon plates. None of that is in a general reference, and all of it is the
 product's identity. `DESIGN-PRINCIPLES.md` answers what `DESIGN.md` is silent on — duration
@@ -265,8 +272,9 @@ rules that the inventory must encode so that using the inventory is the same thi
 following them. FR-040 makes that checkable.
 
 **Alternatives considered**:
-- *Merge the two into one document.* Rejected: one is the owner's product rule book and the
+
+- _Merge the two into one document._ Rejected: one is the owner's product rule book and the
   other is a curated external reference with attribution to its sources; merging would blur
   which statements are Soty's own decisions.
-- *Treat the general reference as authoritative.* Rejected: it would overrule concrete, tested
+- _Treat the general reference as authoritative._ Rejected: it would overrule concrete, tested
   decisions about this product with generic advice.

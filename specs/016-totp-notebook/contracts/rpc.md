@@ -30,13 +30,13 @@ Returns the caller's whole notebook, newest first.
 
 **Returns:** `setof record`
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | `uuid` | |
-| `name` | `text` | |
-| `secret` | `text` | The decrypted seed, from `vault.decrypted_secrets`. |
-| `created_at` | `timestamptz` | |
-| `updated_at` | `timestamptz` | |
+| Column       | Type          | Notes                                               |
+| ------------ | ------------- | --------------------------------------------------- |
+| `id`         | `uuid`        |                                                     |
+| `name`       | `text`        |                                                     |
+| `secret`     | `text`        | The decrypted seed, from `vault.decrypted_secrets`. |
+| `created_at` | `timestamptz` |                                                     |
+| `updated_at` | `timestamptz` |                                                     |
 
 Ordered by `created_at desc, id`.
 
@@ -59,9 +59,9 @@ travel with the list rather than one at a time.
 
 **Arguments**
 
-| Name | Type | Validation |
-| --- | --- | --- |
-| `p_name` | `text` | Trimmed; 1–120 characters. |
+| Name       | Type   | Validation                                                                                                                                             |
+| ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `p_name`   | `text` | Trimmed; 1–120 characters.                                                                                                                             |
 | `p_secret` | `text` | Uppercased and stripped of whitespace/padding by the client; re-checked here for the `A–Z2–7` alphabet and a minimum of 16 characters (an 80-bit key). |
 
 **Returns:** one row, the same columns as `list_two_factor_entries`, so the
@@ -80,10 +80,10 @@ re-raised — no orphaned secrets (see `data-model.md`).
 
 **Arguments**
 
-| Name | Type | Validation |
-| --- | --- | --- |
-| `p_entry` | `uuid` | Must belong to `auth.uid()`. |
-| `p_name` | `text` | As above. |
+| Name       | Type   | Validation                                                                 |
+| ---------- | ------ | -------------------------------------------------------------------------- |
+| `p_entry`  | `uuid` | Must belong to `auth.uid()`.                                               |
+| `p_name`   | `text` | As above.                                                                  |
 | `p_secret` | `text` | As above, **or `null`** to leave the stored seed untouched while renaming. |
 
 **Returns:** the updated row, same columns as the list.

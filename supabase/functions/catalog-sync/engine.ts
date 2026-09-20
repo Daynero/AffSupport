@@ -57,7 +57,11 @@ export interface CatalogSyncDependencies {
   tombstoneFiles: (input: {
     jobId: string;
     connectionId: string;
-    items: Array<{ fileId: string; lifecycle: 'trashed' | 'missing' }>;
+    items: Array<{
+      fileId: string;
+      lifecycle: 'trashed' | 'missing';
+      reason?: 'removed' | 'out_of_root';
+    }>;
     preserveProvenance: true;
   }) => Promise<unknown>;
   requeueTranscripts: (input: {
@@ -225,7 +229,11 @@ async function runChanges(
   if (!token) throw new Error('CATALOG_CHANGE_TOKEN_REQUIRED');
   const page = await dependencies.listChanges({ pageToken: token, driveId: job.driveId });
   const active: DriveFileMetadata[] = [];
-  const tombstones: Array<{ fileId: string; lifecycle: 'trashed' | 'missing' }> = [];
+  const tombstones: Array<{
+    fileId: string;
+    lifecycle: 'trashed' | 'missing';
+    reason?: 'removed' | 'out_of_root';
+  }> = [];
 
   if (page.changes.length > 0) {
     await dependencies.invalidateLandingRenders({
@@ -235,7 +243,24 @@ async function runChanges(
     });
   }
 
-  for (const change of page.changes) {
+  /*
+   * Where each change belongs, several at a time (024): every one of these is a walk up the file's
+   * parents in Drive, and a hundred of them in a row outlasted the job's lease. The answers are
+   * gathered in the page's own order, so what is written afterwards does not depend on which walk
+   * came back first.
+   */
+  type Placed =
+    | { kind: 'skip' }
+    | { kind: 'active'; file: DriveFileMetadata }
+    | {
+        kind: 'tombstone';
+        item: {
+          fileId: string;
+          lifecycle: 'trashed' | 'missing';
+          reason?: 'removed' | 'out_of_root';
+        };
+      };
+  const place = async (change: (typeof page.changes)[number]): Promise<Placed> => {
     if (change.fileId === job.rootFolderId) {
       // The root is not a material. Trashed or gone, the space says so and
       // keeps everything; renamed or moved, the space follows (FR-006).
@@ -246,30 +271,41 @@ async function runChanges(
         state: missing ? 'root_missing' : 'connected',
         rootName: missing ? null : change.file!.name
       });
-      continue;
+      return { kind: 'skip' };
     }
     if (job.selectionFolderIds?.includes(change.fileId)) {
       // A picked folder other than the root: its descendants stay cataloged
       // until reconciliation proves otherwise; the folder row itself is kept.
-      continue;
+      return { kind: 'skip' };
     }
     if (change.removed || !change.file) {
-      tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
-      continue;
+      return {
+        kind: 'tombstone',
+        item: { fileId: change.fileId, lifecycle: 'missing', reason: 'removed' }
+      };
     }
     if (change.file.trashed) {
-      tombstones.push({ fileId: change.fileId, lifecycle: 'trashed' });
-      continue;
+      return { kind: 'tombstone', item: { fileId: change.fileId, lifecycle: 'trashed' } };
     }
     if (await dependencies.isHiddenSystemFile(change.file, job.rootFolderId)) {
-      tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
-      continue;
+      return {
+        kind: 'tombstone',
+        item: { fileId: change.fileId, lifecycle: 'missing', reason: 'out_of_root' }
+      };
     }
+    /* Moved somewhere Soty does not watch: the file is alive, so its companions are left
+       alone (024, US24). Only a deletion lets the cleanup touch them. */
     if (!(await dependencies.isWithinRoot(change.file, job.rootFolderId))) {
-      tombstones.push({ fileId: change.fileId, lifecycle: 'missing' });
-      continue;
+      return {
+        kind: 'tombstone',
+        item: { fileId: change.fileId, lifecycle: 'missing', reason: 'out_of_root' }
+      };
     }
-    active.push(change.file);
+    return { kind: 'active', file: change.file };
+  };
+  for (const placed of await inOrder(page.changes, CHANGE_WALKS_AT_ONCE, place)) {
+    if (placed.kind === 'active') active.push(placed.file);
+    else if (placed.kind === 'tombstone') tombstones.push(placed.item);
   }
 
   if (tombstones.length > 0) {
@@ -306,6 +342,26 @@ async function runChanges(
   return { phase: 'incremental', processed: page.changes.length };
 }
 
+/** Few enough that Drive does not throttle the space, enough that a page takes seconds. */
+const CHANGE_WALKS_AT_ONCE = 6;
+
+/** `items` mapped a few at a time, answers in the order of the questions. */
+async function inOrder<Item, Answer>(
+  items: readonly Item[],
+  atOnce: number,
+  answer: (item: Item) => Promise<Answer>
+): Promise<Answer[]> {
+  const answers = new Array<Answer>(items.length);
+  let next = 0;
+  const lanes = Array.from({ length: Math.min(atOnce, items.length) }, async () => {
+    for (let index = next++; index < items.length; index = next++) {
+      answers[index] = await answer(items[index]!);
+    }
+  });
+  await Promise.all(lanes);
+  return answers;
+}
+
 type CheckpointInput = Parameters<CatalogSyncDependencies['checkpoint']>[0];
 
 export class CatalogLeaseLostError extends Error {
@@ -337,7 +393,7 @@ export async function runCatalogSyncJob(
   let current = job;
   let processed = 0;
   let slices = 0;
-  let phase = job.phase;
+  let phase: CatalogSyncPhase;
   // Held in an object: the closure below writes it, and a plain `let` would be
   // narrowed to `null` by the assignment before the loop.
   const seen: { checkpoint: CheckpointInput | null } = { checkpoint: null };

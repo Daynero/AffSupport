@@ -58,7 +58,7 @@ export function SpaceStatePanel({
         /* A link, not a button: settings is an address like every other
            section, so it opens in a new tab the way people expect. */
         <a
-          className="button button-primary"
+          className="soty-button button-primary"
           href={settingsRoute}
           onClick={event => internalLink(event, settingsRoute)}
         >

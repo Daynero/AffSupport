@@ -1,0 +1,143 @@
+/* The header and the account menu (024, US27). */
+
+/*
+ * One baseline for the bar.
+ *
+ * The bar's controls were five heights — 31, 32, 37, 40, 46 — each written
+ * when its control was, so nothing in the row lined up with anything else. The
+ * bar is a row of medium controls now, and the account button is one of them.
+ */
+.topbar-actions {
+  gap: var(--space-2);
+}
+.topbar .connection-badge,
+.topbar .language-switch {
+  min-height: var(--control-height-md);
+  box-sizing: border-box;
+}
+.topbar .language-switch button {
+  height: auto;
+  align-self: stretch;
+}
+.topbar .connection-badge {
+  padding: 0 var(--space-3);
+  font-size: var(--text-caption);
+}
+
+/* On a phone the chip is its dot: the colour is the state, and the words stay
+   in the page for a reader that asks for them. */
+@media (max-width: 560px) {
+  .topbar .connection-badge {
+    justify-content: center;
+    min-width: var(--control-height-md);
+    max-width: none;
+    padding: 0;
+  }
+  .topbar .connection-badge-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* ---- The account button ------------------------------------------------ */
+
+.user-menu {
+  position: relative;
+  display: inline-flex;
+}
+.topbar .user-menu-trigger {
+  height: var(--control-height-md);
+  min-height: var(--control-height-md);
+  gap: var(--space-2);
+  padding: 0 var(--space-2) 0 var(--space-1);
+  border-radius: var(--radius-full);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.topbar .user-menu-trigger .avatar-small {
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  font-size: var(--text-micro);
+}
+.user-menu-trigger .ui-button-label {
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-menu-trigger .ui-button-trailing {
+  color: var(--color-neutral-text-muted);
+}
+.user-menu-trigger[aria-expanded='true'] {
+  background: var(--color-neutral-surface-muted);
+}
+/* The face and the menu are what a narrow bar keeps; the name was the last
+   thing pushing the way out of the app off the screen. */
+@media (max-width: 1000px) {
+  .user-menu-trigger .ui-button-label,
+  .user-menu-trigger .ui-button-trailing {
+    display: none;
+  }
+  .topbar .user-menu-trigger {
+    padding: 0 var(--space-1);
+  }
+}
+
+/* ---- The menu ---------------------------------------------------------- */
+
+.user-menu-panel {
+  width: 264px;
+}
+/* Who is signed in: read, not pressed. */
+.user-menu-panel .ui-menu-heading:has(.user-menu-identity) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-neutral-border-strong);
+}
+.user-menu-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.user-menu-identity-copy {
+  display: grid;
+  gap: var(--space-px);
+  min-width: 0;
+}
+.user-menu-identity-copy strong,
+.user-menu-identity-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-menu-identity-copy strong {
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.user-menu-identity-copy span {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-body);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.user-menu-here {
+  color: var(--color-secondary-text);
+  font-size: var(--text-micro);
+}
+/* The way out is quiet all the way through: a red word beside a grey icon read
+   as two different rows. */
+.ui-menu-item.is-destructive .ui-menu-icon {
+  color: inherit;
+}

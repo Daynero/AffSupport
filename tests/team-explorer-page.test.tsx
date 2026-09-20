@@ -133,13 +133,35 @@ describe('selecting and opening a row', () => {
     );
     await waitFor(() => expect(fileRows()).toHaveLength(2));
 
-    // The name is a label, not a target: nothing in the row opens on one press.
-    await user.click(screen.getByText('clip.png'));
+    // One press on the row selects it and opens nothing.
+    await user.click(fileRows()[1]!);
     expect(onPreview).not.toHaveBeenCalled();
     expect(fileRows()[1]!.getAttribute('aria-selected')).toBe('true');
-
-    await user.dblClick(screen.getByText('clip.png'));
+    await user.dblClick(fileRows()[1]!);
     expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ name: 'clip.png' }));
+
+    // The name behaves as the rest of the row (the owner, 024): a press selects,
+    // two open — it used to open on the first.
+    onPreview.mockClear();
+    await user.click(screen.getByRole('button', { name: 'clip.png' }));
+    expect(onPreview).not.toHaveBeenCalled();
+    await user.dblClick(screen.getByRole('button', { name: 'clip.png' }));
+    expect(onPreview).toHaveBeenCalledTimes(1);
+
+    // A folder too: one press selects it, two open it.
+    await user.click(fileRows()[0]!);
+    expect(fileRows()[0]!.getAttribute('aria-selected')).toBe('true');
+    expect(listFolderPage).not.toHaveBeenCalledWith(
+      TEAM,
+      expect.objectContaining({ parentFolderId: 'drive-nested' })
+    );
+    await user.dblClick(fileRows()[0]!);
+    await waitFor(() =>
+      expect(listFolderPage).toHaveBeenCalledWith(
+        TEAM,
+        expect.objectContaining({ parentFolderId: 'drive-nested' })
+      )
+    );
   });
 });
 
@@ -212,7 +234,7 @@ describe('ContentList', () => {
     const user = userEvent.setup();
     const listFolderPage = pages(150, 100);
     renderList(listFolderPage);
-    expect(await screen.findByText('Items: 150')).toBeTruthy();
+    await waitFor(() => expect(fileRows()).toHaveLength(100));
     expect(fileRows()).toHaveLength(100);
     expect(listFolderPage).toHaveBeenCalledWith(
       TEAM,
@@ -240,7 +262,7 @@ describe('ContentList', () => {
         <List client={client} revision={0} />
       </ExplorerProvider>
     );
-    await screen.findByText('Items: 3');
+    await waitFor(() => expect(fileRows()).toHaveLength(3));
     expect(listFolderPage).toHaveBeenCalledTimes(1);
     rerender(
       <ExplorerProvider teamId={TEAM} client={client} revision={1}>
@@ -273,9 +295,10 @@ describe('ContentList', () => {
       next: null
     }));
     renderList(listFolderPage);
-    await screen.findByText('Items: 4');
-    expect(screen.getByText('Opens in Google Drive, not in Soty.')).toBeTruthy();
-    expect(screen.getByText(/A shortcut/)).toBeTruthy();
+    await waitFor(() => expect(fileRows()).toHaveLength(4));
+    // Facts about a kind are icons that say them (024, FR-095).
+    expect(screen.getByRole('img', { name: 'Opens in Google Drive, not in Soty.' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /A shortcut/ })).toBeTruthy();
     expect(screen.getByText('Video')).toBeTruthy();
     expect(screen.getByText('Folder')).toBeTruthy();
   });

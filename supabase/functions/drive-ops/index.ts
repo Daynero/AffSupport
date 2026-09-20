@@ -51,6 +51,7 @@ import {
   type OperationAuthority
 } from '../_shared/operations.ts';
 import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/library.ts';
+import { resolveRestitchedFolder } from './restitched-folder.ts';
 import { resolveTaskDropFolder } from './task-drop-folder.ts';
 import { resolveWorkspaceFolder } from './workspace-folder.ts';
 import {
@@ -2358,6 +2359,7 @@ function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatal
     sheetUrl,
     sourceLink,
     productCount,
+    variant: safeInteger(row.variant) ?? undefined,
     createdAt: stringValue(row, 'created_at') ?? stringValue(row, 'createdAt')
   };
 }
@@ -2396,22 +2398,72 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       const row = firstRecord(
         await rpcValue(service, 'service_get_team_product_catalog_settings', { p_team: teamId })
       );
-      const title = row ? stringValue(row, 'title') : null;
-      const description = row ? stringValue(row, 'description') : null;
-      const imageLink = row ? stringValue(row, 'image_link') : null;
-      const price = row ? safeInteger(row.price) : null;
-      if (!title || !description || !imageLink || price === null) return null;
-      return { title, description, price, imageLink };
+      if (!row) return null;
+      const price = safeInteger(row.price);
+      const priceMin = safeInteger(row.price_min) ?? price;
+      const priceMax = safeInteger(row.price_max) ?? price;
+      if (priceMin === null || priceMax === null) return null;
+      return {
+        title: stringValue(row, 'title'),
+        description: stringValue(row, 'description'),
+        imageLink: stringValue(row, 'image_link'),
+        priceMin,
+        priceMax
+      };
     },
-    async readLiveCatalog(teamId, videoId) {
-      return existingCatalogFrom(
-        firstRecord(
-          await rpcValue(caller, 'get_material_product_catalog', {
-            p_team: teamId,
-            p_video: videoId
-          })
-        )
+    async drawTexts(teamId, count) {
+      const rows = await rpcValue(service, 'service_draw_product_catalog_texts', {
+        p_team: teamId,
+        p_count: count
+      });
+      return (Array.isArray(rows) ? rows : []).flatMap(row => {
+        const record = isRecord(row) ? row : null;
+        const title = record ? stringValue(record, 'title') : null;
+        const description = record ? stringValue(record, 'description') : null;
+        return title && description ? [{ title, description }] : [];
+      });
+    },
+    async drawImages(teamId, count) {
+      const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
+        p_team: teamId,
+        p_count: count
+      });
+      return (Array.isArray(rows) ? rows : []).flatMap(row => {
+        const record = isRecord(row) ? row : null;
+        const driveFileId = record ? stringValue(record, 'drive_file_id') : null;
+        return record && driveFileId
+          ? [
+              {
+                driveFileId,
+                resourceKey: stringValue(record, 'resource_key'),
+                // What the picture shows, as the owner named the file (024, US27).
+                name: stringValue(record, 'name')
+              }
+            ]
+          : [];
+      });
+    },
+    async readLiveCatalogs(teamId, videoId) {
+      const rows = await rpcValue(caller, 'list_material_product_catalogs', {
+        p_team: teamId,
+        p_video: videoId
+      });
+      return (Array.isArray(rows) ? rows : []).flatMap(row => {
+        const catalog = existingCatalogFrom(isRecord(row) ? row : null);
+        return catalog ? [catalog] : [];
+      });
+    },
+    async nextVariant(teamId, videoId) {
+      const value = safeInteger(
+        await rpcValue(service, 'service_next_product_catalog_variant', {
+          p_team: teamId,
+          p_video: videoId
+        })
       );
+      if (value === null || value < 1) {
+        throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+      }
+      return value;
     },
     async driveFor(credentialId) {
       const known = drives.get(credentialId);
@@ -2540,6 +2592,7 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         const retired = Array.isArray(value.retired) ? value.retired : [];
         return {
           linked: true,
+          variant: safeInteger(value.variant) ?? undefined,
           retired: retired.flatMap(entry => {
             if (!isRecord(entry)) return [];
             const driveFileId = stringValue(entry, 'driveFileId');
@@ -2568,6 +2621,16 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
 function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterRestitchDeps {
   return {
     rpc: (name, parameters) => rpcValue(service, name, parameters),
+    restitchedFolder: async (teamId, actorId) => {
+      const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
+      const drive = await driveClient(service, root.credentialId, request);
+      const resolved = await resolveRestitchedFolder({
+        teamId,
+        rootFolderId: root.driveFolderId,
+        drive
+      });
+      return resolved.folder.id;
+    },
     startProcess: async (actorId, body) => {
       const started = await handleProcessStart(request, body, service, actorId);
       return {

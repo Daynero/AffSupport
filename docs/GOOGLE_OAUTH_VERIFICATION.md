@@ -27,6 +27,36 @@ and the browser signs in with `signInWithIdToken`. It takes over only when the f
 `https://soty.pp.ua/oauth/drive/callback`, a page that forwards the query to
 `drive-oauth-callback` unchanged.
 
+## Audit before submitting, 2026-09-18
+
+Checked against the requirements above, on the branch that carries 025 (`024-heroui-workspace`).
+
+**Ready in the code.** Only `drive.file` is requested unless `DRIVE_RESTRICTED_SCOPE_APPROVED=true`,
+and readiness refuses a restricted scope on the production origin. Every Google call is Drive v3
+or the OAuth token endpoint; nothing calls Sheets, Gmail or People. The brand-verification,
+drive-connect and routing tests pass (62). The Privacy Policy now also says what runs without a
+press — link viewing turned on for a catalog's sheet, video and pictures; scheduled catalog
+updates; the `Restitched` folder; derived files moved to Trash a day after their video is
+deleted — and that a replaced re-stitched copy is the one thing Soty deletes outright. Before
+this the policy said "only to Trash" and "when a member asks", and the product had outgrown
+both sentences.
+
+**Not live yet.** Production still serves the app shell for `/privacy`, `/terms` and
+`/robots.txt` (no readable HTML without JavaScript), and `google-sign-in` answers 404. Google's
+reviewer reads the live site, so the web and the three functions must ship before the
+submission, in the order below.
+
+**The beta does not show what production will do.** The beta functions run with
+`DRIVE_RESTRICTED_SCOPE_APPROVED=true`, so the beta space is walked with the restricted `drive`
+scope: it sees files put into Drive outside Soty (hundreds of them), follows them through the
+change feed, and notices when one is deleted in Drive. Under `drive.file` — what is being
+submitted, and what a new customer gets — a picked folder shows only what was uploaded through
+Soty or picked file by file (`specs/011-team-workspace-rework/research.md`, R1 outcome B). The
+production owner's space indexing thousands of files is most likely an earlier `drive` consent
+carried over by `include_granted_scopes`, not evidence against R1. Walk the product once with
+`DRIVE_RESTRICTED_SCOPE_APPROVED=false` and a Google account that never consented to `drive`
+before telling anyone that "drop a file into Drive and it appears in Soty".
+
 ## Rollout order
 
 The order matters: a function that sends people to a redirect URI Google does not know

@@ -1,26 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronsUpDown, Eye, EyeOff } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
-import { Button } from '../../components/ui';
-import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
-import { Empty } from '../../components/ui/index';
+import { Empty, Input, Switch } from '../../components/ui/index';
 import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
-import { TaskDateFilterControl } from './TaskDateFilter';
+import { TaskFilterBar } from './TaskFilterBar';
+import { rememberRecent } from '../palette/recent';
 import { TaskEditor, type TaskEditorClient } from './TaskEditor';
 import { useTasks, type TaskAccountScope, type TasksClient } from './useTasks';
-import { TaskAccountFilter } from './TaskAccountFilter';
-import { TaskAssigneeFilter } from './TaskAssigneeFilter';
-import { TaskLabelFilter } from './TaskLabelFilter';
-import { TaskSortControl } from './TaskSortControl';
 import { persistedViewKey, usePersistedState } from '../persistedView';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
-import { ErrorState } from '../../components/ui/index';
+import {
+  Button,
+  ConfirmDialog,
+  DropdownMenu,
+  ErrorState,
+  SelectionBar
+} from '../../components/ui/index';
+import { buildTeamRoute } from '../routes';
+import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export type TaskSpaceClient = TasksClient &
@@ -41,31 +43,6 @@ export interface TaskSourceAsset {
 }
 
 const defaultClient: TaskSpaceClient = teamApi;
-
-/**
- * Whether the board draws each card's progress scale, remembered per space in
- * this browser. A convenience, not data: a missing or unreadable value means
- * the scale is shown, which is what the board has always done.
- */
-function progressKey(teamId: string): string {
-  return `soty.team-tasks.progress:${teamId}`;
-}
-
-function readProgressShown(teamId: string): boolean {
-  try {
-    return window.localStorage.getItem(progressKey(teamId)) !== 'hidden';
-  } catch {
-    return true;
-  }
-}
-
-function writeProgressShown(teamId: string, shown: boolean): void {
-  try {
-    window.localStorage.setItem(progressKey(teamId), shown ? 'shown' : 'hidden');
-  } catch {
-    // Nothing to do: the fold is a convenience and the board works without it.
-  }
-}
 
 function sourceMaterialIds(source: TaskSourceAsset | null): string[] {
   const candidateIds = source?.ids ?? (source?.id ? [source.id] : []);
@@ -137,19 +114,38 @@ export function TaskSpace({
    */
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
   /**
+   * Which tasks a bulk action applies to (024, FR-075).
+   *
+   * Not persisted: a selection is about what you are doing right now, and a
+   * board that came back from a reload with seven tasks still ticked would be
+   * offering to delete them on somebody else's behalf.
+   */
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
+  /**
    * Whether the cards show their progress scales. Some boards are run on the
    * scale and some never touch it, and for the second kind it is a bar of
    * colour under every title. One press puts it away, and the space remembers.
+   *
+   * Through `persistedView` like every other board preference (024): it had a
+   * storage key, a reader, a writer and an effect of its own, which is four
+   * pieces of the same mechanism written twice — and the two disagreed about
+   * what happens when you switch spaces.
    */
-  const [progressShown, setProgressShown] = useState(true);
-  useEffect(() => {
-    setProgressShown(readProgressShown(teamId));
-  }, [teamId]);
+  const [progressShown, setProgressShown] = usePersistedState<boolean>(
+    persistedViewKey(teamId, 'tasks.progressShown'),
+    true,
+    value => (typeof value === 'boolean' ? value : null)
+  );
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
   const [accounts, setAccounts] = useState<TeamAccountSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  const [creatingAssetId, setCreatingAssetId] = useState<string | null>(null);
+  /*
+   * The request being served, by identity. It was the selection's ids in state: an effect run
+   * twice before that state landed (StrictMode does exactly this) made the task twice, and the
+   * same files sent again later were refused as "already being created".
+   */
+  const servedAssetRequest = useRef<object | null>(null);
   /**
    * A task created by the "Create task" button and not yet given anything of
    * its own. There is no separate form any more: the button makes the real
@@ -174,9 +170,28 @@ export function TaskSpace({
   const [localOpenId, setLocalOpenId] = useState<string | null>(null);
   const controlled = Boolean(onOpenTaskChange);
   const effectiveOpenId = controlled ? openTaskId : localOpenId;
-  const openTask = effectiveOpenId
-    ? (tasks.tasks.find(task => task.id === effectiveOpenId) ?? null)
+  /*
+   * The open task is the one the person is working on, not a row of the board.
+   * Set to "Done" under an "In progress" filter it leaves the board — and the
+   * editor used to close under the person's hands, then spring open again the
+   * moment "Done" was chosen, because the address still named it. It stays
+   * open on the last copy the board held until it is closed.
+   */
+  const lastOpenTask = useRef<TeamTaskSummary | null>(null);
+  const listedOpenTask = effectiveOpenId
+    ? (tasks.allTasks.find(task => task.id === effectiveOpenId) ?? null)
     : null;
+  if (listedOpenTask) lastOpenTask.current = listedOpenTask;
+  // Whatever way a task was opened — board, link, palette — it is the palette's most recent (024).
+  const rememberedOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!listedOpenTask || rememberedOpen.current === listedOpenTask.id) return;
+    rememberedOpen.current = listedOpenTask.id;
+    rememberRecent(teamId, { kind: 'task', id: listedOpenTask.id, name: listedOpenTask.title });
+  }, [listedOpenTask, teamId]);
+  const openTask =
+    listedOpenTask ??
+    (effectiveOpenId && lastOpenTask.current?.id === effectiveOpenId ? lastOpenTask.current : null);
   const setOpenTask = (task: TeamTaskSummary | null) => {
     if (controlled) onOpenTaskChange?.(task?.id ?? null);
     else setLocalOpenId(task?.id ?? null);
@@ -260,6 +275,25 @@ export function TaskSpace({
     [client, setOpenTask, t, tasks, teamId]
   );
 
+  /** The board's quick-add: a title in, a task out, focus kept for the next. */
+  const [quickTitle, setQuickTitle] = useState('');
+  const quickAddInput = useRef<HTMLInputElement>(null);
+  const quickAdd = useCallback(async () => {
+    const title = quickTitle.trim();
+    if (!title) return;
+    setBusy(true);
+    setError(false);
+    try {
+      await tasks.create({ title, note: null, initialMaterialId: null });
+      setQuickTitle('');
+      quickAddInput.current?.focus();
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  }, [quickTitle, tasks]);
+
   /**
    * Closing the editor. A draft nobody gave anything to is removed rather than
    * left in the list as an empty row somebody has to tidy up later.
@@ -288,24 +322,145 @@ export function TaskSpace({
    */
   useEffect(() => {
     const materialIds = sourceMaterialIds(createFromAsset);
-    const selectionKey = materialIds.join(',') || null;
     if (
       !createFromAsset ||
       materialIds.length === 0 ||
       !can('edit') ||
-      creatingAssetId === selectionKey
+      servedAssetRequest.current === createFromAsset
     )
       return;
-    setCreatingAssetId(selectionKey);
+    servedAssetRequest.current = createFromAsset;
     void startTask({
-      title: t('teamTaskFromAssetTitle', { name: createFromAsset.name }).slice(0, 160),
+      title: createFromAsset.name.slice(0, 160),
       materialIds,
       touched: true
     });
     onConsumedCreateFromAsset?.();
-  }, [can, createFromAsset, creatingAssetId, onConsumedCreateFromAsset, startTask, t]);
+  }, [can, createFromAsset, onConsumedCreateFromAsset, startTask, t]);
+
+  const bulkAnchor = useRef<HTMLDivElement>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  /** The tasks a confirmed delete would take — one from a card, or the set. */
+  const [confirmingDelete, setConfirmingDelete] = useState<readonly TeamTaskSummary[]>([]);
+  const selected = useMemo(
+    () => tasks.tasks.filter(task => selectedIds.has(task.id)),
+    [selectedIds, tasks.tasks]
+  );
+
+  /**
+   * The same actions a card offers, applied to the whole set (024, FR-075).
+   *
+   * Only what is safe in bulk: a status, an assignee, a tag, and a delete that
+   * is takeable back. Nothing here needs a confirmation dialog, because the
+   * one destructive thing among them reports what it did and offers the undo —
+   * which is the rule the rest of the workspace already follows.
+   */
+  /** One task's menu, from the same list the bar uses. */
+  const cardActions = useCallback(
+    (task: TeamTaskSummary): TaskActionHandlers => ({
+      patch: patch => void tasks.update(task, patch, { checkVersion: false }),
+      tag: label => {
+        if (task.labels.some(item => item.id === label.id)) return;
+        void client
+          .attachTaskLabel({ teamId, taskId: task.id, labelId: label.id })
+          .then(next => tasks.setTaskLabels(task.id, next))
+          .catch((cause: unknown) => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }));
+      },
+      /* A link to this one task (024): a member who opens it lands on the task, and anyone else
+         lands on the space and is told they are not in it. */
+      copyLink: () => {
+        const href = buildTeamRoute({
+          spaceId: teamId,
+          section: 'tasks',
+          query: { taskId: task.id }
+        });
+        const link = `${window.location.origin}${href}`;
+        void navigator.clipboard
+          .writeText(link)
+          .then(() => push({ tone: 'success', text: t('teamTaskLinkCopied') }))
+          .catch(() => push({ tone: 'error', text: t('teamErrorUnknown') }));
+      },
+      // Asked the same way the bulk delete asks, for the same reason: a task
+      // does not come back, so the question names what goes with it.
+      remove: () => setConfirmingDelete([task])
+    }),
+    [client, push, t, tasks, teamId]
+  );
+
+  const bulk: TaskActionHandlers = useMemo(
+    () => ({
+      patch: patch => {
+        void (async () => {
+          try {
+            for (const task of selected) await tasks.update(task, patch, { checkVersion: false });
+            push({ tone: 'success', text: t('teamTaskBulkDone', { count: selected.length }) });
+          } catch (cause) {
+            push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+          }
+        })();
+      },
+      tag: label => {
+        void (async () => {
+          try {
+            for (const task of selected) {
+              if (task.labels.some(item => item.id === label.id)) continue;
+              const next = await client.attachTaskLabel({
+                teamId,
+                taskId: task.id,
+                labelId: label.id
+              });
+              tasks.setTaskLabels(task.id, next);
+            }
+            push({ tone: 'success', text: t('teamTaskBulkDone', { count: selected.length }) });
+          } catch (cause) {
+            push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+          }
+        })();
+      },
+      /**
+       * Deleting asks first, and the question names the consequence.
+       *
+       * Not a toast with an Undo, which is what the rest of the workspace
+       * offers: a trashed file can come back because the Drive keeps it, and a
+       * deleted task cannot. Recreating one from what the board still holds
+       * would give back a title and lose the attachments, the tags, the
+       * accounts and the progress — an undo that quietly does something else
+       * is worse than no undo (021, finding R3).
+       */
+      remove: () => setConfirmingDelete(selected)
+    }),
+    [client, push, selected, t, tasks, teamId]
+  );
+
+  const removeConfirmed = useCallback(async () => {
+    const removed = [...confirmingDelete];
+    try {
+      for (const task of removed) await client.deleteTask({ teamId, taskId: task.id });
+      setSelectedIds(current => {
+        const ids = new Set(current);
+        for (const task of removed) ids.delete(task.id);
+        return ids;
+      });
+      await tasks.refetch();
+      push({ tone: 'success', text: t('teamTaskBulkDeleted', { count: removed.length }) });
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    } finally {
+      setConfirmingDelete([]);
+    }
+  }, [client, confirmingDelete, push, t, tasks, teamId]);
+
+  const bulkItems = useTaskActions({
+    tasks: selected,
+    canEdit: can('edit'),
+    members,
+    labels: labels.labels,
+    handlers: bulk
+  });
 
   const allExpanded = tasks.tasks.length > 0 && expandedIds.size >= tasks.tasks.length;
+  // Nothing on the board and nothing filtering it: the empty state speaks.
+  const boardEmpty = !tasks.loading && !tasks.error && tasks.tasks.length === 0 && !filtered;
   const toggleAll = () =>
     setExpandedIds(allExpanded ? new Set() : new Set(tasks.tasks.map(task => task.id)));
 
@@ -313,72 +468,82 @@ export function TaskSpace({
     <section className="team-panel team-task-space" aria-labelledby="team-tasks-title">
       <div className="team-panel-heading team-task-space-heading">
         <h2 id="team-tasks-title">{t('teamTasksTitle')}</h2>
-        {tasks.tasks.length > 0 && (
-          <button type="button" className="team-task-expand-all" onClick={toggleAll}>
-            <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t(allExpanded ? 'teamTasksCollapseAll' : 'teamTasksExpandAll')}
-          </button>
-        )}
-        {/* The eye, next to it and quieter: an icon alone, because the thing
-            it hides is on screen to be seen or not — a word beside it would
-            take more room than the scale it puts away. */}
-        {tasks.tasks.length > 0 && (
-          <button
-            type="button"
-            className={`team-task-progress-toggle${progressShown ? '' : ' is-off'}`}
-            aria-pressed={!progressShown}
-            title={t(progressShown ? 'teamTasksProgressHide' : 'teamTasksProgressShow')}
-            aria-label={t(progressShown ? 'teamTasksProgressHide' : 'teamTasksProgressShow')}
-            onClick={() => {
-              const next = !progressShown;
-              setProgressShown(next);
-              writeProgressShown(teamId, next);
+        {/* One way to make a task, and it is the fast one (024, FR-090): type
+            what it is and press Enter, and it is on the board; the next one
+            can be typed straight away. The button opens the editor for a task
+            with more to say. Hidden while the empty state below carries the
+            same invitation — two primaries for one act is one too many. */}
+        {can('edit') && !boardEmpty && (
+          <form
+            className="team-task-quick-add"
+            onSubmit={event => {
+              event.preventDefault();
+              void quickAdd();
             }}
           >
-            {progressShown ? (
-              <Eye size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            ) : (
-              <EyeOff size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            )}
-          </button>
-        )}
-        {can('edit') && (
-          <Button type="button" variant="primary" loading={busy} onClick={() => void startTask()}>
-            {t('teamTaskCreate')}
-          </Button>
+            <Input
+              ref={quickAddInput}
+              aria-label={t('teamTaskQuickAdd')}
+              placeholder={t('teamTaskQuickAdd')}
+              value={quickTitle}
+              maxLength={160}
+              onChange={event => setQuickTitle(event.target.value)}
+            />
+            <Button
+              type={quickTitle.trim() ? 'submit' : 'button'}
+              variant="primary"
+              loading={busy}
+              onClick={quickTitle.trim() ? undefined : () => void startTask()}
+            >
+              {/* One short word either way: with a name it adds, without one it
+                  opens the editor to write the task out. */}
+              {t('teamTaskQuickAddAction')}
+            </Button>
+          </form>
         )}
       </div>
-      <TaskDateFilterControl
-        value={tasks.filter}
-        onChange={tasks.setFilter}
+      <TaskFilterBar
+        query={tasks.query}
+        onQueryChange={tasks.setQuery}
+        date={tasks.filter}
+        onDateChange={tasks.setFilter}
         status={tasks.statusFilter}
         onStatusChange={tasks.setStatusFilter}
-      >
-        {(accounts.length > 0 || scope.kind !== 'all') && (
-          <TaskAccountFilter accounts={accounts} scope={scope} onChange={setScope} />
-        )}
-        {/* Who the work is on. Shown as soon as the space has anyone at all:
-            even alone, "mine" and "nobody's yet" are different piles. */}
-        {(members.length > 0 || tasks.assignee.kind !== 'all') && (
-          <TaskAssigneeFilter
-            members={members}
-            value={tasks.assignee}
-            onChange={tasks.setAssignee}
-          />
-        )}
-        {/* The tag filter appears once the space has tags to filter by, and
-            stays while a chosen one is still in force. */}
-        {(labels.labels.length > 0 || tasks.labelIds.length > 0) && (
-          <TaskLabelFilter
-            labels={labels.labels}
-            selectedIds={tasks.labelIds}
-            onChange={tasks.setLabelIds}
-          />
-        )}
-        {labels.labels.length > 0 && (
-          <TaskSortControl value={tasks.sort} onChange={tasks.setSort} />
-        )}
-      </TaskDateFilterControl>
+        accounts={accounts}
+        scope={scope}
+        onScopeChange={setScope}
+        members={members}
+        assignee={tasks.assignee}
+        onAssigneeChange={tasks.setAssignee}
+        labels={labels.labels}
+        labelIds={tasks.labelIds}
+        onLabelIdsChange={tasks.setLabelIds}
+        sort={tasks.sort}
+        onSortChange={tasks.setSort}
+        /* The eye and "Unfold all" lived in the heading beside the title — an icon nobody could
+           name and a button that looked like an action on the board (024). They are how the
+           cards are drawn, so they sit with the order, as Linear's Display does. */
+        display={
+          tasks.tasks.length > 0 ? (
+            <>
+              <Switch
+                size="sm"
+                label={t('teamTasksShowScale')}
+                checked={progressShown}
+                onChange={setProgressShown}
+              />
+              {tasks.tasks.some(task => task.note) && (
+                <Switch
+                  size="sm"
+                  label={t('teamTasksUnfoldBriefs')}
+                  checked={allExpanded}
+                  onChange={toggleAll}
+                />
+              )}
+            </>
+          ) : undefined
+        }
+      />
       {error && (
         <p className="team-inline-error" role="alert">
           {t('teamTaskCreateFailed')}
@@ -409,6 +574,42 @@ export function TaskSpace({
           }
         />
       )}
+      <SelectionBar
+        count={selected.length}
+        label={t('teamTaskSelectedCount', { count: selected.length })}
+        clearLabel={t('teamTaskClearSelection', { count: selected.length })}
+        onClear={() => setSelectedIds(new Set())}
+        actions={
+          <div ref={bulkAnchor} className="team-task-bulk">
+            <Button
+              size="sm"
+              color="neutral"
+              variant="outline"
+              onClick={() => setBulkOpen(current => !current)}
+            >
+              {t('teamTaskBulkActions')}
+            </Button>
+            <DropdownMenu
+              open={bulkOpen}
+              onClose={() => setBulkOpen(false)}
+              anchor={bulkAnchor}
+              placement="top-start"
+              items={bulkItems}
+              label={t('teamTaskBulkActions')}
+            />
+          </div>
+        }
+      />
+      {confirmingDelete.length > 0 && (
+        <ConfirmDialog
+          title={t('teamTaskBulkDeleteTitle', { count: confirmingDelete.length })}
+          body={t('teamTaskBulkDeleteBody', { count: confirmingDelete.length })}
+          confirmLabel={t('teamTaskDelete')}
+          cancelLabel={t('teamCancel')}
+          onCancel={() => setConfirmingDelete([])}
+          onConfirm={() => void removeConfirmed()}
+        />
+      )}
       <div className="team-task-grid">
         {tasks.tasks.map(task => (
           <TaskCard
@@ -427,6 +628,21 @@ export function TaskSpace({
             }
             onOpen={() => setOpenTask(task)}
             onUpdate={patch => tasks.update(task, patch, { checkVersion: false })}
+            members={members}
+            labels={labels.labels}
+            actions={can('edit') ? cardActions(task) : undefined}
+            selected={can('edit') ? selectedIds.has(task.id) : undefined}
+            onSelectedChange={
+              can('edit')
+                ? next =>
+                    setSelectedIds(current => {
+                      const ids = new Set(current);
+                      if (next) ids.add(task.id);
+                      else ids.delete(task.id);
+                      return ids;
+                    })
+                : undefined
+            }
           />
         ))}
       </div>
@@ -465,6 +681,7 @@ export function TaskSpace({
             // The counts in settings follow the same tag write.
             void labels.refetch();
           }}
+          onLabelCreated={() => void labels.refetch()}
           onDelete={
             can('edit')
               ? async task => {

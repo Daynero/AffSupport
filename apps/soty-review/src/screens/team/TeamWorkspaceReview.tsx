@@ -19,7 +19,7 @@ export function TeamWorkspaceReview(props: ScreenProps) {
         ))}
       </nav>
       <section className="soty-panel">
-        <h2>Матеріали команди</h2>
+        <h2>Файли простору</h2>
         <p>Пошук і фільтри відкриваються за потреби. Поточна папка: Creative Studio.</p>
       </section>
     </ScreenScaffold>

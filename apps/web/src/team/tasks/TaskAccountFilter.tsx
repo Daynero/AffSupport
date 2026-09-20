@@ -1,14 +1,13 @@
 /**
  * Narrowing the task list to one account or one agent (017).
  *
- * A pill in the filter row, beside the dates and the statuses; open, it lists
- * the accounts with their agents nested, free ones marked. The choice goes to
- * the address (`?account=` / `?agent=`), which is also how the Accounts tab's
- * "2 tasks" links land here already narrowed.
+ * A field in the "Filters" panel (024); open, it lists the accounts with
+ * their agents nested, free ones marked. The choice goes to the address
+ * (`?account=` / `?agent=`), which is also how the Accounts tab's "2 tasks"
+ * links land here already narrowed.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, X } from 'lucide-react';
 import {
   isTeamAgentFree,
   sortTeamAccounts,
@@ -16,11 +15,35 @@ import {
   teamAgentLabel,
   type TeamAccountSummary
 } from '@video-compressor/shared';
-import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import type { TaskAccountScope } from './useTasks';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { Popover } from '../../components/ui/index';
+import { TaskFilterField } from './TaskFilterField';
+
+/**
+ * What names a scope — the account, or the agent inside it.
+ *
+ * Exported because the filter bar's chips say the same thing (024): the pill
+ * and the chip disagreeing about what the board is narrowed to would be worse
+ * than either of them being wrong.
+ */
+export function taskScopeLabel(
+  accounts: readonly TeamAccountSummary[],
+  scope: TaskAccountScope,
+  fallback: string
+): string {
+  if (scope.kind === 'account') {
+    return accounts.find(account => account.id === scope.accountId)?.name ?? fallback;
+  }
+  if (scope.kind === 'agent') {
+    for (const account of accounts) {
+      const agent = account.agents.find(item => item.id === scope.agentRowId);
+      if (agent) return teamAgentLabel(account.name, agent.agentId);
+    }
+  }
+  return fallback;
+}
 
 export function TaskAccountFilter({
   accounts,
@@ -63,22 +86,15 @@ export function TaskAccountFilter({
     options[next]?.focus();
   };
 
-  /** What the pill says: the account, the tag, or the neutral word. */
-  const label = (() => {
-    if (scope.kind === 'account') {
-      return (
-        accounts.find(account => account.id === scope.accountId)?.name ?? t('teamTaskAccountFilter')
-      );
-    }
-    if (scope.kind === 'agent') {
-      for (const account of accounts) {
-        const agent = account.agents.find(item => item.id === scope.agentRowId);
-        if (agent) return teamAgentLabel(account.name, agent.agentId);
-      }
-    }
-    return t('teamTaskAccountFilter');
-  })();
   const active = scope.kind !== 'all';
+  /** What is in force: the account, the agent in its own face, or "any". */
+  const value = active ? (
+    <span className={scope.kind === 'agent' ? 'task-account-filter-tag' : undefined}>
+      {taskScopeLabel(accounts, scope, t('teamTaskAccountFilter'))}
+    </span>
+  ) : (
+    t('teamTaskAccountFilterAll')
+  );
 
   /** Choosing closes the list and hands focus back to the pill that opened it. */
   const choose = (next: TaskAccountScope) => {
@@ -88,33 +104,18 @@ export function TaskAccountFilter({
   };
 
   return (
-    <div ref={root} className="task-account-filter">
-      <button
-        ref={trigger}
-        type="button"
-        className={`task-status-filter-option task-account-filter-trigger${active ? ' is-active' : ''}`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={t('teamTaskAccountFilterLabel')}
-        onClick={() => setOpen(current => !current)}
-      >
-        {/* A tag reads in the tag's own face, like every other tag on screen. */}
-        <span className={scope.kind === 'agent' ? 'task-account-filter-tag' : undefined}>
-          {label}
-        </span>
-        {/* The chevron gives way to the clear mark once a scope is chosen. */}
-        {!active && <ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-      </button>
-      {active && (
-        <button
-          type="button"
-          className="task-date-filter-clear"
-          aria-label={t('teamTaskAccountFilterClear')}
-          onClick={() => choose({ kind: 'all' })}
-        >
-          <X size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
-      )}
+    <TaskFilterField
+      rootRef={root}
+      triggerRef={trigger}
+      name={t('teamTaskAccountFilter')}
+      value={value}
+      active={active}
+      open={open}
+      label={t('teamTaskAccountFilterLabel')}
+      clearLabel={t('teamTaskAccountFilterClear')}
+      onToggle={() => setOpen(current => !current)}
+      onClear={() => choose({ kind: 'all' })}
+    >
       <Popover
         open={open}
         /* Escape and an outside press close onto the trigger, so a keyboard
@@ -126,8 +127,9 @@ export function TaskAccountFilter({
         anchor={root}
         placement="bottom-start"
         frequent
+        matchWidth
         label={t('teamTaskAccountFilterLabel')}
-        className="task-date-filter-popover task-account-filter-popover"
+        className="task-filter-field-popover"
       >
         <div
           ref={popover}
@@ -196,6 +198,6 @@ export function TaskAccountFilter({
           ))}
         </div>
       </Popover>
-    </div>
+    </TaskFilterField>
   );
 }

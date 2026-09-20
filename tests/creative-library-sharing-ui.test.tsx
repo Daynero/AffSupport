@@ -102,11 +102,34 @@ describe('Creative Library sharing UI', () => {
     ).toBe(true);
   });
 
-  it('resets the remembered caller/team choice from Space settings', async () => {
+  it('says the remembered choice in one line and asks again on request', async () => {
     const resetLibrarySharePreference = vi.fn().mockResolvedValue(true);
-    render(<SharePreferenceSettings teamId={TEAM_ID} client={{ resetLibrarySharePreference }} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Reset remembered sharing choice' }));
-    expect(await screen.findByText('Sharing choice reset.')).toBeTruthy();
-    expect(resetLibrarySharePreference).toHaveBeenCalledWith(TEAM_ID);
+    const getLibrarySharePreference = vi
+      .fn()
+      .mockResolvedValue({ allowLinkOnCopy: true, remembered: true });
+    render(
+      <SharePreferenceSettings
+        teamId={TEAM_ID}
+        client={{ resetLibrarySharePreference, getLibrarySharePreference }}
+      />
+    );
+    expect(await screen.findByText(/opens it to anyone with the link/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Ask again' }));
+    await waitFor(() => expect(resetLibrarySharePreference).toHaveBeenCalledWith(TEAM_ID));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Ask again' })).toBeNull());
+  });
+
+  it('shows nothing while no sharing choice is remembered', async () => {
+    const getLibrarySharePreference = vi
+      .fn()
+      .mockResolvedValue({ allowLinkOnCopy: false, remembered: false });
+    const { container } = render(
+      <SharePreferenceSettings
+        teamId={TEAM_ID}
+        client={{ resetLibrarySharePreference: vi.fn(), getLibrarySharePreference }}
+      />
+    );
+    await waitFor(() => expect(getLibrarySharePreference).toHaveBeenCalled());
+    expect(container.textContent).toBe('');
   });
 });

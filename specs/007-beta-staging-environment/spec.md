@@ -12,7 +12,7 @@
 
 Today there is exactly one place where the product behaves like the real thing: production. Every new feature is therefore either tested against real users and real analytics, or not tested end-to-end at all. This feature introduces a **beta environment**: a dedicated `beta` line of work that produces a full, working copy of the product — same screens, same flows, same desktop app behaviour, same release/pairing/entitlement mechanics — but pointed at **no real users and no real analytics**. The maintainer runs it, exercises a candidate feature exactly as a customer would, and only then merges the work forward for a real release.
 
-The beta environment is a *testing surface*, not a second product. It must never appear to end users as a release, never write into production data, and never be mistakable for the production build by the update/manifest machinery.
+The beta environment is a _testing surface_, not a second product. It must never appear to end users as a release, never write into production data, and never be mistakable for the production build by the update/manifest machinery.
 
 ## Clarifications
 
@@ -24,7 +24,7 @@ The beta environment is a *testing surface*, not a second product. It must never
 - Q: Which external integrations must genuinely work in beta? → A: The beta environment must be fully usable with no third-party registration at all — authentication, outbound messages via a local capture sink, agent token and entitlement issuance on a beta-only test key, media tooling, pairing, and team/workspace flows all run against local counterparts. External-storage (Drive) connection is an opt-in extension enabled by a documented one-time setup of a maintainer-owned test credential; until it is configured, Drive-dependent flows are visibly marked unavailable in beta.
 - Q: How is beta configuration kept out of production, and how does the beta line relate to the production line? → A: Beta configuration lives only in git-ignored local files generated from a committed placeholder template; no tracked file carries a beta endpoint, key, or switch value. The beta line is long-lived: feature work lands there first, and the production line receives it only by merge from beta, never by a direct commit that bypasses beta verification.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Run a production-equivalent copy from the beta line (Priority: P1)
 
@@ -48,7 +48,7 @@ The maintainer has work-in-progress on the beta line. With one documented comman
 
 Anyone looking at a running copy — the maintainer, a tester, a screenshot in a bug report — can tell within seconds that it is beta and not production. The distinction is visible in the product itself, and it is also structural: beta artifacts carry a beta identity so that update, manifest, and packaging machinery cannot confuse the two.
 
-**Why this priority**: A production-equivalent copy that *looks* identical is a footgun. Without unmistakable labelling, a maintainer will eventually debug beta while believing it is production (or worse, the reverse), and beta artifacts could leak into the real update channel. This must ship with Story 1, not after it.
+**Why this priority**: A production-equivalent copy that _looks_ identical is a footgun. Without unmistakable labelling, a maintainer will eventually debug beta while believing it is production (or worse, the reverse), and beta artifacts could leak into the real update channel. This must ship with Story 1, not after it.
 
 **Independent Test**: Start the beta environment, screenshot the main screen and the about/version surface, and confirm a non-technical observer identifies it as beta. Separately, ask the release verification gate to treat a beta artifact as a production release and confirm it refuses.
 
@@ -107,7 +107,7 @@ Testing leaves debris: half-finished jobs, junk accounts, stale workspaces, orph
 - **Secrets in the beta line**: Beta credentials must never be committed to the repository, and a beta credential must never be usable against production.
 - **External third-party integrations**: Flows that depend on external providers (sign-in providers, external storage/drive connections, payment or entitlement issuance) may not have a beta counterpart. Each such flow must either work against a beta counterpart or be explicitly and visibly marked as not exercisable in beta — never silently fall through to the production integration.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -178,7 +178,7 @@ Testing leaves debris: half-finished jobs, junk accounts, stale workspaces, orph
 - **Beta fixtures**: The documented representative seed data (account, workspace, sample media) that a reset environment can be populated with.
 - **Promotion**: The documented act of moving verified beta work onto the production line, after which the existing production release path takes over.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

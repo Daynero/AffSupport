@@ -1,8 +1,14 @@
 import { useState } from 'react';
+import { Button as HeroButton } from '@heroui/react/button';
+import { Input as HeroInput } from '@heroui/react/input';
+import { Switch as HeroSwitch } from '@heroui/react/switch';
 import {
   Accordion,
   Alert,
   Badge,
+  Calendar,
+  RangeCalendar,
+  todayHere,
   Breadcrumb,
   Button,
   Card,
@@ -78,7 +84,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function DesignSystemPage() {
-  const [tab, setTab] = useState<'buttons' | 'forms' | 'data' | 'overlays'>('buttons');
+  const [tab, setTab] = useState<
+    'foundation' | 'buttons' | 'forms' | 'dates' | 'data' | 'overlays'
+  >('foundation');
   const [segment, setSegment] = useState<'all' | 'free'>('all');
   const [radio, setRadio] = useState<'optimal' | 'custom'>('optimal');
   const [picto, setPicto] = useState<'fit' | 'fill' | 'blur'>('fit');
@@ -91,6 +99,8 @@ export default function DesignSystemPage() {
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['root']));
   const [openPanels, setOpenPanels] = useState<Set<string>>(new Set(['one']));
+  const [day, setDay] = useState(todayHere());
+  const [range, setRange] = useState({ start: todayHere(), end: todayHere().add({ days: 4 }) });
 
   return (
     <div className="ds-page">
@@ -108,12 +118,65 @@ export default function DesignSystemPage() {
         onChange={setTab}
         label="Sections"
         items={[
+          { id: 'foundation', label: 'Foundation' },
           { id: 'buttons', label: 'Buttons and badges' },
           { id: 'forms', label: 'Forms' },
+          { id: 'dates', label: 'Dates' },
           { id: 'data', label: 'Data' },
           { id: 'overlays', label: 'Overlays and feedback' }
         ]}
       />
+
+      {tab === 'foundation' && (
+        <>
+          <Section title="The theme bridge">
+            <p className="prose">
+              Left of each pair is HeroUI with nothing done to it; right is the inventory. They
+              should agree on the honey, the radius, the border and the focus ring, because the
+              library is reading this product&rsquo;s tokens rather than its own defaults. Where
+              they disagree, the bridge is missing a variable — not the component.
+            </p>
+            <Row title="Button">
+              <HeroButton variant="primary">HeroUI</HeroButton>
+              <Button color="primary" variant="solid">
+                Inventory
+              </Button>
+              <HeroButton variant="secondary">HeroUI</HeroButton>
+              <Button color="neutral" variant="outline">
+                Inventory
+              </Button>
+              <HeroButton variant="danger">HeroUI</HeroButton>
+              <Button color="error" variant="solid">
+                Inventory
+              </Button>
+            </Row>
+            <Row title="Field">
+              <HeroInput aria-label="HeroUI field" placeholder="HeroUI" />
+              <Input aria-label="Inventory field" placeholder="Inventory" />
+            </Row>
+            <Row title="Switch">
+              <HeroSwitch aria-label="HeroUI switch" />
+              <Switch checked={switched} onChange={setSwitched} label="Inventory" />
+            </Row>
+          </Section>
+          <Section title="Colour roles">
+            <Row title="Solid">
+              {UI_COLORS.map(color => (
+                <Badge key={color} color={color} variant="solid">
+                  {color}
+                </Badge>
+              ))}
+            </Row>
+            <Row title="Soft">
+              {UI_COLORS.map(color => (
+                <Badge key={color} color={color} variant="soft">
+                  {color}
+                </Badge>
+              ))}
+            </Row>
+          </Section>
+        </>
+      )}
 
       {tab === 'buttons' && (
         <>
@@ -261,7 +324,7 @@ export default function DesignSystemPage() {
           </Row>
           <Row title="choice">
             <Checkbox label="Checkbox" checked={checked} onChange={() => setChecked(!checked)} />
-            <Checkbox label="Indeterminate" indeterminate readOnly checked={false} />
+            <Checkbox label="Indeterminate" indeterminate checked={false} />
             <Checkbox label="Disabled" disabled />
             <Switch label="Switch" checked={switched} onChange={() => setSwitched(!switched)} />
             <SegmentedControl
@@ -301,6 +364,24 @@ export default function DesignSystemPage() {
             <Slider min={0} max={100} defaultValue={40} aria-label="Quality" />
           </Row>
         </Section>
+      )}
+
+      {tab === 'dates' && (
+        <>
+          <Section title="Calendar">
+            <p className="prose">
+              One calendar for the whole product: a day, a range, the year jump, and the keyboard
+              that comes with them — arrows by day, PageUp and PageDown by month, Home and End to
+              the week&rsquo;s ends.
+            </p>
+            <Row title="one day">
+              <Calendar label="A day" value={day} onChange={setDay} />
+            </Row>
+            <Row title="a range">
+              <RangeCalendar label="A range" value={range} onChange={setRange} />
+            </Row>
+          </Section>
+        </>
       )}
 
       {tab === 'data' && (

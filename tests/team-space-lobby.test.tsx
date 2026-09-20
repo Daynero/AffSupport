@@ -30,20 +30,20 @@ describe('team space lobby', () => {
     renderSpace(client);
 
     // Lobby first: both spaces listed, no workspace heading yet.
-    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Media buyers/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Archive team/ })).toBeTruthy();
 
     // Enter a space → its workspace shell opens.
     await user.click(screen.getByRole('button', { name: /Media buyers/ }));
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
 
     // Changing space now hangs off the space name itself: open the switcher and
     // take the "all spaces" way back to the lobby.
     await user.click(screen.getByRole('button', { name: /Media buyers/ }));
     await user.click(await screen.findByRole('link', { name: 'All spaces' }));
-    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
   });
 
   it('blocks users without a team behind the workspace launch gate', async () => {
@@ -51,7 +51,7 @@ describe('team space lobby', () => {
     renderSpace(client);
 
     expect(
-      await screen.findByRole('heading', { name: 'Team spaces are still in closed beta' })
+      await screen.findByRole('heading', { name: 'Spaces are still in closed beta' })
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Notify me when it’s ready' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Speed up development' })).toBeTruthy();
@@ -67,7 +67,7 @@ describe('team space lobby', () => {
     fireEvent.pointerDown(dialog.parentElement!);
 
     expect(
-      screen.queryByRole('heading', { name: 'Team spaces are still in closed beta' })
+      screen.queryByRole('heading', { name: 'Spaces are still in closed beta' })
     ).toBeNull();
     expect(location.pathname).toBe('/');
   });
@@ -80,7 +80,7 @@ describe('team space lobby', () => {
     await user.click(await screen.findByRole('button', { name: 'Speed up development' }));
 
     expect(
-      screen.queryByRole('heading', { name: 'Team spaces are still in closed beta' })
+      screen.queryByRole('heading', { name: 'Spaces are still in closed beta' })
     ).toBeNull();
     expect(screen.getByRole('heading', { name: 'Support the project' })).toBeTruthy();
   });

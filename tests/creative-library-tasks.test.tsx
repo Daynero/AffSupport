@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render as renderRaw, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render as renderRaw,
+  screen,
+  waitFor
+} from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskAttachmentSummary } from '@video-compressor/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -157,6 +164,18 @@ function client(): TaskSpaceClient {
   };
 }
 
+/**
+ * Open a tile's overflow and read its menu.
+ *
+ * The tile shows the few actions it is for and keeps the rest behind one door
+ * (024): six unlabelled icons in 158 pixels is a puzzle, not a shortcut.
+ */
+async function openTileMenu() {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: /^Actions for/ }));
+  return screen.getAllByRole('menuitem');
+}
+
 describe('Creative Library task workflows', () => {
   it('chunks an unlimited UI attachment selection into idempotent batches of 100', async () => {
     const attachTaskMaterials = vi.fn(async ({ materialIds }: { materialIds: string[] }) => ({
@@ -228,12 +247,21 @@ describe('Creative Library task workflows', () => {
         onDownloadRestitched={onDownloadRestitched}
       />
     );
-    const button = screen.getByRole('button', { name: 'Download re-stitched' });
+    const items = await openTileMenu();
     // Beside the plain download, not in place of it: one gives the file as it
     // is, the other the file re-cut.
-    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
-    fireEvent.click(button);
-    expect(onDownloadRestitched).toHaveBeenCalledTimes(1);
+    expect(items.map(item => item.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining('Download')])
+    );
+    // Offered, and honest about what it is waiting for: with no Soty running on
+    // this computer there is nothing to re-cut the file with, and the item says
+    // so rather than vanishing or failing when pressed (024).
+    const restitched = screen.getByRole('menuitem', { name: 'Download re-stitched' });
+    expect(restitched.getAttribute('aria-disabled')).toBe('true');
+    const reason = restitched.getAttribute('aria-describedby');
+    expect(reason && document.getElementById(reason)?.textContent).toContain('Soty is not running');
+    fireEvent.click(restitched);
+    expect(onDownloadRestitched).toHaveBeenCalledTimes(0);
 
     // An image has nothing to re-stitch.
     rerender(
@@ -244,7 +272,7 @@ describe('Creative Library task workflows', () => {
         onDownloadRestitched={onDownloadRestitched}
       />
     );
-    expect(screen.queryByRole('button', { name: 'Download re-stitched' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Download re-stitched' })).toBeNull();
 
     // Nor has a video the task has not saved yet: the agent is handed a
     // material by id, and a draft has not got one on the server.
@@ -257,7 +285,7 @@ describe('Creative Library task workflows', () => {
         onDownloadRestitched={onDownloadRestitched}
       />
     );
-    expect(screen.queryByRole('button', { name: 'Download re-stitched' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Download re-stitched' })).toBeNull();
   });
 
   it('shows a saved attachment on Drive, and not a draft', async () => {
@@ -281,7 +309,10 @@ describe('Creative Library task workflows', () => {
         onReveal={onReveal}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Show on Drive' }));
+    // A tile is a card in a grid: open and its one make stay on it, the rest
+    // are named in "…" (024, US10).
+    fireEvent.click(screen.getByRole('button', { name: /^Actions for / }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Show in folder' }));
     expect(onReveal).toHaveBeenCalledTimes(1);
     unmount();
     render(
@@ -293,7 +324,7 @@ describe('Creative Library task workflows', () => {
         isDraft
       />
     );
-    expect(screen.queryByRole('button', { name: 'Show on Drive' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show in folder' })).toBeNull();
   });
 
   it('does not leave a broken attachment preview in a loading state', async () => {
@@ -363,11 +394,12 @@ describe('Creative Library task workflows', () => {
     render(<TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={api} />);
 
     await screen.findByLabelText('Video preview for launch.mp4 at one second');
-    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
     expect(await screen.findByRole('dialog')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Actions for / }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Download' }));
     await waitFor(() =>
       expect(api.requestDownload).toHaveBeenCalledWith(TEAM_ID, ASSET_ID, 'browser')
     );
@@ -408,15 +440,24 @@ describe('Creative Library task workflows', () => {
     );
 
     // The count sits behind a paperclip now; the words are its tooltip.
-    await screen.findByTitle('1 attachments');
+    await screen.findByLabelText('1 attachments');
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Progress scale' }), {
       key: 'ArrowRight'
     });
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
-    expect(screen.getByTitle('1 attachments')).toBeTruthy();
+    expect(screen.getByLabelText('1 attachments')).toBeTruthy();
   });
 
-  it('stages attached media locally and drops it when the editor is closed without saving', async () => {
+  /**
+   * 024 turned these three inside out, and they are kept rather than deleted
+   * because the thing they were protecting is still the point: a person's work
+   * must not be lost by closing a dialog.
+   *
+   * It used to be protected by staging the work, keeping a copy in
+   * sessionStorage, and putting a dialog in the doorway. Now it is protected by
+   * not holding the work in the first place.
+   */
+  it('attaches the moment media is picked, and closing keeps it', async () => {
     const api = client();
     api.listMaterials = vi.fn().mockResolvedValue([
       {
@@ -444,97 +485,9 @@ describe('Creative Library task workflows', () => {
     );
 
     await screen.findByText('launch.mp4');
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
-
-    expect(await screen.findByText('Will be added on save')).toBeTruthy();
-    expect(api.attachTaskMaterials).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(await screen.findByRole('heading', { name: 'You have unsaved changes' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Close without saving' }));
-
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(api.attachTaskMaterials).not.toHaveBeenCalled();
-    expect(api.detachTaskMaterial).not.toHaveBeenCalled();
-  });
-
-  it('restores typed task fields after the browser recreates a background tab', async () => {
-    const api = client();
-    const first = render(
-      <TaskEditor
-        teamId={TEAM_ID}
-        task={task()}
-        members={[]}
-        canEdit
-        client={api}
-        onClose={vi.fn()}
-        onChanged={vi.fn()}
-      />
-    );
-
-    await screen.findByText('launch.mp4');
-    const title = document.querySelector('#team-task-title') as HTMLInputElement;
-    fireEvent.change(title, { target: { value: 'Keep this title' } });
-    fireEvent.change(document.querySelector('.team-task-description-input')!, {
-      target: { value: 'Keep this description too' }
-    });
-    first.unmount();
-
-    render(
-      <TaskEditor
-        teamId={TEAM_ID}
-        task={task()}
-        members={[]}
-        canEdit
-        client={api}
-        onClose={vi.fn()}
-        onChanged={vi.fn()}
-      />
-    );
-
-    await screen.findByText('launch.mp4');
-    expect((document.querySelector('#team-task-title') as HTMLInputElement).value).toBe(
-      'Keep this title'
-    );
-    expect(
-      (document.querySelector('.team-task-description-input') as HTMLTextAreaElement).value
-    ).toBe('Keep this description too');
-  });
-
-  it('sends staged media to the server only when saving the task', async () => {
-    const api = client();
-    api.listMaterials = vi.fn().mockResolvedValue([
-      {
-        id: SECOND_ASSET_ID,
-        teamId: TEAM_ID,
-        providerId: 'drive-new-image',
-        parentFolderId: 'drive-root',
-        name: 'new-image.png',
-        kind: 'file',
-        category: 'image',
-        previewState: 'ready'
-      }
-    ]);
-    const onClose = vi.fn();
-    render(
-      <TaskEditor
-        teamId={TEAM_ID}
-        task={task()}
-        members={[]}
-        canEdit
-        client={api}
-        onClose={onClose}
-        onChanged={vi.fn()}
-      />
-    );
-
-    await screen.findByText('launch.mp4');
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
-    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save task' }));
 
     await waitFor(() =>
       expect(api.attachTaskMaterials).toHaveBeenCalledWith({
@@ -543,7 +496,127 @@ describe('Creative Library task workflows', () => {
         materialIds: [SECOND_ASSET_ID]
       })
     );
+
+    // And the door is a door: nothing stands in it asking about unsaved work.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('heading', { name: 'You have unsaved changes' })).toBeNull();
     expect(onClose).toHaveBeenCalledOnce();
+    expect(api.detachTaskMaterial).not.toHaveBeenCalled();
+  });
+
+  it('replaces the draft tile with the attached file, so one file counts once', async () => {
+    const api = client();
+    api.listMaterials = vi.fn().mockResolvedValue([
+      {
+        id: SECOND_ASSET_ID,
+        teamId: TEAM_ID,
+        providerId: 'drive-new-image',
+        parentFolderId: 'drive-root',
+        name: 'new-image.png',
+        kind: 'file',
+        category: 'image',
+        previewState: 'ready'
+      }
+    ]);
+    const saved = {
+      id: '31000000-0000-4000-8000-000000000009',
+      taskId: TASK_ID,
+      materialId: SECOND_ASSET_ID,
+      name: 'new-image.png',
+      category: 'image' as const,
+      availability: 'ready' as const,
+      previewState: 'ready' as const,
+      position: 1,
+      driveVersion: null
+    };
+    render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />
+    );
+    await screen.findByText('launch.mp4');
+    const first = await api.getTask({ teamId: TEAM_ID, taskId: TASK_ID });
+    vi.mocked(api.getTask).mockResolvedValue({
+      ...first,
+      attachments: [...first.attachments, saved]
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
+
+    await waitFor(() => expect(screen.getByText('2 attachments')).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText('new-image.png')).toHaveLength(1));
+  });
+
+  it('writes a typed field after the typing stops, so a discarded tab loses nothing', async () => {
+    vi.useFakeTimers();
+    const api = client();
+    const view = render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await vi.waitFor(() => expect(screen.getByText('launch.mp4')).toBeTruthy());
+    fireEvent.change(document.querySelector('#team-task-title') as HTMLInputElement, {
+      target: { value: 'Keep this title' }
+    });
+    // Mid-word, nothing has gone yet: one write per sentence, not per keystroke.
+    expect(api.updateTask).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    await vi.waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        TEAM_ID,
+        TASK_ID,
+        expect.objectContaining({ title: 'Keep this title' })
+      )
+    );
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it('sends a field left mid-pause when the editor closes', async () => {
+    vi.useFakeTimers();
+    const api = client();
+    render(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />
+    );
+
+    await vi.waitFor(() => expect(screen.getByText('launch.mp4')).toBeTruthy());
+    fireEvent.change(document.querySelector('.team-task-description-input')!, {
+      target: { value: 'Half a thought' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() =>
+      expect(api.updateTask).toHaveBeenCalledWith(
+        TEAM_ID,
+        TASK_ID,
+        expect.objectContaining({ note: 'Half a thought' })
+      )
+    );
+    vi.useRealTimers();
   });
 
   it('saves status immediately without treating it as an unsaved editor change', async () => {
@@ -616,7 +689,7 @@ describe('Creative Library task workflows', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Campaigns/ }));
     await waitFor(() =>
       expect(api.listMaterials).toHaveBeenCalledWith(TEAM_ID, 'drive-folder-campaigns')
@@ -631,6 +704,46 @@ describe('Creative Library task workflows', () => {
     expect(onAdd).toHaveBeenCalledWith([
       expect.objectContaining({ id: SECOND_ASSET_ID, name: 'new-image.png' })
     ]);
+  });
+
+  it("says where each found file lives, and opens where the task's files are", async () => {
+    const api = client();
+    api.listMaterials = vi.fn().mockResolvedValue([]);
+    api.searchCatalog = vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: SECOND_ASSET_ID,
+          teamId: TEAM_ID,
+          parentFolderId: 'drive-glucosoft',
+          name: 'Gs2_2.mp4',
+          kind: 'file' as const,
+          category: 'video' as const,
+          previewState: 'ready'
+        }
+      ],
+      total: 1
+    });
+    render(
+      <TaskAttachmentPicker
+        teamId={TEAM_ID}
+        client={api}
+        attachedMaterialIds={new Set()}
+        onAdd={vi.fn()}
+        startTrail={[
+          { id: 'drive-creo', name: 'Creo' },
+          { id: 'drive-glucosoft', name: 'GlucoSoft' }
+        ]}
+        pathOf={parent => (parent === 'drive-glucosoft' ? 'Creo / GlucoSoft' : 'All files')}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
+    // Opens in the folder the task's files are in (024).
+    await waitFor(() => expect(api.listMaterials).toHaveBeenCalledWith(TEAM_ID, 'drive-glucosoft'));
+    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search the space by name' }), {
+      target: { value: 'Gs2_2' }
+    });
+    const found = await screen.findByRole('button', { name: /Gs2_2\.mp4/ });
+    expect(found.textContent).toContain('Creo / GlucoSoft');
   });
 
   it('finds media by name across the space instead of walking folders', async () => {
@@ -661,7 +774,7 @@ describe('Creative Library task workflows', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     const field = await screen.findByRole('searchbox', { name: 'Search the space by name' });
     fireEvent.change(field, { target: { value: 'new-image' } });
 
@@ -692,7 +805,7 @@ describe('Creative Library task workflows', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Choose from the connected space/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     const roots = await screen.findAllByRole('button', { name: 'Root' });
     expect(roots).toHaveLength(1);
     expect((roots[0] as HTMLButtonElement).disabled).toBe(false);
@@ -747,7 +860,8 @@ describe('Creative Library task workflows', () => {
       </TeamProvider>
     );
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Create task' }));
+    // An empty board's one way in is its empty state (024, FR-092).
+    await userEvent.click(await screen.findByRole('button', { name: 'Create your first task' }));
     expect(await screen.findByRole('heading', { name: 'Task details' })).toBeTruthy();
     await waitFor(() => expect(api.createTask).toHaveBeenCalledOnce());
 

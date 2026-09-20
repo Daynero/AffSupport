@@ -144,7 +144,7 @@ describe('Soty design system', () => {
   it('disables decorative loops under prefers-reduced-motion', () => {
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
     expect(reduced).toContain('.progress-track.is-flowing > span');
-    expect(reduced).toContain('.skeleton');
+    expect(reduced).toContain('.soty-skeleton');
     expect(reduced).toContain('animation: none !important');
   });
 

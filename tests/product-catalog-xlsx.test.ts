@@ -74,11 +74,14 @@ describe('the workbook', () => {
     );
     expect(files.get('xl/workbook.xml')).toContain('<sheet name="catalog_products"');
     const sheet = files.get('xl/worksheets/sheet1.xml')!;
-    expect(sheet).toContain('<c r="A3"><v>1</v></c>');
+    // The ID is text since 024 US21 — a minted one, not a row number.
+    expect(sheet).toMatch(/<c r="A3" t="s"><v>\d+<\/v><\/c>/u);
     expect(sheet).toContain('<c r="L3"><v>75</v></c>');
-    expect(sheet).toMatch(/<c r="AB3" t="s"><v>\d+<\/v><\/c>/u);
     expect(sheet).not.toContain('<f');
-    expect(sheet).not.toContain('r="O3"'); // an empty value is no cell at all
+    // An empty value is no cell at all: column O, and the US21 blanks.
+    for (const empty of ['O3', 'M3', 'N3', 'X3', 'Y3', 'AB3']) {
+      expect(sheet).not.toContain(`r="${empty}"`);
+    }
   });
 
   it('keeps what a person typed as text, never as a formula', async () => {

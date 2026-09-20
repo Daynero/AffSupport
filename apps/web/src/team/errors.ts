@@ -1,6 +1,7 @@
 import type { TeamErrorCode } from '@video-compressor/shared';
 import { TEAM_ERROR_CODES } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
+import type { UnavailableReason } from './materials/actions';
 
 /**
  * The single code→copy mapper for team mode.
@@ -93,9 +94,69 @@ export function teamErrorMessageFor(error: unknown, t: (key: TranslationKey) => 
   if (error && typeof error === 'object' && 'code' in error) {
     const { code } = error as { code: unknown };
     if (typeof code === 'string' && isTeamErrorCode(code)) return teamErrorMessage(code, t);
+    if (typeof code === 'string' && code in LOCAL_RUN) return t(LOCAL_RUN[code]!);
   }
-  if (error instanceof Error && isTeamErrorCode(error.message)) {
-    return teamErrorMessage(error.message, t);
+  if (error instanceof Error) {
+    if (isTeamErrorCode(error.message)) return teamErrorMessage(error.message, t);
+    if (error.message in LOCAL_RUN) return t(LOCAL_RUN[error.message]!);
   }
   return t('teamErrorUnknown');
+}
+
+/**
+ * What a run on this computer says when it goes wrong (024).
+ *
+ * These are not the server's codes — they are raised by the local app and travel in the error's
+ * message. They used to fall through to "something went wrong, try again in a moment", which for
+ * a video the transcriber could not read is both wrong and useless: there is nothing to try.
+ */
+const LOCAL_RUN: Record<string, TranslationKey> = {
+  PROCESS_FAILED: 'teamErrorProcessFailed',
+  PROCESS_CANCELED: 'teamErrorProcessCanceled'
+};
+
+/**
+ * Why an action that applies cannot run right now (024).
+ *
+ * Kept beside the error map rather than beside the menu that renders it, for
+ * the same reason the error map is one place: a code becomes a sentence in one
+ * file, or it becomes three slightly different sentences in three.
+ *
+ * These are not errors — nothing failed. They are the reason an offer is
+ * standing but not takeable, and the reader is owed one.
+ */
+const UNAVAILABLE: Record<UnavailableReason, TranslationKey> = {
+  NO_PERMISSION: 'materialReasonNoPermission',
+  AGENT_REQUIRED: 'materialReasonAgentRequired',
+  STORAGE_DISCONNECTED: 'materialReasonStorageDisconnected',
+  CATALOG_SETTINGS_MISSING: 'materialReasonCatalogSettings',
+  RESTITCH_UNCONFIGURED: 'materialReasonRestitchUnconfigured',
+  NOT_READY: 'materialReasonNotReady',
+  TRASHED: 'materialReasonTrashed',
+  MISSING: 'materialReasonMissing'
+};
+
+export function materialUnavailableMessage(
+  reason: UnavailableReason,
+  t: (key: TranslationKey) => string
+): string {
+  return t(UNAVAILABLE[reason]);
+}
+
+/**
+ * The machine code behind a thrown value, when it is one this product knows.
+ *
+ * Copy is one thing and control flow is another: an autosave that has to
+ * behave differently for `SOURCE_CHANGED` than for a dropped connection needs
+ * the code, and sniffing the shape at every call site is how three slightly
+ * different sniffers appear. Nothing here reaches the DOM — that is still
+ * `teamErrorMessage`'s job.
+ */
+export function teamErrorCodeOf(error: unknown): TeamErrorCode | null {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const { code } = error as { code: unknown };
+    if (typeof code === 'string' && isTeamErrorCode(code)) return code;
+  }
+  if (error instanceof Error && isTeamErrorCode(error.message)) return error.message;
+  return null;
 }

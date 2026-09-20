@@ -75,6 +75,9 @@ export function OwnershipTransferDialog({
           />
           <span>{t('teamOwnershipConfirm', { name: memberName })}</span>
         </label>
+        {/* Transferring is most often the step before leaving, so the dialog
+            says where leaving is (024, FR-049). */}
+        <p>{t('teamOwnershipThenLeave')}</p>
         <p className="team-drive-warning">{t('teamDriveIndependentAcl')}</p>
         {error && (
           <p className="team-inline-error" role="alert">

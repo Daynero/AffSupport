@@ -31,6 +31,7 @@ After the migration lands: `npm run types:supabase` regenerated types are commit
 ## Per-story manual validation (beta stack)
 
 **US1 — Orientation** (`tests/team-ux-navigation.test.tsx` covers the DOM half)
+
 1. Enter `/team` with two spaces → lobby; enter a space → URL becomes `/team/<id>`.
 2. Walk Files → Tasks → Settings; press browser Back twice → Tasks, then Files. Refresh on
    any section → same space, same section.

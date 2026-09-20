@@ -9,9 +9,11 @@ import {
   buildProductCatalogRows,
   parseProductCount,
   parseWebLink,
+  driveImageLink,
+  planCatalogRows,
   productCatalogName,
   videoShareLink,
-  type ProductCatalogSettingsValues
+  type ProductCatalogSpaceSettings
 } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { buildXlsx } from '../_shared/xlsx.ts';
@@ -67,11 +69,17 @@ export interface ExistingCatalog {
   sheetUrl: string;
   sourceLink: string;
   productCount: number;
+  /** The variation's number (024, US15); a catalog from before variations is 1. */
+  variant?: number;
   createdAt: string | null;
 }
 
 export type CatalogLinkOutcome =
-  | { linked: true; retired: Array<{ driveFileId: string; resourceKey: string | null }> }
+  | {
+      linked: true;
+      retired: Array<{ driveFileId: string; resourceKey: string | null }>;
+      variant?: number;
+    }
   | { linked: false; reason: 'EXISTS'; existing: ExistingCatalog | null }
   | { linked: false; reason: 'NOT_ELIGIBLE' };
 
@@ -82,8 +90,18 @@ export interface ProductCatalogDeps {
     actorId: string;
     permission: 'view' | 'edit';
   }): Promise<CatalogVideo>;
-  readSettings(teamId: string): Promise<ProductCatalogSettingsValues | null>;
-  readLiveCatalog(teamId: string, videoId: string): Promise<ExistingCatalog | null>;
+  readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
+  /** Texts from the space's pool, none repeated until the pool is spent (024). */
+  drawTexts(teamId: string, count: number): Promise<Array<{ title: string; description: string }>>;
+  /** Pictures from the space's pool, likewise. */
+  drawImages(
+    teamId: string,
+    count: number
+  ): Promise<Array<{ driveFileId: string; resourceKey: string | null; name?: string | null }>>;
+  /** Every live catalog of the video — its variations — oldest number first. */
+  readLiveCatalogs(teamId: string, videoId: string): Promise<ExistingCatalog[]>;
+  /** The number a new variation of this video takes: one past the highest it ever had. */
+  nextVariant(teamId: string, videoId: string): Promise<number>;
   driveFor(credentialId: string): Promise<CatalogDrive>;
   proveVideo(video: CatalogVideo, drive: CatalogDrive): Promise<DriveFileMetadata>;
   /** Proves the folder live, inside the root, writable by the actor (`upload`). */
@@ -191,6 +209,12 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
   };
 }
 
+function newestOf(catalogs: ExistingCatalog[]): ExistingCatalog {
+  return catalogs.reduce((newest, catalog) =>
+    (catalog.createdAt ?? '') > (newest.createdAt ?? '') ? catalog : newest
+  );
+}
+
 async function trashQuietly(
   deps: ProductCatalogDeps,
   drive: CatalogDrive,
@@ -225,11 +249,17 @@ export async function createProductCatalog(
   const settings = await deps.readSettings(teamId);
   if (!settings) wrongState('settings_missing');
 
-  const live = await deps.readLiveCatalog(teamId, videoId);
-  if (live && live.materialId !== request.replacesMaterialId) {
-    // A create while one exists, or a re-create of a catalog somebody already replaced: show
-    // the one that is there rather than make a second.
-    return { outcome: 'existing', catalog: live, videoShared: false };
+  /*
+   * A create makes a new variation beside whatever the video already has (024, US15). Only a
+   * re-create can find nothing to do: the variation it names was replaced or removed by somebody
+   * first, and it shows the newest catalog there is rather than bring a removed one back.
+   */
+  const catalogs = await deps.readLiveCatalogs(teamId, videoId);
+  const live = request.replacesMaterialId
+    ? (catalogs.find(catalog => catalog.materialId === request.replacesMaterialId) ?? null)
+    : null;
+  if (request.replacesMaterialId && !live && catalogs.length > 0) {
+    return { outcome: 'existing', catalog: newestOf(catalogs), videoShared: false };
   }
   const replaces = live ? live.materialId : null;
 
@@ -252,11 +282,47 @@ export async function createProductCatalog(
   }
   const videoLink = videoShareLink(liveVideo.id, liveVideo.resourceKey ?? video.resourceKey);
 
+  /*
+   * Each row its own name, text, price and picture (024): drawn from the space's pools without
+   * repeats, the settings' single values where a pool is empty. The pictures are shared by link,
+   * as the video is, or Meta cannot fetch them.
+   */
+  const [texts, images] = await Promise.all([
+    deps.drawTexts(teamId, request.productCount),
+    deps.drawImages(teamId, request.productCount)
+  ]);
+  const sharedImages = new Set<string>();
+  for (const image of images) {
+    if (sharedImages.has(image.driveFileId)) continue;
+    await ensureAnyoneReader(drive, image.driveFileId);
+    sharedImages.add(image.driveFileId);
+  }
+  const planned = planCatalogRows({
+    count: request.productCount,
+    settings,
+    texts,
+    images: images.map(image => ({
+      link: driveImageLink(image.driveFileId, image.resourceKey),
+      name: image.name ?? null
+    }))
+  });
+  if (!planned) wrongState('settings_missing');
+  const first = planned[0]!;
+  /* Kept for sheets and workers that read one value: the first row's. */
+  const snapshot = {
+    title: first.title,
+    description: first.description,
+    price: first.price,
+    imageLink: first.imageLink,
+    rows: planned
+  };
+
+  const variant = live ? (live.variant ?? 1) : await deps.nextVariant(teamId, videoId);
   const plan = await deps.planName({
     teamId,
     destinationMaterialId: destination.materialId,
     live: destination.live,
-    name: productCatalogName(video.name),
+    name: productCatalogName(video.name, variant),
     idempotencyKey: request.idempotencyKey,
     replacingDriveFileId: live?.driveFileId ?? null
   });
@@ -271,7 +337,11 @@ export async function createProductCatalog(
   if (authority.reused) {
     // The same confirmation arriving twice. Only a finished one has something to show.
     const finished =
-      authority.state === 'succeeded' ? await deps.readLiveCatalog(teamId, videoId) : null;
+      authority.state === 'succeeded'
+        ? (await deps.readLiveCatalogs(teamId, videoId)).find(
+            catalog => (catalog.variant ?? 1) === variant
+          )
+        : null;
     if (finished) {
       return { outcome: replaces ? 'recreated' : 'created', catalog: finished, videoShared };
     }
@@ -282,10 +352,11 @@ export async function createProductCatalog(
     const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       rows: buildProductCatalogRows({
-        settings,
+        settings: first,
         sourceLink: request.sourceLink,
         videoLink,
-        count: request.productCount
+        count: request.productCount,
+        rows: planned
       })
     });
     const file = await drive.createConvertedFile({
@@ -318,8 +389,9 @@ export async function createProductCatalog(
           productCount: request.productCount,
           sheetUrl,
           videoLink,
-          settingsSnapshot: settings,
-          createdBy: actorId
+          settingsSnapshot: snapshot,
+          createdBy: actorId,
+          variant
         }
       });
       if (!linked.linked) {
@@ -340,6 +412,7 @@ export async function createProductCatalog(
           sheetUrl,
           sourceLink: request.sourceLink,
           productCount: request.productCount,
+          variant: linked.variant ?? variant,
           createdAt: null
         },
         videoShared

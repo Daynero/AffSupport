@@ -17,17 +17,22 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
-import { Download, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
+import {
+  Download,
+  ListChecks,
+  ListPlus,
+  MoreHorizontal,
+  Play,
+  Shrink,
+  Trash2,
+  X
+} from 'lucide-react';
 import { Button } from '../../components/ui';
-import { Popover, SegmentedControl } from '../../components/ui/index';
+import { DropdownMenu, Popover, SegmentedControl } from '../../components/ui/index';
+import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
-import {
-  copyMaterialWithTail,
-  moveMaterialWithTail,
-  trashMaterialWithTail,
-  type TailClient
-} from '../materials/tail';
+import { moveMaterialWithTail, trashMaterialWithTail, type TailClient } from '../materials/tail';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
@@ -51,12 +56,12 @@ import { SortMenu } from './SortMenu';
 import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
 import { PreviewPane } from './PreviewPane';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
-import { useTeamOperation } from '../processing/useTeamOperation';
-import {
-  cancelTeamAgentProcess,
-  pauseTeamAgentProcess,
-  startTeamAgentProcess
-} from '../../api/client';
+import { useAgentQueue } from './useAgentQueue';
+import { createPortal } from 'react-dom';
+import { AgentQueuePanel, useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
+import { useOptionalAddToTask } from '../tasks/AddToTask';
+import { useExplorerClipboard } from './useExplorerClipboard';
+import { formatShortcut, shortcutOf } from '../palette/shortcuts';
 import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import {
   BATCH_SCOPE_LIMIT,
@@ -66,6 +71,7 @@ import {
   type ProcessableFolder
 } from './FolderScopeDialog';
 import {
+  compressJobs,
   TeamCompressorDialog,
   type CompressPlan,
   type CompressPlanItem as CompressPlanItem_
@@ -80,8 +86,9 @@ import {
   type UploadConflictRequest
 } from './UploadConflictDialog';
 import { ProcessPanel } from './ProcessPanel';
-import { navigateTo } from '../../lib/navigation';
+import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
+import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
 import { usePosterFrames } from './usePosterFrames';
 
@@ -108,18 +115,6 @@ export type { ExplorerView };
  * state lives in the address, so a refresh and a pasted link land on the same
  * screen.
  */
-/**
- * Was this the person stopping the work, rather than the work going wrong?
- *
- * The agent answers a cancelled run with the same shape as a failed one — a machine code on a
- * rejected promise — so the only thing separating "I pressed stop" from "it broke" is which
- * code it is.
- */
-function deliberateStop(cause: unknown): boolean {
-  const code = cause instanceof Error ? cause.message : String(cause);
-  return code === 'PROCESS_CANCELED' || code === 'DOWNLOAD_CANCELED' || code === 'PREVIEW_CANCELED';
-}
-
 /**
  * What a re-stitched download is doing, in words and as a share.
  *
@@ -158,6 +153,9 @@ function restitchProgress(phase: keyof typeof RESTITCH_PHASE_SPAN, within?: numb
   return Math.round(span.from + (span.to - span.from) * fraction);
 }
 
+/** The grid never unfolds companions in place; a stable empty set keeps the memo quiet. */
+const NO_COMPANIONS_OPEN: ReadonlySet<string> = new Set();
+
 export function ExplorerShell({
   teamId,
   client,
@@ -174,7 +172,8 @@ export function ExplorerShell({
   onChanged,
   onReset,
   actionsClient = defaultMaterialActionsClient,
-  readOnly = false
+  readOnly = false,
+  trashReturnLabel
 }: {
   teamId: string;
   client: ExplorerShellClient;
@@ -193,6 +192,12 @@ export function ExplorerShell({
   actionsClient?: MaterialActionsClient;
   /** Storage needs a person (011, FR-033): browse and preview only. */
   readOnly?: boolean;
+  /**
+   * Where leaving the trash goes, named, when that is not the files (024,
+   * FR-046): a trash opened from Tasks returns to Tasks, and a button promising
+   * "back to files" would be a small lie about where it goes.
+   */
+  trashReturnLabel?: string;
 }) {
   return (
     <ExplorerProvider
@@ -218,6 +223,7 @@ export function ExplorerShell({
         onReset={onReset}
         actionsClient={actionsClient}
         readOnly={readOnly}
+        trashReturnLabel={trashReturnLabel}
       />
     </ExplorerProvider>
   );
@@ -238,7 +244,8 @@ function ExplorerBody({
   onChanged,
   onReset,
   actionsClient,
-  readOnly
+  readOnly,
+  trashReturnLabel
 }: {
   teamId: string;
   client: ExplorerShellClient;
@@ -255,9 +262,10 @@ function ExplorerBody({
   onReset?: () => void;
   actionsClient: MaterialActionsClient;
   readOnly: boolean;
+  trashReturnLabel?: string;
 }) {
   const { t } = useI18n();
-  const { push, update, dismiss } = useToasts();
+  const { push, update } = useToasts();
   /* 015 — one running re-stitched delivery per material, held here rather than in the row:
      a delivery outlives the menu that started it and the row that scrolled past. */
   const restitch = useRestitchDelivery(teamId);
@@ -308,6 +316,7 @@ function ExplorerBody({
   const explorer = useExplorer();
   const {
     currentFolderId,
+    openFolder,
     selectedId,
     select,
     selectedRows: selectedRowsMap,
@@ -329,37 +338,6 @@ function ExplorerBody({
   // in the background one after another — a corner panel shows the progress,
   // nothing blocks the screen.
   const agentCtx = useOptionalAgent();
-  type QueueItem = {
-    id: string;
-    name: string;
-    folderId: string | null;
-    tool: 'transcription' | 'compressor';
-    outputName: string;
-    /** Overwrite-the-original: upload as a new version of this material. */
-    versionOf?: string;
-    /** 013 (B5): compress on the agent and save to a locally chosen folder. */
-    local?: { embed: boolean; suffix: string };
-    options?: Record<string, unknown>;
-  };
-  const [tQueue, setTQueue] = useState<QueueItem[]>([]);
-  const [tActive, setTActive] = useState<(QueueItem & { operationId: string | null }) | null>(null);
-  const [tDone, setTDone] = useState(0);
-  const [tTotal, setTTotal] = useState(0);
-  // The batch is held: nothing new starts, and the file already in flight is
-  // suspended too when the local app can do that (`tHeld`). Both are needed —
-  // a pause that leaves the machine at full load for the next twenty minutes
-  // is not the pause anyone pressed.
-  const [tPaused, setTPaused] = useState(false);
-  const [tHeld, setTHeld] = useState(false);
-  /** The operation this browser has already asked the local app to hold. */
-  const heldAsked = useRef<string | null>(null);
-  // Cmd/Ctrl+C/X/V: what was copied or cut, held until the next paste. Files
-  // from any folder — paste lands them in the folder currently open.
-  const clipboard = useRef<{
-    mode: 'copy' | 'cut';
-    /** Category as well as kind: what travels with a file depends on it. */
-    items: { id: string; name: string; kind: string; category: string | null }[];
-  } | null>(null);
   /* A row from the list or the folder that is open — the batch needs a name
      and a drive id, and both kinds of thing carry those. */
   /* Reading a folder's subtree, and what the answer is for. All three of the
@@ -403,7 +381,30 @@ function ExplorerBody({
     kinds: query.kinds,
     revision
   });
-  const sortedRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+  const allRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+  /*
+   * A transcript and a catalog belong to their video (024, US25): the folder shows the video with
+   * a count, and they come out under it on a press. Opened ones are remembered per folder only.
+   */
+  const [openedCompanions, setOpenedCompanions] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => setOpenedCompanions(new Set()), [currentFolderId]);
+  /*
+   * Only the list unfolds them in place. In the grid a catalog is a grey document tile the size of
+   * a thumbnail: opened, two of them pushed every video after them down a row and looked like
+   * strangers in the folder. There the video's tile lists them itself, so the grid never unfolds.
+   */
+  const folded = useMemo(
+    () => foldCompanions(allRows, view === 'grid' ? NO_COMPANIONS_OPEN : openedCompanions),
+    [allRows, openedCompanions, view]
+  );
+  const sortedRows = folded.rows;
+  const toggleCompanions = useCallback((rowId: string) => {
+    setOpenedCompanions(current => {
+      const next = new Set(current);
+      if (!next.delete(rowId)) next.add(rowId);
+      return next;
+    });
+  }, []);
 
   /*
    * A file the address names (`item`) — from "show in folder" on a search result or a task's
@@ -429,18 +430,26 @@ function ExplorerBody({
     }
     revealedItem.current = revealItemId;
     select(revealItemId);
+    // `open=1` beside it: the address was a file being looked at, so it is
+    // looked at again rather than merely pointed at (024, FR-050).
+    if (query.open) {
+      const row = page.rows.find(candidate => candidate.id === revealItemId);
+      if (row && row.kind !== 'folder') onPreview?.(summaryOf(row));
+    }
     window.requestAnimationFrame(() => {
       Array.from(document.querySelectorAll<HTMLElement>('[data-material-id]'))
         .find(element => element.dataset.materialId === revealItemId)
-        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        ?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     });
   }, [
     currentFolderId,
     explorer.nodes,
     nodeOf,
+    onPreview,
     onQueryChange,
     page,
     query.folderId,
+    query.open,
     query.trash,
     revealItemId,
     searching,
@@ -537,6 +546,39 @@ function ExplorerBody({
   }, [onChanged, page]);
 
   /*
+   * One queue for the work that runs on the local app: the card's Transcribe
+   * enqueues, the folder batch enqueues, and everything runs one after another
+   * while a corner panel shows the progress. It lives in its own file now
+   * (024, FR-095) — 250 lines of it were in here, between the upload zone and
+   * the keyboard handler.
+   */
+  const localQueue = useAgentQueue({ teamId, actionsClient, onChanged: changed });
+  // The space owns the queue (024, FR-077); a Files shell mounted on its own —
+  // a test, a preview — keeps one of its own, idle unless it is the one used.
+  const space = useOptionalSpaceAgentQueue();
+  const addToTask = useOptionalAddToTask();
+  const queue = space?.queue ?? localQueue;
+  /* Long jobs report in one corner. Inside a space that corner is the space's,
+     so a re-stitched download and the queue stack instead of covering each
+     other; the explorer's own panels are portalled into it. */
+  const processStack = (panels: React.ReactNode) =>
+    space?.stack ? (
+      createPortal(panels, space.stack)
+    ) : (
+      <div className="team-process-stack">{panels}</div>
+    );
+
+  /* Copy, cut and paste, in their own file for the same reason (024). */
+  const clipboard = useExplorerClipboard({
+    teamId,
+    currentFolderId: currentFolderId ?? null,
+    permissions,
+    tailClient,
+    onChanged: changed,
+    clearSelection
+  });
+
+  /*
    * A trashed video takes its transcript with it, without asking (owner,
    * 2026-09-02). 012 asked the question because a transcript might have been
    * shared; it never is — each video owns one, and a copy gets its own — so the
@@ -625,6 +667,13 @@ function ExplorerBody({
       tailClient,
       teamId
     ]
+  );
+
+  /** Where a drop can land; nothing is draggable for a reader who may not move files. */
+  const dropMaterials = useMemo(
+    () =>
+      permissions?.edit ? (folder: string, ids: string[]) => void moveTo(folder, ids) : undefined,
+    [moveTo, permissions?.edit]
   );
 
   /** Files dropped on the content area, or picked from the "Add files" input. */
@@ -727,6 +776,20 @@ function ExplorerBody({
   const actions: RowActionsProps | undefined = permissions
     ? {
         teamId,
+        clipboard: {
+          take: (mode, row) =>
+            clipboard.take(mode, [
+              { id: row.id, name: row.name, kind: row.kind, category: row.category }
+            ]),
+          // Offered only when there is something to paste: an action the
+          // registry cannot perform is an action the registry drops.
+          pasteInto: clipboard.has()
+            ? row => {
+                openFolder(row.driveFileId);
+                void clipboard.paste();
+              }
+            : undefined
+        },
         permissions,
         browseClient: client,
         actionsClient,
@@ -734,6 +797,16 @@ function ExplorerBody({
         onChanged: changed,
         preparedIds,
         onProductCatalog: (row: TeamMaterialRow) => setCatalogFor(row),
+        onOpen: (row: TeamMaterialRow) => {
+          if (row.kind === 'folder') explorer.openFolder(row.driveFileId);
+          else onPreview?.(summaryOf(row));
+        },
+        ...(onCreateTaskFromSelection
+          ? {
+              onCreateTask: (row: TeamMaterialRow) =>
+                onCreateTaskFromSelection([{ id: row.id, name: row.name }])
+            }
+          : {}),
         ...(permissions.download
           ? {
               onDownloadRestitched: (row: TeamMaterialRow) => void deliverRestitched([row])
@@ -742,6 +815,14 @@ function ExplorerBody({
         ...(permissions.process
           ? {
               onProcess: (row: TeamMaterialRow) => setProcessing({ row }),
+              onCompress: (row: TeamMaterialRow) =>
+                setCompressing([
+                  {
+                    id: row.id,
+                    name: row.name,
+                    folderId: row.parentFolderId ?? currentFolderId ?? null
+                  }
+                ]),
               onProcessFolder: (row: TeamMaterialRow) =>
                 setFolderScope({ folder: row, intent: 'process' })
             }
@@ -894,198 +975,6 @@ function ExplorerBody({
    * through here opened a preview on Enter and toggled the selection on every
    * space in the new name.
    */
-  const enqueueJobs = (items: QueueItem[]) => {
-    const known = new Set(
-      [...tQueue, ...(tActive ? [tActive] : [])].map(item => `${item.tool}:${item.id}`)
-    );
-    const fresh = items.filter(item => !known.has(`${item.tool}:${item.id}`));
-    if (fresh.length === 0) return;
-    setTQueue(current => [...current, ...fresh]);
-    setTTotal(current => current + fresh.length);
-    if (tActive || tQueue.length > 0) {
-      push({ tone: 'success', text: t('teamTranscribeQueueAdded', { count: fresh.length }) });
-    }
-  };
-
-  const enqueueTranscriptions = (items: { id: string; name: string; folderId: string | null }[]) =>
-    enqueueJobs(
-      items.map(item => ({
-        ...item,
-        tool: 'transcription' as const,
-        outputName: `${item.name.replace(/\.[^.]+$/u, '')}.txt`
-      }))
-    );
-
-  // Takes the next queued video whenever nothing is running.
-  useEffect(() => {
-    if (tActive || tQueue.length === 0 || tPaused) return;
-    const next = tQueue[0];
-    setTActive({ ...next, operationId: null });
-    void (async () => {
-      let started: string | null = null;
-      try {
-        if (next.local) {
-          // 013 (B5): no team operation — the agent downloads the source,
-          // compresses it locally and saves into a natively chosen folder.
-          const grant = await teamApi.requestDownload(teamId, next.id, 'agent');
-          if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
-          const saved = await downloadTeamFileWithAgent({
-            transferUrl: grant.transferUrl,
-            transferGrant: grant.grant,
-            fileName: next.name,
-            compress: next.local
-          });
-          push({ tone: 'success', text: t('teamCompressLocalSaved', { name: saved.fileName }) });
-          return;
-        }
-        const result = await teamApi.startProcess({
-          teamId,
-          materialId: next.id,
-          toolId: next.tool,
-          optionsSummary: next.options ?? {},
-          // The server's optionalDestination treats null as the space root; the
-          // client type predates that and still says string.
-          destinationFolderId: (next.folderId ?? null) as unknown as string,
-          outputName: next.outputName,
-          ...(next.versionOf ? { versionOfMaterialId: next.versionOf } : {}),
-          conflictMode: 'keep_both',
-          idempotencyKey: crypto.randomUUID(),
-          agentContractVersion: 1,
-          toolContractVersion: agentCtx?.toolContracts?.[next.tool] ?? 0
-        });
-        setTActive(current =>
-          current && current.id === next.id
-            ? { ...current, operationId: result.operationId }
-            : current
-        );
-        started = result.operationId;
-        const finished = await startTeamAgentProcess({
-          operationId: result.operationId,
-          toolId: next.tool,
-          options: next.options ?? {},
-          sourceGrant: result.sourceGrant,
-          finalizeGrant: result.finalizeGrant
-        });
-        /*
-         * A transcript is named after its video, including the second time.
-         *
-         * A repeat is written while the transcript it replaces is still there,
-         * so the name it asked for is taken and the conflict rule hands it
-         * "16-tail (2).txt". The old one is retired during that same finalize —
-         * which frees the name — and the file keeps the parenthesis forever,
-         * one more each time. Asking for the canonical name here costs one call
-         * and is refused (never duplicated) if something live still holds it.
-         */
-        if (next.tool === 'transcription' && finished.materialId) {
-          await actionsClient
-            .renameMaterial({
-              teamId,
-              materialId: finished.materialId,
-              newName: next.outputName,
-              conflictMode: 'cancel',
-              idempotencyKey: crypto.randomUUID()
-            })
-            .catch(() => undefined);
-        }
-      } catch (cause) {
-        // A run somebody stopped on purpose is not a failure, and saying so in red is how a
-        // deliberate act starts looking like a fault. Everything below still happens — the
-        // space is told the run is over either way.
-        if (!deliberateStop(cause)) push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        // Tell the space the run is over. Without this a failed item stays
-        // `running` for good: nothing else ever revisits it, it holds its
-        // output name reserved, and the next attempt at the same file is
-        // refused for a conflict with a run that is not happening.
-        if (started) await teamApi.cancelOperation(teamId, started).catch(() => undefined);
-      } finally {
-        setTDone(current => current + 1);
-        setTActive(null);
-        setTQueue(current => current.slice(1));
-        changed();
-      }
-    })();
-  }, [actionsClient, agentCtx?.toolContracts, changed, push, t, tActive, tPaused, tQueue, teamId]);
-
-  // The queue drained: one closing toast, counters reset. A pause dies with the
-  // queue it was holding; leaving it set would silently swallow the next batch.
-  useEffect(() => {
-    if (tActive || tQueue.length > 0 || tTotal === 0) return;
-    push({ tone: 'success', text: t('teamTranscribeQueueDone', { count: tDone }) });
-    setTDone(0);
-    setTTotal(0);
-    setTPaused(false);
-    setTHeld(false);
-  }, [push, t, tActive, tDone, tQueue.length, tTotal]);
-
-  /**
-   * Holds the batch, and the running file with it where that is possible.
-   *
-   * The local app is asked separately from the queue on purpose: an older build,
-   * a transfer rather than an encode, or the moment between two children all
-   * answer "nothing held", and the panel then says the current file is finishing
-   * rather than claiming a quiet machine it cannot deliver.
-   */
-  const pauseQueue = useCallback(
-    (paused: boolean) => {
-      setTPaused(paused);
-      const operationId = tActive?.operationId ?? null;
-      heldAsked.current = paused ? operationId : null;
-      if (!operationId) {
-        setTHeld(false);
-        return;
-      }
-      void pauseTeamAgentProcess(operationId, paused)
-        .then(held => setTHeld(paused && held))
-        .catch(() => setTHeld(false));
-    },
-    [tActive?.operationId]
-  );
-
-  /*
-   * A hold the local app keeps only while this page keeps asking for it.
-   *
-   * A reload does not close the request the run is riding on — the socket stays
-   * open and the agent keeps working, which is why a refresh costs no work. The
-   * pause would survive that reload too, with nothing left to lift it, so the
-   * page says "still paused" every half minute and the agent lets go on its own
-   * if that stops arriving.
-   */
-  useEffect(() => {
-    const operationId = tActive?.operationId ?? null;
-    if (!tPaused || !tHeld || !operationId) return;
-    const timer = window.setInterval(() => {
-      void pauseTeamAgentProcess(operationId, true).catch(() => undefined);
-    }, 30_000);
-    return () => window.clearInterval(timer);
-  }, [tActive?.operationId, tHeld, tPaused]);
-
-  // Pause pressed in the second between "started" and "the operation has an
-  // id": there was nothing to hold then, so the hold is taken as soon as there
-  // is. Asked once per operation — an agent that cannot hold has answered, and
-  // repeating the question on every render would be a request per frame.
-  useEffect(() => {
-    const operationId = tActive?.operationId ?? null;
-    if (!tPaused || !operationId || tHeld || heldAsked.current === operationId) return;
-    heldAsked.current = operationId;
-    void pauseTeamAgentProcess(operationId, true)
-      .then(held => setTHeld(held))
-      .catch(() => undefined);
-  }, [tActive?.operationId, tHeld, tPaused]);
-
-  /**
-   * Abandons the file being worked on, and everything queued behind it.
-   *
-   * The pause is lifted first: a stopped process is not delivered its termination signal
-   * until it runs again, so cancelling a held run would otherwise wait for a resume nobody
-   * is coming to give it.
-   */
-  const stopNow = useCallback(async () => {
-    const operationId = tActive?.operationId ?? null;
-    setTQueue([]);
-    if (tPaused) pauseQueue(false);
-    if (!operationId) return;
-    await cancelTeamAgentProcess(operationId).catch(() => false);
-  }, [pauseQueue, tActive?.operationId, tPaused]);
 
   /**
    * Painted first, written after: a dot that waits for a round trip before it
@@ -1108,38 +997,7 @@ function ExplorerBody({
   );
   const tagging = canTag ? { canTag: true as const, onSetTag: setTag } : undefined;
 
-  const activeOperation = useTeamOperation({
-    teamId,
-    operationId: tActive?.operationId ?? null
-  });
-  const activeProgress = Math.max(
-    activeOperation.operation?.progress ?? 0,
-    activeOperation.localProgress?.progress ?? 0
-  );
-
-  const runCompressPlan = (plan: CompressPlan) => {
-    const suffix = plan.suffix;
-    const jobs: QueueItem[] = plan.items.map(item => {
-      const stem = item.name.replace(/\.[^.]+$/u, '');
-      const overwrite = plan.destination.kind === 'overwrite';
-      const outputName = overwrite
-        ? suffix
-          ? `${stem}${suffix}.mp4`
-          : item.name
-        : `${stem}${suffix || '_1'}.mp4`;
-      return {
-        id: item.id,
-        name: item.name,
-        folderId: plan.destination.kind === 'folder' ? plan.destination.folderId : item.folderId,
-        tool: 'compressor' as const,
-        outputName,
-        ...(overwrite ? { versionOf: item.id } : {}),
-        ...(plan.destination.kind === 'local' ? { local: { embed: plan.embed, suffix } } : {}),
-        options: plan.embed ? { imageEmbedding: { enabled: true } } : {}
-      };
-    });
-    enqueueJobs(jobs);
-  };
+  const runCompressPlan = (plan: CompressPlan) => queue.enqueue(compressJobs(plan));
 
   /**
    * Landing previews, folder-wide: the same per-row command, said once.
@@ -1183,83 +1041,6 @@ function ExplorerBody({
       });
       if (done > 0) changed();
     })();
-  };
-
-  const pasteClipboard = async () => {
-    const clip = clipboard.current;
-    if (!clip) return;
-    if (clip.mode === 'copy' && !permissions?.upload) return;
-    if (clip.mode === 'cut' && !permissions?.edit) return;
-    // The Drive API cannot copy folders; a cut (move) handles them fine.
-    const items =
-      clip.mode === 'copy' ? clip.items.filter(item => item.kind !== 'folder') : clip.items;
-    const skipped = clip.items.length - items.length;
-    if (items.length === 0) {
-      push({ tone: 'error', text: t('teamExplorerPasteFoldersOnly') });
-      return;
-    }
-    let done = 0;
-    // Copying a file is a Drive-side operation per file, and each one brings its
-    // transcript with it — twenty pasted videos is forty round trips. A single
-    // line that counts is the difference between "nothing is happening" and
-    // "this is going to take a moment".
-    const progress = push({
-      tone: 'info',
-      sticky: true,
-      progress: 0,
-      text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
-        done: 0,
-        total: items.length
-      })
-    });
-    for (const item of items) {
-      try {
-        const material = { id: item.id, name: item.name, category: item.category };
-        if (clip.mode === 'copy') {
-          await copyMaterialWithTail({
-            teamId,
-            material,
-            destinationFolderId: currentFolderId ?? null,
-            client: tailClient
-          });
-        } else {
-          await moveMaterialWithTail({
-            teamId,
-            material,
-            destinationFolderId: currentFolderId ?? null,
-            conflictMode: 'keep_both',
-            client: tailClient
-          });
-        }
-        done += 1;
-        update(progress, {
-          progress: (done / items.length) * 100,
-          text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
-            done,
-            total: items.length
-          })
-        });
-      } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        break;
-      }
-    }
-    if (clip.mode === 'cut') clipboard.current = null;
-    if (done > 0) {
-      changed();
-      clearSelection();
-      update(progress, {
-        tone: 'success',
-        sticky: false,
-        progress: undefined,
-        text: t('teamExplorerPastedCount', { count: done })
-      });
-      if (skipped > 0) {
-        push({ tone: 'error', text: t('teamExplorerPasteFoldersSkipped', { count: skipped }) });
-      }
-    } else {
-      dismiss(progress);
-    }
   };
 
   const onContentKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -1351,15 +1132,15 @@ function ExplorerBody({
       if (key === 'c' || key === 'x') {
         const rows = selectedRows.length > 0 ? selectedRows : focused ? [focused] : [];
         if (rows.length === 0) return;
-        clipboard.current = {
-          mode: key === 'c' ? 'copy' : 'cut',
-          items: rows.map(row => ({
+        clipboard.take(
+          key === 'c' ? 'copy' : 'cut',
+          rows.map(row => ({
             id: row.id,
             name: row.name,
             kind: row.kind,
             category: row.category
           }))
-        };
+        );
         push({
           tone: 'success',
           text: t(key === 'c' ? 'teamExplorerCopiedCount' : 'teamExplorerCutCount', {
@@ -1369,9 +1150,9 @@ function ExplorerBody({
         event.preventDefault();
         return;
       }
-      if (key === 'v' && clipboard.current) {
+      if (key === 'v' && clipboard.has()) {
         event.preventDefault();
-        void pasteClipboard();
+        void clipboard.paste();
       }
     };
     document.addEventListener('keydown', onKeyDown);
@@ -1380,7 +1161,7 @@ function ExplorerBody({
        component re-renders on every toast and every page. With no dependency
        list at all a document-level listener was torn down and rebuilt on each
        of those. */
-  }, [focused, pasteClipboard, push, readOnly, searching, selectedRows, t, trash]);
+  }, [clipboard, focused, push, readOnly, searching, selectedRows, t, trash]);
 
   return (
     /* `team-panel`, like Accounts and Tasks: this was the one tab in the space
@@ -1396,13 +1177,16 @@ function ExplorerBody({
        * column that needed them — the search results were folding their actions
        * under every hit for want of that width.
        */
-      className={`team-panel team-explorer${trash || searching ? '' : ' has-pane'}${
+      /* The detail pane arrives with a selection (024, FR-091). At rest it was a
+         third of the width saying "choose a file to see it here", and the list
+         cut its own last column to make room for that sentence. */
+      className={`team-panel team-explorer${trash || searching || !focused ? '' : ' has-pane'}${
         treeOpen ? ' is-tree-open' : ''
       }`}
     >
       <FolderTree
         elsewhere={trash || searching}
-        onDropMaterials={(folder, ids) => void moveTo(folder, ids)}
+        onDropMaterials={dropMaterials}
         onReset={onReset}
       />
       <div className="team-explorer-toolbar">
@@ -1417,10 +1201,35 @@ function ExplorerBody({
         </Button>
         {trash ? (
           <Button type="button" variant="ghost" onClick={() => onQueryChange({ trash: false })}>
-            ← {t('teamExplorerBackToFiles')}
+            ← {trashReturnLabel ?? t('teamExplorerBackToFiles')}
           </Button>
         ) : (
-          <Breadcrumb />
+          <>
+            {/* The task that sent you here, one press away (024, FR-080). */}
+            {query.back && (
+              <a
+                className="team-explorer-back-to-task"
+                href={buildTeamRoute({
+                  spaceId: teamId,
+                  section: 'tasks',
+                  query: { taskId: query.back }
+                })}
+                onClick={event =>
+                  internalLink(
+                    event,
+                    buildTeamRoute({
+                      spaceId: teamId,
+                      section: 'tasks',
+                      query: { taskId: query.back }
+                    })
+                  )
+                }
+              >
+                ← {t('teamExplorerBackToTask')}
+              </a>
+            )}
+            <Breadcrumb />
+          </>
         )}
         <div className="team-explorer-toolbar-actions">
           {!trash && (
@@ -1428,6 +1237,14 @@ function ExplorerBody({
               type="button"
               variant="secondary"
               aria-pressed={searching}
+              /* The key that does the same thing, on the control that does it
+                 (024, FR-054): a shortcut nobody is told about is a shortcut
+                 only the person who wrote it uses. */
+              title={
+                searching
+                  ? undefined
+                  : `${t('teamExplorerSearchOpen')} · ${formatShortcut(shortcutOf('search')!.keys)}`
+              }
               onClick={() =>
                 searching
                   ? onQueryChange({ q: '', scope: 'folder', filters: undefined })
@@ -1449,7 +1266,9 @@ function ExplorerBody({
                   event.target.value = '';
                 }}
               />
-              <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}>
+              {/* The folder's one primary, as "New" is Drive's: putting files in
+                  is what a person opens a folder in a file manager to do. */}
+              <Button type="button" variant="primary" onClick={() => fileInput.current?.click()}>
                 {t('teamExplorerAddFiles')}
               </Button>
             </>
@@ -1509,7 +1328,12 @@ function ExplorerBody({
           event.preventDefault();
           setDropping(true);
         }}
-        onDragLeave={() => setDropping(false)}
+        /* Only when the pointer actually leaves the zone: moving over a tile inside it fired
+           this and the outline blinked all the way across the folder. */
+        onDragLeave={event => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+          setDropping(false);
+        }}
         onDrop={event => {
           if (!event.dataTransfer.types.includes('Files')) return;
           event.preventDefault();
@@ -1545,6 +1369,17 @@ function ExplorerBody({
                it, so a screen reader said "Обрано: 3" twice on entry. */
             aria-label={t('teamExplorerSelectionRegion')}
           >
+            {/* The way out leads, as a bare cross, the way Drive and Gmail draw
+                it: at the far end, in words, it repeated the count beside it and
+                took the room the bin's own label needed, which then scrolled
+                out of sight. Its name still carries the count for a reader. */}
+            <SelectionAction
+              iconOnly
+              label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
+              onClick={clearSelection}
+            >
+              <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </SelectionAction>
             <span className="team-explorer-selection-count">
               {t('teamExplorerSelectedCount', { count: selectedRows.length })}
               {/* The selection survives walking into another folder, which is
@@ -1616,30 +1451,6 @@ function ExplorerBody({
                   <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
-              {permissions?.process && selectedVideos.length > 0 && (
-                <SelectionAction
-                  label={t('teamCompressSelected')}
-                  onClick={() =>
-                    setCompressing(
-                      selectedVideos.map(row => ({
-                        id: row.id,
-                        name: row.name,
-                        folderId: row.parentFolderId ?? currentFolderId ?? null
-                      }))
-                    )
-                  }
-                >
-                  <Shrink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </SelectionAction>
-              )}
-              {permissions?.download && selectedVideos.length > 0 && (
-                <SelectionAction
-                  label={t('teamRestitchDownloadRestitched')}
-                  onClick={() => void deliverRestitched(selectedVideos)}
-                >
-                  <Download size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </SelectionAction>
-              )}
               {permissions?.delete && (
                 <SelectionAction
                   label={t('teamFileTrash')}
@@ -1649,13 +1460,68 @@ function ExplorerBody({
                   <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
+              {/* Three acts in words, the rest under "…" — Linear's and
+                  Airtable's bulk bars. With a video in the selection the bar
+                  held six worded acts, the last cut mid-word and the rest a
+                  sideways scroll nobody knew to try. */}
+              <SelectionMore
+                label={t('teamTaskCardMore')}
+                items={[
+                  ...(addToTask
+                    ? [
+                        {
+                          id: 'add-to-task',
+                          label: t('materialActionAddToTask'),
+                          icon: (
+                            <ListChecks
+                              size={ICON_SIZE}
+                              strokeWidth={ICON_STROKE}
+                              aria-hidden="true"
+                            />
+                          ),
+                          onSelect: () =>
+                            addToTask(selectedRows.map(row => ({ id: row.id, name: row.name })))
+                        }
+                      ]
+                    : []),
+                  ...(permissions?.process && selectedVideos.length > 0
+                    ? [
+                        {
+                          id: 'compress',
+                          label: t('teamCompressSelected'),
+                          icon: (
+                            <Shrink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                          ),
+                          onSelect: () =>
+                            setCompressing(
+                              selectedVideos.map(row => ({
+                                id: row.id,
+                                name: row.name,
+                                folderId: row.parentFolderId ?? currentFolderId ?? null
+                              }))
+                            )
+                        }
+                      ]
+                    : []),
+                  ...(permissions?.download && selectedVideos.length > 0
+                    ? [
+                        {
+                          id: 'download-restitched',
+                          label: t('teamRestitchDownloadRestitched'),
+                          icon: (
+                            <Download
+                              size={ICON_SIZE}
+                              strokeWidth={ICON_STROKE}
+                              aria-hidden="true"
+                            />
+                          ),
+                          onSelect: () => void deliverRestitched(selectedVideos)
+                        }
+                      ]
+                    : [])
+                ]}
+              />
             </div>
-            <SelectionAction
-              label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
-              onClick={clearSelection}
-            >
-              <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </SelectionAction>
           </div>
         )}
         {trash ? (
@@ -1707,20 +1573,26 @@ function ExplorerBody({
           >
             {view === 'grid' ? (
               <ContentGrid
+                onDropMaterials={dropMaterials}
                 client={client}
                 page={page}
                 onPreview={onPreview}
                 actions={actions}
-                sort={sort}
+                rows={sortedRows}
+                companionRows={folded.children}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
               />
             ) : (
               <ContentList
+                onDropMaterials={dropMaterials}
                 page={page}
                 onPreview={onPreview}
                 actions={actions}
-                sort={sort}
+                rows={sortedRows}
+                companionCounts={folded.counts}
+                openedCompanions={openedCompanions}
+                onToggleCompanions={toggleCompanions}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
               />
@@ -1729,10 +1601,12 @@ function ExplorerBody({
         )}
         {dropping && <p className="team-explorer-muted">{t('teamExplorerDropHint')}</p>}
       </div>
-      {!trash && !searching && (
+      {!trash && !searching && focused && (
         <PreviewPane
           row={focused}
           client={client}
+          browseClient={client}
+          onChanged={changed}
           revision={revision}
           onOpen={onPreview}
           onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
@@ -1741,14 +1615,11 @@ function ExplorerBody({
               ? row => void deliverRestitched([row])
               : undefined
           }
-          restitchPrepared={focused ? preparedIds.has(focused.id) : false}
-          // Shared the way the tile shares: a member who can see a file can hand out a link.
-          onShare={Boolean(permissions)}
           onDelete={permissions?.delete ? row => void trashRows([row]) : undefined}
           onTranscribe={
             permissions?.process
               ? row =>
-                  enqueueTranscriptions([
+                  queue.enqueueTranscriptions([
                     {
                       id: row.id,
                       name: row.name,
@@ -1757,7 +1628,9 @@ function ExplorerBody({
                   ])
               : undefined
           }
-          transcribing={tActive ? { videoId: tActive.id, progress: activeProgress } : null}
+          transcribing={
+            queue.active ? { videoId: queue.active.id, progress: queue.activeProgress } : null
+          }
           onCreateTask={onCreateTask}
         />
       )}
@@ -1817,85 +1690,36 @@ function ExplorerBody({
       )}
       {/* One corner, one stack: both panels are reachable from the same
           selection, and pinned to the same pixel the second hid the first. */}
-      <div className="team-process-stack">
-        {(tActive || tQueue.length > 0) && (
-          <ProcessPanel
-            title={t(
-              tActive?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle'
-            )}
-            detail={
-              tActive
-                ? t('teamTranscribeQueueProgress', {
-                    done: tDone + 1,
-                    total: tTotal,
-                    name: tActive.name
-                  })
-                : null
-            }
-            phase={
-              tPaused
-                ? t(
-                    tActive
-                      ? tHeld
-                        ? 'teamQueuePausedHeld'
-                        : 'teamQueuePausedRunning'
-                      : 'teamQueuePausedIdle',
-                    { count: tQueue.length }
-                  )
-                : null
-            }
-            progress={activeProgress}
-            active={!tPaused}
-            actions={[
-              {
-                label: t(tPaused ? 'teamQueueResume' : 'teamQueuePause'),
-                run: () => pauseQueue(!tPaused)
-              },
-              ...(tQueue.length > (tActive ? 0 : 1)
-                ? [
-                    {
-                      label: t('teamTranscribeQueueStop'),
-                      run: () => {
-                        setTQueue(tActive ? [] : current => current.slice(0, 1));
-                        setTTotal(tDone + 1);
-                        // "After the current one" has to have a current one that is still
-                        // moving; stopping while paused would leave a suspended file as the
-                        // last thing this panel ever did.
-                        if (tPaused) pauseQueue(false);
-                      }
-                    }
-                  ]
-                : []),
-              ...(tActive
-                ? [{ label: t('teamQueueStopNow'), run: () => void stopNow(), destructive: true }]
-                : [])
-            ]}
-          />
-        )}
+      {processStack(
+        <>
+          {!space && (queue.active || queue.queued.length > 0) && (
+            <AgentQueuePanel queue={queue} t={t} />
+          )}
 
-        {/* 015 — a re-stitched download reports itself the same way every other long job does:
+          {/* 015 — a re-stitched download reports itself the same way every other long job does:
             one panel, a named step, and a way out. It used to say only "downloading…" in a
             toast, which on a thirty-second wait reads as a hang. */}
-        {deliveringMaterial && (
-          <ProcessPanel
-            title={t('teamRestitchDownloadTitle')}
-            detail={deliveringMaterial.state.fileName}
-            phase={t(RESTITCH_PHASE_KEYS[deliveringMaterial.state.phase])}
-            progress={restitchProgress(
-              deliveringMaterial.state.phase,
-              deliveringMaterial.state.progress
-            )}
-            active
-            actions={[
-              {
-                label: t('teamQueueStopNow'),
-                run: () => restitch.cancel(deliveringMaterial.materialId),
-                destructive: true
-              }
-            ]}
-          />
-        )}
-      </div>
+          {deliveringMaterial && (
+            <ProcessPanel
+              title={t('teamRestitchDownloadTitle')}
+              detail={deliveringMaterial.state.fileName}
+              phase={t(RESTITCH_PHASE_KEYS[deliveringMaterial.state.phase])}
+              progress={restitchProgress(
+                deliveringMaterial.state.phase,
+                deliveringMaterial.state.progress
+              )}
+              active
+              actions={[
+                {
+                  label: t('teamQueueStopNow'),
+                  run: () => restitch.cancel(deliveringMaterial.materialId),
+                  destructive: true
+                }
+              ]}
+            />
+          )}
+        </>
+      )}
 
       {/* 015 — the running deliveries speak for themselves; nothing is rendered inline. */}
       {conflict && <UploadConflictDialog request={conflict.request} onChoose={conflict.settle} />}
@@ -2102,20 +1926,13 @@ function ProcessMenu({
     else if (event.key === 'End') go(items.length - 1);
   };
 
-  if (!onSpace && !folder) return null;
-
   /*
    * At the root there is no folder, so the menu held exactly one item: a press
    * to open a list of one, then a second press to choose the only thing there.
    * With one scope the button is the scope.
    */
-  if (!folder && onSpace) {
-    return (
-      <Button type="button" variant="secondary" onClick={onSpace}>
-        {t('teamExplorerProcessEverything')}
-      </Button>
-    );
-  }
+  // At the root there is no folder to process; the whole space is in the space's own menu (024).
+  if (!folder) return null;
 
   return (
     <div className="team-explorer-process-menu" ref={box}>
@@ -2196,15 +2013,48 @@ function ProcessMenu({
   );
 }
 
+/** The bar's "…": the acts a selection needs less often, one press away. */
+function SelectionMore({ label, items }: { label: string; items: MenuItem[] }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  if (items.length === 0) return null;
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        className="team-explorer-selection-action is-icon"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-tip={label}
+        onClick={() => setOpen(true)}
+      >
+        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </button>
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={trigger}
+        label={label}
+        items={items}
+      />
+    </>
+  );
+}
+
 function SelectionAction({
   label,
   onClick,
   destructive,
   primary,
+  iconOnly,
   children
 }: {
   label: string;
   onClick: () => void;
+  /** Drawn as its icon alone; the name stays for a reader and the tooltip. */
+  iconOnly?: boolean;
   /** The one that throws things away; coloured apart from the rest. */
   destructive?: boolean;
   /** The action this screen exists for; it keeps its word at any width. */
@@ -2216,7 +2066,7 @@ function SelectionAction({
       type="button"
       className={`team-explorer-selection-action ${destructive ? 'is-destructive' : ''} ${
         primary ? 'is-primary' : ''
-      }`.trim()}
+      } ${iconOnly ? 'is-icon' : ''}`.trim()}
       aria-label={label}
       data-tip={label}
       onClick={onClick}
@@ -2225,7 +2075,7 @@ function SelectionAction({
       {/* The word is in the markup and only CSS takes it away, and only where
           the bar runs out of room. Five unlabelled icons — one of them a bin —
           asked people to guess, with four hundred pixels of the bar unused. */}
-      <span className="team-explorer-selection-action-label">{label}</span>
+      {!iconOnly && <span className="team-explorer-selection-action-label">{label}</span>}
     </button>
   );
 }

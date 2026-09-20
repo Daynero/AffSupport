@@ -1,0 +1,275 @@
+/*
+ * The account page (024, US29).
+ *
+ * One column of reading width, on the honeycomb every route already stands on.
+ * The cards are the space settings' own `.settings-section` slab, so nothing
+ * here says what a card looks like — only how this page arranges what is
+ * inside one. The rules that used to do this lived in `styles.css` under
+ * `.account-card`, `.profile-summary`, `.account-form-grid`, `.account-details`
+ * and `.agent-version-note`; they are gone from there.
+ */
+
+/* Linear's and Notion's account pages are both a single ~640px column: a form
+   this short, stretched to the shell's width, left a name field 800px wide and
+   a sign-out button alone in a field of card. */
+.account-page {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 640px;
+}
+
+.account-page > .page-heading {
+  margin-bottom: 0;
+}
+
+.account-skeleton,
+.account-loaded {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* A word used more than once on this page: something said quietly, under or
+   beside the thing it is about. */
+.account-muted {
+  max-width: var(--measure);
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+
+/* ---- Profile -------------------------------------------------------------- */
+
+/* The state word on the title line: "Saving…", "Saved", "Could not save". It
+   is the whole of the page's save feedback — there is no button to carry it. */
+.account-save-state.is-failed {
+  color: var(--color-error-text);
+}
+
+.account-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.account-identity-fields {
+  display: grid;
+  flex: 1 1 0;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The email is a fact, not a field: drawn as text under a field's label so it
+   does not look like something that can be typed into. */
+.account-static-value {
+  min-width: 0;
+  color: var(--color-neutral-text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-label);
+  overflow-wrap: anywhere;
+}
+
+/* The two choices that write themselves: a label on the left, the control at
+   the end of the line, a hairline above — a settings row, as the space's
+   preferences draw theirs. */
+.account-preference,
+.account-newsletter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-neutral-border);
+}
+
+.account-preference {
+  flex-wrap: wrap;
+}
+
+.account-preference-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+
+.account-preference-label > svg {
+  flex: none;
+  color: var(--color-neutral-text-muted);
+}
+
+/* The switch keeps its one press target — track and sentence together — and
+   only changes sides, so it ends the row the way the language control does. */
+.account-newsletter {
+  flex-direction: row-reverse;
+  width: 100%;
+}
+
+.account-newsletter .ui-switch-label {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: var(--text-label);
+  line-height: var(--leading-caption);
+}
+
+/* ---- Rows: a value, its state, and what can be done about it -------------- */
+
+.account-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.account-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.account-row-actions:empty {
+  display: none;
+}
+
+/* The version is a value and nothing else. What the update check found is the
+   chip beside it — two facts, no longer one sentence that wrapped over three
+   lines. */
+.account-version {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.account-version dt {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+.account-version dd {
+  margin: 0;
+  color: var(--color-neutral-text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-emphasis);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Which environment this is matters to whoever is testing a beta and to nobody
+   else: one line, the smallest step, the revision cut rather than wrapped. */
+.account-footnote {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Spaces --------------------------------------------------------------- */
+
+.account-space-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-space-list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) 0;
+}
+
+.account-space-list > li + li {
+  border-top: 1px solid var(--color-neutral-border);
+}
+
+.account-space-name {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-space-open {
+  flex: none;
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+
+/* ---- Invitations ---------------------------------------------------------- */
+
+/* The list is the lobby's component and brings its own heading; here that
+   heading is the card's title, so it is drawn at the title's size. */
+.account-invitations .team-invitation-inbox {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.account-invitations .team-invitation-inbox > h3 {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading);
+}
+
+.account-invitations .team-invitation-inbox > p {
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+.account-invitations .team-invitation-inbox > ul {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-invitations .team-invitation-inbox > ul:empty {
+  display: none;
+}
+
+.account-invitations .team-invitation-inbox li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* ---- A phone -------------------------------------------------------------- */
+
+@media (max-width: 480px) {
+  /* The avatar goes above the fields: beside them it left the name 190px. */
+  .account-identity {
+    flex-direction: column;
+  }
+
+  .account-identity-fields {
+    flex: none;
+    width: 100%;
+  }
+
+  /* Actions drop under the value they act on and start where it starts. */
+  .account-row-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+}

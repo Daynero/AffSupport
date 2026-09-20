@@ -175,17 +175,37 @@ export interface ProductCatalogSummary {
   sheetUrl: string;
   sourceLink: string;
   productCount: number;
+  /** The variation's number (024, US15): `<video>_v<N>_catalog`. */
+  variant: number;
   createdAt: string;
 }
 
 /** 022 — the four values every catalog in a space is filled from. */
 export interface ProductCatalogSettings {
+  /** One name for every row, used only while the name pool is empty (024). */
+  title: string | null;
+  description: string | null;
+  /** Whole dollars; the sheet writes `${price},00 USD`. The low end of the range. */
+  price: number;
+  /** The range each row's price is drawn from, whole dollars. */
+  priceMin: number;
+  priceMax: number;
+  /** A picture link for every row, used only while the picture pool is empty. */
+  imageLink: string | null;
+  updatedAt: string;
+}
+
+export interface ProductCatalogImageSource {
+  materialId: string;
+  kind: 'file' | 'folder';
+  name: string;
+  imageCount: number;
+}
+
+export interface ProductCatalogText {
+  id: string;
   title: string;
   description: string;
-  /** Whole dollars; the sheet writes `${price},00 USD`. */
-  price: number;
-  imageLink: string;
-  updatedAt: string;
 }
 
 export interface ProductCatalogCreateResult {
@@ -197,6 +217,7 @@ export interface ProductCatalogCreateResult {
     sheetUrl: string;
     sourceLink: string;
     productCount: number;
+    variant?: number;
     createdAt: string | null;
   };
   videoShared: boolean;
@@ -216,7 +237,20 @@ export interface CatalogRegistryRow {
   updateCount: number;
   inUpdater: boolean;
   lastUpdateError: string | null;
+  /** This catalog's own interval; null when it is not on a schedule (024). */
+  updateInterval: CatalogUpdaterInterval | null;
+  /** When this catalog is due next, by the server's clock. */
+  nextRunAt: string | null;
+  /** An update is waiting or running for it right now. */
+  updatePending: boolean;
+  /** The stage the background worker last confirmed; survives page reloads. */
+  updateStage: CatalogUpdateStage | null;
+  /** The provider id of the folder the sheet is in; null at the space root. */
+  folderDriveId: string | null;
 }
+
+export type CatalogUpdateStage =
+  'preparing' | 'refreshing' | 'building' | 'uploading' | 'finalizing';
 
 export type CatalogUpdaterInterval = UpdaterInterval;
 
@@ -330,28 +364,43 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     lastUpdatedAt: typeof row.last_updated_at === 'string' ? row.last_updated_at : null,
     updateCount: row.update_count,
     inUpdater: row.in_updater,
-    lastUpdateError: typeof row.last_update_error === 'string' ? row.last_update_error : null
+    lastUpdateError: typeof row.last_update_error === 'string' ? row.last_update_error : null,
+    updateInterval: parseUpdaterInterval(row.update_interval),
+    nextRunAt: typeof row.next_run_at === 'string' ? row.next_run_at : null,
+    updatePending: row.update_pending === true,
+    updateStage:
+      row.update_stage === 'preparing' ||
+      row.update_stage === 'refreshing' ||
+      row.update_stage === 'building' ||
+      row.update_stage === 'uploading' ||
+      row.update_stage === 'finalizing'
+        ? row.update_stage
+        : null,
+    folderDriveId: typeof row.folder_drive_id === 'string' ? row.folder_drive_id : null
   };
 }
 
 function productCatalogSettingsFrom(value: unknown): ProductCatalogSettings | null {
   const row = asRecord(value);
+  const optional = (value: unknown) => (typeof value === 'string' ? value : null);
   if (
     !row ||
-    typeof row.title !== 'string' ||
-    typeof row.description !== 'string' ||
+    !(row.title === null || typeof row.title === 'string') ||
+    !(row.description === null || typeof row.description === 'string') ||
     typeof row.price !== 'number' ||
     !Number.isInteger(row.price) ||
-    typeof row.image_link !== 'string' ||
+    !(row.image_link === null || typeof row.image_link === 'string') ||
     typeof row.updated_at !== 'string'
   ) {
     return null;
   }
   return {
-    title: row.title,
-    description: row.description,
+    title: optional(row.title),
+    description: optional(row.description),
     price: row.price,
-    imageLink: row.image_link,
+    priceMin: typeof row.price_min === 'number' ? row.price_min : row.price,
+    priceMax: typeof row.price_max === 'number' ? row.price_max : row.price,
+    imageLink: optional(row.image_link),
     updatedAt: row.updated_at
   };
 }
@@ -494,6 +543,8 @@ export interface TeamMemberSummary {
 export interface TeamAuditEventSummary {
   id: string;
   actorLabel: string | null;
+  /** Who did it, for "Mine" (024); null from an older server. */
+  actorId?: string | null;
   action: string;
   target: Partial<
     Record<
@@ -505,7 +556,13 @@ export interface TeamAuditEventSummary {
       | 'relation'
       | 'role'
       | 'state'
-      | 'warning_code',
+      | 'warning_code'
+      | 'task_id'
+      | 'task_title'
+      | 'from'
+      | 'to'
+      | 'agent'
+      | 'note',
       string
     >
   >;
@@ -524,6 +581,8 @@ export interface DriveConnectionStatus {
   connectionId: string | null;
   state: TeamContextSnapshot['connectionState'];
   rootFolderName: string | null;
+  /** The folder's Drive id, so the settings can open it in Drive (024). */
+  rootFolderId?: string | null;
   driveKind: 'my_drive' | 'shared_drive' | null;
   initialSyncState: 'not_started' | 'scanning' | 'replaying' | 'ready' | 'failed';
   lastSyncedAt: string | null;
@@ -863,7 +922,11 @@ const AUDIT_TARGET_KEYS = new Set([
   'state',
   'warning_code',
   'task_id',
-  'task_title'
+  'task_title',
+  'from',
+  'to',
+  'agent',
+  'note'
 ]);
 
 function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {
@@ -875,9 +938,6 @@ function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {
     typeof row.id !== 'string' ||
     typeof row.action !== 'string' ||
     !target ||
-    Object.entries(target).some(
-      ([key, entry]) => !AUDIT_TARGET_KEYS.has(key) || typeof entry !== 'string'
-    ) ||
     !['succeeded', 'denied', 'failed', 'canceled'].includes(String(result)) ||
     typeof row.occurred_at !== 'string'
   ) {
@@ -888,7 +948,14 @@ function mapAuditEvent(value: unknown): TeamAuditEventSummary | null {
     actorLabel: typeof row.actor_label === 'string' ? row.actor_label : null,
     subjectLabel: typeof row.subject_label === 'string' ? row.subject_label : null,
     action: row.action,
-    target: target as TeamAuditEventSummary['target'],
+    /* The keys this build knows, as strings; anything newer is left out rather than refusing
+       the whole history (024): a server that learned a new detail emptied the panel before. */
+    target: Object.fromEntries(
+      Object.entries(target).filter(
+        ([key, entry]) => AUDIT_TARGET_KEYS.has(key) && typeof entry === 'string'
+      )
+    ) as TeamAuditEventSummary['target'],
+    actorId: typeof row.actor_id === 'string' ? row.actor_id : null,
     result: result as TeamAuditEventSummary['result'],
     errorCode: errorCode(row.error_code),
     occurredAt: row.occurred_at
@@ -1480,6 +1547,16 @@ export const teamApi = {
     return team;
   },
 
+  /** Renames a space (024); owner only. Returns the name as stored. */
+  async renameTeam(teamId: string, name: string): Promise<string> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('rename_team', { p_team: teamId, p_name: name })
+    );
+    throwRpc(error);
+    if (typeof data !== 'string') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
   async listMembers(teamId: string): Promise<TeamMemberSummary[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_team_members', {
@@ -1582,6 +1659,23 @@ export const teamApi = {
     }
     return invitations.filter((item): item is TeamInvitationSummary => item !== null);
   },
+  /**
+   * Whether this person may have a space at all (024, US28).
+   *
+   * The workspace opens gradually: the database decides, and until it says yes there is nothing
+   * to create. The home screen asks so it can offer the truth — a way onto the list — instead of
+   * a "create your first space" button that ends at a gate. Never throws: a refusal, a missing
+   * session or a network failure all mean "not yet", because this only decides what to offer.
+   */
+  async canAccessTeamWorkspace(): Promise<boolean> {
+    try {
+      const { data, error } = await requireSupabaseClient().rpc('can_access_team_workspace');
+      return !error && data === true;
+    } catch {
+      return false;
+    }
+  },
+
   async listMyInvitations(): Promise<TeamInvitationSummary[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_my_invitations')
@@ -1692,6 +1786,7 @@ export const teamApi = {
       connectionId: typeof row.connection_id === 'string' ? row.connection_id : null,
       state: row.state as DriveConnectionStatus['state'],
       rootFolderName: typeof row.root_folder_name === 'string' ? row.root_folder_name : null,
+      rootFolderId: typeof row.root_folder_id === 'string' ? row.root_folder_id : null,
       driveKind:
         row.drive_kind === 'my_drive' || row.drive_kind === 'shared_drive' ? row.drive_kind : null,
       initialSyncState: (row.initial_sync_state ??
@@ -1722,17 +1817,19 @@ export const teamApi = {
     throwRpc(error);
   },
 
-  async getTaskProgressMaxDefault(): Promise<number> {
+  /** The space's starting "Maximum" for a new task — the same for whoever creates it. */
+  async getTaskProgressMaxDefault(teamId: string): Promise<number> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_task_progress_max_default')
+      requireSupabaseClient().rpc('get_team_task_progress_max_default', { p_team: teamId })
     );
     throwRpc(error);
     return typeof data === 'number' && Number.isFinite(data) ? data : 100;
   },
 
-  async setTaskProgressMaxDefault(value: number): Promise<void> {
+  async setTaskProgressMaxDefault(teamId: string, value: number): Promise<void> {
     const { error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_task_progress_max_default', {
+      requireSupabaseClient().rpc('set_team_task_progress_max_default', {
+        p_team: teamId,
         p_value: value
       })
     );
@@ -1783,35 +1880,41 @@ export const teamApi = {
     };
   },
 
-  async getProductCatalog(teamId: string, videoId: string): Promise<ProductCatalogSummary | null> {
+  /** Every live catalog of a video — its variations (024, US15) — by number. */
+  async listProductCatalogs(teamId: string, videoId: string): Promise<ProductCatalogSummary[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_material_product_catalog', {
+      requireSupabaseClient().rpc('list_material_product_catalogs', {
         p_team: teamId,
         p_video: videoId
       })
     );
     throwRpc(error);
-    const row = asRecord(Array.isArray(data) ? data[0] : null);
-    if (
-      !row ||
-      typeof row.id !== 'string' ||
-      typeof row.name !== 'string' ||
-      typeof row.sheet_url !== 'string' ||
-      !/^https:\/\//u.test(row.sheet_url) ||
-      typeof row.source_link !== 'string' ||
-      typeof row.product_count !== 'number' ||
-      typeof row.created_at !== 'string'
-    ) {
-      return null;
-    }
-    return {
-      id: row.id,
-      name: row.name,
-      sheetUrl: row.sheet_url,
-      sourceLink: row.source_link,
-      productCount: row.product_count,
-      createdAt: row.created_at
-    };
+    return (Array.isArray(data) ? data : []).flatMap(value => {
+      const row = asRecord(value);
+      if (
+        !row ||
+        typeof row.id !== 'string' ||
+        typeof row.name !== 'string' ||
+        typeof row.sheet_url !== 'string' ||
+        !/^https:\/\//u.test(row.sheet_url) ||
+        typeof row.source_link !== 'string' ||
+        typeof row.product_count !== 'number' ||
+        typeof row.created_at !== 'string'
+      ) {
+        return [];
+      }
+      return [
+        {
+          id: row.id,
+          name: row.name,
+          sheetUrl: row.sheet_url,
+          sourceLink: row.source_link,
+          productCount: row.product_count,
+          variant: typeof row.variant === 'number' ? row.variant : 1,
+          createdAt: row.created_at
+        }
+      ];
+    });
   },
 
   async listTeamProductCatalogs(teamId: string): Promise<CatalogRegistryRow[]> {
@@ -1829,24 +1932,6 @@ export const teamApi = {
   async getCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('get_team_catalog_updater', { p_team: teamId })
-    );
-    throwRpc(error);
-    const parsed = catalogUpdaterStateFrom(data);
-    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
-    return parsed;
-  },
-
-  async saveCatalogUpdater(
-    teamId: string,
-    input: { catalogIds: string[]; interval: CatalogUpdaterInterval; restitch: boolean }
-  ): Promise<CatalogUpdaterState> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('save_team_catalog_updater', {
-        p_team: teamId,
-        p_catalogs: input.catalogIds,
-        p_interval: input.interval,
-        p_restitch: input.restitch
-      })
     );
     throwRpc(error);
     const parsed = catalogUpdaterStateFrom(data);
@@ -1888,9 +1973,43 @@ export const teamApi = {
     return value.recorded;
   },
 
-  async stopCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
+  /** Puts catalogs on an interval, changes it, or — with null — takes them off (024). */
+  async setCatalogUpdateInterval(
+    teamId: string,
+    catalogIds: string[],
+    interval: CatalogUpdaterInterval | null
+  ): Promise<CatalogUpdaterState> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('stop_team_catalog_updater', { p_team: teamId })
+      requireSupabaseClient().rpc('set_team_catalog_update_interval', {
+        p_team: teamId,
+        p_catalogs: catalogIds,
+        p_interval: interval
+      })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdaterStateFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  /** Opens an update for catalogs this minute; resolves with how many were not already waiting. */
+  async runCatalogUpdateNow(teamId: string, catalogIds: string[]): Promise<number> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('run_team_catalog_update_now', {
+        p_team: teamId,
+        p_catalogs: catalogIds
+      })
+    );
+    throwRpc(error);
+    return typeof data === 'number' ? data : 0;
+  },
+
+  async setCatalogUpdaterRestitch(teamId: string, restitch: boolean): Promise<CatalogUpdaterState> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_catalog_updater_restitch', {
+        p_team: teamId,
+        p_restitch: restitch
+      })
     );
     throwRpc(error);
     const parsed = catalogUpdaterStateFrom(data);
@@ -1912,7 +2031,13 @@ export const teamApi = {
 
   async setProductCatalogSettings(
     teamId: string,
-    input: { title: string; description: string; price: number; imageLink: string }
+    input: {
+      title: string | null;
+      description: string | null;
+      priceMin: number;
+      priceMax: number;
+      imageLink: string | null;
+    }
   ): Promise<ProductCatalogSettings> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('set_team_product_catalog_settings', {
@@ -1920,7 +2045,8 @@ export const teamApi = {
         p_settings: {
           title: input.title,
           description: input.description,
-          price: input.price,
+          priceMin: input.priceMin,
+          priceMax: input.priceMax,
           imageLink: input.imageLink
         }
       })
@@ -1929,6 +2055,154 @@ export const teamApi = {
     const parsed = productCatalogSettingsFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed;
+  },
+
+  /** The picture pool's sources — images and folders — and how many pictures each holds (024). */
+  async listProductCatalogImageSources(
+    teamId: string
+  ): Promise<{ sources: ProductCatalogImageSource[]; poolSize: number }> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_product_catalog_image_sources', { p_team: teamId })
+    );
+    throwRpc(error);
+    const rows = data ?? [];
+    return {
+      sources: rows.map(row => ({
+        materialId: row.material_id,
+        kind: row.kind === 'folder' ? 'folder' : 'file',
+        name: row.name,
+        imageCount: Number(row.image_count)
+      })),
+      poolSize: rows.length > 0 ? Number(rows[0]!.pool_size) : 0
+    };
+  },
+
+  async setProductCatalogImageSources(
+    teamId: string,
+    sources: ReadonlyArray<{ materialId: string; kind: 'file' | 'folder' }>
+  ): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_product_catalog_image_sources', {
+        p_team: teamId,
+        p_items: sources.map(source => ({ materialId: source.materialId, kind: source.kind }))
+      })
+    );
+    throwRpc(error);
+  },
+
+  async listProductCatalogTexts(teamId: string): Promise<ProductCatalogText[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_product_catalog_texts', { p_team: teamId })
+    );
+    throwRpc(error);
+    return (data ?? []).map(row => ({
+      id: row.id,
+      title: row.title,
+      description: row.description
+    }));
+  },
+
+  async replaceProductCatalogTexts(
+    teamId: string,
+    texts: ReadonlyArray<{ title: string; description: string }>
+  ): Promise<number> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('replace_team_product_catalog_texts', {
+        p_team: teamId,
+        p_items: texts.map(text => ({ title: text.title, description: text.description }))
+      })
+    );
+    throwRpc(error);
+    return typeof data === 'number' ? data : texts.length;
+  },
+
+  async updateProductCatalogText(
+    teamId: string,
+    text: ProductCatalogText
+  ): Promise<ProductCatalogText> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('update_team_product_catalog_text', {
+        p_team: teamId,
+        p_id: text.id,
+        p_title: text.title,
+        p_description: text.description
+      })
+    );
+    throwRpc(error);
+    const row = asRecord(data);
+    if (!row || typeof row.title !== 'string' || typeof row.description !== 'string') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { id: text.id, title: row.title, description: row.description };
+  },
+
+  /** The names of the pictures a catalog would draw from (024, US27). */
+  async listProductCatalogPoolNames(teamId: string): Promise<string[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_product_catalog_pool_names', { p_team: teamId })
+    );
+    throwRpc(error);
+    return (Array.isArray(data) ? data : []).flatMap(row => {
+      const name = asRecord(row)?.name;
+      return typeof name === 'string' ? [name] : [];
+    });
+  },
+
+  async getCatalogUpdaterRefreshImages(teamId: string): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater_refresh_images', { p_team: teamId })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
+  async setCatalogUpdaterRefreshImages(teamId: string, refresh: boolean): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_catalog_updater_refresh_images', {
+        p_team: teamId,
+        p_refresh: refresh
+      })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
+  async getCatalogUpdaterRefreshTexts(teamId: string): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater_refresh_texts', { p_team: teamId })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
+  async setCatalogUpdaterRefreshTexts(teamId: string, refresh: boolean): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_catalog_updater_refresh_texts', {
+        p_team: teamId,
+        p_refresh: refresh
+      })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
+  async getCatalogUpdaterGrow(teamId: string): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater_grow', { p_team: teamId })
+    );
+    throwRpc(error);
+    return data === true;
+  },
+
+  async setCatalogUpdaterGrow(teamId: string, grow: boolean): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_catalog_updater_grow', {
+        p_team: teamId,
+        p_grow: grow
+      })
+    );
+    throwRpc(error);
+    return data === true;
   },
 
   async createProductCatalog(input: {
@@ -2066,6 +2340,53 @@ export const teamApi = {
   // Rows cross as `unknown` and are narrowed by the shared guards; a row
   // the interface could not render is refused here, not painted blank.
   // ---------------------------------------------------------------------
+
+  /** Where each file attached to a task lives: material id → parent folder's Drive id (024). */
+  async listTaskAttachmentFolders(
+    teamId: string,
+    taskId: string
+  ): Promise<Map<string, string | null>> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_task_attachment_folders', {
+        p_team: teamId,
+        p_task: taskId
+      })
+    );
+    throwRpc(error);
+    return new Map(
+      (data ?? []).map(row => [
+        row.material_id,
+        typeof row.parent_folder_id === 'string' ? row.parent_folder_id : null
+      ])
+    );
+  },
+
+  /** The variation number the next catalog of this video will take (024). */
+  async nextProductCatalogVariant(teamId: string, videoMaterialId: string): Promise<number> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('next_product_catalog_variant', {
+        p_team: teamId,
+        p_video: videoMaterialId
+      })
+    );
+    throwRpc(error);
+    if (typeof data !== 'number') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  /** The tasks a file is attached to, open ones first (024). */
+  async listMaterialTasks(
+    teamId: string,
+    materialId: string
+  ): Promise<Array<{ id: string; title: string; status: TeamTaskStatus }>> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_material_tasks', { p_team: teamId, p_material: materialId })
+    );
+    throwRpc(error);
+    return (data ?? [])
+      .filter(row => row.status === 'todo' || row.status === 'in_progress' || row.status === 'done')
+      .map(row => ({ id: row.id, title: row.title, status: row.status as TeamTaskStatus }));
+  },
 
   async listFolderTree(teamId: string): Promise<TeamFolderNode[]> {
     const { data, error } = await withFreshSession(() =>
@@ -2548,6 +2869,26 @@ export const teamApi = {
     const material = decodeCatalogMaterial(data, teamId);
     if (!material) throw new TeamApiError('INVALID_RESPONSE', false);
     return material;
+  },
+
+  /** A file's note (024), or null when it has none. Soty's own metadata; Drive never sees it. */
+  async getMaterialNote(teamId: string, materialId: string): Promise<string | null> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_material_note', {
+        p_team: teamId,
+        p_material: materialId
+      })
+    );
+    throwRpc(error);
+    if (data !== null && typeof data !== 'string')
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return data ?? null;
+  },
+
+  /** Writes a file's note; an empty one removes it. Returns what was kept. */
+  async setMaterialNote(teamId: string, materialId: string, note: string): Promise<string | null> {
+    const material = await teamApi.updateMaterialMetadata(teamId, materialId, { note });
+    return material.note ?? null;
   },
 
   async startUpload(input: TeamUploadStartInput): Promise<TeamUploadSession> {
@@ -3103,7 +3444,9 @@ export const teamApi = {
     interfaceLanguage: string,
     sourceMaterialIds?: readonly string[],
     /** False just counts; true also enqueues the work it counted. */
-    commit = true
+    commit = true,
+    /** The kinds to enqueue (024); absent enqueues every kind. */
+    kinds?: readonly string[]
   ): Promise<LibraryRequirementScanResult> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('scan_library_requirements', {
@@ -3112,7 +3455,8 @@ export const teamApi = {
         // An empty list is not a scope; it is the whole space, same as none.
         p_sources:
           sourceMaterialIds && sourceMaterialIds.length > 0 ? [...sourceMaterialIds] : undefined,
-        p_commit: commit
+        p_commit: commit,
+        ...(kinds ? { p_kinds: [...kinds] } : {})
       })
     );
     throwRpc(error);

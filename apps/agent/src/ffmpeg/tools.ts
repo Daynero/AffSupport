@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executableName } from '../platform/platform.js';
+import { probeExecutable, type ExecutableProbe } from '../platform/probe.js';
 
 const bundledRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -36,12 +37,13 @@ export function isMediaToolUnavailableError(error: unknown): error is MediaToolU
   return error instanceof MediaToolUnavailableError;
 }
 
+/** Whether the tool starts, and what stopped it when it does not. */
+export function probeMediaTool(command: string): Promise<ExecutableProbe> {
+  return probeExecutable(command, ['-version']);
+}
+
 export async function commandExists(command: string): Promise<boolean> {
-  return new Promise(resolve => {
-    const child = spawn(command, ['-version'], { shell: false, stdio: 'ignore' });
-    child.once('error', () => resolve(false));
-    child.once('close', code => resolve(code === 0));
-  });
+  return (await probeMediaTool(command)).runnable;
 }
 
 export interface MediaInfo {
@@ -198,19 +200,28 @@ export async function probeDuration(
   timeoutMs = PROBE_TIMEOUT_MS
 ): Promise<number | null> {
   return new Promise(resolve => {
-    const child = spawn(
-      ffprobePath,
-      [
-        '-v',
-        'error',
-        '-show_entries',
-        'format=duration',
-        '-of',
-        'default=noprint_wrappers=1:nokey=1',
-        inputPath
-      ],
-      { shell: false }
-    );
+    let child;
+    try {
+      child = spawn(
+        ffprobePath,
+        [
+          '-v',
+          'error',
+          '-show_entries',
+          'format=duration',
+          '-of',
+          'default=noprint_wrappers=1:nokey=1',
+          inputPath
+        ],
+        { shell: false }
+      );
+    } catch {
+      // A binary the system refuses to launch throws from spawn itself rather
+      // than emitting 'error' (see platform/probe.ts); unknown duration is the
+      // same answer this gives for a tool that failed any other way.
+      resolve(null);
+      return;
+    }
     let output = '';
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
@@ -249,7 +260,19 @@ async function probeJson(
 
 function runProbeJson(command: string, args: string[]): Promise<Record<string, any> | null> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { shell: false });
+    let child;
+    try {
+      child = spawn(command, args, { shell: false });
+    } catch (error) {
+      // Same throw-instead-of-emit path as everywhere else spawn is called; the
+      // caller expects the typed error, not a raw ErrnoException.
+      const causeCode =
+        error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : null;
+      reject(new MediaToolUnavailableError('ffprobe', causeCode));
+      return;
+    }
     let output = '';
     let settled = false;
     const finish = (value: Record<string, any> | null) => {

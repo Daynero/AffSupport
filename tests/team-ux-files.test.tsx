@@ -125,8 +125,10 @@ describe('file actions on the Files rows', () => {
     await user.click(await screen.findByRole('button', { name: 'Actions for launch.mp4' }));
     // Owner permissions, so the whole set is offered.
     // The download is named "the original" now that a re-stitched copy can sit beside it.
+    // Menu items, not buttons: the row's actions are one grouped menu now, and
+    // a menu's rows announce themselves as menu items.
     for (const label of [/^Download/, 'Rename', 'Move', 'Move to trash', 'Process']) {
-      expect(screen.getAllByRole('button', { name: label }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('menuitem', { name: label }).length).toBeGreaterThan(0);
     }
   });
 
@@ -140,9 +142,15 @@ describe('file actions on the Files rows', () => {
     renderSpace(client);
 
     await user.click(await screen.findByRole('button', { name: 'Actions for launch.mp4' }));
-    expect(screen.getAllByRole('button', { name: /^Download/ }).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Move to trash' })).toBeNull();
+    expect(screen.getAllByRole('menuitem', { name: /^Download/ }).length).toBeGreaterThan(0);
+    // Present with a reason rather than absent: a viewer can see that renaming
+    // exists and why their role cannot do it (024).
+    expect(screen.getByRole('menuitem', { name: 'Rename' }).getAttribute('aria-disabled')).toBe(
+      'true'
+    );
+    expect(
+      screen.getByRole('menuitem', { name: 'Move to trash' }).getAttribute('aria-disabled')
+    ).toBe('true');
   });
 
   it('picks a move destination from the folder tree instead of a raw id field', async () => {
@@ -162,7 +170,7 @@ describe('file actions on the Files rows', () => {
     void container;
 
     await user.click(await screen.findByRole('button', { name: 'Actions for launch.mp4' }));
-    await user.click(screen.getByRole('button', { name: 'Move' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Move' }));
 
     // A dialog of folders, not a text field expecting an id nothing shows you.
     const dialog = await screen.findByRole('dialog');
@@ -195,7 +203,7 @@ describe('search availability', () => {
     });
     renderSpace(client);
 
-    expect(await screen.findByRole('button', { name: 'Search' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Search files' })).toBeTruthy();
     // The folder is shown as a tile; the name may also appear in a tooltip or crumb.
     expect((await screen.findAllByText('Archive')).length).toBeGreaterThanOrEqual(1);
   });
@@ -251,7 +259,7 @@ describe('search results past the first fifty', () => {
     const user = userEvent.setup();
     renderSpace(client);
 
-    await user.click(await screen.findByRole('button', { name: 'Search' }));
+    await user.click(await screen.findByRole('button', { name: 'Search files' }));
     expect(await screen.findByText('Page 1 of 3')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Next' }));

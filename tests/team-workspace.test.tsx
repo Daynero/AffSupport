@@ -86,23 +86,37 @@ describe('guided team space workspace', () => {
       await waitFor(() =>
         expect(previewMaterial).toHaveBeenCalledWith(team.id, 'material-visible', 'media')
       );
+      // The preview is in the address (024, FR-050), so a reload reopens it…
+      expect(new URLSearchParams(window.location.search).get('open')).toBe('1');
+      expect(new URLSearchParams(window.location.search).get('item')).toBe('material-visible');
       await user.click(screen.getByRole('button', { name: 'Close preview' }));
+      // …and closing it takes it out again, leaving the file selected.
+      await waitFor(() =>
+        expect(new URLSearchParams(window.location.search).get('open')).toBeNull()
+      );
+      expect(new URLSearchParams(window.location.search).get('item')).toBe('material-visible');
       // The old all-panels grid is gone: management is not shown beside the content.
       expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
 
       // Management lives behind a single "Space settings" entry — a link now, so
       // it is addressable and can be opened in a new tab.
-      await user.click(screen.getByRole('link', { name: 'Space settings' }));
-      // Members are a tab of their own inside the settings.
-      await user.click(await screen.findByRole('tab', { name: 'People' }));
-      await user.type(await screen.findByLabelText('Invite by email'), 'new.member@example.test');
-      await user.click(screen.getByRole('button', { name: 'Send invitation' }));
-      expect(await screen.findByText('new.member@example.test')).toBeTruthy();
+      // The space's surfaces live in its menu (024, FR-094).
+      await user.click(screen.getByRole('button', { name: 'Space' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
+      // Members exist once (024): the settings no longer carry a second copy.
+      expect(await screen.findByRole('tab', { name: 'General' })).toBeTruthy();
+      expect(screen.queryByRole('tab', { name: 'People' })).toBeNull();
 
       // Return to the content view. The opened file is still selected, so its name
       // shows on the tile and in the pane (011).
       await user.click(screen.getByRole('button', { name: 'Back to space' }));
       expect((await screen.findAllByText('launch.mp4')).length).toBeGreaterThanOrEqual(1);
+
+      // The invitation is made from the one Members screen.
+      await user.click(screen.getByRole('link', { name: 'Members' }));
+      await user.type(await screen.findByLabelText('Invite by email'), 'new.member@example.test');
+      await user.click(screen.getByRole('button', { name: 'Send invitation' }));
+      expect(await screen.findByText('new.member@example.test')).toBeTruthy();
 
       await waitFor(() =>
         expect(client.createInvitation).toHaveBeenCalledWith(

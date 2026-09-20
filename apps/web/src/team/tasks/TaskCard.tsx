@@ -10,6 +10,7 @@
  * rest.
  */
 
+import { TaskAttachmentsPeek } from './TaskAttachmentsPeek';
 import {
   useEffect,
   useLayoutEffect,
@@ -18,7 +19,7 @@ import {
   type KeyboardEvent,
   type MouseEvent
 } from 'react';
-import { ChevronDown, Paperclip, UserRound } from 'lucide-react';
+import { ChevronDown, MoreHorizontal, Paperclip, UserRound } from 'lucide-react';
 import { teamTaskDate } from '@video-compressor/shared';
 import type { TeamTaskPatch, TeamTaskStatus, TeamTaskSummary } from '@video-compressor/shared';
 import { ICON_STROKE } from '../../components/icons';
@@ -29,10 +30,19 @@ import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagList } from './TaskAgentTags';
 import { TaskLabelChips } from '../labels/TaskLabelChip';
 import { formatTaskDate } from './TaskDateField';
-import { Card } from '../../components/ui/index';
+import { Card, Checkbox, DropdownMenu, IconButton } from '../../components/ui/index';
+import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
+import type { TeamMemberSummary } from '../../api/team';
+import type { TeamTaskLabel } from '@video-compressor/shared';
+
+/** Farther than this and the press was a drag — macOS uses about five pixels. */
+const PRESS_SLOP = 6;
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && Boolean(target.closest('button, a, [role="slider"]'));
+  return (
+    target instanceof Element &&
+    Boolean(target.closest('button, a, label, input, [role="slider"], [role="checkbox"]'))
+  );
 }
 
 export function TaskCard({
@@ -42,7 +52,12 @@ export function TaskCard({
   expanded: expandedProp,
   onExpandedChange,
   onOpen,
-  onUpdate
+  onUpdate,
+  members = [],
+  labels = [],
+  actions,
+  selected,
+  onSelectedChange
 }: {
   task: TeamTaskSummary;
   canEdit: boolean;
@@ -61,8 +76,29 @@ export function TaskCard({
   onExpandedChange?: (expanded: boolean) => void;
   onOpen: () => void;
   onUpdate: (patch: TeamTaskPatch) => Promise<TeamTaskSummary>;
+  /**
+   * What the card can do without opening the task (024, FR-076).
+   *
+   * Behind one overflow, and only that one: the whole card stays the way in,
+   * which is what a board is for. Absent where the board has not wired it, so
+   * a card mounted on its own is still just a card.
+   */
+  members?: readonly TeamMemberSummary[];
+  labels?: readonly TeamTaskLabel[];
+  actions?: TaskActionHandlers;
+  /**
+   * Whether this card is in the set a bulk action applies to.
+   *
+   * Absent means the board is not offering selection at all, and the card
+   * draws no tick box — which is the state it should be in on a board nobody
+   * is doing bulk work on.
+   */
+  selected?: boolean;
+  onSelectedChange?: (next: boolean) => void;
 }) {
   const { t, language } = useI18n();
+  const menuAnchor = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [status, setStatus] = useState<TeamTaskStatus>(task.status);
   const [progressValue, setProgressValue] = useState(task.progressValue);
   const [failed, setFailed] = useState(false);
@@ -89,6 +125,13 @@ export function TaskCard({
    * "more" unfolds it in place — reading the whole brief must not cost
    * opening the editor. Whether there *is* more is measured, not guessed.
    */
+  const menuItems = useTaskActions({
+    tasks: [task],
+    canEdit,
+    members,
+    labels,
+    handlers: actions ?? { patch: () => undefined }
+  });
   const dateValue = teamTaskDate(task);
   const createdOn = teamTaskDate({ dateOn: null, createdAt: task.createdAt });
   const [localExpanded, setLocalExpanded] = useState(false);
@@ -126,8 +169,23 @@ export function TaskCard({
     return () => observer?.disconnect();
   }, [task.note, task.title, expanded]);
 
+  /*
+   * A press that travelled is not a press (024).
+   *
+   * The whole card opens the task, so selecting its title — press at the first letter, drag to
+   * the last — opened the task on release and took the selection with it. A pointer that moved
+   * more than a few pixels, or a release with text selected inside the card, is somebody reading
+   * rather than opening.
+   */
+  const pressedAt = useRef<{ x: number; y: number } | null>(null);
   const openFromClick = (event: MouseEvent<HTMLElement>) => {
-    if (!isInteractiveTarget(event.target)) onOpen();
+    const from = pressedAt.current;
+    pressedAt.current = null;
+    if (isInteractiveTarget(event.target)) return;
+    if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > PRESS_SLOP) return;
+    const selection = event.currentTarget.ownerDocument.defaultView?.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) return;
+    onOpen();
   };
   const openFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
     if (isInteractiveTarget(event.target)) return;
@@ -147,12 +205,23 @@ export function TaskCard({
       data-status={status}
       tabIndex={0}
       aria-label={t('teamTaskOpenCard', { name: task.title })}
+      onPointerDown={event => {
+        pressedAt.current = { x: event.clientX, y: event.clientY };
+      }}
       onClick={openFromClick}
       onKeyDown={openFromKeyboard}
     >
-      {/* One strip of chrome: the status, the accounts it is on (017) in the
-          same outline, and the date it was made in the corner. */}
+      {/* One strip of chrome: the status and the accounts it is on (017), in the
+          same outline. */}
       <div className="team-task-card-strip">
+        {onSelectedChange && (
+          <Checkbox
+            className="team-task-card-select"
+            checked={selected === true}
+            aria-label={t('teamTaskSelectCard', { name: task.title })}
+            onChange={next => onSelectedChange(next)}
+          />
+        )}
         <TaskStatusControl
           compact
           value={status}
@@ -167,33 +236,34 @@ export function TaskCard({
         {/* The team's own tags (018), in the same strip and the same shape as
             the agent tags — their colour is what tells the two apart. */}
         <TaskLabelChips labels={task.labels} limit={3} />
-        {/* The day the task is for — its own date once someone sets one, the
-            day it was made until then. */}
-        <time
-          className="team-task-card-date"
-          dateTime={dateValue}
-          title={
-            task.dateOn
-              ? `${t('teamTaskDateOn', { date: formatTaskDate(language, dateValue, true) })}\n${t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })}`
-              : t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })
-          }
-        >
-          {formatTaskDate(language, dateValue)}
-        </time>
+        {/* One door to everything else the card can do. Not a row of icons:
+            past the status control, nothing here is used often enough to earn
+            a permanent place on fifty cards at once (024, FR-076). */}
+        {actions && menuItems.length > 0 && (
+          <>
+            <IconButton
+              ref={menuAnchor}
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              className="team-task-card-menu"
+              label={t('teamTaskCardActions', { name: task.title })}
+              onClick={() => setMenuOpen(current => !current)}
+            >
+              <MoreHorizontal size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </IconButton>
+            <DropdownMenu
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              anchor={menuAnchor}
+              placement="bottom-end"
+              selection="single"
+              items={menuItems}
+              label={t('teamTaskCardActions', { name: task.title })}
+            />
+          </>
+        )}
       </div>
-
-      {showProgress && (
-        <TaskProgressScale
-          value={progressValue}
-          max={task.progressMax}
-          label={t('teamTaskProgressScale')}
-          disabled={!canEdit}
-          onChange={setProgressValue}
-          onCommit={next => {
-            if (canEdit) writer.send({ progressValue: next });
-          }}
-        />
-      )}
 
       {/* The task itself: the title, and the brief in full colour. The title's
           tooltip appears only when the title is cut — a hint that repeats
@@ -201,12 +271,10 @@ export function TaskCard({
       <h3 ref={titleRef} title={titleClamped ? task.title : undefined}>
         {task.title}
       </h3>
+      {/* No brief, no line: "Add a description" on every card of a board read as a to-do list
+          of its own, the same grey words repeated down the page (024; Linear shows nothing). */}
       <div className="team-task-card-description">
-        {task.note ? (
-          <p ref={noteRef}>{task.note}</p>
-        ) : (
-          <span>{t('teamTaskDescriptionEmpty')}</span>
-        )}
+        {task.note && <p ref={noteRef}>{task.note}</p>}
         {(clamped || expanded) && (
           <button
             type="button"
@@ -220,16 +288,39 @@ export function TaskCard({
         )}
       </div>
 
+      {/* How far along, under what the task is (024, benchmarked on Linear's
+          board, where the title is what a card is read by). */}
+      {showProgress && (
+        <TaskProgressScale
+          value={progressValue}
+          max={task.progressMax}
+          label={t('teamTaskProgressScale')}
+          disabled={!canEdit}
+          onChange={setProgressValue}
+          onCommit={next => {
+            if (canEdit) writer.send({ progressValue: next });
+          }}
+        />
+      )}
+
       <div className="team-task-card-footer">
         {/* A zero is not information here: the footer says what the task has. */}
         {task.attachmentCount > 0 && (
-          <span
-            className="team-task-card-attachments"
-            title={t('teamTaskAttachmentsCount', { count: task.attachmentCount })}
-          >
-            <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {task.attachmentCount}
-          </span>
+          <TaskAttachmentsPeek
+            teamId={task.teamId}
+            taskId={task.id}
+            count={task.attachmentCount}
+            trigger={
+              <span
+                className="team-task-card-attachments"
+                tabIndex={0}
+                aria-label={t('teamTaskAttachmentsCount', { count: task.attachmentCount })}
+              >
+                <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {task.attachmentCount}
+              </span>
+            }
+          />
         )}
         {task.assigneeLabelSnapshot && (
           <span className="team-task-assignee" title={t('teamTaskAssignee')}>
@@ -242,6 +333,20 @@ export function TaskCard({
             {t('teamTaskSaveFailed')}
           </span>
         )}
+        {/* The day the task is for — its own date once someone sets one, the
+            day it was made until then. In the footer (024): in the strip it
+            wrapped onto a line of its own whenever the chips did. */}
+        <time
+          className="team-task-card-date"
+          dateTime={dateValue}
+          title={
+            task.dateOn
+              ? `${t('teamTaskDateOn', { date: formatTaskDate(language, dateValue, true) })}\n${t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })}`
+              : t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })
+          }
+        >
+          {formatTaskDate(language, dateValue)}
+        </time>
       </div>
     </Card>
   );

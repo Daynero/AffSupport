@@ -3,14 +3,7 @@ import type { SotyToolId } from '@video-compressor/shared';
 import type { AnalyticsTool } from '../analytics/events';
 import type { TranslationKey } from '../i18n';
 import { isProtected, type FeatureId } from './feature-flags';
-import {
-  CompressorIcon,
-  LandingIcon,
-  LandingPreviewIcon,
-  StitcherIcon,
-  TranscriptionIcon,
-  TwoFactorIcon
-} from '../components/tool-icons';
+import { AudioLines, Combine, Eye, KeyRound, Shrink, SlidersHorizontal } from 'lucide-react';
 import { lazy } from 'react';
 
 /**
@@ -45,6 +38,19 @@ const TwoFactorPage = lazy(() => import('../two-factor/TwoFactorPage'));
 export type WebToolStatus = 'available' | 'beta' | 'coming-soon' | 'in-development';
 
 /**
+ * Where a tool sits on the home screen.
+ *
+ * Six tiles in one undifferentiated grid asked the reader to scan all six every
+ * time; three short rows named by the errand ("video", "landing pages", "other")
+ * let the eye land on the right row first. The registry names the group and
+ * the home screen draws the rows; `HOME_GROUPS` below is the reading order.
+ */
+export type WebToolGroup = 'video' | 'landing' | 'other';
+
+/** The groups in the order the home screen shows them. */
+export const HOME_GROUPS: readonly WebToolGroup[] = ['video', 'landing', 'other'];
+
+/**
  * A tool that runs entirely in the browser and asks the local app for nothing.
  *
  * These ids are deliberately NOT in `WEB_TOOL_REQUIREMENTS`. That map is the set
@@ -71,7 +77,14 @@ type WebToolShared = {
   analyticsId: AnalyticsTool;
   path: `/${string}`;
   labelKey: TranslationKey;
-  descriptionKey: TranslationKey;
+  /**
+   * One line under the title — what the tool does, at caption size. A tile is
+   * read hundreds of times by someone who already knows the tool, so it carries
+   * a reminder, not a pitch; the paragraphs that used to be here were a landing
+   * page's job.
+   */
+  captionKey: TranslationKey;
+  group: WebToolGroup;
   icon: ComponentType;
   /** Web-only acknowledgment gate; null when the tool has no flag. */
   featureFlag: FeatureId | null;
@@ -129,8 +142,9 @@ export const webTools: readonly WebTool[] = [
     analyticsId: 'compressor',
     path: '/compressor',
     labelKey: 'videoCompressor',
-    descriptionKey: 'videoCompressorDescription',
-    icon: CompressorIcon,
+    captionKey: 'videoCompressorCaption',
+    group: 'video',
+    icon: Shrink,
     featureFlag: 'videoCompressor',
     status: statusFor('videoCompressor'),
     capability: null,
@@ -144,8 +158,9 @@ export const webTools: readonly WebTool[] = [
     analyticsId: 'stitcher',
     path: '/stitcher',
     labelKey: 'videoStitcher',
-    descriptionKey: 'videoStitcherDescription',
-    icon: StitcherIcon,
+    captionKey: 'videoStitcherCaption',
+    group: 'video',
+    icon: Combine,
     featureFlag: 'videoStitcher',
     status: statusFor('videoStitcher'),
     capability: 'stitcher',
@@ -157,8 +172,9 @@ export const webTools: readonly WebTool[] = [
     analyticsId: 'transcription',
     path: '/transcription',
     labelKey: 'transcription',
-    descriptionKey: 'transcriptionDescription',
-    icon: TranscriptionIcon,
+    captionKey: 'transcriptionCaption',
+    group: 'video',
+    icon: AudioLines,
     featureFlag: 'transcription',
     status: statusFor('transcription'),
     capability: null,
@@ -174,8 +190,9 @@ export const webTools: readonly WebTool[] = [
     analyticsId: 'landing-optimizer',
     path: '/landing-optimizer',
     labelKey: 'landingOptimizer',
-    descriptionKey: 'landingOptimizerDescription',
-    icon: LandingIcon,
+    captionKey: 'landingOptimizerCaption',
+    group: 'landing',
+    icon: SlidersHorizontal,
     featureFlag: 'landingOptimizer',
     status: statusFor('landingOptimizer'),
     capability: 'landing',
@@ -190,8 +207,9 @@ export const webTools: readonly WebTool[] = [
     analyticsId: 'two-factor',
     path: '/2fa',
     labelKey: 'twoFactorNotebook',
-    descriptionKey: 'twoFactorNotebookDescription',
-    icon: TwoFactorIcon,
+    captionKey: 'twoFactorNotebookCaption',
+    group: 'other',
+    icon: KeyRound,
     featureFlag: 'twoFactorNotebook',
     status: statusFor('twoFactorNotebook'),
     page: TwoFactorPage
@@ -202,8 +220,9 @@ export const webTools: readonly WebTool[] = [
     analyticsId: 'landing-preview',
     path: '/landing-preview',
     labelKey: 'landingGallery',
-    descriptionKey: 'landingGalleryDescription',
-    icon: LandingPreviewIcon,
+    captionKey: 'landingGalleryCaption',
+    group: 'landing',
+    icon: Eye,
     featureFlag: 'landingPreview',
     status: statusFor('landingPreview'),
     capability: 'landing-preview',
@@ -234,6 +253,20 @@ const STATUS_ORDER: Record<WebToolStatus, number> = {
 export const catalogueTools: readonly WebTool[] = [...webTools].sort(
   (first, second) => STATUS_ORDER[first.status] - STATUS_ORDER[second.status]
 );
+
+/**
+ * The catalogue as rows: one per group, in `HOME_GROUPS` order, each keeping
+ * the catalogue's own order inside it. A group with nothing in it is not a row.
+ */
+export function catalogueByGroup(): ReadonlyArray<{
+  group: WebToolGroup;
+  tools: readonly WebTool[];
+}> {
+  return HOME_GROUPS.map(group => ({
+    group,
+    tools: catalogueTools.filter(tool => tool.group === group)
+  })).filter(row => row.tools.length > 0);
+}
 
 export function toolByPath(path: string): WebTool | undefined {
   return webTools.find(tool => tool.path === path);

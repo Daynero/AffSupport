@@ -1,16 +1,13 @@
-import { useId, useState } from 'react';
-import { Link2, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link2 } from 'lucide-react';
+import { ICON_STROKE } from '../../components/icons';
 import { Button } from '../../components/ui';
-import { Modal } from '../../components/Modal';
-import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
-import { navigateTo } from '../../lib/navigation';
-import { teamResolverRoute } from '../routes';
-import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
-import { MemberList, type MemberManagementClient } from '../members/MemberList';
-import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
-import { TeamAuditPanel, type TeamAuditClient } from '../members/TeamAuditPanel';
+import type { MemberManagementClient } from '../members/MemberList';
+import type { InvitationPanelClient } from '../members/InvitationPanel';
+import type { LeaveSpaceClient } from '../members/LeaveSpacePanel';
+import type { TeamAuditClient } from '../members/TeamAuditPanel';
 import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConnectionPanel';
 import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
@@ -20,24 +17,37 @@ import {
   type ProductCatalogSettingsClient
 } from '../product-catalog/ProductCatalogSettingsSection';
 import { SettingsSection } from './SettingsSection';
+import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
 import type { TeamSettingsTab } from '../routes';
 import { Tabs } from '../../components/ui/index';
 
 export interface SharePreferenceSettingsClient {
+  getLibrarySharePreference?: (
+    teamId: string
+  ) => Promise<{ allowLinkOnCopy: boolean; remembered: boolean }>;
   resetLibrarySharePreference: (teamId: string) => Promise<boolean>;
 }
 
 export type SpaceSettingsClient = MemberManagementClient &
   InvitationPanelClient &
+  LeaveSpaceClient &
   TeamAuditClient &
   DrivePanelClient & {
     resetLibrarySharePreference: SharePreferenceSettingsClient['resetLibrarySharePreference'];
-    leaveTeam: (teamId: string) => Promise<{ ok: true; warningCode: string }>;
+    getLibrarySharePreference?: SharePreferenceSettingsClient['getLibrarySharePreference'];
   } & RestitchDefaultsClient &
   TaskLabelsSectionClient &
   TeamPreferencesClient &
-  ProductCatalogSettingsClient;
+  ProductCatalogSettingsClient &
+  SpaceNameClient;
 
+/**
+ * The remembered answer to "open this file to anyone with the link?" (024).
+ *
+ * It was a whole card with a paragraph and a reset button, shown whether or not anything had
+ * been remembered. Now it is one line under the storage card, and only while a choice is kept:
+ * what copying a link does today, and "Ask again".
+ */
 export function SharePreferenceSettings({
   teamId,
   client
@@ -46,83 +56,97 @@ export function SharePreferenceSettings({
   client: SharePreferenceSettingsClient;
 }) {
   const { t } = useI18n();
+  const [kept, setKept] = useState<{ allowLinkOnCopy: boolean } | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [state, setState] = useState<'done' | 'empty' | 'failed' | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!client.getLibrarySharePreference) return;
+    let active = true;
+    void client
+      .getLibrarySharePreference(teamId)
+      .then(value => {
+        if (active) setKept(value.remembered ? { allowLinkOnCopy: value.allowLinkOnCopy } : null);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [client, teamId]);
+
+  if (!kept) return null;
 
   const reset = async () => {
     setResetting(true);
-    setState(null);
+    setFailed(false);
     try {
-      setState((await client.resetLibrarySharePreference(teamId)) ? 'done' : 'empty');
+      await client.resetLibrarySharePreference(teamId);
+      setKept(null);
     } catch {
-      setState('failed');
+      setFailed(true);
     } finally {
       setResetting(false);
     }
   };
 
   return (
-    <SettingsSection
-      icon={Link2}
-      titleId="creative-library-share-settings-title"
-      title={t('creativeLibraryShareSettingsTitle')}
-      description={t('creativeLibraryShareSettingsDescription')}
+    <div
+      className="team-share-preference"
+      role="group"
+      aria-label={t('creativeLibraryShareSettingsTitle')}
     >
-      <div className="settings-section-actions">
-        <Button type="button" variant="secondary" loading={resetting} onClick={() => void reset()}>
-          {t('creativeLibraryShareReset')}
-        </Button>
-      </div>
-      {state && (
-        <p
-          className={state === 'failed' ? 'team-inline-error' : 'settings-section-note'}
-          role="status"
-        >
-          {t(
-            state === 'done'
-              ? 'creativeLibraryShareResetDone'
-              : state === 'empty'
-                ? 'creativeLibraryShareResetEmpty'
-                : 'creativeLibraryShareResetFailed'
-          )}
-        </p>
+      <Link2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      <p>
+        {t(kept.allowLinkOnCopy ? 'creativeLibraryShareKeptAllow' : 'creativeLibraryShareKeptDeny')}
+      </p>
+      <Button type="button" variant="ghost" loading={resetting} onClick={() => void reset()}>
+        {t('creativeLibraryShareAskAgain')}
+      </Button>
+      {failed && (
+        <span className="team-inline-error" role="alert">
+          {t('creativeLibraryShareResetFailed')}
+        </span>
       )}
-    </SettingsSection>
+    </div>
   );
 }
 
 /**
- * Secondary management surface. Re-parents the existing 001 panels — members
- * (incl. role/permission and ownership controls via MemberList), invitations,
- * the Drive connection (owner), and audit (owner/admin) — each shown per its
+ * Secondary management surface. Re-parents the existing 001 panels — the Drive
+ * connection (owner) and audit (owner/admin) among them — each shown per its
  * existing permission gate. Kept off the default workspace so the primary view
  * stays content-first.
+ *
+ * Members are not here (024, FR-047). They were a tab of this dialog *and* a
+ * section of the workspace — the same two panels, reached two ways, and free to
+ * drift apart. The section survives, because people are something you go to;
+ * an old `?settings=1&tab=members` link is turned into that section by the
+ * route parser.
  */
 export function SpaceSettings({
   teamId,
   client,
-  directAddMode = 'disabled',
   initialTab,
+  onTabChange,
   onBack
 }: {
   teamId: string;
   client: SpaceSettingsClient;
-  directAddMode?: 'disabled' | 'testing';
   /** Which room to open in, when something sent the reader to a particular one. */
   initialTab?: TeamSettingsTab | null;
+  /** The room now open — so the address names it, and a reload comes back to it. */
+  onTabChange?: (tab: TeamSettingsTab) => void;
   onBack: () => void;
 }) {
   const { t } = useI18n();
-  const { activeTeam, can, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
+  const { activeTeam, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
   const canSeeHistory = activeTeam?.role === 'owner' || activeTeam?.role === 'admin';
   const tabs = [
     { id: 'general' as const, label: t('teamSettingsTabGeneral') },
-    { id: 'members' as const, label: t('teamSettingsTabMembers') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },
     { id: 'restitch' as const, label: t('teamSettingsTabRestitch') },
-    { id: 'product-catalog' as const, label: t('teamSettingsTabProductCatalog') },
-    ...(canSeeHistory ? [{ id: 'history' as const, label: t('teamSettingsTabHistory') }] : [])
+    { id: 'product-catalog' as const, label: t('teamSettingsTabProductCatalog') }
   ];
   const [tab, setTab] = useState<(typeof tabs)[number]['id']>(() =>
     initialTab && tabs.some(item => item.id === initialTab) ? initialTab : 'general'
@@ -159,7 +183,10 @@ export function SpaceSettings({
           className="team-space-tabs team-settings-tabs"
           label={t('teamSettingsTabsLabel')}
           value={tab}
-          onChange={setTab}
+          onChange={next => {
+            setTab(next);
+            onTabChange?.(next);
+          }}
           panelId={id => `team-settings-panel-${id}`}
           items={tabs.map(item => ({ id: item.id, label: item.label }))}
         />
@@ -169,17 +196,17 @@ export function SpaceSettings({
         /* Two columns only where two panels genuinely balance. General is three
            short cards and history and re-stitch are one panel each; side by side
            they left half the dialog's width empty. */
-        className={`team-space-settings-grid${tab === 'members' ? '' : ' is-single'}`}
+        className="team-space-settings-grid is-single"
         role="tabpanel"
         id={`team-settings-panel-${tab}`}
         aria-labelledby={`tab-${tab}`}
       >
         {tab === 'general' && (
           <>
+            {activeTeam?.role === 'owner' && <SpaceNameSection teamId={teamId} client={client} />}
             {/* How team mode behaves, first: it is what a person opens these
                 settings to change. */}
-            <TeamPreferencesSection client={client} />
-            <SharePreferenceSettings teamId={teamId} client={client} />
+            <TeamPreferencesSection teamId={teamId} client={client} />
             {activeTeam?.role === 'owner' && (
               <DriveConnectionPanel
                 key={`drive:${teamId}`}
@@ -197,34 +224,7 @@ export function SpaceSettings({
                 }}
               />
             )}
-            <LeaveSpacePanel
-              teamId={teamId}
-              client={client}
-              isOwner={activeTeam?.role === 'owner'}
-            />
-          </>
-        )}
-
-        {tab === 'members' && (
-          <>
-            <MemberList
-              teamId={teamId}
-              client={client}
-              revision={revision}
-              onChanged={() => {
-                changed();
-                void refreshTeams();
-              }}
-            />
-            <InvitationPanel
-              key={`invitations:${teamId}`}
-              teamId={teamId}
-              client={client}
-              canManage={can('manage_members')}
-              directAddMode={directAddMode}
-              revision={revision}
-              onChanged={changed}
-            />
+            <SharePreferenceSettings teamId={teamId} client={client} />
           </>
         )}
 
@@ -242,92 +242,7 @@ export function SpaceSettings({
         {tab === 'product-catalog' && (
           <ProductCatalogSettingsSection teamId={teamId} client={client} />
         )}
-
-        {tab === 'history' && (
-          <TeamAuditPanel teamId={teamId} client={client} revision={revision} />
-        )}
       </div>
     </section>
-  );
-}
-
-/**
- * Leaving a space, which until now had no way out at all short of asking an
- * admin to remove you (finding I2).
- *
- * The owner sees the reason rather than a disabled button: a space cannot be
- * left without an owner, and the way out is to transfer ownership first — which
- * is a thing they can actually do, one panel up.
- */
-function LeaveSpacePanel({
-  teamId,
-  client,
-  isOwner
-}: {
-  teamId: string;
-  client: Pick<SpaceSettingsClient, 'leaveTeam'>;
-  isOwner: boolean;
-}) {
-  const { t } = useI18n();
-  const { push } = useToasts();
-  const { setActiveTeamId, refreshTeams, replaceTeams, teams } = useTeam();
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const titleId = useId();
-
-  const leave = async () => {
-    setBusy(true);
-    try {
-      await client.leaveTeam(teamId);
-      setConfirming(false);
-      setActiveTeamId(null);
-      // The space has to leave the list too, or the entry resolver would send
-      // this person straight back into the space they just left. Dropped
-      // locally first — the server has already told us the membership ended, so
-      // waiting for a refetch would leave a window where the redirect wins.
-      replaceTeams(teams.filter(team => team.id !== teamId));
-      await refreshTeams();
-      // The standing warning, said at the moment it becomes true: Google Drive
-      // keeps its own sharing ACL, which leaving does not touch.
-      push({ tone: 'info', text: t('teamLeaveDone'), sticky: true });
-      navigateTo(teamResolverRoute(), true);
-    } catch (cause) {
-      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <SettingsSection
-      icon={LogOut}
-      titleId="team-leave-space-title"
-      title={t('teamLeaveTitle')}
-      description={isOwner ? t('teamLeaveOwnerExplanation') : t('teamLeaveDescription')}
-      className="team-leave-panel"
-    >
-      {!isOwner && (
-        <div className="settings-section-actions">
-          <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
-            {t('teamLeaveAction')}
-          </Button>
-        </div>
-      )}
-      {confirming && (
-        <Modal labelledBy={titleId} size="sm" onClose={() => setConfirming(false)}>
-          <h3 id={titleId}>{t('teamLeaveConfirmTitle')}</h3>
-          {/* Names the consequence rather than asking "are you sure?" */}
-          <p>{t('teamLeaveConfirmBody')}</p>
-          <div className="team-dialog-actions">
-            <Button type="button" variant="danger" loading={busy} onClick={() => void leave()}>
-              {t('teamLeaveAction')}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
-              {t('teamCancel')}
-            </Button>
-          </div>
-        </Modal>
-      )}
-    </SettingsSection>
   );
 }

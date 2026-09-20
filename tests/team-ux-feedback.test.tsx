@@ -6,10 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TEAM_ERROR_CODES } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { ProvenancePanel } from '../apps/web/src/team/catalog/ProvenancePanel';
-import { MaterialRowMenu } from '../apps/web/src/team/catalog/MaterialRowMenu';
 import { teamErrorMessage, teamErrorMessageFor } from '../apps/web/src/team/errors';
 import { translationKeys, translate } from '../apps/web/src/i18n';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client';
+import { clickMaterialAction, openMaterialActions } from './support/material-surface';
 import { RealtimeChip } from '../apps/web/src/team/workspace/RealtimeChip';
 import { MembershipLostNotice } from '../apps/web/src/team/TeamSpace';
 import { TeamContextOverride, type TeamContextValue } from '../apps/web/src/team/TeamContext';
@@ -86,19 +86,14 @@ function actionsClient(): MaterialActionsClient {
 }
 
 async function openMenu(client: MaterialActionsClient) {
-  render(
-    <ToastProvider>
-      <MaterialRowMenu
-        teamId={TEAM_ID}
-        material={material}
-        permissions={permissions}
-        client={client}
-        browseClient={{ listMaterials: vi.fn().mockResolvedValue([]) }}
-        onChanged={vi.fn()}
-      />
-    </ToastProvider>
-  );
-  await userEvent.click(screen.getByRole('button', { name: 'Actions for launch.mp4' }));
+  await openMaterialActions({
+    teamId: TEAM_ID,
+    material,
+    permissions,
+    client,
+    browseClient: { listMaterials: vi.fn().mockResolvedValue([]) },
+    onChanged: vi.fn()
+  });
 }
 
 describe('every action reports its outcome', () => {
@@ -106,7 +101,7 @@ describe('every action reports its outcome', () => {
     const client = actionsClient();
     await openMenu(client);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await clickMaterialAction('Move to trash');
     expect(await screen.findByText('Moved to trash')).toBeTruthy();
   });
 
@@ -115,7 +110,7 @@ describe('every action reports its outcome', () => {
     vi.mocked(client.trashMaterial).mockRejectedValue(new Error('PERMISSION_DENIED'));
     await openMenu(client);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await clickMaterialAction('Move to trash');
     expect(await screen.findByText('You do not have permission for this.')).toBeTruthy();
     expect(document.body.textContent).not.toContain('PERMISSION_DENIED');
   });
@@ -125,7 +120,7 @@ describe('every action reports its outcome', () => {
     vi.mocked(client.trashMaterial).mockRejectedValue(new Error('SOMETHING_NEW_FROM_A_MIGRATION'));
     await openMenu(client);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await clickMaterialAction('Move to trash');
     expect(await screen.findByText('Something went wrong. Try again in a moment.')).toBeTruthy();
     expect(document.body.textContent).not.toContain('SOMETHING_NEW');
   });
@@ -177,7 +172,7 @@ describe('toasts', () => {
     const client = actionsClient();
     vi.mocked(client.trashMaterial).mockRejectedValue(new Error('RATE_LIMITED'));
     await openMenu(client);
-    await userEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await clickMaterialAction('Move to trash');
 
     expect(await screen.findByText('Too many requests. Wait a moment and try again.')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss notification' }));
@@ -222,12 +217,18 @@ describe('the realtime chip', () => {
       );
       // A slow first connect is ordinary and must stay quiet, exactly as a
       // brief drop does; the grace is the whole reason this is not a flicker.
-      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
 
       await act(async () => {
         vi.advanceTimersByTime(8_000);
       });
-      expect(screen.getByRole('status').textContent).toContain('No live updates yet');
+      // A button now, not a bare status (024, FR-052): it says what is wrong,
+      // offers the one thing a reader can do about it, and is still announced.
+      const chip = screen.getByRole('button', {
+        name: 'Live updates are not arriving — reload the space'
+      });
+      expect(chip.textContent).toContain('No live updates yet');
+      expect(chip.getAttribute('aria-live')).toBe('polite');
     } finally {
       vi.useRealTimers();
     }
@@ -241,7 +242,7 @@ describe('the realtime chip', () => {
           <RealtimeChip />
         </TeamContextOverride>
       );
-      expect(screen.queryByRole('status')).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
 
       await act(async () => {
         vi.advanceTimersByTime(8_000);
@@ -249,7 +250,10 @@ describe('the realtime chip', () => {
       // Distinct copy on purpose: a channel that never connected is not
       // reconnecting, and telling someone we are restoring something they
       // never had is a small lie the chip does not need to tell.
-      expect(screen.getByRole('status').textContent).toContain('Reconnecting');
+      expect(
+        screen.getByRole('button', { name: 'Live updates are not arriving — reload the space' })
+          .textContent
+      ).toContain('Reconnecting');
     } finally {
       vi.useRealTimers();
     }

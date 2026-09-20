@@ -197,7 +197,7 @@ describe('profile onboarding, account and blocked state', () => {
     });
   });
 
-  it('updates editable account fields and shows only email and agent version', async () => {
+  it('writes each account choice as it is made, with no Save button to press', async () => {
     const updateProfile = vi.fn().mockResolvedValue(profile);
     render(
       <AuthContextOverride
@@ -208,22 +208,101 @@ describe('profile onboarding, account and blocked state', () => {
         </AgentContextOverride>
       </AuthContextOverride>
     );
+    // The page used to end in a honey "Save changes" that shouted whether or not
+    // anything had changed. Nothing is said about saving until something is.
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+    expect(screen.queryByText('Saved')).toBeNull();
+
+    // The name is stored when the field is left — Enter leaves it.
     const name = screen.getByLabelText('Display name');
     await userEvent.clear(name);
-    await userEvent.type(name, 'Updated Name');
-    await userEvent.click(screen.getByRole('checkbox'));
-    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(updateProfile).toHaveBeenCalledWith({
-      display_name: 'Updated Name',
-      language: 'en',
-      marketing_consent: true
-    });
+    await userEvent.type(name, '  Updated   Name {Enter}');
+    await waitFor(() =>
+      expect(updateProfile).toHaveBeenCalledWith({ display_name: 'Updated Name' })
+    );
+    expect(await screen.findByText('Saved')).toBeTruthy();
+
+    // The newsletter is a switch that writes itself.
+    await userEvent.click(screen.getByRole('switch'));
+    await waitFor(() => expect(updateProfile).toHaveBeenCalledWith({ marketing_consent: true }));
+
+    // Leaving the field unchanged is not a write.
+    const calls = updateProfile.mock.calls.length;
+    await userEvent.click(name);
+    await userEvent.tab();
+    expect(updateProfile.mock.calls.length).toBe(calls);
+
     // Account deletion was removed from the UI entirely.
     expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull();
-    expect(screen.queryByText('Google')).toBeNull();
+    // The email is said once, with where it comes from, because it cannot be edited here.
+    expect(screen.getAllByText('owner@example.com')).toHaveLength(1);
+    expect(
+      screen.getByText('Comes from your Google account and cannot be changed here.')
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
+  });
+
+  it('stores the language the moment it is chosen and shows the page in it', async () => {
+    const updateProfile = vi.fn().mockResolvedValue(profile);
+    render(
+      <AuthContextOverride
+        value={authValue({ status: 'authenticated', user, session, profile, updateProfile })}
+      >
+        <AgentContextOverride value={agentValue}>
+          <AccountPage />
+        </AgentContextOverride>
+      </AuthContextOverride>
+    );
+    await userEvent.click(screen.getByRole('radio', { name: 'UA' }));
+    await waitFor(() => expect(updateProfile).toHaveBeenCalledWith({ language: 'uk' }));
+    expect(localStorage.getItem('language')).toBe('uk');
+    expect(await screen.findByText('Профіль')).toBeTruthy();
+  });
+
+  it('says the installed version and the update check as two separate facts', () => {
+    const renderWith = (agent: AgentContextValue) =>
+      render(
+        <AuthContextOverride value={authValue({ status: 'authenticated', user, session, profile })}>
+          <AgentContextOverride value={agent}>
+            <AccountPage />
+          </AgentContextOverride>
+        </AuthContextOverride>
+      );
+
     // Without a fetched release manifest the UI must not guess that a build is current.
+    const checking = renderWith(agentValue);
     expect(screen.getByText('0.4.0')).toBeTruthy();
-    expect(screen.getByText('(could not check for updates)')).toBeTruthy();
+    expect(screen.getByText('Checking…')).toBeTruthy();
+    expect(screen.queryByText('Up to date')).toBeNull();
+    checking.unmount();
+
+    // A check that failed is a chip of its own, not a clause glued to the version.
+    const unavailable = renderWith(
+      agentContextStub({
+        capabilities: ['landing'],
+        releaseManifest: { status: 'unavailable', manifest: null }
+      })
+    );
+    expect(screen.getByText('0.4.0')).toBeTruthy();
+    expect(screen.getByText('Could not check')).toBeTruthy();
+    expect(screen.queryByText('Up to date')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Download the update' })).toBeNull();
+    unavailable.unmount();
+
+    // No local app at all: the state says so and offers the way to get one.
+    const reconnect = vi.fn();
+    renderWith(
+      agentContextStub({
+        connection: 'not_installed_or_not_running',
+        agentVersion: null,
+        reconnect
+      })
+    );
+    expect(screen.getByText('Not connected')).toBeTruthy();
+    expect(screen.getByText('Not running')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(reconnect).toHaveBeenCalledOnce();
+    expect(screen.getByRole('link', { name: 'Download the app' })).toBeTruthy();
   });
 
   it('keeps sign-out available on a blocked account', async () => {

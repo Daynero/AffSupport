@@ -39,6 +39,11 @@ export interface UpdaterRestitchDeps {
   hashHex(value: string): Promise<string>;
   /** 32 random bytes, base64url without padding. */
   randomToken(): string;
+  /**
+   * The space's one folder for re-stitched copies (024, US26), made on first use. Null when it
+   * cannot be resolved — the copy then lands beside its video, as it did before.
+   */
+  restitchedFolder?(teamId: string, actorId: string): Promise<string | null>;
   log(message: string, detail: string): void;
 }
 
@@ -174,7 +179,11 @@ export async function claimRestitchJob(
     grants = await deps.startProcess(actorId, {
       teamId: job.teamId,
       materialId: job.videoMaterialId,
-      destinationFolderId: job.destinationFolderId,
+      /* Every copy in one folder (024, US26): machinery does not belong in the folder that
+         holds the buyer's own work. Beside the video only when the folder cannot be made. */
+      destinationFolderId:
+        (await deps.restitchedFolder?.(job.teamId, actorId).catch(() => null)) ??
+        job.destinationFolderId,
       // Unique per lease: a job is created afresh after every spare, so its attempt count repeats.
       idempotencyKey: `updater-${job.jobId}-${lease.slice(0, 16)}`,
       toolId: RESTITCH_TOOL_ID,

@@ -10,11 +10,11 @@ unions / discriminated results (Constitution I). Re-exported through
 export type LandingRenderState = 'rendering' | 'ready' | 'stale' | 'failed';
 
 export type LandingRenderFailureReason =
-  | 'corrupt' | 'protected' | 'too_large' | 'unsupported' | 'render_error';
+  'corrupt' | 'protected' | 'too_large' | 'unsupported' | 'render_error';
 
 // Per-tile view state (derived; see data-model §3)
 export type LandingTileState =
-  | 'ready' | 'candidate' | 'rendering' | 'needs_agent' | 'agent_outdated' | 'error';
+  'ready' | 'candidate' | 'rendering' | 'needs_agent' | 'agent_outdated' | 'error';
 ```
 
 ## Viewer presets (shared with the local previewer model)
@@ -37,8 +37,8 @@ export interface RenderArtifactRef {
   materialId: string;
   sourceVersion: string;
   fingerprint: string;
-  preset: string;         // 'default' for v1
-  segmentCount: number;   // >= 1
+  preset: string; // 'default' for v1
+  segmentCount: number; // >= 1
   // opaque handle the browser passes to drive-transfer to fetch bytes; no raw Drive id/path
   artifactToken: string;
 }
@@ -61,14 +61,14 @@ export interface LandingRenderPointer {
 export interface LandingGalleryQuery {
   text?: string;
   facets?: CatalogFacetSelection; // reused
-  page?: CatalogPageCursor;       // reused
+  page?: CatalogPageCursor; // reused
 }
 
 export interface LandingGalleryItem {
   materialId: string;
   name: string;
   isCandidate: boolean;
-  facets: MaterialFacetSummary;   // geo/offer/language/tags (reused)
+  facets: MaterialFacetSummary; // geo/offer/language/tags (reused)
   tile: LandingTileState;
   render?: LandingRenderPointer;
   unavailableReason?: LandingRenderFailureReason;
@@ -95,8 +95,7 @@ export interface TeamLandingRenderRequest {
 }
 
 export type TeamLandingRenderResult =
-  | { ok: true; pointer: LandingRenderPointer }
-  | { ok: false; reason: LandingRenderFailureReason };
+  { ok: true; pointer: LandingRenderPointer } | { ok: false; reason: LandingRenderFailureReason };
 ```
 
 ## Release / tool contract

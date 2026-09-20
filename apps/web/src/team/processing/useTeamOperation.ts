@@ -1,3 +1,4 @@
+import { realtimeTopic } from '../../lib/realtimeTopic';
 import { useCallback, useEffect, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { TeamOperationSnapshot } from '../../api/team';
@@ -54,7 +55,7 @@ export function useTeamOperation(input: {
     const supabase = getSupabaseClient();
     if (!supabase || !operationId) return;
     const channel: RealtimeChannel = supabase
-      .channel(`team-operation:${operationId}`)
+      .channel(realtimeTopic(`team-operation:${operationId}`))
       .on(
         'postgres_changes',
         {

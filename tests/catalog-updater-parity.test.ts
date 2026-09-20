@@ -15,7 +15,8 @@ describe('web and edge agree on the updater', () => {
     }
   });
 
-  it('on the ID offset', () => {
-    for (const k of [0, 1, 2, 3, 10, 999, 87_600]) expect(web.idOffset(k)).toBe(edge.idOffset(k));
+  it('keeps no ID rule of its own: the server mints them', () => {
+    expect('idOffset' in web).toBe(false);
+    expect('idOffset' in edge).toBe(false);
   });
 });

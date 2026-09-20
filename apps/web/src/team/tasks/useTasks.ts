@@ -1,3 +1,4 @@
+import { realtimeTopic } from '../../lib/realtimeTopic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
@@ -230,6 +231,19 @@ export function useTasks({
     { kind: 'all' },
     parseAssigneeFilter
   );
+  /**
+   * A word from the title or the brief (024, FR-077).
+   *
+   * Filtered here rather than on the server: the board holds a page of tasks
+   * that is already narrowed by date, status, account, assignee and tag, so
+   * the fastest way to the one you mean is to type two letters of it — and a
+   * round trip for two letters would be slower than the eye.
+   */
+  const [query, setQuery] = usePersistedState<string>(
+    persistedViewKey(teamId, 'tasks.query'),
+    '',
+    value => (typeof value === 'string' ? value : null)
+  );
   const bounds = useMemo(() => taskFilterBounds(filter), [filter]);
   const status = statusFilter === 'all' ? null : statusFilter;
   const agentRowId = scope.kind === 'agent' ? scope.agentRowId : null;
@@ -359,7 +373,7 @@ export function useTasks({
     };
 
     const channel: RealtimeChannel = supabase
-      .channel(`team-tasks:${teamId}`)
+      .channel(realtimeTopic(`team-tasks:${teamId}`))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'team_tasks', filter: `team_id=eq.${teamId}` },
@@ -506,12 +520,21 @@ export function useTasks({
       };
       // An edit can move a task's date, and the board is ordered by that date:
       // re-place the card instead of leaving it where it used to belong.
+      // And a task the edit takes out of the filters in force leaves the board
+      // now, not at the next reload: a card set to "Done" under "In progress"
+      // stayed there, answering to a filter it no longer passed.
+      const stillShown =
+        (status === null || next.status === status) &&
+        (assigneeId == null || next.assigneeId === assigneeId) &&
+        (!unassigned || next.assigneeId == null);
       setTasks(current =>
-        current.map(item => (item.id === next.id ? next : item)).sort(teamTaskComparator(sort))
+        current
+          .flatMap(item => (item.id === next.id ? (stillShown ? [next] : []) : [item]))
+          .sort(teamTaskComparator(sort))
       );
       return next;
     },
-    [client, sort, teamId]
+    [assigneeId, client, sort, status, teamId, unassigned]
   );
 
   /** The editor hung or removed a tag (018); the card follows at once. */
@@ -533,8 +556,47 @@ export function useTasks({
     setTasks(current => current.map(item => (item.id === taskId ? { ...item, agents } : item)));
   }, []);
 
+  const term = query.normalize('NFC').trim().toLocaleLowerCase();
+  /*
+   * Done goes to the end (024): before a launch the board is read for what is still open, and
+   * finished cards mixed in between pushed it down. Where a card sits is decided when the board
+   * first shows it, not on every status change — a card marked done right now stays under the
+   * pointer until the board is next read (a filter, a sort, another space), so nothing jumps
+   * away from the press that changed it.
+   */
+  const placedDone = useRef(new Map<string, boolean>());
+  const boardKey = `${teamId}|${JSON.stringify(filter)}|${statusFilter}|${sort}|${agentRowId}|${accountId}|${JSON.stringify(assignee)}|${labelIds.join(',')}`;
+  const placedFor = useRef(boardKey);
+  if (placedFor.current !== boardKey) {
+    placedFor.current = boardKey;
+    placedDone.current = new Map();
+  }
+  const shown = useMemo(() => {
+    const matching =
+      term === ''
+        ? tasks
+        : tasks.filter(
+            task =>
+              task.title.toLocaleLowerCase().includes(term) ||
+              (task.note ?? '').toLocaleLowerCase().includes(term)
+          );
+    const placed = placedDone.current;
+    for (const task of matching) {
+      if (!placed.has(task.id)) placed.set(task.id, task.status === 'done');
+    }
+    return [
+      ...matching.filter(task => !placed.get(task.id)),
+      ...matching.filter(task => placed.get(task.id))
+    ];
+    // boardKey resets the placement; it is read through the ref above.
+  }, [tasks, term, boardKey]);
+
   return {
-    tasks,
+    tasks: shown,
+    /** Everything the page holds, before the search narrows it. */
+    allTasks: tasks,
+    query,
+    setQuery,
     setTaskAgents,
     setTaskLabels,
     filter,

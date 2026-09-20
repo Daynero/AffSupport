@@ -122,7 +122,9 @@ describe('team membership management', () => {
     renderMembers(client);
     expect(await screen.findByText('Alex Editor')).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Transfer ownership to Alex Editor' }));
+    // Rare and heavy, so behind "…" (024, FR-097).
+    await user.click(screen.getByRole('button', { name: 'More for Alex Editor' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Transfer ownership' }));
     await user.selectOptions(screen.getByLabelText('Your new role'), 'editor');
     await user.click(screen.getByLabelText('I understand that Alex Editor will become owner'));
     await user.click(screen.getByRole('button', { name: 'Transfer ownership' }));
@@ -134,7 +136,8 @@ describe('team membership management', () => {
       })
     );
 
-    await user.click(screen.getByRole('button', { name: 'Remove Alex Editor' }));
+    await user.click(screen.getByRole('button', { name: 'More for Alex Editor' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Remove' }));
     expect(screen.getByText(/direct Google Drive access is managed separately/i)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Remove member' }));
     await waitFor(() => expect(client.removeMember).toHaveBeenCalledWith(TEAM_ID, MEMBER_ID));

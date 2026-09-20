@@ -4,10 +4,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../apps/web/src/components/toast';
-import { MaterialRowMenu } from '../apps/web/src/team/catalog/MaterialRowMenu';
 import { TrashView, type TrashViewClient } from '../apps/web/src/team/catalog/TrashView';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client';
 import { translate } from '../apps/web/src/i18n';
+import { clickMaterialAction, openMaterialActions } from './support/material-surface';
 
 /**
  * US5 — friction proportional to risk.
@@ -57,19 +57,14 @@ function actionsClient(): MaterialActionsClient {
 }
 
 async function openMenu(client: MaterialActionsClient) {
-  render(
-    <ToastProvider>
-      <MaterialRowMenu
-        teamId={TEAM_ID}
-        material={material}
-        permissions={permissions}
-        client={client}
-        browseClient={{ listMaterials: vi.fn().mockResolvedValue([]) }}
-        onChanged={vi.fn()}
-      />
-    </ToastProvider>
-  );
-  await userEvent.click(screen.getByRole('button', { name: 'Actions for launch.mp4' }));
+  await openMaterialActions({
+    teamId: TEAM_ID,
+    material,
+    permissions,
+    client,
+    browseClient: { listMaterials: vi.fn().mockResolvedValue([]) },
+    onChanged: vi.fn()
+  });
 }
 
 describe('trashing a file', () => {
@@ -77,7 +72,7 @@ describe('trashing a file', () => {
     const client = actionsClient();
     await openMenu(client);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await clickMaterialAction('Move to trash');
     // No dialog stood between the press and the action.
     expect(screen.queryByRole('dialog')).toBeNull();
     await waitFor(() => expect(client.trashMaterial).toHaveBeenCalledOnce());
@@ -89,7 +84,7 @@ describe('trashing a file', () => {
     const client = actionsClient();
     await openMenu(client);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await clickMaterialAction('Move to trash');
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
 
     await waitFor(() => expect(client.restoreMaterial).toHaveBeenCalledOnce());
@@ -103,7 +98,7 @@ describe('trashing a file', () => {
     const client = actionsClient();
     await openMenu(client);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await clickMaterialAction('Move to trash');
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull());
   });
@@ -113,7 +108,7 @@ describe('trashing a file', () => {
     vi.mocked(client.restoreMaterial).mockRejectedValue(new Error('NOT_FOUND'));
     await openMenu(client);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Move to trash' }));
+    await clickMaterialAction('Move to trash');
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
 
     expect(

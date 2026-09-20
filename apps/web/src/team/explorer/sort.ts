@@ -16,6 +16,11 @@ export const DEFAULT_SORT: ExplorerSort = {
   foldersSeparate: true
 };
 
+const nameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+/** Names in the reader's own order — the tree and the list must agree on it. */
+export const compareNames = (a: string, b: string): number => nameCollator.compare(a, b);
+
 /**
  * Orders the rows a page has loaded (011): folders first when asked, then by
  * name or modified date. Client-side over the current page — enough while a
@@ -23,7 +28,6 @@ export const DEFAULT_SORT: ExplorerSort = {
  * tracked separately.
  */
 export function sortRows(rows: readonly TeamMaterialRow[], sort: ExplorerSort): TeamMaterialRow[] {
-  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
   const factor = sort.direction === 'asc' ? 1 : -1;
   const compare = (a: TeamMaterialRow, b: TeamMaterialRow): number => {
     if (sort.foldersSeparate) {
@@ -49,7 +53,7 @@ export function sortRows(rows: readonly TeamMaterialRow[], sort: ExplorerSort): 
         return (at - bt) * factor;
       }
     }
-    return collator.compare(a.name, b.name) * factor;
+    return compareNames(a.name, b.name) * factor;
   };
   return [...rows].sort(compare);
 }

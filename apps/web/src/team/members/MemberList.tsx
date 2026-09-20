@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MoreHorizontal, Users } from 'lucide-react';
+import { DropdownMenu, IconButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type {
   TeamContextSnapshot,
   TeamMemberSummary,
@@ -9,6 +11,7 @@ import type { TeamBaseRole } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { memberCountKey } from '../accounts/plural';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
@@ -44,15 +47,18 @@ export function MemberList({
   client,
   activeCount = 1,
   revision = 0,
-  onChanged
+  onChanged,
+  onLoaded
 }: {
   teamId?: string;
   client?: MemberManagementClient;
   activeCount?: number;
   revision?: number;
   onChanged?: () => void;
+  /** The list as read, for a neighbour whose wording depends on it. */
+  onLoaded?: (members: TeamMemberSummary[]) => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { push } = useToasts();
   const { activeTeam } = useTeam();
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
@@ -70,6 +76,7 @@ export function MemberList({
         if (active) {
           setMembers(value);
           setError(null);
+          onLoaded?.(value);
         }
       })
       .catch(() => {
@@ -78,6 +85,8 @@ export function MemberList({
     return () => {
       active = false;
     };
+    // `onLoaded` is left out on purpose: a caller's inline callback would re-read
+    // the list on every render.
   }, [client, revision, t, teamId]);
 
   const count = client && teamId ? members.length : activeCount;
@@ -88,32 +97,17 @@ export function MemberList({
       icon={Users}
       titleId="team-members-list-title"
       title={t('teamMembers')}
-      aside={t('teamMembersLimit', { count })}
+      /* "1 of 50 members" read like paging (024). The limit is said once it is near. */
+      aside={
+        count >= 40
+          ? t('teamMembersLimit', { count })
+          : t(memberCountKey(language, count), { count })
+      }
       className="team-member-section"
     >
-      {client && teamId && (
-        <details className="team-role-guide">
-          <summary>{t('teamRolesGuide')}</summary>
-          <dl>
-            <div>
-              <dt>{t('teamRoleOwner')}</dt>
-              <dd>{t('teamRoleOwnerDescription')}</dd>
-            </div>
-            <div>
-              <dt>{t('teamRoleAdmin')}</dt>
-              <dd>{t('teamRoleAdminDescription')}</dd>
-            </div>
-            <div>
-              <dt>{t('teamRoleEditor')}</dt>
-              <dd>{t('teamRoleEditorDescription')}</dd>
-            </div>
-            <div>
-              <dt>{t('teamRoleViewer')}</dt>
-              <dd>{t('teamRoleViewerDescription')}</dd>
-            </div>
-          </dl>
-        </details>
-      )}
+      {/* No "Role permissions" disclosure here (024): it looked like a dropdown and was read
+          nowhere near the choice it explains. What a role may do is said under the role
+          picker when inviting. */}
       {error && (
         <p className="team-inline-error" role="alert">
           {error}
@@ -150,24 +144,29 @@ export function MemberList({
                     >
                       {t('teamMemberEdit')}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      aria-label={t('teamMemberRemoveFor', { name })}
-                      onClick={() => setRemoving(member)}
-                    >
-                      {t('teamMemberRemove')}
-                    </Button>
-                    {isOwner && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        aria-label={t('teamOwnershipTransferFor', { name })}
-                        onClick={() => setTransferring(member)}
-                      >
-                        {t('teamOwnershipTransferAction')}
-                      </Button>
-                    )}
+                    {/* Rare and heavy, so behind "…" (024, FR-097): three bordered
+                        buttons on every member made removing someone look as
+                        ordinary as editing them. */}
+                    <MemberRowMenu
+                      label={t('teamMemberActionsFor', { name })}
+                      items={[
+                        ...(isOwner
+                          ? [
+                              {
+                                id: 'transfer',
+                                label: t('teamOwnershipTransferAction'),
+                                onSelect: () => setTransferring(member)
+                              }
+                            ]
+                          : []),
+                        {
+                          id: 'remove',
+                          label: t('teamMemberRemove'),
+                          destructive: true,
+                          onSelect: () => setRemoving(member)
+                        }
+                      ]}
+                    />
                   </div>
                 )}
               </li>
@@ -254,5 +253,36 @@ export function MemberList({
         />
       )}
     </SettingsSection>
+  );
+}
+
+export function MemberRowMenu({
+  label,
+  items
+}: {
+  label: string;
+  items: { id: string; label: string; destructive?: boolean; onSelect: () => void }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <IconButton
+        ref={trigger}
+        size="sm"
+        variant="ghost"
+        label={label}
+        onClick={() => setOpen(true)}
+      >
+        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </IconButton>
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={trigger}
+        label={label}
+        items={items}
+      />
+    </>
   );
 }

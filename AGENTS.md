@@ -97,10 +97,16 @@ fifty times an hour does not animate at all.
 
 In practice: take the component from `apps/web/src/components/ui/` rather than
 writing a new one, and name a token from `apps/web/src/styles/tokens.css`
-rather than a value. `node scripts/check-design-tokens.mjs` fails on a raw
-colour, duration, radius or font size outside that file, and on a transition
-of a property that forces layout; it runs inside `npm run verify`. In a dev
-build the route `/design` shows every component and variant side by side.
+rather than a value. The inventory is built on HeroUI v3 (React Aria +
+Tailwind v4) and is themed _from_ the token layer, so the library wears Soty's
+skin rather than the other way round; new style is written as utilities against
+that token-derived theme. `node scripts/check-design-tokens.mjs` fails on a raw
+colour, duration, radius or font size outside the token file, and on a
+transition of a property that forces layout;
+`node scripts/check-tailwind-classes.mjs` is the same fence for utilities and
+fails on an arbitrary value (`bg-[#fff]`, `rounded-[10px]`) or a palette step
+that is not one of the seven Soty roles. Both run inside `npm run verify`. In a
+dev build the route `/design` shows every component and variant side by side.
 
 ## Verifying a change
 

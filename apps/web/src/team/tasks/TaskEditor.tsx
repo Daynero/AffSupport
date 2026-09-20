@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { teamTaskDate } from '@video-compressor/shared';
 import type {
   TeamTaskAgentTag,
@@ -10,10 +10,14 @@ import type {
 } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
+import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
+import { useAttachmentFolders, type AttachmentFoldersClient } from './useAttachmentFolders';
+import { folderPathLabel } from '../explorer/folderPath';
 import {
   Badge,
   Button,
   ConfirmDialog,
+  DropdownMenu,
   ErrorState,
   FormField,
   IconButton,
@@ -22,6 +26,8 @@ import {
   Select
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
   attachTaskMaterialsInChunks,
   TaskAttachmentPicker,
@@ -36,6 +42,7 @@ import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
 import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
 import { TaskProgressScale } from './TaskProgressScale';
 import { useCoalescedWrite } from './useCoalescedWrite';
+import { useTaskAutosave } from './useTaskAutosave';
 import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagsEditor, type TaskAgentTagsClient } from './TaskAgentTags';
 import { TaskLabelsEditor, type TaskLabelsEditorClient } from './TaskLabelsEditor';
@@ -46,9 +53,21 @@ import { classifyMaterial } from '@video-compressor/shared';
 import { teamErrorMessageFor } from '../errors';
 import { PermissionState, Textarea } from '../../components/ui/index';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
+import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
+import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
+import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
+import {
+  compressJobs,
+  TeamCompressorDialog,
+  type CompressPlanItem
+} from '../explorer/TeamCompressorDialog';
+import { attachResultToTask } from '../explorer/useAgentQueue';
+import { onTaskAttachmentsChanged } from './taskAttachmentEvents';
+import { spaceRouteFor } from '../SpaceSettingsLink';
 
 export interface TaskEditorClient
   extends
+    Partial<InvitationPanelClient>,
     TaskAttachmentPickerClient,
     TaskAttachmentPreviewClient,
     TaskAgentTagsClient,
@@ -60,6 +79,7 @@ export interface TaskEditorClient
     attachmentPageSize?: number;
   }): Promise<{ task: TeamTaskSummary; attachments: TeamTaskAttachmentSummary[] }>;
   updateTask(teamId: string, taskId: string, patch: TeamTaskPatch): Promise<TeamTaskSummary>;
+
   detachTaskMaterial(teamId: string, taskId: string, materialId: string): Promise<boolean>;
   /** The space's one folder for dropped files; made on first use (011). */
   ensureTaskDropFolder?: (
@@ -78,69 +98,8 @@ export interface TaskEditorClient
 
 const defaultClient: TaskEditorClient = { ...teamApi, uploadFile: uploadTeamFile };
 const TASK_PROGRESS_MAX = 10_000;
-
-/**
- * A browser may discard a background tab and recreate the page when it is
- * restored. Keeping an unsaved form only in React state made that lifecycle
- * look like somebody had chosen to discard their work. This tab-local draft
- * survives a discard/reload, without claiming it was saved to the team.
- */
-const TASK_DRAFT_STORAGE_PREFIX = 'soty.team-task-draft.v1:';
-
-type TaskFormDraft = Pick<
-  TeamTaskSummary,
-  'title' | 'note' | 'assigneeId' | 'dateOn' | 'progressMax' | 'progressValue'
->;
-
-function taskDraftKey(teamId: string, taskId: string): string {
-  return `${TASK_DRAFT_STORAGE_PREFIX}${teamId}:${taskId}`;
-}
-
-function readTaskFormDraft(teamId: string, task: TeamTaskSummary): TaskFormDraft | null {
-  try {
-    const value: unknown = JSON.parse(
-      window.sessionStorage.getItem(taskDraftKey(teamId, task.id)) ?? ''
-    );
-    if (!value || typeof value !== 'object') return null;
-    const draft = value as Partial<TaskFormDraft>;
-    if (
-      typeof draft.title !== 'string' ||
-      (draft.note !== null && typeof draft.note !== 'string') ||
-      (draft.assigneeId !== null && typeof draft.assigneeId !== 'string') ||
-      (draft.dateOn !== null && typeof draft.dateOn !== 'string') ||
-      !Number.isInteger(draft.progressMax) ||
-      !Number.isInteger(draft.progressValue)
-    ) {
-      return null;
-    }
-    return {
-      title: draft.title,
-      note: draft.note,
-      assigneeId: draft.assigneeId,
-      dateOn: draft.dateOn,
-      progressMax: draft.progressMax as number,
-      progressValue: draft.progressValue as number
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeTaskFormDraft(teamId: string, taskId: string, draft: TaskFormDraft): void {
-  try {
-    window.sessionStorage.setItem(taskDraftKey(teamId, taskId), JSON.stringify(draft));
-  } catch {
-    // Storage is a recovery aid; private-mode restrictions must not block editing.
-  }
-}
-
-function clearTaskFormDraft(teamId: string, taskId: string): void {
-  try {
-    window.sessionStorage.removeItem(taskDraftKey(teamId, taskId));
-  } catch {
-    // The editor remains fully usable when browser storage is unavailable.
-  }
-}
+/** The assignee list's last line, which invites rather than assigns. */
+const INVITE_OPTION = '__invite__';
 
 function uniqueAttachments(
   current: TeamTaskAttachmentSummary[],
@@ -148,7 +107,17 @@ function uniqueAttachments(
 ) {
   const byId = new Map(current.map(item => [item.id, item]));
   for (const item of incoming) byId.set(item.id, item);
-  return [...byId.values()].sort((left, right) => left.position - right.position);
+  /*
+   * A draft tile stands in for a file until the server's own row for it arrives (024). The two
+   * have different ids, so merging by id alone kept both: one file attached read "3 attachments"
+   * with a copy stuck on "Attaching…". The real row replaces the draft for the same file.
+   */
+  const real = new Set(
+    [...byId.values()].filter(item => !item.id.startsWith('draft:')).map(item => item.materialId)
+  );
+  return [...byId.values()]
+    .filter(item => !item.id.startsWith('draft:') || !real.has(item.materialId))
+    .sort((left, right) => left.position - right.position);
 }
 
 /**
@@ -242,6 +211,7 @@ export function TaskEditor({
   onChanged,
   onTagsChange,
   onLabelsChange,
+  onLabelCreated,
   onDelete
 }: {
   teamId: string;
@@ -257,6 +227,8 @@ export function TaskEditor({
   onTagsChange?: (tags: TeamTaskAgentTag[]) => void;
   /** The team's own tags changed (018), also written at once. */
   onLabelsChange?: (labels: TeamTaskLabelRef[]) => void;
+  /** Raised when a tag is created from inside this task (024). */
+  onLabelCreated?: () => void;
   /** Deletes the task; absent when the viewer may not. */
   onDelete?: (task: TeamTaskSummary) => Promise<void>;
 }) {
@@ -277,25 +249,28 @@ export function TaskEditor({
    * shell resumes it once the settings close.
    */
   const openRestitchSettings = () => {
-    const href = buildTeamRoute({
-      spaceId: teamId,
-      section: 'explorer',
-      query: { settings: true }
-    });
-    onClose();
-    navigateTo(href);
+    // Over the task, not instead of it (024, FR-079): the settings ride on the
+    // address the task is on, and closing them comes back here.
+    navigateTo(spaceRouteFor(teamId, { kind: 'settings', tab: 'restitch' }));
   };
   /*
    * "Show on Drive": the explorer opens the attachment's folder with the file selected. The folder
    * comes from the catalogue search, which knows every file's parent; a file it cannot find is
    * searched for across the space instead, so the button never leads nowhere.
    */
-  const revealAttachment = async (attachment: TeamTaskAttachmentSummary) => {
+  /** Where an attachment lives, from the catalogue; `undefined` when it cannot be found. */
+  const findParentFolder = async (
+    attachment: TeamTaskAttachmentSummary
+  ): Promise<string | null | undefined> => {
     const stem = attachment.name.replace(/\.[^.]+$/u, '');
     let parentFolderId: string | null | undefined;
     for (const query of [attachment.name, stem]) {
       try {
-        const found = await teamApi.searchCatalog(teamId, { query, page: 1, pageSize: 100 });
+        // The picker's client already knows how to search the space; reaching
+        // past it to `teamApi` made this the one call in the editor a test
+        // could not stand in for.
+        const search = client.searchCatalog ?? teamApi.searchCatalog;
+        const found = await search(teamId, { query, page: 1, pageSize: 100 });
         const hit = found.items.find(item => item.id === attachment.materialId);
         if (hit) {
           parentFolderId = hit.parentFolderId ?? null;
@@ -305,15 +280,22 @@ export function TaskEditor({
         break;
       }
     }
-    onClose();
+    return parentFolderId;
+  };
+  const revealAttachment = async (attachment: TeamTaskAttachmentSummary) => {
+    const parentFolderId = await findParentFolder(attachment);
+    // Not `onClose()`: closing the editor writes its own address first, and the
+    // reveal's would land on top of it — so Back came out at the task list
+    // rather than at the task somebody was in the middle of. Changing the
+    // address is enough to close the dialog, and leaves the task one Back away.
     navigateTo(
       buildTeamRoute({
         spaceId: teamId,
         section: 'explorer',
         query:
           parentFolderId === undefined
-            ? { q: attachment.name, scope: 'space' }
-            : { folderId: parentFolderId, itemId: attachment.materialId }
+            ? { q: attachment.name, scope: 'space', back: task.id }
+            : { folderId: parentFolderId, itemId: attachment.materialId, back: task.id }
       })
     );
   };
@@ -328,30 +310,18 @@ export function TaskEditor({
         // The delivery reports its own outcome through the notices below.
       });
   };
-  const [restoredDraft] = useState(() => readTaskFormDraft(teamId, initialTask));
   const [task, setTask] = useState(initialTask);
-  const [title, setTitle] = useState(restoredDraft?.title ?? initialTask.title);
-  const [note, setNote] = useState(restoredDraft?.note ?? initialTask.note ?? '');
+  const [title, setTitle] = useState(initialTask.title);
+  const [note, setNote] = useState(initialTask.note ?? '');
   const [status, setStatus] = useState(initialTask.status);
-  const [assigneeId, setAssigneeId] = useState(
-    restoredDraft?.assigneeId ?? initialTask.assigneeId ?? ''
-  );
+  const [assigneeId, setAssigneeId] = useState(initialTask.assigneeId ?? '');
   /** The day the task is for; null is "the day it was created". */
-  const [dateOn, setDateOn] = useState<string | null>(restoredDraft?.dateOn ?? initialTask.dateOn);
-  const [progressMax, setProgressMax] = useState(
-    restoredDraft?.progressMax ?? initialTask.progressMax
-  );
-  const [progressMaxInput, setProgressMaxInput] = useState(
-    String(restoredDraft?.progressMax ?? initialTask.progressMax)
-  );
-  const [progressValue, setProgressValue] = useState(
-    restoredDraft?.progressValue ?? initialTask.progressValue
-  );
+  const [dateOn, setDateOn] = useState<string | null>(initialTask.dateOn);
+  const [progressMax, setProgressMax] = useState(initialTask.progressMax);
+  const [progressMaxInput, setProgressMaxInput] = useState(String(initialTask.progressMax));
+  const [progressValue, setProgressValue] = useState(initialTask.progressValue);
   const [persistedAttachments, setPersistedAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
-  const [draftAttachments, setDraftAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
-  const [detachedMaterialIds, setDetachedMaterialIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   /**
@@ -363,18 +333,45 @@ export function TaskEditor({
    * reports through its own tile and toast.
    */
   const [error, setError] = useState<'read' | 'write' | null>(null);
-  const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editorMenuOpen, setEditorMenuOpen] = useState(false);
+  const editorMenuTrigger = useRef<HTMLButtonElement>(null);
+  /**
+   * The video whose product catalog is open over this task, if any.
+   *
+   * Mounted here rather than inside the tile because a popover unmounts the
+   * moment it closes, and because this is the point of the whole thing: the
+   * dialog opens *over* the task, the task keeps its state, and nobody has to
+   * go to the explorer and come back.
+   */
+  const [catalogFor, setCatalogFor] = useState<{ id: string; name: string } | null>(null);
+  /*
+   * The rest of "Make", from the task (024, FR-076). Each opens over the editor
+   * and hands its run to the space's queue carrying this task, so what comes
+   * out lands back here — even if the editor has closed by then.
+   */
+  const spaceQueue = useOptionalSpaceAgentQueue()?.queue ?? null;
+  const [compressing, setCompressing] = useState<CompressPlanItem | null>(null);
+  const [processing, setProcessing] = useState<{
+    material: { id: string; name: string; category: TeamTaskAttachmentSummary['category'] };
+    folderId: string | null;
+  } | null>(null);
+  /** Bumped when a catalog is made here, so the tile's companions re-read. */
+  const [companionsRevision, setCompanionsRevision] = useState(0);
+  const { push: pushToast } = useToasts();
+  /** The invite dialog, opened from the assignee field and closed back to it. */
+  const [inviting, setInviting] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // The account-wide default for a new task's Maximum. When the field differs
-  // from it, a small save control offers to make the current value the default.
+  // The space's default for a new task's Maximum. When the field differs from
+  // it, someone who may change the space's settings is offered to make the
+  // current value the default for every task anyone creates here.
   const [defaultMax, setDefaultMax] = useState<number | null>(null);
   const [savingDefaultMax, setSavingDefaultMax] = useState(false);
 
   useEffect(() => {
     let active = true;
     void teamApi
-      .getTaskProgressMaxDefault()
+      .getTaskProgressMaxDefault(teamId)
       .then(value => {
         if (active) setDefaultMax(value);
       })
@@ -384,7 +381,7 @@ export function TaskEditor({
     return () => {
       active = false;
     };
-  }, []);
+  }, [teamId]);
 
   /**
    * Refresh the form from the server's copy — but never over typing. The
@@ -428,8 +425,6 @@ export function TaskEditor({
         else setTask(value.task);
         if (resetAttachmentDraft) {
           setPersistedAttachments(value.attachments);
-          setDraftAttachments([]);
-          setDetachedMaterialIds(new Set());
         } else {
           setPersistedAttachments(current => uniqueAttachments(current, value.attachments));
         }
@@ -447,13 +442,21 @@ export function TaskEditor({
     void load({ hydrate: true, resetAttachmentDraft: true });
   }, [load]);
 
-  const visibleAttachments = useMemo(
-    () => [
-      ...persistedAttachments.filter(attachment => !detachedMaterialIds.has(attachment.materialId)),
-      ...draftAttachments
-    ],
-    [detachedMaterialIds, draftAttachments, persistedAttachments]
+  // A result made from this task arrived (or was taken off again).
+  useEffect(
+    () =>
+      onTaskAttachmentsChanged(task.id, () => {
+        void load({ quiet: true, resetAttachmentDraft: true });
+        setCompanionsRevision(value => value + 1);
+      }),
+    [load, task.id]
   );
+
+  // Everything on screen is on the task. There is no third state between
+  // "attached" and "not attached" any more, which is what a staged attachment
+  // was: a tile that looked exactly like the real thing and vanished if the
+  // dialog was closed the wrong way.
+  const visibleAttachments = persistedAttachments;
   const visibleMaterialIds = useMemo(
     () => new Set(visibleAttachments.map(attachment => attachment.materialId)),
     [visibleAttachments]
@@ -487,43 +490,22 @@ export function TaskEditor({
     return () => window.clearTimeout(timer);
   }, [load, unsettled, persistedAttachments]);
 
-  const attachmentCount = Math.max(
-    0,
-    task.attachmentCount - detachedMaterialIds.size + draftAttachments.length
-  );
-  const formDirty =
-    title !== task.title ||
-    note !== (task.note ?? '') ||
-    assigneeId !== (task.assigneeId ?? '') ||
-    dateOn !== task.dateOn ||
-    progressMax !== task.progressMax ||
-    progressValue !== task.progressValue;
-  const attachmentDirty = draftAttachments.length > 0 || detachedMaterialIds.size > 0;
-  // Status has an immediate server write and therefore intentionally does not make this dirty.
-  const hasUnsavedChanges = canEdit && (formDirty || attachmentDirty);
-
-  useEffect(() => {
-    if (!canEdit || !formDirty) return;
-    writeTaskFormDraft(teamId, task.id, {
-      title,
-      note: note || null,
-      assigneeId: assigneeId || null,
-      dateOn,
-      progressMax,
-      progressValue
-    });
-  }, [
-    assigneeId,
-    canEdit,
-    dateOn,
-    formDirty,
-    note,
-    progressMax,
-    progressValue,
-    task.id,
+  const attachmentCount = persistedAttachments.length;
+  const attachmentFolders = useAttachmentFolders({
     teamId,
-    title
-  ]);
+    taskId: task.id,
+    materialKey: persistedAttachments
+      .filter(item => !item.id.startsWith('draft:'))
+      .map(item => item.materialId)
+      .join(','),
+    rootLabel: t('teamExplorerRootLabel'),
+    client: client as AttachmentFoldersClient
+  });
+  /* Paths only where they tell files apart: on a task whose files all share one folder the
+     same line under every tile says nothing. */
+  const pathsDiffer =
+    new Set(persistedAttachments.map(item => attachmentFolders.pathOf(item.materialId))).size > 1 ||
+    new Set(persistedAttachments.map(item => item.name)).size < persistedAttachments.length;
 
   const loadMore = async () => {
     const cursor = persistedAttachments.at(-1)?.position;
@@ -545,34 +527,41 @@ export function TaskEditor({
     }
   };
 
-  const addAttachments = (materials: TaskAttachmentCandidate[]) => {
-    const persistedIds = new Set(persistedAttachments.map(attachment => attachment.materialId));
-    const reattachedIds = new Set(
-      materials.filter(item => persistedIds.has(item.id)).map(item => item.id)
+  /**
+   * Picked or dragged in — attached, now.
+   *
+   * It used to be staged: the tile appeared, the task did not have the file,
+   * and the two only agreed if the dialog was closed through Save. Dropping an
+   * upload attached immediately in the same dialog, so picking and dropping
+   * meant different things and only one of them survived a close.
+   */
+  const addAttachments = async (materials: TaskAttachmentCandidate[]) => {
+    const known = new Set(persistedAttachments.map(attachment => attachment.materialId));
+    const additions = materials.filter(material => !known.has(material.id));
+    if (additions.length === 0) return;
+    const position = Math.max(-1, ...persistedAttachments.map(item => item.position));
+    // On screen first: the wait is the server's, and a tile that appears when
+    // the request returns makes a good connection feel like a slow one.
+    const optimistic = additions.map((material, index) =>
+      draftAttachment(task.id, material, position + index + 1)
     );
-    if (reattachedIds.size > 0) {
-      setDetachedMaterialIds(current => {
-        const next = new Set(current);
-        for (const id of reattachedIds) next.delete(id);
-        return next;
+    setPersistedAttachments(current => uniqueAttachments(current, optimistic));
+    try {
+      const result = await attachTaskMaterialsInChunks({
+        client,
+        teamId,
+        taskId: task.id,
+        materialIds: additions.map(material => material.id)
       });
-    }
-    setDraftAttachments(current => {
-      const known = new Set([...persistedIds, ...current.map(attachment => attachment.materialId)]);
-      const additions = materials.filter(material => !known.has(material.id));
-      if (additions.length === 0) return current;
-      const position = Math.max(
-        -1,
-        ...persistedAttachments.map(attachment => attachment.position),
-        ...current.map(attachment => attachment.position)
+      if (result.rejected.length > 0) throw new Error('ATTACHMENT_REJECTED');
+      await load({ quiet: true });
+      onChanged({ ...task, attachmentCount: known.size + additions.length });
+    } catch (cause) {
+      setPersistedAttachments(current =>
+        current.filter(item => !optimistic.some(added => added.id === item.id))
       );
-      return [
-        ...current,
-        ...additions.map((material, index) =>
-          draftAttachment(task.id, material, position + index + 1)
-        )
-      ];
-    });
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    }
   };
 
   /**
@@ -798,43 +787,40 @@ export function TaskEditor({
   };
 
   /**
-   * Detaching is staged, not written — the change lands when the task is saved.
-   * The toast makes that reversibility visible, which is what the confirmation
-   * dialog was standing in for; a dialog guarding a staged, undoable change was
-   * friction charged twice over (finding R3, FR-028).
+   * Detaching is written at once, and takeable back.
+   *
+   * It used to be staged until Save, which made the toast's Undo a promise
+   * about a change that had not happened — and left the file attached if the
+   * dialog was closed another way. The reversibility is real now: the Undo
+   * re-attaches, which is the same guarantee trashing a file makes, and the
+   * reason there is still no confirmation dialog in front of it (FR-028).
    */
-  const stageDetach = (attachment: TeamTaskAttachmentSummary) => {
-    if (attachment.id.startsWith('draft:')) {
-      setDraftAttachments(current =>
-        current.filter(candidate => candidate.materialId !== attachment.materialId)
-      );
-      push({
-        tone: 'info',
-        text: t('teamToastAttachmentDetached', { name: attachment.name }),
-        action: {
-          label: t('teamUndo'),
-          run: () =>
-            setDraftAttachments(current =>
-              current.some(candidate => candidate.materialId === attachment.materialId)
-                ? current
-                : [...current, attachment]
-            )
-        }
-      });
+  const detach = async (attachment: TeamTaskAttachmentSummary) => {
+    setPersistedAttachments(current =>
+      current.filter(item => item.materialId !== attachment.materialId)
+    );
+    try {
+      await client.detachTaskMaterial(teamId, task.id, attachment.materialId);
+      onChanged({ ...task, attachmentCount: Math.max(0, persistedAttachments.length - 1) });
+    } catch (cause) {
+      setPersistedAttachments(current => uniqueAttachments(current, [attachment]));
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
       return;
     }
-    setDetachedMaterialIds(current => new Set(current).add(attachment.materialId));
     push({
       tone: 'info',
       text: t('teamToastAttachmentDetached', { name: attachment.name }),
       action: {
         label: t('teamUndo'),
         run: () =>
-          setDetachedMaterialIds(current => {
-            const next = new Set(current);
-            next.delete(attachment.materialId);
-            return next;
-          })
+          void addAttachments([
+            {
+              id: attachment.materialId,
+              name: attachment.name,
+              category: attachment.category,
+              kind: attachment.kind
+            } as TaskAttachmentCandidate
+          ])
       }
     });
   };
@@ -858,57 +844,42 @@ export function TaskEditor({
     if (String(normalized) !== raw) setProgressMaxInput(String(normalized));
   };
 
-  const save = async () => {
-    if (!canEdit || saving || savingStatus) return;
-    setSaving(true);
-    setError(null);
-    try {
-      let updated = task;
-      if (formDirty) {
-        const response = await client.updateTask(teamId, task.id, {
-          title,
-          note: note || null,
-          assigneeId: assigneeId || null,
-          dateOn,
-          progressMax,
-          progressValue,
-          expectedUpdatedAt: task.updatedAt
-        });
-        // The update RPC returns the physical row, while attachmentCount is
-        // derived by the read RPC. Keep the known count while this editor stays open.
-        updated = { ...response, attachmentCount: task.attachmentCount, agents: task.agents };
-        setTask(updated);
-      }
-      if (draftAttachments.length > 0) {
-        const result = await attachTaskMaterialsInChunks({
-          client,
-          teamId,
-          taskId: task.id,
-          materialIds: draftAttachments.map(attachment => attachment.materialId)
-        });
-        if (result.rejected.length > 0) throw new Error('ATTACHMENT_REJECTED');
-      }
-      for (const materialId of detachedMaterialIds) {
-        await client.detachTaskMaterial(teamId, task.id, materialId);
-      }
-      onChanged({ ...updated, attachmentCount });
-      clearTaskFormDraft(teamId, task.id);
-      onClose();
-    } catch {
-      setError('write');
-    } finally {
-      setSaving(false);
-    }
-  };
+  /**
+   * Every field writes itself (024).
+   *
+   * The version the write expects is the newest one this editor has seen, held
+   * in a ref rather than read from state: two changes a keystroke apart would
+   * otherwise both quote the version before the first, and the second would be
+   * refused as a conflict with the reader's own edit.
+   */
+  const versionRef = useRef(task.updatedAt);
+  versionRef.current = task.updatedAt;
 
-  const saveFromSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    void save();
-  };
+  const autosave = useTaskAutosave({
+    write: async patch => {
+      const response = await client.updateTask(teamId, task.id, {
+        ...patch,
+        expectedUpdatedAt: versionRef.current
+      });
+      // The update RPC returns the physical row, while attachmentCount is
+      // derived by the read RPC. Keep the known count while this editor stays open.
+      return { ...response, attachmentCount: task.attachmentCount, agents: task.agents };
+    },
+    read: async () => {
+      const value = await client.getTask({ teamId, taskId: task.id });
+      return value?.task ?? null;
+    },
+    onSaved: updated => {
+      setTask(updated);
+      setError(null);
+      onChanged(updated);
+    }
+  });
 
   /*
-   * Progress is saved the moment it is let go, like the status — not held for "Save". It carries the
-   * scale it was set on, and is not held to the copy's `updatedAt`: one field, last writer wins.
+   * Progress is saved the moment it is let go, like the status. It carries the
+   * scale it was set on, and is not held to the copy's `updatedAt`: one field,
+   * last writer wins — a slider is not something two people argue over.
    */
   const progressWriter = useCoalescedWrite<{ progressValue: number; progressMax: number }>({
     write: async value => {
@@ -924,7 +895,7 @@ export function TaskEditor({
   });
 
   const saveStatus = async (next: TeamTaskSummary['status']) => {
-    if (!canEdit || next === status || savingStatus || saving) return;
+    if (!canEdit || next === status || savingStatus) return;
     const previousTask = task;
     const previousStatus = status;
     setStatus(next);
@@ -957,16 +928,15 @@ export function TaskEditor({
     }
   };
 
+  /**
+   * Closing is just closing.
+   *
+   * There is nothing to lose on the way out any more, so the dialog that used
+   * to stand in the door — "you have unsaved changes" — has nothing to ask.
+   * Anything still waiting out the typing pause goes first.
+   */
   const requestClose = () => {
-    if (hasUnsavedChanges) {
-      setShowUnsavedPrompt(true);
-      return;
-    }
-    onClose();
-  };
-
-  const discardAndClose = () => {
-    clearTaskFormDraft(teamId, task.id);
+    autosave.flush();
     onClose();
   };
 
@@ -977,349 +947,604 @@ export function TaskEditor({
         onClose={requestClose}
         closeLabel={t('teamCancel')}
         initialFocus="#team-task-title"
-        size="lg"
+        size="xl"
       >
-        <div className="team-task-editor">
-          <form className="team-dialog-form" onSubmit={saveFromSubmit}>
-            <h2 id="team-task-editor-title">{t('teamTaskEditTitle')}</h2>
-            {/* A viewer sees a dialog of dead fields and no reason for it. The
+        <div className="team-task-editor-frame">
+          <div className="team-task-editor">
+            <h2 id="team-task-editor-title" className="visually-hidden">
+              {t('teamTaskEditTitle')}
+            </h2>
+            <form
+              className="team-dialog-form team-task-editor-brief"
+              // Nothing submits any more; Enter in a field must not reload the page.
+              onSubmit={event => event.preventDefault()}
+            >
+              {/* A viewer sees a dialog of dead fields and no reason for it. The
                 fields stay — reading them is the point — and the boundary is
                 said once, at the top, in the product's own words (FR-004). */}
-            {!canEdit && <PermissionState message={t('teamTaskReadOnly')} />}
-            <section className="team-task-editor-status" aria-labelledby="team-task-status-title">
-              <span id="team-task-status-title">{t('teamTaskStatus')}</span>
-              <TaskStatusControl
-                value={status}
-                disabled={!canEdit || saving || savingStatus}
-                onChange={next => void saveStatus(next)}
-              />
-              {/* The date the task is for, where the card shows it: at the end
-                  of the status line. It saves with the form, like the title. */}
-              <TaskDateField
-                value={teamTaskDate({ dateOn, createdAt: task.createdAt })}
-                isCustom={dateOn !== null}
-                createdOn={teamTaskDate({ dateOn: null, createdAt: task.createdAt })}
-                disabled={!canEdit}
-                onChange={setDateOn}
-              />
-            </section>
-            {/* The accounts this task is about (017). Written at once, like
-                status: a tag is a fact about the task, not a draft of one. */}
-            <TaskAgentTagsEditor
-              teamId={teamId}
-              taskId={task.id}
-              taskTitle={title}
-              tags={task.agents}
-              canEdit={canEdit}
-              client={client}
-              onTagsChange={agents => {
-                setTask(current => ({ ...current, agents }));
-                onTagsChange?.(agents);
-              }}
-            />
-            {/* The team's own tags (018), from the dictionary in settings. */}
-            <TaskLabelsEditor
-              teamId={teamId}
-              taskId={task.id}
-              labels={task.labels}
-              available={labels}
-              canEdit={canEdit}
-              client={client}
-              onLabelsChange={next => {
-                setTask(current => ({ ...current, labels: next }));
-                onLabelsChange?.(next);
-              }}
-            />
-            <FormField label={t('teamTaskTitle')} htmlFor="team-task-title" required>
-              <Input
-                id="team-task-title"
-                value={title}
-                maxLength={160}
-                required
-                disabled={!canEdit}
-                /* A brand-new task opens with a stand-in name; selecting it
-                   means the first thing typed replaces it instead of landing
-                   after it. */
-                onFocus={event => {
-                  if (event.target.value === t('teamTaskUntitled')) event.target.select();
-                }}
-                onChange={event => setTitle(event.target.value)}
-              />
-            </FormField>
-            <div className="team-task-editor-meta">
-              <FormField
-                className="team-task-assignee-field"
-                label={t('teamTaskAssignee')}
-                htmlFor="team-task-assignee"
-              >
-                <Select
-                  id="team-task-assignee"
-                  value={assigneeId}
-                  disabled={!canEdit}
-                  placeholder={t('teamTaskUnassigned')}
-                  options={members.map(member => ({
-                    value: member.userId,
-                    label: member.displayName ?? member.email ?? member.userId
-                  }))}
-                  onChange={event => setAssigneeId(event.target.value)}
-                />
-              </FormField>
-              <FormField
-                className="team-task-progress-max-field"
-                label={t('teamTaskProgressMax')}
-                htmlFor="team-task-progress-max"
-              >
-                <div className="team-task-progress-max-input">
+              {!canEdit && <PermissionState message={t('teamTaskReadOnly')} />}
+              {/* The title and the editor's own receipt and menu share a line (024):
+                  a row above the title held one "…" and pushed the task down a line
+                  on a laptop screen. */}
+              <div className="team-task-title-row">
+                <FormField
+                  className="team-task-title-field"
+                  label={t('teamTaskTitle')}
+                  htmlFor="team-task-title"
+                >
                   <Input
-                    id="team-task-progress-max"
-                    inputMode="numeric"
-                    type="number"
-                    min={1}
-                    max={TASK_PROGRESS_MAX}
-                    value={progressMaxInput}
+                    id="team-task-title"
+                    value={title}
+                    maxLength={160}
+                    required
                     disabled={!canEdit}
-                    onChange={event => updateProgressMax(event.target.value)}
-                    onBlur={() => {
-                      if (!/^\d+$/u.test(progressMaxInput))
-                        setProgressMaxInput(String(progressMax));
+                    /* A brand-new task opens with a stand-in name; selecting it
+                     means the first thing typed replaces it instead of landing
+                     after it. */
+                    onFocus={event => {
+                      if (event.target.value === t('teamTaskUntitled')) event.target.select();
                     }}
+                    onChange={event => {
+                      setTitle(event.target.value);
+                      if (canEdit) autosave.saveSoon({ title: event.target.value });
+                    }}
+                    onBlur={autosave.flush}
                   />
-                  {canEdit && defaultMax !== null && progressMax !== defaultMax && (
-                    <IconButton
-                      className="team-task-progress-max-save"
-                      size="sm"
-                      label={t('teamTaskProgressMaxSaveDefault')}
-                      disabled={savingDefaultMax}
-                      onClick={async () => {
-                        setSavingDefaultMax(true);
-                        try {
-                          await teamApi.setTaskProgressMaxDefault(progressMax);
-                          setDefaultMax(progressMax);
-                          push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
-                        } catch {
-                          push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
-                        } finally {
-                          setSavingDefaultMax(false);
-                        }
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                        <path
-                          d="M5 3h11l3 3v15H5z"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinejoin="round"
+                </FormField>
+                <div className="team-task-editor-heading">
+                  {/* Quiet when it works, loud when it does not. A save that
+                    succeeded is a receipt that fades; a save that failed keeps
+                    the words on screen and offers the retry, because the one
+                    thing worse than a spinner is silence over lost work. */}
+                  {canEdit && autosave.state === 'saving' && (
+                    <small className="team-task-saved" aria-live="polite">
+                      {t('teamTaskSaving')}
+                    </small>
+                  )}
+                  {canEdit && autosave.state === 'saved' && (
+                    <small className="team-task-saved" aria-live="polite">
+                      {t('teamTaskSaved')}
+                    </small>
+                  )}
+                  {canEdit && autosave.state === 'failed' && (
+                    <small className="team-task-save-failed" role="alert">
+                      {t('teamTaskSaveFailed')}
+                      <Button size="sm" color="error" variant="ghost" onClick={autosave.flush}>
+                        {t('teamTaskRetrySave')}
+                      </Button>
+                    </small>
+                  )}
+                  {/* Deleting lives in the editor's own menu (024, FR-088): a red
+                    button in the middle of the form was the loudest thing on a
+                    screen about a brief. It still confirms — a task cannot be
+                    given back whole, so an Undo would be a quieter lie (021, R3). */}
+                  {canEdit && onDelete && (
+                    <>
+                      <IconButton
+                        ref={editorMenuTrigger}
+                        className="team-task-editor-menu"
+                        size="sm"
+                        variant="ghost"
+                        label={t('teamTaskEditorMenu')}
+                        onClick={() => setEditorMenuOpen(true)}
+                      >
+                        <MoreHorizontal
+                          size={ICON_SIZE}
+                          strokeWidth={ICON_STROKE}
+                          aria-hidden="true"
                         />
-                        <path
-                          d="M8 3v6h7V3M8 21v-6h8v6"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </IconButton>
+                      </IconButton>
+                      <DropdownMenu
+                        open={editorMenuOpen}
+                        onClose={() => setEditorMenuOpen(false)}
+                        anchor={editorMenuTrigger}
+                        label={t('teamTaskEditorMenu')}
+                        items={[
+                          {
+                            id: 'delete',
+                            label: t('teamTaskDelete'),
+                            destructive: true,
+                            icon: (
+                              <Trash2
+                                size={ICON_SIZE}
+                                strokeWidth={ICON_STROKE}
+                                aria-hidden="true"
+                              />
+                            ),
+                            onSelect: () => setConfirmingDelete(true)
+                          }
+                        ]}
+                      />
+                    </>
                   )}
                 </div>
-              </FormField>
-            </div>
-            <TaskProgressScale
-              value={progressValue}
-              max={progressMax}
-              disabled={!canEdit}
-              label={t('teamTaskProgressScale')}
-              onChange={setProgressValue}
-              onCommit={next => {
-                if (canEdit) progressWriter.send({ progressValue: next, progressMax });
-              }}
-            />
-            <FormField label={t('teamTaskDescription')} htmlFor="team-task-description">
-              <Textarea
-                id="team-task-description"
-                className="team-task-description-input"
-                rows={12}
-                value={note}
-                maxLength={2_000}
-                disabled={!canEdit}
-                onChange={event => setNote(event.target.value)}
-              />
-            </FormField>
-            {error && (
-              <ErrorState
-                message={t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
-              />
-            )}
-            {canEdit && (
-              <div className="team-dialog-actions">
-                <Button
-                  type="submit"
-                  color="primary"
-                  variant="solid"
-                  loading={saving}
-                  disabled={savingStatus}
-                >
-                  {t('teamTaskSave')}
-                </Button>
-                {/* Deleting a task was the one lifecycle step with no way to
-                    take it — a finished or mistaken task stayed on the board
-                    forever (finding R1). */}
-                {onDelete && (
-                  <Button color="error" variant="soft" onClick={() => setConfirmingDelete(true)}>
-                    {t('teamTaskDelete')}
-                  </Button>
-                )}
               </div>
-            )}
-          </form>
-
-          <RestitchDeliveryNotices
-            states={restitch.states}
-            onConfigure={can('manage_metadata') ? openRestitchSettings : null}
-          />
-          {/* The whole section takes a drop, not a small strip inside it: a
-              person aims at "the attachments", and a target the size of the
-              thing it is named after cannot be missed. */}
-          <section
-            className={`team-task-attachments${dropping ? ' is-dropping' : ''}`}
-            aria-labelledby="team-task-attachments-title"
-            onDragEnter={event => {
-              if (!canDrop(event)) return;
-              event.preventDefault();
-              dropDepth.current += 1;
-              setDropping(true);
-            }}
-            onDragOver={event => {
-              if (!canDrop(event)) return;
-              // Without this the browser opens the file instead, which loses
-              // the task and everything typed into it.
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'copy';
-            }}
-            onDragLeave={() => {
-              // Counted, not toggled: dragging over a tile inside the section
-              // fires `leave` for the section itself.
-              dropDepth.current = Math.max(0, dropDepth.current - 1);
-              if (dropDepth.current === 0) setDropping(false);
-            }}
-            onDrop={event => {
-              if (!canDrop(event)) return;
-              event.preventDefault();
-              dropDepth.current = 0;
-              setDropping(false);
-              // Read synchronously: `webkitGetAsEntry` is only valid for the
-              // duration of the event, and it is the only way to tell a folder
-              // from a file before trying to send it.
-              /*
-               * Entries, not `files`: a folder is in `files` too, as a
-               * zero-byte record that would upload as an empty file of that
-               * name. The entries are the only way to walk into it, and they
-               * are only valid for the length of this event.
-               */
-              const dropped = droppedEntries(event.dataTransfer);
-              void uploadDropped(dropped.files, dropped.folders);
-            }}
-          >
-            <div className="team-task-attachments-heading">
-              <div>
-                <h3 id="team-task-attachments-title">{t('teamTaskAttachments')}</h3>
-                <p>
-                  {canEdit && can('upload')
-                    ? t('teamTaskAttachmentsDropHint')
-                    : t('teamTaskAttachmentsHint')}
-                </p>
-              </div>
-              <Badge size="sm">{t('teamTaskAttachmentsCount', { count: attachmentCount })}</Badge>
-            </div>
-
-            {/* The shape of what is coming, so the list does not jump when it
-                lands — and the sentence stays, because a bare shimmer is
-                indistinguishable from a stuck screen. */}
-            {loading && <LabeledSkeleton label="teamTaskLoadingAttachments" rows={2} />}
-            <div className="team-task-attachment-grid">
-              {visibleAttachments.map(attachment => (
-                <TaskAttachmentTile
-                  key={attachment.id}
-                  teamId={teamId}
-                  attachment={attachment}
-                  client={client}
-                  isDraft={attachment.id.startsWith('draft:')}
-                  onDetach={canEdit ? () => stageDetach(attachment) : undefined}
-                  onReveal={() => void revealAttachment(attachment)}
-                  onDownloadRestitched={
-                    can('download') ? () => deliverRestitched(attachment) : undefined
-                  }
-                  restitching={restitch.states[attachment.materialId]?.kind === 'running'}
+              {/* What the task is, read across one line (024, FR-085): its state,
+                who has it, when it is for. */}
+              <div className="team-task-editor-facts">
+                <TaskStatusControl
+                  adaptive
+                  value={status}
+                  disabled={!canEdit || savingStatus}
+                  onChange={next => void saveStatus(next)}
                 />
-              ))}
-              {uploads.map(item => (
-                <div key={item.id} className="team-task-attachment is-uploading">
-                  <div className="team-task-attachment-preview">
-                    <span className="team-task-attachment-fallback">
-                      {t('teamTaskAttachmentUploadingShare', {
-                        percent: item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0
-                      })}
-                    </span>
-                  </div>
-                  <div className="team-task-attachment-caption">
-                    <div className="team-task-attachment-caption-heading">
-                      <div>
-                        <strong title={item.name}>{item.name}</strong>
-                        <small>{t('teamTaskAttachmentUploadingLabel')}</small>
-                      </div>
-                    </div>
-                    <Progress
-                      className="team-task-attachment-progress"
-                      size="xs"
-                      label={t('teamTaskAttachmentUploading', { name: item.name })}
-                      value={item.total > 0 ? (item.sent / item.total) * 100 : 0}
-                    />
-                  </div>
-                </div>
-              ))}
-              {canEdit && (
-                <TaskAttachmentPicker
+                {/* Always in the editor (the owner, 024, revising FR-089): hidden
+                    in a space of one, the field looked lost rather than quiet —
+                    and its last line is how the second person gets invited. */}
+                <>
+                  {/* Who has it: the select says "not assigned" by itself, so it needs no
+                    caption beside it, and the person you want may not be in the space yet —
+                    inviting them is the list's last line rather than a second button (024,
+                    FR-031, US14). */}
+                  <Select
+                    id="team-task-assignee"
+                    className="team-task-assignee-select"
+                    aria-label={t('teamTaskAssignee')}
+                    value={assigneeId}
+                    disabled={!canEdit}
+                    placeholder={t('teamTaskUnassigned')}
+                    options={[
+                      ...members.map(member => ({
+                        value: member.userId,
+                        label: member.displayName ?? member.email ?? member.userId
+                      })),
+                      ...(canEdit && can('manage_members') && client.createInvitation
+                        ? [{ value: INVITE_OPTION, label: `+ ${t('teamTaskInviteSomeone')}` }]
+                        : [])
+                    ]}
+                    onChange={next => {
+                      if (next === INVITE_OPTION) {
+                        setInviting(true);
+                        return;
+                      }
+                      setAssigneeId(next);
+                      if (canEdit) autosave.save({ assigneeId: next || null });
+                    }}
+                  />
+                </>
+                <TaskDateField
+                  value={teamTaskDate({ dateOn, createdAt: task.createdAt })}
+                  isCustom={dateOn !== null}
+                  createdOn={teamTaskDate({ dateOn: null, createdAt: task.createdAt })}
+                  disabled={!canEdit}
+                  onChange={next => {
+                    setDateOn(next);
+                    if (canEdit) autosave.save({ dateOn: next });
+                  }}
+                />
+              </div>
+              {/* The accounts and the tags, right under state · who · when (024): which
+                  agent a launch is on is the task's main fact, and it sat under a tall
+                  empty drop tile in the other column. */}
+              <div className="team-task-editor-tags">
+                {/* The accounts this task is about (017). Written at once, like
+                status: a tag is a fact about the task, not a draft of one. */}
+                <TaskAgentTagsEditor
                   teamId={teamId}
+                  taskId={task.id}
+                  taskTitle={title}
+                  tags={task.agents}
+                  canEdit={canEdit}
                   client={client}
-                  attachedMaterialIds={visibleMaterialIds}
-                  onAdd={addAttachments}
+                  onTagsChange={agents => {
+                    setTask(current => ({ ...current, agents }));
+                    onTagsChange?.(agents);
+                  }}
+                  /* A launch means the work has started (024): a task still "To do" after its
+                     launch was marked read as if nothing had happened. */
+                  onLaunched={() => {
+                    if (status === 'todo') void saveStatus('in_progress');
+                  }}
+                />
+                {/* The team's own tags (018), from the dictionary in settings. */}
+                <TaskLabelsEditor
+                  teamId={teamId}
+                  taskId={task.id}
+                  labels={task.labels}
+                  available={labels}
+                  canEdit={canEdit}
+                  client={client}
+                  onLabelsChange={next => {
+                    setTask(current => ({ ...current, labels: next }));
+                    onLabelsChange?.(next);
+                  }}
+                  // A tag made from inside the task belongs to the space, so the
+                  // dictionary the board and the settings read has to learn it too.
+                  onLabelCreated={onLabelCreated}
+                />
+              </div>
+              <FormField
+                className="team-task-brief-field"
+                label={t('teamTaskDescription')}
+                htmlFor="team-task-description"
+              >
+                <Textarea
+                  id="team-task-description"
+                  className="team-task-description-input"
+                  placeholder={t('teamTaskDescriptionPlaceholder')}
+                  // Short when the brief is short; it grows as it is written (FR-087).
+                  rows={3}
+                  value={note}
+                  maxLength={2_000}
+                  disabled={!canEdit}
+                  onChange={event => {
+                    setNote(event.target.value);
+                    if (canEdit) autosave.saveSoon({ note: event.target.value || null });
+                  }}
+                  onBlur={autosave.flush}
+                />
+              </FormField>
+              {/* Named where it stands, like Accounts and Tags below it: a
+                  red bar with a "0" on it and no word read as an error, not
+                  as "nothing done yet". */}
+              <div
+                className="team-task-editor-progress-group"
+                role="group"
+                aria-labelledby="team-task-progress-title"
+              >
+                {/* "0 / 100" on the caption line (024): the maximum is part of the reading, not
+                    a boxed field of its own that looked required on every task. */}
+                <div className="team-task-editor-progress-head">
+                  <span id="team-task-progress-title" className="team-task-accounts-label">
+                    {t('teamTaskProgressTitle')}
+                  </span>
+                  <span className="team-task-progress-readout">
+                    <span>{progressValue}</span>
+                    <span aria-hidden="true">/</span>
+                    <Input
+                      id="team-task-progress-max"
+                      className="team-task-progress-max-inline"
+                      aria-label={t('teamTaskProgressMax')}
+                      size="sm"
+                      inputMode="numeric"
+                      type="number"
+                      min={1}
+                      max={TASK_PROGRESS_MAX}
+                      value={progressMaxInput}
+                      disabled={!canEdit}
+                      onChange={event => updateProgressMax(event.target.value)}
+                      onBlur={() => {
+                        if (!/^\d+$/u.test(progressMaxInput))
+                          setProgressMaxInput(String(progressMax));
+                      }}
+                    />
+                  </span>
+                  {canEdit &&
+                    can('manage_metadata') &&
+                    defaultMax !== null &&
+                    progressMax !== defaultMax && (
+                      <Button
+                        className="team-task-progress-max-save"
+                        size="sm"
+                        color="neutral"
+                        variant="ghost"
+                        disabled={savingDefaultMax}
+                        onClick={async () => {
+                          setSavingDefaultMax(true);
+                          try {
+                            await teamApi.setTaskProgressMaxDefault(teamId, progressMax);
+                            setDefaultMax(progressMax);
+                            push({ tone: 'success', text: t('teamTaskProgressMaxSaved') });
+                          } catch {
+                            push({ tone: 'error', text: t('teamTaskAttachmentActionFailed') });
+                          } finally {
+                            setSavingDefaultMax(false);
+                          }
+                        }}
+                      >
+                        {t('teamTaskProgressMaxSaveDefault')}
+                      </Button>
+                    )}
+                </div>
+                <TaskProgressScale
+                  value={progressValue}
+                  max={progressMax}
+                  disabled={!canEdit}
+                  label={t('teamTaskProgressScale')}
+                  onChange={setProgressValue}
+                  onCommit={next => {
+                    if (canEdit) progressWriter.send({ progressValue: next, progressMax });
+                  }}
+                />
+              </div>
+              {error && (
+                <ErrorState
+                  message={t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
                 />
               )}
-            </div>
-            {persistedAttachments.length < task.attachmentCount && (
-              <Button
-                color="neutral"
-                variant="outline"
-                loading={loadingMore}
-                onClick={() => void loadMore()}
+            </form>
+            {/* What the task is about: its materials first, because they are the work. */}
+            <div className="team-task-editor-work">
+              <RestitchDeliveryNotices
+                states={restitch.states}
+                onConfigure={can('manage_metadata') ? openRestitchSettings : null}
+              />
+              {/* The whole section takes a drop, not a small strip inside it: a
+              person aims at "the attachments", and a target the size of the
+              thing it is named after cannot be missed. */}
+              <section
+                className={`team-task-attachments${dropping ? ' is-dropping' : ''}`}
+                aria-labelledby="team-task-attachments-title"
+                onDragEnter={event => {
+                  if (!canDrop(event)) return;
+                  event.preventDefault();
+                  dropDepth.current += 1;
+                  setDropping(true);
+                }}
+                onDragOver={event => {
+                  if (!canDrop(event)) return;
+                  // Without this the browser opens the file instead, which loses
+                  // the task and everything typed into it.
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'copy';
+                }}
+                onDragLeave={() => {
+                  // Counted, not toggled: dragging over a tile inside the section
+                  // fires `leave` for the section itself.
+                  dropDepth.current = Math.max(0, dropDepth.current - 1);
+                  if (dropDepth.current === 0) setDropping(false);
+                }}
+                onDrop={event => {
+                  if (!canDrop(event)) return;
+                  event.preventDefault();
+                  dropDepth.current = 0;
+                  setDropping(false);
+                  // Read synchronously: `webkitGetAsEntry` is only valid for the
+                  // duration of the event, and it is the only way to tell a folder
+                  // from a file before trying to send it.
+                  /*
+                   * Entries, not `files`: a folder is in `files` too, as a
+                   * zero-byte record that would upload as an empty file of that
+                   * name. The entries are the only way to walk into it, and they
+                   * are only valid for the length of this event.
+                   */
+                  const dropped = droppedEntries(event.dataTransfer);
+                  void uploadDropped(dropped.files, dropped.folders);
+                }}
               >
-                {t('teamTaskLoadMoreAttachments')}
-              </Button>
-            )}
-          </section>
+                <div className="team-task-attachments-heading">
+                  <div>
+                    <h3 id="team-task-attachments-title">{t('teamTaskAttachments')}</h3>
+                    {/* Said while there is nothing yet; once there are files the
+                    tiles and the picker speak for themselves (024, US14). */}
+                    {visibleAttachments.length === 0 && (
+                      <p>
+                        {canEdit && can('upload')
+                          ? t('teamTaskAttachmentsDropHint')
+                          : t('teamTaskAttachmentsHint')}
+                      </p>
+                    )}
+                  </div>
+                  {/* A zero says nothing the empty grid does not (024). */}
+                  {attachmentCount > 0 && (
+                    <Badge size="sm">
+                      {t('teamTaskAttachmentsCount', { count: attachmentCount })}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* The shape of what is coming, so the list does not jump when it
+                lands — and the sentence stays, because a bare shimmer is
+                indistinguishable from a stuck screen. */}
+                {loading && <LabeledSkeleton label="teamTaskLoadingAttachments" rows={2} />}
+                <div className="team-task-attachment-grid">
+                  {visibleAttachments.map(attachment => (
+                    <TaskAttachmentTile
+                      key={attachment.id}
+                      teamId={teamId}
+                      attachment={attachment}
+                      client={client}
+                      isDraft={attachment.id.startsWith('draft:')}
+                      onDetach={canEdit ? () => void detach(attachment) : undefined}
+                      onReveal={() => void revealAttachment(attachment)}
+                      onDownloadRestitched={
+                        can('download') ? () => deliverRestitched(attachment) : undefined
+                      }
+                      onProductCatalog={
+                        attachment.category === 'video' && !attachment.id.startsWith('draft:')
+                          ? () =>
+                              setCatalogFor({
+                                id: attachment.materialId,
+                                name: attachment.name
+                              })
+                          : undefined
+                      }
+                      onTranscribe={
+                        spaceQueue && attachment.category === 'video'
+                          ? () =>
+                              void findParentFolder(attachment).then(folderId =>
+                                spaceQueue.enqueueTranscriptions([
+                                  {
+                                    id: attachment.materialId,
+                                    name: attachment.name,
+                                    folderId: folderId ?? null,
+                                    attachTo: { taskId: task.id }
+                                  }
+                                ])
+                              )
+                          : undefined
+                      }
+                      onCompress={
+                        spaceQueue && attachment.category === 'video'
+                          ? () =>
+                              void findParentFolder(attachment).then(folderId =>
+                                setCompressing({
+                                  id: attachment.materialId,
+                                  name: attachment.name,
+                                  folderId: folderId ?? null
+                                })
+                              )
+                          : undefined
+                      }
+                      onProcess={() =>
+                        void findParentFolder(attachment).then(folderId =>
+                          setProcessing({
+                            material: {
+                              id: attachment.materialId,
+                              name: attachment.name,
+                              category: attachment.category
+                            },
+                            folderId: folderId ?? null
+                          })
+                        )
+                      }
+                      browseClient={client}
+                      companionsRevision={companionsRevision}
+                      folderPath={
+                        pathsDiffer ? attachmentFolders.pathOf(attachment.materialId) : null
+                      }
+                      restitching={restitch.states[attachment.materialId]?.kind === 'running'}
+                    />
+                  ))}
+                  {uploads.map(item => (
+                    <div key={item.id} className="team-task-attachment is-uploading">
+                      <div className="team-task-attachment-preview">
+                        <span className="team-task-attachment-fallback">
+                          {t('teamTaskAttachmentUploadingShare', {
+                            percent: item.total > 0 ? Math.round((item.sent / item.total) * 100) : 0
+                          })}
+                        </span>
+                      </div>
+                      <div className="team-task-attachment-caption">
+                        <div className="team-task-attachment-caption-heading">
+                          <div>
+                            <strong title={item.name}>{item.name}</strong>
+                            <small>{t('teamTaskAttachmentUploadingLabel')}</small>
+                          </div>
+                        </div>
+                        <Progress
+                          className="team-task-attachment-progress"
+                          size="xs"
+                          label={t('teamTaskAttachmentUploading', { name: item.name })}
+                          value={item.total > 0 ? (item.sent / item.total) * 100 : 0}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {canEdit && (
+                    <TaskAttachmentPicker
+                      teamId={teamId}
+                      client={client}
+                      attachedMaterialIds={visibleMaterialIds}
+                      startTrail={
+                        persistedAttachments[0]
+                          ? attachmentFolders.trailOf(persistedAttachments[0].materialId)
+                          : undefined
+                      }
+                      pathOf={parent =>
+                        folderPathLabel(
+                          parent,
+                          attachmentFolders.folders,
+                          t('teamExplorerRootLabel')
+                        )
+                      }
+                      onAdd={addAttachments}
+                    />
+                  )}
+                </div>
+                {persistedAttachments.length < task.attachmentCount && (
+                  <Button
+                    color="neutral"
+                    variant="outline"
+                    loading={loadingMore}
+                    onClick={() => void loadMore()}
+                  >
+                    {t('teamTaskLoadMoreAttachments')}
+                  </Button>
+                )}
+              </section>
+            </div>
+          </div>
         </div>
       </Modal>
-      {showUnsavedPrompt && (
+      {/* The one thing still worth a dialog: somebody else changed this task
+          while you were changing it. Not a snap-back — the words you typed are
+          still here, and you choose which version stands. */}
+      {autosave.state === 'conflict' && (
         <Modal
           nested
-          labelledBy="team-task-unsaved-title"
-          onClose={() => setShowUnsavedPrompt(false)}
+          labelledBy="team-task-conflict-title"
+          onClose={autosave.takeNewer}
           closeLabel={t('teamCancel')}
           size="sm"
         >
-          <div className="team-task-unsaved-confirmation">
-            <h2 id="team-task-unsaved-title">{t('teamTaskUnsavedTitle')}</h2>
-            <p>{t('teamTaskUnsavedDescription')}</p>
+          <div className="team-task-conflict">
+            <h2 id="team-task-conflict-title">{t('teamTaskConflictTitle')}</h2>
+            <p>{t('teamTaskConflictDescription')}</p>
+            {autosave.conflict && (
+              <p className="team-task-conflict-newer">
+                <strong>{autosave.conflict.title}</strong>
+                {autosave.conflict.note ? <span>{autosave.conflict.note}</span> : null}
+              </p>
+            )}
             <div className="team-dialog-actions">
-              <Button color="neutral" variant="ghost" onClick={discardAndClose}>
-                {t('teamTaskCloseWithoutSaving')}
+              <Button color="neutral" variant="ghost" onClick={autosave.takeNewer}>
+                {t('teamTaskConflictTakeNewer')}
               </Button>
-              <Button color="primary" variant="solid" loading={saving} onClick={() => void save()}>
-                {t('teamTaskSave')}
+              <Button color="primary" variant="solid" onClick={autosave.overwrite}>
+                {t('teamTaskConflictKeepMine')}
               </Button>
             </div>
           </div>
         </Modal>
+      )}
+      {inviting && client.createInvitation && (
+        <Modal
+          nested
+          labelledBy="team-task-invite-title"
+          onClose={() => setInviting(false)}
+          closeLabel={t('teamCancel')}
+          size="md"
+        >
+          <div className="team-task-invite">
+            <h2 id="team-task-invite-title">{t('teamTaskInviteSomeone')}</h2>
+            <InvitationPanel
+              teamId={teamId}
+              client={client as unknown as InvitationPanelClient}
+              canManage
+            />
+          </div>
+        </Modal>
+      )}
+      {catalogFor && (
+        <ProductCatalogMenuDialog
+          teamId={teamId}
+          video={catalogFor}
+          onClose={() => setCatalogFor(null)}
+          onChanged={() => setCompanionsRevision(value => value + 1)}
+        />
+      )}
+      {compressing && spaceQueue && (
+        <TeamCompressorDialog
+          teamId={teamId}
+          items={[compressing]}
+          client={client}
+          onRun={plan => spaceQueue.enqueue(compressJobs(plan, { taskId: task.id }))}
+          onClose={() => setCompressing(null)}
+        />
+      )}
+      {processing && (
+        <MaterialProcessFlow
+          teamId={teamId}
+          material={{
+            id: processing.material.id,
+            name: processing.material.name,
+            category: processing.material.category ?? 'other'
+          }}
+          destinationFolderId={processing.folderId}
+          browseClient={client}
+          onFinished={materialId =>
+            void attachResultToTask({
+              teamId,
+              taskId: task.id,
+              materialId,
+              name: processing.material.name,
+              push: pushToast,
+              t
+            })
+          }
+          onClose={() => setProcessing(null)}
+        />
       )}
       {confirmingDelete && onDelete && (
         <ConfirmDialog

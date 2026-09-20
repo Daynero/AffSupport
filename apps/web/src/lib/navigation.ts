@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 
 const NAVIGATION_EVENT = 'wishly-navigation';
@@ -90,6 +90,22 @@ export function currentRoute() {
 }
 
 /**
+ * The team workspace changes the shell width and mounts a substantial lazy
+ * surface. Keeping the previous page's View Transition snapshot above it made
+ * the workspace and the tools menu visibly coexist, and that snapshot could
+ * also receive pointer input while the real destination was already mounted.
+ * Crossing this boundary is therefore a direct swap. Transitions within the
+ * tools area and within a workspace still use the normal page motion.
+ */
+export function crossesTeamBoundary(from: string, to: string): boolean {
+  const isTeamRoute = (route: string) => {
+    const path = route.split(/[?#]/, 1)[0] ?? '';
+    return path === '/team' || path.startsWith('/team/');
+  };
+  return isTeamRoute(from) !== isTeamRoute(to);
+}
+
+/**
  * `animate: false` swaps the route with no page crossfade — for adjustments
  * within a screen (a folder, a view toggle, a selection written to the URL),
  * where the View Transition of the whole page read as a flicker on every
@@ -104,14 +120,23 @@ export function navigateTo(path: string, replace = false, animate = true) {
 
 export function useBrowserRoute() {
   const [route, setRoute] = useState(currentRoute);
+  const routeRef = useRef(route);
   useEffect(() => {
-    const apply = () => setRoute(currentRoute());
-    const onNavigation = (event: Event) => {
-      const animate = (event as CustomEvent<{ animate?: boolean }>).detail?.animate !== false;
-      if (animate) commitRouteChange(apply);
+    const apply = () => {
+      const next = currentRoute();
+      routeRef.current = next;
+      setRoute(next);
+    };
+    const applyNavigation = (animate: boolean) => {
+      const next = currentRoute();
+      if (animate && !crossesTeamBoundary(routeRef.current, next)) commitRouteChange(apply);
       else apply();
     };
-    const onPopState = () => commitRouteChange(apply);
+    const onNavigation = (event: Event) => {
+      const animate = (event as CustomEvent<{ animate?: boolean }>).detail?.animate !== false;
+      applyNavigation(animate);
+    };
+    const onPopState = () => applyNavigation(true);
     window.addEventListener('popstate', onPopState);
     window.addEventListener(NAVIGATION_EVENT, onNavigation);
     return () => {
@@ -122,7 +147,7 @@ export function useBrowserRoute() {
   return route;
 }
 
-export function internalLink(event: MouseEvent<HTMLAnchorElement>, path: string) {
+export function internalLink(event: MouseEvent<HTMLAnchorElement>, path: string, animate = true) {
   if (
     event.defaultPrevented ||
     event.button !== 0 ||
@@ -133,5 +158,5 @@ export function internalLink(event: MouseEvent<HTMLAnchorElement>, path: string)
   )
     return;
   event.preventDefault();
-  navigateTo(path);
+  navigateTo(path, false, animate);
 }

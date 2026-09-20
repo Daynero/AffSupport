@@ -37,14 +37,14 @@
   provider, database service, media binaries). Rewritten in neutral terms — "beta data
   store", "beta identity store", "production update channel", "production release gate" —
   so the spec constrains outcomes, not technology. The one deliberate exception is the word
-  *branch* in the Feature Branch header, which is Spec Kit template metadata.
+  _branch_ in the Feature Branch header, which is Spec Kit template metadata.
 - **Untestable requirement**: "beta must look like production" was rewritten into FR-014,
   FR-015, and SC-006, which are observable by a third party from a screenshot.
 - **Unbounded scope**: The description left open whether beta is a hosted, shareable
   environment. An explicit **Out of Scope** section now excludes external distribution,
   production data cloning, hosted always-on beta, load testing, and broader CI changes.
 - **Missing negative requirements**: The high-risk failure modes of this feature are all
-  *leakage* cases. FR-005, FR-006, FR-017, FR-018, FR-021, FR-025, and FR-027 state them as
+  _leakage_ cases. FR-005, FR-006, FR-017, FR-018, FR-021, FR-025, and FR-027 state them as
   hard refusals, and SC-003 through SC-005 measure them at 100%.
 
 ### Clarification session 2026-08-20 — all previously deferred decisions resolved
@@ -106,4 +106,3 @@ resolved along with all eleven lesser findings. The spec changed in three places
 Checklist status is unchanged at **15/16**, with the same single deliberate exception recorded above.
 The new requirements are outcome-stated and technology-neutral; the concrete delivery provider is
 named only in `plan.md`, `tasks.md`, and the contracts, where implementation detail belongs.
-

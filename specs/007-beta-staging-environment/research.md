@@ -2,7 +2,7 @@
 
 **Feature**: [spec.md](./spec.md) · **Plan**: [plan.md](./plan.md) · **Date**: 2026-08-20
 
-The clarification session settled *what* beta must be. This document settles *how*, against what the
+The clarification session settled _what_ beta must be. This document settles _how_, against what the
 repository actually contains. Every decision below was checked against real code, not assumed.
 
 ---
@@ -20,10 +20,11 @@ rather than during a production deploy; and production credentials simply do not
 environment, which makes the isolation structural rather than a matter of care.
 
 **Alternatives considered**:
-- *A separate hosted beta Supabase project* — rejected. It is a second live project to keep
+
+- _A separate hosted beta Supabase project_ — rejected. It is a second live project to keep
   migrated, secured, and paid for, and it reintroduces the exact failure mode this feature exists to
   remove: a real credential that could be pointed at the wrong project.
-- *The production project with a beta schema or tenant flag* — rejected outright. It puts beta data
+- _The production project with a beta schema or tenant flag_ — rejected outright. It puts beta data
   one policy mistake away from production data and makes FR-025 (a reset that cannot touch
   production) impossible to guarantee.
 
@@ -47,14 +48,15 @@ union parsed once at the boundary matches Constitution Principle I, and `apps/we
 already establishes the `{ ok: true; value } | { ok: false; errors }` idiom to copy.
 
 **Defaulting to `production` is deliberate**: an unset or malformed value must never silently produce
-a beta build. The failure direction is chosen so that a mistake yields a *stricter* environment, and
+a beta build. The failure direction is chosen so that a mistake yields a _stricter_ environment, and
 the beta scripts assert the value explicitly rather than relying on the default.
 
 **Alternatives considered**:
-- *Reuse Vite's `import.meta.env.MODE === 'beta'`* — rejected. It exists only in the web bundle, so
+
+- _Reuse Vite's `import.meta.env.MODE === 'beta'`_ — rejected. It exists only in the web bundle, so
   the agent and the `.mjs` gates could not read the same fact, and it is a build-tool detail rather
   than a product contract.
-- *Infer beta from the port or the site origin* — rejected as fragile and implicit; a guard that
+- _Infer beta from the port or the site origin_ — rejected as fragile and implicit; a guard that
   infers cannot produce the named failure reasons FR-006 requires.
 
 ---
@@ -69,7 +71,7 @@ sets `VITE_LOCAL_DEV_AUTH=true`. Reading `apps/web/src/auth/AuthContext.tsx` sho
 does: it substitutes a hardcoded user (`dev@wishly.local`, a fixed UUID) and short-circuits both the
 session-restore effect and `signInWithGoogle`. An environment carrying that flag cannot test sign-in,
 session expiry, profile creation, account status, or anything downstream of a real identity — which
-would gut FR-002. Soty Dev is a *tool for working on the app*; beta is a *mirror for verifying it*,
+would gut FR-002. Soty Dev is a _tool for working on the app_; beta is a _mirror for verifying it_,
 and the two need opposite settings here.
 
 **Consequence**: `verify-beta-env.mjs` asserts `VITE_LOCAL_DEV_AUTH` is not `true` in the beta
@@ -95,8 +97,9 @@ production-issued token fails signature verification in beta and a beta-issued t
 production, cryptographically, with no configuration to get wrong.
 
 **Alternatives considered**:
-- *Empty key, as Soty Dev does* — rejected: leaves a whole gate untested.
-- *Reuse the production entitlement key* — rejected: it would make beta and production tokens
+
+- _Empty key, as Soty Dev does_ — rejected: leaves a whole gate untested.
+- _Reuse the production entitlement key_ — rejected: it would make beta and production tokens
   interchangeable, directly violating FR-027b, and would require a production private key on the
   development machine.
 
@@ -108,7 +111,7 @@ production, cryptographically, with no configuration to get wrong.
 environment !== 'beta'` — in addition to shipping `VITE_ANALYTICS_ENABLED=false` in the beta profile.
 
 **Rationale**: `apps/web/src/analytics/service.ts` reads `VITE_ANALYTICS_ENABLED !== 'false'`, so
-today a single mistyped or missing flag re-enables telemetry. SC-003 demands *zero* production
+today a single mistyped or missing flag re-enables telemetry. SC-003 demands _zero_ production
 analytics events from beta activity, and Principle III demands isolation by construction. Making the
 environment an independent, non-overridable condition means the guarantee survives a bad env file.
 Belt and braces is justified here because the failure is silent and the damage — polluted product
@@ -120,14 +123,14 @@ metrics — is discovered late.
 
 **Decision**: Beta occupies its own slot across every namespace that could collide:
 
-| Resource | Production | Ordinary dev | **Beta** |
-|---|---|---|---|
-| Agent port | 43120 | 43130 (Soty Dev) | **43140** |
-| Web dev server | — | 5173 | **5175** |
-| App name / bundle id | Soty / `com.wishly` | Soty Dev / `com.wishly.dev` | **Soty Beta / `com.wishly.beta`** |
-| Application Support dir | `Soty` | `Soty Dev` | **`Soty Beta`** |
-| Instance lock | `wishly-agent.lock` | `wishly-dev-agent.lock` | **`wishly-beta-agent.lock`** |
-| Release channel | `stable` | `development` | **`beta`** |
+| Resource                | Production          | Ordinary dev                | **Beta**                          |
+| ----------------------- | ------------------- | --------------------------- | --------------------------------- |
+| Agent port              | 43120               | 43130 (Soty Dev)            | **43140**                         |
+| Web dev server          | —                   | 5173                        | **5175**                          |
+| App name / bundle id    | Soty / `com.wishly` | Soty Dev / `com.wishly.dev` | **Soty Beta / `com.wishly.beta`** |
+| Application Support dir | `Soty`              | `Soty Dev`                  | **`Soty Beta`**                   |
+| Instance lock           | `wishly-agent.lock` | `wishly-dev-agent.lock`     | **`wishly-beta-agent.lock`**      |
+| Release channel         | `stable`            | `development`               | **`beta`**                        |
 
 **Rationale**: FR-007 and SC-010 require all three to run at once. The mechanisms already exist and
 are proven: `AGENT_PORT` and `AGENT_SUPPORT_DIRECTORY_NAME` are read in `apps/agent/src/config.ts`
@@ -176,10 +179,11 @@ and the existing release chain already demonstrates the pattern — `deploy:web`
 `verify-web-env` → `build:web` → `verify-release --deploy` → `verify-published-release`. Adding one
 more link keeps the guarantee in the place that already cannot be bypassed. Containment in `beta` is
 checked with git itself rather than trusted from a note, and the verification record ties the
-*packaged* beta smoke (FR-002b) to a specific revision so a stale pass cannot be reused.
+_packaged_ beta smoke (FR-002b) to a specific revision so a stale pass cannot be reused.
 
 **Alternatives considered**:
-- *Branch protection or CI enforcement* — rejected for now. The constitution records that the only
+
+- _Branch protection or CI enforcement_ — rejected for now. The constitution records that the only
   workflow is `workflow_dispatch`-only and nothing runs on push or PR, so a CI-based guarantee would
   be aspirational. A local gate in the existing chain is real today; CI enforcement is a later,
   separate improvement.

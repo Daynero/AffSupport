@@ -12,50 +12,62 @@ synthetic link.
 - **Row 2** — the field keys (`id`, `title`, …, `style[0]`).
 - **Rows 3 … (2 + product count)** — one row per product. Product count is chosen in the dialog:
   a whole number from 1 to 400, default 100.
-- Every product row carries the same values except `id` (column A) and `video[0].url` (column Z).
+- Since 024 every product row carries its own name, description, price and picture, drawn from the
+  space's pools; since 024 US21 it also carries its own content ID and its own details — colour, fabric,
+  size, category, style, stock, weight, shipping and sale. A sheet made before the pools repeats the
+  space's single values and Meta's example details, which is what the `fallback` in
+  `catalog-template.json` gives.
 
 ## Columns
 
-| Col | Key                            | Value comes from         | Value                                                                                                             |
-| --- | ------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| A   | `id`                           | row number               | `1`, `2`, … up to the product count — a number                                                                    |
-| B   | `title`                        | space catalog settings   | Title                                                                                                             |
-| C   | `description`                  | space catalog settings   | Description                                                                                                       |
-| D   | `availability`                 | fixed, as in the example | `in stock`                                                                                                        |
-| E   | `condition`                    | fixed, as in the example | `new`                                                                                                             |
-| F   | `price`                        | space catalog settings   | Price, a whole number, followed by `,00 USD` — `10` is written `10,00 USD`                                        |
-| G   | `link`                         | dialog                   | the link pasted into the "Create catalog" dialog                                                                  |
-| H   | `image_link`                   | space catalog settings   | Image link                                                                                                        |
-| I   | `brand`                        | fixed, as in the example | `Facebook`                                                                                                        |
-| J   | `google_product_category`      | fixed, as in the example | `Apparel & Accessories > Clothing`                                                                                |
-| K   | `fb_product_category`          | fixed, as in the example | `Clothing & Accessories > Clothing`                                                                               |
-| L   | `quantity_to_sell_on_facebook` | fixed, as in the example | `75` — a number                                                                                                   |
-| M   | `sale_price`                   | copy of F                | same value as `price`                                                                                             |
-| N   | `sale_price_effective_date`    | fixed, as in the example | `2020-04-30T09:30-08:00/2020-05-30T23:59-08:00`                                                                   |
-| O   | `item_group_id`                | fixed, as in the example | _empty_                                                                                                           |
-| P   | `gender`                       | fixed, as in the example | `unisex`                                                                                                          |
-| Q   | `color`                        | fixed, as in the example | `royal blue`                                                                                                      |
-| R   | `size`                         | fixed, as in the example | `M`                                                                                                               |
-| S   | `age_group`                    | fixed, as in the example | `adult`                                                                                                           |
-| T   | `material`                     | fixed, as in the example | `cotton`                                                                                                          |
-| U   | `pattern`                      | fixed, as in the example | `stripes`                                                                                                         |
-| V   | `shipping`                     | fixed, as in the example | `US:CA:Ground:9.99 USD;US:NY:Air:15.99 USD`                                                                       |
-| W   | `shipping_weight`              | fixed, as in the example | `10 kg`                                                                                                           |
-| X   | `offer_disclaimer`             | fixed, as in the example | `Valid while supplies last. Terms and conditions apply.`                                                          |
-| Y   | `offer_disclaimer_url`         | fixed, as in the example | `https://example.com/terms-and-conditions`                                                                        |
-| Z   | `video[0].url`                 | video                    | the video's link-shared Google Drive link + `?v=` + the row number padded to three digits (`?v=001`, `?v=002`, …) |
-| AA  | `video[0].tag[0]`              | fixed, as in the example | `Gym`                                                                                                             |
-| AB  | `gtin`                         | fixed, as in the example | `8806088573892` — stored as text so it is never shown in scientific notation                                      |
-| AC  | `product_tags[0]`              | fixed, as in the example | `some_string`                                                                                                     |
-| AD  | `product_tags[1]`              | fixed, as in the example | `other`                                                                                                           |
-| AE  | `style[0]`                     | fixed, as in the example | `Bodycon`                                                                                                         |
+| Col | Key                            | Value comes from         | Value                                                                                                                               |
+| --- | ------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| A   | `id`                           | minted per write         | a content ID of its own, made of the time the sheet was written and a drawn tail (`MU5TS-4WH8VU7`) — text, never a row number (024, US21) |
+| B   | `title`                        | space catalog settings   | Title                                                                                                                               |
+| C   | `description`                  | space catalog settings   | Description                                                                                                                         |
+| D   | `availability`                 | fixed, as in the example | `in stock`                                                                                                                          |
+| E   | `condition`                    | fixed, as in the example | `new`                                                                                                                               |
+| F   | `price`                        | space catalog settings   | Price, a whole number, followed by `,00 USD` — `10` is written `10,00 USD`                                                          |
+| G   | `link`                         | dialog                   | the link pasted into the "Create catalog" dialog                                                                                    |
+| H   | `image_link`                   | space catalog settings   | Image link                                                                                                                          |
+| I   | `brand`                        | catalog's own brand      | an invented word, the same for every row of one catalog (024, US21)                                                                       |
+| J   | `google_product_category`      | row detail               | the garment's category — Shirts & Tops, Pants, Skirts, Dresses or Outerwear (024, US21)                                                   |
+| K   | `fb_product_category`          | row detail               | the same, in Meta’s own tree (024, US21)                                                                                                  |
+| L   | `quantity_to_sell_on_facebook` | row detail               | drawn, 20 to 300 — a number (024, US21)                                                                                                   |
+| M   | `sale_price`                   | row detail               | 15% to 40% under the row’s own price, never below one dollar (024, US21)                                                                  |
+| N   | `sale_price_effective_date`    | row detail               | from yesterday to a month out, so the sale is running when it is read (024, US21)                                                         |
+| O   | `item_group_id`                | fixed, as in the example | _empty_                                                                                                                             |
+| P   | `gender`                       | row detail               | `female` for a dress or a skirt; drawn from female/male/unisex otherwise (024, US21)                                                      |
+| Q   | `color`                        | row detail               | the colour the name says, or a drawn one when the name says none (024, US21)                                                              |
+| R   | `size`                         | row detail               | drawn, XS to XXL (024, US21)                                                                                                              |
+| S   | `age_group`                    | fixed, as in the example | `adult`                                                                                                                             |
+| T   | `material`                     | row detail               | the fabric the name says, or a drawn one (024, US21)                                                                                      |
+| U   | `pattern`                      | row detail               | drawn: solid, striped, plaid, printed, checked, colour block (024, US21)                                                                  |
+| V   | `shipping`                     | row detail               | drawn: `US::Standard:4.99 USD` and the like (024, US21)                                                                                   |
+| W   | `shipping_weight`              | row detail               | drawn, 0.2 to 1.5 kg (024, US21)                                                                                                          |
+| X   | `offer_disclaimer`             | empty                    | _empty_ — the example’s placeholder text said nothing true (024, US21)                                                                    |
+| Y   | `offer_disclaimer_url`         | empty                    | _empty_ (024, US21)                                                                                                                       |
+| Z   | `video[0].url`                 | video                    | the video's link-shared Google Drive link + `?v=` + the row number padded to three digits (`?v=001`, `?v=002`, …)                   |
+| AA  | `video[0].tag[0]`              | row detail               | drawn: Gym, Outdoor, Lifestyle, Studio, Street, Travel, Casual (024, US21)                                                                |
+| AB  | `gtin`                         | empty                    | _empty_ — one barcode on every row of every catalog is worse than none (024, US21)                                                        |
+| AC  | `product_tags[0]`              | row detail               | the garment, hyphenated (024, US21)                                                                                                       |
+| AD  | `product_tags[1]`              | row detail               | the colour (024, US21)                                                                                                                    |
+| AE  | `style[0]`                     | row detail               | a style that suits the garment (024, US21)                                                                                                |
 
 ### Column Z, precisely
 
-The video's Google Drive link in its link-shared form, followed by `?v=` and the row's `id` padded
-to three digits — `…/view?usp=sharing?v=001` on the first product, `?v=002` on the second, up to
-`?v=400`. This follows the example literally (it appends `?v=` even though the link already has a
-`?`); every product therefore gets a distinct video URL, which is the point.
+The video's Google Drive link in its link-shared form, followed by `?v=` and a mark of the row's
+own — the row number padded to three digits (`?v=001`) for a sheet without details, a drawn
+four-character mark (024, US21) for a row planned from the pools. This follows the example literally (it
+appends `?v=` even though the link already has a `?`); every product therefore gets a distinct
+video URL, which is the point.
+
+### Column A, precisely
+
+A content ID is minted on every write of the sheet — the first one and every update after it —
+from the moment it was written (base 36, uppercase) and seven drawn characters: `MU5TS4WH-8VU7RH8`.
+Until 024 US21 the ID was the row number plus an offset that grew with each update, which came back to
+`1` as soon as a catalog was re-created, and Meta remembered the rejections those IDs carried.
 
 ## Row 1 — field descriptions (as in the example)
 
@@ -76,7 +88,7 @@ to three digits — `…/view?usp=sharing?v=001` on the first product, `?v=002` 
 | M   | # Необязательно \| The discounted price of the item if it's on sale. Format the price as a number followed by the 3-letter currency code (ISO 4217 standards). Use a period (.) as the decimal point; don't use a comma. A sale price is required if you want to use an overlay for discounted prices.                                                                                                                                                                                                                                                                                                              |
 | N   | # Необязательно \| The time range for your sale period. Includes the date and time/time zone when your sale starts and ends. If this field is blank any items with a sale_price remain on sale until you remove the sale price. Use this format: YYYY-MM-DDT23:59+00:00/YYYY-MM-DDT23:59+00:00. Enter the start date as YYYY-MM-DD. Enter a 'T'. Enter the start time in 24-hour format (00:00 to 23:59) followed by the UTC time zone (-12:00 to +14:00). Enter '/' and then repeat the same format for your end date and time. The example row below uses PST time zone (-08:00).                                 |
 | O   | # Необязательно \| Use this field to create variants of the same item. Enter the same group ID for all variants within a group. Learn more about variants: https://www.facebook.com/business/help/2256580051262113 Character limit: 100.                                                                                                                                                                                                                                                                                                                                                                            |
-| P   | # Необязательно \| Пол человека; на которого рассчитан этот товар. \| Поддерживаемые значения: female; male; unisex                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| P   | `# Необязательно \`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | row detail | `female` for a dress or a skirt; drawn from female/male/unisex otherwise (024, US21) |
 | Q   | # Необязательно \| The color of the item. Use one or more words to describe the color. Don't use a hex code. Character limit: 200.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | R   | # Необязательно \| The size of the item written as a word or abbreviation or number. For example: small; XL; 12. Character limit: 200.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | S   | # Необязательно \| Возрастная группа; на которую рассчитан товар. \| Поддерживаемые значения: adult; all ages; infant; kids; newborn; teen; toddler                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |

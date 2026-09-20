@@ -15,16 +15,16 @@ validation).
 
 When the environment is `beta`, every one of these is a hard failure:
 
-| Condition | Code |
-|---|---|
-| Supabase URL, site URL, agent URL, or public origin is not loopback | `BETA_PRODUCTION_ENDPOINT` |
-| Any configured origin equals `PRODUCTION_SITE_ORIGIN` | `BETA_PRODUCTION_ENDPOINT` |
-| `AGENT_ENTITLEMENT_PUBLIC_KEY` is empty, or equals the production key | `BETA_PRODUCTION_ENDPOINT` |
-| `VITE_LOCAL_DEV_AUTH` is `true` | `BETA_LOCAL_AUTH_FORBIDDEN` |
+| Condition                                                                                | Code                               |
+| ---------------------------------------------------------------------------------------- | ---------------------------------- |
+| Supabase URL, site URL, agent URL, or public origin is not loopback                      | `BETA_PRODUCTION_ENDPOINT`         |
+| Any configured origin equals `PRODUCTION_SITE_ORIGIN`                                    | `BETA_PRODUCTION_ENDPOINT`         |
+| `AGENT_ENTITLEMENT_PUBLIC_KEY` is empty, or equals the production key                    | `BETA_PRODUCTION_ENDPOINT`         |
+| `VITE_LOCAL_DEV_AUTH` is `true`                                                          | `BETA_LOCAL_AUTH_FORBIDDEN`        |
 | A third-party message-delivery credential (`RESEND_API_KEY`, `INVITE_EMAIL_FROM`) is set | `BETA_DELIVERY_PROVIDER_FORBIDDEN` |
-| A required key from the profile is missing | `BETA_ENV_MISSING` |
-| A required beta port is already held by another process | `BETA_PORT_IN_USE` |
-| Container runtime, Supabase CLI, or media tooling is unavailable | `BETA_PREREQUISITE_MISSING` |
+| A required key from the profile is missing                                               | `BETA_ENV_MISSING`                 |
+| A required beta port is already held by another process                                  | `BETA_PORT_IN_USE`                 |
+| Container runtime, Supabase CLI, or media tooling is unavailable                         | `BETA_PREREQUISITE_MISSING`        |
 
 The agent-side assertion runs before `buildServer`, so a misconfigured beta agent never binds a port
 and never accepts a request.
@@ -37,7 +37,7 @@ invitations to real people — the same class of leak as writing production anal
 notice because every other message type behaves correctly. In beta, no delivery-provider credential
 may be configured, and the invitation flow surfaces the link locally instead of sending it.
 
-**Inverse rule, deliberately asymmetric**: when the environment is `production`, a *loopback* Supabase
+**Inverse rule, deliberately asymmetric**: when the environment is `production`, a _loopback_ Supabase
 or site URL is rejected in a production build. This preserves the existing check in
 `apps/web/src/lib/config.ts` and closes the mirror-image mistake.
 
@@ -48,12 +48,12 @@ or site URL is rejected in a production build. This preserves the existing check
 **Enforced by**: `scripts/verify-release.mjs` (already mandatory in front of every package and
 deploy) and `scripts/verify-published-release.mjs`.
 
-| Condition | Code |
-|---|---|
-| Release channel, version, or build id carries a beta identity | `RELEASE_BETA_IDENTITY` |
-| A beta marker appears in a production-feeding file | `RELEASE_BETA_CONFIG` |
-| A beta marker appears in the built `apps/web/dist` | `RELEASE_BETA_CONFIG` |
-| An artifact with a beta identity appears in the published update channel | `RELEASE_BETA_IDENTITY` |
+| Condition                                                                  | Code                      |
+| -------------------------------------------------------------------------- | ------------------------- |
+| Release channel, version, or build id carries a beta identity              | `RELEASE_BETA_IDENTITY`   |
+| A beta marker appears in a production-feeding file                         | `RELEASE_BETA_CONFIG`     |
+| A beta marker appears in the built `apps/web/dist`                         | `RELEASE_BETA_CONFIG`     |
+| An artifact with a beta identity appears in the published update channel   | `RELEASE_BETA_IDENTITY`   |
 | HEAD is not contained in `beta`, or no matching verification record exists | `RELEASE_BETA_UNVERIFIED` |
 
 **Beta markers**: `VITE_APP_ENVIRONMENT=beta`, `SOTY_ENVIRONMENT=beta`, `com.wishly.beta`,
@@ -81,11 +81,11 @@ neither produces a false failure nor silently widens.
 
 ## Test coverage
 
-| Guard | Test | Asserts |
-|---|---|---|
-| A | `tests/beta-isolation-guards.test.ts` | Each condition above produces its exact code, including `BETA_DELIVERY_PROVIDER_FORBIDDEN`; a valid beta profile passes. Environment probes are injected, so the suite never touches the real system |
-| A | `tests/beta-web-environment.test.tsx` | Badge present in beta and absent in production; analytics emits nothing in beta even with `VITE_ANALYTICS_ENABLED=true` |
-| B | `tests/beta-release-gates.test.ts` | Each beta marker in each production-feeding file is rejected; a beta artifact is never verifiable by the production release-manifest key; `supabase/config.toml` containing beta redirect URLs does **not** trigger a failure |
-| Promotion | `tests/beta-promotion-gate.test.ts` | Uncontained commit, missing record, mismatched revision, and dirty record each yield `RELEASE_BETA_UNVERIFIED` |
-| Reset | `tests/beta-reset-guard.test.ts` | A non-loopback target fails before the first destructive operation |
-| Profiles | `tests/beta-environment.test.ts` | Ports, bundle ids, support directories, and lock names are pairwise distinct across production, dev, and beta |
+| Guard     | Test                                  | Asserts                                                                                                                                                                                                                       |
+| --------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A         | `tests/beta-isolation-guards.test.ts` | Each condition above produces its exact code, including `BETA_DELIVERY_PROVIDER_FORBIDDEN`; a valid beta profile passes. Environment probes are injected, so the suite never touches the real system                          |
+| A         | `tests/beta-web-environment.test.tsx` | Badge present in beta and absent in production; analytics emits nothing in beta even with `VITE_ANALYTICS_ENABLED=true`                                                                                                       |
+| B         | `tests/beta-release-gates.test.ts`    | Each beta marker in each production-feeding file is rejected; a beta artifact is never verifiable by the production release-manifest key; `supabase/config.toml` containing beta redirect URLs does **not** trigger a failure |
+| Promotion | `tests/beta-promotion-gate.test.ts`   | Uncontained commit, missing record, mismatched revision, and dirty record each yield `RELEASE_BETA_UNVERIFIED`                                                                                                                |
+| Reset     | `tests/beta-reset-guard.test.ts`      | A non-loopback target fails before the first destructive operation                                                                                                                                                            |
+| Profiles  | `tests/beta-environment.test.ts`      | Ports, bundle ids, support directories, and lock names are pairwise distinct across production, dev, and beta                                                                                                                 |

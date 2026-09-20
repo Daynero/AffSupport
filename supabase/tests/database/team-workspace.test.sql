@@ -1,6 +1,6 @@
 begin;
 
-select plan(268);
+select plan(305);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -2014,6 +2014,20 @@ select ok(
    from pg_temp.us3_safe_search),
   'search returns one closed safe result without transcript or provider identity'
 );
+select is(
+  (
+    public.search_materials(
+      (select id from pg_temp.us1_created_team), 'Benchmark need', '{}'::jsonb, 1, 50
+    ) #>> '{items,0,name}'
+  ),
+  'Benchmark needle creative',
+  'a word typed only part of the way finds the name it starts'
+);
+select is(
+  private.material_search_query('"benchmark needle" -draft')::text,
+  pg_catalog.websearch_to_tsquery('simple', '"benchmark needle" -draft')::text,
+  'a query written in web-search syntax keeps that meaning'
+);
 select ok(
   (select (payload #> '{catalogFreshness}') ? 'discoveredCount'
       and (payload #> '{catalogFreshness}') ? 'foldersRemaining'
@@ -2107,6 +2121,56 @@ select is(
     from pg_temp.us3_identity_before as before
   ),
   'metadata mutation preserves every sampled provider, lifecycle, and content field'
+);
+
+-- 024: a file's note is Soty's metadata, kept with its line breaks, found by search, and read alone.
+select is(
+  (
+    select public.update_material_metadata(
+      (select id from pg_temp.us1_created_team),
+      (select id from pg_temp.us3_identity_before),
+      jsonb_build_object('note', E'  For the Poland launch\nkeep the hook short  ')
+    ) ->> 'note'
+  ),
+  E'For the Poland launch\nkeep the hook short',
+  'a note is trimmed at its ends and keeps its line breaks'
+);
+select is(
+  public.get_team_material_note(
+    (select id from pg_temp.us1_created_team),
+    (select id from pg_temp.us3_identity_before)
+  ),
+  E'For the Poland launch\nkeep the hook short',
+  'a member who can view reads the note of one file'
+);
+select ok(
+  (
+    select material.search_tsv @@ pg_catalog.to_tsquery('simple', 'hook')
+    from public.team_materials as material
+    where material.id = (select id from pg_temp.us3_identity_before)
+  ),
+  'search finds a file by a word of its note'
+);
+select throws_ok(
+  format(
+    $$select public.update_material_metadata(%L::uuid, %L::uuid, %L::jsonb)$$,
+    (select id from pg_temp.us1_created_team),
+    (select id from pg_temp.us3_identity_before),
+    jsonb_build_object('note', repeat('x', 4001))
+  ),
+  '22023', 'INVALID_INPUT',
+  'a note longer than 4000 characters is refused'
+);
+select is(
+  (
+    select public.update_material_metadata(
+      (select id from pg_temp.us1_created_team),
+      (select id from pg_temp.us3_identity_before),
+      '{"note":"   "}'::jsonb
+    ) ->> 'note'
+  ),
+  null,
+  'an empty note removes the note'
 );
 
 create temporary table us3_transcript as
@@ -3571,6 +3635,265 @@ select throws_ok(
   '42501',
   'PERMISSION_DENIED',
   'only the space owner can queue a full Drive resync'
+);
+
+-- 024: a space can be renamed by its owner, keeping names unique among the owner's spaces.
+select throws_ok(
+  $$ select public.rename_team((select id from pg_temp.us7_same_root_team), 'Nutra') $$,
+  '42501', 'PERMISSION_DENIED',
+  'someone outside the space cannot rename it'
+);
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+select is(
+  public.rename_team((select id from pg_temp.us7_same_root_team), '  Nutra   PL  '),
+  'Nutra PL',
+  'the owner renames the space; spaces inside the name collapse'
+);
+select is(
+  (select name from public.teams where id = (select id from pg_temp.us7_same_root_team)),
+  'Nutra PL',
+  'the new name is stored'
+);
+select throws_ok(
+  format(
+    $$ select public.rename_team(%L::uuid, %L) $$,
+    (select id from pg_temp.us7_same_root_team),
+    (select upper(name) from public.teams where id = (select id from pg_temp.us1_created_team))
+  ),
+  '23505', 'NAME_CONFLICT',
+  'a name another of the owner''s spaces already has is refused'
+);
+select is(
+  (
+    select count(*) from public.team_audit_events
+    where team_id = (select id from pg_temp.us7_same_root_team) and action = 'team.renamed'
+  ),
+  1::bigint,
+  'a rename is written to the space history'
+);
+
+-- 024: the history records the work — a task made, its status moved, a launch marked.
+create temporary table us24_history_task as
+select * from public.create_team_task((select id from pg_temp.us7_same_root_team), 'Launch GlucoSoft');
+select is(
+  (select count(*) from public.team_audit_events
+   where team_id = (select id from pg_temp.us7_same_root_team) and action = 'task.created'
+     and target->>'task_title' = 'Launch GlucoSoft'),
+  1::bigint,
+  'making a task writes task.created with its title'
+);
+select public.update_team_task(
+  (select id from pg_temp.us7_same_root_team),
+  (select id from pg_temp.us24_history_task),
+  '{"status":"in_progress"}'::jsonb
+);
+select is(
+  (select target->>'from' || '>' || (target->>'to') from public.team_audit_events
+   where team_id = (select id from pg_temp.us7_same_root_team) and action = 'task.status_changed'),
+  'todo>in_progress',
+  'moving a task writes task.status_changed with from and to'
+);
+create temporary table us24_account as
+select * from public.create_team_account((select id from pg_temp.us7_same_root_team), 'v31');
+create temporary table us24_agent as
+select public.add_team_account_agent(
+  (select id from pg_temp.us7_same_root_team),
+  (select id from pg_temp.us24_account),
+  '765434'
+) as payload;
+select public.add_team_agent_run(
+  (select id from pg_temp.us7_same_root_team),
+  (select (payload->>'id')::uuid from pg_temp.us24_agent),
+  'GlucoSoft | PL'
+);
+select is(
+  (select target->>'agent' || ' ' || (target->>'note') from public.team_audit_events
+   where team_id = (select id from pg_temp.us7_same_root_team) and action = 'agent.run_added'),
+  'v31-434 GlucoSoft | PL',
+  'marking a launch writes agent.run_added with the agent and the run'
+);
+select is(
+  (select subject_label from public.list_team_audit_events((select id from pg_temp.us7_same_root_team), 50)
+   where action = 'task.created'),
+  'Launch GlucoSoft',
+  'the history names a task by its title'
+);
+
+-- 024: an agent counts only the tasks still open on it.
+select public.attach_team_task_agent(
+  (select id from pg_temp.us7_same_root_team),
+  (select id from pg_temp.us24_history_task),
+  (select (payload->>'id')::uuid from pg_temp.us24_agent)
+);
+select is(
+  (private.team_agent_json((select (payload->>'id')::uuid from pg_temp.us24_agent))->>'task_count')::int,
+  1,
+  'an open task on an agent counts'
+);
+select public.update_team_task(
+  (select id from pg_temp.us7_same_root_team),
+  (select id from pg_temp.us24_history_task),
+  '{"status":"done"}'::jsonb
+);
+select is(
+  (private.team_agent_json((select (payload->>'id')::uuid from pg_temp.us24_agent))->>'task_count')::int,
+  0,
+  'a done task no longer counts on the agent'
+);
+
+-- 024: catalog pools draw without repeats until a pool is spent, then start over.
+select public.replace_team_product_catalog_texts(
+  (select id from pg_temp.us7_same_root_team),
+  '[{"title":"Aurelia Linen Midi Dress","description":"Soft and light."},
+    {"title":"Nova Cotton Oversized Tee","description":"Made for warm days."}]'::jsonb
+);
+create temporary table us24_draw_one as
+select * from public.service_draw_product_catalog_texts((select id from pg_temp.us7_same_root_team), 2);
+select is(
+  (select count(distinct title) from pg_temp.us24_draw_one),
+  2::bigint,
+  'a draw the size of the pool uses every text once'
+);
+create temporary table us24_draw_two as
+select * from public.service_draw_product_catalog_texts((select id from pg_temp.us7_same_root_team), 3);
+select is(
+  (select count(*) from pg_temp.us24_draw_two),
+  3::bigint,
+  'a spent pool starts over and a larger draw goes round again'
+);
+select is(
+  (select count(*) from public.service_draw_product_catalog_images((select id from pg_temp.us7_same_root_team), 5)),
+  0::bigint,
+  'a space with no picture sources draws no pictures'
+);
+select throws_ok(
+  $$ select public.set_team_product_catalog_settings((select id from pg_temp.us7_same_root_team),
+       '{"priceMin":30,"priceMax":9}'::jsonb) $$,
+  '22023', 'INVALID_INPUT',
+  'a price range must not run backwards'
+);
+select is(
+  (public.set_team_product_catalog_settings((select id from pg_temp.us7_same_root_team),
+     '{"priceMin":9,"priceMax":30}'::jsonb)).price_max,
+  30,
+  'a range alone is enough settings when the pools carry the rest'
+);
+
+-- 024 US21: the same choice for the words as 024 gave the pictures, and the claim carries both.
+select is(
+  public.get_team_catalog_updater_refresh_texts((select id from pg_temp.us7_same_root_team)),
+  true,
+  'an update refreshes names, texts and prices unless a space says otherwise'
+);
+select is(
+  public.set_team_catalog_updater_refresh_texts((select id from pg_temp.us7_same_root_team), false),
+  false,
+  'a space can turn the refresh off'
+);
+select is(
+  public.get_team_catalog_updater_refresh_texts((select id from pg_temp.us7_same_root_team)),
+  false,
+  'and the choice is what the next read gives back'
+);
+select is(
+  public.get_team_catalog_updater_grow((select id from pg_temp.us7_same_root_team)),
+  false,
+  'an update adds no products unless a space asks for it'
+);
+select is(
+  public.set_team_catalog_updater_grow((select id from pg_temp.us7_same_root_team), true),
+  true,
+  'a space can ask every update for a few more products'
+);
+select ok(
+  (select count(*) from pg_catalog.unnest(
+     array['refresh_images', 'refresh_texts', 'price_min', 'price_max', 'grow_products']
+   ) as wanted(name)
+   join information_schema.parameters as parameter
+     on parameter.parameter_name = wanted.name
+    and parameter.specific_name like 'service_claim_catalog_updater_items%'
+    and parameter.parameter_mode = 'OUT') = 5,
+  'the worker claims every choice and the space price range in one read'
+);
+select ok(
+  (select count(*) from information_schema.parameters as parameter
+    where parameter.specific_name like 'service_complete_catalog_update%'
+      and parameter.parameter_name in ('p_product_count', 'p_settings_snapshot')) = 2,
+  'and writes back what the sheet became'
+);
+
+-- 024 US23: what the space's own machinery does is in the history, under a name of its own.
+select lives_ok(
+  $$ select private.record_team_system_audit(
+       (select id from pg_temp.us7_same_root_team), 'catalog.updated', '{}'::jsonb) $$,
+  'the space itself can write an event with no actor'
+);
+select is(
+  (select actor_label_snapshot from public.team_audit_events
+    where action = 'catalog.updated'
+    order by occurred_at desc limit 1),
+  'Soty',
+  'and it is signed by the product rather than by a member'
+);
+select ok(
+  (select actor_id is null from public.team_audit_events
+    where action = 'catalog.updated' order by occurred_at desc limit 1),
+  'with no actor at all, which the column now allows'
+);
+
+-- 024 US24: what a deleted video leaves behind is cleared; what a moved one leaves is not.
+insert into public.team_materials (
+  team_id, connection_id, drive_file_id, parent_folder_id,
+  name, mime_type, file_extension, kind, category, lifecycle, trashed_at
+) values (
+  (select id from pg_temp.us1_created_team),
+  (select connection_id from pg_temp.us1_connection),
+  'us24-deleted-video', 'root-folder-us1', 'gone.mp4', 'video/mp4', 'mp4', 'file', 'video',
+  'trashed', clock_timestamp() - interval '2 days'
+), (
+  (select id from pg_temp.us1_created_team),
+  (select connection_id from pg_temp.us1_connection),
+  'us24-moved-video', 'root-folder-us1', 'moved.mp4', 'video/mp4', 'mp4', 'file', 'video',
+  'active', null
+);
+update public.team_materials
+   set lifecycle = 'missing',
+       missing_at = clock_timestamp() - interval '2 days',
+       missing_reason = 'out_of_root'
+ where drive_file_id = 'us24-moved-video';
+
+insert into public.team_materials (
+  team_id, connection_id, drive_file_id, parent_folder_id,
+  name, mime_type, file_extension, kind, category, companion_of, companion_kind
+)
+select (select id from pg_temp.us1_created_team),
+       (select connection_id from pg_temp.us1_connection),
+       'us24-' || source.drive_file_id || '-text', 'root-folder-us1',
+       source.name || '.txt', 'text/plain', 'txt', 'file', 'transcript',
+       source.id, 'transcript'
+from public.team_materials as source
+where source.drive_file_id in ('us24-deleted-video', 'us24-moved-video');
+
+select is(
+  private.queue_orphan_cleanups(interval '1 day'),
+  1,
+  'only the deleted video''s leftovers are queued for clearing'
+);
+select is(
+  (select file.drive_file_id from private.orphan_cleanups as item
+   join public.team_materials as file on file.id = item.material_id),
+  'us24-us24-deleted-video-text',
+  'and it is the text of the video that was deleted'
+);
+select is(
+  private.is_gone_for_good('missing', 'out_of_root'),
+  false,
+  'a file moved out of the watched folder is not gone'
+);
+select is(
+  (private.is_gone_for_good('trashed', null), private.is_gone_for_good('missing', 'removed'))::text,
+  '(t,t)',
+  'a file in the bin, or gone for good, is'
 );
 
 select * from finish();

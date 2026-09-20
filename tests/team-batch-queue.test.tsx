@@ -270,6 +270,26 @@ describe('pausing the team batch', () => {
     await waitFor(() => expect(shared.canceled).toEqual(['op-1']));
   });
 
+  it('does not call a failed run a finished transcription', async () => {
+    /*
+     * The owner's screenshot (024): a video with nothing to transcribe raised the red toast and,
+     * under it, "Transcriptions finished: 1". Two answers to the same question, the cheerful one
+     * wrong. A run that failed says what went wrong and nothing else, and the sentence names the
+     * likely reason instead of "something went wrong".
+     */
+    shared.failStart = true;
+    renderShell([video(1)]);
+    await transcribe('clip-1.mp4');
+
+    expect(
+      await screen.findByText(
+        'Nothing could be transcribed from “clip-1.mp4” — it may have no speech, or no sound at all.'
+      )
+    ).toBeTruthy();
+    await waitFor(() => expect(shared.canceled).toEqual(['op-1']));
+    expect(screen.queryByText('Transcriptions finished: 1')).toBeNull();
+  });
+
   it('lets the current file go when the rest of the queue is dropped', async () => {
     // "Stop after the current one" needs a current one that is still moving.
     renderShell([video(1), video(2)]);

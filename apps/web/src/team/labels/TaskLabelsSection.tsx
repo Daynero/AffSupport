@@ -22,7 +22,7 @@ import {
   type TeamTaskLabel,
   type TeamTaskLabelColor
 } from '@video-compressor/shared';
-import { Button, IconButton } from '../../components/ui';
+import { Button, IconButton, Input } from '../../components/ui';
 import { ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
@@ -156,7 +156,7 @@ export function TaskLabelsSection({
         <form className="team-task-labels-create" onSubmit={event => void create(event)}>
           <label className="team-task-labels-name">
             <span>{t('teamTaskTagName')}</span>
-            <input
+            <Input
               value={name}
               maxLength={TEAM_TASK_LABEL_NAME_MAX}
               placeholder={t(agents ? 'teamAgentTagNamePlaceholder' : 'teamTaskTagNamePlaceholder')}

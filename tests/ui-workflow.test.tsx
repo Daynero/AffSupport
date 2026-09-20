@@ -259,6 +259,29 @@ describe('why the compress action is unavailable', () => {
 });
 
 describe('estimates, results, timers and batch progress', () => {
+  it('shows a blocked media engine as an error that can be removed, not endless analysis', () => {
+    const blocked = makeJob('blocked-runtime', 'analyzing', {
+      error: 'MEDIA_TOOLS_UNAVAILABLE_JOB'
+    });
+    const markup = renderToStaticMarkup(
+      <JobRow
+        job={blocked}
+        selected={false}
+        disabled={false}
+        compressionRunning={false}
+        language="en"
+        onSelected={() => {}}
+        action={() => {}}
+        t={translator('en')}
+      />
+    );
+
+    expect(markup).toContain('Error');
+    expect(markup).toContain('A media tool is unavailable right now.');
+    expect(markup).toContain('Remove');
+    expect(markup).not.toContain('Analyzing');
+  });
+
   it('keeps estimate and actual result visually and semantically distinct', () => {
     const estimated = makeJob('estimated', 'ready', {
       encoding: { ...customEncoding },

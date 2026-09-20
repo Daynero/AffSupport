@@ -4,14 +4,14 @@ Recorded: 2026-08-05.
 
 ## Completed gates
 
-| Command | Result |
-| --- | --- |
-| `npm run format:check` | Pass |
-| `npm run lint` | Pass |
-| `npx vitest run tests/soty-review-*.test.*` | Pass: 15 files, 31 tests |
-| `npm run build:soty-review` | Pass |
-| `npm run verify:soty-review` | Pass: 104 interactions, 0 isolation violations, 50 screenshots, 0 axe violations |
-| `git diff --check` | Pass |
+| Command                                     | Result                                                                           |
+| ------------------------------------------- | -------------------------------------------------------------------------------- |
+| `npm run format:check`                      | Pass                                                                             |
+| `npm run lint`                              | Pass                                                                             |
+| `npx vitest run tests/soty-review-*.test.*` | Pass: 15 files, 31 tests                                                         |
+| `npm run build:soty-review`                 | Pass                                                                             |
+| `npm run verify:soty-review`                | Pass: 104 interactions, 0 isolation violations, 50 screenshots, 0 axe violations |
+| `git diff --check`                          | Pass                                                                             |
 
 The 50 versioned PNG baselines cover five representative surfaces, light/dark themes, five
 viewports from 320×568 through 1440×900, long-content locale and reduced motion. They are in

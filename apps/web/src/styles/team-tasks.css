@@ -8,8 +8,11 @@
    ============================================================ */
 
 .team-task-grid {
-  /* Taller floor: the description is the body now, not a footnote. */
-  grid-auto-rows: minmax(300px, min-content);
+  /* No floor (024, benchmarked on Linear's board): a card is as tall as its
+     task. Not stretched to the row either: one long brief made every card
+     beside it a tall empty frame, and the board showed half the tasks. */
+  grid-auto-rows: min-content;
+  align-items: start;
 }
 
 /* One column: a card is as tall as its task, no floor — an empty description
@@ -27,6 +30,8 @@
 }
 
 .team-task-card {
+  /* As tall as the task, not as the row (024). */
+  height: auto;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-3) 10px;
@@ -44,6 +49,46 @@
 
 .team-task-card-strip .team-task-agent-tags {
   display: contents;
+}
+
+/*
+ * The overflow and the tick box (024).
+ *
+ * Both sit at the ends of the strip and both stay quiet: on a board of fifty
+ * cards a control that is always at full contrast is fifty distractions. They
+ * come up on hover and whenever the keyboard is inside the card — and the tick
+ * box stays up once anything is selected, because a selection you cannot see
+ * is one you will act on by accident.
+ */
+.team-task-card-menu {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+.team-task-card:hover .team-task-card-menu,
+.team-task-card:focus-within .team-task-card-menu {
+  opacity: 1;
+}
+.team-task-card-select {
+  opacity: 0.55;
+}
+/* The same box as a file's in the explorer (024): at the inventory's 18px it was the smallest
+   target on a card whose every other control is 28px or more, and ticking cards is how a batch
+   starts. */
+.team-task-card-select .ui-checkbox-mark {
+  width: 24px;
+  height: 24px;
+  border-width: 1.5px;
+}
+.team-task-card:hover .team-task-card-select,
+.team-task-card:focus-within .team-task-card-select,
+.team-task-card-select:has(input:checked) {
+  opacity: 1;
+}
+/* The bar's own trigger anchors its menu. */
+.team-task-bulk {
+  position: relative;
+  display: inline-flex;
 }
 
 /* The same outline as the status control beside it — one border, one fill,
@@ -131,11 +176,6 @@
   height: auto;
 }
 
-.team-task-card-description > span {
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-}
-
 .team-task-card-more {
   display: inline-flex;
   align-items: center;
@@ -193,6 +233,12 @@
 .team-task-card-footer .team-task-card-error {
   margin-left: auto;
 }
+.team-task-card-footer .team-task-card-date {
+  margin-left: auto;
+}
+.team-task-card-footer .team-task-card-error + .team-task-card-date {
+  margin-left: 0;
+}
 
 /* The panel's run field: the whole prefilled title on one line where it fits,
    the field taking the row when it does not. */
@@ -202,20 +248,10 @@
 
 /* --- The filter row on a phone ----------------------------------------------- */
 
-/* styles.css stacks the filter row and stretches the calendar trigger to the
-   full width — a bare wide box around one icon. The trigger keeps its icon
-   width; it is the account pill that may take a row of its own. */
+/* styles.css stacks the filter row; the date chip and the account pill keep
+   their own width rather than stretching into a bare wide box. */
 @media (max-width: 720px) {
-  .task-date-filter-calendar,
-  .task-date-filter-trigger {
-    width: auto;
-  }
-
   .task-date-filter-calendar {
-    align-self: flex-start;
-  }
-
-  .task-account-filter {
     align-self: flex-start;
   }
 }
@@ -231,8 +267,8 @@
    thing that changes between them is what they say. */
 .task-date-filter .task-quick-range,
 .task-date-filter .task-status-filter-option,
-.task-date-filter .task-date-filter-trigger {
-  min-height: 34px;
+.task-date-filter .task-date-filter-calendar {
+  min-height: var(--control-height-sm);
   border: 1px solid transparent;
   border-radius: var(--radius-full);
   background: none;
@@ -241,13 +277,9 @@
   font-weight: 600;
 }
 
-.task-date-filter .task-date-filter-trigger {
-  padding: 0 10px;
-}
-
 .task-date-filter .task-quick-range:hover,
 .task-date-filter .task-status-filter-option:hover,
-.task-date-filter .task-date-filter-trigger:hover {
+.task-date-filter .task-date-filter-calendar:hover {
   border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-text);
@@ -259,7 +291,7 @@
    for their text sat at 2.9:1 on this surface. */
 .task-date-filter .task-quick-range.is-active,
 .task-date-filter .task-status-filter-option.is-active,
-.task-date-filter .task-date-filter-trigger.is-active {
+.task-date-filter .task-date-filter-calendar.is-active {
   border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
   background: color-mix(in srgb, var(--color-accent) 16%, transparent);
   color: var(--color-accent-text);
@@ -271,31 +303,98 @@
   height: 15px;
 }
 
-/* Unfold every brief on the board at once, and fold them back. Quiet, beside
-   the primary action, because it changes how the board reads rather than
-   what is on it. */
-.team-task-expand-all {
+/* --- The date chip ----------------------------------------------------------- */
+
+/* One pill, two buttons. The wrapper is the chip — it takes the row's face
+   above — and the trigger and the × inside it draw no chrome of their own, so
+   the mark has a place of its own at the pill's end and never sits on the
+   label. It used to be two chrome-bearing buttons: the × was pulled 31px back
+   over the trigger by a negative margin, and stood 44px tall from the global
+   `button { min-height: 44.2px }` floor while the trigger stood 34 — a dark
+   disc on the last letters of "18 вер.". The chip itself is styled here and
+   nowhere else; styles.css no longer knows it. */
+.task-date-filter-calendar {
+  position: relative;
   display: inline-flex;
-  min-height: 34px;
   align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  padding: 0 var(--space-3) 0 10px;
-  border: 1px solid var(--color-border);
+}
+
+.task-date-filter-calendar .task-date-filter-trigger {
+  display: inline-flex;
+  min-height: 0;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: stretch;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  padding: 0 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* With a range chosen the × takes the pill's right end, so the label needs no
+   room of its own on that side. */
+.task-date-filter-calendar.is-active .task-date-filter-trigger {
+  padding-right: var(--space-1);
+}
+
+.task-date-filter-calendar .task-date-filter-trigger svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+/* The × that takes the date filter off. Shared with the account filter, which
+   sets its own size beside its own pill (team-accounts.css). `min-height: 0`
+   is what keeps it at 24px under the global button floor. */
+.task-date-filter-clear {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
   border-radius: var(--radius-full);
   background: none;
   color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-caption);
+  font-size: var(--text-label);
   font-weight: 600;
-  white-space: nowrap;
+  line-height: 1;
+  cursor: pointer;
 }
 
-.team-task-expand-all:hover {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface-muted);
+.task-date-filter-clear:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
   color: var(--color-text);
+}
+
+/* Inside the pill the mark speaks in the pill's colour — accent when a range
+   is on — and keeps a hair off the outline, so its hover disc stays a disc
+   inside the chip rather than a bite out of its edge. */
+.task-date-filter-calendar .task-date-filter-clear {
+  margin-right: 2px;
+  color: inherit;
+}
+
+/* The calendar's surface is the inventory's popover; what is the chip's own
+   is its width and the room its sections get. Shared with the account and
+   label pickers, which carry this class as well, so every filter popover in
+   the row opens at one width and one padding. */
+.task-date-filter-popover {
+  width: min(280px, calc(100vw - var(--space-4) * 2));
+  padding: var(--space-3);
+}
+
+/* Under the grid, the presets take a row and the hint takes the next: the
+   calendar's footer is a wrapping flex row, and a short hint would otherwise
+   climb up beside the last preset. */
+.task-date-filter-popover .task-quick-ranges,
+.task-date-filter-popover .task-calendar-hint {
+  flex: 1 1 100%;
 }
 
 /* ============================================================
@@ -546,7 +645,8 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 .team-task-label-menu {
   display: flex;
-  width: min(280px, calc(100vw - 32px));
+  width: min(320px, calc(100vw - 32px));
+  font-size: var(--text-sm);
   max-height: min(360px, 55vh);
   flex-direction: column;
   gap: 2px;
@@ -559,8 +659,14 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 
 .team-task-label-menu-search {
+  /* The size of the chips under it, not of a page's search field: at the
+     global input size it stood twice as tall as anything in the menu. */
   width: 100%;
-  min-height: 32px;
+  height: 34px;
+  min-height: 0;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
   margin-bottom: var(--space-1);
 }
 
@@ -597,20 +703,230 @@ button.team-task-label-chip:hover:not(:disabled),
   background: var(--color-accent-softer);
 }
 
-/* --- The filter pill and the order control --------------------------------- */
-
-.task-label-filter .task-account-filter-trigger {
-  max-width: 200px;
+/* "Create the tag «…»" — the word you typed, offered as a thing to make. Set
+   apart from the tags themselves, because it is an action and they are not. */
+.team-task-label-option.is-create {
+  justify-content: flex-start;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
-.task-sort-control {
+/* ============================================================
+   The "Filters" chip and its panel (024)
+   ============================================================ */
+
+/* The chip is one of the row's pills — same height, radius and face as the
+   date chip beside it — and once anything inside is on it lights the way that
+   chip does, with the count beside the word. */
+.task-filter-more {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.task-filter-more-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-white);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  line-height: 1;
+}
+
+/* One column, one width, every control the full width of it. Linear's
+   "Display" and Notion's view options are the benchmark: a heading, its
+   controls, a hairline, the next heading. Nothing is sized by what it says. */
+.task-filter-more-popover {
+  display: grid;
+  gap: var(--space-3);
+  /* The date chip's popover opens at this width too (`.task-date-filter-popover`). */
+  width: min(280px, calc(100vw - var(--space-4) * 2));
+  padding: var(--space-3);
+  font-size: var(--text-caption);
+}
+
+.task-filter-section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.task-filter-section + .task-filter-section {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-neutral-border);
+}
+
+/* The heading is the calendar's weekday, so every popover in the bar speaks
+   one voice: micro, uppercase, muted. */
+.task-filter-heading {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  text-transform: uppercase;
+}
+
+/* A field: the inventory select's box, holding a trigger and — once a value
+   is in force — a clear mark as its sibling. The box carries the edge, so the
+   field is the same width whichever of the two is showing. */
+.task-filter-field {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 2px;
+  width: 100%;
+  min-height: var(--control-height-sm);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text);
 }
 
-.task-sort-option {
+.task-filter-field:hover {
+  border-color: var(--color-accent);
+}
+
+.task-filter-field.is-active {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.task-filter-field-trigger {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
+.task-filter-field-trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* What the field is for, then what is in force; the name gives way first. */
+.task-filter-field-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--color-neutral-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-filter-field-value {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-neutral-text-muted);
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  justify-content: flex-end;
+}
+
+.task-filter-field.is-active .task-filter-field-value {
+  color: var(--color-neutral-text);
+}
+
+.task-filter-field-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-filter-field-caret {
+  flex: 0 0 auto;
+  color: var(--color-neutral-text-muted);
+}
+
+/* The clear mark stands where the caret stood. */
+.task-filter-field-clear {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  margin-right: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+}
+
+.task-filter-field-clear:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+/* The list a field opens takes the field's width, as a select's does. */
+.task-filter-field-popover {
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+/* The order: the inventory's segmented control, stretched to the column, the
+   two options sharing it equally. */
+.task-filter-more-popover .task-sort-control {
+  display: flex;
+  width: 100%;
+}
+
+.task-filter-more-popover .task-sort-control button {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* The view: a switch per row, the words on the left and the control on the
+   right, every row the height of a field. */
+.task-filter-display {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.task-filter-display .ui-switch {
+  display: flex;
+  width: 100%;
+  min-height: var(--control-height-sm);
+}
+
+.task-filter-display .ui-switch-label {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-neutral-text);
+  font-size: var(--text-caption);
 }
 
 /* --- The dictionary, in space settings ------------------------------------- */
@@ -782,9 +1098,7 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 
 .task-date-filter > *,
-.task-quick-ranges,
-.task-sort-control,
-.task-label-filter {
+.task-quick-ranges {
   flex: 0 0 auto;
 }
 
@@ -824,8 +1138,7 @@ button.team-task-label-chip:hover:not(:disabled),
 }
 
 .task-quick-range,
-.task-status-filter-option,
-.task-sort-option {
+.task-status-filter-option {
   white-space: nowrap;
 }
 
@@ -835,48 +1148,47 @@ button.team-task-label-chip:hover:not(:disabled),
   flex-wrap: nowrap;
 }
 
-/* One tag chosen: the pill borrows that tag's colour, so the row says which
-   tag is in force the same way the chips do. Several, and it stays neutral —
-   a pill cannot be two colours. */
-.task-label-filter .task-account-filter-trigger[data-color] {
-  border-color: color-mix(in srgb, var(--task-tag-color, var(--task-tag-slate)) 55%, transparent);
-  background: color-mix(in srgb, var(--task-tag-color, var(--task-tag-slate)) 14%, transparent);
-  color: var(--color-text);
+/* One tag chosen: the field's value carries that tag's dot, so the panel says
+   which tag is in force the same way the chips do. Several, and there is no
+   dot — a dot cannot be two colours. */
+.task-filter-field-dot {
+  --task-tag-color: var(--task-tag-slate);
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--task-tag-color);
 }
 
-.task-label-filter .task-account-filter-trigger[data-color='purple'] {
+.task-filter-field-dot[data-color='purple'] {
   --task-tag-color: var(--task-tag-purple);
 }
-.task-label-filter .task-account-filter-trigger[data-color='blue'] {
+.task-filter-field-dot[data-color='blue'] {
   --task-tag-color: var(--task-tag-blue);
 }
-.task-label-filter .task-account-filter-trigger[data-color='teal'] {
+.task-filter-field-dot[data-color='teal'] {
   --task-tag-color: var(--task-tag-teal);
 }
-.task-label-filter .task-account-filter-trigger[data-color='green'] {
+.task-filter-field-dot[data-color='green'] {
   --task-tag-color: var(--task-tag-green);
 }
-.task-label-filter .task-account-filter-trigger[data-color='honey'] {
+.task-filter-field-dot[data-color='honey'] {
   --task-tag-color: var(--task-tag-honey);
 }
-.task-label-filter .task-account-filter-trigger[data-color='orange'] {
+.task-filter-field-dot[data-color='orange'] {
   --task-tag-color: var(--task-tag-orange);
 }
-.task-label-filter .task-account-filter-trigger[data-color='red'] {
+.task-filter-field-dot[data-color='red'] {
   --task-tag-color: var(--task-tag-red);
 }
-.task-label-filter .task-account-filter-trigger[data-color='pink'] {
+.task-filter-field-dot[data-color='pink'] {
   --task-tag-color: var(--task-tag-pink);
 }
-.task-label-filter .task-account-filter-trigger[data-color='slate'] {
+.task-filter-field-dot[data-color='slate'] {
   --task-tag-color: var(--task-tag-slate);
 }
 
 /* --- Whose tasks (018 part 2) --------------------------------------------- */
-
-.task-assignee-filter .task-account-filter-trigger {
-  max-width: 220px;
-}
 
 /* The name is what the row is scanned by; the address gives way first. */
 .task-assignee-filter-name {
@@ -885,44 +1197,309 @@ button.team-task-label-chip:hover:not(:disabled),
   white-space: nowrap;
 }
 
-/* The eye that puts the progress scales away. Quieter than the fold control
-   beside it — no border until it is reached, and no word at all: what it hides
-   is the thing a person is looking at. */
-.team-task-progress-toggle {
-  display: inline-flex;
-  width: 34px;
-  height: 34px;
-  min-height: 34px;
+/* --- The palette and the shortcut sheet (024) ------------------------------ */
+
+/*
+ * One way in, to anything. A field, a grouped list, and a line at the bottom
+ * that says where the rest of the keyboard is documented.
+ */
+.workspace-palette {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.workspace-palette-field {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+.workspace-palette-field input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-lg);
+  outline: none;
+}
+.workspace-palette-list {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 22rem;
+  overflow-y: auto;
+}
+.workspace-palette-heading {
+  margin: 0;
+  padding: 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.workspace-palette-option {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+/* The chosen row is chosen whether the pointer or the arrows put it there:
+   two different highlights for "where Enter will go" is one too many. */
+.workspace-palette-option[data-active='true'] {
+  background: var(--color-accent-softer);
+}
+.workspace-palette-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-palette-option small {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-palette-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  transition:
-    border-color var(--dur-control) var(--ease-standard),
-    background-color var(--dur-control) var(--ease-standard),
-    color var(--dur-control) var(--ease-standard);
+  font: inherit;
+  font-size: var(--text-caption);
 }
 
-.team-task-progress-toggle:hover,
-.team-task-progress-toggle:focus-visible {
-  border-color: var(--color-border);
+.workspace-shortcuts {
+  display: grid;
+  gap: var(--space-4);
+}
+.workspace-shortcuts h2,
+.workspace-shortcuts h3 {
+  margin: 0;
+}
+.workspace-shortcuts h3 {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+.workspace-shortcuts dl {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+}
+.workspace-shortcuts dl > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+/* An action is read at label size; its keys are keycaps, one per key, and
+   they carry the row (024, benchmarked on Linear's shortcut sheet). */
+.workspace-shortcuts dt {
+  font-size: var(--text-label);
+}
+.workspace-shortcuts dd {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin: 0;
+}
+.workspace-shortcuts kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
-  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-label);
+  line-height: 1;
 }
 
-/* Off, it stays marked rather than merely un-pressed: a board with no scales
-   should say that this is a choice and not a missing feature. */
-.team-task-progress-toggle.is-off {
-  border-color: var(--color-border);
-  color: var(--color-text);
+.team-task-label-menu-search:focus-visible,
+.team-task-label-menu-search:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -1px;
+  box-shadow: none;
 }
 
-/* The fold control claimed the whole gap; with the eye beside it the pair
-   sits together at the right, before the primary action. */
-.team-task-space-heading .team-task-progress-toggle {
-  margin-left: 0;
+/* "Catalog" in words (024) came out wider than the tile could hold beside the eye and "…", which
+   then wrapped onto a line of its own. The words keep their size; the padding gives way. */
+.team-task-attachment-actions .ui-material-actions-worded {
+  gap: var(--space-1);
+  min-width: 0;
+  padding-inline: var(--space-px);
+}
+.team-task-attachment-actions.ui-material-actions {
+  gap: var(--space-px);
+}
+/* The eye, "Catalog" and "…" came to 148px in a 144px tile, and "…" still went down a line.
+   Two pixels off each square, and the row reaching into the caption's padding — the ghost
+   buttons carry their own air — buy the room. */
+.team-task-attachment-actions.ui-material-actions {
+  margin-inline: calc(var(--space-1) * -1);
+}
+.team-task-attachment-actions.ui-material-actions .ui-icon-button {
+  width: 32px;
+  min-width: 32px;
+}
+
+/*
+ * What is behind a count, on the count (024): small tiles in a popover — an
+ * agent's tasks, a task's attachments — each opening its thing, some with a ×.
+ */
+.team-hover-peek {
+  display: inline-flex;
+}
+.team-hover-peek-surface {
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(360px, 60vh);
+  overflow: auto;
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+}
+.team-peek-empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+}
+.team-peek-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-peek-tile {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.team-peek-tile:hover {
+  border-color: var(--color-accent);
+}
+.team-peek-tile-open {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.team-peek-tile-status {
+  display: inline-flex;
+}
+.team-peek-tile-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.team-peek-tile-remove {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}
+.team-peek-tile-thumb {
+  display: grid;
+  aspect-ratio: 16 / 10;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+.team-peek-tile-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.team-peek-empty.is-loading {
+  min-height: 120px;
+}
+.team-peek-tile-status svg {
+  width: 16px;
+  height: 16px;
+}
+/* A task tile speaks the board's colours (024): grey to do, amber in progress, green done — a
+   white tick on a purple frame read as neither. */
+.team-peek-tile.is-todo .team-peek-tile-status {
+  color: var(--color-text-muted);
+}
+.team-peek-tile.is-in_progress .team-peek-tile-status {
+  color: var(--color-warning);
+}
+.team-peek-tile.is-done .team-peek-tile-status {
+  color: var(--color-success);
+}
+.team-peek-tile.is-todo {
+  border-color: color-mix(in oklab, var(--slate-500) 44%, var(--color-border));
+}
+.team-peek-tile.is-in_progress {
+  border-color: color-mix(in oklab, var(--amber-500) 52%, var(--color-border));
+}
+.team-peek-tile.is-done {
+  border-color: color-mix(in oklab, var(--green-600) 58%, var(--color-border));
+}
+.team-peek-tile.is-todo:hover,
+.team-peek-tile.is-in_progress:hover,
+.team-peek-tile.is-done:hover {
+  background: var(--color-surface-raised);
+}
+
+/* The status marks inside the card's menu: the board's own icons, at the size the menu's other
+   icons are, in the board's colours (024). */
+.team-task-menu-status {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+.team-task-menu-status svg {
+  width: 18px;
+  height: 18px;
+}
+.team-task-menu-status.is-todo {
+  color: var(--color-text-muted);
+}
+.team-task-menu-status.is-in_progress {
+  color: var(--color-warning);
+}
+.team-task-menu-status.is-done {
+  color: var(--color-success);
 }

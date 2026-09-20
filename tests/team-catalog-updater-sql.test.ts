@@ -124,7 +124,8 @@ const complete = async (item: string, worker: string, count: number) =>
 
 const makeDue = () =>
   harness.root(
-    `update public.team_catalog_updaters set next_run_at = now() - interval '5 hours' where team_id = $1`,
+    `update public.team_catalog_updater_items set next_run_at = now() - interval '5 hours'
+     where team_id = $1 and update_interval is not null`,
     [teamId]
   );
 
@@ -394,6 +395,122 @@ describe('rounds and leases', () => {
     expect(await claim('w-gone')).toHaveLength(0);
     expect((await state()).catalogCount).toBe(0);
     await stop();
+  }, 60_000);
+});
+
+describe('each catalog on its own schedule (024)', () => {
+  const setInterval_ = async (catalogs: string[], interval: string | null, as = OWNER) =>
+    (
+      await harness.asUser<{ result: State }>(
+        as,
+        'select public.set_team_catalog_update_interval($1, $2, $3) as result',
+        [teamId, catalogs, interval]
+      )
+    )[0]!.result;
+  const updateNow = async (catalogs: string[], as = OWNER) =>
+    (
+      await harness.asUser<{ n: number }>(
+        as,
+        'select public.run_team_catalog_update_now($1, $2) as n',
+        [teamId, catalogs]
+      )
+    )[0]!.n;
+  const registry = (id: string) =>
+    harness
+      .asUser<{
+        catalog_id: string;
+        in_updater: boolean;
+        update_interval: string | null;
+        next_run_at: string | null;
+        update_pending: boolean;
+        update_stage: string | null;
+      }>(OWNER, 'select * from public.list_team_product_catalogs($1)', [teamId])
+      .then(rows => rows.find(row => row.catalog_id === id)!);
+
+  it('keeps an interval per catalog, and the space runs while any is scheduled', async () => {
+    const hourly = await catalog('own-hourly');
+    const daily = await catalog('own-daily');
+    await setInterval_([hourly.sheet], '1h');
+    const both = await setInterval_([daily.sheet], '1d');
+    expect(both).toMatchObject({ state: 'running', catalogCount: 2 });
+    // The space is due at the earliest of its catalogs.
+    expect(Date.parse(both.nextRunAt!) - Date.parse(both.serverNow)).toBeLessThanOrEqual(3_600_500);
+    expect(await registry(hourly.sheet)).toMatchObject({ in_updater: true, update_interval: '1h' });
+    expect(await registry(daily.sheet)).toMatchObject({ in_updater: true, update_interval: '1d' });
+
+    // Only the catalog that is due gets a round.
+    await harness.root(
+      `update public.team_catalog_updater_items set next_run_at = now() - interval '1 minute'
+       where catalog_material_id = $1`,
+      [hourly.sheet]
+    );
+    await openRounds();
+    expect((await registry(hourly.sheet)).update_pending).toBe(true);
+    expect((await registry(daily.sheet)).update_pending).toBe(false);
+
+    await setInterval_([hourly.sheet, daily.sheet], null);
+    expect(await state()).toMatchObject({ state: 'stopped', catalogCount: 0, nextRunAt: null });
+    expect((await registry(hourly.sheet)).update_pending).toBe(false);
+  }, 60_000);
+
+  it('updates a catalog now, scheduled or not, and forgets an unscheduled one once it is done', async () => {
+    const loose = await catalog('now-loose');
+    expect(await updateNow([loose.sheet])).toBe(1);
+    // A second press while one is waiting opens nothing more.
+    expect(await updateNow([loose.sheet])).toBe(0);
+    expect(await registry(loose.sheet)).toMatchObject({ in_updater: false, update_pending: true });
+    expect((await state()).state).toBe('stopped');
+
+    const claimed = await claim('w-now');
+    expect(claimed.map(row => row.catalog_material_id)).toContain(loose.sheet);
+    expect(
+      (
+        await harness.root<{ ok: boolean }>(
+          "select public.service_set_catalog_update_progress($1, $2, 'uploading') as ok",
+          [loose.sheet, 'w-now']
+        )
+      )[0]!.ok
+    ).toBe(true);
+    expect((await registry(loose.sheet)).update_stage).toBe('uploading');
+    expect(await complete(loose.sheet, 'w-now', 1)).toBe(true);
+    expect(await registry(loose.sheet)).toMatchObject({ in_updater: false, update_pending: false });
+    const rows = await harness.root(
+      'select 1 from public.team_catalog_updater_items where catalog_material_id = $1',
+      [loose.sheet]
+    );
+    expect(rows).toHaveLength(0);
+
+    const scheduled = await catalog('now-scheduled');
+    await setInterval_([scheduled.sheet], '1d');
+    await updateNow([scheduled.sheet]);
+    const after = await registry(scheduled.sheet);
+    expect(after).toMatchObject({ in_updater: true, update_pending: true });
+    // The schedule starts over from now, so "now" is not followed by a run a little later.
+    expect(Date.parse(after.next_run_at!) - Date.now()).toBeGreaterThan(86_000_000);
+    await stop();
+  }, 60_000);
+
+  it('revokes an active worker when the catalog is turned off', async () => {
+    const active = await catalog('cancel-active');
+    await updateNow([active.sheet]);
+    expect((await claim('w-cancel')).map(row => row.catalog_material_id)).toContain(active.sheet);
+
+    await setInterval_([active.sheet], null);
+
+    expect(await registry(active.sheet)).toMatchObject({
+      in_updater: false,
+      update_pending: false
+    });
+    expect(await complete(active.sheet, 'w-cancel', 1)).toBe(false);
+  }, 60_000);
+
+  it('refuses a viewer and a catalog from another space', async () => {
+    const { sheet } = await catalog('now-refused');
+    const foreign = await catalog('now-foreign', otherTeamId);
+    await expect(updateNow([sheet], VIEWER)).rejects.toThrow(/PERMISSION_DENIED/);
+    await expect(setInterval_([sheet], '1h', VIEWER)).rejects.toThrow(/PERMISSION_DENIED/);
+    await expect(updateNow([foreign.sheet])).rejects.toThrow(/INVALID_INPUT/);
+    await expect(setInterval_([sheet], '2d')).rejects.toThrow(/INVALID_INPUT/);
   }, 60_000);
 });
 

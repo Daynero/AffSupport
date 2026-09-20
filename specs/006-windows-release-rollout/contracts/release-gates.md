@@ -8,7 +8,7 @@
 ## Manifest rule change
 
 `StableReleaseManifest.artifacts` is `Partial<Record<ReleasePlatform, ReleaseArtifact>>` and stays
-that way — the *schema* is unchanged (`schemaVersion` remains `1`). What changes is the release
+that way — the _schema_ is unchanged (`schemaVersion` remains `1`). What changes is the release
 rule:
 
 > A stable release MUST list both `macos-arm64` and `windows-x64`, each with a URL equal to the

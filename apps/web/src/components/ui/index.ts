@@ -109,3 +109,15 @@ export type {
   PermissionStateProps,
   SelectionBarProps
 } from './patterns';
+
+/* Dates (024): one calendar for the whole product, on React Aria. */
+export {
+  Calendar,
+  RangeCalendar,
+  toCalendarDate,
+  fromCalendarDate,
+  todayHere,
+  type CalendarProps,
+  type RangeCalendarProps,
+  type DateRange
+} from './DateField';

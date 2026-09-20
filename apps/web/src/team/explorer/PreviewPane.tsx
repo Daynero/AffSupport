@@ -6,21 +6,24 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Download, Replace, Trash2 } from 'lucide-react';
-import { Button, ProgressBar } from '../../components/ui';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { ProgressBar } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { useToasts } from '../../components/toast';
-import { formatSize } from '../../format';
 import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
+import { PaneActions } from './PaneActions';
 import { VideoTextActions } from '../library/VideoTextActions';
-import { VideoProductCatalogActions } from '../product-catalog/VideoProductCatalogActions';
-import { useOptionalTeam } from '../TeamContext';
-import { ShareButton } from './ShareButton';
+import { useToasts } from '../../components/toast';
+import { MaterialDetail } from '../materials/MaterialDetail';
+import { useMaterialCompanions } from '../materials/useMaterialCompanions';
+import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { EmptyState } from '../../components/ui/index';
+import { MaterialNoteBlock } from '../materials/MaterialNote';
+import { displayedSize } from '../../format';
+import { MaterialCatalogFacts } from '../materials/MaterialCatalogFacts';
+import { MaterialTasks } from '../materials/MaterialTasks';
+import { useTeam } from '../TeamContext';
 
 /**
  * What the selected row looks like, before it is opened (011, FR-016): the
@@ -45,14 +48,18 @@ export function PreviewPane({
   onCreateTask,
   onDownload,
   onDownloadRestitched,
-  restitchPrepared,
-  onShare,
   onDelete,
+  browseClient,
+  onChanged,
   revision = 0
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
   client: PreviewPaneClient;
+  /** Reads the folder tree for the move picker the shared actions own. */
+  browseClient: FolderPickerClient;
+  /** Something changed on the server; the shell reloads its page. */
+  onChanged: () => void;
   onOpen?: (material: TeamMaterialSummary) => void;
   /** Start (re-)transcribing a video from its card. */
   onTranscribe?: (row: TeamMaterialRow) => void;
@@ -76,9 +83,8 @@ export function PreviewPane({
   const { t } = useI18n();
   const { push } = useToasts();
   const { teamId } = useExplorer();
-  // The catalog block needs the space (its permissions and Drive state); a pane rendered on its
-  // own, as a preview surface, simply has no catalog.
-  const team = useOptionalTeam();
+  const { teams } = useTeam();
+  const canEditNote = teams.find(team => team.id === teamId)?.permissions.manage_metadata === true;
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
   const [broken, setBroken] = useState(false);
@@ -110,6 +116,19 @@ export function PreviewPane({
   // and the tile already degrades to its kind glyph when that happens. The
   // pane showed the browser's torn-page icon instead, which reads as a broken
   // file rather than a missing preview.
+  // One file is in focus here, so what lives beside it is worth two requests.
+  // Read once, in the pane, and handed to both the card and the actions.
+  const [madeRevision, setMadeRevision] = useState(0);
+  const companions = useMaterialCompanions(
+    {
+      id: row?.id ?? '',
+      teamId,
+      kind: row?.kind === 'folder' ? 'folder' : 'file',
+      category: row?.category ?? null
+    },
+    { enabled: Boolean(row), revision: revision + madeRevision }
+  );
+
   if (!row) {
     return (
       <aside className="team-explorer-pane is-empty" aria-label={t('teamExplorerPaneLabel')}>
@@ -125,116 +144,116 @@ export function PreviewPane({
 
   return (
     <aside className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
-      <div className="team-explorer-pane-visual">
-        {image ? (
-          <img src={image} alt="" decoding="async" onError={() => setBroken(true)} />
-        ) : (
-          <span className="team-explorer-tile-icon" aria-hidden="true">
-            <KindIcon kind={row.kind} />
-          </span>
-        )}
-      </div>
-      <h3 className="team-explorer-pane-name">{row.name}</h3>
-      <dl className="team-explorer-pane-facts">
-        <dt>{t('teamExplorerPaneKind')}</dt>
-        <dd>{t(KIND_LABEL[row.kind])}</dd>
-        {row.sizeBytes !== null && row.kind !== 'folder' && (
+      <MaterialDetail
+        name={row.name}
+        className="team-explorer-pane-detail"
+        facts={{
+          kindLabel: t(KIND_LABEL[row.kind]),
+          sizeBytes:
+            row.kind === 'folder' || displayedSize(row.sizeBytes, row.mimeType) === null
+              ? null
+              : row.sizeBytes,
+          modifiedAt: row.modifiedAt
+        }}
+        companions={companions}
+        catalogFacts={
+          row.kind === 'folder' ? null : (
+            <MaterialCatalogFacts teamId={teamId} material={{ id: row.id, name: row.name }} />
+          )
+        }
+        inTasks={
+          row.kind === 'folder' ? null : (
+            <MaterialTasks
+              teamId={teamId}
+              material={{ id: row.id, name: row.name }}
+              revision={revision}
+            />
+          )
+        }
+        note={
+          row.kind === 'folder' ? null : (
+            <MaterialNoteBlock
+              teamId={teamId}
+              materialId={row.id}
+              canEdit={canEditNote}
+              revision={revision}
+            />
+          )
+        }
+        preview={
+          image ? (
+            <img src={image} alt="" decoding="async" onError={() => setBroken(true)} />
+          ) : (
+            <span className="team-explorer-tile-icon" aria-hidden="true">
+              <KindIcon kind={row.kind} />
+            </span>
+          )
+        }
+        notes={
           <>
-            <dt>{t('teamExplorerPaneSize')}</dt>
-            <dd>{formatSize(row.sizeBytes)}</dd>
+            {reason && <p className="team-explorer-tile-reason">{t(reason)}</p>}
+            {row.previewState === 'unavailable' && row.previewReason && (
+              <p className="team-explorer-tile-reason">
+                {t(`teamExplorerThumbnail_${row.previewReason}` as never)}
+              </p>
+            )}
+            {row.kind === 'landing' && row.landingRender && row.landingRender.state !== 'ready' && (
+              <p className="team-explorer-tile-reason">
+                {t(
+                  row.landingRender.state === 'rendering'
+                    ? 'teamExplorerRenderRendering'
+                    : row.landingRender.state === 'failed'
+                      ? 'teamExplorerRenderFailed'
+                      : 'teamExplorerRenderNone'
+                )}
+              </p>
+            )}
           </>
-        )}
-        {row.modifiedAt && (
-          <>
-            <dt>{t('teamExplorerPaneModified')}</dt>
-            <dd>{new Date(row.modifiedAt).toLocaleString()}</dd>
-          </>
-        )}
-      </dl>
-      {reason && <p className="team-explorer-tile-reason">{t(reason)}</p>}
-      {row.previewState === 'unavailable' && row.previewReason && (
-        <p className="team-explorer-tile-reason">
-          {t(`teamExplorerThumbnail_${row.previewReason}` as never)}
-        </p>
-      )}
-      {row.kind === 'landing' && row.landingRender && row.landingRender.state !== 'ready' && (
-        <p className="team-explorer-tile-reason">
-          {t(
-            row.landingRender.state === 'rendering'
-              ? 'teamExplorerRenderRendering'
-              : row.landingRender.state === 'failed'
-                ? 'teamExplorerRenderFailed'
-                : 'teamExplorerRenderNone'
-          )}
-        </p>
-      )}
-      {/* Everything done to a file often enough to deserve a press rather than a menu, as
-          icons rather than a second column of sentences — the same treatment the compressor
-          gives its own row actions, down to the icon that means re-stitching. Named for screen
-          readers and on hover, because an icon alone is a guess. */}
-      {(onDownload || onDownloadRestitched || onShare || onDelete) && row.kind !== 'folder' && (
-        <div className="team-explorer-pane-icons">
-          {onDownload && (
-            <button
-              type="button"
-              className="team-explorer-pane-icon"
-              aria-label={
-                onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')
-              }
-              data-tip={
-                onDownloadRestitched ? t('teamRestitchDownloadOriginal') : t('teamFileDownload')
-              }
-              onClick={() => onDownload(row)}
-            >
-              <Download size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          )}
-          {onDownloadRestitched && (
-            <button
-              type="button"
-              className="team-explorer-pane-icon"
-              aria-label={t('teamRestitchDownloadRestitched')}
-              /* The tooltip carries what the label cannot: a prepared video is delivered in
-                 seconds, one that is not pays for the looking first. The press works either
-                 way, so this is a hint rather than a warning. */
-              data-tip={`${t('teamRestitchDownloadRestitched')} — ${
-                restitchPrepared
-                  ? t('teamRestitchMaterialPrepared')
-                  : t('teamRestitchMaterialNotPrepared')
-              }`}
-              onClick={() => onDownloadRestitched(row)}
-            >
-              <Replace size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          )}
-          {onShare && <ShareButton teamId={teamId} row={row} className="team-explorer-pane-icon" />}
-          {onDelete && (
-            <button
-              type="button"
-              className="team-explorer-pane-icon is-destructive"
-              aria-label={t('teamFileTrash')}
-              data-tip={t('teamFileTrash')}
-              onClick={() => onDelete(row)}
-            >
-              <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      )}
-      {onOpen && PREVIEWABLE_KINDS.has(row.kind) && (
-        <Button type="button" variant="primary" onClick={() => onOpen(previewSummary(row))}>
-          {t('teamExplorerPreviewOpen')}
-        </Button>
-      )}
-      {onCreateTask && row.kind !== 'folder' && (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onCreateTask({ id: row.id, name: row.name })}
-        >
-          {t('teamExplorerCreateTask')}
-        </Button>
-      )}
+        }
+        actions={
+          /* Every action this file can take, from the one registry: the same
+             list, in the same order, as the row above and the task beside it. */
+          <PaneActions
+            row={row}
+            teamId={teamId}
+            browseClient={browseClient}
+            onChanged={onChanged}
+            companions={companions}
+            onCompanionsChanged={() => setMadeRevision(value => value + 1)}
+            onOpen={
+              onOpen && PREVIEWABLE_KINDS.has(row.kind)
+                ? () => onOpen(previewSummary(row))
+                : undefined
+            }
+            onCreateTask={
+              onCreateTask ? () => onCreateTask({ id: row.id, name: row.name }) : undefined
+            }
+            onDownload={onDownload ? () => onDownload(row) : undefined}
+            onDownloadRestitched={
+              onDownloadRestitched ? () => onDownloadRestitched(row) : undefined
+            }
+            onDelete={onDelete ? () => onDelete(row) : undefined}
+            /* Not `transcribe` here (024, FR-093): the text section below
+               offers it, with the original and the translation to choose
+               from, and a second "make text" icon above it was the same
+               press twice. */
+          />
+        }
+      />
+      {/*
+       * The catalog block that used to stand here is gone (024): "Product
+       * catalog" is in the action list, and the dialog it opens already
+       * offers the one that exists as well as a new one, so the block was a
+       * second vocabulary for something the registry names.
+       *
+       * The text block stays, and deliberately. It is the one surface that
+       * can do something the menu cannot: choose *which* text — the original
+       * or a translation — and read it. A menu item that copies "the text"
+       * is right on a task tile and in a search result, where there is one
+       * press and no room for a question; here there is room for the
+       * question, so the pane asks it and does not also offer the shortcut.
+       * `copyText` is left unwired in `PaneActions` for exactly that reason.
+       */}
       {row.category === 'video' && onTranscribe && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>
@@ -257,17 +276,10 @@ export function PreviewPane({
               onTranscribe={() => onTranscribe(row)}
               onRetranscribe={() => onTranscribe(row)}
               onCopied={() => push({ tone: 'success', text: t('teamTranscriptCopied') })}
+              compact
             />
           )}
         </div>
-      )}
-      {row.category === 'video' && team && (
-        <VideoProductCatalogActions
-          key={row.id}
-          teamId={teamId}
-          video={{ id: row.id, name: row.name }}
-          revision={revision}
-        />
       )}
     </aside>
   );

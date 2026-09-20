@@ -110,7 +110,7 @@ describe('Windows video picker', () => {
 
   it('rejects with the picker failure message on a non-zero exit', async () => {
     stubPickerRun({ stderr: 'Add-Type : assembly load failure', code: 1 });
-    await expect(selectVideos()).rejects.toThrow('Could not open the native file picker.');
+    await expect(selectVideos()).rejects.toThrow('NATIVE_PICKER_UNAVAILABLE');
   });
 });
 
@@ -165,6 +165,6 @@ describe('Windows output folder picker', () => {
 
   it('rejects with the folder failure message on a non-zero exit', async () => {
     stubPickerRun({ code: 1 });
-    await expect(selectOutputFolder()).rejects.toThrow('Could not choose an output folder.');
+    await expect(selectOutputFolder()).rejects.toThrow('NATIVE_PICKER_UNAVAILABLE');
   });
 });

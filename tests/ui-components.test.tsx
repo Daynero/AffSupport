@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   Alert,
@@ -82,18 +83,25 @@ describe('Button', () => {
     }
   });
 
+  const isDisabled = (element: Element) =>
+    element.getAttribute('aria-disabled') === 'true' ||
+    (element as HTMLButtonElement).disabled === true;
+
   it('tells loading and disabled apart, and says so to assistive technology', () => {
     const { rerender } = render(<Button loading>Save</Button>);
     const loading = screen.getByRole('button');
     expect(loading.className).toContain('is-loading');
     expect(loading.getAttribute('aria-busy')).toBe('true');
-    expect((loading as HTMLButtonElement).disabled).toBe(true);
+    // Not the native `disabled` attribute: a control that disappears from the
+    // tab order also disappears from the reader who was about to ask what it
+    // is. React Aria keeps it focusable and says so with ARIA instead.
+    expect(isDisabled(loading)).toBe(true);
 
     rerender(<Button disabled>Save</Button>);
     const disabled = screen.getByRole('button');
     expect(disabled.className).not.toContain('is-loading');
     expect(disabled.getAttribute('aria-busy')).toBeNull();
-    expect((disabled as HTMLButtonElement).disabled).toBe(true);
+    expect(isDisabled(disabled)).toBe(true);
   });
 
   it('does not submit a form unless it is asked to', () => {
@@ -202,9 +210,11 @@ describe('Form controls', () => {
     expect(suffix.closest('input')).toBeNull();
   });
 
-  it('renders a select with its placeholder and options', () => {
+  it('shows its placeholder until something is chosen, and then the choice', async () => {
+    const user = userEvent.setup();
     render(
       <Select
+        aria-label="Pick"
         placeholder="Any"
         options={[
           { value: 'a', label: 'First' },
@@ -212,13 +222,21 @@ describe('Form controls', () => {
         ]}
       />
     );
-    const options = within(screen.getByRole('combobox')).getAllByRole('option');
+    // A listbox behind a trigger, not a native select: the options exist once
+    // it is open, which is also the only time a reader can see them.
+    const trigger = screen.getByRole('button', { name: /pick/i });
+    expect(trigger.textContent).toContain('Any');
+    await user.click(trigger);
+    const options = await screen.findAllByRole('option');
     expect(options.map(option => option.textContent)).toEqual(['Any', 'First', 'Second']);
   });
 
   it('reports an indeterminate checkbox as mixed', () => {
     render(<Checkbox label="All" indeterminate />);
-    expect(screen.getByRole('checkbox').getAttribute('aria-checked')).toBe('mixed');
+    // The native `indeterminate` property is what makes a checkbox announce
+    // "mixed"; there is no attribute for it, which is why this reads the
+    // property rather than the markup.
+    expect(screen.getByRole('checkbox', { hidden: true })).toHaveProperty('indeterminate', true);
   });
 
   it('exposes a switch as a switch', () => {
@@ -327,10 +345,15 @@ describe('Overlays', () => {
   });
 
   it('walks a menu with the arrow keys and marks a destructive item', () => {
+    // A menu hangs from something: React Aria places it against its trigger,
+    // so a menu with nothing to hang from has nowhere to be.
+    const anchor = { current: document.createElement('button') };
+    document.body.append(anchor.current);
     render(
       <DropdownMenu
         open
         onClose={() => {}}
+        anchor={anchor}
         label="Row actions"
         items={[
           { id: 'open', label: 'Open', onSelect: () => {} },

@@ -105,7 +105,7 @@ describe('entering a space', () => {
 
     expect(await screen.findByRole('heading', { name: 'Media buyers' })).toBeTruthy();
     await waitFor(() => expect(window.location.pathname).toBe(`/team/${team.id}`));
-    expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
   });
 
   it('holds the lobby when an invitation is waiting to be answered', async () => {
@@ -133,7 +133,7 @@ describe('entering a space', () => {
     // The lobby heading can precede the invitation fetch. Wait for the actual
     // invitation before asserting that the resolver has kept us in the lobby.
     expect(await screen.findByRole('button', { name: 'Accept' })).toBeTruthy();
-    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
   });
 
   it('lets the URL beat the remembered space', async () => {
@@ -210,7 +210,7 @@ describe('space switcher', () => {
     await user.click(await screen.findByRole('button', { name: /Media buyers/ }));
     await user.click(await screen.findByRole('link', { name: 'All spaces' }));
 
-    expect(await screen.findByRole('heading', { name: 'Choose a space' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
   });
 });
 

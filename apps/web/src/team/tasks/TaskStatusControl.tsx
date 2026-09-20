@@ -1,6 +1,7 @@
 import type { TeamTaskStatus } from '@video-compressor/shared';
 import type { Translate } from '../../components/ui';
 import { useI18n } from '../../i18n';
+import { Select } from '../../components/ui/index';
 
 export function taskStatusLabel(status: TeamTaskStatus, t: Translate): string {
   if (status === 'todo') return t('teamTaskStatusTodo');
@@ -51,14 +52,39 @@ export function TaskStatusControl({
   value,
   onChange,
   disabled = false,
-  compact = false
+  compact = false,
+  adaptive = false
 }: {
   value: TeamTaskStatus;
   onChange: (status: TeamTaskStatus) => void;
   disabled?: boolean;
   compact?: boolean;
+  /**
+   * Also render a select, and let the container choose (024, FR-086). Three
+   * labelled pills need about 330 px; in less, they used to break their words
+   * into vertical letters. The stylesheet shows one form or the other by the
+   * width of the column it sits in, not of the window.
+   */
+  adaptive?: boolean;
 }) {
   const { t } = useI18n();
+  if (adaptive) {
+    return (
+      <span className="team-task-status-adaptive">
+        <TaskStatusControl value={value} onChange={onChange} disabled={disabled} />
+        <Select
+          className="team-task-status-select"
+          aria-label={t('teamTaskStatus')}
+          value={value}
+          disabled={disabled}
+          options={statuses.map(status => ({ value: status, label: taskStatusLabel(status, t) }))}
+          onChange={next => {
+            if (next) onChange(next as TeamTaskStatus);
+          }}
+        />
+      </span>
+    );
+  }
   return (
     <div
       className={`team-task-status-control ${compact ? 'is-compact' : ''}`.trim()}

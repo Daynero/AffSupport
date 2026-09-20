@@ -65,8 +65,8 @@ export type TrashTailClient = Pick<TailClient, 'trashMaterial'>;
 /** What the catalog says belongs to this material right now. */
 export interface MaterialTail {
   transcript: { id: string; name: string } | null;
-  /** 022 — the video's product catalog sheet. */
-  catalog: { id: string; name: string } | null;
+  /** 022 — the video's product catalog sheets: one per variation (024, US15). */
+  catalogs: Array<{ id: string; name: string; variant: number }>;
 }
 
 const key = () => crypto.randomUUID();
@@ -80,21 +80,28 @@ const key = () => crypto.randomUUID();
  * move that refuses to happen.
  */
 export async function tailOf(teamId: string, material: TailMaterial): Promise<MaterialTail> {
-  if (material.category !== 'video') return { transcript: null, catalog: null };
-  const [companion, catalog] = await Promise.all([
+  if (material.category !== 'video') return { transcript: null, catalogs: [] };
+  const [companion, catalogs] = await Promise.all([
     teamApi.getTranscriptCompanion(teamId, material.id).catch(() => null),
-    teamApi.getProductCatalog(teamId, material.id).catch(() => null)
+    teamApi.listProductCatalogs(teamId, material.id).catch(() => [])
   ]);
   return {
     transcript: companion ? { id: companion.id, name: companion.name } : null,
-    catalog: catalog ? { id: catalog.id, name: catalog.name } : null
+    catalogs: catalogs.map(catalog => ({
+      id: catalog.id,
+      name: catalog.name,
+      variant: catalog.variant
+    }))
   };
 }
 
-/** `clip.mp4` → `clip catalog`: the naming rule the Edge Function creates catalogs with (022). */
-export function productCatalogNameFor(videoName: string): string {
+/**
+ * `IN 40.mp4`, variation 2 → `IN 40_v2_catalog`: the naming rule the Edge Function creates
+ * catalogs with (022; numbered for variations in 024).
+ */
+export function productCatalogNameFor(videoName: string, variant: number): string {
   const stem = videoName.replace(/\.[^.]+$/u, '');
-  return `${stem.length > 0 ? stem : videoName} catalog`;
+  return `${stem.length > 0 ? stem : videoName}_v${variant}_catalog`;
 }
 
 /** `<stem>.txt` for a video's name — the one naming rule for a transcript. */
@@ -166,7 +173,7 @@ export async function moveMaterialWithTail(input: {
     conflictMode: input.conflictMode ?? 'cancel',
     idempotencyKey: key()
   });
-  for (const companion of [tail.transcript, tail.catalog]) {
+  for (const companion of [tail.transcript, ...tail.catalogs]) {
     if (!companion) continue;
     await client
       .moveMaterial({
@@ -200,7 +207,10 @@ export async function renameMaterialWithTail(input: {
   });
   const renames = [
     tail.transcript && { id: tail.transcript.id, name: transcriptNameFor(newName) },
-    tail.catalog && { id: tail.catalog.id, name: productCatalogNameFor(newName) }
+    ...tail.catalogs.map(catalog => ({
+      id: catalog.id,
+      name: productCatalogNameFor(newName, catalog.variant)
+    }))
   ];
   for (const companion of renames) {
     if (!companion) continue;
@@ -232,7 +242,7 @@ export async function trashMaterialWithTail(input: {
   const { teamId, material, client } = input;
   const tail = await tailOf(teamId, material);
   await client.trashMaterial({ teamId, materialId: material.id, idempotencyKey: key() });
-  for (const companion of [tail.transcript, tail.catalog]) {
+  for (const companion of [tail.transcript, ...tail.catalogs]) {
     if (!companion) continue;
     await client
       .trashMaterial({ teamId, materialId: companion.id, idempotencyKey: key() })

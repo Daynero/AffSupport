@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { useI18n } from '../../i18n';
 import { Modal } from '../../components/Modal';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
 import type { TeamSettingsTab } from '../routes';
@@ -11,27 +12,28 @@ import type { TeamSettingsTab } from '../routes';
 export function SettingsDialog({
   teamId,
   client,
-  directAddMode = 'disabled',
   initialTab,
+  onTabChange,
   onClose
 }: {
   teamId: string;
   client: SpaceSettingsClient;
-  directAddMode?: 'disabled' | 'testing';
   initialTab?: TeamSettingsTab | null;
+  onTabChange?: (tab: TeamSettingsTab) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const titleId = useId();
   return (
     <Modal labelledBy={titleId} size="xl" onClose={onClose} className="team-settings-dialog">
       <span id={titleId} className="visually-hidden">
-        Settings
+        {t('teamSpaceSettings')}
       </span>
       <SpaceSettings
         teamId={teamId}
         client={client}
-        directAddMode={directAddMode}
         initialTab={initialTab}
+        onTabChange={onTabChange}
         onBack={onClose}
       />
     </Modal>

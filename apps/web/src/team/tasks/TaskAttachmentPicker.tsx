@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronLeft, FileText, FileVideo, Folder, Image, Plus, Search, X } from 'lucide-react';
 import type { CatalogMaterialItem, MaterialCategory } from '@video-compressor/shared';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
@@ -11,6 +11,7 @@ import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { EmptyState, ErrorState, LoadingState } from '../../components/ui/index';
+import { searchFieldEscape } from '../../lib/searchField';
 import { useI18n } from '../../i18n';
 
 export interface TaskAttachmentCandidate {
@@ -86,12 +87,29 @@ export function TaskAttachmentPicker({
   teamId,
   client = defaultClient,
   attachedMaterialIds,
-  onAdd
+  onAdd,
+  startTrail,
+  pathOf,
+  accept,
+  trigger,
+  title,
+  confirmLabel
 }: {
   teamId: string;
   client?: TaskAttachmentPickerClient;
   attachedMaterialIds: ReadonlySet<string>;
   onAdd: (materials: TaskAttachmentCandidate[]) => void;
+  /** The folder to open in — the one the task's files are already in (024). */
+  startTrail?: { id: string; name: string }[];
+  /** A found file's folder path, so same-named results say where each lives. */
+  pathOf?: (parentFolderId: string | null | undefined) => string;
+  /** Only these files are offered (folders are always there to open). */
+  accept?: (material: TeamMaterialSummary) => boolean;
+  /** Draws the control that opens the picker, instead of the attachment tile. */
+  trigger?: (open: () => void) => ReactNode;
+  /** The dialog's title and its confirm button's words, when not attaching to a task. */
+  title?: string;
+  confirmLabel?: (count: number) => string;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -113,7 +131,13 @@ export function TaskAttachmentPicker({
   const parentId = path.at(-1)?.id ?? null;
   const pickerTitleId = 'team-task-attachment-picker-title';
   /** What the list shows: search answers while a term is typed, the folder otherwise. */
-  const shown = useMemo(() => (found ? found : materials), [found, materials]);
+  const shown = useMemo(
+    () =>
+      (found ? found : materials).filter(
+        material => material.kind === 'folder' || !accept || accept(material)
+      ),
+    [accept, found, materials]
+  );
 
   useEffect(() => {
     setPath([]);
@@ -208,20 +232,31 @@ export function TaskAttachmentPicker({
 
   return (
     <>
-      <button
-        type="button"
-        // No drop handling: the only thing that ever produced this payload was
-        // the browser's dead drag plumbing, so advertising a drop target here
-        // promised something nothing could deliver.
-        className="team-task-attachment-add"
-        onClick={() => setOpen(true)}
-      >
-        <span className="team-task-attachment-add-icon">
-          <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </span>
-        <strong>{t('teamTaskAttachMedia')}</strong>
-        <small>{t('teamTaskAttachmentAddHint')}</small>
-      </button>
+      {trigger ? (
+        trigger(() => {
+          if (startTrail && startTrail.length > 0) setPath(startTrail);
+          setOpen(true);
+        })
+      ) : (
+        <button
+          type="button"
+          // No drop handling: the only thing that ever produced this payload was
+          // the browser's dead drag plumbing, so advertising a drop target here
+          // promised something nothing could deliver.
+          className="team-task-attachment-add"
+          onClick={() => {
+            // Where this task's files already are, not the root four folders up (024).
+            if (startTrail && startTrail.length > 0) setPath(startTrail);
+            setOpen(true);
+          }}
+        >
+          <span className="team-task-attachment-add-icon">
+            <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </span>
+          <strong>{t('teamTaskAttachMedia')}</strong>
+          <small>{t('teamTaskAttachmentAddHint')}</small>
+        </button>
+      )}
       {open && (
         <Modal
           nested
@@ -233,8 +268,7 @@ export function TaskAttachmentPicker({
         >
           <div className="team-task-picker-dialog">
             <div className="team-task-picker-dialog-heading">
-              <h2 id={pickerTitleId}>{t('teamTaskAttachmentPickerTitle')}</h2>
-              <small>{t('teamTaskAttachmentAddDraftHint')}</small>
+              <h2 id={pickerTitleId}>{title ?? t('teamTaskAttachmentPickerTitle')}</h2>
             </div>
             {searchable && (
               <div className="team-task-picker-search">
@@ -245,6 +279,7 @@ export function TaskAttachmentPicker({
                   aria-label={t('teamTaskAttachmentSearch')}
                   placeholder={t('teamTaskAttachmentSearch')}
                   onChange={event => setSearch(event.target.value)}
+                  onKeyDown={searchFieldEscape(search, () => setSearch(''), close)}
                 />
                 {term.length > 0 && (
                   <button
@@ -348,7 +383,9 @@ export function TaskAttachmentPicker({
                               ? t('teamTaskAttachmentAlreadyAdded')
                               : isFolder
                                 ? t('teamTaskFolderOpen')
-                                : t(CATEGORY_LABEL[material.category ?? 'other'])}
+                                : found && pathOf
+                                  ? `${pathOf(material.parentFolderId)} · ${t(CATEGORY_LABEL[material.category ?? 'other'])}`
+                                  : t(CATEGORY_LABEL[material.category ?? 'other'])}
                           </small>
                         </span>
                         <span className="team-task-picker-check" aria-hidden="true">
@@ -374,7 +411,9 @@ export function TaskAttachmentPicker({
                 }}
               >
                 <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                {t('teamTaskAddSelected', { count: selected.size })}
+                {confirmLabel
+                  ? confirmLabel(selected.size)
+                  : t('teamTaskAddSelected', { count: selected.size })}
               </Button>
             </div>
           </div>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -118,7 +118,8 @@ describe('explorer keyboard', () => {
   it('follows the selected row in the pane', async () => {
     renderShell(makeClient([row(1)]));
     await screen.findByText('file-1.png');
-    expect(screen.getByText('Select a file to see it here.')).toBeTruthy();
+    // Nothing selected, no pane: the list has the width (024, FR-091).
+    expect(screen.queryByRole('complementary', { name: 'Selected item' })).toBeNull();
     fireEvent.click(document.querySelector('.team-explorer-row')!);
     await waitFor(() =>
       expect(screen.getByRole('complementary', { name: 'Selected item' }).textContent).toContain(
@@ -268,12 +269,16 @@ describe('explorer keyboard, second pass', () => {
     const { actions, onPreview } = renderWithActions([row(1)]);
     await screen.findByText('file-1.png');
     await user.click(screen.getByRole('button', { name: 'Actions for file-1.png' }));
-    await user.click(screen.getByRole('button', { name: 'Rename' }));
-    const input = screen.getByLabelText('New name') as HTMLInputElement;
-    expect(document.activeElement).toBe(input);
+    await user.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    const input = within(await screen.findByRole('dialog')).getByRole(
+      'textbox'
+    ) as HTMLInputElement;
+    // The dialog moves focus on the next frame, so this waits for it rather
+    // than assuming the same tick.
+    await waitFor(() => expect(document.activeElement).toBe(input));
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'file-1'.length]);
-    // The menu's items stepped aside for the form.
-    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
+    // The menu closed behind the form rather than sitting under it.
+    expect(screen.queryByRole('menuitem', { name: 'Download' })).toBeNull();
     await user.keyboard('walk one{Enter}');
     await waitFor(() =>
       expect(actions.renameMaterial).toHaveBeenCalledWith(
@@ -283,7 +288,7 @@ describe('explorer keyboard, second pass', () => {
     expect(onPreview).not.toHaveBeenCalled();
     // Space in the new name toggled nothing.
     expect(screen.queryByRole('region', { name: 'What to do with the selection' })).toBeNull();
-  });
+  }, 20_000);
 
   it('opens the search on `/` before the search bar exists', async () => {
     const { onQueryChange } = renderWithActions([row(1)]);

@@ -796,7 +796,14 @@
 /* The state in a word. Green and amber carry it at a glance, the word carries
    it for anyone the colour does not reach. */
 .team-agent-status {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
   min-width: 0;
+}
+.team-agent-status .team-agent-tasks-link {
+  margin-left: 0;
+  font-size: var(--text-caption);
 }
 
 /* The agent as its tag — the chip a task shows, so the two surfaces agree on
@@ -892,6 +899,7 @@
  * which is what survives on a screen too bright to read a 16% tint on.
  */
 .team-agent-run {
+  cursor: pointer;
   position: relative;
   display: flex;
   align-items: center;
@@ -1538,7 +1546,8 @@
   color: var(--color-text-muted);
 }
 
-.team-accounts-empty .button {
+.team-accounts-empty .soty-button,
+.team-accounts-empty .ui-button {
   margin-top: var(--space-2);
 }
 
@@ -1554,7 +1563,7 @@
  */
 @media (max-width: 1200px) {
   .team-account-space {
-    --team-agent-id-width: 168px;
+    --team-agent-id-width: 128px;
     --team-agent-status-width: 96px;
     /*
      * The buttons keep the width they actually need. At 148 they did not fit
@@ -1564,7 +1573,13 @@
      * was something there. The room comes off the run column, which has it.
      */
     --team-agent-actions-width: 248px;
-    --team-agent-money-width: 168px;
+  }
+  /* On the table, where the wide value is defined: set on the space above it,
+     as it was, the table's own 188 px won and this width never applied — which
+     is the whole of why a sample run overflowed its cell at 1001 px (caught by
+     scripts/check-accounts-layout.mjs). Two four-digit figures fit in 140. */
+  .team-accounts-table:not(.is-money-folded) {
+    --team-agent-money-width: 140px;
   }
 }
 
@@ -1603,6 +1618,12 @@
   }
 
   .team-account-meta > span:not(:first-child)::before {
+    content: none;
+  }
+
+  /* The note has the line to itself here, so the day starts the next one —
+     a middot in front of it separated it from nothing. */
+  .team-agent-run-age::before {
     content: none;
   }
 }
@@ -2014,7 +2035,7 @@ button.team-task-agent-chip.is-selected {
   gap: var(--space-2);
 }
 
-.team-task-agent-run-editor .button {
+.team-task-agent-run-editor .soty-button {
   min-height: 32px;
   padding-inline: var(--space-3);
   font-size: var(--text-caption);
@@ -2135,51 +2156,14 @@ button.team-task-agent-chip.is-selected {
   font-weight: 650;
 }
 
-/* --- The filter pill -------------------------------------------------------- */
+/* --- The filter's list ------------------------------------------------------ */
 
-.task-account-filter {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.task-account-filter-trigger {
-  gap: 6px;
-  max-width: 220px;
-  min-height: 36px;
-}
-
-/* The clear mark sits beside the pill, not over it: the date filter's clear
-   overlaps its calendar icon by design (`margin-left: -31px` in styles.css),
-   which here put the × on top of the chevron. */
-.task-account-filter .task-date-filter-clear {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  min-height: 0;
-  margin-left: 0;
-}
-
+/* The field that opens it is `.task-filter-field` (team-tasks.css, 024); what
+   is here is the list itself: the options, their groups and the agent's face. */
 .task-account-filter-tag {
   font-family: var(--team-font-mono);
   font-size: var(--text-caption);
   letter-spacing: 0.02em;
-}
-
-.task-account-filter-trigger > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.task-account-filter-popover {
-  right: auto;
-  left: 0;
-  width: min(320px, calc(100vw - 32px));
-  max-height: min(420px, 60vh);
-  overflow-y: auto;
-  padding: var(--space-2);
 }
 
 .task-account-filter-group + .task-account-filter-group {
@@ -2598,4 +2582,118 @@ button.team-task-agent-chip.is-selected {
    popover's edge. */
 .team-task-label-menu:has(.team-empty-action) {
   min-width: 260px;
+}
+
+/*
+ * Calm at rest (024).
+ *
+ * The owner's read of this screen: everything shouts at once. A green badge, an amber word and a
+ * violet pill in every account's head; a tinted row for every free agent; a green outlined
+ * "Release" and a violet "+ Run" on every row; a pencil and a bin on every head; two money fields
+ * on every row. Each was loud for a reason, and together none of them could be seen. So the
+ * colour stays in the dots — free and busy are still one glance down the Status column — the words
+ * go back to the text colour, and the actions come forward on the row they belong to when the
+ * pointer or the focus is there (Linear's list rows). Touch keeps them showing.
+ */
+.team-agent-row.is-free,
+.team-agent-row.is-free:hover {
+  background: none;
+}
+.team-agent-state.is-free,
+.team-agent-state.is-busy,
+:root:not([data-theme='dark']) .team-agent-state.is-free,
+:root:not([data-theme='dark']) .team-agent-state.is-busy {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.team-agent-state.is-free .team-agent-state-dot {
+  background: var(--color-success);
+}
+.team-agent-state.is-busy .team-agent-state-dot {
+  background: var(--color-warning);
+}
+
+.team-account-meta-free,
+:root:not([data-theme='dark']) .team-account-meta-free,
+.team-account-meta-busy,
+:root:not([data-theme='dark']) .team-account-meta-busy {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.team-account-meta > .team-account-meta-free:not(:first-child)::before {
+  content: '·';
+}
+.team-account-tasks-link {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-underline-offset: 3px;
+}
+.team-account-tasks-link:hover {
+  color: var(--color-accent-text);
+}
+
+.team-agent-release,
+.team-agent-run-add,
+.team-agent-run-add.is-assign {
+  border-color: transparent;
+  background: none;
+  color: var(--color-text-muted);
+}
+.team-agent-release svg {
+  color: var(--color-success);
+}
+.team-agent-release:hover:not(:disabled),
+.team-agent-run-add:hover:not(:disabled),
+.team-agent-run-add.is-assign:hover:not(:disabled) {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.team-accounts-money-fold {
+  border-color: transparent;
+  color: var(--color-text-muted);
+}
+.team-accounts-money-fold[data-open] {
+  color: var(--color-text);
+}
+
+@media (hover: hover) {
+  .team-agent-actions-stack,
+  .team-agent-menu,
+  .team-account-head:not(.is-editing) .team-account-actions {
+    opacity: 0;
+    transition: opacity var(--dur-control) var(--ease-standard);
+  }
+  .team-agent-row:hover .team-agent-actions-stack,
+  .team-agent-row:focus-within .team-agent-actions-stack,
+  .team-agent-row:hover .team-agent-menu,
+  .team-agent-row:focus-within .team-agent-menu,
+  .team-account-head:hover .team-account-actions,
+  .team-account-head:focus-within .team-account-actions {
+    opacity: 1;
+  }
+  /* A free agent's "+ Run" is what its row is for: it stays, quietly. */
+  .team-agent-row.is-free .team-agent-actions-stack {
+    opacity: 1;
+  }
+}
+
+/* On a phone-wide window the buttons have a line of their own — under the
+   account's name, under the agent's run; hidden until hover, that line was an
+   empty band under every one of them. */
+@media (hover: hover) and (max-width: 560px) {
+  .team-agent-actions-stack,
+  .team-agent-menu,
+  .team-account-head:not(.is-editing) .team-account-actions {
+    opacity: 1;
+  }
 }

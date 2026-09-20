@@ -637,7 +637,7 @@ export default function LandingOptimizerPage() {
           </section>
         ) : (
           <section className="video-list">
-            <div className="empty-state">
+            <div className="soty-empty-state">
               <strong>{t('landingEmpty')}</strong>
               <span>{t('landingEmptyBody')}</span>
             </div>
@@ -990,9 +990,9 @@ function LandingFieldLabel({ label, tooltip }: { label: string; tooltip: string 
 
 function ToastRegion({ toasts }: { toasts: ToastMessage[] }) {
   return (
-    <div className="toast-region" aria-live="polite" aria-atomic="false">
+    <div className="soty-toast-region" aria-live="polite" aria-atomic="false">
       {toasts.map(toast => (
-        <div className={`toast toast-${toast.tone}`} key={toast.id}>
+        <div className={`soty-toast toast-${toast.tone}`} key={toast.id}>
           {toast.text}
         </div>
       ))}

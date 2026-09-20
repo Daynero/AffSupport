@@ -27,7 +27,7 @@ An audit of the current codebase has already been performed and is recorded alon
 
 Throughout this document, **the local app** means the part of Soty installed on the user's computer, and **the interface** means the part that runs in their browser.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Interleaved work behaves predictably (Priority: P1)
 
@@ -199,7 +199,7 @@ Every dialog behaves the same way, every colour comes from the theme, every coun
 - A file whose name contains quotation marks, backslashes, or characters the operating system treats specially is added.
 - The same limit is set from two tabs at once, or set while the local app is unreachable.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -214,7 +214,7 @@ Every dialog behaves the same way, every colour comes from the theme, every coun
 - **FR-006**: Work that was interrupted by the application exiting MUST be presented on the next start as interrupted, distinctly from work that failed and from work that is running.
 - **FR-007**: Stopping work in one tool MUST NOT affect work in any other tool.
 - **FR-008**: Re-running stopped work MUST run it from the beginning and produce output equivalent to work that was never stopped, as defined in User Story 1. If resuming from a partial result is not supported, the interface MUST NOT offer resumption.
-- **FR-009** *(roll-up, not an additional behaviour)*: All of FR-001 through FR-008 MUST hold identically on Windows and on macOS. Stated separately because it is the guarantee a reader needs to see, and because it changes how each of those requirements is validated.
+- **FR-009** _(roll-up, not an additional behaviour)_: All of FR-001 through FR-008 MUST hold identically on Windows and on macOS. Stated separately because it is the guarantee a reader needs to see, and because it changes how each of those requirements is validated.
 - **FR-009a**: Work in progress MUST survive the machine sleeping and waking, or else be presented as interrupted on wake.
 - **FR-009b**: The interface MUST NOT hold so many simultaneous live connections that ordinary actions are left waiting behind them.
 - **FR-009c**: Starting work MUST be serialised by the local app, so that two interfaces requesting the same start simultaneously produce exactly one run.
@@ -269,7 +269,7 @@ Every dialog behaves the same way, every colour comes from the theme, every coun
 - **FR-036**: While the connection is lost, progress indication MUST stop presenting itself as live.
 - **FR-037**: When a request response and a live update describe the same state, the newer MUST win regardless of arrival order.
 - **FR-038**: Re-pairing with a restarted local app MUST occur without discarding the user's page or unsaved work, and MUST be coordinated across open tabs.
-- **FR-039** *(roll-up, not an additional behaviour)*: Every tool page MUST behave identically under connection loss — one behaviour across all of FR-033 through FR-038, not one per page. Stated separately because the defect it names is precisely that two pages behave oppositely today.
+- **FR-039** _(roll-up, not an additional behaviour)_: Every tool page MUST behave identically under connection loss — one behaviour across all of FR-033 through FR-038, not one per page. Stated separately because the defect it names is precisely that two pages behave oppositely today.
 - **FR-040**: Any progress value shown to a user or to another member MUST be a real measurement. Placeholder progress values MUST NOT be displayed.
 - **FR-041**: An action already in flight MUST NOT be re-triggerable, and counts reported after an action MUST reflect what actually happened.
 
@@ -304,7 +304,7 @@ Every dialog behaves the same way, every colour comes from the theme, every coun
 - **Verification gate**: One automatable check with a pass/fail outcome and a named subject. Composed into a single run producing one structured result.
 - **Trust boundary**: A point where untrusted input enters — a request to the local app, a file path, an upload, a downloaded artifact, a pairing credential. Each has a stated rule for what it accepts and an adversarial test asserting what it refuses.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -350,10 +350,10 @@ Every dialog behaves the same way, every colour comes from the theme, every coun
 
 These are prerequisites to acquire or configure, not work to be done. Each names the requirement it unblocks so a delay is visible against a specific guarantee rather than against the feature as a whole.
 
-| Prerequisite | Unblocks | Nature |
-|---|---|---|
-| A real Windows machine or runner | The platform half of Stories 1, 2 and 3 | Hardware or CI access. Without it, no platform guarantee can be validated — assertions written on a Mac about Windows behaviour do not count. |
-| Continuous-integration minutes on macOS and Windows runners | FR-017, SC-006 | Budget. The plan reduces steady-state cost by running static checks on the cheapest runner and keeping the end-to-end suite off routine changes. |
-| An Apple Developer ID and a Windows code-signing certificate | FR-028, SC-010 | Procurement. The signing chain is built and proven against test identities first, so the outstanding step is a substitution rather than a build — which is why SC-010 is worded conditionally. |
-| Container support on the machine running full verification | The database checks named in FR-014 | Local tooling. Absent, that one check reports as skipped with a named reason rather than silently passing. |
-| Repository branch-protection settings | SC-006 | Configuration. The automation is defined in files; making its checks required to merge is a repository setting and cannot be done from the codebase. |
+| Prerequisite                                                 | Unblocks                                | Nature                                                                                                                                                                                         |
+| ------------------------------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A real Windows machine or runner                             | The platform half of Stories 1, 2 and 3 | Hardware or CI access. Without it, no platform guarantee can be validated — assertions written on a Mac about Windows behaviour do not count.                                                  |
+| Continuous-integration minutes on macOS and Windows runners  | FR-017, SC-006                          | Budget. The plan reduces steady-state cost by running static checks on the cheapest runner and keeping the end-to-end suite off routine changes.                                               |
+| An Apple Developer ID and a Windows code-signing certificate | FR-028, SC-010                          | Procurement. The signing chain is built and proven against test identities first, so the outstanding step is a substitution rather than a build — which is why SC-010 is worded conditionally. |
+| Container support on the machine running full verification   | The database checks named in FR-014     | Local tooling. Absent, that one check reports as skipped with a named reason rather than silently passing.                                                                                     |
+| Repository branch-protection settings                        | SC-006                                  | Configuration. The automation is defined in files; making its checks required to merge is a repository setting and cannot be done from the codebase.                                           |

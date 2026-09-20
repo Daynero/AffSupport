@@ -65,12 +65,12 @@ describe('team workspace launch gate', () => {
     );
 
     expect(
-      await screen.findByRole('heading', { name: 'Team spaces are still in closed beta' })
+      await screen.findByRole('heading', { name: 'Spaces are still in closed beta' })
     ).toBeTruthy();
     expect(
       screen.getByRole('dialog').parentElement?.classList.contains('team-workspace-gate-backdrop')
     ).toBe(true);
     expect(rpc).toHaveBeenCalledWith('can_access_team_workspace');
-    expect(screen.queryByRole('heading', { name: 'Choose a space' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
   });
 });

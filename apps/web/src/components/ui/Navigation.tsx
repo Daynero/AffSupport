@@ -1,4 +1,5 @@
 import { type AnchorHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
+import { Breadcrumbs as HeroBreadcrumbs } from '@heroui/react/breadcrumbs';
 import { uiClasses, type UiSize } from './types';
 
 /**
@@ -67,6 +68,23 @@ export function Tabs<T extends string>({
     // so the arrows have to carry focus with them.
     requestAnimationFrame(() => document.getElementById(`tab-${next.id}`)?.focus());
   };
+
+  /*
+   * The same arrows on a strip of addresses.
+   *
+   * A strip of links is not a tablist and must not claim to be one — but the
+   * product draws the two identically, and the audit found them behaving
+   * differently: arrows moved along the settings dialog's tabs and did nothing
+   * at all on the workspace's. Here the arrows move focus without following the
+   * link, which is the toolbar pattern and what the reader expects from
+   * something that looks like a row of tabs.
+   */
+  const moveFocus = (from: T, step: number) => {
+    const list = enabled();
+    const at = list.findIndex(item => item.id === from);
+    const next = list[(((at + step) % list.length) + list.length) % list.length];
+    if (next) document.getElementById(`tab-${next.id}`)?.focus();
+  };
   const move = (from: T, step: number) => {
     const at = enabled().findIndex(item => item.id === from);
     go(at + step);
@@ -90,10 +108,22 @@ export function Tabs<T extends string>({
         item.href !== undefined ? (
           <a
             key={item.id}
+            id={`tab-${item.id}`}
             href={item.href}
             aria-current={item.id === value ? 'page' : undefined}
+            /* Roving, exactly as the button strip is: Tab reaches the strip
+               once and the arrows walk it, rather than Tab walking through
+               four addresses on the way to the page. */
+            tabIndex={item.id === value ? 0 : -1}
             className={`ui-tab${item.id === value ? ' is-selected' : ''}`}
             onClick={event => onNavigate?.(event, item)}
+            onKeyDown={event => {
+              const current = document.activeElement?.id?.replace('tab-', '') as T | undefined;
+              if (event.key === 'ArrowRight') moveFocus(current ?? value, 1);
+              else if (event.key === 'ArrowLeft') moveFocus(current ?? value, -1);
+              else return;
+              event.preventDefault();
+            }}
           >
             {item.icon && (
               <span className="ui-tab-icon" aria-hidden="true">
@@ -148,30 +178,34 @@ export interface BreadcrumbProps {
   className?: string;
 }
 
-/** Where you are, and every step back to the root. The last crumb is the page. */
+/**
+ * Where you are, and every step back to the root. The last crumb is the page.
+ *
+ * A real list, which is what a trail is: the library's breadcrumbs render
+ * `<nav><ol><li>`, so a reader is told how many steps there are and which one
+ * they are on. This product drew it as a row of spans with a slash between
+ * them, which says none of that.
+ */
 export function Breadcrumb({ items, label, className }: BreadcrumbProps) {
   return (
-    <nav className={uiClasses('breadcrumb', { className })} aria-label={label}>
-      {items.map((item, index) => {
-        const last = index === items.length - 1;
-        return (
-          <span key={item.id} className="ui-breadcrumb-item">
-            {index > 0 && (
-              <span className="ui-breadcrumb-separator" aria-hidden="true">
-                /
-              </span>
-            )}
-            {last || !item.onSelect ? (
-              <span aria-current={last ? 'page' : undefined}>{item.label}</span>
-            ) : (
-              <button type="button" onClick={item.onSelect}>
-                {item.label}
-              </button>
-            )}
-          </span>
-        );
-      })}
-    </nav>
+    <HeroBreadcrumbs
+      aria-label={label}
+      className={uiClasses('breadcrumb', { className })}
+      onAction={key => items.find(item => item.id === key)?.onSelect?.()}
+    >
+      {items.map((item, index) => (
+        <HeroBreadcrumbs.Item
+          key={item.id}
+          id={item.id}
+          className="ui-breadcrumb-item"
+          /* The last crumb is the page itself: not a link, and announced as
+             where the reader already is. */
+          {...(index === items.length - 1 ? {} : { href: '#' })}
+        >
+          {item.label}
+        </HeroBreadcrumbs.Item>
+      ))}
+    </HeroBreadcrumbs>
   );
 }
 

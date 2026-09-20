@@ -16,7 +16,9 @@ import { useId, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import {
   sortTeamTaskLabels,
+  TEAM_TASK_LABEL_DEFAULT_COLOR,
   type TeamTaskLabel,
+  type TeamTaskLabelColor,
   type TeamTaskLabelRef
 } from '@video-compressor/shared';
 import { ICON_STROKE } from '../../components/icons';
@@ -28,6 +30,17 @@ import { TaskLabelMenu } from '../labels/TaskLabelMenu';
 import { Popover } from '../../components/ui/index';
 
 export interface TaskLabelsEditorClient {
+  /**
+   * Make a tag from inside the task (024, FR-071).
+   *
+   * Optional: where it is missing the picker falls back to pointing at the
+   * settings tab, which is what every surface did before.
+   */
+  createTaskLabel?: (input: {
+    teamId: string;
+    name: string;
+    color: TeamTaskLabelColor;
+  }) => Promise<TeamTaskLabel>;
   attachTaskLabel(input: {
     teamId: string;
     taskId: string;
@@ -47,7 +60,8 @@ export function TaskLabelsEditor({
   available,
   canEdit,
   client,
-  onLabelsChange
+  onLabelsChange,
+  onLabelCreated
 }: {
   teamId: string;
   taskId: string;
@@ -58,6 +72,8 @@ export function TaskLabelsEditor({
   canEdit: boolean;
   client: TaskLabelsEditorClient;
   onLabelsChange: (labels: TeamTaskLabelRef[]) => void;
+  /** So the space's dictionary picks up a tag made from in here. */
+  onLabelCreated?: (label: TeamTaskLabel) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -80,7 +96,13 @@ export function TaskLabelsEditor({
     }
   };
 
-  const toggle = (label: TeamTaskLabelRef, next: boolean) =>
+  /*
+   * A pick closes the list (the owner, 024): a tag is hung one at a time, and the
+   * list left open after the press read as the press not having taken.
+   */
+  const toggle = (label: TeamTaskLabelRef, next: boolean) => {
+    setOpen(false);
+    trigger.current?.focus();
     void run(async () => {
       onLabelsChange(
         next
@@ -88,6 +110,31 @@ export function TaskLabelsEditor({
           : await client.detachTaskLabel({ teamId, taskId, labelId: label.id })
       );
     });
+  };
+
+  /**
+   * The word typed into the picker, made into a tag and hung on the task.
+   *
+   * One press does both, because "create it" and "use it" were never two
+   * separate intentions — nobody makes a tag in order to look at it.
+   */
+  const create = async (name: string): Promise<TeamTaskLabelRef | null> => {
+    const make = client.createTaskLabel;
+    if (!make) return null;
+    try {
+      setBusy(true);
+      const made = await make({ teamId, name, color: TEAM_TASK_LABEL_DEFAULT_COLOR });
+      onLabelsChange(await client.attachTaskLabel({ teamId, taskId, labelId: made.id }));
+      onLabelCreated?.(made);
+      setOpen(false);
+      return made;
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const detach = (label: TeamTaskLabelRef) =>
     void run(async () => {
@@ -159,6 +206,7 @@ export function TaskLabelsEditor({
             ariaLabel={t('teamTaskTagsLabel')}
             emptyText={t('teamTaskTagsNoneYet')}
             emptyTarget={{ kind: 'settings', tab: 'tags' }}
+            onCreate={canEdit && client.createTaskLabel ? create : undefined}
             onToggle={toggle}
           />
         </Popover>

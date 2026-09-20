@@ -28,7 +28,10 @@
      the rule can only be changed in one place. */
   --shell-width: max(1440px, 80vw);
   --shell-width-narrow: max(1120px, 80vw);
-  --shell-width-team: max(1240px, 80vw);
+  /* The workspace is a place to work in, not a page to read: on a wide screen it takes the
+     screen, leaving only a margin, rather than sitting as a column with the hexagons showing on
+     both sides (024). The pixel value still decides on a laptop. */
+  --shell-width-team: max(1240px, 94vw);
   /* Gutter that keeps a full-bleed header on the same axis as the shell below
      it: the header padding on narrow screens, the shell margin once the shell
      stops filling the viewport. */
@@ -276,6 +279,10 @@ a {
   padding: 0 var(--shell-gutter);
   border-bottom: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  /* Keep the inherited colour on the bar itself so its text interpolates when
+     the theme tokens change; transitions do not animate an inherited value
+     that only changes on body/root. */
+  color: var(--color-text);
   backdrop-filter: blur(12px);
 }
 
@@ -293,14 +300,6 @@ a {
 /* Whatever remains may shrink rather than push its neighbours off the edge. */
 .topbar-actions > * {
   min-width: 0;
-}
-
-/* The account keeps its face and its menu; the name is what a narrow bar can
-   do without, and it was the last thing pushing the menu off the screen. */
-@media (max-width: 1000px) {
-  .user-menu-trigger-name {
-    display: none;
-  }
 }
 
 @media (max-width: 560px) {
@@ -473,133 +472,8 @@ a {
   }
 }
 
-/* Product launcher */
-.launcher {
-  width: min(80%, var(--shell-width));
-  margin: 0 auto;
-  padding: clamp(28px, 5vh, 48px) 0 64px;
-}
-
-.launcher-heading {
-  margin-bottom: 28px;
-  text-align: center;
-}
-
-.launcher-heading h2 {
-  font-size: clamp(35.88px, 4vw, 47.84px);
-  letter-spacing: -0.025em;
-}
-
-.launcher-heading p {
-  margin-top: 8px;
-  color: var(--color-text-muted);
-  font-size: var(--text-4xl);
-}
-
-.agent-panel-slot {
-  min-height: 0;
-  margin-bottom: 24px;
-  border-radius: var(--radius-lg);
-  transition: transform var(--dur-section) var(--ease-standard);
-}
-
-.agent-panel-slot:empty {
-  margin-bottom: 0;
-}
-.agent-panel-slot.attention {
-  animation: panel-attention var(--dur-complete) var(--ease-standard);
-}
-.agent-checking {
-  width: max-content;
-  margin: 0 auto;
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-  font-size: var(--text-xl);
-}
-
-.launcher-notice {
-  width: max-content;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-  font-size: var(--text-xl);
-}
-
-.launcher .onboarding-panel,
-.launcher .blocking-message {
-  max-width: 680px;
-  margin-inline: auto;
-}
-
-/* When a panel genuinely changes (connected, pairing, update), ease it in
-   instead of popping — the common "checking" case no longer swaps at all. */
-.agent-panel-slot > * {
-  animation: fade-rise var(--dur-section) var(--ease-enter);
-}
-
-.launcher .onboarding-panel {
-  margin-top: 0;
-}
-
-.team-workspace-launcher-card {
-  display: flex;
-  min-height: 126px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 24px;
-  background:
-    radial-gradient(
-      circle at 12% 10%,
-      color-mix(in srgb, var(--purple-200) 55%, transparent),
-      transparent 42%
-    ),
-    var(--color-surface);
-}
-
-.team-workspace-launcher-copy {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-5);
-}
-
-.team-workspace-launcher-copy h3 {
-  font-size: var(--text-8xl);
-  letter-spacing: -0.015em;
-}
-
-.team-workspace-launcher-title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.team-workspace-launcher-copy p {
-  max-width: 620px;
-  margin-top: 6px;
-  color: var(--color-text-muted);
-  line-height: 1.55;
-}
-
-.team-workspace-launcher-card > .button {
-  flex: 0 0 auto;
-}
-
-.tool-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-5);
-}
-
 /* Shared card surface; per-card modifiers add their unique traits. */
-.card {
+.soty-card {
   padding: var(--space-6);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -622,100 +496,10 @@ a {
   transform: translateY(-1px) scale(0.992);
 }
 
-.tool-card {
-  display: flex;
-  min-height: 290px;
-  flex-direction: column;
-  font-size: var(--text-3xl);
-}
-
-.tool-coming-soon {
-  background: var(--color-surface-subtle);
-  cursor: pointer;
-}
-
-.tool-card,
-.tool-icon,
-.tool-readiness {
-  transition:
-    transform var(--dur-control) var(--ease-standard),
-    border-color var(--dur-control) var(--ease-standard),
-    box-shadow var(--dur-control) var(--ease-standard),
-    color var(--dur-control) var(--ease-standard),
-    background var(--dur-control) var(--ease-standard);
-}
-
-.tool-card-top,
-.tool-action-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.tool-action-row:has(> .button:only-child) {
-  justify-content: flex-end;
-}
-
-.tool-card .tool-action-row /* `.button` already sets both of these where it is defined; this repeat was
-   added during a touch-target pass and changes nothing. The two rules that do
-   reduce a button's height — the job actions and the update notice — are more
-   specific and win regardless of order, so removing this affects nothing at
-   all, which is the point. */
-
-.tool-icon {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border-radius: var(--radius-lg);
-  color: var(--purple-600);
-  background: linear-gradient(145deg, var(--purple-50), var(--purple-200));
-}
-.tool-icon svg {
-  width: 30px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.tool-coming-soon .tool-icon {
-  color: var(--color-text-muted);
-  background: var(--color-surface-muted);
-}
-
-.tool-copy {
-  flex: 1;
-  padding: 24px 0;
-}
-.tool-copy h3 {
-  font-size: var(--text-7xl);
-}
-.tool-copy p {
-  margin-top: var(--space-2);
-  color: var(--color-text-muted);
-}
-.tool-readiness {
-  color: var(--color-warning);
-  font-size: var(--text-lg);
-  font-weight: 650;
-}
-.tool-readiness.ready {
-  color: var(--color-success);
-}
-.tool-readiness.beta {
-  color: var(--color-action-hover);
-}
-.button.is-disabled {
+.soty-button.is-disabled,
+.ui-button.is-disabled {
   opacity: 0.58;
   pointer-events: none;
-}
-
-@keyframes panel-attention {
-  50% {
-    transform: translateY(-3px);
-  }
 }
 
 .soty-mark {
@@ -857,7 +641,7 @@ a {
 /* ============================================================
    Buttons
    ============================================================ */
-.button {
+.soty-button {
   position: relative;
   display: inline-flex;
   min-height: 44.2px;
@@ -880,11 +664,11 @@ a {
     transform var(--dur-micro) var(--ease-standard);
 }
 
-.button:active:not(:disabled) {
+.soty-button:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-.button:disabled {
+.soty-button:disabled {
   opacity: 0.46;
   cursor: not-allowed;
 }
@@ -961,13 +745,13 @@ a {
 /* Loading keeps the button width stable: the label turns transparent
    while a centered spinner overlays it and a soft sheen sweeps across —
    a restrained "working" signal that never shifts the layout. */
-.button.is-loading {
+.soty-button.is-loading {
   color: transparent;
   overflow: hidden;
   --button-sheen: color-mix(in srgb, var(--color-white) 24%, transparent);
 }
 
-.button.is-loading::after {
+.soty-button.is-loading::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -986,7 +770,7 @@ a {
   --button-sheen: color-mix(in srgb, var(--color-error) 20%, transparent);
 }
 
-.button.is-loading .button-spinner {
+.soty-button.is-loading .button-spinner {
   position: absolute;
   inset: 0;
   display: grid;
@@ -1255,12 +1039,12 @@ a {
   transition: background var(--dur-control) var(--ease-standard);
 }
 
-.checkbox.feature-switch input:checked + .checkbox-mark {
+.soty-checkbox.feature-switch input:checked + .checkbox-mark {
   border: 0;
   background: var(--color-accent);
 }
 
-.checkbox.feature-switch .checkbox-mark::after {
+.soty-checkbox.feature-switch .checkbox-mark::after {
   position: absolute;
   top: 50%;
   left: 2.5px;
@@ -1275,18 +1059,18 @@ a {
   transition: transform var(--dur-control) var(--ease-standard);
 }
 
-.checkbox.feature-switch input:checked + .checkbox-mark::after {
+.soty-checkbox.feature-switch input:checked + .checkbox-mark::after {
   width: 15px;
   height: 15px;
   border: 0;
   transform: translateY(-50%) translateX(16px);
 }
 
-.checkbox.feature-switch:active .checkbox-mark::after {
+.soty-checkbox.feature-switch:active .checkbox-mark::after {
   transform: translateY(-50%) scale(0.94);
 }
 
-.checkbox.feature-switch:active input:checked + .checkbox-mark::after {
+.soty-checkbox.feature-switch:active input:checked + .checkbox-mark::after {
   transform: translateY(-50%) translateX(16px) scale(0.94);
 }
 
@@ -1475,7 +1259,7 @@ a {
   transform: translateY(0) scale(1);
 }
 
-.image-drop-inline-error .field-error {
+.image-drop-inline-error .soty-field-error {
   line-height: 1.35;
   text-align: center;
 }
@@ -1720,7 +1504,7 @@ input.is-invalid {
   background: var(--color-error-soft);
 }
 
-.field-error {
+.soty-field-error {
   color: var(--color-error);
   font-size: var(--text-lg);
 }
@@ -1965,15 +1749,15 @@ input.is-invalid {
 .drop-zone.is-dragging .drop-icon,
 .drop-zone:hover:not(.is-disabled) strong,
 .drop-zone.is-dragging strong,
-.drop-zone:hover:not(.is-disabled) span:not(.drop-icon):not(.spinner),
-.drop-zone.is-dragging span:not(.drop-icon):not(.spinner) {
+.drop-zone:hover:not(.is-disabled) span:not(.drop-icon):not(.soty-spinner),
+.drop-zone.is-dragging span:not(.drop-icon):not(.soty-spinner) {
   /* Fully opaque, fully saturated honey — no wash on the type itself. */
   color: var(--honey-400);
   opacity: 1;
 }
 .drop-zone .drop-icon,
 .drop-zone strong,
-.drop-zone span:not(.drop-icon):not(.spinner) {
+.drop-zone span:not(.drop-icon):not(.soty-spinner) {
   transition: color var(--dur-control) var(--ease-standard);
 }
 
@@ -1995,7 +1779,7 @@ input.is-invalid {
   font-size: var(--text-3xl);
 }
 
-.drop-zone span:not(.drop-icon):not(.spinner) {
+.drop-zone span:not(.drop-icon):not(.soty-spinner) {
   color: var(--color-text-muted);
   font-size: var(--text-xl);
 }
@@ -2216,7 +2000,7 @@ input.is-invalid {
   justify-content: flex-end;
 }
 
-.job-actions .button {
+.job-actions .soty-button {
   min-height: 44.2px;
   padding: 0 15.6px;
   font-size: inherit;
@@ -2440,7 +2224,7 @@ input.is-invalid {
   animation-delay: var(--motion-slow);
 }
 
-.skeleton {
+.soty-skeleton {
   display: inline-block;
   border-radius: var(--radius-sm);
   background: linear-gradient(
@@ -2456,7 +2240,7 @@ input.is-invalid {
 /* Loading placeholders for the account/admin pages. They copy the loaded
    layout's geometry (cards, fields, chart, table rows), so data replaces
    them without layout shift; .content-appear crossfades the swap. Under
-   reduced motion the shimmer freezes (global .skeleton override) and the
+   reduced motion the shimmer freezes (global .soty-skeleton override) and the
    placeholders simply stay static. */
 .skeleton-line {
   display: inline-block;
@@ -2550,8 +2334,6 @@ input.is-invalid {
   border-bottom: 0;
 }
 
-.account-skeleton,
-.account-loaded,
 .admin-skeleton,
 .admin-loaded {
   display: grid;
@@ -2648,7 +2430,7 @@ input.is-invalid {
 /* ============================================================
    Checkbox
    ============================================================ */
-.checkbox {
+.soty-checkbox {
   position: relative;
   display: inline-flex;
   min-width: 18px;
@@ -2658,7 +2440,7 @@ input.is-invalid {
   cursor: pointer;
 }
 
-.checkbox input {
+.soty-checkbox input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2680,12 +2462,12 @@ input.is-invalid {
     background var(--dur-micro) var(--ease-standard);
 }
 
-.checkbox input:checked + .checkbox-mark {
+.soty-checkbox input:checked + .checkbox-mark {
   border-color: var(--color-accent);
   background: var(--color-accent);
 }
 
-.checkbox input:checked + .checkbox-mark::after {
+.soty-checkbox input:checked + .checkbox-mark::after {
   width: 8px;
   height: 4px;
   border-bottom: 2px solid var(--color-on-accent);
@@ -2694,17 +2476,17 @@ input.is-invalid {
   transform: translateY(-1px) rotate(-45deg);
 }
 
-.checkbox input:focus-visible + .checkbox-mark {
+.soty-checkbox input:focus-visible + .checkbox-mark {
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
-.checkbox input:disabled + .checkbox-mark {
+.soty-checkbox input:disabled + .checkbox-mark {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.empty-state {
+.soty-empty-state {
   display: grid;
   min-height: 120px;
   place-content: center;
@@ -2957,7 +2739,8 @@ input.is-invalid {
   gap: var(--space-3);
 }
 
-.release-update-actions .button {
+.release-update-actions .soty-button,
+.release-update-actions .ui-button {
   min-height: 34px;
   padding: 7px 12px;
   font-size: var(--text-xl);
@@ -2999,7 +2782,7 @@ input.is-invalid {
   }
 }
 
-.toast-region {
+.soty-toast-region {
   position: fixed;
   z-index: var(--layer-tooltip);
   right: var(--space-4);
@@ -3010,7 +2793,7 @@ input.is-invalid {
   pointer-events: none;
 }
 
-.toast {
+.soty-toast {
   padding: 10px 12px;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
@@ -3033,7 +2816,7 @@ input.is-invalid {
   border-color: color-mix(in srgb, var(--color-error) 35%, var(--color-border));
 }
 
-.spinner {
+.soty-spinner {
   display: inline-block;
   width: 20px;
   height: 20px;
@@ -3247,59 +3030,6 @@ input.is-invalid {
     display: none;
   }
 
-  .launcher {
-    width: min(100% - 24px, 600px);
-    padding: 22px 0 48px;
-  }
-
-  .launcher-heading {
-    margin-bottom: var(--space-6);
-    padding-inline: 8px;
-  }
-
-  .launcher-heading h2 {
-    font-size: clamp(34.39px, 7vw, 43.36px);
-  }
-
-  .launcher-heading p {
-    max-width: 440px;
-    margin-inline: auto;
-    font-size: var(--text-3xl);
-  }
-
-  .agent-panel-slot {
-    margin-bottom: var(--space-5);
-  }
-
-  .team-workspace-launcher-card {
-    align-items: stretch;
-    flex-direction: column;
-    gap: var(--space-5);
-    padding: 20px;
-  }
-
-  .team-workspace-launcher-card > .button {
-    width: 100%;
-  }
-
-  .tool-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-4);
-  }
-
-  .tool-card {
-    min-height: 238px;
-    padding: 20px;
-  }
-
-  .tool-copy {
-    padding: 20px 0;
-  }
-
-  .tool-copy p {
-    max-width: 520px;
-  }
-
   .workspace {
     padding: var(--space-3);
   }
@@ -3419,10 +3149,6 @@ input.is-invalid {
     align-items: flex-start;
     flex-wrap: wrap;
   }
-
-  .launcher .blocking-message .ui-alert-action {
-    margin-left: 40px;
-  }
 }
 
 @media (max-width: 500px) {
@@ -3478,86 +3204,12 @@ input.is-invalid {
     font-size: 0;
   }
 
-  .launcher {
-    width: calc(100% - 20px);
-    padding-top: var(--space-5);
-  }
-
-  .launcher-heading {
-    margin-bottom: var(--space-5);
-  }
-
-  .launcher-heading p {
-    line-height: 1.5;
-  }
-
-  .agent-checking {
-    max-width: 100%;
-    text-align: center;
-  }
-
-  .team-workspace-launcher-copy {
-    align-items: flex-start;
-  }
-
-  .team-workspace-launcher-copy h3 {
-    font-size: var(--text-7xl);
-  }
-
-  .launcher .onboarding-panel {
-    gap: 11px;
-    padding: var(--space-5);
-  }
-
-  .launcher .onboarding-panel > .inline-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .launcher .onboarding-panel > .inline-actions .button,
-  .launcher .blocking-message .inline-actions,
-  .launcher .blocking-message .ui-button {
-    width: 100%;
-  }
-
-  .launcher .blocking-message .ui-alert-action {
-    margin-left: 0;
-  }
-
   .installation-help {
     overflow-wrap: anywhere;
   }
 
   .installation-help ol {
     padding-left: var(--space-5);
-  }
-
-  .tool-card {
-    min-height: 224px;
-    padding: var(--space-5);
-  }
-
-  .tool-icon {
-    width: 48px;
-    height: 48px;
-  }
-
-  .tool-copy {
-    padding: 18px 0;
-  }
-
-  .tool-copy h3 {
-    font-size: var(--text-6xl);
-  }
-
-  .tool-action-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .tool-action-row .button {
-    min-height: 42px;
-    width: 100%;
   }
 
   .drop-zone {
@@ -3573,7 +3225,7 @@ input.is-invalid {
     height: 60px;
   }
 
-  .selected-image > .spinner {
+  .selected-image > .soty-spinner {
     display: none;
   }
 
@@ -3617,7 +3269,7 @@ input.is-invalid {
   }
 
   .progress-track.is-flowing > span,
-  .skeleton,
+  .soty-skeleton,
   .soty-loader .ribbon-top,
   .soty-loader .ribbon-bottom,
   .soty-loader .ribbon-center,
@@ -3864,7 +3516,7 @@ body:has(.public-home) {
   margin-top: calc(var(--space-6) * 1.5);
 }
 
-.public-home-actions .button {
+.public-home-actions .soty-button {
   min-height: 96px;
   padding: 0 48px;
   border-radius: var(--radius-sm);
@@ -4164,130 +3816,7 @@ body:has(.public-home) {
   font-size: var(--text-10xl);
 }
 
-.user-menu {
-  position: relative;
-}
-
-.user-menu-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 40px;
-  min-height: 40px;
-  padding: 3px 8px 3px 3px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  color: var(--color-text);
-  background: transparent;
-  cursor: pointer;
-  transition: background var(--dur-control) var(--ease-standard);
-}
-
-.topbar .user-menu-trigger {
-  gap: 9.2px;
-  min-width: 46px;
-  min-height: 46px;
-  padding: 3.45px 9.2px 3.45px 3.45px;
-}
-
-.topbar .avatar-small {
-  width: 37px;
-  height: 37px;
-  font-size: var(--text-lg);
-}
-
-.topbar .user-menu-trigger-name {
-  font-size: var(--text-2xl);
-}
-
-.topbar .user-menu-chevron {
-  width: 18px;
-  height: 18px;
-}
-
-.user-menu-trigger:hover,
-.user-menu-trigger[aria-expanded='true'] {
-  background: var(--color-surface-muted);
-}
-
-.user-menu-trigger-name {
-  max-width: 160px;
-  overflow: hidden;
-  font-size: var(--text-2xl);
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-menu-chevron {
-  color: var(--color-text-muted);
-  transform: translateY(-1px);
-}
-
-/* Placed by the component (021): portalled to the body and flipped when the
-   window is short. What is left here is what it looks like. */
-.user-menu-popover {
-  z-index: var(--layer-popover);
-  display: grid;
-  width: 248px;
-  padding: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-menu);
-  /* No entrance: this is opened many times an hour, and the rule about
-     frequency is in docs/DESIGN-PRINCIPLES.md. It used to name `menu-pop`,
-     which no `@keyframes` ever declared — so it already did not animate, it
-     just did not say so. */
-  transform-origin: top right;
-}
-
-/* The list, between the popover surface and its entries so the arrow-key walk
-   has something to own. */
-.user-menu-items {
-  display: contents;
-}
-
-.user-menu-identity {
-  display: grid;
-  gap: 2px;
-  padding: var(--space-3);
-  overflow: hidden;
-}
-
-.user-menu-identity strong,
-.user-menu-identity span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-menu-identity span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-}
-
-.user-menu-items > button {
-  width: 100%;
-  padding: 9px var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.user-menu-items > button:hover,
-.user-menu-items > button:focus-visible {
-  background: var(--color-surface-muted);
-}
-
-.user-menu-separator {
-  height: 1px;
-  margin: var(--space-2) var(--space-1);
-  background: var(--color-border);
-}
+/* The account menu lives in styles/shell.css (024, US27). */
 
 .modal-backdrop {
   position: fixed;
@@ -4755,7 +4284,8 @@ body:has(.public-home) {
   gap: var(--space-4);
 }
 
-.platform-download-actions .button {
+.platform-download-actions .soty-button,
+.platform-download-actions .ui-button {
   width: 100%;
 }
 
@@ -4789,7 +4319,8 @@ body:has(.public-home) {
   padding-top: 4px;
 }
 
-.local-app-modal > .inline-actions .button {
+.local-app-modal > .inline-actions .soty-button,
+.local-app-modal > .inline-actions .ui-button {
   width: 100%;
   min-height: 44.2px;
   padding-inline: 12px;
@@ -4798,7 +4329,8 @@ body:has(.public-home) {
   box-shadow: none;
 }
 
-.local-app-modal > .inline-actions .button:hover {
+.local-app-modal > .inline-actions .soty-button:hover,
+.local-app-modal > .inline-actions .ui-button:hover {
   border-color: var(--color-border-strong);
   background: var(--color-surface-muted);
   box-shadow: none;
@@ -4852,7 +4384,7 @@ body:has(.public-home) {
   gap: var(--space-4);
 }
 
-.lock-actions .button {
+.lock-actions .soty-button {
   width: 100%;
 }
 
@@ -4893,49 +4425,11 @@ body:has(.public-home) {
   color: var(--color-text-muted);
 }
 
-.account-page {
-  display: grid;
-  gap: var(--space-5);
-  max-width: 880px;
-}
-
-.account-page > .page-heading {
-  margin-bottom: 0;
-}
-
-.account-card,
+/* The account page's own rules moved to styles/account.css (024). */
 .admin-card {
   display: grid;
   gap: var(--space-5);
   box-shadow: var(--shadow-sm);
-}
-
-.profile-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.profile-summary > div {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.profile-summary h3 {
-  font-size: var(--text-7xl);
-}
-
-.profile-summary span {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  text-overflow: ellipsis;
-}
-
-.account-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
 }
 
 .field {
@@ -4968,69 +4462,6 @@ body:has(.public-home) {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
   outline: 0;
-}
-
-.profile-card > .button-primary {
-  justify-self: start;
-}
-
-.account-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 var(--space-6);
-  margin: 0;
-}
-
-.account-details > div {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.account-details dt {
-  color: var(--color-text-muted);
-}
-
-.account-details dd {
-  min-width: 0;
-  margin: 0;
-  font-weight: 600;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-
-.account-version-detail {
-  flex-wrap: wrap;
-}
-
-.account-version-detail dt {
-  flex: 1 1 180px;
-}
-
-.account-version-detail dd {
-  flex: 1 1 180px;
-}
-
-.account-card > .button-secondary {
-  justify-self: start;
-}
-
-.agent-version-note {
-  font-weight: 400;
-  color: var(--color-text-muted);
-}
-
-.agent-version-note a {
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.agent-version-note a:hover {
-  color: var(--color-accent-hover);
 }
 
 .confirm-dialog form {
@@ -5354,14 +4785,14 @@ body:has(.public-home) {
   flex: none;
 }
 
-.pagination {
+.soty-pagination {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
 }
 
-.pagination span {
+.soty-pagination span {
   color: var(--color-text-muted);
   font-size: var(--text-xl);
   font-variant-numeric: tabular-nums;
@@ -5505,21 +4936,10 @@ body:has(.public-home) {
     padding: 34px 26px 28px;
   }
 
-  .user-menu-trigger-name,
-  .user-menu-chevron {
-    display: none;
-  }
-
-  .user-menu-trigger {
-    padding-right: 3px;
-  }
-
   .connection-badge {
     max-width: 130px;
   }
 
-  .account-form-grid,
-  .account-details,
   .admin-split-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -5581,7 +5001,7 @@ body:has(.public-home) {
     flex-direction: column;
   }
 
-  .public-home-actions .button {
+  .public-home-actions .soty-button {
     justify-content: center;
     width: 100%;
     min-height: 72px;
@@ -5607,13 +5027,8 @@ body:has(.public-home) {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .account-card,
   .admin-card {
     padding: var(--space-4);
-  }
-
-  .profile-summary {
-    align-items: flex-start;
   }
 
   .metric-grid,
@@ -5649,7 +5064,6 @@ body:has(.public-home) {
 
 @media (prefers-reduced-motion: reduce) {
   .login-accent,
-  .user-menu-popover,
   .transcription-copy-popover,
   .release-update-notice,
   .modal-backdrop,
@@ -5746,7 +5160,7 @@ body:has(.public-home) {
   justify-content: center;
 }
 
-.landing-switch-column .checkbox strong {
+.landing-switch-column .soty-checkbox strong {
   font-size: var(--text-xl);
   font-weight: 600;
 }
@@ -5968,7 +5382,7 @@ body:has(.public-home) {
   gap: var(--space-2);
 }
 
-.landing-batch-actions .button {
+.landing-batch-actions .soty-button {
   min-height: 34px;
   padding-inline: 11px;
   font-size: var(--text-xl);
@@ -5992,7 +5406,7 @@ body:has(.public-home) {
     display: none;
   }
 
-  .landing-batch-actions .button {
+  .landing-batch-actions .soty-button {
     width: 38px;
     min-width: 38px;
     flex: 0 0 auto;
@@ -7011,7 +6425,7 @@ body:has(.public-home) {
     padding-left: 0;
   }
 
-  .landing-batch-actions .button {
+  .landing-batch-actions .soty-button {
     width: 100%;
   }
 
@@ -7161,16 +6575,14 @@ body:has(.public-home) {
    Route transitions — a short crossfade of the page content
    only; the persistent topbar remains mounted.
    ============================================================ */
+/* The old page stays opaque under the new one while it fades in (024): fading both at once left
+   each half transparent mid-way, and the honeycomb behind the page flashed through. */
 ::view-transition-old(wishly-page) {
-  animation: wishly-page-out var(--dur-section) var(--ease-standard) both;
+  animation: none;
+  opacity: 1;
 }
 ::view-transition-new(wishly-page) {
   animation: wishly-page-in var(--dur-section) var(--ease-standard) both;
-}
-@keyframes wishly-page-out {
-  to {
-    opacity: 0;
-  }
 }
 @keyframes wishly-page-in {
   from {
@@ -8080,7 +7492,7 @@ body:has(.public-home) {
   .team-invite-form {
     grid-template-columns: minmax(12rem, 1fr) minmax(9rem, 0.5fr);
   }
-  .team-invite-form > .button {
+  .team-invite-form > .soty-button {
     grid-column: 1 / -1;
     justify-self: start;
   }
@@ -8089,10 +7501,20 @@ body:has(.public-home) {
   .team-invite-form {
     grid-template-columns: minmax(14rem, 1fr) minmax(9rem, 0.4fr) auto;
   }
-  .team-invite-form > .button {
+  .team-invite-form > .soty-button {
     grid-column: auto;
     justify-self: stretch;
   }
+}
+/* What the chosen role may do, under the whole row. */
+.team-invite-form .team-invite-role-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-invite-form > .ui-button {
+  justify-self: start;
 }
 /* A label never breaks inside a word, whatever the column does. */
 .team-invite-form label > span {
@@ -8122,11 +7544,11 @@ body:has(.public-home) {
   overflow-wrap: anywhere;
 }
 .team-invitation-list li > .team-delivery-state,
-.team-invitation-list li > .button {
+.team-invitation-list li > .soty-button {
   flex: 0 0 auto;
 }
-.team-invitation-list li > .button,
-.team-inline-actions > .button {
+.team-invitation-list li > .soty-button,
+.team-inline-actions > .soty-button {
   min-width: max-content;
 }
 .team-drive-panel,
@@ -8146,10 +7568,10 @@ body:has(.public-home) {
   min-width: 0;
 }
 
-.team-folder-trail .button {
+.team-folder-trail .soty-button {
   padding-inline: var(--space-2);
 }
-.team-folder-trail .button:disabled {
+.team-folder-trail .soty-button:disabled {
   opacity: 1;
   color: var(--color-text);
   cursor: default;
@@ -8230,7 +7652,7 @@ body:has(.public-home) {
 .team-restitch-prepare-actions {
   min-width: 0;
 }
-.team-restitch-prepare-actions > .button {
+.team-restitch-prepare-actions > .soty-button {
   min-width: 0;
   white-space: normal;
   text-align: center;
@@ -8248,6 +7670,12 @@ body:has(.public-home) {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+/* The header rides the same axis as what is under it (024): the workspace takes a wide screen,
+   and a bar still pinned to the narrower page axis left the logo adrift from the panel below. */
+.app-shell:has(.team-space-page) .topbar {
+  --shell-gutter: max(var(--app-header-padding-inline), calc((100% - var(--shell-width-team)) / 2));
 }
 
 /* --- Guided team space: lobby, create wizard, content-first shell --- */
@@ -8476,20 +7904,26 @@ body:has(.public-home) {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+/* On the chips' own surface (024). The header sits on the live hexagon field,
+   and a bare muted link over a lit cell was unreadable; the chip beside it
+   never was, because it carries its own ground. One row, one ground. */
 .team-space-shell-utility-link {
-  padding: 6px var(--space-2);
+  padding: 2px var(--space-2);
   font-size: var(--text-label);
-  color: var(--color-text-muted);
-  text-decoration: none;
-  border-radius: var(--radius-sm);
-}
-.team-space-shell-utility-link:hover {
   color: var(--color-text);
+  text-decoration: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
   background: var(--color-surface-muted);
 }
+.team-space-shell-utility-link:hover {
+  border-color: var(--color-border-strong);
+}
 .team-space-shell-utility-link[aria-current='page'] {
+  /* The accent wash is translucent and let a lit cell through; the ground
+     stays opaque and the state is carried by the ink and the edge. */
   color: var(--color-accent);
-  background: var(--color-accent-softer);
+  border-color: var(--color-accent);
 }
 
 /* The tab bar. Horizontal scroll rather than wrapping: a second row of tabs
@@ -8502,6 +7936,20 @@ body:has(.public-home) {
   overflow-x: auto;
   border-bottom: 1px solid var(--color-border);
   scrollbar-width: thin;
+}
+.team-space-shell-chrome {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-3) var(--space-5) 0;
+}
+/* The panel's own edge closes the strip; a second rule under it doubled it. */
+.team-space-shell-chrome > .team-space-tabs {
+  border-bottom: 0;
 }
 .team-space-tabs .ui-tab {
   padding: var(--space-2) var(--space-3);
@@ -8521,6 +7969,16 @@ body:has(.public-home) {
 .team-space-tabs .ui-tab.is-selected {
   color: var(--color-accent);
   border-bottom-color: var(--color-accent);
+}
+/* Inside the tab (024): the strip clips what spills past its top and bottom, so the page's ring
+   showed as two purple bars either side of the label. Keyboard focus only — a click draws none. */
+.team-space-tabs .ui-tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+.team-space-tabs .ui-tab:focus:not(:focus-visible) {
+  outline: none;
 }
 .team-space-shell-body {
   display: grid;
@@ -8824,7 +8282,7 @@ button,
   min-height: 44.2px;
 }
 
-.button {
+.soty-button {
   min-height: 44.2px;
   padding-inline: var(--space-4);
 }
@@ -9077,7 +8535,8 @@ button,
 /* The label sits above its field, not beside it: at the width the explorer
    gives this column "Пошук файлів" broke across two lines next to the box. */
 .team-catalog-search,
-.team-catalog-filters label {
+.team-catalog-filters label,
+.team-catalog-facet {
   display: grid;
   gap: var(--space-1);
   color: var(--color-text-muted);
@@ -9095,6 +8554,9 @@ button,
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
+  /* Its own size, not the inherited body step: in the re-stitch settings it came out larger
+     than the controls above it. */
+  font-size: var(--text-label);
   font-weight: 600;
   cursor: pointer;
   list-style: none;
@@ -9130,7 +8592,7 @@ button,
   padding-inline: var(--space-3);
 }
 .team-catalog-search .ui-input input,
-.team-catalog-filters .ui-select select {
+.team-catalog-filters .ui-select .ui-select-trigger {
   width: 100%;
   border: 0;
   background: none;
@@ -9154,7 +8616,7 @@ button,
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.team-catalog-chips .button {
+.team-catalog-chips .soty-button {
   min-height: 32px;
   padding: 4px 10px;
   font-size: var(--text-caption);
@@ -9234,6 +8696,15 @@ button,
   background: var(--color-surface-muted);
   color: var(--color-accent);
   font-size: var(--text-body);
+  overflow: hidden;
+}
+/* The result's own picture, where the space can give one (024): a file found
+   by search used to show a category glyph while the same file in a folder
+   showed its thumbnail. */
+.team-catalog-material-glyph img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .team-catalog-material-type {
   color: var(--color-text-muted);
@@ -9270,7 +8741,7 @@ button,
 /* Search results carry the row actions inline at caption weight rather than
    as four full-height buttons stacked under every hit. The "…" that extends
    them sits in the same row, at the same weight. */
-.team-catalog-material-actions > .button {
+.team-catalog-material-actions > .soty-button {
   min-height: 32px;
   padding-block: 0;
   font-size: var(--text-label);
@@ -9356,21 +8827,30 @@ button,
 }
 .team-preview-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
   border-bottom: 1px solid var(--color-border);
 }
-.team-preview-heading p,
-.team-preview-heading h2 {
-  margin: 0;
+/* The name reads as a label on the viewer, one line, with what it is beside it. */
+.team-preview-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
 }
-.team-preview-heading p {
+.team-preview-title h2 {
+  overflow: hidden;
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-preview-title small {
+  flex: none;
   color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 .team-preview-content {
   min-height: 220px;
@@ -9402,8 +8882,29 @@ button,
 .team-preview-content > img {
   width: auto;
   max-width: 100%;
-  max-height: calc(min(90vh, 900px) - 140px);
+  max-height: calc(100vh - 2 * var(--space-4) - 60px - 2 * var(--space-4));
   margin: 0 auto;
+}
+/*
+ * A viewer, not a dialog (024): the file gets the screen. The window was a
+ * 900px card with a 140px heading band, so a vertical clip showed at a third of
+ * the screen's height with dark margins either side (Frame.io and Drive give
+ * the media everything but a thin bar).
+ */
+.team-preview-backdrop:not(:has(.landing-full-view)) {
+  padding: var(--space-4);
+  background: color-mix(in oklab, var(--grey-950) 88%, transparent);
+}
+.team-preview-dialog:not(.landing-full-view) {
+  width: min(100%, var(--dialog-full));
+  max-height: calc(100vh - 2 * var(--space-4));
+}
+/* The picture sits on black in both themes; the bar above it keeps the theme. */
+.team-preview-dialog:not(.landing-full-view) .team-preview-content:has(> video, > img) {
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--grey-950);
 }
 .team-preview-content:has(> video),
 .team-preview-content:has(> img) {
@@ -9479,13 +8980,9 @@ button,
   .team-catalog-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .team-space-shell-header,
   .team-space-settings-header {
     align-items: stretch;
     flex-direction: column;
-  }
-  .team-space-shell-utilities {
-    justify-content: flex-start;
   }
 }
 
@@ -9516,17 +9013,16 @@ button,
   .team-catalog-results > li {
     grid-template-columns: minmax(0, 1fr);
   }
-  .team-space-lobby-header .button,
-  .team-space-shell-utilities .button,
-  .team-space-settings-header .button,
-  .team-create-actions .button,
+  .team-space-lobby-header .soty-button,
+  .team-space-settings-header .soty-button,
+  .team-create-actions .soty-button,
   .team-create-actions .ui-button,
-  .team-dialog-actions .button,
-  .team-catalog-material-actions .button,
-  .team-material-action-buttons .button {
+  .team-dialog-actions .soty-button,
+  .team-catalog-material-actions .soty-button,
+  .team-material-action-buttons .soty-button,
+  .team-dialog-actions .ui-button {
     width: 100%;
   }
-  .team-space-shell-utilities,
   .team-create-actions,
   .team-dialog-actions,
   .team-material-action-buttons {
@@ -9542,7 +9038,7 @@ button,
     flex-wrap: wrap;
     align-items: center;
   }
-  .team-catalog-material-actions .button {
+  .team-catalog-material-actions .soty-button {
     width: auto;
   }
   .team-preview-backdrop {
@@ -9885,18 +9381,6 @@ button,
   stroke-width: 1;
 }
 
-/* Two honey cells land directly behind the centred "Інструменти Soty" launcher
-   title and washed it out. The hex grid is deterministic, so pin them by
-   coordinate and drop them to plain (unfilled, unlit) field cells — the field
-   already has many empty cells, so this reads as the honey accent simply not
-   being there rather than a hole. */
-.soty-cell[data-cx='1031'][data-cy='204'],
-.soty-cell[data-cx='1296'][data-cy='153'] {
-  fill: none !important;
-  stroke: none !important;
-  filter: none !important;
-}
-
 /* Electric "bug" traces — one long glowing spark crawls each conduit */
 .soty-trace-layer > g {
   stroke: var(--ice-50);
@@ -9942,22 +9426,174 @@ body {
   height: 6px;
 }
 
-.job-row-actions .button,
-.landing-batch-actions .button {
+.job-row-actions .soty-button,
+.landing-batch-actions .soty-button {
   min-height: 44.2px;
   padding-inline: var(--space-4);
   font-size: inherit;
 }
 
-@media (max-width: 720px) {
-  .launcher {
-    width: calc(100% - 32px);
+/* Team task workspace */
+/*
+ * The editor, two columns wide and one column narrow (024).
+ *
+ * It was one column of eleven stacked blocks, so on a laptop the attachments —
+ * the thing a performer opens the task to get at — began below the fold, under
+ * a twelve-row description field. The task's own fields go left, everything
+ * that is *about* the task (its materials, its accounts, its tags) goes right,
+ * and the attachments are on screen when the dialog opens.
+ */
+/* The editor as a brief (024, US12).
+
+   The width that decides is the editor's own, not the window's: the dialog is
+   narrower than the window, so a window-wide breakpoint put two columns into
+   a 624 px dialog and broke the status pills into vertical letters. The frame
+   is the container; the grid inside it asks how wide it is. */
+.team-task-editor-frame {
+  container-type: inline-size;
+  container-name: task-editor;
+  min-width: 0;
+}
+.team-task-editor {
+  display: grid;
+  grid-template-areas: 'brief' 'work';
+  gap: var(--space-4);
+  align-items: start;
+  min-width: 0;
+}
+.team-task-editor-brief {
+  grid-area: brief;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: task-brief;
+}
+.team-task-editor-work {
+  grid-area: work;
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+@container task-editor (min-width: 820px) {
+  .team-task-editor {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-areas: 'brief work';
+    column-gap: var(--space-6);
   }
 }
 
-/* Team task workspace */
+/* State · who · when, on one line while it fits, wrapping as whole fields. */
+.team-task-editor-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+/* A field in a line of facts is as wide as a name, not as wide as the line. */
+.team-task-editor-facts > .team-task-assignee-select {
+  flex: 0 1 15rem;
+  width: auto;
+  min-width: 10rem;
+}
+/* The pills or the select, never both, never a word broken in two. */
+.team-task-status-adaptive {
+  display: contents;
+}
+.team-task-status-option > span {
+  white-space: nowrap;
+}
+.team-task-status-adaptive > .team-task-status-select {
+  display: none;
+}
+@container task-brief (max-width: 460px) {
+  .team-task-status-adaptive > .team-task-status-control {
+    display: none;
+  }
+  .team-task-status-adaptive > .team-task-status-select {
+    /* The library's own flex column; inline-flex collapsed the value to nothing. */
+    display: flex;
+    flex: 1 1 11rem;
+    min-width: 0;
+  }
+  /* The status takes its line; who and when share the next one rather than a
+     15rem select leaving the date alone on a third. */
+  .team-task-editor-facts > .team-task-assignee-select {
+    flex: 1 1 10rem;
+  }
+}
+/* The brief is as tall as what is written in it. */
+.team-task-editor .team-task-description-input {
+  field-sizing: content;
+  min-height: 5.5rem;
+  max-height: 24rem;
+}
+/* Accounts and tags under the facts, their captions left to the buttons (024): "Accounts"
+   beside "+ Account" said the same word twice. Still named for assistive technology. */
+.team-task-editor-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+/* One line of chips: the two groups give up their own boxes (and the label column the editor
+   gave them), so accounts and tags sit side by side and wrap as the line fills. */
+.team-task-editor .team-task-editor-tags .team-task-accounts,
+.team-task-editor .team-task-editor-tags .team-task-labels-row-editor {
+  display: contents;
+}
+.team-task-editor-tags .team-task-agent-panel {
+  flex-basis: 100%;
+}
+.team-task-editor-tags .team-task-accounts-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.team-task-editor-progress-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.team-task-progress-readout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.team-task-progress-readout > span:first-child {
+  color: var(--color-text);
+  font-weight: 650;
+}
+.team-task-editor .team-task-progress-max-inline {
+  width: 4.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* How far along, and out of how much, as one compact line. */
+.team-task-editor-progress-group {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-task-editor-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.team-task-editor-progress > :first-child {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
 .team-task-space,
-.team-task-editor,
 .team-task-attachments,
 .team-task-attachment-picker,
 .team-task-picker-content {
@@ -10015,145 +9651,99 @@ body {
 .team-task-picker-heading > div {
   min-width: 0;
 }
-.task-date-filter {
+/*
+ * The board's filter bar (024): one row, and under it whatever is in force.
+ *
+ * Thirteen controls became four plus chips. The chips are the part that
+ * matters — a filter you cannot see is a filter you will blame the data for —
+ * so they get their own line rather than competing for room in the row.
+ */
+.task-filter-bar {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.task-filter-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
 }
-.task-date-filter-calendar {
-  position: relative;
-  display: flex;
+.task-filter-search {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1 1 14rem;
+  max-width: 22rem;
   align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  min-height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
 }
-.task-date-filter-trigger,
-.task-date-filter-clear,
-.task-calendar-heading button,
-.task-calendar-days button,
+.task-filter-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  outline: none;
+}
+/* The "Filters" chip and its panel are styled in styles/team-tasks.css (024),
+   in one place, beside the rest of the row. */
+.task-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.task-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-accent-softer);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-caption);
+}
+.task-filter-chip:hover {
+  background: var(--color-surface-muted);
+}
+.task-date-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+/* The four ranges, now presets under the calendar's own grid. */
+.task-date-filter-popover .task-quick-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--space-2);
+}
+/* The date chip — `.task-date-filter-calendar`, its trigger, its × and its
+   popover — is styled in team-tasks.css (024) and nowhere else. */
 .task-status-filter-option,
 .team-task-status-option {
   font: inherit;
-}
-.task-date-filter-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 38px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  padding: 0 11px;
-  cursor: pointer;
-}
-.task-date-filter-trigger:hover,
-.task-date-filter-trigger.is-active {
-  border-color: color-mix(in oklab, var(--color-accent) 54%, var(--color-border));
-  color: var(--color-text);
-}
-.task-date-filter-trigger svg {
-  width: 18px;
-  height: 18px;
-}
-.task-date-filter-clear {
-  width: 24px;
-  height: 24px;
-  margin-left: -31px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-.task-date-filter-clear:hover {
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-}
-/* Placed by the component (021): portalled past the filter row and flipped
-   when the window is short. */
-.task-date-filter-popover {
-  z-index: var(--layer-popover);
-  width: min(304px, calc(100vw - 32px));
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-3);
 }
 /* The listbox, between the popover surface and its options so the arrow-key
    walk has something to own. */
 .task-account-filter-listbox {
   display: contents;
 }
-.task-calendar-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-.task-calendar-heading strong {
-  text-transform: capitalize;
-}
-.task-calendar-heading button {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
-}
-.task-calendar-heading button:hover {
-  background: var(--color-surface-muted);
-}
-.task-calendar-heading svg {
-  width: 18px;
-  height: 18px;
-}
-.task-calendar-weekdays,
-.task-calendar-days {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 2px;
-}
-.task-calendar-weekdays {
-  margin-bottom: 4px;
-  color: var(--color-text-muted);
-  font-size: var(--text-micro);
-  text-align: center;
-}
-.task-calendar-days button {
-  min-height: 34px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
-}
-.task-calendar-days button:hover,
-.task-calendar-days button.is-pending {
-  background: color-mix(in oklab, var(--color-accent) 18%, var(--color-surface));
-}
-.task-calendar-days button.is-selected {
-  border-radius: 0;
-  background: color-mix(in oklab, var(--color-accent) 34%, var(--color-surface));
-  color: var(--color-text);
-}
-.task-calendar-days button.is-selected.is-pending,
-.task-calendar-days button.is-selected:first-child,
-.task-calendar-days button.is-selected:last-child {
-  border-radius: var(--radius-sm);
-}
-.task-calendar-days button.is-outside {
-  color: color-mix(in oklab, var(--color-text-muted) 55%, transparent);
-}
-.task-calendar-days button.is-today {
-  box-shadow: inset 0 0 0 1px var(--color-accent);
-}
-.task-date-filter-popover > p {
+/* The hint under the grid; the grid itself is the inventory's calendar now
+   (024), so its 90 lines of hand-built month went with the markup. */
+.task-calendar-hint {
   margin: var(--space-2) 0 0;
   color: var(--color-text-muted);
   font-size: var(--text-micro);
@@ -10214,13 +9804,17 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   /* `min-content` rather than a fixed 278px: the old height clipped a long
      title or note instead of letting the card grow (finding P3). */
-  grid-auto-rows: minmax(278px, min-content);
+  /* A card is as tall as what it says (024, benchmarked on Linear's board): a
+     278 px floor made a two-word task a tall empty frame, and a board of them
+     read as a wall of boxes rather than a list of work. Cards in one row still
+     match each other's height. */
+  grid-auto-rows: min-content;
   align-items: stretch;
   gap: var(--space-3);
 }
 .team-task-card {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   align-items: start;
   gap: var(--space-2);
   min-width: 0;
@@ -10292,9 +9886,6 @@ body {
   -webkit-line-clamp: 4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.team-task-card-description > span {
-  color: var(--color-text-muted);
 }
 .team-task-card-footer {
   min-height: 22px;
@@ -10381,13 +9972,13 @@ body {
   position: relative;
   height: 10px;
   border-radius: var(--radius-full);
-  /* Two flat colours meeting at the knob, no blend: what is done (left of the
-     handle) reads green, what is left to do reads red, and the boundary sits
-     exactly under the handle rather than in a wash of amber. */
+  /* A manual marker, not a verdict (the owner, 024): each buyer or team uses the number as they
+     like, so nothing here says good or bad. Green-then-red made every new task at 0 look like an
+     alarm. The filled part is the accent, the rest a quiet groove. */
   background: linear-gradient(
     90deg,
-    var(--green-600) 0 var(--task-progress-position),
-    var(--red-600) var(--task-progress-position) 100%
+    var(--color-accent) 0 var(--task-progress-position),
+    color-mix(in oklab, var(--color-text) 14%, transparent) var(--task-progress-position) 100%
   );
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-black) 16%, transparent);
   cursor: pointer;
@@ -10487,7 +10078,6 @@ body {
   padding: 2px 17px;
 }
 .team-task-editor .team-task-description-input {
-  min-height: 280px;
   resize: vertical;
 }
 /*
@@ -10577,6 +10167,12 @@ body {
   text-align: center;
   font-size: var(--text-caption);
 }
+/* A file drawn as what it is: the glyph at the size of a picture's subject. */
+.team-task-attachment-fallback > .team-kind-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-accent);
+}
 .team-task-attachment-caption {
   display: grid;
   align-content: start;
@@ -10600,6 +10196,12 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A file's name at reading size, as Drive's tiles set it: at the dialog's
+   inherited size it was louder than the "Attached media" heading above it. */
+.team-task-attachment-caption strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
 .team-task-attachment-caption small {
   margin-top: 2px;
   color: var(--color-text-muted);
@@ -10608,6 +10210,14 @@ body {
 }
 .team-task-attachment-draft {
   color: var(--color-accent) !important;
+  font-size: var(--text-micro) !important;
+  font-weight: 700;
+  text-transform: none !important;
+}
+/* Why a tile is not usable, in the caption rather than only in a dimmed
+   preview: trashed reads differently from slow. */
+.team-task-attachment-state {
+  color: var(--color-error-text) !important;
   font-size: var(--text-micro) !important;
   font-weight: 700;
   text-transform: none !important;
@@ -10622,7 +10232,7 @@ body {
      158px tile, so the last one wrapped onto a line of its own. */
   gap: 3px;
 }
-.team-task-attachment-action.button {
+.team-task-attachment-action.soty-button {
   /* Fixed squares, not flex-stretched: a card with three actions was giving
      wider (rectangular) buttons than one with four. min-height:0 clears the
      44px tap target that stretched them taller than they are wide. 28px is
@@ -10654,7 +10264,7 @@ body {
 /* Neutral at rest; the two consequential actions carry their meaning in colour
    even before hover — download reads green, detach reads red — so a person
    picks them out at a glance. */
-.team-task-attachment-action.button {
+.team-task-attachment-action.soty-button {
   border-color: var(--color-border);
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
@@ -10784,7 +10394,7 @@ body {
 .team-task-picker-dialog,
 .team-task-picker-dialog-heading,
 .team-task-detach-confirmation,
-.team-task-unsaved-confirmation {
+.team-task-conflict {
   display: grid;
   gap: var(--space-3);
 }
@@ -10794,10 +10404,100 @@ body {
 }
 .team-task-picker-dialog-heading h2,
 .team-task-detach-confirmation h2,
-.team-task-unsaved-confirmation h2,
+.team-task-conflict h2,
 .team-task-detach-confirmation p,
-.team-task-unsaved-confirmation p {
+.team-task-conflict p {
   margin: 0;
+}
+/* The invite dialog, raised from the assignee field. */
+.team-task-invite {
+  display: grid;
+  gap: var(--space-4);
+}
+.team-task-invite h2 {
+  margin: 0;
+}
+/* The other person's version, quoted so the choice is between two things you
+   can both see rather than between a label and a guess. */
+.team-task-conflict-newer {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+/* The editor's top line (024): the save receipt, quiet, on the left; the
+   editor's menu on the right, clear of the dialog's own close button. */
+.team-task-editor-heading {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+}
+.team-task-editor-heading h2 {
+  margin: 0;
+}
+/*
+ * The editor on a laptop screen (024).
+ *
+ * On a 13-inch M1 a task with no brief still scrolled while half the dialog was
+ * empty: a 32px row holding only "…", a brief field four lines tall before
+ * anything was written in it, and a caption line above the progress, the
+ * accounts and the tags each. The menu joins the dialog's close button in the
+ * corner, the brief starts two lines tall and grows as it is written, and the
+ * captions sit beside what they name — Linear's properties, read as label ·
+ * value on one line.
+ */
+.modal:has(.team-task-editor-frame) {
+  --modal-padding: var(--space-6);
+  gap: var(--space-4);
+}
+@container task-editor (min-width: 560px) {
+  .team-task-editor .team-task-accounts,
+  .team-task-editor .team-task-labels-row-editor {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-3);
+  }
+}
+/* The title takes the line; the receipt and "…" end it, clear of the dialog's
+   close button, which sits over the first line while there is one column. */
+.team-task-title-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-right: calc(44px + var(--space-2));
+}
+.team-task-title-row > .team-task-title-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+@container task-editor (min-width: 820px) {
+  .team-task-title-row {
+    padding-right: 0;
+  }
+  .team-task-editor .team-task-attachments-heading {
+    padding-right: calc(44px + var(--space-2));
+  }
+}
+.team-task-editor .team-task-description-input {
+  min-height: 3.75rem;
+}
+.team-task-saved {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-task-save-failed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-error-text);
+  font-size: var(--text-caption);
 }
 .team-task-picker-dialog-heading small {
   max-width: 28ch;
@@ -10816,7 +10516,7 @@ body {
   background: var(--color-surface-muted);
   padding: 6px;
 }
-.team-task-picker-path-action.button {
+.team-task-picker-path-action.soty-button {
   min-height: 30px;
   padding-inline: var(--space-2);
   font-size: var(--text-micro);
@@ -11029,10 +10729,6 @@ body {
     align-items: stretch;
     flex-direction: column;
   }
-  .task-date-filter-calendar,
-  .task-date-filter-trigger {
-    width: 100%;
-  }
   .task-status-filter {
     margin-left: 0;
   }
@@ -11131,7 +10827,7 @@ body {
   color: var(--color-warning);
 }
 
-.creative-library-card-primary-actions .button {
+.creative-library-card-primary-actions .soty-button {
   min-width: 0;
   flex: 1 1 0;
 }
@@ -11217,9 +10913,9 @@ body {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
-.creative-library-card .creative-library-card-more-actions .button,
-.creative-library-card .creative-library-text-actions .button,
-.creative-library-card .creative-library-share-actions .button,
+.creative-library-card .creative-library-card-more-actions .soty-button,
+.creative-library-card .creative-library-text-actions .soty-button,
+.creative-library-card .creative-library-share-actions .soty-button,
 .creative-library-card .creative-library-card-more-actions .ui-button,
 .creative-library-card .creative-library-text-actions .ui-button,
 .creative-library-card .creative-library-share-actions .ui-button {
@@ -11288,25 +10984,50 @@ body {
 .team-batch-scan p {
   margin: 0;
 }
-.team-batch-counts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--space-2);
+.team-batch-progress small,
+.team-batch-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
-.team-batch-counts > div {
+/* The work to run, one row per kind: a tick, what it is, how many (024). */
+.team-batch-choices {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.team-batch-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-  padding: var(--space-3);
+  cursor: pointer;
 }
-.team-batch-counts strong {
-  font-size: var(--text-title);
+.team-batch-choice:has(input:checked) {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  background: var(--color-accent-softer);
 }
-.team-batch-counts span,
-.team-batch-progress small {
+.team-batch-choice.is-empty {
+  cursor: default;
   color: var(--color-text-muted);
+}
+.team-batch-choice input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+.team-batch-choice-label {
+  font-weight: 600;
+}
+.team-batch-choice-count {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 .team-batch-progress {
   display: grid;
@@ -11320,7 +11041,8 @@ body {
    catalog rows, library cards and the share menu. Soft tinted fill + tinted
    border + saturated icon/text, matching the task-attachment action pattern.
    Icons carry no fill and inherit each button's colour via currentColor. --- */
-.team-media-action.button {
+.team-media-action.soty-button,
+.team-media-action.ui-button {
   gap: 6px;
   border-width: 1px;
   white-space: normal;
@@ -11433,7 +11155,7 @@ body {
 .creative-library-card-primary-actions {
   flex-wrap: wrap;
 }
-.creative-library-card-primary-actions .button {
+.creative-library-card-primary-actions .soty-button {
   min-width: 0;
   flex: 1 1 120px;
   min-height: 38px;
@@ -11471,7 +11193,7 @@ body {
   }
 
   .creative-library-heading-actions,
-  .creative-library-heading-actions .button {
+  .creative-library-heading-actions .soty-button {
     width: 100%;
   }
   .team-batch,
@@ -11524,7 +11246,7 @@ body {
   align-self: start;
 }
 
-.team-landing-tile-shell > .button {
+.team-landing-tile-shell > .soty-button {
   min-width: 0;
   max-width: 100%;
   width: 100%;
@@ -12016,7 +11738,7 @@ button.team-landing-tile:hover {
 }
 
 /* Team-mode toast stack (010). Kept separate from the compressor page's
-   `.toast-region` while that surface still owns its local `addToast`; the two
+   `.soty-toast-region` while that surface still owns its local `addToast`; the two
    converge when the compressor migrates onto ToastProvider. This stack sits on
    --layer-toast, above every dialog, because a dialog's own Undo has to stay
    reachable while the dialog is up. */
@@ -12243,6 +11965,11 @@ button.team-landing-tile:hover {
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
+/* "All spaces" and "Create a new space" are one group under one rule. */
+.team-space-switcher-all + .team-space-switcher-all {
+  border-top: 0;
+}
+
 /* Row actions menu, folder picker and result pager (010 US2). */
 .team-row-menu {
   position: relative;
@@ -12300,7 +12027,7 @@ button.team-landing-tile:hover {
    Menu rows are also shorter than standalone buttons — a 44px control repeated
    six times is a wall, not a list — and wrap rather than spill. */
 .team-row-menu-panel .team-material-action-buttons > button,
-.team-row-menu-panel .team-material-action-buttons > .button {
+.team-row-menu-panel .team-material-action-buttons > .soty-button {
   min-height: 36px;
   justify-content: flex-start;
   padding-block: var(--space-1);
@@ -12457,15 +12184,19 @@ button.team-landing-tile:hover {
 /* Its own columns: the explorer's row is built for a checkbox, a kind, a size
    and a menu, and the trash has none of those. Borrowing the chrome without
    the template pushed the restore button past the row's own right edge. */
-.team-trash-list.team-explorer-rows .ui-table-header,
-.team-trash-list.team-explorer-rows .ui-table-row {
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 12rem) auto;
+.team-explorer-rows.team-trash-list {
+  --ui-table-columns: auto minmax(0, 1fr) minmax(0, 12rem) auto;
+}
+.team-explorer-rows.team-trash-list .team-trash-row-glyph {
+  grid-column: 1;
+}
+.team-explorer-rows.team-trash-list .team-explorer-row-date {
+  grid-column: 3;
+}
+.team-explorer-rows.team-trash-list .team-explorer-row-actions {
+  grid-column: 4;
 }
 @container (max-width: 620px) {
-  .team-trash-list.team-explorer-rows .ui-table-header,
-  .team-trash-list.team-explorer-rows .ui-table-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
   .team-trash-list .team-explorer-row-date {
     display: none;
   }
@@ -12700,7 +12431,7 @@ button.team-landing-tile:hover {
 /* Ancestors give way first, and the open folder keeps the most room: it is the
    one a person is reading. */
 .team-explorer-breadcrumb button,
-.team-explorer-breadcrumb [aria-current='location'] {
+.team-explorer-breadcrumb [aria-current] {
   /* `min-width: 0` on both the item and the thing inside it, or the flex row
      hands each name its full intrinsic width and the ellipsis never fires —
      the row just overflows, which is where the mid-word cut came from. */
@@ -12713,7 +12444,9 @@ button.team-landing-tile:hover {
 .team-explorer-breadcrumb li:not(:last-child) button {
   max-width: 10rem;
 }
-.team-explorer-breadcrumb [aria-current='location'] {
+/* Any `aria-current`: the markup says "page", and a rule written for
+   "location" left "Нові аккаунти" free to break onto a second line. */
+.team-explorer-breadcrumb [aria-current] {
   min-width: 3rem;
 }
 .team-explorer-breadcrumb-separator {
@@ -12765,7 +12498,7 @@ button.team-landing-tile:hover {
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
 }
-.team-explorer-breadcrumb [aria-current='location'] {
+.team-explorer-breadcrumb [aria-current] {
   font-weight: 600;
 }
 .team-explorer-breadcrumb-separator {
@@ -12827,8 +12560,40 @@ button.team-landing-tile:hover {
      measured against a fixed 16px root and cut "17.2 MB" to "17.2 …" at the
      desktop width. `auto` is what each column needs and no more, and it still
      gives way under pressure — the name takes everything left. */
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
   gap: 0;
+  /* One set of tracks for the whole listing, not one per row. Each row sized
+     its own `auto` columns from its own content, so the header's "Розмір" sat
+     sixty pixels right of the sizes beneath it and "1.58 MB" and "224 KB"
+     started at different x. Drive and Airtable rule a column once; the rows
+     borrow the table's tracks. */
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+.team-explorer-rows {
+  --ui-table-columns: auto minmax(0, 1fr) auto auto auto auto;
+  grid-template-columns: var(--ui-table-columns);
+  column-gap: 0;
+}
+/* Every cell names its track, so a column the width drops (display: none)
+   leaves its track empty — zero wide — instead of the next cell sliding into
+   it. That is what lets the tracks be set once, on the table. */
+.team-explorer-rows .team-explorer-row-check {
+  grid-column: 1;
+}
+.team-explorer-rows .team-explorer-row-name {
+  grid-column: 2;
+}
+.team-explorer-rows .team-explorer-row-kind {
+  grid-column: 3;
+}
+.team-explorer-rows .team-explorer-row-date {
+  grid-column: 4;
+}
+.team-explorer-rows .team-explorer-row-meta {
+  grid-column: 5;
+}
+.team-explorer-rows .team-explorer-row-actions {
+  grid-column: 6;
 }
 .team-explorer-rows .ui-table-header {
   padding-inline: var(--space-2);
@@ -12852,6 +12617,32 @@ button.team-landing-tile:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/*
+ * The name is a control again, and looks like the name (024).
+ *
+ * Text-sized rather than cell-sized, unstyled apart from the focus ring: what
+ * 021 removed was a highlighted strip the width of the column that swallowed
+ * every press aimed at the row. What it removed with it was the only thing in
+ * the row a keyboard could land on.
+ */
+.team-explorer-row-open {
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-explorer-row-open:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 .team-explorer-row-kind,
 .team-explorer-row-date,
 .team-explorer-row-meta {
@@ -12859,7 +12650,6 @@ button.team-landing-tile:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 var(--space-2);
-  border-left: 1px solid var(--color-border);
   line-height: 28px;
   color: var(--color-text-muted);
   font-size: 0.9em;
@@ -12954,6 +12744,8 @@ button.team-landing-tile:hover {
 }
 .team-tag-dot.is-button {
   cursor: pointer;
+  /* The press that opens the colours is held and slid: a finger must not scroll the page. */
+  touch-action: none;
 }
 /* Untagged, for the one person who can tag: a ring, so there is something to
    aim at. It stays invisible until the row is hovered or focused — a column of
@@ -12998,16 +12790,21 @@ button.team-landing-tile:hover {
 .team-tag-swatches {
   display: flex;
   align-items: center;
-  gap: 6px;
+  /* Room for the chosen one's ring, which stands outside its circle. */
+  gap: var(--space-3);
+  padding: var(--space-1);
+  /* Held and slid over with a finger (024): without this the page scrolled under the gesture
+     and the browser cancelled it halfway to a colour. */
+  touch-action: none;
 }
 .team-tag-swatch {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   /* A 44px minimum from the app's own button floor was making every swatch a
      tall pill whose lower half hung over the file list behind the menu, so a
      press landed on a folder instead of on a colour. */
-  min-width: 20px;
-  min-height: 20px;
+  min-width: 24px;
+  min-height: 24px;
   /* A circle, not a column: inside a grid-shaped menu the button stretched to
      the row's height and its lower half hung over the file list behind it,
      where a press landed on a folder instead of on a colour. */
@@ -13019,28 +12816,51 @@ button.team-landing-tile:hover {
   background-clip: padding-box;
   cursor: pointer;
 }
+/* The chosen colour wears a ring of its own colour with a gap between — the swatch picker the
+   component library draws (the owner, 024) — instead of a white border that read as a different
+   swatch. The gap is the menu's own surface showing through. */
 .team-tag-swatch.is-active {
+  box-shadow:
+    0 0 0 2px var(--color-surface-raised),
+    0 0 0 4px var(--team-tag-color, var(--color-text-muted));
+}
+/* Under the finger or pointer while the dot is held: the colour that letting go will choose. */
+.team-tag-swatch.is-aimed,
+.team-tag-swatch:hover:not(:disabled) {
+  transform: scale(1.15);
+  box-shadow:
+    0 0 0 2px var(--color-surface-raised),
+    0 0 0 4px color-mix(in srgb, var(--team-tag-color, var(--color-text-muted)) 55%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .team-tag-swatch {
+    transition: transform var(--motion-fast) ease;
+  }
+}
+.team-tag-swatch.is-clear {
+  position: relative;
+  margin-inline-start: 4px;
+  border-color: var(--color-text-muted);
+  background: none;
+}
+/* The strike: corner to corner, inside the ring. */
+.team-tag-swatch.is-clear::after {
+  content: '';
+  position: absolute;
+  inset: 50% -1px auto;
+  height: 2px;
+  background: var(--color-text-muted);
+  transform: translateY(-50%) rotate(-45deg);
+}
+.team-tag-swatch.is-clear:hover:not(:disabled) {
   border-color: var(--color-text);
 }
-.team-tag-clear {
-  padding: 4px 6px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  white-space: nowrap;
+.team-tag-swatch.is-clear:hover:not(:disabled)::after {
+  background: var(--color-text);
 }
-.team-tag-clear:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
-  color: var(--color-text);
-}
-.team-tag-clear:disabled {
+.team-tag-swatch.is-clear:disabled {
   cursor: default;
-  opacity: 0.5;
+  opacity: 0.35;
 }
 
 /* A permission nobody can grant, in the list where permissions are read: shown
@@ -13056,10 +12876,6 @@ button.team-landing-tile:hover {
   container-type: inline-size;
 }
 @container (max-width: 680px) {
-  .team-explorer-rows .ui-table-header,
-  .team-explorer-rows .ui-table-row {
-    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
-  }
   .team-explorer-row-date {
     display: none;
   }
@@ -13070,19 +12886,11 @@ button.team-landing-tile:hover {
    "Транс…" and "17.2 …". The icon already says what kind a row is; a size cut
    in half says nothing. */
 @container (max-width: 620px) {
-  .team-explorer-rows .ui-table-header,
-  .team-explorer-rows .ui-table-row {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
-  }
   .team-explorer-row-kind {
     display: none;
   }
 }
 @container (max-width: 400px) {
-  .team-explorer-rows .ui-table-header,
-  .team-explorer-rows .ui-table-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
   .team-explorer-row-meta {
     display: none;
   }
@@ -13161,7 +12969,7 @@ button.team-landing-tile:hover {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-  .team-explorer-toolbar-actions > .button,
+  .team-explorer-toolbar-actions > .soty-button,
   .team-explorer-toolbar-actions > .team-explorer-process-menu {
     flex: 0 1 auto;
   }
@@ -13231,7 +13039,12 @@ button.team-landing-tile:hover {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  /* A tile keeps its size; only how many fit changes (024, US28). With `1fr` the tiles grew to
+     fill whatever width was left, so opening the details pane — which takes a third of the row —
+     resized every tile on the page at once. A capped track re-flows instead of re-sizing, which
+     is what a file manager does. */
+  grid-template-columns: repeat(auto-fill, minmax(184px, 232px));
+  justify-content: start;
   gap: var(--space-3);
 }
 .team-explorer-tile {
@@ -13269,9 +13082,38 @@ button.team-landing-tile:hover {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 1px var(--color-accent);
 }
+/*
+ * Checked is not selected (024).
+ *
+ * Selected is where you are: one thing, outlined. Checked is what the next
+ * action will reach: any number of things, filled. Drawing both as an outline
+ * in the accent colour made a grid of forty checked tiles look like forty
+ * cursors, and a checked row in the list looked like nothing at all.
+ */
+.team-explorer-tile.is-checked,
+.team-explorer-row.is-checked {
+  background: var(--color-accent-softer);
+}
+.team-explorer-tile.is-checked.is-selected,
+.team-explorer-row.is-checked[aria-selected='true'] {
+  background: var(--color-accent-soft);
+}
 /* A folder has no picture to show, so it does not need a picture's worth of
    height: full-size preview boxes full of the same glyph made a folder list
    scroll for no reason. */
+/* A folder is a place to go into, not a picture to look at: a short tile, so a
+   folder full of folders reads as a list of places rather than a wall of the
+   same purple glyph (024, US14). */
+.team-explorer-tile.is-folder .team-explorer-tile-visual {
+  /* A height of its own rather than a share of the width: a wide tile turned the folder's strip
+     into a field of empty purple with a small glyph adrift in it. */
+  aspect-ratio: auto;
+  height: 84px;
+}
+/* …and it keeps its own height when a file beside it is taller. */
+.team-explorer-tile.is-folder {
+  align-self: start;
+}
 .team-explorer-tile.is-folder .team-explorer-tile-icon .team-kind-icon {
   color: var(--color-accent);
 }
@@ -13307,10 +13149,16 @@ button.team-landing-tile:hover {
   place-items: center;
   color: var(--color-text-muted);
 }
+/* Inline, like the glyph it replaced (024). The reset makes every svg a block,
+   which is right for a picture and wrong for an icon set in a line of text: the
+   folder tree and the list's name cell put the icon on a line of its own above
+   the name. In a flex or grid parent the display is moot, so nothing else moves. */
 .team-kind-icon {
+  display: inline-block;
   width: 1em;
   height: 1em;
   flex: 0 0 auto;
+  vertical-align: -0.125em;
 }
 .team-explorer-tile-icon .team-kind-icon {
   width: 72cqmin;
@@ -13582,6 +13430,12 @@ button.team-landing-tile:hover {
   align-items: center;
   gap: 6px;
 }
+.team-explorer-tile-facts {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .team-explorer-tile-render.is-failed {
   color: var(--color-error);
 }
@@ -13612,6 +13466,186 @@ button.team-landing-tile:hover {
 .team-explorer-pane > * {
   flex-shrink: 0;
 }
+/*
+ * The material's card (024), which the detail pane now renders and the other
+ * surfaces will. Its parts keep the class names the pane's own CSS already
+ * draws, so the look did not change with the markup — what changed is that
+ * there is one of it.
+ */
+.team-material-detail {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.team-material-detail-visual {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+.team-material-detail-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.team-material-detail-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.team-material-detail-facts {
+  display: grid;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  /* Facts are read after the name, so they are smaller than it (024,
+     benchmarked on Drive's details panel); they inherited the pane's larger
+     size and outranked the file they describe. */
+  font-size: var(--text-label);
+}
+.team-material-detail-facts > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+}
+.team-material-detail-facts dt {
+  color: var(--color-text-muted);
+}
+.team-material-detail-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* A search result's note: two lines of it, enough to see why the file was found. */
+.team-catalog-material-heading strong.team-catalog-material-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.team-catalog-material-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-catalog-material-name .team-tag {
+  flex: 0 0 auto;
+}
+.team-catalog-material-note {
+  /* As wide as its words: a short note on a full-width plate was mostly empty plate. */
+  justify-self: start;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  font-size: var(--text-caption);
+}
+.team-catalog-material-note > span {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  /* Room for the "…" the clamp adds past the longest line. */
+  padding-inline-end: 1ch;
+}
+/* A file's note (024): a person's words, so it reads as a small sticky note beside the facts
+   rather than as another fact. Line breaks are kept; a long one folds. */
+.team-material-note {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  font-size: var(--text-label);
+}
+.team-material-note.is-editing {
+  padding: 0;
+  background: none;
+}
+.team-material-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+.team-material-note-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.team-material-note-more {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-caption);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.team-material-note-add {
+  justify-self: start;
+}
+.team-material-note-editor {
+  display: grid;
+  gap: var(--space-2);
+}
+.team-material-note-editor textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+.team-material-note-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.team-material-note-count {
+  margin-inline-end: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-material-note-count.is-over {
+  color: var(--color-error-text);
+}
+.team-material-note-quiet {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.team-material-note-dialog .team-material-note-text {
+  font-size: var(--text-body);
+}
+/* What lives beside the file, as facts rather than as offers: the actions are
+   the offers, and saying the same thing twice is what this feature removes. */
+.team-material-detail-companions {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-material-detail-companions li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* The end of the list, which is also where the next page is asked for (024). */
+.team-explorer-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) 0;
+}
 .team-explorer-pane-visual {
   display: grid;
   place-items: center;
@@ -13635,17 +13669,13 @@ button.team-landing-tile:hover {
 /* On the file's card every action is a control, not a link: the transcript row used to be
    three bare words under two boxed buttons, which read as a caption rather than as things to
    press. Scoped to the card so the creative library's own dense rows keep their look. */
+/* (024) The rule this replaced stacked them in a column and boxed them through
+   the pre-HeroUI `.soty-button` class. The migration dropped the box and kept
+   the column, which produced exactly the bare words it warned against. They are
+   small outlined controls on one line now. */
 .team-explorer-pane .creative-library-text-actions {
-  flex-direction: column;
-  align-items: stretch;
-}
-.team-explorer-pane .creative-library-text-actions > .button {
-  justify-content: center;
-  border: 1px solid var(--color-border);
-  padding: var(--space-2) var(--space-3);
-}
-.team-explorer-pane .creative-library-text-actions > .button:hover:not(:disabled) {
-  border-color: var(--purple-300);
+  flex-direction: row;
+  flex-wrap: wrap;
 }
 
 .team-explorer-pane-transcript {
@@ -13704,6 +13734,67 @@ button.team-landing-tile:hover {
 .product-catalog-dialog-name {
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
+}
+/* The result leads with the name and the button that copies it: the owner types the same name
+   into Meta (024, US15). */
+.product-catalog-dialog-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.product-catalog-dialog-name-row > .product-catalog-dialog-name {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: 600;
+}
+/* A video's variations: name and what tells them apart on the left, the three presses and the
+   menu on the right — one line each while it fits. */
+.product-catalog-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.product-catalog-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.product-catalog-row-text {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.product-catalog-row-text strong,
+.product-catalog-row-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-catalog-row-text small {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.product-catalog-row-text strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.product-catalog-row-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+.product-catalog-row-open {
+  display: inline-grid;
+  place-items: center;
 }
 .product-catalog-dialog-missing {
   display: grid;
@@ -13778,9 +13869,6 @@ button.team-landing-tile:hover {
   min-width: max-content;
   max-width: min(360px, calc(100vw - 2 * var(--space-4)));
 }
-.team-explorer-process-menu .team-explorer-menu-item {
-  white-space: nowrap;
-}
 .team-explorer-filter-button {
   display: inline-flex;
   align-items: center;
@@ -13851,6 +13939,12 @@ button.team-landing-tile:hover {
   background: transparent;
   color: var(--color-text);
   font: inherit;
+  /* The shared menu's size. The menu is portalled to the body, so it inherited
+     the page's reading size and stood louder than the toolbar that opened it —
+     and the process menu's own rules, written under its button, never reached
+     it (024). */
+  font-size: var(--text-label);
+  white-space: nowrap;
   text-align: left;
   cursor: pointer;
 }
@@ -13938,8 +14032,10 @@ button.team-landing-tile:hover {
   white-space: nowrap;
   font-weight: 600;
 }
-.team-explorer-selection-bar > .team-explorer-selection-action:last-child {
+.team-explorer-selection-action.is-icon {
   flex: none;
+  width: 40px;
+  padding: 0;
 }
 /* Quieter than the count it follows: the number is the subject, where those
    files are is the caveat. */
@@ -14026,6 +14122,30 @@ button.team-landing-tile:hover {
 }
 .team-explorer-tree [role='treeitem'].is-drop-target > .team-explorer-tree-row {
   outline: 2px dashed var(--color-accent);
+}
+/* A folder in the list or the grid, while files are held over it. */
+.team-explorer-row.is-drop-target,
+.team-explorer-tile.is-drop-target {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: -2px;
+  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
+}
+/* What is being dragged, in words: the browser's own ghost was the whole row, faded. Drawn once
+   off screen for the drag image and removed at once. */
+.team-explorer-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  max-width: 280px;
+  padding: var(--space-1) var(--space-3);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-label);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .team-catalog-material-path {
   display: block;
@@ -14125,6 +14245,9 @@ button.team-landing-tile:hover {
   gap: var(--space-1);
 }
 .task-quick-range {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   min-height: 32px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
@@ -14212,7 +14335,7 @@ button.team-landing-tile:hover {
   position: fixed;
   right: var(--space-4);
   bottom: var(--space-4);
-  z-index: var(--layer-overlay);
+  z-index: var(--layer-work);
   display: grid;
   gap: var(--space-2);
   justify-items: end;
@@ -14388,6 +14511,10 @@ button.team-landing-tile:hover {
 .team-explorer > .team-explorer-main {
   grid-column: 2;
   grid-row: 2;
+  /* Files are dropped here, and the zone was as tall as whatever the folder held: one file made
+     it a strip a few pixels deep, which is not a target anyone can hit (024, US28). */
+  align-self: stretch;
+  min-height: 24rem;
 }
 .team-explorer > .team-explorer-pane {
   grid-column: 3;
@@ -14687,7 +14814,7 @@ input[type='number'] {
 .drop-zone strong {
   color: var(--color-text);
 }
-.drop-zone span:not(.drop-icon):not(.spinner) {
+.drop-zone span:not(.drop-icon):not(.soty-spinner) {
   color: var(--color-text-muted);
 }
 
@@ -14701,11 +14828,15 @@ input[type='number'] {
   max-width: min(560px, calc(100vw - 32px));
   padding: 9px 12px;
   transform: translateX(-50%);
+  border: 1px solid var(--purple-700);
   border-radius: var(--radius-sm);
-  color: var(--color-on-accent);
+  /* Light words on the dark plum, in both themes. It was the accent's own
+     "on" colour, which is dark — dark on dark, and "Готово" over a status
+     button could not be read (024). */
+  color: var(--purple-50);
   background: var(--purple-900);
   box-shadow: var(--shadow-menu);
-  font-size: var(--text-2xl);
+  font-size: var(--text-md);
   font-weight: 500;
   line-height: 1.35;
   text-align: center;
@@ -14726,8 +14857,8 @@ input[type='number'] {
 :root:not([data-theme='dark']) .drop-zone .drop-icon,
 :root[data-theme='light'] .drop-zone strong,
 :root:not([data-theme='dark']) .drop-zone strong,
-:root[data-theme='light'] .drop-zone span:not(.drop-icon):not(.spinner),
-:root:not([data-theme='dark']) .drop-zone span:not(.drop-icon):not(.spinner) {
+:root[data-theme='light'] .drop-zone span:not(.drop-icon):not(.soty-spinner),
+:root:not([data-theme='dark']) .drop-zone span:not(.drop-icon):not(.soty-spinner) {
   color: var(--color-text-muted);
 }
 :root[data-theme='light'] .drop-zone strong,
@@ -14779,12 +14910,12 @@ input[type='number'] {
 }
 .drop-zone.is-ok .drop-icon,
 .drop-zone.is-ok strong,
-.drop-zone.is-ok span:not(.drop-icon):not(.spinner) {
+.drop-zone.is-ok span:not(.drop-icon):not(.soty-spinner) {
   color: var(--green-300);
 }
 .drop-zone.is-fail .drop-icon,
 .drop-zone.is-fail strong,
-.drop-zone.is-fail span:not(.drop-icon):not(.spinner) {
+.drop-zone.is-fail span:not(.drop-icon):not(.soty-spinner) {
   color: var(--red-300);
 }
 
@@ -14864,7 +14995,7 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-3);
 }
-.batch-toolbar .batch-progress-heading .progress-bar,
+.batch-toolbar .batch-progress-heading .soty-progress-bar,
 .batch-toolbar .batch-progress-heading > :first-child {
   flex: 1;
   min-width: 0;
@@ -15135,7 +15266,7 @@ input[type='number'] {
   min-width: 228px;
   max-width: 280px;
 }
-.job-side .job-actions .button {
+.job-side .job-actions .soty-button {
   justify-content: flex-start;
   gap: 10px;
   width: 100%;
@@ -15184,7 +15315,7 @@ input[type='number'] {
   width: auto;
   margin-left: auto;
 }
-.job-progress-panel .job-actions .button {
+.job-progress-panel .job-actions .soty-button {
   width: auto;
   min-height: 38px;
 }
@@ -15301,7 +15432,7 @@ input[type='number'] {
 .metadata-settings {
   align-self: center;
 }
-.metadata-settings .checkbox strong {
+.metadata-settings .soty-checkbox strong {
   font-size: var(--text-xl);
   font-weight: 600;
 }
@@ -15647,7 +15778,7 @@ input[type='number'] {
 
 /* Pause and cancel sit centred in the progress panel — the left-aligned card
    stack rule does not apply to them. */
-.job-progress-panel .job-actions .button {
+.job-progress-panel .job-actions .soty-button {
   justify-content: center;
 }
 /* The source metrics end exactly where the outcome grid does: the panel adds
@@ -16836,6 +16967,8 @@ input[type='number'] {
 .team-updater-list {
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 0 var(--space-5) var(--space-4);
 }
 .team-updater-empty {
@@ -16881,6 +17014,109 @@ input[type='number'] {
   display: inline-flex;
   gap: var(--space-1);
 }
+/* A row's schedule (024): how often, and "now", side by side at the row's right. */
+.team-updater-row-schedule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.team-updater-row.is-selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-softer);
+}
+.team-updater-row-main small.is-pending {
+  color: var(--color-accent);
+}
+.team-updater-row-schedule .is-spinning svg {
+  animation: team-updater-spin 1s linear infinite;
+}
+@keyframes team-updater-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-updater-row-schedule .is-spinning svg {
+    animation: none;
+  }
+}
+.team-updater-interval-picker {
+  display: inline-flex;
+}
+.team-updater-interval-picker .is-off {
+  color: var(--color-text-muted);
+}
+.team-updater-interval-menu {
+  display: grid;
+  gap: 2px;
+  min-width: 14rem;
+  padding: var(--space-1);
+}
+.team-updater-interval-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.team-updater-interval-option:hover,
+.team-updater-interval-option:focus-visible {
+  background: var(--color-surface-muted);
+}
+.team-updater-interval-option.is-off {
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  color: var(--color-text-muted);
+}
+.team-updater-interval-mark {
+  display: inline-grid;
+  width: 14px;
+  place-items: center;
+}
+.team-updater-interval-custom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+.team-updater-interval-custom .time-input {
+  width: 3.5rem;
+  height: 30px;
+}
+/* A phone: the name gets the width, its schedule and menu sit on the line under it. */
+@media (max-width: 560px) {
+  .team-updater-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'check main main' 'check schedule actions';
+    row-gap: var(--space-1);
+  }
+  .team-updater-row > :first-child {
+    grid-area: check;
+  }
+  .team-updater-row-main {
+    grid-area: main;
+  }
+  .team-updater-row-schedule {
+    grid-area: schedule;
+  }
+  .team-updater-row > .team-updater-row-actions {
+    grid-area: actions;
+  }
+}
+.team-updater-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
 .team-updater-row-actions .icon-button {
   display: inline-grid;
   place-items: center;
@@ -16908,13 +17144,21 @@ input[type='number'] {
   gap: var(--space-4);
   min-width: 0;
 }
+/* "Every 1 h / 1 d / 1 w / [6] h" reads as one sentence, so it sits on one line
+   (024, T131); the custom hours used to drop onto a line of their own. */
 .team-updater-interval {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  justify-items: start;
 }
 .team-updater-interval .custom-duration-input {
   font-size: var(--text-md);
+}
+/* Hours are two digits; the field is as wide as they are. */
+.team-updater-interval .custom-duration-input input {
+  width: 4.5rem;
+  flex: 0 0 auto;
 }
 .team-updater-restitch {
   display: inline-flex;
@@ -16975,4 +17219,901 @@ input[type='number'] {
   .team-updater-badge {
     display: none;
   }
+}
+
+/* The way back to the task that opened this folder (024, FR-080): a chip,
+   because it is a place you came from, not a step of the breadcrumb. */
+.team-explorer-back-to-task {
+  flex: 0 0 auto;
+  padding: 2px var(--space-2);
+  font-size: var(--text-label);
+  color: var(--color-accent);
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+}
+.team-explorer-back-to-task:hover {
+  background: var(--color-accent-softer);
+}
+
+/* A kind's fact as a quiet mark beside the name (024, FR-095). */
+.team-explorer-kind-note {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: var(--space-1);
+  color: var(--color-text-muted);
+  vertical-align: -0.125em;
+  cursor: help;
+}
+.team-explorer-kind-note:focus-visible {
+  outline: 2px solid var(--color-focus);
+  border-radius: var(--radius-full);
+}
+
+/* The palette's visible door (024, FR-094): a word, a glass, and the chord. */
+.team-space-shell-find,
+.team-space-shell-utilities button.team-space-shell-utility-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: inherit;
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+.team-space-shell-find kbd {
+  font-family: inherit;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+}
+
+/* The board's quick-add (024, FR-090): the field grows, the button does not. */
+.team-task-quick-add {
+  display: flex;
+  flex: 1 1 18rem;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 32rem;
+  margin-left: auto;
+}
+.team-task-quick-add > .ui-input,
+.team-task-quick-add > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* "Add to task…" (024, US11): a field, and the tasks under it. */
+.team-add-to-task {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.team-add-to-task h2 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-add-to-task-list {
+  display: grid;
+  gap: 2px;
+  max-height: 20rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.team-add-to-task-list > li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.team-add-to-task-list > li.is-active {
+  background: var(--color-accent-softer);
+}
+.team-add-to-task-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The name typed, as a new task: the last option, in the accent, a plus before it. */
+.team-add-to-task-list > li.team-add-to-task-create {
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+.team-add-to-task-meta,
+.team-add-to-task-note {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* On a phone the header keeps one line (024, US14): the space's name, then its
+   two doors. Stacked full-width, "Find" and "Space" took the first screen's
+   height for two rarely pressed buttons. The chord is for keyboards. */
+@media (max-width: 560px) {
+  .team-space-shell-header {
+    align-items: center;
+  }
+  .team-space-shell-find kbd {
+    display: none;
+  }
+  .team-explorer-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    justify-content: stretch;
+    gap: var(--space-2);
+  }
+  /* The board on a phone: typing a task gets the whole line, and the filters
+     are one line that scrolls rather than three that each hold one control. */
+  .team-task-quick-add {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .team-task-quick-add > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .task-filter-bar .task-filter-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .task-filter-bar .task-date-filter {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .task-filter-bar .task-status-filter {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    margin-left: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
+
+/* The title is the task's heading and the brief is its body (024, benchmarked
+   on Linear's issue view): no captions over them, no boxes around them until
+   they are being written. The labels stay for assistive technology. */
+.team-task-editor .team-task-title-field > .ui-field-label,
+.team-task-editor .team-task-brief-field > .ui-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.team-task-editor .team-task-title-field input,
+.team-task-editor .team-task-brief-field textarea {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding-left: var(--space-1);
+}
+.team-task-editor .team-task-title-field input {
+  font-size: var(--text-section);
+  font-weight: 650;
+}
+.team-task-editor .team-task-title-field input:hover,
+.team-task-editor .team-task-brief-field textarea:hover {
+  border-color: var(--color-border);
+}
+.team-task-editor .team-task-title-field input:focus-visible,
+.team-task-editor .team-task-brief-field textarea:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-surface);
+}
+
+/* A list row's box appears when it can be used (024, benchmarked on Google
+   Drive): under the pointer, with keyboard focus in the row, or for every row
+   once anything is checked — a column of forty empty squares was the loudest
+   thing in a quiet list. Touch screens have no hover, so they keep the box. */
+@media (hover: hover) {
+  .team-explorer-rows:not(:has(.team-explorer-row.is-checked))
+    .team-explorer-row:not(:hover):not(:focus-within)
+    .team-explorer-row-check
+    .team-explorer-check
+    > span {
+    opacity: 0;
+  }
+}
+.team-explorer-row-check .team-explorer-check > span {
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+
+/* The accounts table, calmer (024, benchmarked on Airtable and Linear lists).
+   The two money figures are named once per account, over its first agent,
+   instead of over every row; their ± presses and a busy agent's "+ Run" appear
+   with the pointer or keyboard focus in the row. Touch screens keep them. */
+/* The caption over the first row takes no width of its own, so its fields
+   line up with every field below it: a zero-wide box, the word centred over it. */
+.team-agent-row:first-child .team-agent-money-caption {
+  display: flex;
+  justify-content: center;
+  align-self: center;
+  width: 0;
+}
+.team-agent-row:not(:first-child) .team-agent-money-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Not on a phone-wide window, where the buttons sit on a line of their own. */
+@media (hover: hover) and (min-width: 561px) {
+  .team-agent-row:not(:hover):not(:focus-within) .team-agent-money-step,
+  .team-agent-row:not(.is-free):not(:hover):not(:focus-within)
+    .team-agent-actions-stack
+    .team-agent-run-add {
+    opacity: 0;
+  }
+}
+.team-agent-money-step,
+.team-agent-actions-stack .team-agent-run-add {
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+
+/* The space picker (024): a centred panel, spaces as rows in one column. */
+.team-space-lobby-list {
+  width: min(100%, 44rem);
+  margin: var(--space-6) auto 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+.team-space-lobby-list .team-space-card-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Checking, resolving: said on the same ground, not on the hexagons. */
+.team-space-lobby[aria-busy='true'] {
+  width: min(100%, 44rem);
+  margin: var(--space-6) auto 0;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+}
+.team-space-lobby-list > .ui-button,
+.team-space-lobby-list > .soty-button {
+  justify-self: start;
+}
+
+/* The text's three acts as one small group (024, round 8). */
+.team-explorer-pane-transcript .creative-library-text-actions {
+  gap: var(--space-1);
+}
+
+/* An invitation reads as a row: the address takes the line, its state and its
+   menu sit at the end (024). */
+.team-invitation-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.team-invitation-email {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The space's name in its settings: the field and its Save on one line. */
+.team-space-name-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+.team-space-name-form > .ui-field {
+  flex: 1 1 16rem;
+}
+
+/* The remembered sharing choice: one quiet line under the storage card (024). */
+.team-share-preference {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-share-preference > p {
+  flex: 1 1 18rem;
+  margin: 0;
+}
+.team-drive-folder-link {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The attached file's folder, when it tells same-named files apart (024). */
+.team-task-attachment-path {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Space history (024): days, one line per event
+   ============================================================ */
+.history {
+  display: grid;
+  /* The panel is as tall as the screen, and a grid's auto rows share out whatever is left: two
+     events made two day-blocks half a screen tall each, and every change of filter re-dealt the
+     heights. The list starts at the top and keeps its rows the size of their contents (024). */
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.history-close {
+  margin-left: auto;
+}
+/* A filter, not a sixth area: it sits apart from the segmented control and shows a tick when it
+   is on, so "Only mine" reads as a switch rather than as another tab. */
+.history-mine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.history-mine[aria-pressed='true'] {
+  color: var(--color-accent-text);
+}
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.history-day h3 {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-raised);
+  margin: 0 0 var(--space-1);
+  padding: var(--space-1) 0;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 650;
+}
+.history-day ol {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.history-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 38px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-label);
+}
+.history-line > svg {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+.history-what {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.history-subject {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.history-subject {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  text-underline-offset: 3px;
+}
+.history-count {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.history-actor {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-line time {
+  flex: 0 0 auto;
+  width: 3.2rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.team-task-account-picker-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* The tasks a file is on, in its card (024). */
+.material-tasks {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-label);
+}
+.material-tasks-caption {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.material-tasks ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.material-tasks a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 28px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.material-tasks a:hover .material-tasks-title {
+  text-decoration: underline;
+}
+.material-tasks-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.material-tasks-status svg {
+  width: 16px;
+  height: 16px;
+}
+.material-tasks li.is-todo .material-tasks-status {
+  color: var(--color-text-muted);
+}
+.material-tasks li.is-in_progress .material-tasks-status {
+  color: var(--color-warning);
+}
+.material-tasks li.is-done .material-tasks-status {
+  color: var(--color-success);
+}
+.material-tasks-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.material-tasks-add {
+  justify-self: start;
+}
+
+/* ============================================================
+   Catalog pools in the space settings (024)
+   ============================================================ */
+.product-catalog-sources {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.product-catalog-sources li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.product-catalog-sources li > svg {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+.product-catalog-source-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-catalog-sources small {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.product-catalog-sources li > button {
+  margin-left: auto;
+}
+.product-catalog-warning {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  font-size: var(--text-caption);
+}
+.product-catalog-generate,
+.product-catalog-price-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.product-catalog-number {
+  width: 6rem;
+}
+.product-catalog-number input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.product-catalog-texts {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 28rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.product-catalog-text {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.product-catalog-text:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+.product-catalog-text:disabled {
+  cursor: default;
+}
+.product-catalog-text span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.product-catalog-fallback-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.product-catalog-fallback-toggle[aria-expanded='true'] {
+  color: var(--color-text);
+}
+.product-catalog-fallback {
+  display: grid;
+  gap: var(--space-3);
+}
+/* An edit not yet kept, beside the button that keeps it: a quiet word, not another control. */
+.product-catalog-unsaved {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+/* Re-stitch · Stitch · Remove: a picture and its word in each segment, wrapping on a phone. */
+.team-restitch-operation {
+  flex-wrap: wrap;
+}
+.team-restitch-operation button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Whether a catalog can be made at all (024, US23): one line per column of the sheet. */
+/* What a long request is doing right now (024, US30): the step in words, which step it is, and
+   a segmented line — segments, not a bar, because nothing here knows a percentage. */
+.product-catalog-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
+}
+.product-catalog-progress.is-compact {
+  margin-top: var(--space-1);
+}
+.product-catalog-progress-step {
+  margin: 0;
+  color: var(--color-neutral-text);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+.product-catalog-progress-count {
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  white-space: nowrap;
+}
+.product-catalog-progress-track {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: var(--space-1);
+}
+.product-catalog-progress-track span {
+  flex: 1;
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+}
+.product-catalog-progress-track span.is-done {
+  background: var(--color-secondary-solid);
+}
+.product-catalog-progress-track span.is-now {
+  background: var(--color-secondary-solid);
+  animation: product-catalog-step calc(var(--motion-slow) * 3) var(--ease-in-out-curve) infinite
+    alternate;
+}
+@keyframes product-catalog-step {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-catalog-progress-track span.is-now {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.product-catalog-summary-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.product-catalog-summary-list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.product-catalog-summary-list > li.is-ready svg {
+  color: var(--color-success);
+}
+.product-catalog-summary-list > li.is-spare svg {
+  color: var(--color-text-muted);
+}
+.product-catalog-summary-list > li.is-missing svg,
+.product-catalog-summary-list > li.is-missing span {
+  color: var(--color-error-text);
+}
+.product-catalog-updater-link {
+  justify-self: start;
+  color: var(--color-accent-text);
+  font-size: var(--text-caption);
+}
+/* The whole pool, searched: the field, how many matched, then the list. */
+.product-catalog-browser {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.product-catalog-browser .product-catalog-texts {
+  max-height: 24rem;
+}
+
+/* What an update changes (024, US23): four short ticks under one heading, each with its line. */
+.team-updater-changes {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+.team-updater-changes > .team-catalog-filter-summary {
+  width: 100%;
+  justify-content: space-between;
+}
+.team-updater-choices {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+}
+
+/* What a catalog sheet is (024, US23): its video, its size, the way to the updater. */
+.material-catalog-facts {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.material-catalog-facts p {
+  margin: 0;
+}
+.material-catalog-facts a {
+  justify-self: start;
+  color: var(--color-accent-text);
+}
+
+/* A file that belongs to another file (024, US25): the count on the video, the child indented. */
+/* A video's own files, on its picture (024, US25): a paperclip and a count where a version stack
+   sits, always drawn — a thing that only shows on hover is a thing nobody finds. */
+.team-explorer-tile-badge-layer {
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  aspect-ratio: 4 / 3;
+  padding: var(--space-2);
+  pointer-events: none;
+}
+.team-explorer-tile-badge {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-xs);
+  min-height: 0;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-black) 62%, transparent);
+  color: var(--color-white);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.team-explorer-tile-badge:hover,
+.team-explorer-tile-badge[aria-expanded='true'],
+.team-explorer-tile.has-selected-companion .team-explorer-tile-badge {
+  background: var(--color-secondary-solid);
+}
+/* The pane is showing one of this video's files: the tile it came from keeps a quiet edge, so
+   the file in the pane is not an orphan. */
+.team-explorer-tile.has-selected-companion {
+  border-color: var(--color-secondary-border);
+}
+.team-explorer-companions {
+  display: grid;
+  gap: var(--space-1);
+  width: 280px;
+  max-width: calc(100vw - var(--space-6));
+  padding: var(--space-2);
+}
+.team-explorer-companions-title {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.team-explorer-companions ul {
+  display: grid;
+  gap: var(--space-px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-explorer-companions li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-explorer-companion {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-height-md);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text);
+  text-align: left;
+  cursor: pointer;
+}
+.team-explorer-companion svg {
+  flex: none;
+  color: var(--color-neutral-text-muted);
+}
+.team-explorer-companion:hover,
+.team-explorer-companion-open:hover {
+  background: var(--color-neutral-surface-muted);
+}
+.team-explorer-companion-copy {
+  display: grid;
+  min-width: 0;
+}
+.team-explorer-companion-name {
+  overflow: hidden;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-explorer-companion-kind {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+}
+.team-explorer-companion-open {
+  display: grid;
+  flex: none;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  min-height: 0;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+}
+.team-explorer-row-companions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 0;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  cursor: pointer;
+}
+.team-explorer-row-name.is-nested {
+  padding-left: var(--space-5);
 }

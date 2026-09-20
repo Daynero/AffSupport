@@ -30,7 +30,8 @@ export function MaterialProcessFlow({
   browseClient,
   onClose,
   initialTool,
-  onProgress
+  onProgress,
+  onFinished
 }: {
   teamId: string;
   material: ProcessableMaterial;
@@ -40,6 +41,11 @@ export function MaterialProcessFlow({
   initialTool?: 'compressor' | 'transcription' | 'imageEmbedding' | 'landingOptimizer';
   /** Live progress of the running operation, for a caller that mirrors it. */
   onProgress?: (info: { progress: number; state: string }) => void;
+  /**
+   * The material the run wrote, once it has (024, FR-078) — for a caller that
+   * puts it somewhere, such as the task the run was started from.
+   */
+  onFinished?: (materialId: string) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -71,6 +77,7 @@ export function MaterialProcessFlow({
       finalizeGrant: result.finalizeGrant
     })
       .then(async outcome => {
+        if (outcome.state === 'succeeded' && outcome.materialId) onFinished?.(outcome.materialId);
         /*
          * A transcription is the one run that learns what language the file is
          * in, and language is a field nobody was ever going to fill five

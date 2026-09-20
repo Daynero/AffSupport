@@ -9,13 +9,41 @@ import type {
   TeamTaskAttachmentSummary
 } from '@video-compressor/shared';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
+import { useOptionalAgent } from '../../AgentContext';
+import { useTeam } from '../TeamContext';
+import { catalogActionWords, MaterialInlineActions } from '../materials/MaterialInlineActions';
+import { useMaterialActionList } from '../materials/useMaterialActionList';
+import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
+import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 import { cachedPreview } from '../preview-url-cache';
 import { MaterialPreview } from '../preview/MaterialPreview';
+import { KindIcon } from '../explorer/KindIcon';
+import type { TeamMaterialRowKind } from '@video-compressor/shared';
+
+/** Kinds that have a picture to wait for; the rest are drawn as their glyph. */
+const HAS_PICTURE = new Set(['video', 'image', 'landing']);
+
+function kindOfCategory(category: TeamTaskAttachmentSummary['category']): TeamMaterialRowKind {
+  switch (category) {
+    case 'transcript':
+      return 'transcript';
+    case 'archive':
+      return 'archive';
+    default:
+      return 'other';
+  }
+}
+import { useMaterialActionHost } from '../materials/MaterialActionHost';
+import type { FolderPickerClient } from '../catalog/FolderPicker';
+import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+
+/* A member the space has not told us about may read and nothing more. */
+const NO_PERMISSIONS = DEFAULT_ROLE_PERMISSIONS.viewer;
+const NO_BROWSING: FolderPickerClient = { listMaterials: async () => [] };
 
 export function taskVideoPreviewTimeSeconds(durationSeconds: number): number {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
@@ -44,58 +72,15 @@ export interface TaskAttachmentPreviewClient {
 
 const defaultClient: TaskAttachmentPreviewClient = teamApi;
 
-type AttachmentAction =
-  'view' | 'reveal' | 'download' | 'download-restitched' | 'copy-link' | 'detach';
-
-function AttachmentActionIcon({ action }: { action: AttachmentAction }) {
-  if (action === 'view') {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M2.2 10s2.65-4.55 7.8-4.55S17.8 10 17.8 10s-2.65 4.55-7.8 4.55S2.2 10 2.2 10Z" />
-        <circle cx="10" cy="10" r="2.15" />
-      </svg>
-    );
-  }
-  if (action === 'reveal') {
-    // A folder with an arrow into it: where the file lives.
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M2.6 5.4c0-.75.6-1.35 1.35-1.35h3.3l1.6 1.8h7.2c.75 0 1.35.6 1.35 1.35v7.4c0 .75-.6 1.35-1.35 1.35H3.95c-.75 0-1.35-.6-1.35-1.35V5.4Z" />
-        <path d="M8.2 11.2h4.6m0 0-1.8-1.8m1.8 1.8L11 13" />
-      </svg>
-    );
-  }
-  if (action === 'download') {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M10 2.8v9.2m0 0 3.2-3.2M10 12 6.8 8.8M3.4 14.7v1.15c0 .75.6 1.35 1.35 1.35h10.5c.75 0 1.35-.6 1.35-1.35V14.7" />
-      </svg>
-    );
-  }
-  if (action === 'download-restitched') {
-    /* The download arrow again, over the film strip it re-cuts: the same
-       action as the plain download, done to a different file. */
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M10 1.9v7.4m0 0 2.7-2.7M10 9.3 7.3 6.6" />
-        <rect x="2.6" y="11.6" width="14.8" height="6.1" rx="1.3" />
-        <path d="M6.3 11.6v6.1m3.7-6.1v6.1m3.7-6.1v6.1" />
-      </svg>
-    );
-  }
-  if (action === 'copy-link') {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="m7.65 12.35 4.7-4.7M7.3 15.55l-1.1 1.1a3 3 0 0 1-4.25-4.25l3.05-3.05A3 3 0 0 1 9.25 9m3.45 2a3 3 0 0 1 .75-3.2l1.1-1.1a3 3 0 1 1 4.25 4.25L15.75 14a3 3 0 0 1-4.25 0" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path d="m7.55 12.45 4.9-4.9M7.15 15.65 5.5 17.3a2.7 2.7 0 0 1-3.8-3.8l3-3M12.85 4.35 14.5 2.7a2.7 2.7 0 0 1 3.8 3.8l-3 3M3 3l14 14" />
-    </svg>
-  );
-}
+/** Why an attachment cannot be used, said rather than only styled. */
+const AVAILABILITY_COPY: Record<
+  Exclude<TeamTaskAttachmentSummary['availability'], 'ready'>,
+  TranslationKey
+> = {
+  trashed: 'teamTaskAttachmentTrashed',
+  missing: 'teamTaskAttachmentMissing',
+  unavailable: 'teamTaskAttachmentUnavailable'
+};
 
 export function TaskAttachmentTile({
   teamId,
@@ -104,8 +89,15 @@ export function TaskAttachmentTile({
   onDetach,
   onReveal,
   onDownloadRestitched,
+  onProductCatalog,
+  onTranscribe,
+  onCompress,
+  onProcess,
+  browseClient,
+  companionsRevision = 0,
   restitching = false,
-  isDraft = false
+  isDraft = false,
+  folderPath = null
 }: {
   teamId: string;
   attachment: TeamTaskAttachmentSummary;
@@ -119,6 +111,31 @@ export function TaskAttachmentTile({
    * only asks for it.
    */
   onDownloadRestitched?: () => void;
+  /**
+   * Make or open this video's product catalog, without leaving the task.
+   *
+   * This is the whole reason the action surface exists. Doing it used to mean
+   * closing the task, finding the file in the explorer, doing it there, and
+   * coming back — and the task's unsaved edits did not survive the trip.
+   */
+  onProductCatalog?: () => void;
+  /**
+   * The rest of "Make", from the task (024, FR-076): a transcript, a
+   * compressed copy, any other tool. The editor owns the dialogs and the queue
+   * hand-off, and what comes out is put back on the task.
+   */
+  onTranscribe?: () => void;
+  onCompress?: () => void;
+  onProcess?: () => void;
+  /**
+   * For the shared operations — rename, move, copy the text, the local app's
+   * download — which need to browse folders. Without it they are not offered.
+   */
+  browseClient?: FolderPickerClient;
+  /** Bumped when something was made from this material, so its companions re-read. */
+  companionsRevision?: number;
+  /** Where the file lives, top down (024): tells same-named files on one task apart. */
+  folderPath?: string | null;
   /** That delivery is this attachment's, and still running. */
   restitching?: boolean;
   /** New attachments remain local until the task itself is saved. */
@@ -145,6 +162,107 @@ export function TaskAttachmentTile({
   const [action, setAction] = useState<'download' | 'copy-link' | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
+
+  const { teams, activeTeam } = useTeam();
+  const space = spaceOf(teams, activeTeam, teamId);
+  const agent = useOptionalAgent();
+
+  /**
+   * This attachment, described the way every other surface describes a file.
+   *
+   * The shape is deliberately the narrow one: a task knows an attachment's id,
+   * name, category and availability, and nothing else — and that is enough to
+   * offer the same actions the explorer offers, which is the point.
+   */
+  // The owner's example, finished: a video attached to a task that already has
+  // a catalog says so and opens it, instead of silently offering to make a
+  // second one beside the first.
+  const companions = useMaterialCompanions(
+    {
+      id: attachment.materialId,
+      teamId,
+      kind: attachment.kind === 'folder' ? 'folder' : 'file',
+      category: attachment.category,
+      draft: isDraft
+    },
+    { revision: companionsRevision }
+  );
+
+  const material: MaterialRef = {
+    id: attachment.materialId,
+    teamId,
+    name: attachment.name,
+    kind: attachment.kind === 'folder' ? 'folder' : 'file',
+    category: attachment.category,
+    // An attachment does not carry its size, so a download from a task tries
+    // the browser first and falls back to the agent on the cutoff — the same
+    // result, one round trip later. Its bucket reports as unknown until the
+    // attachment summary carries a size.
+    fileExtension: attachment.name.includes('.')
+      ? (attachment.name.split('.').pop() ?? null)
+      : null,
+    availability: attachment.availability,
+    trashed: attachment.availability === 'trashed',
+    draft: isDraft,
+    companions
+  };
+
+  const context: ActionContext = {
+    host: 'task-attachment',
+    permissions: space?.permissions ?? null,
+    isOwner: space?.role === 'owner',
+    agentConnected: agent?.teamWorkspaceAvailable === true,
+    storageConnected: space?.connectionState === 'connected',
+    restitchConfigured: true,
+    // The catalog dialog already explains a missing default and links to the
+    // panel that fixes it, so the reason is told once, where it can be acted
+    // on, rather than twice.
+    catalogSettingsReady: true
+  };
+
+  const isFolder = attachment.kind === 'folder';
+
+  /* The same operations a folder row runs — rename, move, the transcript's text,
+     the local app's download — with the dialogs they open, owned here. */
+  const host = useMaterialActionHost({
+    teamId,
+    material,
+    permissions: space?.permissions ?? NO_PERMISSIONS,
+    browseClient: browseClient ?? NO_BROWSING,
+    onChanged: () => undefined
+  });
+
+  const actions = useMaterialActionList(
+    material,
+    context,
+    {
+      ...(browseClient
+        ? {
+            copyText: host.handlers.copyText,
+            rename: host.handlers.rename,
+            move: host.handlers.move
+          }
+        : {}),
+      // Opening a folder means going into it, not previewing it. It used to
+      // raise the preview dialog, which had nothing to show and said so in a
+      // generic sentence about an attachment that could not be loaded (024,
+      // FR-070).
+      open: isFolder ? onReveal : () => setPreviewOpen(true),
+      showInFolder: onReveal,
+      note: host.handlers.note,
+      copyLink: () => void copyLink(),
+      download: () => void download(),
+      downloadRestitched: onDownloadRestitched,
+      productCatalog: onProductCatalog,
+      transcribe: onTranscribe,
+      compress: onCompress,
+      process: onProcess,
+      // The viewer is where a transcript is read, and it carries the editor.
+      editText: attachment.category === 'transcript' ? () => setPreviewOpen(true) : undefined,
+      detach: onDetach
+    },
+    { maxInline: 2 }
+  );
 
   useEffect(() => {
     let active = true;
@@ -237,7 +355,15 @@ export function TaskAttachmentTile({
     setActionFailed(false);
     try {
       const grant = await client.requestDownload(teamId, attachment.materialId, 'browser');
-      if (grant.kind !== 'browser') throw new Error('AGENT_REQUIRED');
+      if (grant.kind !== 'browser') {
+        // Too large for the browser (FR-082): the local app takes it, the same
+        // way a folder row's download does, instead of a sentence about failure.
+        if (browseClient && host.handlers.download) {
+          host.handlers.download();
+          return;
+        }
+        throw new Error('AGENT_REQUIRED');
+      }
       const anchor = document.createElement('a');
       anchor.href = grant.rangeUrl;
       anchor.download = attachment.name;
@@ -321,7 +447,21 @@ export function TaskAttachmentTile({
         )}
         {(!rangeUrl || (!thumbnailUrl && attachment.category === 'video' && !videoReady)) && (
           <span className="team-task-attachment-fallback">
-            {unavailable ? t('teamTaskPreviewUnavailable') : t('teamTaskPreviewLoading')}
+            {/* A file with no picture of itself — a transcript, a document, a
+                folder — shows what it is, not an apology (024, US14). The
+                sentence is kept for a picture that should have come and did
+                not. */}
+            {unavailable &&
+            attachment.availability === 'ready' &&
+            !HAS_PICTURE.has(attachment.category ?? '') ? (
+              <KindIcon
+                kind={attachment.kind === 'folder' ? 'folder' : kindOfCategory(attachment.category)}
+              />
+            ) : unavailable ? (
+              t('teamTaskPreviewUnavailable')
+            ) : (
+              t('teamTaskPreviewLoading')
+            )}
           </span>
         )}
       </div>
@@ -334,103 +474,52 @@ export function TaskAttachmentTile({
                 ? t('teamTaskAttachmentFolder')
                 : t(CATEGORY_LABEL[attachment.category ?? 'other'])}
             </small>
+            {folderPath && (
+              <small className="team-task-attachment-path" title={folderPath}>
+                {folderPath}
+              </small>
+            )}
             {isDraft && (
-              <small className="team-task-attachment-draft">{t('teamTaskAttachmentDraft')}</small>
+              <small className="team-task-attachment-draft">
+                {t('teamTaskAttachmentAttaching')}
+              </small>
+            )}
+            {/* Why this tile is not like the others, in words. It used to say
+                it only in `data-availability` and a dimmed preview, so a file
+                somebody had trashed looked the same as one whose thumbnail was
+                slow, and the actions under it failed into a generic message
+                (024, FR-069). */}
+            {!isDraft && attachment.availability !== 'ready' && (
+              <small className="team-task-attachment-state">
+                {t(AVAILABILITY_COPY[attachment.availability])}
+              </small>
             )}
           </div>
         </div>
-        {/* Icon-only controls with the label as the accessible name and the
-            tooltip. Four labelled buttons did not fit a 158px tile: every one
-            of them broke its word across two lines ("Копіюв / ати посила /
-            ння"), which is the opposite of the quick glance a reference tile
-            is for. */}
-        <div className="team-task-attachment-actions">
-          <Button
-            type="button"
-            variant="ghost"
-            className="team-task-attachment-action is-view"
-            disabled={
-              opensInViewer ? attachment.availability !== 'ready' : !rangeUrl || unavailable
-            }
-            title={t('teamTaskAttachmentView')}
-            aria-label={t('teamTaskAttachmentView')}
-            onClick={() => setPreviewOpen(true)}
-          >
-            <AttachmentActionIcon action="view" />
-          </Button>
-          {onReveal && !isDraft && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="team-task-attachment-action is-reveal"
-              title={t('teamTaskAttachmentReveal')}
-              aria-label={t('teamTaskAttachmentReveal')}
-              onClick={onReveal}
-            >
-              <AttachmentActionIcon action="reveal" />
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            className="team-task-attachment-action is-download"
-            loading={action === 'download'}
-            title={t('teamTaskAttachmentDownload')}
-            aria-label={t('teamTaskAttachmentDownload')}
-            onClick={() => void download()}
-          >
-            <AttachmentActionIcon action="download" />
-          </Button>
-          {/* Only a video has anything to re-stitch, and only a saved one can
-              be handed to the agent by id. */}
-          {onDownloadRestitched && attachment.category === 'video' && !isDraft && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="team-task-attachment-action is-download-restitched"
-              loading={restitching}
-              title={t('teamTaskAttachmentDownloadRestitched')}
-              aria-label={t('teamTaskAttachmentDownloadRestitched')}
-              onClick={onDownloadRestitched}
-            >
-              <AttachmentActionIcon action="download-restitched" />
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            className={`team-task-attachment-action is-copy-link${copied ? ' is-copied' : ''}`}
-            loading={action === 'copy-link'}
-            title={copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')}
-            aria-label={
-              copied ? t('teamTaskAttachmentLinkCopied') : t('teamTaskAttachmentCopyLink')
-            }
-            onClick={() => void copyLink()}
-          >
-            <AttachmentActionIcon action="copy-link" />
-          </Button>
-          {/* No dialog: detaching is reversible, and the Undo in the toast
-              costs one press to fix a mistake that the dialog charged a press
-              to prevent every single time (FR-028). */}
-          {onDetach && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="team-task-attachment-action is-detach"
-              title={t('teamTaskDetach')}
-              aria-label={t('teamTaskDetach')}
-              onClick={() => onDetach()}
-            >
-              <AttachmentActionIcon action="detach" />
-            </Button>
-          )}
-        </div>
+        <MaterialInlineActions
+          list={actions}
+          name={attachment.name}
+          busy={
+            action === 'download'
+              ? 'download'
+              : action === 'copy-link'
+                ? 'copyLink'
+                : restitching
+                  ? 'downloadRestitched'
+                  : null
+          }
+          done={copied ? 'copyLink' : null}
+          size="sm"
+          worded={{ productCatalog: catalogActionWords(companions?.productCatalog?.count, t) }}
+          className="team-task-attachment-actions"
+        />
         {actionFailed && (
           <small className="team-task-attachment-action-error">
             {t('teamTaskAttachmentActionFailed')}
           </small>
         )}
       </div>
+      {host.dialogs}
       {previewOpen && opensInViewer && (
         <MaterialPreview
           teamId={teamId}

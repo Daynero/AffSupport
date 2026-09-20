@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import { sortTeamTaskLabels, type TeamTaskLabelRef } from '@video-compressor/shared';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -27,6 +27,7 @@ export function TaskLabelMenu({
   ariaLabel,
   emptyText,
   emptyTarget,
+  onCreate,
   disabled = false,
   className = ''
 }: {
@@ -38,22 +39,48 @@ export function TaskLabelMenu({
   emptyText: string;
   /** Where those tags are made, so the empty state is a door and not a notice. */
   emptyTarget?: SpaceSettingsTarget;
+  /**
+   * Make the tag from here, when the surface can (024, FR-071).
+   *
+   * Tagging a task with a tag that does not exist yet meant leaving the task,
+   * opening the space settings, making it, coming back and finding the task
+   * again — for a word. Where this is supplied, the word typed into the search
+   * becomes the tag, and the task is tagged with it in the same press.
+   */
+  onCreate?: (name: string) => Promise<TeamTaskLabelRef | null>;
   disabled?: boolean;
   className?: string;
 }) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState('');
+  const [creating, setCreating] = useState(false);
   const sorted = useMemo(() => sortTeamTaskLabels(labels), [labels]);
   const term = search.normalize('NFC').trim().toLocaleLowerCase();
   const shown = term
     ? sorted.filter(label => label.name.toLocaleLowerCase().includes(term))
     : sorted;
 
-  // Opening puts focus on the first option, so the arrows work at once.
+  // Opening puts focus in the field or on the first option, so typing and the arrows work at
+  // once. After the popover has placed itself: focused during mount, the popover's own focus
+  // handling took it back and the first word typed went into the task's title instead (024).
+  // The popover is hidden until it has measured where to sit, and a hidden field refuses focus,
+  // so this tries each frame until the field has it (a handful of frames at most).
   useEffect(() => {
-    const field = root.current?.querySelector<HTMLElement>('input');
-    (field ?? root.current?.querySelector<HTMLElement>('[role="option"]'))?.focus();
+    let frame = 0;
+    let tries = 0;
+    const place = () => {
+      const target =
+        root.current?.querySelector<HTMLElement>('input') ??
+        root.current?.querySelector<HTMLElement>('[role="option"]');
+      target?.focus();
+      if (target && document.activeElement !== target && tries < 20) {
+        tries += 1;
+        frame = requestAnimationFrame(place);
+      }
+    };
+    frame = requestAnimationFrame(place);
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   /** ↑/↓ walk the options, Home/End jump: the listbox pattern, not a tab stop each. */
@@ -83,17 +110,20 @@ export function TaskLabelMenu({
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
     >
-      {sorted.length >= SEARCH_FROM && (
+      {/* Where tags can be made here, the field is always there — the first tag
+          most of all. An empty space used to say "create them in the space's
+          settings", a detour out of the task for one word (024). */}
+      {(sorted.length >= SEARCH_FROM || onCreate) && (
         <input
           type="search"
           className="team-task-label-menu-search"
           value={search}
-          aria-label={t('teamTaskTagSearch')}
-          placeholder={t('teamTaskTagSearch')}
+          aria-label={t(onCreate ? 'teamTaskTagSearchOrCreate' : 'teamTaskTagSearch')}
+          placeholder={t(onCreate ? 'teamTaskTagSearchOrCreate' : 'teamTaskTagSearch')}
           onChange={event => setSearch(event.target.value)}
         />
       )}
-      {sorted.length === 0 && (
+      {sorted.length === 0 && !onCreate && (
         <EmptyState
           size="sm"
           className="team-task-label-menu-empty"
@@ -101,12 +131,33 @@ export function TaskLabelMenu({
           action={emptyTarget && <SpaceSettingsLink target={emptyTarget} />}
         />
       )}
-      {sorted.length > 0 && shown.length === 0 && (
+
+      {sorted.length > 0 && shown.length === 0 && !term && (
         <EmptyState
           size="sm"
           className="team-task-label-menu-empty"
           title={t('teamTaskTagSearchEmpty')}
         />
+      )}
+      {/* The word you just typed, offered as a tag. Only when it is not one
+          already, so the list never shows the same name twice. */}
+      {onCreate && term && !sorted.some(label => label.name.toLocaleLowerCase() === term) && (
+        <button
+          type="button"
+          className="team-task-label-option is-create"
+          disabled={disabled || creating}
+          onClick={() => {
+            setCreating(true);
+            void onCreate(search.normalize('NFC').trim())
+              .then(made => {
+                if (made) setSearch('');
+              })
+              .finally(() => setCreating(false));
+          }}
+        >
+          <Plus size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          <span>{t('teamTaskTagCreateNamed', { name: search.trim() })}</span>
+        </button>
       )}
       {shown.map(label => {
         const selected = selectedIds.has(label.id);

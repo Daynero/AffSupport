@@ -41,7 +41,7 @@ function show(
 }
 
 describe('StorageChip', () => {
-  it('reads as up to date, indexing, preparing or waiting with live counts', () => {
+  it('reads as indexing, preparing or waiting with live counts, and is quiet when up to date', () => {
     show({ kind: 'indexing', indexedFolders: 3, totalFolders: 12, files: 40 });
     expect(
       screen.getByRole('button', { name: /Indexing · 3 of 12 folders · 40 files/ })
@@ -53,8 +53,33 @@ describe('StorageChip', () => {
     show({ kind: 'waiting_provider', since: new Date().toISOString() });
     expect(screen.getByRole('button', { name: 'Waiting for Google Drive…' })).toBeTruthy();
     cleanup();
+    // Healthy is the default and says nothing (024, FR-094).
     show({ kind: 'connected', lastReconciledAt: new Date().toISOString() });
-    expect(screen.getByRole('button', { name: 'Storage up to date · just now' })).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('says where the indexing runs, so a spinner is not mistaken for a stuck one', async () => {
+    // The owner (024): "I pressed pause and it keeps animating — forever?"
+    show({ kind: 'indexing', indexedFolders: 185, totalFolders: null, files: 750 });
+    await userEvent.click(screen.getByRole('button', { name: /Indexing/ }));
+    expect(
+      await screen.findByText(
+        'The reading happens on our side and carries on with this tab closed.'
+      )
+    ).toBeTruthy();
+  });
+
+  it('asks before re-reading a healthy space, and says what the re-read costs', async () => {
+    // The owner pressed "Check now" by accident and set ten thousand files walking (024).
+    const resyncDrive = vi.fn().mockResolvedValue(undefined);
+    show({ kind: 'preparing', ready: 5, pending: 7 }, { canManage: true, client: { resyncDrive } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Preparing previews/ }));
+    await user.click(await screen.findByRole('button', { name: 'Check now' }));
+    expect(resyncDrive).not.toHaveBeenCalled();
+    expect(screen.getByText(/reads the whole Drive again/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Yes, read it all again' }));
+    expect(resyncDrive).toHaveBeenCalledWith('team-1');
   });
 
   it('lets the owner reconnect from the detail and tells a member who can', async () => {

@@ -8,10 +8,11 @@ import type {
 } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { MaterialRowMenu } from './MaterialRowMenu';
+import { SearchResultActions } from './SearchResultActions';
 import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
+import { useThumbnailSession, type ThumbnailSessionClient } from '../explorer/useThumbnailSession';
 import { EmptyState, ErrorState } from '../../components/ui/index';
 
 /** Matches the page size `useCatalogSearch` requests. */
@@ -24,6 +25,12 @@ const FRESHNESS_COPY: Record<CatalogSearchResponse['catalogFreshness']['state'],
   ready: 'teamCatalogFreshnessReady',
   failed: 'teamCatalogFreshnessFailed',
   unavailable: 'teamCatalogFreshnessUnavailable'
+};
+
+/** A stand-in so the hook's argument keeps its shape when nothing is supplied. */
+const EMPTY_THUMBNAILS: ThumbnailSessionClient = {
+  mintThumbnailSession: () => Promise.reject(new Error('NO_THUMBNAILS')),
+  thumbnailUrl: () => ''
 };
 
 export function MaterialResults({
@@ -46,8 +53,17 @@ export function MaterialResults({
   page,
   onPageChange,
   pathFor,
-  tagging
+  tagging,
+  thumbnails
 }: {
+  /**
+   * The picture a result was missing (024, FR-090).
+   *
+   * A file found by search showed a category glyph while the same file in a
+   * folder showed its thumbnail — so recognising it depended on how you had
+   * looked for it, which is the whole of what US5 is about.
+   */
+  thumbnails?: ThumbnailSessionClient;
   result: CatalogSearchResponse | null;
   loading: boolean;
   error: boolean;
@@ -86,6 +102,21 @@ export function MaterialResults({
    * colour the moment React re-rendered the list.
    */
   const [justTagged, setJustTagged] = useState<Record<string, TeamMaterialTagColor | null>>({});
+  /*
+   * Every result in a page belongs to the same space, so one session serves
+   * them all — and the hook caches it per team, so paging does not mint a
+   * second.
+   */
+  const teamId = result?.items[0]?.teamId ?? null;
+  const session = useThumbnailSession({
+    teamId: teamId ?? '',
+    client: thumbnails ?? EMPTY_THUMBNAILS,
+    enabled: Boolean(teamId && thumbnails)
+  });
+  const thumbnail = (material: CatalogMaterialItem): string | null =>
+    session && thumbnails && (material.category === 'image' || material.category === 'video')
+      ? thumbnails.thumbnailUrl(session, material.id)
+      : null;
   if (error)
     return <ErrorState className="team-inline-error" message={t('teamCatalogLoadFailed')} />;
   if (loading && !result) return <LabeledSkeleton label="teamCatalogLoadingResults" />;
@@ -108,36 +139,27 @@ export function MaterialResults({
       </div>
       <ul className="team-catalog-results">
         {result.items.map(material => {
-          const isFolder = material.kind === 'folder';
           const typeLabel = catalogMaterialTypeLabel(material, t);
           const categoryGlyph = catalogMaterialGlyph(material);
           const hasMetadata = Boolean(
             material.geo || material.language || material.offer || material.tags.length
           );
-          const hasSecondaryActions = isFolder
-            ? permissions.upload
-            : permissions.download || permissions.edit || permissions.process || permissions.delete;
-
           return (
             <li key={material.id} className="team-catalog-result-card">
               <div className="team-catalog-material-main">
                 <div className="team-catalog-material-heading">
                   <span className="team-catalog-material-glyph" aria-hidden="true">
-                    {categoryGlyph}
+                    {thumbnail(material) ? (
+                      <img src={thumbnail(material)!} alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      categoryGlyph
+                    )}
                   </span>
                   <div>
-                    <strong>{material.name}</strong>
-                    {pathFor?.(material) && (
-                      <span className="team-catalog-material-path">{pathFor(material)}</span>
-                    )}
-                    <span className="team-catalog-material-type">
-                      {typeLabel}
-                      {material.kind === 'file' && material.fileExtension
-                        ? ` · ${material.fileExtension.toUpperCase()}`
-                        : ''}
-                      {material.sizeBytes !== null ? ` · ${formatBytes(material.sizeBytes)}` : ''}
-                      {/* The same dot the explorer shows, in the same place:
-                          beside the size, where the eye already stops. */}
+                    <strong className="team-catalog-material-name">
+                      <span title={material.name}>{material.name}</span>
+                      {/* Beside the name, as in the explorer (024): beside the size it
+                        read as part of the size and sat on its last letter. */}
                       <TagDot
                         color={
                           material.id in justTagged
@@ -151,6 +173,16 @@ export function MaterialResults({
                           tagging?.onSetTag(material, color);
                         }}
                       />
+                    </strong>
+                    {pathFor?.(material) && (
+                      <span className="team-catalog-material-path">{pathFor(material)}</span>
+                    )}
+                    <span className="team-catalog-material-type">
+                      {typeLabel}
+                      {material.kind === 'file' && material.fileExtension
+                        ? ` · ${material.fileExtension.toUpperCase()}`
+                        : ''}
+                      {material.sizeBytes !== null ? ` · ${formatBytes(material.sizeBytes)}` : ''}
                     </span>
                   </div>
                 </div>
@@ -175,6 +207,12 @@ export function MaterialResults({
                     </span>
                   )}
                 </div>
+                {/* The note (024): a file found by a word of it should say so. */}
+                {material.note && (
+                  <p className="team-catalog-material-note" title={material.note}>
+                    <span>{material.note.replace(/\n\s*\n+/gu, '\n')}</span>
+                  </p>
+                )}
                 <div className="team-catalog-markers team-catalog-material-statuses">
                   {material.transcriptIngestState !== 'not_applicable' && (
                     <span>{catalogTranscriptStatus(material.transcriptIngestState, t)}</span>
@@ -187,68 +225,22 @@ export function MaterialResults({
                   {material.lineage.isVersion && <span>{t('teamCatalogIsVersion')}</span>}
                 </div>
               </div>
-              <div className="team-catalog-material-actions">
-                {material.kind === 'file' && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label={t('teamCatalogPreviewFor', { name: material.name })}
-                    onClick={() => onPreview(material)}
-                  >
-                    {t('teamCatalogPreview')}
-                  </Button>
-                )}
-                {canManageMetadata && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label={t('teamCatalogEditMetadataFor', { name: material.name })}
-                    onClick={() => onEditMetadata(material)}
-                  >
-                    {t('teamCatalogEditMetadata')}
-                  </Button>
-                )}
-                {(material.lineage.hasSource ||
-                  material.lineage.hasDerivatives ||
-                  material.lineage.isVersion) && (
-                  <Button type="button" variant="ghost" onClick={() => onShowProvenance(material)}>
-                    {t('teamProvenanceTitle')}
-                  </Button>
-                )}
-                {onReveal && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label={t('teamRevealInFolderFor', { name: material.name })}
-                    onClick={() => onReveal(material)}
-                  >
-                    {t('teamRevealInFolder')}
-                  </Button>
-                )}
-                {onCreateTask && material.kind === 'file' && (
-                  <Button type="button" variant="ghost" onClick={() => onCreateTask(material)}>
-                    {t('creativeLibraryCreateTask')}
-                  </Button>
-                )}
-                {/* The "…" belongs beside the actions it extends, not on a row
-                    of its own — where it rendered as the bare word "Дії" under
-                    every result, a label with nothing after it. */}
-                {hasSecondaryActions && (
-                  <MaterialRowMenu
-                    teamId={material.teamId}
-                    material={material}
-                    permissions={permissions}
-                    browseClient={browseClient}
-                    storageKind={storageKind}
-                    onChanged={onChanged}
-                    onEditText={() => onEditText(material)}
-                    onProcess={() => onProcess(material)}
-                    destinationFolderId={destinationFolderId ?? material.parentFolderId ?? null}
-                    replaceMaterialId={material.id}
-                    folderUploadLabel={t('teamCatalogAddFileToFolder')}
-                  />
-                )}
-              </div>
+              <SearchResultActions
+                material={material}
+                permissions={permissions}
+                storageKind={storageKind}
+                browseClient={browseClient}
+                destinationFolderId={destinationFolderId ?? material.parentFolderId ?? null}
+                canManageMetadata={canManageMetadata}
+                onChanged={onChanged}
+                onPreview={onPreview}
+                onEditText={onEditText}
+                onProcess={onProcess}
+                onEditMetadata={onEditMetadata}
+                onShowProvenance={onShowProvenance}
+                onCreateTask={onCreateTask}
+                onReveal={onReveal}
+              />
             </li>
           );
         })}

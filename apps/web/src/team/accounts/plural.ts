@@ -61,6 +61,7 @@ const FREE = forms('teamAccountFreeOne', 'teamAccountFreeFew', 'teamAccountFreeM
 const BUSY = forms('teamAccountBusyOne', 'teamAccountBusyFew', 'teamAccountBusyMany');
 const TASKS = forms('teamAgentTasksOne', 'teamAgentTasksFew', 'teamAgentTasksMany');
 const RUNS = forms('teamAgentRunsOne', 'teamAgentRunsFew', 'teamAgentRunsMany');
+const MEMBERS = forms('teamMembersCountOne', 'teamMembersCountFew', 'teamMembersCountMany');
 
 export const accountCountKey = (language: Language, count: number) =>
   teamPluralKey(language, count, ACCOUNTS);
@@ -74,3 +75,5 @@ export const taskCountKey = (language: Language, count: number) =>
   teamPluralKey(language, count, TASKS);
 export const runCountKey = (language: Language, count: number) =>
   teamPluralKey(language, count, RUNS);
+export const memberCountKey = (language: Language, count: number) =>
+  teamPluralKey(language, count, MEMBERS);

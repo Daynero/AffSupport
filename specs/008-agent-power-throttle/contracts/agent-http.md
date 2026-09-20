@@ -73,12 +73,12 @@ Parsed by `parsePowerLimitRequest` — the body is typed `unknown` and narrowed,
 
 **Errors**:
 
-| Status | `error` | When |
-|---|---|---|
-| `400` | `POWER_LIMIT_INVALID` | Body is not an object, `limitPercent` missing, not a number, `NaN`, or `Infinity` |
-| `401` | `TOKEN_INVALID` | Missing/incorrect session token |
-| `403` | `ORIGIN_NOT_ALLOWED` / `ENTITLEMENT_REQUIRED` | Existing guards |
-| `500` | `POWER_PERSIST_FAILED` | The value could not be written to `power.json`. **The in-memory limit is left unchanged** — the lever must never display a limit that will not survive a restart (FR-006, [data-model invariant 5](../data-model.md#invariants)) |
+| Status | `error`                                       | When                                                                                                                                                                                                                             |
+| ------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | `POWER_LIMIT_INVALID`                         | Body is not an object, `limitPercent` missing, not a number, `NaN`, or `Infinity`                                                                                                                                                |
+| `401`  | `TOKEN_INVALID`                               | Missing/incorrect session token                                                                                                                                                                                                  |
+| `403`  | `ORIGIN_NOT_ALLOWED` / `ENTITLEMENT_REQUIRED` | Existing guards                                                                                                                                                                                                                  |
+| `500`  | `POWER_PERSIST_FAILED`                        | The value could not be written to `power.json`. **The in-memory limit is left unchanged** — the lever must never display a limit that will not survive a restart (FR-006, [data-model invariant 5](../data-model.md#invariants)) |
 
 **Side effects, in order**: persist atomically → recompute the CPU budget → retune the duty cycler → broadcast `PowerState` to every SSE subscriber → reply. The broadcast is what satisfies FR-023 (other windows agree) with no extra client machinery.
 
@@ -118,17 +118,17 @@ data: {"limitPercent":40,"mode":"limited","sample":{...},"throttlingSupported":t
 
 Covered by `tests/power-routes.test.ts`, assembled against a real Fastify instance the way `tests/agent-http.test.ts` does it:
 
-| Case | Expected |
-|---|---|
-| `GET /api/power` fresh agent | `200`, `limitPercent: 100`, `mode: "unrestricted"` |
-| `POST` `{ limitPercent: 40 }` | `200`, `limitPercent: 40`, `mode: "limited"` |
-| `POST` `{ limitPercent: 150 }` | `200`, clamped to `100` |
-| `POST` `{ limitPercent: 5 }` | `200`, clamped to `20` |
-| `POST` `{}` / `{ limitPercent: "40" }` / `{ limitPercent: NaN }` | `400 POWER_LIMIT_INVALID` |
-| `POST` with the store unwritable | `500 POWER_PERSIST_FAILED`, and a following `GET` still shows the **old** limit |
-| `GET` without a token | `401 TOKEN_INVALID` |
-| `GET` from a disallowed origin | `403 ORIGIN_NOT_ALLOWED` |
-| `GET` without entitlement | `403 ENTITLEMENT_REQUIRED` |
-| `POST` then a connected SSE client | Client receives a frame carrying the new limit |
-| Last SSE client disconnects | Sampling tick stops (observed via the probe not being called again) |
-| Health payload | `toolContracts.power === 1` |
+| Case                                                             | Expected                                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `GET /api/power` fresh agent                                     | `200`, `limitPercent: 100`, `mode: "unrestricted"`                              |
+| `POST` `{ limitPercent: 40 }`                                    | `200`, `limitPercent: 40`, `mode: "limited"`                                    |
+| `POST` `{ limitPercent: 150 }`                                   | `200`, clamped to `100`                                                         |
+| `POST` `{ limitPercent: 5 }`                                     | `200`, clamped to `20`                                                          |
+| `POST` `{}` / `{ limitPercent: "40" }` / `{ limitPercent: NaN }` | `400 POWER_LIMIT_INVALID`                                                       |
+| `POST` with the store unwritable                                 | `500 POWER_PERSIST_FAILED`, and a following `GET` still shows the **old** limit |
+| `GET` without a token                                            | `401 TOKEN_INVALID`                                                             |
+| `GET` from a disallowed origin                                   | `403 ORIGIN_NOT_ALLOWED`                                                        |
+| `GET` without entitlement                                        | `403 ENTITLEMENT_REQUIRED`                                                      |
+| `POST` then a connected SSE client                               | Client receives a frame carrying the new limit                                  |
+| Last SSE client disconnects                                      | Sampling tick stops (observed via the probe not being called again)             |
+| Health payload                                                   | `toolContracts.power === 1`                                                     |

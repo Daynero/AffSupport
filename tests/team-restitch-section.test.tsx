@@ -122,7 +122,7 @@ describe('a space’s re-stitching settings', () => {
     expect(await screen.findByText('Not set up yet')).toBeTruthy();
   });
 
-  it('names the chosen operation under its own control', async () => {
+  it('names every operation on its own segment', async () => {
     renderSection({
       getRestitchDefaults: vi.fn().mockResolvedValue(stored),
       setRestitchDefaults: vi.fn()
@@ -134,7 +134,10 @@ describe('a space’s re-stitching settings', () => {
      * option the pictogram row has selected, which is what the group below it
      * already did.
      */
-    expect(await screen.findByText('Re-stitch')).toBeTruthy();
+    const chosen = await screen.findByRole('radio', { name: 'Re-stitch' });
+    expect(chosen.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'Stitch' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Remove the stitching' })).toBeTruthy();
     const status = (await screen.findAllByRole('status'))[0] as HTMLElement;
     expect(status.textContent).toBe('');
   });

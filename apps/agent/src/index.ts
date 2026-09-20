@@ -17,10 +17,10 @@ import { EntitlementGate } from './entitlement/entitlement.js';
 import { EstimationWorker } from './estimate/worker.js';
 import { applicationSupportRoot } from './files/support-dir.js';
 import {
-  commandExists,
   ffmpegPath,
   ffprobePath,
-  MediaToolUnavailableError
+  MediaToolUnavailableError,
+  probeMediaTool
 } from './ffmpeg/tools.js';
 import { ImageAssetStore } from './images/store.js';
 import { sweepWorkspaces } from './landing/workspace.js';
@@ -81,9 +81,19 @@ const entitlementGate = new EntitlementGate({
 await entitlementGate.load();
 const instanceId = randomBytes(12).toString('hex');
 const startedAt = new Date().toISOString();
+const bootProbes = {
+  ffmpeg: await probeMediaTool(ffmpegPath),
+  ffprobe: await probeMediaTool(ffprobePath)
+};
+for (const [tool, probe] of Object.entries(bootProbes)) {
+  // Said out loud once, because the alternative is a UI that only knows the
+  // engine is unavailable: a bundled binary that is present but refused looks
+  // exactly like one that was never installed.
+  if (!probe.runnable) console.error(`Bundled ${tool} is not runnable (${probe.failure})`);
+}
 const tools = {
-  ffmpeg: await commandExists(ffmpegPath),
-  ffprobe: await commandExists(ffprobePath)
+  ffmpeg: bootProbes.ffmpeg.runnable,
+  ffprobe: bootProbes.ffprobe.runnable
 };
 // The whisper binary is static, so it is probed once at boot; ffmpeg is
 // re-checked live and the model presence is computed on demand by the queue.
@@ -288,19 +298,30 @@ async function refreshMediaTools() {
   if (mediaToolsCheckInFlight || shuttingDown) return;
   mediaToolsCheckInFlight = true;
   try {
-    const [ffmpeg, ffprobe] = await Promise.all([
-      commandExists(ffmpegPath),
-      commandExists(ffprobePath)
+    const [ffmpegProbe, ffprobeProbe] = await Promise.all([
+      probeMediaTool(ffmpegPath),
+      probeMediaTool(ffprobePath)
     ]);
+    const ffmpeg = ffmpegProbe.runnable;
+    const ffprobe = ffprobeProbe.runnable;
     queue.setToolAvailability({ ffmpeg, ffprobe });
     transcriptionQueue.setToolAvailability({
       ffmpeg,
       whisper: transcriptionTools.whisper
     });
     if ((!ffmpeg || !ffprobe) && !queue.workActive() && !mediaActions.workActive()) {
-      requestRuntimeRestart(
-        new MediaToolUnavailableError(ffmpeg ? 'ffprobe' : 'ffmpeg', 'HEALTH_CHECK')
-      );
+      const broken = ffmpeg ? ('ffprobe' as const) : ('ffmpeg' as const);
+      const failure = (ffmpeg ? ffprobeProbe : ffmpegProbe).failure;
+      // A binary that vanished — an update swapping the runtime out from under a
+      // running agent — comes back with a fresh one, so the restart is worth its
+      // budget. One the system refuses to launch would be refused again after
+      // every restart, so the agent stays up and the UI keeps saying the engine
+      // is unavailable instead of the launcher burning through its retries.
+      if (failure === 'ENOENT') {
+        requestRuntimeRestart(new MediaToolUnavailableError(broken, 'HEALTH_CHECK'));
+      } else {
+        logError({ tool: broken, causeCode: failure }, 'Bundled media runtime cannot be launched');
+      }
     }
   } finally {
     mediaToolsCheckInFlight = false;

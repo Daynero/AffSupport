@@ -48,6 +48,8 @@ import { teamErrorMessageFor } from '../errors';
 import { Marked } from './Marked';
 import { AgentLabels } from './AgentLabels';
 import { AgentMoney } from './AgentMoney';
+import { AgentTasksPeek } from './AgentTasksPeek';
+import { useTeam } from '../TeamContext';
 import { runCountKey, taskCountKey } from './plural';
 import { Popover } from '../../components/ui/index';
 
@@ -71,9 +73,16 @@ export function runAgeLabel(createdAt: string, language: Language): string | nul
   const startOfDay = (date: Date) =>
     new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const days = Math.round((startOfDay(at) - startOfDay(new Date())) / 86_400_000);
-  // A stamp from the future says nothing a person can use, and today is what
-  // almost every line would say. Both leave the line bare.
-  if (days >= 0) return null;
+  // A stamp from the future says nothing a person can use.
+  if (days > 0) return null;
+  // Today says when (024): a launch marked a minute ago left the line bare, and "is it on yet?"
+  // is the question asked of today's runs.
+  if (days === 0) {
+    return new Intl.DateTimeFormat(localeOf(language), {
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(at);
+  }
   if (days >= -6) {
     return new Intl.RelativeTimeFormat(localeOf(language), { numeric: 'auto' }).format(days, 'day');
   }
@@ -363,6 +372,7 @@ export function AgentRow({
 }) {
   const { t, language } = useI18n();
   const { push } = useToasts();
+  const { activeTeam } = useTeam();
   const titleId = useId();
   /**
    * The "…" the menu hangs from. The delete dialog returns focus here by hand:
@@ -446,21 +456,27 @@ export function AgentRow({
     </button>
   );
   /**
-   * How many tasks name this agent, and the way to them — on the run's own
-   * line, where it is read with the run. It had a column of its own, and that
-   * column was a hundred pixels of em dashes: the owner read those dashes as a
-   * delete mark and pressed them.
+   * How many tasks name this agent, and the way to them — under its state. It had a column of
+   * its own, and that column was a hundred pixels of em dashes: the owner read those dashes as a
+   * delete mark and pressed them. Absent when there are none.
    */
   const tasksLink =
-    agent.taskCount > 0 ? (
-      <a
-        className="team-agent-tasks-link"
-        href={tasksHref}
-        title={t('teamAgentTasksLinkTitle')}
-        onClick={event => internalLink(event, tasksHref)}
-      >
-        {t(taskCountKey(language, agent.taskCount), { count: agent.taskCount })}
-      </a>
+    agent.taskCount > 0 && activeTeam ? (
+      <AgentTasksPeek
+        teamId={activeTeam.id}
+        agentRowId={agent.id}
+        agentLabel={tag}
+        canEdit={canEdit}
+        trigger={
+          <a
+            className="team-agent-tasks-link"
+            href={tasksHref}
+            onClick={event => internalLink(event, tasksHref)}
+          >
+            {t(taskCountKey(language, agent.taskCount), { count: agent.taskCount })}
+          </a>
+        }
+      />
     ) : null;
 
   /*
@@ -540,15 +556,16 @@ export function AgentRow({
           <span className="team-agent-state-dot" aria-hidden="true" />
           {t(free ? 'teamAgentFree' : 'teamAgentBusy')}
         </span>
+        {/* Under the state, the same place on every row (024). On the last run's line it
+            pushed that run's age out of line with the others, and on a free agent it stood
+            under Run. Tasks belong to the agent, not to one of its runs. */}
+        {tasksLink}
       </div>
 
       {/* The runs: one line each, with the day it was written. A line being
           corrected is a field; a new run is a field under the last line. */}
       <div className="team-agent-runs">
-        {agent.runs.length === 0 && !editingNew && tasksLink && (
-          <div className="team-agent-run is-empty">{tasksLink}</div>
-        )}
-        {agent.runs.map((item, index) =>
+        {agent.runs.map(item =>
           runEditing?.runId === item.id ? (
             <RunField
               key={item.id}
@@ -565,6 +582,13 @@ export function AgentRow({
               className={`team-agent-run${item.marker ? ` is-marked is-${item.marker}` : ''}`}
               data-run-id={item.id}
               data-marker={item.marker ?? 'none'}
+              onClick={event => {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) return;
+                if (target.closest('button, a, input, textarea, select, [role="button"]')) return;
+                if (waiting || editingRun) return;
+                void run(() => onSetRunMarker(item, nextTeamAgentRunMarker(item.marker)));
+              }}
             >
               {/*
                * The whole run is the target, as a button laid under its own
@@ -579,7 +603,6 @@ export function AgentRow({
                   type="button"
                   className="team-agent-run-mark"
                   aria-label={`${t('teamAgentRunMark')}: ${item.note} · ${t(markerLabelKey(item.marker))}`}
-                  title={t('teamAgentRunMarkHint')}
                   disabled={waiting || editingRun}
                   onClick={() =>
                     void run(() => onSetRunMarker(item, nextTeamAgentRunMarker(item.marker)))
@@ -613,7 +636,6 @@ export function AgentRow({
                   </IconButton>
                 </span>
               )}
-              {index === agent.runs.length - 1 && tasksLink}
             </div>
           )
         )}

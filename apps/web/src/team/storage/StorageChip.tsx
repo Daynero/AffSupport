@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { StorageHealth, TeamStorageAttentionReason } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
@@ -8,6 +8,7 @@ import { teamErrorMessageFor } from '../errors';
 import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvider';
 import type { DriveRootResult } from '../../api/team';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
+import { WorkspaceChip, type ChipTone } from '../workspace/WorkspaceChip';
 import { Button, PermissionState, uiClasses } from '../../components/ui/index';
 
 /**
@@ -45,7 +46,13 @@ function ago(iso: string, t: ReturnType<typeof useI18n>['t']): string {
   return t('teamStorageHoursAgo', { count: Math.round(minutes / 60) });
 }
 
-export function chipCopy(health: StorageHealth, t: ReturnType<typeof useI18n>['t']): string {
+export function chipCopy(
+  health: StorageHealth,
+  t: ReturnType<typeof useI18n>['t'],
+  /* Previews held on this computer (024): the chip said "preparing previews" while the person
+     had just pressed pause, so the one control in the panel looked like it did nothing. */
+  renderPaused?: boolean
+): string {
   switch (health.kind) {
     case 'connected':
       return t('teamStorageChipConnected', { ago: ago(health.lastReconciledAt, t) });
@@ -61,6 +68,7 @@ export function chipCopy(health: StorageHealth, t: ReturnType<typeof useI18n>['t
             files: health.files
           });
     case 'preparing':
+      if (renderPaused) return t('teamStorageChipRenderPaused');
       return t('teamStorageChipPreparing', {
         ready: health.ready,
         total: health.ready + health.pending
@@ -81,7 +89,9 @@ export function StorageChip({
   isOwner,
   canManage,
   settingsHref,
-  onRefresh
+  onRefresh,
+  open: openProp,
+  onOpenChange
 }: {
   teamId: string;
   health: StorageHealth | null;
@@ -91,26 +101,51 @@ export function StorageChip({
   /** Where the full storage panel lives (the settings dialog's address). */
   settingsHref: string;
   onRefresh?: () => Promise<void> | void;
+  /**
+   * The detail, held by the caller when it is in the address (024, FR-050):
+   * "the Drive needs reconnecting — look" is a link worth sending, and a reload
+   * in the middle of reading it should not close it. Uncontrolled without.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const render = useOptionalBackgroundRender();
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = openProp ?? localOpen;
+  const setOpen = (next: boolean) => (onOpenChange ? onOpenChange(next) : setLocalOpen(next));
   const [busy, setBusy] = useState(false);
+  /* A full re-read of the Drive, asked for twice on a healthy space (024): the button says
+     "Check now", works on one press, and walks ten thousand files — the owner pressed it by
+     accident and then watched a spinner he could not stop. */
+  const [confirmingResync, setConfirmingResync] = useState(false);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
   const titleId = useId();
+  /*
+   * How long the indexing has been going (024).
+   *
+   * The chip counted files and folders and nothing else, so a walk through a large Drive read as
+   * a spinner with no end — the owner asked, fairly, whether it would spin forever. The count of
+   * minutes is the one thing that says it is a job with a length.
+   */
+  const indexingSince = useRef<number | null>(null);
+  if (health?.kind === 'indexing') indexingSince.current ??= Date.now();
+  else indexingSince.current = null;
+  const indexingMinutes =
+    indexingSince.current === null ? 0 : Math.floor((Date.now() - indexingSince.current) / 60_000);
   if (!health) return null;
 
   /* The chip's colour is the state's role, so storage needing attention is the
      same amber as anything else that needs attention (021, T084). */
-  const tone =
+  const tone: ChipTone =
     health.kind === 'attention'
-      ? 'ui-chip-warn ui-color-warning'
+      ? 'warn'
       : health.kind === 'indexing' ||
           health.kind === 'preparing' ||
           health.kind === 'waiting_provider'
-        ? 'ui-chip-busy ui-color-info'
-        : 'ui-color-success';
+        ? 'busy'
+        : 'ok';
   const busyState =
     health.kind === 'indexing' || health.kind === 'preparing' || health.kind === 'waiting_provider';
 
@@ -165,16 +200,22 @@ export function StorageChip({
 
   return (
     <>
-      <button
-        type="button"
-        className={`ui-chip team-storage-chip ${tone}`}
-        aria-live="polite"
-        aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
-      >
-        {busyState && <span className="ui-chip-spinner" aria-hidden="true" />}
-        {chipCopy(health, t)}
-      </button>
+      {/* Healthy storage is the default and says nothing (024, FR-094): "storage
+          up to date · 64 hours ago" was the header's permanent first word. The
+          chip speaks when there is something to know; the detail stays one
+          address away (`storage=1`) and in the settings. */}
+      {health.kind !== 'connected' && (
+        <WorkspaceChip
+          tone={tone}
+          busy={busyState}
+          className="team-storage-chip"
+          label={chipCopy(health, t, render?.paused)}
+          opensDialog
+          onPress={() => setOpen(true)}
+        >
+          {chipCopy(health, t, render?.paused)}
+        </WorkspaceChip>
+      )}
       {open && (
         <Modal
           labelledBy={titleId}
@@ -183,15 +224,37 @@ export function StorageChip({
           closeLabel={t('teamClose')}
         >
           <h3 id={titleId}>{t('teamStorageDetailTitle')}</h3>
-          <p className="team-storage-detail-state">{chipCopy(health, t)}</p>
+          <p className="team-storage-detail-state">{chipCopy(health, t, render?.paused)}</p>
           {health.kind === 'attention' && <p>{t(ATTENTION_BODY[health.reason])}</p>}
           {health.kind === 'waiting_provider' && <p>{t('teamStorageBodyWaiting')}</p>}
-          {health.kind === 'indexing' && <p>{t('teamStorageBodyIndexing')}</p>}
-          {health.kind === 'preparing' && <p>{t('teamStorageBodyPreparing')}</p>}
+          {health.kind === 'indexing' && (
+            <>
+              <p>{t('teamStorageBodyIndexing')}</p>
+              {/* Where it runs and how long it has run: the panel's own buttons cannot stop it,
+                  and a reader owed that before they start looking for a way to. */}
+              <p className="team-storage-detail-note">
+                {indexingMinutes > 0
+                  ? t('teamStorageIndexingElapsed', { count: indexingMinutes })
+                  : t('teamStorageIndexingServerSide')}
+              </p>
+              {/* The question the spinner raises (024): a first read cannot be stopped halfway —
+                  the folders it never reached would sit in the space looking empty. The way out
+                  exists and is named rather than hidden. */}
+              <p className="team-storage-detail-note">{t('teamStorageIndexingCannotStop')}</p>
+            </>
+          )}
+          {health.kind === 'preparing' && (
+            <p>{t(render?.paused ? 'teamStorageBodyRenderPaused' : 'teamStorageBodyPreparing')}</p>
+          )}
           {/* Not a failure — a boundary. Whoever is reading this cannot fix
               the storage, and saying so in red reads as something they did
               wrong (FR-004). */}
           {fixerCopy && <PermissionState message={fixerCopy} />}
+          {confirmingResync && (
+            <p className="team-storage-detail-note" role="status">
+              {t('teamStorageResyncConfirm')}
+            </p>
+          )}
           <div className="team-dialog-actions">
             {health.kind === 'attention' &&
               health.reason === 'needs_reauth' &&
@@ -240,11 +303,17 @@ export function StorageChip({
                   color="neutral"
                   variant="outline"
                   loading={busy}
-                  onClick={() =>
-                    void run(() => client.resyncDrive!(teamId), 'teamToastResyncQueued')
-                  }
+                  onClick={() => {
+                    // After a failed sync the re-read is the fix, so it stays one press.
+                    if (health.kind !== 'attention' && !confirmingResync) {
+                      setConfirmingResync(true);
+                      return;
+                    }
+                    setConfirmingResync(false);
+                    void run(() => client.resyncDrive!(teamId), 'teamToastResyncQueued');
+                  }}
                 >
-                  {t('teamStorageCheckNow')}
+                  {t(confirmingResync ? 'teamStorageResyncYes' : 'teamStorageCheckNow')}
                 </Button>
               )}
             {/* Quiet: this one changes how this computer behaves, and it was

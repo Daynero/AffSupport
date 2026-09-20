@@ -61,6 +61,8 @@ export function SpaceNameStep({
           id="create-space-name"
           autoFocus
           value={name}
+          // The suggestion is selected, so typing replaces it and Enter keeps it.
+          onFocus={event => event.currentTarget.select()}
           maxLength={120}
           invalid={Boolean(error)}
           onChange={event => setName(event.target.value)}

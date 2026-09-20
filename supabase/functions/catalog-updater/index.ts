@@ -72,6 +72,46 @@ Deno.serve(async request => {
     const summary = await runCatalogUpdaterTick(
       {
         workerId,
+        drawImages: async (teamId, count) => {
+          const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
+            p_team: teamId,
+            p_count: count
+          });
+          return (Array.isArray(rows) ? rows : []).flatMap(row =>
+            row &&
+            typeof row === 'object' &&
+            typeof (row as Record<string, unknown>).drive_file_id === 'string'
+              ? [
+                  {
+                    driveFileId: (row as Record<string, unknown>).drive_file_id as string,
+                    resourceKey:
+                      typeof (row as Record<string, unknown>).resource_key === 'string'
+                        ? ((row as Record<string, unknown>).resource_key as string)
+                        : null,
+                    // What the picture shows, as the owner named the file (024, US27).
+                    name:
+                      typeof (row as Record<string, unknown>).name === 'string'
+                        ? ((row as Record<string, unknown>).name as string)
+                        : null
+                  }
+                ]
+              : []
+          );
+        },
+        drawTexts: async (teamId, count) => {
+          const rows = await rpcValue(service, 'service_draw_product_catalog_texts', {
+            p_team: teamId,
+            p_count: count
+          });
+          return (Array.isArray(rows) ? rows : []).flatMap(row => {
+            const record = row && typeof row === 'object' ? (row as Record<string, unknown>) : null;
+            return record &&
+              typeof record.title === 'string' &&
+              typeof record.description === 'string'
+              ? [{ title: record.title, description: record.description }]
+              : [];
+          });
+        },
         openRounds: async () =>
           Number(await rpcValue(service, 'service_open_catalog_updater_rounds', {})) || 0,
         claim: async (limit, leaseSeconds) => {
@@ -102,12 +142,35 @@ Deno.serve(async request => {
           }
           return drive;
         },
-        complete: async (catalogId, updateCount, swappedCopy) =>
+        progress: async (catalogId, stage) =>
+          (await rpcValue(service, 'service_set_catalog_update_progress', {
+            p_item: catalogId,
+            p_worker: workerId,
+            p_stage: stage
+          })) === true,
+        complete: async (catalogId, updateCount, swappedCopy, became) =>
           (await rpcValue(service, 'service_complete_catalog_update', {
             p_item: catalogId,
             p_worker: workerId,
             p_update_count: updateCount,
-            p_swapped_copy: swappedCopy
+            p_swapped_copy: swappedCopy,
+            ...(became
+              ? { p_product_count: became.productCount, p_settings_snapshot: became.snapshot }
+              : {})
+          })) === true,
+        claimOrphans: async (limit, leaseSeconds) => {
+          const rows = await rpcValue(service, 'service_claim_orphan_cleanups', {
+            p_worker: workerId,
+            p_limit: limit,
+            p_lease_seconds: leaseSeconds
+          });
+          return Array.isArray(rows) ? rows : [];
+        },
+        clearOrphan: async (materialId, trashed) =>
+          (await rpcValue(service, 'service_complete_orphan_cleanup', {
+            p_material: materialId,
+            p_worker: workerId,
+            p_trashed: trashed
           })) === true,
         retry: async (catalogId, errorCode, nextAttemptAt) =>
           (await rpcValue(service, 'service_retry_catalog_update', {

@@ -85,6 +85,18 @@ function client(): TeamCatalogClient {
   };
 }
 
+/**
+ * Pick a value from the inventory's Select.
+ *
+ * It is a listbox with a button for a trigger now, not a native `<select>`, so
+ * `selectOptions` has nothing to operate on. Driving it the way a person does —
+ * open, then choose — is also what checks that it can be driven at all.
+ */
+async function choose(user: ReturnType<typeof userEvent.setup>, name: string, option: string) {
+  await user.click(screen.getByRole('button', { name: new RegExp(name, 'i') }));
+  await user.click(await screen.findByRole('option', { name: option }));
+}
+
 describe('team catalog search UI', () => {
   it('combines search/facets, shows active chips and counts, and clears filters', async () => {
     const api = client();
@@ -100,8 +112,10 @@ describe('team catalog search UI', () => {
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
     expect(screen.getByText('1 file')).toBeTruthy();
     await user.type(screen.getByLabelText('Search files'), 'launch');
-    await user.selectOptions(screen.getByLabelText('GEO'), 'UA');
-    await user.selectOptions(screen.getByLabelText('Category'), 'video');
+    await choose(user, 'GEO', 'Ukraine');
+    // The option is named the way a reader sees it, not the way the filter
+    // spells it — which is the point of a listbox that can hold more than text.
+    await choose(user, 'Category', 'Video');
     await waitFor(() =>
       expect(api.searchCatalog).toHaveBeenLastCalledWith(
         TEAM_ID,
@@ -111,10 +125,13 @@ describe('team catalog search UI', () => {
         })
       )
     );
-    expect(screen.getByRole('button', { name: 'Remove GEO: UA filter' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove GEO: Ukraine filter' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
-    expect(screen.queryByRole('button', { name: 'Remove GEO: UA filter' })).toBeNull();
-  });
+    expect(screen.queryByRole('button', { name: 'Remove GEO: Ukraine filter' })).toBeNull();
+    // Two listboxes opened and chosen from, plus typing: the interaction is
+    // real now rather than a `selectOptions` shortcut, and on a busy machine it
+    // outruns the default ceiling.
+  }, 20_000);
 
   it('supports unfilled metadata and metadata-only editing even when edit=false', async () => {
     const api = client();
@@ -127,9 +144,11 @@ describe('team catalog search UI', () => {
       </TeamProvider>
     );
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText('Missing metadata'), 'geo');
-    await user.click(screen.getByRole('button', { name: 'Edit metadata for launch.mp4' }));
-    await user.selectOptions(screen.getByLabelText('File GEO'), 'UA');
+    await choose(user, 'Missing metadata', 'GEO');
+    // Behind the one overflow now, with everything else this file can take.
+    await user.click(screen.getByRole('button', { name: /^Actions for launch\.mp4/ }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit the details' }));
+    await choose(user, 'File GEO', 'Ukraine · UA');
     await user.click(screen.getByRole('button', { name: 'Save metadata' }));
     await waitFor(() =>
       expect(api.updateMaterialMetadata).toHaveBeenCalledWith(
@@ -151,8 +170,26 @@ describe('team catalog search UI', () => {
       </TeamProvider>
     );
     expect(await screen.findByText('launch.mp4')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Show launch.mp4 in its folder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
     expect(onReveal).toHaveBeenCalledWith(expect.objectContaining({ id: 'visible-material' }));
+  });
+
+  it('opens with the query the address carries, not an empty search', async () => {
+    const api = client();
+    render(
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <ToastProvider>
+          <TeamCatalog teamId={TEAM_ID} client={api} initialQuery="hook" />
+        </ToastProvider>
+      </TeamProvider>
+    );
+    expect(((await screen.findByRole('searchbox')) as HTMLInputElement).value).toBe('hook');
+    await waitFor(() =>
+      expect(api.searchCatalog).toHaveBeenLastCalledWith(
+        TEAM_ID,
+        expect.objectContaining({ query: 'hook' })
+      )
+    );
   });
 
   it('uses readable material labels instead of raw Drive MIME values', async () => {

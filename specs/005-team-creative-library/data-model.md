@@ -13,7 +13,7 @@ granted caller-checked functions.
 - `LibraryStage`: `finds | library`
 - `PlacementSegment`: `stage | offer | language | type`
 - `MaterialCategory` (canonical `structural_type` source): `video | image | archive | transcript |
-  landing | other`; a file that fits no specific category resolves to the catch-all `other`. The
+landing | other`; a file that fits no specific category resolves to the catch-all `other`. The
   `Type` folder segment is `initcap(MaterialCategory)` (e.g. `Video`); `Unknown` is the FR-022
   placement used only when no category exists yet (null category).
 - `PlacementState`: `unplaced | planning | moving | ready | reconciling | failed`
@@ -37,19 +37,19 @@ skipped`
 
 `team_materials` gains:
 
-| Field                        | Type             | Rules                                             |
-| ---------------------------- | ---------------- | ------------------------------------------------- |
-| `library_stage`              | text nullable    | `finds                                            | library`; null for pre-library/folders |
-| `structural_offer`           | text nullable    | normalized team value or `unknown`                |
-| `structural_language`        | text nullable    | controlled language or `unknown`                  |
+| Field                        | Type             | Rules                                                                                   |
+| ---------------------------- | ---------------- | --------------------------------------------------------------------------------------- |
+| `library_stage`              | text nullable    | `finds                                                                                  | library`; null for pre-library/folders |
+| `structural_offer`           | text nullable    | normalized team value or `unknown`                                                      |
+| `structural_language`        | text nullable    | controlled language or `unknown`                                                        |
 | `structural_type`            | text nullable    | `initcap(MaterialCategory)` (Video/Image/Archive/Transcript/Landing/Other) or `Unknown` |
-| `placement_state`            | text             | closed state, default `unplaced`                  |
-| `placement_revision`         | bigint           | increments on every manual structural decision    |
-| `language_decision_source`   | text nullable    | `manual                                           | automatic                              | unknown` |
-| `language_decision_revision` | bigint           | fences late automatic commits                     |
-| `thumbnail_state`            | text             | closed enrichment state                           |
-| `thumbnail_source_version`   | text nullable    | current only while source matches                 |
-| `thumbnail_time_ms`          | integer nullable | `1000` for normal video, final instant if shorter |
+| `placement_state`            | text             | closed state, default `unplaced`                                                        |
+| `placement_revision`         | bigint           | increments on every manual structural decision                                          |
+| `language_decision_source`   | text nullable    | `manual                                                                                 | automatic                              | unknown` |
+| `language_decision_revision` | bigint           | fences late automatic commits                                                           |
+| `thumbnail_state`            | text             | closed enrichment state                                                                 |
+| `thumbnail_source_version`   | text nullable    | current only while source matches                                                       |
+| `thumbnail_time_ms`          | integer nullable | `1000` for normal video, final instant if shorter                                       |
 
 Structural metadata does not replace existing GEO/language/offer/tags. Existing controlled
 metadata remains searchable; placement records the physical Library path decision.

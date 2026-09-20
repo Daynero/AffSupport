@@ -4,6 +4,7 @@ import { Button, Checkbox, FormField, Input, RadioGroup } from '../../components
 import type { RadioOption } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
+import type { AgentQueueItem } from './useAgentQueue';
 
 /**
  * The team compressor (013 B2): a compact window over the agent's own
@@ -28,6 +29,37 @@ export interface CompressPlan {
     | { kind: 'folder'; folderId: string | null; folderName: string }
     | { kind: 'local' }
     | { kind: 'overwrite' };
+}
+
+/**
+ * The queue jobs a plan asks for (024): one per file, named as the plan says.
+ *
+ * Out of `ExplorerShell` so a task attachment can compress too — the same
+ * dialog, the same names, the same queue — and carry the task its result
+ * belongs on.
+ */
+export function compressJobs(plan: CompressPlan, attachTo?: { taskId: string }): AgentQueueItem[] {
+  const suffix = plan.suffix;
+  return plan.items.map(item => {
+    const stem = item.name.replace(/\.[^.]+$/u, '');
+    const overwrite = plan.destination.kind === 'overwrite';
+    const outputName = overwrite
+      ? suffix
+        ? `${stem}${suffix}.mp4`
+        : item.name
+      : `${stem}${suffix || '_1'}.mp4`;
+    return {
+      id: item.id,
+      name: item.name,
+      folderId: plan.destination.kind === 'folder' ? plan.destination.folderId : item.folderId,
+      tool: 'compressor' as const,
+      outputName,
+      ...(overwrite ? { versionOf: item.id } : {}),
+      ...(plan.destination.kind === 'local' ? { local: { embed: plan.embed, suffix } } : {}),
+      options: plan.embed ? { imageEmbedding: { enabled: true } } : {},
+      ...(attachTo ? { attachTo } : {})
+    };
+  });
 }
 
 export function TeamCompressorDialog({
@@ -96,11 +128,7 @@ export function TeamCompressorDialog({
       <h3 id={titleId}>{t('teamCompressTitle', { count: items.length })}</h3>
       <p className="team-explorer-muted">{t('teamCompressQualityNote')}</p>
 
-      <Checkbox
-        label={t('teamCompressEmbed')}
-        checked={embed}
-        onChange={event => setEmbed(event.target.checked)}
-      />
+      <Checkbox label={t('teamCompressEmbed')} checked={embed} onChange={setEmbed} />
 
       <FormField label={t('outputSuffixLabel')} htmlFor={suffixId} className="team-compress-suffix">
         <Input

@@ -1,0 +1,58 @@
+/*
+ * The Soty skin (024).
+ *
+ * What this product says on top of the library, and the last word in the
+ * cascade — this file is imported into the `soty` layer, which sits above
+ * HeroUI's components and Tailwind's utilities.
+ *
+ * Two rules for what belongs here:
+ *
+ * 1. Only what the theme bridge cannot express. A colour, a radius or a
+ *    duration is a variable in `tokens.css`, not a rule here. This file is for
+ *    shape and arrangement the library has no variable for — and for the few
+ *    places Soty deliberately disagrees with HeroUI's defaults.
+ * 2. Every value is a token. `scripts/check-design-tokens.mjs` walks this file
+ *    like every other, and its exemption list is empty.
+ *
+ * It starts nearly empty on purpose. A skin that begins large is a sign the
+ * bridge was not used.
+ */
+
+@layer soty {
+  /*
+   * One focus ring for the whole product.
+   *
+   * The library draws its own, this product has always drawn one, and two
+   * rings on one control is the kind of detail that reads as sloppiness
+   * before anyone can say why. Bound to the token so the violet stays the
+   * violet.
+   */
+  :where(:focus-visible) {
+    outline-color: var(--color-focus-ring);
+  }
+}
+
+/*
+ * Reduced motion, this product's way.
+ *
+ * The library already drops its transitions when asked. What it keeps are the
+ * ambient loops — the skeleton's shimmer, an indeterminate bar sliding forever
+ * — and this product's rule is that those stop. The one exception is the
+ * spinner: a spinner that has stopped is indistinguishable from a hang, so it
+ * slows rather than freezes, on the token that already says so.
+ */
+@media (prefers-reduced-motion: reduce) {
+  @layer soty {
+    :root {
+      --skeleton-animation: none;
+    }
+
+    :where(.progress-bar__indicator, .progress-bar-indeterminate) {
+      animation: none;
+    }
+
+    :where(.spinner, .progress-circle) {
+      animation-duration: var(--motion-spin);
+    }
+  }
+}

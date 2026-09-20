@@ -242,7 +242,7 @@ describe('the old sections, as aliases (011)', () => {
     });
   });
 
-  it('opens the catalog updater over the explorer only (023)', () => {
+  it('opens the catalog updater over whatever section is open (023, revised by 024)', () => {
     const route = buildTeamRoute({
       spaceId: 'space-1',
       section: 'explorer',
@@ -251,9 +251,15 @@ describe('the old sections, as aliases (011)', () => {
     expect(route).toContain('updater=1');
     expect(parseTeamRoute(route)).toMatchObject({ query: { folderId: 'f-1', updater: true } });
     expect(parseTeamRoute('/team/space-1')).toMatchObject({ query: { updater: false } });
-    expect(
-      buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { updater: true } })
-    ).not.toContain('updater');
+    /*
+     * 023 wrote it onto an explorer address only, which meant opening it from
+     * Tasks threw you into Files and closing it left you there. The updater is
+     * the space's, not the explorer's — it is about every catalog in the space
+     * — so it rides on top of the section you were reading (024, FR-045).
+     */
+    expect(buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { updater: true } })).toBe(
+      '/team/space-1/tasks?updater=1'
+    );
   });
 
   it('round-trips the explorer view state through the address', () => {
@@ -283,6 +289,126 @@ describe('the old sections, as aliases (011)', () => {
     });
     expect(parseTeamRoute('/team/space-1?k=image,nonsense')).toMatchObject({
       query: { kinds: ['image'] }
+    });
+  });
+});
+
+/**
+ * T115 — the space's own surfaces ride on top of the section (024, FR-045).
+ *
+ * Settings, the updater, the trash and the palette were written into the
+ * address only for the explorer, so opening any of them from Tasks or Accounts
+ * threw you into Files — and closing one left you there, looking at a folder
+ * you had not asked for. They belong to the space; the section underneath them
+ * is whatever you were reading.
+ */
+describe('surfaces that are the space’s, not a section’s', () => {
+  const SPACE = '27000000-0000-4000-8000-000000000001';
+
+  for (const section of ['explorer', 'tasks', 'accounts', 'members'] as const) {
+    it(`keeps ${section} underneath, and comes back to it`, () => {
+      for (const surface of [
+        'settings',
+        'updater',
+        'trash',
+        'palette',
+        'process',
+        'storage'
+      ] as const) {
+        const opened = buildTeamRoute({ spaceId: SPACE, section, query: { [surface]: true } });
+        const parsed = parseTeamRoute(opened);
+        expect(parsed?.kind, `${section}/${surface}`).toBe('space');
+        if (parsed?.kind !== 'space') continue;
+        // The surface is in the address…
+        expect(parsed.query[surface], `${section}/${surface}`).toBe(true);
+        // …and so is the section it was opened from, which is the half that
+        // used to be lost.
+        expect(parsed.section, `${section}/${surface}`).toBe(section);
+
+        // Closing it returns to exactly that section, with nothing else moved.
+        const closed = buildTeamRoute({
+          spaceId: SPACE,
+          section: parsed.section,
+          query: { ...parsed.query, [surface]: false }
+        });
+        const back = parseTeamRoute(closed);
+        expect(back?.kind === 'space' && back.section, `${section}/${surface}`).toBe(section);
+        expect(back?.kind === 'space' && back.query[surface], `${section}/${surface}`).toBe(false);
+      }
+    });
+  }
+});
+
+/**
+ * T108 — Members exist once (024, FR-047). The settings dialog's "People" tab
+ * was a second copy of the section; its links are out there, and they land on
+ * the survivor rather than on the settings' first tab.
+ */
+describe('members, once', () => {
+  it('turns an old settings link to members into the Members section', () => {
+    expect(parseTeamRoute('/team/space-1/tasks?settings=1&tab=members')).toMatchObject({
+      kind: 'space',
+      section: 'members',
+      query: { settings: false, settingsTab: null }
+    });
+  });
+
+  it('no longer names members as a settings tab', () => {
+    expect(
+      buildTeamRoute({
+        spaceId: 'space-1',
+        section: 'tasks',
+        query: { settings: true, settingsTab: 'tags' }
+      })
+    ).toBe('/team/space-1/tasks?settings=1&tab=tags');
+    // The history left the settings (024); an old link to its tab opens the history panel.
+    expect(parseTeamRoute('/team/space-1?settings=1&tab=history')).toMatchObject({
+      query: { settings: false, history: true }
+    });
+  });
+});
+
+/**
+ * T109 — making a space is reachable from inside one (024, FR-048). The wizard
+ * has an address, so the space switcher can link to it rather than to the
+ * lobby that holds its button.
+ */
+describe('a new space, asked for by address', () => {
+  it('round-trips the wizard address', () => {
+    expect(teamResolverRoute({ create: true })).toBe('/team?new=1');
+    expect(parseTeamRoute('/team?new=1')).toEqual({
+      kind: 'resolver',
+      driveReturn: null,
+      showAll: false,
+      create: true
+    });
+  });
+});
+
+/**
+ * T111 — the dialogs worth restoring have addresses (024, FR-050).
+ */
+describe('dialogs worth coming back to', () => {
+  it('reopens a file being looked at, and only beside the file it names', () => {
+    const route = buildTeamRoute({
+      spaceId: 'space-1',
+      section: 'explorer',
+      query: { folderId: 'f-1', itemId: 'm-1', open: true }
+    });
+    expect(route).toBe('/team/space-1?folder=f-1&item=m-1&open=1');
+    expect(parseTeamRoute(route)).toMatchObject({ query: { itemId: 'm-1', open: true } });
+    // `open` with nothing to open is not a state the address can be in.
+    expect(buildTeamRoute({ spaceId: 'space-1', query: { open: true } })).toBe('/team/space-1');
+    expect(parseTeamRoute('/team/space-1?open=1')).toMatchObject({ query: { open: false } });
+  });
+
+  it('keeps the whole-space batch and the storage detail over any section', () => {
+    expect(buildTeamRoute({ spaceId: 'space-1', section: 'tasks', query: { process: true } })).toBe(
+      '/team/space-1/tasks?process=1'
+    );
+    expect(parseTeamRoute('/team/space-1/accounts?storage=1')).toMatchObject({
+      section: 'accounts',
+      query: { storage: true, process: false }
     });
   });
 });

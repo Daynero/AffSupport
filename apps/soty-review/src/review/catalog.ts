@@ -125,7 +125,7 @@ export const reviewCatalog: ReviewCatalog = {
       'FR-031'
     ]),
     surface('transcription', 'tool', 'Транскрипція', '/transcription', ['FR-024', 'FR-030']),
-    surface('team-lobby', 'team', 'Командні простори', '/team', ['FR-021', 'FR-029']),
+    surface('team-lobby', 'team', 'Простори', '/team', ['FR-021', 'FR-029']),
     surface('team-create-space', 'team', 'Новий простір', '/team#create', ['FR-026', 'FR-030']),
     surface('team-workspace', 'team', 'Робочий простір', '/team#workspace', ['FR-022', 'FR-027']),
     surface('team-settings', 'team', 'Налаштування простору', '/team#settings', [

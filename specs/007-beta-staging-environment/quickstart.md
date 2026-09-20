@@ -9,15 +9,15 @@ spec. Implementation details live in `tasks.md`; this document is the validation
 
 ## Prerequisites
 
-| Requirement | Why | Checked by |
-|---|---|---|
-| Node 22 and repository dependencies installed | Builds and scripts | `beta:doctor` |
-| Container runtime running (Docker Desktop or equivalent) | `supabase start` | `beta:doctor` → `BETA_PREREQUISITE_MISSING` |
-| Supabase CLI available (`npx supabase`) | Local stack | `beta:doctor` |
-| FFmpeg / FFprobe resolvable | Media tooling | `beta:doctor` |
-| `.env.beta` created from `.env.beta.example` | Beta profile | `beta:doctor` → `BETA_ENV_MISSING` |
-| Beta entitlement keypair generated | Real entitlement gating | `beta:doctor` |
-| Ports 43140, 5175, 54321–54324 free | Coexistence with production and dev | `beta:doctor` → `BETA_PORT_IN_USE` |
+| Requirement                                              | Why                                 | Checked by                                  |
+| -------------------------------------------------------- | ----------------------------------- | ------------------------------------------- |
+| Node 22 and repository dependencies installed            | Builds and scripts                  | `beta:doctor`                               |
+| Container runtime running (Docker Desktop or equivalent) | `supabase start`                    | `beta:doctor` → `BETA_PREREQUISITE_MISSING` |
+| Supabase CLI available (`npx supabase`)                  | Local stack                         | `beta:doctor`                               |
+| FFmpeg / FFprobe resolvable                              | Media tooling                       | `beta:doctor`                               |
+| `.env.beta` created from `.env.beta.example`             | Beta profile                        | `beta:doctor` → `BETA_ENV_MISSING`          |
+| Beta entitlement keypair generated                       | Real entitlement gating             | `beta:doctor`                               |
+| Ports 43140, 5175, 54321–54324 free                      | Coexistence with production and dev | `beta:doctor` → `BETA_PORT_IN_USE`          |
 
 One-time setup:
 

@@ -22,7 +22,7 @@ Eight findings were discovered during this phase and appended to the audit as **
 
 **Blast radius.** New shared module + committed `dist` rebuild; ~56 status-assignment sites across five agent files (16/17/10/8/5); ~30 hand-written status-array literals across agent and web collapse to `isTerminal`. `JobStatus` is named in only 7 files repo-wide.
 
-**Risk.** Low-medium. The hazard is a *wrong* table being enforced. Mitigated by a **permissive → strict rollout**: `transition()` first only records the edge and never blocks, so a full suite run surfaces every edge the running code actually takes — those are table bugs, not code bugs. Only then flip to strict, where an illegal edge leaves state unchanged and returns `false`, mapped to `409 TRANSITION_NOT_ALLOWED` per the existing convention.
+**Risk.** Low-medium. The hazard is a _wrong_ table being enforced. Mitigated by a **permissive → strict rollout**: `transition()` first only records the edge and never blocks, so a full suite run surfaces every edge the running code actually takes — those are table bugs, not code bugs. Only then flip to strict, where an illegal edge leaves state unchanged and returns `false`, mapped to `409 TRANSITION_NOT_ALLOWED` per the existing convention.
 
 ### R2. Collapse the compressor's five fields into one value
 
@@ -31,19 +31,25 @@ Eight findings were discovered during this phase and appended to the audit as **
 ```ts
 type CompressorActivity =
   | { kind: 'idle' }
-  | { kind: 'encoding';      jobId: string; abort: AbortController; child: ChildProcess | null }
-  | { kind: 'encoding-held'; jobId: string; abort: AbortController; child: ChildProcess; release: () => void }
+  | { kind: 'encoding'; jobId: string; abort: AbortController; child: ChildProcess | null }
+  | {
+      kind: 'encoding-held';
+      jobId: string;
+      abort: AbortController;
+      child: ChildProcess;
+      release: () => void;
+    }
   | { kind: 'estimating' };
 ```
 
-| Today (`apps/agent/src/queue/queue.ts`) | Maps to |
-|---|---|
-| `compressionInFlight` `:122` | `kind === 'encoding' \|\| 'encoding-held'` |
-| `prioritizingEstimates` `:124` | `kind === 'estimating' \|\| 'encoding-held'` |
-| `compressionPausedForEstimates` `:123` | `kind === 'encoding-held'` |
-| `activeAbort` `:121` | `activity.abort` (encoding variants only) |
-| `active` `:117` | `activity.child` (encoding variants only) |
-| `estimateHoldRelease` `:142` | `activity.release` — **only** in `encoding-held` |
+| Today (`apps/agent/src/queue/queue.ts`) | Maps to                                          |
+| --------------------------------------- | ------------------------------------------------ |
+| `compressionInFlight` `:122`            | `kind === 'encoding' \|\| 'encoding-held'`       |
+| `prioritizingEstimates` `:124`          | `kind === 'estimating' \|\| 'encoding-held'`     |
+| `compressionPausedForEstimates` `:123`  | `kind === 'encoding-held'`                       |
+| `activeAbort` `:121`                    | `activity.abort` (encoding variants only)        |
+| `active` `:117`                         | `activity.child` (encoding variants only)        |
+| `estimateHoldRelease` `:142`            | `activity.release` — **only** in `encoding-held` |
 
 `running()` (`:250`) becomes `kind !== 'idle' || queuedInBatch()`; `compressionActive()` (`:262`) becomes `kind === 'encoding'`. Nothing crosses the wire — `QueueState.running` keeps its shape.
 
@@ -51,7 +57,7 @@ type CompressorActivity =
 
 **Risk.** Medium — the highest in the lifecycle set. These five fields are load-bearing for the estimate-priority handoff, the subtlest concurrency in the agent, and the tests around them spawn real encoders.
 
-**Migration order — shadow, then invert.** (1) Land R3's table first; there must be a transition net under this before touching internals. (2) Write characterisation tests against the *current* five-field code, using the A11 gap list as the specification. (3) Keep all five fields; add a derived `get activity()`; rewrite `running()`, `compressionActive()` and the four guards to read it; assert in tests that shadow and fields agree at every notify. Ship — behaviour-identical and provable. (4) Invert: `activity` stored, the five fields become getters; delete write sites in order `compressionInFlight → activeAbort → active → (prioritizingEstimates + compressionPausedForEstimates together — they are the pair with the real race, and splitting them is what created A5)`. (5) Delete the getters; **A5 closed**. (6) `shutdown()` unlinks via `activity.jobId`; **A2(i) closed**. (7) Fix `store.ts:83`'s `finishedAt`; **A8 closed** and the watchdog goes live.
+**Migration order — shadow, then invert.** (1) Land R3's table first; there must be a transition net under this before touching internals. (2) Write characterisation tests against the _current_ five-field code, using the A11 gap list as the specification. (3) Keep all five fields; add a derived `get activity()`; rewrite `running()`, `compressionActive()` and the four guards to read it; assert in tests that shadow and fields agree at every notify. Ship — behaviour-identical and provable. (4) Invert: `activity` stored, the five fields become getters; delete write sites in order `compressionInFlight → activeAbort → active → (prioritizingEstimates + compressionPausedForEstimates together — they are the pair with the real race, and splitting them is what created A5)`. (5) Delete the getters; **A5 closed**. (6) `shutdown()` unlinks via `activity.jobId`; **A2(i) closed**. (7) Fix `store.ts:83`'s `finishedAt`; **A8 closed** and the watchdog goes live.
 
 ### R3. Self-enforcing transition tables
 
@@ -65,9 +71,9 @@ export const isTerminal    = <S extends string>(l: Lifecycle<S>, s: S) => l.tran
 export const edgesOf       = <S extends string>(l: Lifecycle<S>) => …;
 ```
 
-**Rationale.** Principle I says domain types, constants and validators live in `@video-compressor/shared` and that state must be modelled as string-literal machines so branches are exhaustive. The seven status unions already live there and cross the live-update boundary into the web, which needs the same table to gate Stop and Retry (FR-005, FR-041) — today it re-derives that from ~30 hand-written literals. One table, two consumers, zero drift. Not `release.ts`, because Principle II is explicit that it is the origin of *version and protocol identity* and that release identity and contract versions stay decoupled; lifecycles are neither.
+**Rationale.** Principle I says domain types, constants and validators live in `@video-compressor/shared` and that state must be modelled as string-literal machines so branches are exhaustive. The seven status unions already live there and cross the live-update boundary into the web, which needs the same table to gate Stop and Retry (FR-005, FR-041) — today it re-derives that from ~30 hand-written literals. One table, two consumers, zero drift. Not `release.ts`, because Principle II is explicit that it is the origin of _version and protocol identity_ and that release identity and contract versions stay decoupled; lifecycles are neither.
 
-**The compile-error half.** `Readonly<Record<JobStatus, readonly JobStatus[]>>` keyed on the union means adding a state produces a type error *at the table*, before any test runs. This is not a novel pattern here — `apps/web/src/components/ui.tsx:256` is already `Record<JobStatus, TranslationKey>` and is complete.
+**The compile-error half.** `Readonly<Record<JobStatus, readonly JobStatus[]>>` keyed on the union means adding a state produces a type error _at the table_, before any test runs. This is not a novel pattern here — `apps/web/src/components/ui.tsx:256` is already `Record<JobStatus, TranslationKey>` and is complete.
 
 **The runtime half, which is what makes SC-003 real.** A table that only tests itself proves nothing. Every declared edge needs a **named driver** that puts a real queue instance into the `from` state and performs the transition; the enumeration test asserts the driver map covers the table exactly, in both directions (a missing driver fails, and a driver for an undeclared edge fails, catching table rot). A new state therefore fails **twice**: at type-check and at test.
 
@@ -79,7 +85,7 @@ export const edgesOf       = <S extends string>(l: Lifecycle<S>) => …;
 
 **Decision.** A new `tests/support/machine-probe.ts` importing **nothing** from `apps/agent/src/platform/**` or `apps/agent/src/power/**`, enforced the way A10 is enforced — an ESLint restriction plus a source-scanning guard test — because otherwise the independence decays on the first convenient import.
 
-Be precise about what independence buys: independence of the *OS query* is neither achievable nor valuable, because the process table is the operating system's fact, not Soty's opinion. What must be independent is **the code, the parsing, the tree walk, and the pid inputs.**
+Be precise about what independence buys: independence of the _OS query_ is neither achievable nor valuable, because the process table is the operating system's fact, not Soty's opinion. What must be independent is **the code, the parsing, the tree walk, and the pid inputs.**
 
 **"No process belonging to this job is running" — three layers.**
 
@@ -89,7 +95,7 @@ Be precise about what independence buys: independence of the *OS query* is neith
 
 **"Consumption at or below 2% of total capacity."** Reimplement the differencing rather than importing it. Do **not** use `ps %cpu` — `apps/agent/src/platform/platform.ts:451-457` documents why (macOS's decaying lifetime average lags by tens of seconds), and an independent harness that re-introduces the rejected metric would produce a different number and blame the app.
 
-**CI noise — solved by scope, not tolerance.** The quantity in SC-002 and SC-004 is *Soty's* share, computed over the tree rooted at the agent the harness itself spawned. Runner noise is outside that tree and never enters the number. Record a machine-wide idle baseline as a diagnostic and **never subtract it** — subtraction is how a leaked process gets hidden by noise. For SC-004 only — the one assertion where a saturated runner can steal cycles from Soty's own children and push the measured share *below* the limit for reasons unrelated to the governor — skip with a named dependency and count it. SC-002 is never skipped: "≤2%" cannot be produced by external noise, only by a real leak.
+**CI noise — solved by scope, not tolerance.** The quantity in SC-002 and SC-004 is _Soty's_ share, computed over the tree rooted at the agent the harness itself spawned. Runner noise is outside that tree and never enters the number. Record a machine-wide idle baseline as a diagnostic and **never subtract it** — subtraction is how a leaked process gets hidden by noise. For SC-004 only — the one assertion where a saturated runner can steal cycles from Soty's own children and push the measured share _below_ the limit for reasons unrelated to the governor — skip with a named dependency and count it. SC-002 is never skipped: "≤2%" cannot be produced by external noise, only by a real leak.
 
 **Alternatives considered.** Reuse the production process-tree and sampler — rejected on the stated risk, and it is not hypothetical: **A14** shows the current best stop test asserts on Node's report of what Node did, so an escalation bug would leave it green. A compiled probe binary per platform — rejected: two more artefacts to sign and ship for a test-only dependency. Machine-wide CPU assertions — rejected: unattributable on a shared runner and produces flake that trains people to ignore red.
 
@@ -105,7 +111,7 @@ Be precise about what independence buys: independence of the *OS query* is neith
 
 **Whisper in CI — three tiers, no multi-gigabyte download, ever.** The model descriptor at `apps/agent/src/whisper/tools.ts:31-37` is large-v3 at 3.09 GB and there is no smaller model anywhere in the codebase.
 
-- **`lifecycle` profile** — the pull-request gate on both runners. Stub tools selected via the existing `*_PATH` env overrides, plus a dummy model file. Zero downloads, seconds per scenario, and it covers everything FR-020 is actually about. The stubs must be **real CPU-burning children that speak the encoder's progress dialect**, with switchable behaviour: ignore-SIGTERM (which proves the escalation, and which you *cannot* make real ffmpeg do on demand), hang, and exit-code. For FR-002 this is strictly better than the real binary, not a compromise. The pattern already exists inline at `tests/stop-leaves-nothing-running.test.ts:94-108`; promote it to a shared fixture per FR-021.
+- **`lifecycle` profile** — the pull-request gate on both runners. Stub tools selected via the existing `*_PATH` env overrides, plus a dummy model file. Zero downloads, seconds per scenario, and it covers everything FR-020 is actually about. The stubs must be **real CPU-burning children that speak the encoder's progress dialect**, with switchable behaviour: ignore-SIGTERM (which proves the escalation, and which you _cannot_ make real ffmpeg do on demand), hang, and exit-code. For FR-002 this is strictly better than the real binary, not a compromise. The pattern already exists inline at `tests/stop-leaves-nothing-running.test.ts:94-108`; promote it to a shared fixture per FR-021.
 - **`real-media` profile** — the release gate, real encoder for fidelity assertions. Reuse the static build the Windows release workflow already compiles and caches (`release-windows.yml:151-232`) rather than installing one.
 - **Do not add a small transcription model.** The runner has no transcription binary either, and output quality is not what FR-020 tests. Skip with a named reason and record the deferral against SC-007's release-runner clause as a known exception.
 
@@ -116,7 +122,7 @@ Be precise about what independence buys: independence of the *OS query* is neith
 - **A1** (`throttlingSupported` lies on Windows) — **the seam already exists and is simply not wired.** `WindowsSuspendHelper` takes an `onError` callback (`apps/agent/src/platform/windows-suspend.ts:93`) and exposes `disabled()` (`:126-128`), but `platform.ts:282` constructs it with no options, so every failure hits a no-op default — the helper knows it has given up and nothing asks. Three hops: pass `onError` and export a listener; make `processPauseSupported()` a live read of `disabled()` instead of the static constant at `:44-65`; make the governor's flag mutable and read it live through the existing change→broadcast path. `queue.pauseSupported()` then self-heals, un-wedging the estimate-prioritisation early return — the half of A1 that silently kills estimates for the session. Land **after** R2 step 3: the early return sits inside the method R2 rewrites.
 - **A2** — two distinct bugs sharing a symptom. Clean quit waits for R2 step 6. **Crash or forced quit (FR-003a) is independent and cheap**: `queue/store.ts:154-166` already maps `processing → interrupted` at load; unlink right there, where the code has already concluded the run died mid-flight. Ship that half immediately — it is the case the user actually hits.
 - **A3** (media actions) — the biggest, and confirmed worse than the finding states: the route is guarded by the native token rather than the browser session, and the web app has **zero** references to it, so a Finder conversion is entirely invisible to the interface. US1 scenario 8 is unconditional. Give it a real lifecycle and a real cancel on browser-session routes, with a scaled deadline so a wedged conversion cannot recur even with no window open. **Refuse the sixth live connection** — FR-009b and SC-020 bound how many the interface may hold, and adding one for the shortest-lived queue in the product is the wrong direction; ride the compressor's already-open stream by extending its state object, which is "extend, don't reshape". **Refuse persistence**: adding a store to satisfy FR-006 is new capability, which the Assumptions rule out. The honest change is to mark abandoned jobs cancelled on shutdown, unlink their partials, and label the list session-scoped — then nothing claims to survive a restart, so nothing lies.
-- **A5** — closed *by* R2, not separately. Fixing it in isolation means another guard on the same tangle, which is the class of defence this pass exists to remove.
+- **A5** — closed _by_ R2, not separately. Fixing it in isolation means another guard on the same tangle, which is the class of defence this pass exists to remove.
 - **A6** — fully independent, smallest fix in the set, and now anchored: `TERMINATION_PIN_CYCLES` (`power/governor.ts:83`) is decremented only from `suspendAll` (`:537-545`), so the pin ages on duty-cycler ticks rather than on a clock; when the cycler stops the pin freezes forever. Age it on wall clock and evaluate it in the retune and set-limit paths too, so the check survives a stopped cycler.
 - **A7** — fully independent and a one-line pattern already in use: `activeThreadBudget()` exists at `power/spawn.ts:220-222` and is used exactly this way at `whisper/transcriber.ts:364`. Evaluate the render concurrency per run instead of at module import, and re-evaluate on the governor's change event so FR-012a and US2 scenario 3 both hold. The cheapest requirement in the pass.
 - **A12** — transcription must map a restarted run to `interrupted`, not `failed`; folds into R1 step 7.
@@ -158,7 +164,7 @@ Be precise about what independence buys: independence of the *OS query* is neith
 
 Principle VI states the idiom literally — a context, a hook that throws outside its provider, and a test override — and says to keep new code inside these seams. A hand-rolled store breaks both the idiom and the five tests that use the override. `useSyncExternalStore` is a React primitive, not a dependency, and lives inside the provider. The existing `useAgent()` stays as a shim, so nothing regresses; hot consumers migrate to selectors and stop reacting to progress.
 
-**What `JobRow` needs to become memoizable — four conditions, all required, or the memo is a no-op.** (1) Wrap it. (2) **Stable job identity**: the agent clones every job on every broadcast, so shallow comparison always fails. Fix on the **client**, not the agent — reconcile incoming state against the previous one by id and return the *old* reference when nothing changed, and the old array when no job changed. Thirty lines, one file, zero agent changes — and it fixes E3 for free, because the memos keyed on the jobs array stop recomputing every tick and the per-render id-join key can be deleted. Agent-side clone caching was considered and rejected: invasive across thirty mutation sites for the same result. (3) **Stable callbacks**: four inline arrows, plus moving the selection arithmetic behind refs so the handler is created once. (4) The translation function is already memoized by language; no work needed, just do not wrap it in anything expensive.
+**What `JobRow` needs to become memoizable — four conditions, all required, or the memo is a no-op.** (1) Wrap it. (2) **Stable job identity**: the agent clones every job on every broadcast, so shallow comparison always fails. Fix on the **client**, not the agent — reconcile incoming state against the previous one by id and return the _old_ reference when nothing changed, and the old array when no job changed. Thirty lines, one file, zero agent changes — and it fixes E3 for free, because the memos keyed on the jobs array stop recomputing every tick and the per-render id-join key can be deleted. Agent-side clone caching was considered and rejected: invasive across thirty mutation sites for the same result. (3) **Stable callbacks**: four inline arrows, plus moving the selection arithmetic behind refs so the handler is created once. (4) The translation function is already memoized by language; no work needed, just do not wrap it in anything expensive.
 
 **Risk.** Medium-high — the largest surface in the interface set. `useSyncExternalStore` requires a cached snapshot or it loops. Sequence it **after** R8, because the reconciliation naturally lives inside the writer R8 creates.
 
@@ -184,7 +190,7 @@ For frozen-progress: pass connection state into the row so the flowing animation
 
 **Cross-tab.** The broadcast channel already exists. Two changes: **move the auto-pair budget from per-tab to per-browser storage** — this is exactly why three tabs burn three budgets and the third falls to a manual screen — and add a short claim-election before the handshake so one tab performs it and the others wait for the broadcast.
 
-**Alternatives considered.** A popup — rejected: it needs a user gesture, so automatic re-pairing, which *is* the problem, cannot use it. Reading the redirect programmatically — rejected: a cross-origin redirect is opaque. Serialising page state before navigating — rejected: it means serialising a 1,700-line editable transcript and every open dialog, which is more code than the handshake and still flashes the page.
+**Alternatives considered.** A popup — rejected: it needs a user gesture, so automatic re-pairing, which _is_ the problem, cannot use it. Reading the redirect programmatically — rejected: a cross-origin redirect is opaque. Serialising page state before navigating — rejected: it means serialising a 1,700-line editable transcript and every open dialog, which is more code than the handshake and still flashes the page.
 
 **Risk.** Medium, concentrated in the message listener: a mistake in the origin or nonce check turns the fix into a vulnerability. Four tests are mandatory — wrong origin refused, wrong nonce refused, timeout falls back, two tabs produce exactly one handshake.
 
@@ -204,13 +210,13 @@ Note two couplings outward: R7 closes the live-stream half of C4, and the live-c
 
 **Four phases: parallel within, strictly serial between.**
 
-| Phase | Gates | Fast | Release |
-|---|---|---|---|
-| 0 — seed | build shared | ✓ | ✓ |
-| A — static, read-only | format · lint · 6 typecheck projects · styles · i18n · audit — parallel | ✓ | ✓ |
-| B — suite, **exclusive** | vitest (+ coverage in release) | ✓ | ✓ |
-| C — builds & contract | build web · build agent · release/env/team contract checks — parallel | ✗ | ✓ |
-| D — out-of-process, **exclusive** | end-to-end · database · accessibility sweep · review app | ✗ | ✓ |
+| Phase                             | Gates                                                                   | Fast | Release |
+| --------------------------------- | ----------------------------------------------------------------------- | ---- | ------- |
+| 0 — seed                          | build shared                                                            | ✓    | ✓       |
+| A — static, read-only             | format · lint · 6 typecheck projects · styles · i18n · audit — parallel | ✓    | ✓       |
+| B — suite, **exclusive**          | vitest (+ coverage in release)                                          | ✓    | ✓       |
+| C — builds & contract             | build web · build agent · release/env/team contract checks — parallel   | ✗    | ✓       |
+| D — out-of-process, **exclusive** | end-to-end · database · accessibility sweep · review app                | ✗    | ✓       |
 
 **Phase B is exclusive because of A17**, not because of general caution: the suite rebuilds the shared package's committed output and rewrites a tracked migration while other phases would be reading both. It is also pointless to overlap — the suite already burns 183 s of CPU in 33 s of wall clock. The lasting fix is to give the generator an output-directory flag so the test generates into a temp directory; until then, exclusivity is enforced in the aggregator rather than by convention.
 
@@ -234,7 +240,7 @@ Note two couplings outward: R7 closes the live-stream half of C4, and the live-c
 
 **Measured, and smaller than feared**: type-checking the test tree is a **115-error job**, and with the right library types plus a one-line shim **every error is in `tests/` except six — which are real errors in three backend function files that nothing type-checks today**. About 65 of the 115 share one systematic cause, so widening a single helper signature clears half.
 
-**Decision.** Two new root configs, no project references. A check config for tests using **bundler-style resolution deliberately** — the test tree imports three incompatible worlds and no single Node-style config can span them — and this does **not** weaken the repo's mandatory explicit-extension rule, which is enforced on *source* by three existing configs that stay exactly as they are. A second config type-checks the scripts with implicit-any relaxed but null-strictness **on**.
+**Decision.** Two new root configs, no project references. A check config for tests using **bundler-style resolution deliberately** — the test tree imports three incompatible worlds and no single Node-style config can span them — and this does **not** weaken the repo's mandatory explicit-extension rule, which is enforced on _source_ by three existing configs that stay exactly as they are. A second config type-checks the scripts with implicit-any relaxed but null-strictness **on**.
 
 **Yes, the `.mjs` scripts can be type-checked, and it finds real bugs.** Under the chosen profile: 82 errors that are overwhelmingly genuine — a fetch result used without narrowing, a role value passed into a parameter that excludes it — versus 250 under full strictness where 118 are untyped-parameter noise. Nearly a third are possibly-undefined, which is the class of bug that makes a release script crash halfway.
 
@@ -252,7 +258,7 @@ Note two couplings outward: R7 closes the live-stream half of C4, and the live-c
 
 **Baseline as a committed file enforced by the aggregator, not by runner thresholds** — because the rule is not a single floor: global must not fall, **and** no file may fall by more than a small tolerance, **and** a named set has an absolute floor regardless of baseline. One place owns the verdict.
 
-**FR-018a enforced structurally, not by a hand-maintained list.** A committed critical-modules file carries absolute floors for run-state modules and is checked *before* and *independently of* the ratchet, so a falling global can never excuse an uncovered state module. **Membership is derived**: a test walks the import graph from the run-state entry points and asserts every module reached is listed. Adding a state module without listing it fails the gate — which is the same mechanism SC-003 needs, so it is built once and used twice.
+**FR-018a enforced structurally, not by a hand-maintained list.** A committed critical-modules file carries absolute floors for run-state modules and is checked _before_ and _independently of_ the ratchet, so a falling global can never excuse an uncovered state module. **Membership is derived**: a test walks the import graph from the run-state entry points and asserts every module reached is listed. Adding a state module without listing it fails the gate — which is the same mechanism SC-003 needs, so it is built once and used twice.
 
 **Expect the first measured figure to be low** — plausibly 45–60% with all files counted. That is the correct baseline, and the spec's Assumptions already say so.
 
@@ -274,13 +280,13 @@ The reason is mechanical: at all fourteen sites the availability flag is assigne
 
 **The end-to-end job runs on push to the default branch and on labelled pull requests, not on every pull request.** That is the single biggest minutes lever and the right trade: the harness needs a full build plus real binaries, and its failures are rarely local to a pull request. Steady-state cost lands around 78 billable minutes per pull request.
 
-**B11 — delete the hand-maintained fifteen-file list, do not fix it.** Run the whole suite on Windows; the tests that genuinely cannot run there become named skips under R17, so they skip *with a reason and a count* instead of being excluded by a list that rots silently. The list is a workaround for the missing skip mechanism; once R17 exists its reason for being is gone. Interim safety while R17 lands: one assertion that every path named in a workflow's test invocation exists on disk.
+**B11 — delete the hand-maintained fifteen-file list, do not fix it.** Run the whole suite on Windows; the tests that genuinely cannot run there become named skips under R17, so they skip _with a reason and a count_ instead of being excluded by a list that rots silently. The list is a workaround for the missing skip mechanism; once R17 exists its reason for being is gone. Interim safety while R17 lands: one assertion that every path named in a workflow's test invocation exists on disk.
 
 **Risk — medium-high and concentrated in one place.** Running the full suite on Windows for the first time will surface real failures, starting with B8's hardcoded absolute temp path, which cannot work there at all. Land the Windows job as non-required for one cycle, then flip it.
 
 ### R19. Consistency gates
 
-**Stylesheet checker: hand-written with a CSS parser, not a linter framework.** This is settled by one measurement: a two-line pipeline found 21 undefined custom properties, but **12 are legitimate** — set from inline styles in components. The obvious off-the-shelf rule resolves definitions only from CSS and would flag all twelve, so it would be switched off within a week. Cross-referencing the component tree *is* the job, and no existing rule does it. The other three rules each need a custom plugin anyway — at which point the checker is written, inside an API nobody controls, having added four dependencies. **The real defect set is nine undefined properties — exactly F1's list, independently confirmed.**
+**Stylesheet checker: hand-written with a CSS parser, not a linter framework.** This is settled by one measurement: a two-line pipeline found 21 undefined custom properties, but **12 are legitimate** — set from inline styles in components. The obvious off-the-shelf rule resolves definitions only from CSS and would flag all twelve, so it would be switched off within a week. Cross-referencing the component tree _is_ the job, and no existing rule does it. The other three rules each need a custom plugin anyway — at which point the checker is written, inside an API nobody controls, having added four dependencies. **The real defect set is nine undefined properties — exactly F1's list, independently confirmed.**
 
 **Accessibility runner: generalise the harness that already exists.** The review app already drives headless Chromium with an accessibility engine and fails on serious findings; extract its core, hoist the two dependencies to the root (installed, not new), and add a second driver that serves the real built app and walks the route matrix — roughly 13 routes × 2 themes × 2 languages = 52 loads, release and end-to-end only.
 
@@ -318,17 +324,17 @@ Get the connect list right: it must cover the local app on a **variable port** a
 
 **Rollout.** There is no violation collector here, so the report-only phase is replaced by something cheaper and permanently useful: a browser smoke test that walks pair → compress → open a preview → sign in and asserts **zero policy violations in the console**. That becomes the regression gate.
 
-**Risk.** Medium-high *operationally*, low technically. A policy mistake is invisible to unit tests and total in production. The smoke test is not optional.
+**Risk.** Medium-high _operationally_, low technically. A policy mistake is invisible to unit tests and total in production. The smoke test is not optional.
 
 ### R22. The path-grant ledger
 
 **Decision.** An authoritative in-memory ledger of paths the user actually chose, minted only at user-driven selection points, consulted by every route that names a location, and **rebuilt on boot from the durable tool state it authorises.**
 
-Long term the three routes stop accepting paths at all and take grant identifiers instead — the interface can only echo an identifier the local app handed it, so it cannot invent a location. Where a raw path must still be accepted, it must resolve to an existing grant or a descendant of a directory grant. **The Finder path is not an exception**: it arrives from a token-authenticated local process, so its handler *mints* a grant and then runs the same code as everyone else. One check, no bypass.
+Long term the three routes stop accepting paths at all and take grant identifiers instead — the interface can only echo an identifier the local app handed it, so it cannot invent a location. Where a raw path must still be accepted, it must resolve to an existing grant or a descendant of a directory grant. **The Finder path is not an exception**: it arrives from a token-authenticated local process, so its handler _mints_ a grant and then runs the same code as everyone else. One check, no bypass.
 
 **The write-scope trap the audit under-weights.** The compressor writes its output next to the original, so a read grant on a file naively implies write access to its whole folder. Model it instead as "may write only a name matching the derived pattern in the input's own directory" — otherwise picking one file silently grants write across a directory.
 
-**Surviving a restart without breaking FR-006 — the crux.** Deliberately **not** a separate grants file. The persisted queue *is* the record of user-chosen paths and is written only by the local app; on boot, mint a grant for every path the durable tool state references. That set is exactly what FR-006 must restore, so restoration and authorisation cannot disagree. Two files would drift, and both failure modes are bad: "queue restored but refuses to run", or a grant outliving the job that justified it.
+**Surviving a restart without breaking FR-006 — the crux.** Deliberately **not** a separate grants file. The persisted queue _is_ the record of user-chosen paths and is written only by the local app; on boot, mint a grant for every path the durable tool state references. That set is exactly what FR-006 must restore, so restoration and authorisation cannot disagree. Two files would drift, and both failure modes are bad: "queue restored but refuses to run", or a grant outliving the job that justified it.
 
 **Three things must be true for the boot re-mint to be trustworthy, and none is true today** — which is why C18 and C19 stop being cosmetic: the state file must be written with owner-only permissions like the token file already is; the support-directory and state-path environment overrides must be validated and refused in a packaged production build; and the re-mint must resolve and stat each path, not merely check access.
 
@@ -347,7 +353,7 @@ Long term the three routes stop accepting paths at all and take grant identifier
 **The token in URLs splits three ways and needs three answers.**
 
 - **Streams** — owned by R7, not decided here. The contract R7 must satisfy: carry the token as a request header, or authenticate with a single-use, short-lived, stream-scoped ticket that is not the session token; re-authenticate on reconnect rather than replaying a long-lived URL; and produce a connection URL that is safe in a log and in a referrer. R7's fetch-based reader satisfies this trivially.
-- **Subresources** (images, previews, media with range requests) — headers are impossible for an image element, and converting to blobs breaks range requests for large media. **Per-resource capability tickets**: opaque, path-bound, five-minute, derived from the session secret but *not* the session token, so a leak costs one image for five minutes rather than the machine. It reuses the ticket shape the team bridge already has.
+- **Subresources** (images, previews, media with range requests) — headers are impossible for an image element, and converting to blobs breaks range requests for large media. **Per-resource capability tickets**: opaque, path-bound, five-minute, derived from the session secret but _not_ the session token, so a leak costs one image for five minutes rather than the machine. It reuses the ticket shape the team bridge already has.
 - **Cookies are a dead end**, worth stating because it is the first thing anyone proposes: the local app is a different site from the hosted app, so a same-site cookie is never sent on these requests, and the cross-site form requires a secure context that loopback HTTP cannot reliably satisfy.
 
 **Constant-time comparison** — the helper already exists twelve lines below the offending comparison in the same file. Add a type guard while there: a repeated query parameter yields an **array**, which reaches the raw comparison today.
@@ -366,15 +372,15 @@ Long term the three routes stop accepting paths at all and take grant identifier
 
 **Aggregate budget for the per-file folder-upload loop**: per-file limits do nothing against a hundred thousand files. The upload session carries a file count, a total byte budget and a wall-clock budget, and refuses by tearing the session down rather than leaving it half-written. Give the session an identifier the client must echo, so two tabs cannot interleave into one directory — today only an incidental throw prevents that. Bound path depth and segment length: a thousand-deep path is a filesystem denial of service regardless of traversal safety.
 
-**Rate limiting — yes, but scoped, and it is not the important control.** Honest reasoning: on loopback the caller is either a page that got past host and origin checks — in which case this is the last line, and it matters for the two things worth brute-forcing — or a local process, which HTTP-layer controls cannot defend against at all. No global limit (it would throttle legitimate reconnect storms and the upload loop). The key generator returns a constant, because every request is loopback and a per-address limiter here is theatre — say so in a comment. **The actual anti-brute-force control lives in the auth hook, not the limiter**, because it must key on *failure* rather than request count. And state the arithmetic honestly: a 64-hex token at twenty guesses a minute is unbreakable by many orders of magnitude, so this exists to make the attempt visible, not the search infeasible.
+**Rate limiting — yes, but scoped, and it is not the important control.** Honest reasoning: on loopback the caller is either a page that got past host and origin checks — in which case this is the last line, and it matters for the two things worth brute-forcing — or a local process, which HTTP-layer controls cannot defend against at all. No global limit (it would throttle legitimate reconnect storms and the upload loop). The key generator returns a constant, because every request is loopback and a per-address limiter here is theatre — say so in a comment. **The actual anti-brute-force control lives in the auth hook, not the limiter**, because it must key on _failure_ rather than request count. And state the arithmetic honestly: a 64-hex token at twenty guesses a minute is unbreakable by many orders of magnitude, so this exists to make the attempt visible, not the search infeasible.
 
 **Live-connection cap: evict the oldest, not the newest** — refusing the newest makes the app look broken to the person who just opened a tab, while the oldest is overwhelmingly a dead one. Send a terminal frame first so the evicted client reconnects instead of hanging. **More valuable than the cap**: a heartbeat and a stalled-writer drop. Today a stalled reader makes the broadcast buffer unboundedly in memory for every event, inside the queue's drain loop. That is a live memory leak, not a hypothetical.
 
 ### R25. Security execution order
 
-**Wave 0 — unblock and de-risk. All pure code, all independent.** Dependency upgrades then the audit gate (everything after ships on a clean tree); constant-time comparison and host validation in one unified hook (the two live-confirmed holes); logger configuration, which must land *before* anything else starts emitting new log lines; and the multipart default inversion — two lines that remove the largest single-request amplification in the product.
+**Wave 0 — unblock and de-risk. All pure code, all independent.** Dependency upgrades then the audit gate (everything after ships on a clean tree); constant-time comparison and host validation in one unified hook (the two live-confirmed holes); logger configuration, which must land _before_ anything else starts emitting new log lines; and the multipart default inversion — two lines that remove the largest single-request amplification in the product.
 
-**Wave 1 — signing, code half.** macOS chain and Windows chain, both proven against test identities, plus manifest host pinning in the same change so the update story is coherent. **Then the credential gate** — substituting real credentials into a chain already proven end to end is the *only* part of this feature blocked on anything external.
+**Wave 1 — signing, code half.** macOS chain and Windows chain, both proven against test identities, plus manifest host pinning in the same change so the update story is coherent. **Then the credential gate** — substituting real credentials into a chain already proven end to end is the _only_ part of this feature blocked on anything external.
 
 **Wave 2 — the browser origin.** Parallelisable with Wave 1 by a second person.
 

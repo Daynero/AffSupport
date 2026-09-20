@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { TranscriptionQualityMode } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { executableName } from '../platform/platform.js';
+import { probeExecutable } from '../platform/probe.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // When packaged the compiled JS and the bundled runtime sit at the same
@@ -156,27 +156,12 @@ export async function whisperAvailable(
   command = whisperPath,
   timeoutMs = 10_000
 ): Promise<boolean> {
-  return new Promise(resolve => {
-    // whisper-cli exits non-zero with no args but prints usage; `--help` is the
-    // portable "am I runnable" probe that mirrors commandExists for ffmpeg. A
-    // binary that starts and then dies — a missing dynamic library, a crash in
-    // the Metal loader — used to count as runnable because it did close; only a
-    // clean exit does now, and a probe that never returns is given up on.
-    const child = spawn(command, ['--help'], { shell: false, stdio: 'ignore' });
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      resolve(false);
-    }, timeoutMs);
-    timer.unref();
-    child.once('error', () => {
-      clearTimeout(timer);
-      resolve(false);
-    });
-    child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      resolve(code === 0 && signal === null);
-    });
-  });
+  // whisper-cli exits non-zero with no args but prints usage; `--help` is the
+  // portable "am I runnable" probe that mirrors commandExists for ffmpeg. A
+  // binary that starts and then dies — a missing dynamic library, a crash in
+  // the Metal loader — used to count as runnable because it did close; only a
+  // clean exit does now, and a probe that never returns is given up on.
+  return (await probeExecutable(command, ['--help'], timeoutMs)).runnable;
 }
 
 /**

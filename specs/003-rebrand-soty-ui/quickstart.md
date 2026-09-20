@@ -78,4 +78,3 @@ approval covers both themes, responsive/zoom states, logo direction and all bloc
 - do not connect auth, data, agent, analytics or storage;
 - do not deploy, package, release or update product manifests;
 - do not start functional integration planning.
-

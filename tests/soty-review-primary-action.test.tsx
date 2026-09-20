@@ -11,7 +11,7 @@ describe('Soty primary actions', () => {
     const dispatch = vi.fn();
     const model = reviewCatalog.surfaces.find(item => item.id === 'home-tools')!.states[0].model;
     render(<HomeReview model={model} referencePrefix="test/home/default" dispatch={dispatch} />);
-    const card = screen.getByText('Командний простір').closest('.soty-card')!;
+    const card = screen.getByText('Простори').closest('.soty-card')!;
     fireEvent.click(card);
     fireEvent.click(screen.getAllByRole('button', { name: 'Відкрити' })[0]);
     expect(dispatch).toHaveBeenCalledTimes(2);

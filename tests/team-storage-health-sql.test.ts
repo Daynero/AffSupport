@@ -177,6 +177,23 @@ describe('get_team_storage_health', () => {
       [connectionId]
     );
     expect((await health(teamId)).kind).toBe('indexing');
+
+    // Found on the beta, 024: a job claimed every minute looks alive — leased, lease current,
+    // row touched seconds ago — and had been going round on one page for twelve hours. A
+    // checkpoint resets `attempts`, so ten claims without one is not indexing.
+    await harness.root(
+      `update private.catalog_sync_jobs
+          set state = 'leased', lease_owner = 'w', attempts = 117,
+              lease_expires_at = clock_timestamp() + interval '1 minute',
+              updated_at = clock_timestamp()
+        where connection_id = $1`,
+      [connectionId]
+    );
+    expect(await health(teamId)).toEqual({
+      kind: 'attention',
+      reason: 'sync_failed',
+      fixer: 'manager'
+    });
   });
 
   it('is indexing while any folder has not been listed', async () => {

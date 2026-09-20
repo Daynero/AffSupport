@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { TeamFolderNode, TeamMaterialRow } from '@video-compressor/shared';
 import { trackTeamIndexCompleted } from '../../analytics/service';
+import { compareNames } from './sort';
 
 /**
  * The explorer's shared state (011): the one-call folder tree, the open
@@ -89,7 +90,9 @@ export function ExplorerProvider({
     try {
       const value = await client.listFolderTree(teamId);
       if (!activeRef.current) return;
-      setNodes(value);
+      // The server orders by byte, the list beside the tree by the reader's language: in
+      // Ukrainian "Вставки" came first in the list and last in the tree.
+      setNodes([...value].sort((a, b) => compareNames(a.name, b.name)));
       setError(false);
       // FR-035: the moment every folder is listed, once per indexing run.
       const unindexed = value.filter(node => node.indexedAt === null).length;

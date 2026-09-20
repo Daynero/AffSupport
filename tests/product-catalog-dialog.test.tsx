@@ -21,10 +21,10 @@ const { ToastProvider } = await import('../apps/web/src/components/toast');
 const { TeamApiError } = await import('../apps/web/src/api/team');
 const { CreateProductCatalogDialog } =
   await import('../apps/web/src/team/product-catalog/CreateProductCatalogDialog');
-const { VideoProductCatalogActions } =
-  await import('../apps/web/src/team/product-catalog/VideoProductCatalogActions');
+const { ProductCatalogMenuDialog } =
+  await import('../apps/web/src/team/product-catalog/ProductCatalogMenuDialog');
 type DialogClient = Parameters<typeof CreateProductCatalogDialog>[0]['client'];
-type ActionsClient = NonNullable<Parameters<typeof VideoProductCatalogActions>[0]['client']>;
+type ListClient = NonNullable<Parameters<typeof ProductCatalogMenuDialog>[0]['client']>;
 
 const TEAM_ID = '22000000-0000-4000-8000-0000000000bb';
 const VIDEO = { id: '22000000-0000-4000-8000-0000000000cc', name: 'clip.mp4' };
@@ -56,6 +56,7 @@ const catalog: ProductCatalogSummary = {
   sheetUrl: 'https://docs.google.com/spreadsheets/d/sheet/edit',
   sourceLink: 'https://offer.example.test/?sub=1',
   productCount: 100,
+  variant: 1,
   createdAt: '2026-09-15T00:00:00.000Z'
 };
 
@@ -122,6 +123,15 @@ function renderDialog(
 const confirm = () => screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement;
 
 describe('creating a catalog', () => {
+  it('shows the name the catalog will have, with a copy, before it is made (024)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderDialog(dialogClient({ nextProductCatalogVariant: vi.fn().mockResolvedValue(2) }));
+    expect(await screen.findByText('clip_v2_catalog')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy the name clip_v2_catalog' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('clip_v2_catalog'));
+  });
+
   it('opens with the count at 100 and confirm waiting for a link', async () => {
     renderDialog(dialogClient());
     expect((screen.getByLabelText('Products') as HTMLInputElement).value).toBe('100');
@@ -151,13 +161,20 @@ describe('creating a catalog', () => {
     expect(count.value).toBe('7');
   });
 
-  it('refuses a link that is not a web link', async () => {
-    renderDialog(dialogClient());
+  it('takes a link as pasted, adding https where it is missing (024)', async () => {
+    const client = dialogClient();
+    renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), 'ftp://offer.example.test');
+    await user.type(screen.getByLabelText('Link'), 'offer.example.test/?sub=1');
     await user.tab();
-    expect(screen.getByText('Paste a link that starts with http:// or https://.')).toBeTruthy();
-    expect(confirm().disabled).toBe(true);
+    expect(screen.queryByText(/Paste a link/)).toBeNull();
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    await waitFor(() =>
+      expect(client.createProductCatalog).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceLink: 'https://offer.example.test/?sub=1' })
+      )
+    );
   });
 
   it('sends one request with the values typed, and shows the sheet', async () => {
@@ -189,6 +206,34 @@ describe('creating a catalog', () => {
     expect(open.href).toBe(catalog.sheetUrl);
     await user.click(screen.getByRole('button', { name: 'Copy catalog link' }));
     expect(writeText).toHaveBeenCalledWith(catalog.sheetUrl);
+  });
+
+  it('says which step it is on while the request is out, instead of only spinning (024)', async () => {
+    let finish: (value: typeof created) => void = () => undefined;
+    const client = dialogClient({
+      createProductCatalog: vi.fn().mockReturnValue(
+        new Promise<typeof created>(resolve => {
+          finish = resolve;
+        })
+      )
+    });
+    renderDialog(client);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test/');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+
+    const status = await screen.findByRole('status');
+    expect(status.textContent).toContain('Checking the video');
+    expect(status.textContent).toContain('Step 1 of 5');
+    // The next step arrives on its own, with nothing from the server.
+    await waitFor(() => expect(status.textContent).toContain('Picking texts and pictures'), {
+      timeout: 3000
+    });
+
+    finish(created);
+    expect(await screen.findByText('The catalog is ready')).toBeTruthy();
+    expect(screen.queryByText(/Step \d of 5/u)).toBeNull();
   });
 
   it('shows the catalog that already exists as a result, not an error', async () => {
@@ -269,121 +314,147 @@ describe('re-creating a catalog', () => {
   });
 });
 
-describe('the catalog from a row menu', () => {
-  it('opens on the catalog the video has, and re-creates from there', async () => {
-    const client = dialogClient({
-      createProductCatalog: vi.fn().mockResolvedValue({ ...created, outcome: 'recreated' })
-    });
+describe('a video’s catalogs (024, US15)', () => {
+  const second: ProductCatalogSummary = {
+    ...catalog,
+    id: '22000000-0000-4000-8000-0000000000ee',
+    name: 'clip_v2_catalog',
+    sheetUrl: 'https://docs.google.com/spreadsheets/d/second/edit',
+    sourceLink: 'https://other.example.test/?sub=2',
+    productCount: 40,
+    variant: 2
+  };
+
+  function listClient(overrides: Partial<ListClient> = {}): ListClient {
+    return {
+      listProductCatalogs: vi.fn().mockResolvedValue([catalog, second]),
+      trashMaterial: vi.fn().mockResolvedValue({
+        operationId: 'op',
+        state: 'succeeded',
+        materialId: second.id,
+        reused: false
+      }),
+      getProductCatalogSettings: vi.fn().mockResolvedValue(settings),
+      createProductCatalog: vi.fn().mockResolvedValue({
+        ...created,
+        catalog: { ...created.catalog, name: 'clip_v3_catalog', variant: 3 }
+      }),
+      ...overrides
+    };
+  }
+
+  function renderList(client: ListClient, team: TeamContextSnapshot = owned) {
+    const onClose = vi.fn();
     render(
       wrap(
-        <CreateProductCatalogDialog
+        <ProductCatalogMenuDialog
           teamId={TEAM_ID}
           video={VIDEO}
-          existing={catalog}
           client={client}
-          onClose={vi.fn()}
-        />
+          onClose={onClose}
+        />,
+        team
       )
     );
+    return { onClose };
+  }
+
+  it('lists every variation, and copies a name and a link in one press', async () => {
+    renderList(listClient());
+    expect(await screen.findByText('clip_v2_catalog')).toBeTruthy();
     expect(screen.getByText('clip catalog')).toBeTruthy();
-    expect((screen.getByRole('link', { name: 'Open catalog' }) as HTMLAnchorElement).href).toBe(
-      catalog.sheetUrl
-    );
+    expect(screen.getByText('other.example.test/?sub=2')).toBeTruthy();
+
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Re-create catalog' }));
-    expect((screen.getByLabelText('Link') as HTMLInputElement).value).toBe(catalog.sourceLink);
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText');
+    await user.click(screen.getByRole('button', { name: 'Copy the name clip_v2_catalog' }));
+    expect(writeText).toHaveBeenLastCalledWith('clip_v2_catalog');
+    await user.click(screen.getByRole('button', { name: 'Copy the link of clip_v2_catalog' }));
+    expect(writeText).toHaveBeenLastCalledWith(second.sheetUrl);
+    expect(
+      (screen.getByRole('link', { name: 'Open clip_v2_catalog' }) as HTMLAnchorElement).href
+    ).toBe(second.sheetUrl);
+  });
+
+  it('makes a new variation beside the others, starting from the last count, and offers its name', async () => {
+    const client = listClient();
+    renderList(client);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New variation' }));
+
+    expect(screen.getByRole('heading', { name: 'New catalog variation' })).toBeTruthy();
+    expect((screen.getByLabelText('Products') as HTMLInputElement).value).toBe('40');
+    await user.type(screen.getByLabelText('Link'), 'https://third.example.test/');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+
+    expect(client.createProductCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ replacesMaterialId: null })
+    );
+    expect(await screen.findByText('clip_v3_catalog')).toBeTruthy();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText');
+    await user.click(screen.getByRole('button', { name: 'Copy the name clip_v3_catalog' }));
+    expect(writeText).toHaveBeenLastCalledWith('clip_v3_catalog');
+  });
+
+  it('re-creates one variation from its menu, sending only that one', async () => {
+    const client = listClient();
+    renderList(client);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Actions for clip_v2_catalog' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Re-create catalog' }));
+    expect((screen.getByLabelText('Link') as HTMLInputElement).value).toBe(second.sourceLink);
     const button = screen.getByRole('button', { name: 'Re-create' }) as HTMLButtonElement;
     await waitFor(() => expect(button.disabled).toBe(false));
     await user.click(button);
     await waitFor(() =>
       expect(client.createProductCatalog).toHaveBeenCalledWith(
-        expect.objectContaining({ replacesMaterialId: catalog.id })
+        expect.objectContaining({ replacesMaterialId: second.id })
       )
     );
   });
 
-  it('opens straight on the form when the video has none', () => {
-    render(
-      wrap(
-        <CreateProductCatalogDialog
-          teamId={TEAM_ID}
-          video={VIDEO}
-          existing={null}
-          client={dialogClient()}
-          onClose={vi.fn()}
-        />
-      )
-    );
-    expect(screen.getByLabelText('Link')).toBeTruthy();
-  });
-});
-
-describe('the catalog on a video’s card', () => {
-  function actionsClient(overrides: Partial<ActionsClient> = {}): ActionsClient {
-    return {
-      getProductCatalog: vi.fn().mockResolvedValue(null),
-      getProductCatalogSettings: vi.fn().mockResolvedValue(settings),
-      createProductCatalog: vi.fn().mockResolvedValue(created),
-      ...overrides
-    };
-  }
-
-  it('offers to create one when the video has none', async () => {
-    render(
-      wrap(<VideoProductCatalogActions teamId={TEAM_ID} video={VIDEO} client={actionsClient()} />)
-    );
-    expect(await screen.findByRole('button', { name: 'Create catalog' })).toBeTruthy();
-  });
-
-  it('copies and opens the catalog the video has, and offers to re-create it', async () => {
-    render(
-      wrap(
-        <VideoProductCatalogActions
-          teamId={TEAM_ID}
-          video={VIDEO}
-          client={actionsClient({ getProductCatalog: vi.fn().mockResolvedValue(catalog) })}
-        />
-      )
-    );
+  it('removes a variation to the trash and takes it off the list at once', async () => {
+    const client = listClient();
+    renderList(client);
     const user = userEvent.setup();
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText');
-    await user.click(await screen.findByRole('button', { name: 'Copy catalog link' }));
-    expect(writeText).toHaveBeenCalledWith(catalog.sheetUrl);
-    expect((screen.getByRole('link', { name: 'Open catalog' }) as HTMLAnchorElement).href).toBe(
-      catalog.sheetUrl
+    await user.click(await screen.findByRole('button', { name: 'Actions for clip_v2_catalog' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Remove variation' }));
+
+    await waitFor(() => expect(screen.queryByText('clip_v2_catalog')).toBeNull());
+    expect(client.trashMaterial).toHaveBeenCalledWith(
+      expect.objectContaining({ teamId: TEAM_ID, materialId: second.id })
     );
-    expect(screen.getByRole('button', { name: 'Re-create catalog' })).toBeTruthy();
+    expect(await screen.findByText('clip_v2_catalog moved to the trash')).toBeTruthy();
   });
 
-  it('reads the catalog again when the space’s revision moves', async () => {
-    const getProductCatalog = vi.fn().mockResolvedValueOnce(null).mockResolvedValue(catalog);
-    const client = actionsClient({ getProductCatalog });
-    const { rerender } = render(
-      wrap(
-        <VideoProductCatalogActions teamId={TEAM_ID} video={VIDEO} client={client} revision={1} />
-      )
-    );
-    expect(await screen.findByRole('button', { name: 'Create catalog' })).toBeTruthy();
-    rerender(
-      wrap(
-        <VideoProductCatalogActions teamId={TEAM_ID} video={VIDEO} client={client} revision={2} />
-      )
-    );
-    expect(await screen.findByRole('button', { name: 'Copy catalog link' })).toBeTruthy();
+  it('closes on Done after the first catalog, instead of opening the list', async () => {
+    const api = listClient({
+      listProductCatalogs: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([catalog])
+    });
+    const { onClose } = renderList(api);
+    const link = await screen.findByLabelText('Link');
+    fireEvent.change(link, { target: { value: 'https://offer.example.test/' } });
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    fireEvent.click(confirm());
+    await screen.findByText('The catalog is ready');
+    const done = screen
+      .getAllByRole('button', { name: 'Done' })
+      .find(button => button.textContent === 'Done')!;
+    fireEvent.click(done);
+    expect(onClose).toHaveBeenCalled();
   });
 
-  it('does not offer to create or re-create to a member who cannot add files', async () => {
-    render(
-      wrap(
-        <VideoProductCatalogActions
-          teamId={TEAM_ID}
-          video={VIDEO}
-          client={actionsClient({ getProductCatalog: vi.fn().mockResolvedValue(catalog) })}
-        />,
-        viewing
-      )
-    );
-    expect(await screen.findByRole('button', { name: 'Copy catalog link' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Re-create catalog' })).toBeNull();
+  it('opens straight on the form when the video has none', async () => {
+    renderList(listClient({ listProductCatalogs: vi.fn().mockResolvedValue([]) }));
+    expect(await screen.findByRole('heading', { name: 'Create catalog' })).toBeTruthy();
+  });
+
+  it('lets a member who cannot add files copy and open, but not make or remove', async () => {
+    renderList(listClient(), viewing);
+    expect(await screen.findByText('clip_v2_catalog')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'New variation' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Actions for clip_v2_catalog' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Copy the name clip_v2_catalog' })).toBeTruthy();
   });
 });

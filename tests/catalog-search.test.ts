@@ -37,6 +37,15 @@ describe('catalog search request normalization', () => {
     });
   });
 
+  it('takes a colour mark filter, and leaves an empty one out of the request (024)', () => {
+    expect(
+      normalizeCatalogSearchRequest({ filters: { marker: ['green', 'green', 'red'] } })?.filters
+        .marker
+    ).toEqual(['green', 'red']);
+    expect(normalizeCatalogSearchRequest({ filters: {} })?.filters).not.toHaveProperty('marker');
+    expect(normalizeCatalogSearchRequest({ filters: { marker: ['pink'] } })).toBeNull();
+  });
+
   it('rejects unknown filters and out-of-contract pagination', () => {
     expect(normalizeCatalogSearchRequest({ filters: { secret: ['value'] } })).toBeNull();
     expect(normalizeCatalogSearchRequest({ page: 0, pageSize: 101 })).toBeNull();

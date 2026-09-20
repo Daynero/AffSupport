@@ -6,17 +6,20 @@ import type {
 } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
+import { Button as InventoryButton } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { useTeam } from '../TeamContext';
+import { productCatalogNameFor } from '../materials/tail';
 import {
   PRODUCT_COUNT_DEFAULT,
   SOURCE_LINK_MAX,
   validateProductCount,
   validateWebLink
 } from './limits';
+import { ProductCatalogProgress } from './ProductCatalogProgress';
 
 export interface CreateProductCatalogClient {
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
@@ -28,6 +31,8 @@ export interface CreateProductCatalogClient {
     replacesMaterialId: string | null;
     idempotencyKey: string;
   }) => Promise<ProductCatalogCreateResult>;
+  /** The number the next variation will take, so its name shows before it is made (024). */
+  nextProductCatalogVariant?: (teamId: string, videoMaterialId: string) => Promise<number>;
 }
 
 interface ShownCatalog {
@@ -53,30 +58,32 @@ function errorKey(error: unknown): TranslationKey | null {
 }
 
 /**
- * "Create catalog" (022, US1 and US5): a link and a product count, then the sheet's link.
+ * "Create catalog" (022, US1 and US5): a link and a product count, then the sheet.
  *
- * Re-creating is the same dialog opened on an existing catalog — prefilled with what that
- * catalog was made from, and saying once that it will be replaced. There is no warning about
- * the links being viewable: the pasted link and the sheet belong to the person making them.
+ * Re-creating is the same form prefilled with what that variation was made from, saying once
+ * that it will be replaced. The result leads with the sheet's name and a button that copies it:
+ * the owner names the catalog on Meta the same way (024, US15), and retyping `IN 40_v2_catalog`
+ * is where the two start to disagree. There is no warning about the links being viewable: the
+ * pasted link and the sheet belong to the person making them.
  */
 export function CreateProductCatalogDialog({
   teamId,
   video,
-  replaces: replacesProp,
-  existing,
+  replaces,
+  variation = false,
+  initialCount,
   client,
   onClose,
   onCreated
 }: {
   teamId: string;
   video: { id: string; name: string };
-  /** The catalog being replaced; absent to create one. */
+  /** The variation being replaced; absent to create one. */
   replaces?: ProductCatalogSummary | null;
-  /**
-   * The video's catalog, when the dialog is opened to show it (from a row menu): it opens on the
-   * catalog itself, with re-creating one step away.
-   */
-  existing?: ProductCatalogSummary | null;
+  /** The video already has catalogs, so this one is a new variation beside them. */
+  variation?: boolean;
+  /** The count to start from — the last variation's, so a second one is one link away. */
+  initialCount?: number;
   client: CreateProductCatalogClient;
   onClose: () => void;
   onCreated?: (result: ProductCatalogCreateResult) => void;
@@ -84,21 +91,37 @@ export function CreateProductCatalogDialog({
   const { t } = useI18n();
   const { push } = useToasts();
   const { can } = useTeam();
-  const [replaces, setReplaces] = useState<ProductCatalogSummary | null>(replacesProp ?? null);
   const titleId = useId();
   const linkId = useId();
   const countId = useId();
 
   const [link, setLink] = useState(replaces?.sourceLink ?? '');
-  const [count, setCount] = useState(String(replaces?.productCount ?? PRODUCT_COUNT_DEFAULT));
+  const [count, setCount] = useState(
+    String(replaces?.productCount ?? initialCount ?? PRODUCT_COUNT_DEFAULT)
+  );
   const [touched, setTouched] = useState({ link: false, count: false });
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
-  const [phase, setPhase] = useState<Phase>(() =>
-    existing
-      ? { kind: 'result', heading: 'productCatalogSection', catalog: existing }
-      : { kind: 'form' }
-  );
+  const [phase, setPhase] = useState<Phase>({ kind: 'form' });
   const [failure, setFailure] = useState<string | null>(null);
+  /*
+   * The name the sheet will have, up front (024): it is what the owner types on Meta, and the
+   * form used to show it only after the catalog existed. Re-creating keeps its number.
+   */
+  const [plannedVariant, setPlannedVariant] = useState<number | null>(replaces?.variant ?? null);
+  useEffect(() => {
+    if (replaces || !client.nextProductCatalogVariant) return;
+    let active = true;
+    void client
+      .nextProductCatalogVariant(teamId, video.id)
+      .then(value => {
+        if (active) setPlannedVariant(value);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [client, replaces, teamId, video.id]);
+  const plannedName = plannedVariant ? productCatalogNameFor(video.name, plannedVariant) : null;
 
   useEffect(() => {
     let active = true;
@@ -121,6 +144,14 @@ export function CreateProductCatalogDialog({
   const settingsMissing = settings === null;
   const canConfirm = linkCheck.ok && countCheck.ok && !settingsMissing && phase.kind === 'form';
 
+  /*
+   * The server's own steps, in its own order (`drive-ops/product-catalog.ts`):
+   * prove the video and open it by link, draw texts and pictures, open every
+   * picture by link — one Drive call each, which is where a catalog of fifty
+   * spends its time — build the sheet, upload and convert it, register it. The
+   * per-picture stage is sized by the count; the last stage waits for the answer.
+   */
+  const productTotal = countCheck.ok ? countCheck.value : 0;
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setTouched({ link: true, count: true });
@@ -151,10 +182,10 @@ export function CreateProductCatalogDialog({
     }
   };
 
-  const copy = async (url: string) => {
+  const copy = async (text: string, done: TranslationKey = 'productCatalogLinkCopied') => {
     try {
-      await navigator.clipboard.writeText(url);
-      push({ tone: 'success', text: t('productCatalogLinkCopied') });
+      await navigator.clipboard.writeText(text);
+      push({ tone: 'success', text: t(done) });
     } catch {
       push({ tone: 'error', text: t('teamToastLinkCopyFailed') });
     }
@@ -162,32 +193,26 @@ export function CreateProductCatalogDialog({
 
   if (phase.kind === 'result') {
     const shown = phase.catalog;
-    const mayRecreate = existing && phase.heading === 'productCatalogSection' && can('upload');
     return (
       <Modal labelledBy={titleId} onClose={onClose} closeLabel={t('productCatalogDone')} size="md">
         <div className="team-dialog-form product-catalog-dialog">
           <h2 id={titleId}>{t(phase.heading)}</h2>
-          <p className="product-catalog-dialog-name">{shown.name}</p>
+          <div className="product-catalog-dialog-name-row">
+            <p className="product-catalog-dialog-name">{shown.name}</p>
+            <InventoryButton
+              type="button"
+              size="sm"
+              variant="secondary"
+              aria-label={t('productCatalogCopyNameOf', { name: shown.name })}
+              onClick={() => void copy(shown.name, 'productCatalogNameCopied')}
+            >
+              {t('productCatalogCopyName')}
+            </InventoryButton>
+          </div>
           <p className="field-hint">{t('productCatalogProducts', { count: shown.productCount })}</p>
           <div className="team-dialog-actions">
-            {mayRecreate && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="product-catalog-dialog-recreate"
-                aria-label={t('productCatalogRecreate')}
-                onClick={() => {
-                  setReplaces(existing);
-                  setLink(existing.sourceLink);
-                  setCount(String(existing.productCount));
-                  setPhase({ kind: 'form' });
-                }}
-              >
-                {t('productCatalogRecreateShort')}
-              </Button>
-            )}
             <a
-              className="button button-secondary"
+              className="soty-button button-secondary"
               href={shown.sheetUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -213,7 +238,9 @@ export function CreateProductCatalogDialog({
   }
 
   const busy = phase.kind === 'busy';
-  const linkError = touched.link && !linkCheck.ok;
+  // An empty field is not a mistake yet — Create simply waits for it. The dialog opened with
+  // "Paste a link that starts with http://" in red before anything had been typed.
+  const linkError = touched.link && link.trim() !== '' && !linkCheck.ok;
   const countError = touched.count && !countCheck.ok;
 
   return (
@@ -227,11 +254,37 @@ export function CreateProductCatalogDialog({
       size="md"
     >
       <form
+        noValidate
         className="team-dialog-form product-catalog-dialog"
         onSubmit={event => void submit(event)}
       >
-        <h2 id={titleId}>{t(replaces ? 'productCatalogRecreate' : 'productCatalogCreate')}</h2>
-        <p className="product-catalog-dialog-name">{video.name}</p>
+        <h2 id={titleId}>
+          {t(
+            replaces
+              ? 'productCatalogRecreate'
+              : variation
+                ? 'productCatalogCreateVariation'
+                : 'productCatalogCreate'
+          )}
+        </h2>
+        {plannedName ? (
+          <div className="product-catalog-dialog-name-row">
+            <p className="product-catalog-dialog-name" title={video.name}>
+              {plannedName}
+            </p>
+            <InventoryButton
+              type="button"
+              size="sm"
+              variant="secondary"
+              aria-label={t('productCatalogCopyNameOf', { name: plannedName })}
+              onClick={() => void copy(plannedName, 'productCatalogNameCopied')}
+            >
+              {t('productCatalogCopyName')}
+            </InventoryButton>
+          </div>
+        ) : (
+          <p className="product-catalog-dialog-name">{video.name}</p>
+        )}
 
         {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}
 
@@ -255,7 +308,7 @@ export function CreateProductCatalogDialog({
           <span>{t('productCatalogSourceLinkLabel')}</span>
           <input
             id={linkId}
-            type="url"
+            type="text"
             inputMode="url"
             autoComplete="off"
             value={link}
@@ -265,7 +318,11 @@ export function CreateProductCatalogDialog({
             onBlur={() => setTouched(current => ({ ...current, link: true }))}
           />
         </label>
-        {linkError && <p className="team-inline-error">{t('productCatalogLinkInvalid')}</p>}
+        {linkError ? (
+          <p className="team-inline-error">{t('productCatalogLinkInvalid')}</p>
+        ) : (
+          <p className="field-hint">{t('productCatalogSourceLinkHint')}</p>
+        )}
 
         <label htmlFor={countId}>
           <span>{t('productCatalogCountLabel')}</span>
@@ -285,11 +342,7 @@ export function CreateProductCatalogDialog({
           {t(countError ? 'productCatalogCountInvalid' : 'productCatalogCountHint')}
         </p>
 
-        {busy && (
-          <p className="field-hint" role="status">
-            {t('productCatalogCreating')}
-          </p>
-        )}
+        <ProductCatalogProgress active={busy} productTotal={productTotal} />
         {failure && (
           <p className="team-inline-error" role="alert">
             {failure}

@@ -86,7 +86,11 @@ const policy = [
   // while Agent previews come from loopback, so both origins are required for
   // the browser's `<img>` fetch rather than only for fetch/XHR.
   `img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.supabase.co ${LOCAL_APP}`,
-  `media-src 'self' blob: ${LOCAL_APP}`,
+  // Video previews play straight from the Supabase transfer endpoint, a
+  // ticketed `Range` stream (`drive-transfer/range`). `<video>` is governed by
+  // media-src, not connect-src, so without the Supabase origin here the
+  // browser refused every team video preview while the same URL fetched fine.
+  `media-src 'self' blob: https://*.supabase.co ${LOCAL_APP}`,
   `frame-src ${LOCAL_APP} ${PICKER_FRAME}`,
   "frame-ancestors 'none'",
   "base-uri 'none'",

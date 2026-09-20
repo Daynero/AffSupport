@@ -72,19 +72,47 @@ function makeClient(
  * The shell holds the folder's page and hands it to whichever view is showing;
  * these components no longer fetch their own. This stands in for the shell.
  */
-function Grid({ client }: { client: ContentGridClient }) {
+function Grid({
+  client,
+  tagging
+}: {
+  client: ContentGridClient;
+  tagging?: { onSetTag: (row: unknown, color: unknown) => void };
+}) {
   const { currentFolderId } = useExplorer();
   const page = useFolderPage({ teamId: TEAM, client, parentFolderId: currentFolderId });
-  return <ContentGrid client={client} page={page} />;
+  return <ContentGrid client={client} page={page} tagging={tagging as never} />;
 }
 
-function renderGrid(client: ContentGridClient) {
+function renderGrid(
+  client: ContentGridClient,
+  tagging?: { onSetTag: (row: unknown, color: unknown) => void }
+) {
   return render(
     <ExplorerProvider teamId={TEAM} client={{ listFolderTree: vi.fn().mockResolvedValue([]) }}>
-      <Grid client={client} />
+      <Grid client={client} tagging={tagging} />
     </ExplorerProvider>
   );
 }
+
+describe('the colour mark on a tile', () => {
+  it('offers a mark on an unmarked file, and offers none to a reader', async () => {
+    /*
+     * The owner's screenshot (024): the tile beside it carried a yellow dot and opened the
+     * colours on a press, while an unmarked tile had no dot at all — the only way to mark it
+     * was the row menu. The empty ring is drawn for whoever may mark, as the list's is.
+     */
+    const onSetTag = vi.fn();
+    renderGrid(makeClient([row(1)]), { onSetTag });
+    expect(await screen.findByRole('button', { name: 'Tag of file-1.png: No tag' })).toBeTruthy();
+
+    cleanup();
+    clearThumbnailSessions();
+    renderGrid(makeClient([row(1)]));
+    await screen.findByText('file-1.png');
+    expect(screen.queryByRole('button', { name: /No tag/ })).toBeNull();
+  });
+});
 
 describe('ContentGrid', () => {
   it('shows prepared thumbnails through one session, and a kind icon with a reason otherwise', async () => {
@@ -108,7 +136,7 @@ describe('ContentGrid', () => {
       })
     ]);
     const { container } = renderGrid(client);
-    await screen.findByText('Items: 5');
+    await waitFor(() => expect(container.querySelectorAll('.team-explorer-tile')).toHaveLength(5));
     await waitFor(() => expect(container.querySelectorAll('img')).toHaveLength(2));
     const images = [...container.querySelectorAll('img')]
       .map(img => img.getAttribute('src'))
@@ -121,8 +149,9 @@ describe('ContentGrid', () => {
       ].sort()
     );
     expect(client.mintThumbnailSession).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/would not hand over a thumbnail/)).toBeTruthy();
-    expect(screen.getByText('Opens in Google Drive, not in Soty.')).toBeTruthy();
+    expect(screen.getByRole('img', { name: /would not hand over a thumbnail/ })).toBeTruthy();
+    // A kind's fact is an icon that says it (024, FR-095).
+    expect(screen.getByRole('img', { name: 'Opens in Google Drive, not in Soty.' })).toBeTruthy();
     expect(container.querySelectorAll('img[loading="lazy"]')).toHaveLength(2);
   });
 
@@ -178,7 +207,7 @@ describe('ContentGrid', () => {
       }
     );
     const { container } = renderGrid(client);
-    await screen.findByText('Items: 3');
+    await waitFor(() => expect(container.querySelectorAll('.team-explorer-tile')).toHaveLength(3));
     await waitFor(() =>
       expect(container.querySelector('img')?.getAttribute('src')).toBe('https://render/id-1/0')
     );

@@ -100,6 +100,17 @@ const PHASES = {
         timeoutMs: 60_000
       },
       {
+        /*
+         * The same fence, on the other side of the wall (024). A utility class
+         * is a place a value can be written, and no CSS checker will ever see
+         * it, because it never reaches a `.css` file.
+         */
+        id: 'tailwind-classes',
+        command: 'node',
+        args: [path.join(root, 'scripts/check-tailwind-classes.mjs')],
+        timeoutMs: 60_000
+      },
+      {
         id: 'styles',
         command: 'node',
         args: [path.join(root, 'scripts/verify-styles.mjs')],

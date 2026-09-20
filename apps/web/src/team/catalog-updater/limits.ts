@@ -1,6 +1,6 @@
 /**
- * The catalog updater's rules as the web needs them (feature 023): the three intervals and how far
- * IDs have moved, for the dialog's "next update" preview.
+ * The catalog updater's rules as the web needs them (feature 023): the intervals. How IDs move is
+ * no longer among them — since 024 US21 every write mints content IDs of its own, on the server.
  *
  * A copy of `supabase/functions/_shared/catalog-updater.ts`, which decides; the shared package
  * cannot change in a web-only release. `tests/catalog-updater-parity.test.ts` holds them together.
@@ -30,11 +30,4 @@ export function isUpdaterPreset(interval: UpdaterInterval): interval is UpdaterP
 export function customIntervalFromHours(input: string): UpdaterInterval | null {
   const trimmed = input.trim();
   return /^\d{1,3}$/u.test(trimmed) ? parseUpdaterInterval(`${Number(trimmed)}h`) : null;
-}
-
-export function idOffset(updateCount: number): number {
-  if (!Number.isSafeInteger(updateCount) || updateCount < 0) {
-    throw new RangeError('update count must be a non-negative integer');
-  }
-  return 500 * updateCount + (updateCount * (updateCount - 1)) / 2;
 }

@@ -93,6 +93,26 @@ describe('FolderTree', () => {
     expect(screen.queryByRole('treeitem', { name: /Mid 1\.0/ })).toBeNull();
   });
 
+  it('orders siblings the way the list beside it does, not by byte', async () => {
+    const at = (name: string): TeamFolderNode => ({
+      id: `uuid-${name}`,
+      driveFileId: name,
+      parentFolderId: 'root',
+      selectionId: null,
+      name,
+      indexedAt: '2026-08-27T00:00:00.000Z',
+      childFolderCount: 0,
+      childFileCount: 1,
+      thumbnailReadyCount: 0
+    });
+    renderTree([at('Zeta'), at('beta'), at('Alpha')]);
+    const tree = await screen.findByRole('tree');
+    const names = within(tree)
+      .getAllByRole('treeitem')
+      .map(item => item.textContent);
+    expect(names.map(name => name?.replace(/\d+$/u, '').trim())).toEqual(['Alpha', 'beta', 'Zeta']);
+  });
+
   it("keeps the open folder's ancestors expanded and the path clickable at every segment", async () => {
     const user = userEvent.setup();
     const { onFolderChange } = renderTree(bigTree(), 'a1b2c3');

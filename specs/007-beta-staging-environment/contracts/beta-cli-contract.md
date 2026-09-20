@@ -11,14 +11,14 @@ per Constitution Principle II.
 
 ## Commands
 
-| Command | Purpose | Success | Failure |
-|---|---|---|---|
-| `npm run beta:doctor` | Check prerequisites and profile isolation without starting anything | Exit 0, one line per satisfied prerequisite plus how far `beta` is behind `main` | Exit 1, one line per problem with its machine code and a remedy |
-| `npm run beta:up` | Bring the whole beta environment up (FR-009) | Exit 0 once the web, agent, and local stack are reachable; prints the beta URL | Exit 1 with the first failing prerequisite; nothing left half-started |
-| `npm run beta:down` | Stop everything cleanly (FR-012) | Exit 0, no orphaned children, ports released | Exit 1 naming what would not stop |
-| `npm run beta:reset` | Return to the clean baseline and seed fixtures (FR-024–FR-026) | Exit 0, prints what was reset and which fixtures were seeded | Exit 1; `BETA_RESET_TARGET_UNSAFE` if the target is not loopback |
-| `npm run beta:package` | Build the packaged beta app (FR-002a) | Exit 0, prints the artifact path and beta build id | Exit 1 if it would touch `release.ts`, `stable.json`, `config/production.env`, or any git tag |
-| `npm run beta:verify` | Run the packaged-beta smoke and write the verification record (FR-002b) | Exit 0, writes `release/beta/verification.json` | Exit 1; no record written on failure |
+| Command                | Purpose                                                                 | Success                                                                          | Failure                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `npm run beta:doctor`  | Check prerequisites and profile isolation without starting anything     | Exit 0, one line per satisfied prerequisite plus how far `beta` is behind `main` | Exit 1, one line per problem with its machine code and a remedy                               |
+| `npm run beta:up`      | Bring the whole beta environment up (FR-009)                            | Exit 0 once the web, agent, and local stack are reachable; prints the beta URL   | Exit 1 with the first failing prerequisite; nothing left half-started                         |
+| `npm run beta:down`    | Stop everything cleanly (FR-012)                                        | Exit 0, no orphaned children, ports released                                     | Exit 1 naming what would not stop                                                             |
+| `npm run beta:reset`   | Return to the clean baseline and seed fixtures (FR-024–FR-026)          | Exit 0, prints what was reset and which fixtures were seeded                     | Exit 1; `BETA_RESET_TARGET_UNSAFE` if the target is not loopback                              |
+| `npm run beta:package` | Build the packaged beta app (FR-002a)                                   | Exit 0, prints the artifact path and beta build id                               | Exit 1 if it would touch `release.ts`, `stable.json`, `config/production.env`, or any git tag |
+| `npm run beta:verify`  | Run the packaged-beta smoke and write the verification record (FR-002b) | Exit 0, writes `release/beta/verification.json`                                  | Exit 1; no record written on failure                                                          |
 
 ## Behavioural rules
 

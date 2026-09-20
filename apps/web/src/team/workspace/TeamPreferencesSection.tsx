@@ -2,27 +2,36 @@
  * Two choices about how team mode behaves, where team mode is configured.
  *
  * They lived on the account page, between a display name and a language — which is where a
- * person looks for who they are, not for how a task or a transcript behaves. Both are still
- * that person's own choices rather than the space's, and the copy says so: what moved is the
- * door, not the setting.
+ * person looks for who they are, not for how a task or a transcript behaves. What happens to a
+ * transcript is still the person's own choice; a new task's maximum is the space's (024): saved
+ * for one person, a teammate's next task still started at 100. Each label says whose it is.
  */
 
 import { useEffect, useId, useState } from 'react';
 import { ListChecks } from 'lucide-react';
 import { useI18n } from '../../i18n';
+import { useTeam } from '../TeamContext';
 import { SettingsSection } from './SettingsSection';
 
 export interface TeamPreferencesClient {
   getTranscriptDeletePref(): Promise<'ask' | 'delete' | 'keep'>;
   setTranscriptDeletePref(value: 'ask' | 'delete' | 'keep'): Promise<void>;
-  getTaskProgressMaxDefault(): Promise<number>;
-  setTaskProgressMaxDefault(value: number): Promise<void>;
+  getTaskProgressMaxDefault(teamId: string): Promise<number>;
+  setTaskProgressMaxDefault(teamId: string, value: number): Promise<void>;
 }
 
 const PROGRESS_MAX = 10_000;
 
-export function TeamPreferencesSection({ client }: { client: TeamPreferencesClient }) {
+export function TeamPreferencesSection({
+  teamId,
+  client
+}: {
+  teamId: string;
+  client: TeamPreferencesClient;
+}) {
   const { t } = useI18n();
+  const { can } = useTeam();
+  const canManage = can('manage_metadata');
   const titleId = useId();
   const transcriptId = useId();
   const progressId = useId();
@@ -41,7 +50,7 @@ export function TeamPreferencesSection({ client }: { client: TeamPreferencesClie
         if (active) setTranscript('ask');
       });
     void client
-      .getTaskProgressMaxDefault()
+      .getTaskProgressMaxDefault(teamId)
       .then(value => {
         if (active) setProgressMax(String(value));
       })
@@ -51,7 +60,7 @@ export function TeamPreferencesSection({ client }: { client: TeamPreferencesClie
     return () => {
       active = false;
     };
-  }, [client]);
+  }, [client, teamId]);
 
   return (
     <SettingsSection
@@ -97,6 +106,7 @@ export function TeamPreferencesSection({ client }: { client: TeamPreferencesClie
               min={1}
               max={PROGRESS_MAX}
               value={progressMax}
+              disabled={!canManage}
               onChange={event => setProgressMax(event.target.value)}
               /* Saved when the field is left, and a figure the server would refuse is put
                  back to what it holds rather than left sitting there unsaved. */
@@ -104,12 +114,12 @@ export function TeamPreferencesSection({ client }: { client: TeamPreferencesClie
                 const parsed = Number(progressMax);
                 if (!Number.isInteger(parsed) || parsed < 1 || parsed > PROGRESS_MAX) {
                   void client
-                    .getTaskProgressMaxDefault()
+                    .getTaskProgressMaxDefault(teamId)
                     .then(value => setProgressMax(String(value)))
                     .catch(() => undefined);
                   return;
                 }
-                void client.setTaskProgressMaxDefault(parsed).catch(() => undefined);
+                void client.setTaskProgressMaxDefault(teamId, parsed).catch(() => undefined);
               }}
             />
           </div>

@@ -27,8 +27,9 @@ const ACTOR = '22000000-0000-4000-8000-000000000005';
 const settings = {
   title: 'Polo',
   description: 'Knit',
-  price: 10,
-  imageLink: 'https://img.example.test/a.png'
+  imageLink: 'https://img.example.test/a.png',
+  priceMin: 10,
+  priceMax: 10
 };
 
 function metadata(overrides: Partial<DriveFileMetadata> = {}): DriveFileMetadata {
@@ -78,6 +79,7 @@ const body = (overrides: Record<string, unknown> = {}) => ({
 const existing: ExistingCatalog = {
   materialId: OLD_SHEET,
   name: 'clip catalog',
+  variant: 1,
   sheetUrl: 'https://docs.google.com/spreadsheets/d/old/edit',
   sourceLink: 'https://offer.example.test/?sub=0',
   productCount: 100,
@@ -89,12 +91,16 @@ function setup(
     category?: string;
     settings?: typeof settings | null;
     live?: ExistingCatalog | null;
+    catalogs?: ExistingCatalog[];
+    next?: number;
     videoPublic?: boolean;
     canShare?: boolean;
     editAllowed?: boolean;
     reused?: { state: 'succeeded' | 'running' };
     link?: Awaited<ReturnType<ProductCatalogDeps['link']>>;
     failAt?: 'create' | 'share-sheet' | 'finalize' | 'link';
+    texts?: Array<{ title: string; description: string }>;
+    images?: Array<{ driveFileId: string; resourceKey: string | null }>;
   } = {}
 ) {
   const sheetId = 'drive-sheet';
@@ -139,7 +145,11 @@ function setup(
       };
     }),
     readSettings: vi.fn(async () => (options.settings === undefined ? settings : options.settings)),
-    readLiveCatalog: vi.fn(async () => options.live ?? null),
+    // No pools in these fixtures: every row repeats the settings, as before pools (024).
+    drawTexts: vi.fn(async () => options.texts ?? []),
+    drawImages: vi.fn(async () => options.images ?? []),
+    readLiveCatalogs: vi.fn(async () => options.catalogs ?? (options.live ? [options.live] : [])),
+    nextVariant: vi.fn(async () => options.next ?? 1),
     driveFor: vi.fn(async () => drive as unknown as CatalogDrive),
     proveVideo: vi.fn(async () =>
       metadata({ capabilities: { ...metadata().capabilities, canShare: options.canShare ?? true } })
@@ -181,8 +191,7 @@ async function refusal(promise: Promise<unknown>) {
 
 describe('reading the request', () => {
   it.each([
-    [{ sourceLink: 'ftp://x.test' }, 'link'],
-    [{ sourceLink: 'https://a b.test' }, 'link'],
+    [{ sourceLink: '   ' }, 'link'],
     [{ productCount: 0 }, 'count'],
     [{ productCount: 401 }, 'count'],
     [{ productCount: 2.5 }, 'count'],
@@ -216,9 +225,9 @@ describe('reading the request', () => {
 });
 
 describe('refusals leave nothing behind', () => {
-  it('refuses a bad link before touching Drive', async () => {
+  it('refuses an empty link before touching Drive', async () => {
     const { deps, drive } = setup();
-    const error = await refusal(createProductCatalog(deps, body({ sourceLink: 'nope' }), ACTOR));
+    const error = await refusal(createProductCatalog(deps, body({ sourceLink: ' ' }), ACTOR));
     expect(error.details).toEqual({ field: 'link' });
     expect(deps.loadVideo).not.toHaveBeenCalled();
     expect(drive.createConvertedFile).not.toHaveBeenCalled();
@@ -264,6 +273,82 @@ describe('refusals leave nothing behind', () => {
 });
 
 describe('making a catalog', () => {
+  it('gives each row its own drawn text, picture and a price in the range (024)', async () => {
+    const { deps, drive } = setup({
+      settings: {
+        title: null,
+        description: null,
+        imageLink: null,
+        priceMin: 9,
+        priceMax: 30
+      } as never,
+      texts: [
+        { title: 'Aurelia Linen Midi Dress', description: 'Soft and light.' },
+        { title: 'Nova Cotton Oversized Tee', description: 'Made for warm days.' },
+        { title: 'Vera Denim Wide Leg Jeans', description: 'Holds its shape.' }
+      ],
+      images: [
+        // 024 US27: the owner names a picture for what it shows, and the row follows it.
+        { driveFileId: 'img-1', resourceKey: null, name: 'tshirt_white_01.jpg' },
+        { driveFileId: 'img-2', resourceKey: 'rk', name: 'midi-dress_ivory_01.jpg' },
+        { driveFileId: 'img-3', resourceKey: null, name: 'IMG_2031.png' }
+      ]
+    });
+    await createProductCatalog(deps, body(), ACTOR);
+    // The pictures are opened by link, or Meta cannot fetch them.
+    expect(drive.createAnyoneReaderPermission).toHaveBeenCalledWith('img-2');
+    const record = vi.mocked(deps.link).mock.calls[0]![0].record;
+    const rows = (record.settingsSnapshot as { rows: Array<Record<string, unknown>> }).rows;
+    // Paired with the pictures rather than taken in turn: the tee picture takes the tee name,
+    // the dress picture the dress name, and the unnamed file whatever is left.
+    expect(rows.map(row => row.title)).toEqual([
+      'Nova Cotton Oversized Tee',
+      'Aurelia Linen Midi Dress',
+      'Vera Denim Wide Leg Jeans'
+    ]);
+    expect(rows.map(row => row.pictureName)).toEqual([
+      'tshirt_white_01.jpg',
+      'midi-dress_ivory_01.jpg',
+      'IMG_2031.png'
+    ]);
+    expect(rows[1]!.imageLink).toBe(
+      'https://drive.google.com/uc?export=view&id=img-2&resourcekey=rk'
+    );
+    for (const row of rows)
+      (expect(row.price).toBeGreaterThanOrEqual(9), expect(row.price).toBeLessThanOrEqual(30));
+    // 024 US21: what the name already says, the row says too — and one brand covers the catalog.
+    expect(rows[1]).toMatchObject({
+      material: 'linen',
+      gender: 'female',
+      googleCategory: 'Apparel & Accessories > Clothing > Dresses',
+      fbCategory: 'Clothing & Accessories > Clothing > Dresses',
+      tags: ['midi-dress', expect.any(String)]
+    });
+    // The tee's row takes the colour its picture is named for, since its own name gives none.
+    expect(rows[0]).toMatchObject({ material: 'cotton', color: 'white' });
+    expect(rows[2]).toMatchObject({
+      material: 'denim',
+      googleCategory: 'Apparel & Accessories > Clothing > Pants'
+    });
+    expect(new Set(rows.map(row => row.brand)).size).toBe(1);
+    for (const row of rows) expect(row.salePrice as number).toBeLessThan(row.price as number);
+  });
+
+  it('refuses when neither a pool nor the settings give a row its name', async () => {
+    const { deps } = setup({
+      settings: {
+        title: null,
+        description: null,
+        imageLink: 'https://img.example.test/a.png',
+        priceMin: 9,
+        priceMax: 30
+      } as never
+    });
+    await expect(createProductCatalog(deps, body(), ACTOR)).rejects.toMatchObject({
+      code: 'WRONG_STATE'
+    });
+  });
+
   it('shares the video, uploads one converted workbook, shares it and links it', async () => {
     const { deps, drive } = setup();
     const result = await createProductCatalog(deps, body(), ACTOR);
@@ -273,9 +358,10 @@ describe('making a catalog', () => {
       videoShared: true,
       catalog: {
         materialId: NEW_SHEET,
-        name: 'clip catalog',
+        name: 'clip_v1_catalog',
         sheetUrl: 'https://docs.google.com/spreadsheets/d/drive-sheet/edit?usp=drivesdk',
-        productCount: 3
+        productCount: 3,
+        variant: 1
       }
     });
     expect(drive.createConvertedFile).toHaveBeenCalledTimes(1);
@@ -286,7 +372,7 @@ describe('making a catalog', () => {
       sourceMimeType: string;
     };
     expect(upload).toMatchObject({
-      name: 'clip catalog',
+      name: 'clip_v1_catalog',
       parentId: 'folder',
       targetMimeType: 'application/vnd.google-apps.spreadsheet',
       sourceMimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -300,24 +386,54 @@ describe('making a catalog', () => {
         record: expect.objectContaining({
           productCount: 3,
           videoLink: 'https://drive.google.com/file/d/drive-video/view?usp=sharing',
-          settingsSnapshot: settings,
-          createdBy: ACTOR
+          settingsSnapshot: expect.objectContaining({
+            title: 'Polo',
+            description: 'Knit',
+            price: 10,
+            imageLink: 'https://img.example.test/a.png',
+            rows: expect.arrayContaining([
+              expect.objectContaining({
+                title: 'Polo',
+                description: 'Knit',
+                price: 10,
+                imageLink: 'https://img.example.test/a.png',
+                // 024 US21: the details the row was planned with travel with it, for every update after.
+                brand: expect.any(String),
+                color: expect.any(String),
+                size: expect.any(String),
+                salePrice: expect.any(Number)
+              })
+            ])
+          }),
+          createdBy: ACTOR,
+          variant: 1
         })
       })
     );
     expect(drive.updateFileMetadata).not.toHaveBeenCalled();
     // Drive sizes a native spreadsheet once it exists; the intent carries what Drive reported.
     expect(deps.bindIntent).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'clip catalog', sizeBytes: 4096 })
+      expect.objectContaining({ name: 'clip_v1_catalog', sizeBytes: 4096 })
     );
   });
 
-  it('shows the catalog that already exists instead of making another', async () => {
-    const { deps, drive } = setup({ live: existing });
-    const result = await createProductCatalog(deps, body(), ACTOR);
-    expect(result).toEqual({ outcome: 'existing', catalog: existing, videoShared: false });
-    expect(deps.driveFor).not.toHaveBeenCalled();
-    expect(drive.createConvertedFile).not.toHaveBeenCalled();
+  it('makes a new variation beside the catalog that exists, named with its number (024)', async () => {
+    const { deps, drive } = setup({ live: existing, next: 2 });
+    const result = await createProductCatalog(
+      deps,
+      body({ sourceLink: 'https://offer.example.test/?sub=2' }),
+      ACTOR
+    );
+    expect(result).toMatchObject({
+      outcome: 'created',
+      catalog: { name: 'clip_v2_catalog', variant: 2 }
+    });
+    expect(drive.createConvertedFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'clip_v2_catalog' })
+    );
+    expect(deps.link).toHaveBeenCalledWith(
+      expect.objectContaining({ replaces: null, record: expect.objectContaining({ variant: 2 }) })
+    );
   });
 
   it('trashes its own sheet and shows the winner when it loses the race', async () => {
@@ -353,9 +469,9 @@ describe('making a catalog', () => {
 
   it('does not upload twice for a confirmation that arrives twice', async () => {
     const finished = setup({ reused: { state: 'succeeded' } });
-    vi.mocked(finished.deps.readLiveCatalog)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ ...existing, materialId: NEW_SHEET });
+    vi.mocked(finished.deps.readLiveCatalogs)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...existing, materialId: NEW_SHEET }]);
     const result = await createProductCatalog(finished.deps, body(), ACTOR);
     expect(result.catalog.materialId).toBe(NEW_SHEET);
     expect(finished.drive.createConvertedFile).not.toHaveBeenCalled();
@@ -368,9 +484,12 @@ describe('making a catalog', () => {
 });
 
 describe('re-creating a catalog', () => {
-  it('replaces the live catalog and trashes the retired file', async () => {
+  it('replaces one variation, keeps its number, and trashes the retired file', async () => {
     const { deps, drive } = setup({
-      live: { ...existing, driveFileId: 'drive-old' },
+      catalogs: [
+        { ...existing, driveFileId: 'drive-old' },
+        { ...existing, materialId: NEW_SHEET, name: 'clip_v2_catalog', variant: 2 }
+      ],
       link: { linked: true, retired: [{ driveFileId: 'drive-old', resourceKey: null }] }
     });
     const result = await createProductCatalog(
@@ -379,6 +498,9 @@ describe('re-creating a catalog', () => {
       ACTOR
     );
     expect(result.outcome).toBe('recreated');
+    // A catalog from before variations is variation 1, and its successor says so.
+    expect(result.catalog).toMatchObject({ name: 'clip_v1_catalog', variant: 1 });
+    expect(deps.nextVariant).not.toHaveBeenCalled();
     expect(deps.link).toHaveBeenCalledWith(expect.objectContaining({ replaces: OLD_SHEET }));
     // The successor keeps the name: the sheet it retires is no conflict.
     expect(deps.planName).toHaveBeenCalledWith(

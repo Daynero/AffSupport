@@ -2,6 +2,7 @@ import type { MouseEvent } from 'react';
 import { catalogCountKey, useI18n } from '../../i18n';
 import type { CatalogUpdaterState } from '../../api/team';
 import { UpdaterCountdown } from './UpdaterCountdown';
+import { WorkspaceChip } from '../workspace/WorkspaceChip';
 
 /**
  * The catalog updater beside the space settings (023, US3).
@@ -23,24 +24,21 @@ export function CatalogUpdaterChip({
 }) {
   const { t, language } = useI18n();
 
-  if (!state || state.state !== 'running') {
-    return (
-      <a className="team-space-shell-utility-link" href={href} onClick={onNavigate}>
-        {t('catalogUpdaterEntry')}
-      </a>
-    );
-  }
+  // Idle, the updater is a line in the space's menu (024, FR-094); running,
+  // it is news, and says so here.
+  if (!state || state.state !== 'running') return null;
 
   const attention = state.failingCount > 0;
   const catalogs = t(catalogCountKey(language, state.catalogCount), { count: state.catalogCount });
   return (
-    <a
-      className={`ui-chip ${attention ? 'ui-chip-warn' : 'ui-chip-busy'} team-updater-chip`}
+    <WorkspaceChip
+      tone={attention ? 'warn' : 'busy'}
+      busy={!attention}
+      className="team-updater-chip"
       href={href}
-      onClick={onNavigate}
-      aria-label={`${t('catalogUpdaterChipOpen')}: ${catalogs}`}
+      onPress={onNavigate}
+      label={`${t('catalogUpdaterChipOpen')}: ${catalogs}`}
     >
-      {!attention && <span className="ui-chip-spinner" aria-hidden="true" />}
       <span>{t('catalogUpdaterChipLabel')}</span>
       <UpdaterCountdown
         targetIso={state.nextRunAt}
@@ -57,6 +55,6 @@ export function CatalogUpdaterChip({
         </span>
       )}
       {attention && <span>{t('catalogUpdaterChipAttention')}</span>}
-    </a>
+    </WorkspaceChip>
   );
 }

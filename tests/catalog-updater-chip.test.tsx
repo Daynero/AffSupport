@@ -50,11 +50,12 @@ function renderChip(state: CatalogUpdaterState | null, offsetMs = 0) {
 }
 
 describe('the updater chip', () => {
-  it('is a plain link while the updater is stopped', () => {
+  it('says nothing while the updater is stopped', () => {
+    // Idle, the updater is a line in the space's menu; the header speaks only
+    // when there is news (024, FR-094).
     renderChip(null);
-    const link = screen.getByRole('link', { name: 'Catalog updater' });
-    expect(link.className).toBe('team-space-shell-utility-link');
-    expect(link.getAttribute('href')).toBe('/team/s?updater=1');
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(document.querySelector('.team-updater-chip')).toBeNull();
   });
 
   it('shows the countdown and the number of catalogs while running', () => {

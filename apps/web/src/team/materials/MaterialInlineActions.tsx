@@ -1,0 +1,126 @@
+import { Check } from 'lucide-react';
+import { Button, IconButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { useI18n } from '../../i18n';
+import { MaterialActionMenu } from './MaterialActionMenu';
+import type { MaterialActionId } from './actions';
+import type { MaterialActionList } from './useMaterialActionList';
+
+/**
+ * "Catalog", or "Catalogs: 2": the product catalog named in words wherever it is inline (024).
+ * As a clipboard glyph between an eye and "…" nobody read it as the catalog.
+ */
+export function catalogActionWords(
+  count: number | undefined,
+  t: ReturnType<typeof useI18n>['t']
+): string {
+  return (count ?? 0) > 1
+    ? t('materialActionProductCatalogs', { count: count ?? 0 })
+    : t('productCatalogMenuEntry');
+}
+
+/**
+ * The two or three things this surface is for, and one door to the rest.
+ *
+ * The rule the tile broke: past four icons nobody reads them. Which ones are
+ * inline is not this component's decision and not the surface's either — it is
+ * `inlinePriority` in the registry, so the same action is inline in the same
+ * places, and the reader learns one layout rather than five.
+ */
+export function MaterialInlineActions({
+  list,
+  name,
+  busy,
+  done,
+  size = 'sm',
+  worded,
+  className,
+  contextTarget
+}: {
+  list: MaterialActionList;
+  /** The material's name, for "Actions on <name>". */
+  name: string;
+  /** The action this surface is running right now, if any. */
+  busy?: MaterialActionId | null;
+  /**
+   * The action that has just succeeded, held for a moment.
+   *
+   * Copying a link is the one action whose result is invisible — nothing opens,
+   * nothing moves — so the control says so itself rather than raising a toast
+   * for something the reader asked for and expected.
+   */
+  done?: MaterialActionId | null;
+  size?: 'xs' | 'sm' | 'md';
+  /**
+   * Inline actions this surface names in words beside the icon. A task's video
+   * showed the catalog as a clipboard glyph between an eye and "…", and the
+   * owner went to Files to make a catalog the tile already offered (024, US15).
+   */
+  worded?: Partial<Record<MaterialActionId, string>>;
+  className?: string;
+  /** An ancestor whose right-click opens the overflow (024, FR-021). */
+  contextTarget?: string;
+}) {
+  const { t } = useI18n();
+  if (list.count === 0) return null;
+
+  // Everything inline is also in the menu. A shortcut that removes its own
+  // long way round is a shortcut that has to be found before it can be used.
+  const hasMore = list.count > list.inline.length;
+
+  return (
+    <div className={['ui-material-actions', className].filter(Boolean).join(' ')}>
+      {list.inline.map(({ action, run }) => {
+        const succeeded = done === action.id;
+        const Icon = succeeded ? Check : action.icon;
+        const words = worded?.[action.id];
+        if (words) {
+          return (
+            <Button
+              key={action.id}
+              size={size}
+              variant="ghost"
+              color={succeeded ? 'success' : 'neutral'}
+              loading={busy === action.id}
+              aria-label={t(action.labelKey)}
+              className="ui-material-actions-worded"
+              onClick={run}
+            >
+              <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {words}
+            </Button>
+          );
+        }
+        return (
+          <IconButton
+            key={action.id}
+            label={t(action.labelKey)}
+            size={size}
+            variant="ghost"
+            color={succeeded ? 'success' : action.destructive ? 'error' : 'neutral'}
+            loading={busy === action.id}
+            onClick={run}
+          >
+            <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        );
+      })}
+      {/*
+       * The overflow is also the right-click menu, so the two cannot offer
+       * different things. It is rendered even when everything fits inline,
+       * where a `contextTarget` asks for it: a row with three actions still
+       * has a context menu, and hiding it there would make right-click work
+       * on some rows and not others.
+       */}
+      {(hasMore || contextTarget) && (
+        <MaterialActionMenu
+          list={list}
+          label={t('materialActionsFor', { name })}
+          size={size}
+          contextTarget={contextTarget}
+          className={hasMore ? undefined : 'ui-material-actions-hidden'}
+        />
+      )}
+    </div>
+  );
+}

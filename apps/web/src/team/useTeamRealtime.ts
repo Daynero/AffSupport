@@ -1,3 +1,4 @@
+import { realtimeTopic } from '../lib/realtimeTopic';
 import { useEffect, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../lib/supabase';
@@ -38,7 +39,7 @@ export function useTeamRealtime(input: {
       if (active) void onRefetch();
     };
     const channel: RealtimeChannel = supabase
-      .channel(`team-workspace:${teamId}`)
+      .channel(realtimeTopic(`team-workspace:${teamId}`))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'team_operations', filter: `team_id=eq.${teamId}` },

@@ -15,7 +15,7 @@ Produce (or refresh) a shared render for one landing.
   preset).
 - **Flow** (reuses `previewLanding` machinery):
   1. Ask `drive-transfer` for a `preview_range` grant + an **artifact-write grant** (edge
-     contract §2). 
+     contract §2).
   2. Range-download the landing zip, inspect (`inspectZip`), find the landing root
      `index.html`, extract to a `mkdtemp` dir.
   3. Render with the shared `LandingPageRenderer` (Playwright) at the requested preset →
@@ -28,9 +28,9 @@ Produce (or refresh) a shared render for one landing.
 - **Responses**:
   - `200 { pointer: LandingRenderPointer }` (state `ready`), or
   - typed failure → `service_fail_landing_render` + `{ error: 'RENDER_FAILED', reason }`.
-- **Errors / codes**: `AGENT_REQUIRED` is not applicable here (this *is* the agent), but the
+- **Errors / codes**: `AGENT_REQUIRED` is not applicable here (this _is_ the agent), but the
   route returns `409 { error: 'RENDER_FAILED' }` with `reason ∈ corrupt|protected|too_large|
-  unsupported|render_error`; `403 { error:'PERMISSION_DENIED' }`; `409 { error:'SOURCE_CHANGED' }`
+unsupported|render_error`; `403 { error:'PERMISSION_DENIED' }`; `409 { error:'SOURCE_CHANGED' }`
   if the source identity moved mid-render (commit as stale, ask client to retry).
 - **Cancellation**: `POST /api/team/landings/render/cancel` (or reuse the team SSE cancel)
   terminates the Playwright child and cleans up.

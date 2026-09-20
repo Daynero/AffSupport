@@ -1,13 +1,11 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject
-} from 'react';
+import { useCallback, useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { Menu as HeroMenu } from '@heroui/react/menu';
+import { MenuItem as HeroMenuItem } from '@heroui/react/menu-item';
+import { Popover as HeroPopover } from '@heroui/react/popover';
+import { MenuSection as HeroMenuSection } from '@heroui/react/menu-section';
+import { Header } from 'react-aria-components/Header';
+import { Text } from 'react-aria-components/Text';
 import { useAnchoredLayer } from '../useAnchoredLayer';
 import { uiClasses, type UiSize } from './types';
 
@@ -150,14 +148,20 @@ export function useDialogBehaviour({
         : null;
     if (modal) lockPageScroll();
 
-    let focusFrame = 0;
+    /*
+     * Focus now, not on the next frame.
+     *
+     * Waiting for a frame was defensive — the portal is already in the document
+     * by the time this runs — and it cost two things: a frame in which the
+     * dialog is open and nothing is focused, and any way for a test to observe
+     * where focus went, since the frame never comes in jsdom. `preventScroll`
+     * is what the wait was really protecting against.
+     */
     if (modal && node) {
-      focusFrame = requestAnimationFrame(() => {
-        const selector = live.current.initialFocus;
-        const target =
-          (selector ? node.querySelector<HTMLElement>(selector) : null) ?? focusableIn(node)[0];
-        target?.focus();
-      });
+      const selector = live.current.initialFocus;
+      const target =
+        (selector ? node.querySelector<HTMLElement>(selector) : null) ?? focusableIn(node)[0];
+      target?.focus({ preventScroll: true });
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -170,12 +174,31 @@ export function useDialogBehaviour({
         return;
       }
       if (event.key !== 'Tab' || !modal || !node) return;
-      const focusable = focusableIn(node);
+      /*
+       * The toasts are part of the loop (024, T113). A dialog that deletes
+       * something offers Undo in a toast, and a trap that cycled only through
+       * the dialog made that Undo a mouse-only control while the dialog was
+       * up — which is exactly when it is raised.
+       */
+      const toasts = document.querySelector<HTMLElement>('.ui-toast-region');
+      const toastControls = toasts ? focusableIn(toasts) : [];
+      const focusable = [...focusableIn(node), ...toastControls];
       if (focusable.length === 0) return;
       const first = focusable[0]!;
       const last = focusable.at(-1)!;
       const activeElement = document.activeElement;
-      const inside = activeElement instanceof HTMLElement && node.contains(activeElement);
+      const inside =
+        activeElement instanceof HTMLElement &&
+        (node.contains(activeElement) || Boolean(toasts?.contains(activeElement)));
+      // The region is portalled apart from the dialog, so the document's own
+      // tab order does not lead from one to the other; the step is taken here.
+      const at = inside && toastControls.length > 0 ? focusable.indexOf(activeElement) : -1;
+      if (at !== -1) {
+        event.preventDefault();
+        const step = event.shiftKey ? -1 : 1;
+        focusable[(at + step + focusable.length) % focusable.length]!.focus();
+        return;
+      }
       if (event.shiftKey && (!inside || activeElement === first)) {
         event.preventDefault();
         last.focus();
@@ -194,12 +217,22 @@ export function useDialogBehaviour({
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
-      if (focusFrame) cancelAnimationFrame(focusFrame);
       window.removeEventListener('keydown', onKeyDown);
       const at = openStack.lastIndexOf(entry);
       if (at !== -1) openStack.splice(at, 1);
       if (modal) unlockPageScroll();
-      (live.current.returnFocus ?? previouslyFocused)?.focus?.();
+      /*
+       * Give focus back only if nothing else has taken it.
+       *
+       * A menu that opens a dialog closes on the way, and its cleanup used to
+       * pull focus out of the dialog it had just opened and back onto its own
+       * trigger — so a rename field opened from a row menu came up with the
+       * "…" button focused and the typing went nowhere. If focus has already
+       * moved somewhere that is not this surface, it moved there on purpose.
+       */
+      const active = document.activeElement as HTMLElement | null;
+      const stillHere = !active || active === document.body || node?.contains(active);
+      if (stillHere) (live.current.returnFocus ?? previouslyFocused)?.focus?.();
     };
     // Mount-only on purpose: `live` above carries the changing callbacks, so
     // the effect does not need them in its list and must not re-run on them.
@@ -221,6 +254,14 @@ export interface ModalProps {
   children: ReactNode;
   /** Drawn along the bottom, actions right-aligned. */
   footer?: ReactNode;
+  /**
+   * A selector for what should hold focus when this opens.
+   *
+   * Without it the surface focuses the first thing it finds, which is the close
+   * button — right for a dialog that is only read, wrong for one that exists to
+   * be typed into.
+   */
+  initialFocus?: string;
 }
 
 export function Modal({
@@ -233,12 +274,13 @@ export function Modal({
   busy = false,
   className,
   children,
-  footer
+  footer,
+  initialFocus
 }: ModalProps) {
   const surface = useRef<HTMLDivElement>(null);
   const generatedId = useId();
   const close = useCallback(() => onClose(), [onClose]);
-  useDialogBehaviour({ surface, active: open, onClose: close });
+  useDialogBehaviour({ surface, active: open, onClose: close, initialFocus });
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -415,6 +457,14 @@ export interface MenuItem {
   /** Drawn right-aligned: a shortcut, a count. */
   trailing?: ReactNode;
   /**
+   * One line under the label, saying why this cannot run right now.
+   *
+   * A menu item that is present and cannot be chosen owes the reader a reason.
+   * Without one it is indistinguishable from a bug, which is what a screen full
+   * of dimmed controls always is to the person looking at it.
+   */
+  note?: ReactNode;
+  /**
    * Present when the item is one answer to a question the menu is asking —
    * a sort key, a direction, a filter. It then reads as a radio rather than a
    * command, and carries a tick.
@@ -462,8 +512,17 @@ export interface DropdownMenuProps {
 
 /**
  * The product's twelve menus — sort, kind filter, row actions, export, copy,
- * gallery, user — as one. All of them are opened often, so none of them
- * animate.
+ * gallery, user — as one, on React Aria (024).
+ *
+ * The props are unchanged, because the callers' model is right: the surface
+ * that owns the state opens the menu and is told when it closes. React Aria's
+ * popover takes exactly that — a trigger ref and a controlled open — so nothing
+ * had to be inverted to gain real menu semantics.
+ *
+ * What is gained: typeahead, Home and End, focus that actually enters the menu
+ * and comes back, and `disabledBehavior="selection"` — which is the thing this
+ * product hand-rolled last week, a disabled item that stays reachable so the
+ * reason it carries can be read.
  */
 export function DropdownMenu({
   open,
@@ -479,90 +538,147 @@ export function DropdownMenu({
   label,
   className
 }: DropdownMenuProps) {
-  const [active, setActive] = useState(0);
   const rows = items.filter((item): item is MenuItem => item !== 'separator' && !isHeading(item));
+  const byId = new Map(rows.map(item => [item.id, item]));
 
-  useEffect(() => {
-    if (open) setActive(0);
-  }, [open]);
+  /*
+   * The flat list, folded into sections.
+   *
+   * A React Aria collection is built from collection components — items,
+   * sections, headers — and nothing else: a bare paragraph among them is not
+   * rendered late, it stops the whole collection being built. The callers' flat
+   * array with heading markers is the right shape to write, so it is folded
+   * here rather than pushed back onto twelve call sites.
+   */
+  /** Whether this menu is asking a question at all, or only listing commands. */
+  const menuSelects = rows.some(item => item.checked !== undefined);
+  const sections: Array<{ heading: ReactNode | null; items: MenuItem[] }> = [];
+  for (const entry of items) {
+    // A separator starts a section too, not only a heading: it is how a menu
+    // says "and now something else" without naming it, and a group that keeps
+    // collecting past one would put a command in with the answers above it.
+    if (entry === 'separator') {
+      if (sections.at(-1)?.items.length) sections.push({ heading: null, items: [] });
+      continue;
+    }
+    if (isHeading(entry)) {
+      sections.push({ heading: entry.heading, items: [] });
+      continue;
+    }
+    if (sections.length === 0) sections.push({ heading: null, items: [] });
+    sections[sections.length - 1]!.items.push(entry);
+  }
+
+  if (!anchor) return null;
 
   return (
-    <Popover
-      open={open}
-      onClose={onClose}
-      anchor={anchor}
-      placement={placement}
-      matchWidth={matchWidth}
-      minWidth={minWidth}
-      maxHeight={maxHeight}
-      frequent
-      label={label}
-      /* The inner element is the menu; the surface around it is scaffolding. */
-      surface="none"
-      className={['ui-menu', className].filter(Boolean).join(' ')}
+    <HeroPopover.Content
+      triggerRef={anchor as RefObject<HTMLElement>}
+      isOpen={open}
+      onOpenChange={next => {
+        if (!next) onClose();
+      }}
+      /* React Aria spells a placement as a side and an alignment, with a
+         space; this product spells it with a hyphen because that is also a
+         class name. */
+      placement={placement.replace('-', ' ') as 'bottom end'}
+      shouldFlip
+      className={['ui-popover', 'is-frequent', `ui-popover--${placement}`, 'ui-menu', className]
+        .filter(Boolean)
+        .join(' ')}
+      style={{
+        minWidth: matchWidth ? undefined : minWidth,
+        maxHeight,
+        ['--trigger-width' as string]: matchWidth ? 'var(--trigger-width)' : undefined
+      }}
     >
-      <div
-        role="menu"
+      <HeroMenu
         aria-label={label}
-        onKeyDown={event => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            setActive(current => {
-              const next = event.key === 'ArrowDown' ? current + 1 : current - 1;
-              return (next + rows.length) % rows.length;
-            });
-          }
+        /*
+         * Selection belongs to a section, not to the menu (024).
+         *
+         * A menu can ask more than one question and still carry a command: a
+         * task's menu offers a status, an assignee, a tag — three answers —
+         * and a delete. Putting the mode on the menu made every item a radio,
+         * so "Delete" announced itself as one of several states the task could
+         * be in. A section whose items carry a tick is a radio group; a section
+         * of commands is a list of commands.
+         */
+        selectionMode={menuSelects ? selection : 'none'}
+        selectedKeys={rows.filter(item => item.checked).map(item => item.id)}
+        disabledKeys={rows.filter(item => item.disabled).map(item => item.id)}
+        onAction={key => {
+          const item = byId.get(String(key));
+          if (!item || item.disabled) return;
+          item.onSelect();
+          if (closeOnSelect) onClose();
         }}
       >
-        {items.map((item, index) =>
-          item === 'separator' ? (
-            <span key={`separator-${index}`} className="ui-menu-separator" role="separator" />
-          ) : isHeading(item) ? (
-            <p key={`heading-${index}`} className="ui-menu-heading" role="presentation">
-              {item.heading}
-            </p>
-          ) : (
-            <button
-              key={item.id}
-              type="button"
-              role={
-                item.checked === undefined
-                  ? 'menuitem'
-                  : selection === 'multiple'
-                    ? 'menuitemcheckbox'
-                    : 'menuitemradio'
-              }
-              aria-checked={item.checked}
-              disabled={item.disabled}
-              tabIndex={rows.indexOf(item) === active ? 0 : -1}
-              className={[
-                'ui-menu-item',
-                item.destructive ? 'is-destructive' : '',
-                item.checked ? 'is-checked' : ''
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              onClick={() => {
-                item.onSelect();
-                if (closeOnSelect) onClose();
-              }}
-            >
-              {item.checked !== undefined && (
-                <span className="ui-menu-check" aria-hidden="true">
-                  {item.checked ? '✓' : ''}
+        {sections.map((section, index) => (
+          <HeroMenuSection
+            key={`section-${index}`}
+            className="ui-menu-section"
+            /*
+             * Only where the menu is asking something.
+             *
+             * A section whose items carry a tick is a radio group; a section of
+             * commands under the same menu says so, or "Delete" announces
+             * itself as one of the states the thing could be in. And where the
+             * menu asks nothing at all, the prop is left off entirely —
+             * setting it switches the collection's disabled behaviour, and an
+             * item that carries a reason has to keep saying it.
+             */
+            {...(menuSelects
+              ? section.items.some(item => item.checked !== undefined)
+                ? {
+                    selectionMode: selection,
+                    selectedKeys: section.items.filter(item => item.checked).map(item => item.id)
+                  }
+                : { selectionMode: 'none' as const }
+              : {})}
+          >
+            {section.heading !== null && (
+              <Header className="ui-menu-heading">{section.heading}</Header>
+            )}
+            {section.items.map(item => (
+              <HeroMenuItem
+                key={item.id}
+                id={item.id}
+                textValue={typeof item.label === 'string' ? item.label : item.id}
+                className={[
+                  'ui-menu-item',
+                  item.destructive ? 'is-destructive' : '',
+                  item.checked ? 'is-checked' : ''
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {item.checked !== undefined && (
+                  <span className="ui-menu-check" aria-hidden="true">
+                    {item.checked ? '✓' : ''}
+                  </span>
+                )}
+                {item.icon && (
+                  <span className="ui-menu-icon" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                )}
+                <span className="ui-menu-copy">
+                  <Text slot="label" className="ui-menu-label">
+                    {item.label}
+                  </Text>
+                  {item.note && (
+                    <Text slot="description" className="ui-menu-note">
+                      {item.note}
+                    </Text>
+                  )}
                 </span>
-              )}
-              {item.icon && (
-                <span className="ui-menu-icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-              )}
-              <span className="ui-menu-label">{item.label}</span>
-              {item.trailing && <span className="ui-menu-trailing">{item.trailing}</span>}
-            </button>
-          )
-        )}
-      </div>
-    </Popover>
+                {item.trailing && <span className="ui-menu-trailing">{item.trailing}</span>}
+              </HeroMenuItem>
+            ))}
+          </HeroMenuSection>
+        ))}
+      </HeroMenu>
+    </HeroPopover.Content>
   );
 }

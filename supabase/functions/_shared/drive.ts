@@ -961,7 +961,8 @@ function isGoogleThumbnailHost(hostname: string): boolean {
 }
 
 export async function proveLiveAncestry(input: {
-  client: GoogleDriveClient;
+  /** Only reads: a caller that proves many files in one run may hand in a memoizing reader. */
+  client: Pick<GoogleDriveClient, 'getFile'>;
   fileId: string;
   rootFolderId: string;
   resourceKey?: string | null;

@@ -191,6 +191,20 @@ function wrap(ui: React.ReactElement, role: 'editor' | 'viewer' = 'editor') {
   );
 }
 
+/**
+ * 024 put the board's filters behind two surfaces: the quick ranges are
+ * presets inside the calendar, and account, assignee, tag and sort sit behind
+ * one "Filters" trigger. Opening them is a real step a person takes, so the
+ * tests take it too rather than reaching past the chrome.
+ */
+async function openQuickRanges(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Open calendar' }));
+}
+
+async function openMoreFilters(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /^Filters/ }));
+}
+
 describe('a card', () => {
   it('folds a long brief behind "More" and unfolds it in place without opening the task', async () => {
     // jsdom has no layout: stand in for a clamped paragraph by hand.
@@ -293,7 +307,7 @@ describe('the editor', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Free' }));
     expect(within(dialog).queryByText('v31-434')).toBeNull();
     await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
-    await user.click(within(dialog).getByRole('button', { name: 'Tag (1)' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Only tag (1)' }));
 
     await waitFor(() =>
       expect(api.attachTaskAgent).toHaveBeenCalledWith({
@@ -316,8 +330,8 @@ describe('the editor', () => {
     await user.click(within(dialog).getByText('v31', { selector: 'strong' }).closest('button')!);
     await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
     // The old way out is still there for an edit or a re-cut, which launched nothing.
-    expect(within(dialog).getByRole('button', { name: 'Tag (1)' })).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Tag and log the run (1)' }));
+    expect(within(dialog).getByRole('button', { name: 'Only tag (1)' })).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Launch on it (1)' }));
 
     await waitFor(() =>
       expect(api.attachTaskAgent).toHaveBeenCalledWith({
@@ -523,6 +537,7 @@ describe('the list', () => {
       />
     );
     await screen.findByText('v31-434');
+    await openMoreFilters(user);
     await user.click(
       await screen.findByRole('button', { name: 'Only tasks of an account or agent' })
     );
@@ -552,17 +567,15 @@ describe('the list', () => {
     expect(trigger.classList.contains('is-custom')).toBe(false);
 
     await user.click(trigger);
-    await user.click(screen.getByRole('button', { name: '2026-09-18' }));
+    await user.click(screen.getByRole('button', { name: /September 18, 2026/ }));
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /^Date: / }).textContent).toBe('Sep 18')
     );
-    // A date of its own, and it saves with the form rather than on the press.
+    // A date of its own, and it commits on the press: picking a day *is* the
+    // decision, and there is no Save button left to hold it behind (024).
     expect(screen.getByRole('button', { name: /^Date: / }).classList.contains('is-custom')).toBe(
       true
     );
-    expect(api.updateTask).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole('button', { name: 'Save task' }));
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(
         TEAM_ID,
@@ -595,7 +608,6 @@ describe('the list', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /^Date: / }).textContent).toBe('Sep 5')
     );
-    await user.click(screen.getByRole('button', { name: 'Save task' }));
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(
         TEAM_ID,
@@ -607,18 +619,21 @@ describe('the list', () => {
 
   it('unfolds every brief on the board at once, and folds them back', async () => {
     const api = client([tagFor(A434)]);
+    // Only a board with a brief on it offers to unfold (024): nothing to open, no button.
+    vi.mocked(api.listTasks).mockResolvedValue([{ ...task([tagFor(A434)]), note: 'Brief' }]);
     const user = userEvent.setup();
     wrap(
       <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
     );
     await screen.findByText('v31-434');
 
-    await user.click(screen.getByRole('button', { name: 'Unfold all' }));
+    // A view switch, with the order and the filters (024).
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    await user.click(await screen.findByRole('switch', { name: 'Briefs unfolded' }));
     const cards = screen.getAllByRole('article');
     expect(cards.every(card => card.classList.contains('is-expanded'))).toBe(true);
 
-    // The one control says which way the next press goes.
-    await user.click(screen.getByRole('button', { name: 'Fold all' }));
+    await user.click(screen.getByRole('switch', { name: 'Briefs unfolded' }));
     expect(
       screen.getAllByRole('article').some(card => card.classList.contains('is-expanded'))
     ).toBe(false);
@@ -631,6 +646,7 @@ describe('the list', () => {
       <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
     );
     await screen.findByText('v31-434');
+    await openQuickRanges(user);
     await user.click(screen.getByRole('button', { name: 'Today' }));
     await waitFor(() => expect(screen.getAllByRole('article').length).toBeGreaterThan(0));
 
@@ -641,9 +657,13 @@ describe('the list', () => {
     api.listTasks = vi.fn().mockResolvedValue([]);
 
     await user.click(screen.getAllByRole('article')[0]!);
-    await user.click(await screen.findByRole('button', { name: /^Date: / }));
-    await user.click(screen.getByRole('button', { name: '2026-09-18' }));
-    await user.click(screen.getByRole('button', { name: 'Save task' }));
+    // The card behind the dialog carries a date control of its own, so both
+    // triggers answer the name. The editor's is the one that just opened, and
+    // the popover it raised is the last in the document.
+    const triggers = await screen.findAllByRole('button', { name: /^Date: / });
+    await user.click(triggers.at(-1)!);
+    const days = await screen.findAllByRole('button', { name: /September 18, 2026/ });
+    await user.click(days.at(-1)!);
 
     await waitFor(() => expect(api.listTasks).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryAllByRole('article').length).toBe(0));
@@ -657,6 +677,7 @@ describe('the list', () => {
     );
     await screen.findByText('v31-434');
 
+    await openQuickRanges(user);
     await user.click(screen.getByRole('button', { name: 'Today' }));
     const now = new Date();
     const today = [
@@ -693,8 +714,10 @@ describe('the list', () => {
         expect.objectContaining({ agentRowId: A434, accountId: null })
       )
     );
-    const pill = await screen.findByRole('button', { name: 'Only tasks of an account or agent' });
-    await waitFor(() => expect(pill.textContent).toBe('v31-434'));
-    expect(screen.getByRole('button', { name: 'Show every account' })).toBeTruthy();
+    // 024 put the pill behind "Filters" and the answer in front of it: a chip
+    // in the bar names what the board is narrowed to, and taking it off is one
+    // press. A filter you cannot see is a filter you blame the data for.
+    const chip = await screen.findByRole('button', { name: 'Remove the filter v31-434' });
+    expect(chip.textContent).toContain('v31-434');
   });
 });

@@ -15,8 +15,11 @@ other document wins.
 `apps/web/src/components/ui/` instead of writing one, and name a token from
 `apps/web/src/styles/tokens.css` instead of writing a value. That file is the
 only place in the product allowed to spell a colour, a radius, a type step or
-a duration, and its exemption list is empty. The rules are
-[`docs/DESIGN.md`](docs/DESIGN.md) (what this product does) and
+a duration, and its exemption list is empty — and a Tailwind utility counts as
+spelling one, so `bg-[#fff]` and `rounded-[10px]` are as forbidden as the hex
+was. The inventory is built on **HeroUI v3** (React Aria + Tailwind v4), themed
+_from_ the token layer: the library wears Soty's skin, never the reverse. The
+rules are [`docs/DESIGN.md`](docs/DESIGN.md) (what this product does) and
 [`docs/DESIGN-PRINCIPLES.md`](docs/DESIGN-PRINCIPLES.md) (why). In a dev build
 the route `/design` shows every component and variant side by side.
 
@@ -35,6 +38,9 @@ A rule nothing enforces lasts until the next hurry. These run in CI:
 - `scripts/check-design-tokens.mjs` — fails on a raw colour, duration, radius
   or font size outside the token layer, and on a transition of a property that
   forces layout.
+- `scripts/check-tailwind-classes.mjs` — the same fence, moved to where a value
+  can now also be written: fails on an arbitrary value in a utility and on a
+  palette step that is not one of the seven Soty roles.
 - `scripts/verify-styles.mjs` — fails on a `var()` naming a property nothing
   declares, which CSS drops silently.
 - `tests/design-token-contract.test.ts`, `tests/stylesheet-integrity.test.ts`,

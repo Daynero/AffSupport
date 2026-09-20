@@ -93,3 +93,51 @@ describe('invitation link fallback', () => {
     expect(screen.queryByText('Delivery failed')).toBeNull();
   });
 });
+
+describe('an invitation row', () => {
+  function row(state: string, extra: Record<string, unknown> = {}) {
+    return {
+      id: `invitation-${state}`,
+      targetEmail: `${state}@example.test`,
+      state,
+      deliveryState: 'sent',
+      deliveryErrorCode: null,
+      expiresAt: '2026-09-01T10:00:00.000Z',
+      initialRole: 'viewer',
+      ...extra
+    };
+  }
+
+  it('says its own state in a word, and offers only what that state allows', async () => {
+    // FR-063 and the row's calm (024): a revoked invitation used to read "Sent"
+    // and still carried Resend and Revoke; a pending one carried both as bordered
+    // buttons. A word for every state, and one menu while there is anything to do.
+    const user = userEvent.setup();
+    const client = {
+      listInvitations: vi.fn().mockResolvedValue([row('pending'), row('revoked'), row('expired')]),
+      resendInvitation: vi.fn().mockResolvedValue(undefined),
+      revokeInvitation: vi.fn().mockResolvedValue(undefined)
+    } as unknown as InvitationPanelClient;
+    render(
+      <ToastProvider>
+        <InvitationPanel teamId={TEAM_ID} client={client} canManage />
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Revoked')).toBeTruthy();
+    expect(screen.getByText('Expired')).toBeTruthy();
+    expect(screen.getByText('Sent')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'More for revoked@example.test' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Resend' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'More for pending@example.test' }));
+    expect(await screen.findByRole('menuitem', { name: 'Resend' })).toBeTruthy();
+    await user.click(screen.getByRole('menuitem', { name: 'Revoke' }));
+    // The question names who it is about (024).
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Revoke the invitation for pending@example.test?'
+      })
+    ).toBeTruthy();
+  });
+});

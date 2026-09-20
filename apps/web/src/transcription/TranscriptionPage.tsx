@@ -821,9 +821,7 @@ export default function TranscriptionPage() {
                   className="select-all-box"
                   checked={selectableIds.length > 0 && selected.size === selectableIds.length}
                   disabled={!connected || selectableIds.length === 0}
-                  onChange={event =>
-                    setSelected(event.target.checked ? new Set(selectableIds) : new Set())
-                  }
+                  onChange={all => setSelected(all ? new Set(selectableIds) : new Set())}
                   label={<strong>{t('selectAll')}</strong>}
                 />
                 <Button
@@ -1015,7 +1013,7 @@ export default function TranscriptionPage() {
         <section className="video-list transcription-list">
           {jobs.length === 0 ? (
             <EmptyState
-              className="empty-state"
+              className="soty-empty-state"
               title={t('transcriptionEmpty')}
               description={t('transcriptionEmptyBody')}
               action={
@@ -1148,9 +1146,9 @@ function Chip({
 
 function ToastRegion({ toasts }: { toasts: ToastMessage[] }) {
   return (
-    <div className="toast-region" aria-live="polite" aria-atomic="false">
+    <div className="soty-toast-region" aria-live="polite" aria-atomic="false">
       {toasts.map(toast => (
-        <div className={`toast toast-${toast.tone}`} key={toast.id}>
+        <div className={`soty-toast toast-${toast.tone}`} key={toast.id}>
           {toast.text}
         </div>
       ))}

@@ -415,6 +415,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/health', async () => ({
     product: 'local-video-compressor-agent',
     ready: tools.ffmpeg && tools.ffprobe,
+    tools,
     environment: config.environment,
     version: config.version,
     buildNumber: config.buildNumber,

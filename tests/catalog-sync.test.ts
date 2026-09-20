@@ -164,9 +164,11 @@ describe('durable catalog synchronization', () => {
     expect(deps.tombstoneFiles).toHaveBeenCalledWith(
       expect.objectContaining({
         items: expect.arrayContaining([
-          { fileId: 'removed', lifecycle: 'missing' },
+          // 024 US24: the reason travels with the state — a file moved out of the watched
+          // folder is alive, and its catalog and text must not be cleared.
+          { fileId: 'removed', lifecycle: 'missing', reason: 'removed' },
           { fileId: 'trashed', lifecycle: 'trashed' },
-          { fileId: 'outside', lifecycle: 'missing' }
+          { fileId: 'outside', lifecycle: 'missing', reason: 'out_of_root' }
         ]),
         preserveProvenance: true
       })
@@ -182,6 +184,39 @@ describe('durable catalog synchronization', () => {
     expect(vi.mocked(deps.invalidateLandingRenders).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(deps.tombstoneFiles).mock.invocationCallOrder[0]
     );
+  });
+
+  it('places the changes of a page side by side, and writes them in the page’s own order (024)', async () => {
+    // Each placement is a walk up the file's parents in Drive. A hundred in a row outlasted the
+    // job's lease on the beta, and the same page was begun again every minute for twelve hours.
+    let walking = 0;
+    let most = 0;
+    const ids = Array.from({ length: 40 }, (_, index) => `f${index}`);
+    const deps = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: ids.map(id => ({ fileId: id, removed: false, file: file({ id }) })),
+        nextPageToken: null,
+        newStartPageToken: 'change-10'
+      }),
+      isWithinRoot: vi.fn().mockImplementation(async (metadata: { id: string }) => {
+        walking += 1;
+        most = Math.max(most, walking);
+        // The first walks are the slowest, so a naive gather would come back out of order.
+        await new Promise(resolve => setTimeout(resolve, metadata.id === 'f0' ? 15 : 1));
+        walking -= 1;
+        return true;
+      })
+    });
+    await runCatalogSyncSlice(
+      { ...baseJob, phase: 'incremental', pageToken: 'change-9', changeToken: 'change-9' },
+      deps
+    );
+    expect(most).toBeGreaterThan(1);
+    expect(most).toBeLessThanOrEqual(6);
+    const written = vi
+      .mocked(deps.upsertFiles)
+      .mock.calls.flatMap(([input]) => input.files.map(entry => entry.id));
+    expect(written).toEqual(ids);
   });
 
   it('tombstones a changed artifact descendant instead of ingesting it', async () => {
@@ -200,7 +235,9 @@ describe('durable catalog synchronization', () => {
     );
     expect(deps.upsertFiles).not.toHaveBeenCalled();
     expect(deps.tombstoneFiles).toHaveBeenCalledWith(
-      expect.objectContaining({ items: [{ fileId: 'segment-0', lifecycle: 'missing' }] })
+      expect.objectContaining({
+        items: [{ fileId: 'segment-0', lifecycle: 'missing', reason: 'out_of_root' }]
+      })
     );
   });
 
@@ -222,7 +259,9 @@ describe('durable catalog synchronization', () => {
       deps
     );
     expect(deps.tombstoneFiles).toHaveBeenCalledWith(
-      expect.objectContaining({ items: [{ fileId: 'unreadable', lifecycle: 'missing' }] })
+      expect.objectContaining({
+        items: [{ fileId: 'unreadable', lifecycle: 'missing', reason: 'removed' }]
+      })
     );
     expect(deps.complete).toHaveBeenCalledWith(
       expect.objectContaining({ changeToken: 'change-unreadable', nextPhase: 'incremental' })

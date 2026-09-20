@@ -17,14 +17,7 @@ import {
 export const TEAM_SECTIONS = ['explorer', 'tasks', 'accounts', 'members'] as const;
 
 /** The settings dialog's tabs, named in the address as they are in the dialog. */
-export const TEAM_SETTINGS_TABS = [
-  'general',
-  'members',
-  'tags',
-  'restitch',
-  'product-catalog',
-  'history'
-] as const;
+export const TEAM_SETTINGS_TABS = ['general', 'tags', 'restitch', 'product-catalog'] as const;
 export type TeamSettingsTab = (typeof TEAM_SETTINGS_TABS)[number];
 export type TeamSection = (typeof TEAM_SECTIONS)[number];
 
@@ -67,8 +60,39 @@ export interface TeamRouteQuery {
   settingsTab: TeamSettingsTab | null;
   /** The catalog updater's dialog is open over the explorer (023). */
   updater: boolean;
+  /** The space's history panel is open (024). */
+  history: boolean;
+  /**
+   * The ⌘K palette is open (024).
+   *
+   * In the address like the settings and the updater, so a link can open it —
+   * and, more to the point, so Back closes it rather than leaving the
+   * workspace behind a surface the history does not know about.
+   */
+  palette: boolean;
   /** The selected material, so a shared link opens on it. */
   itemId: string | null;
+  /**
+   * The selected material is open in its preview, not merely selected (024,
+   * FR-050). A reload used to close the preview and drop you back on the list;
+   * a link to "look at this" opened on a row you then had to find and open.
+   * Meaningless without `itemId`, so it is written only beside it.
+   */
+  open: boolean;
+  /**
+   * The whole-space batch processing dialog is open (024, FR-050). A batch over
+   * picked files stays component state: the pick itself is not in the address,
+   * so an address for its dialog would restore a window about nothing.
+   */
+  process: boolean;
+  /** The storage detail behind the Drive chip is open (024, FR-050). */
+  storage: boolean;
+  /**
+   * The task Files was opened from, by "Show in folder" (024, FR-080). While
+   * it is here Files offers the way back to that task; any other move in Files
+   * drops it, because by then Files is where you are working.
+   */
+  back: string | null;
 }
 
 export type TeamRoute =
@@ -82,6 +106,13 @@ export type TeamRoute =
        * and wrong for having just pressed "All spaces".
        */
       showAll: boolean;
+      /**
+       * "Make a new space", asked for out loud (024, FR-048). The wizard used
+       * to live only behind the lobby, so from inside a space it was two hops
+       * away — and a hop through a list of spaces you were not looking for.
+       * Present only when asked, so every other resolver route reads as before.
+       */
+      create?: true;
     }
   | { kind: 'space'; spaceId: string; section: TeamSection; query: TeamRouteQuery };
 
@@ -97,7 +128,8 @@ const FILTER_PARAM: Record<CatalogFilterKey, string> = {
   category: 'category',
   originalType: 'type',
   kind: 'kind',
-  unfilled: 'unfilled'
+  unfilled: 'unfilled',
+  marker: 'marker'
 };
 
 /** Explorer kind chips use `k`; the catalog's older `kind` filter keeps `kind`. */
@@ -147,7 +179,13 @@ export function emptyTeamRouteQuery(): TeamRouteQuery {
     settings: false,
     settingsTab: null,
     updater: false,
-    itemId: null
+    history: false,
+    palette: false,
+    itemId: null,
+    open: false,
+    process: false,
+    storage: false,
+    back: null
   };
 }
 
@@ -236,7 +274,8 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     return {
       kind: 'resolver',
       driveReturn: trimmedParam(params, 'drive'),
-      showAll: params.get('all') === '1'
+      showAll: params.get('all') === '1',
+      ...(params.get('new') === '1' ? { create: true as const } : {})
     };
   }
 
@@ -257,9 +296,40 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     settings: params.get('settings') === '1',
     settingsTab: readSettingsTab(params),
     updater: params.get('updater') === '1',
-    itemId: trimmedParam(params, 'item')
+    // The history was a settings tab; a link to that tab opens the history (024).
+    history:
+      params.get('history') === '1' ||
+      (params.get('settings') === '1' && params.get('tab')?.trim() === 'history'),
+    palette: params.get('palette') === '1',
+    itemId: trimmedParam(params, 'item'),
+    open: params.get('open') === '1' && Boolean(trimmedParam(params, 'item')),
+    process: params.get('process') === '1',
+    storage: params.get('storage') === '1',
+    back: trimmedParam(params, 'back')
   };
   const { section, query } = aliasSection(rawSection, base);
+  /*
+   * Members exist once (024, FR-047). The settings dialog used to have a
+   * "People" tab that was the Members section again, so links to it are out
+   * there — in task filters, in bookmarks. They land on the survivor rather
+   * than on the settings' first tab, which would look like the link was wrong.
+   */
+  if (query.settings && params.get('tab')?.trim() === 'members') {
+    return {
+      kind: 'space',
+      spaceId,
+      section: 'members',
+      query: { ...query, settings: false, settingsTab: null }
+    };
+  }
+  if (query.history && query.settings && params.get('tab')?.trim() === 'history') {
+    return {
+      kind: 'space',
+      spaceId,
+      section,
+      query: { ...query, settings: false, settingsTab: null }
+    };
+  }
   return { kind: 'space', spaceId, section, query };
 }
 
@@ -301,19 +371,34 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     const filters = query.filters;
     if (filters) {
       for (const key of CATALOG_FILTER_KEYS) {
-        for (const value of filters[key]) params.append(FILTER_PARAM[key], value);
+        for (const value of filters[key] ?? []) params.append(FILTER_PARAM[key], value);
       }
     }
     if (query.folderId) params.set('folder', query.folderId);
     if (query.kinds && query.kinds.length > 0) params.set(KINDS_PARAM, query.kinds.join(','));
     if (query.view) params.set('view', query.view);
     if (query.scope === 'space') params.set('scope', 'space');
-    if (query.trash) params.set('trash', '1');
-    if (query.settings) params.set('settings', '1');
-    if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
-    if (query.updater) params.set('updater', '1');
     if (query.itemId) params.set('item', query.itemId);
+    if (query.itemId && query.open) params.set('open', '1');
+    if (query.back) params.set('back', query.back);
   }
+  /*
+   * Four surfaces that belong to the space, not to a section (024, FR-045).
+   *
+   * The settings, the updater, the trash and the palette were written only on
+   * an explorer address, so opening any of them from Tasks or Accounts threw
+   * you into Files — and closing one left you there. They are the space's, so
+   * they survive whatever section you were reading when you opened them, and
+   * closing one puts you back where you were.
+   */
+  if (query.trash) params.set('trash', '1');
+  if (query.settings) params.set('settings', '1');
+  if (query.settings && query.settingsTab) params.set('tab', query.settingsTab);
+  if (query.updater) params.set('updater', '1');
+  if (query.history) params.set('history', '1');
+  if (query.palette) params.set('palette', '1');
+  if (query.process) params.set('process', '1');
+  if (query.storage) params.set('storage', '1');
   if (section === 'tasks') {
     if (query.taskId) params.set('task', query.taskId);
     // One scope at a time: an agent is narrower than its account, so it wins.
@@ -333,6 +418,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
  * about what is open. It also means refreshing the lobby keeps you in the
  * lobby instead of dropping you back into a space.
  */
-export function teamResolverRoute(options: { showAll?: boolean } = {}): string {
+export function teamResolverRoute(options: { showAll?: boolean; create?: boolean } = {}): string {
+  if (options.create) return '/team?new=1';
   return options.showAll ? '/team?all=1' : '/team';
 }

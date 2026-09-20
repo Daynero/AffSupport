@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   LandingRenderPointer,
   RenderArtifactRef,
@@ -6,18 +6,19 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Button, EmptyState, ErrorState } from '../../components/ui/index';
+import { EmptyState, ErrorState, Popover } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
-import { FolderOpen } from 'lucide-react';
+import { ExternalLink, FolderOpen, Paperclip } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { formatDate, formatSize } from '../../format';
-import { DRAG_TYPE, KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
+import { displayedSize, formatDate } from '../../format';
+import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
+import { KindNote } from './KindNote';
+import { useMaterialDrag } from './materialDrag';
 import { RowActions, type RowActionsProps } from './RowActions';
-import { ShareButton } from './ShareButton';
 import { useExplorer } from './ExplorerProvider';
-import { sortRows, DEFAULT_SORT, type ExplorerSort } from './sort';
+import { MorePages } from './MorePages';
 import { TagDot } from './TagDot';
 import type { TaggingProps } from './ContentList';
 import type { FolderPageClient, FolderPageState } from './useFolderPage';
@@ -50,18 +51,33 @@ const RENDER_LABEL: Record<NonNullable<TeamMaterialRow['landingRender']>['state'
 export function ContentGrid({
   client,
   page,
+  rows = page.rows,
   onPreview,
   actions,
-  sort,
   tagging,
-  emptyAction
+  emptyAction,
+  onDropMaterials,
+  companionRows
 }: {
   client: ContentGridClient;
   /** The folder's rows, held by the shell so one listing serves everything. */
   page: FolderPageState;
+  /**
+   * The rows to draw, already in order (024).
+   *
+   * The shell sorts once — it has to, because the arrow keys walk the list in
+   * the order the reader sees — and this used to sort the same array again on
+   * every render with the same comparator. Two sorts that agreed by accident:
+   * the day they stopped agreeing, Down would have moved to a different row
+   * from the one below.
+   *
+   * Defaults to the page's own rows so this view can still be rendered on its
+   * own — by a test, or by a surface that has no sort of its own — without
+   * having to know what order the shell would have put them in.
+   */
+  rows?: readonly TeamMaterialRow[];
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
-  sort?: ExplorerSort;
   /** Present only for the space's owner (011). */
   tagging?: TaggingProps;
   /**
@@ -70,9 +86,14 @@ export function ContentGrid({
    * which is the same rule as the toolbar's (FR-021, FR-004).
    */
   emptyAction?: ReactNode;
+  /** Each video's own files — its text, its catalogs — listed on its tile (024, US25). */
+  companionRows?: ReadonlyMap<string, readonly TeamMaterialRow[]>;
+  /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
+  onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
 }) {
   const { t } = useI18n();
   const { teamId, openFolder, selectedId, select, selectedIds, toggleSelected } = useExplorer();
+  const drag = useMaterialDrag({ selectedIds, rows, onDropMaterials });
   /*
    * The page comes from the shell, which is the only place that can hold it:
    * this component used to run its own `useFolderPage` with the same arguments,
@@ -81,7 +102,6 @@ export function ContentGrid({
    * name-clash check — read the shell's copy, which stopped at the first
    * hundred rows and never grew.
    */
-  const rows = sortRows(page.rows, sort ?? DEFAULT_SORT);
   const session = useThumbnailSession({ teamId, client });
   const landingIds = useMemo(
     () =>
@@ -124,11 +144,7 @@ export function ContentGrid({
         <h2 id="team-explorer-grid-title" className="visually-hidden">
           {t('teamMaterials')}
         </h2>
-        {page.total !== null && page.total > 0 && (
-          <p className="team-explorer-total" aria-live="polite">
-            {t('teamExplorerTotal', { count: page.total })}
-          </p>
-        )}
+        {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
       {page.loading && page.rows.length === 0 && (
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
@@ -155,25 +171,26 @@ export function ContentGrid({
             render={renders.get(row.id) ?? null}
             selected={selectedId === row.id}
             checked={selectedIds.has(row.id)}
+            drag={drag.dragProps(row)}
+            dropTarget={drag.dropTarget === row.id}
             onOpenFolder={openFolder}
             onSelect={select}
             onToggle={toggleSelected}
             onPreview={onPreview}
             actions={actions}
             tagging={tagging}
+            companions={companionRows?.get(row.id) ?? NO_COMPANIONS}
+            companionSelected={Boolean(
+              companionRows?.get(row.id)?.some(companion => companion.id === selectedId)
+            )}
           />
         ))}
       </ul>
-      {page.hasMore && (
-        <Button
-          color="neutral"
-          variant="outline"
-          loading={page.loading}
-          onClick={() => void page.loadMore()}
-        >
-          {t('teamExplorerLoadMore')}
-        </Button>
-      )}
+      <MorePages
+        hasMore={page.hasMore}
+        loading={page.loading}
+        onLoadMore={() => void page.loadMore()}
+      />
     </section>
   );
 }
@@ -190,9 +207,15 @@ function Tile({
   onToggle,
   onPreview,
   actions,
-  tagging
+  tagging,
+  drag,
+  dropTarget,
+  companions = NO_COMPANIONS,
+  companionSelected = false
 }: {
   row: TeamMaterialRow;
+  drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
+  dropTarget: boolean;
   session: ThumbnailSession | null;
   client: ContentGridClient;
   render: RenderArtifactRef | null;
@@ -204,6 +227,10 @@ function Tile({
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
   tagging?: TaggingProps;
+  /** Its own files, listed from a badge on the picture (024, US25). */
+  companions?: readonly TeamMaterialRow[];
+  /** The file open in the pane is one of them: the tile says whose it is. */
+  companionSelected?: boolean;
 }) {
   const { t, language } = useI18n();
   const [broken, setBroken] = useState(false);
@@ -235,35 +262,31 @@ function Tile({
     <li
       className={`team-explorer-tile is-${row.kind}${selected ? ' is-selected' : ''}${
         checked ? ' is-checked' : ''
-      }`}
+      }${dropTarget ? ' is-drop-target' : ''}${companionSelected ? ' has-selected-companion' : ''}`}
       data-material-id={row.id}
       aria-selected={selected}
-      draggable={row.kind !== 'folder'}
-      onDragStart={event => {
-        event.dataTransfer.setData(DRAG_TYPE, row.id);
-        event.dataTransfer.effectAllowed = 'move';
-      }}
+      {...drag}
       onClick={() => onSelect(row.id)}
+      onDoubleClick={open}
     >
       <button
         type="button"
         className="team-explorer-tile-visual"
         aria-label={t('teamExplorerOpenNamed', { name: row.name })}
         /*
-         * One press chooses a file, two open it — as a folder of files behaves
-         * everywhere else. Opening on the first press meant the panel beside
-         * the grid never had anything to show: it said "choose a file" while
-         * the player was already covering the screen, and three hundred and
-         * forty pixels of the layout did nothing in this view. A folder still
-         * opens on the first press: there is no preview of a folder to wait
-         * for.
+         * One press chooses, two open — a folder as much as a file (the owner,
+         * 024: "the same for every file"). A folder that opened on the first
+         * press could not be selected to act on at all, and the list and the
+         * grid disagreed about which gesture meant what.
          */
         onClick={event => {
           event.stopPropagation();
           onSelect(row.id);
-          if (row.kind === 'folder') open();
         }}
-        onDoubleClick={open}
+        onDoubleClick={event => {
+          event.stopPropagation();
+          open();
+        }}
       >
         {image ? (
           <img src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />
@@ -280,6 +303,9 @@ function Tile({
           </span>
         )}
       </button>
+      {companions.length > 0 && (
+        <TileCompanions owner={row} rows={companions} onSelect={onSelect} onPreview={onPreview} />
+      )}
       {/* Selection and the menu sit over the picture, the way every file
           manager puts them: out of the caption, where they competed with the
           name, and out of the flow, where the bare checkbox floated loose. */}
@@ -298,7 +324,6 @@ function Tile({
       </label>
       {actions && (
         <div className="team-explorer-tile-actions" onClick={event => event.stopPropagation()}>
-          <ShareButton teamId={actions.teamId} row={row} />
           <RowActions {...actions} row={row} />
         </div>
       )}
@@ -306,26 +331,152 @@ function Tile({
         <span className="team-explorer-tile-name" title={row.name}>
           {row.name}
         </span>
+        {/* One quiet line under the name, as Drive and Frame.io draw it (024):
+            the picture already says "image" or "video", so the kind is named
+            only where there is no picture; then size and date. The colour tag
+            shows when there is one — setting it is in the menu. */}
         <span className="team-explorer-tile-meta">
-          <TagDot
-            color={row.tagColor ?? null}
-            name={row.name}
-            canTag={Boolean(tagging)}
-            onChange={color => tagging?.onSetTag(row, color)}
-          />
-          {t(KIND_LABEL[row.kind])}
-          {row.sizeBytes !== null && row.kind !== 'folder' ? ` · ${formatSize(row.sizeBytes)}` : ''}
+          {/* A tile with no mark had no dot at all, so the only way to put one on was the row
+              menu — while the tile beside it, already marked, offered the colours on a press.
+              The empty ring is drawn for whoever may tag and shows itself on hover, as the
+              list's does. */}
+          {(row.tagColor || tagging) && row.kind !== 'folder' && (
+            <TagDot
+              color={row.tagColor ?? null}
+              name={row.name}
+              canTag={Boolean(tagging)}
+              onChange={color => tagging?.onSetTag(row, color)}
+            />
+          )}
+          <span className="team-explorer-tile-facts">
+            {[
+              image || row.kind === 'folder' ? null : t(KIND_LABEL[row.kind]),
+              row.kind === 'folder' ? null : displayedSize(row.sizeBytes, row.mimeType),
+              row.modifiedAt ? formatDate(row.modifiedAt, language) : null
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
         </span>
-        {row.modifiedAt && (
-          <span className="team-explorer-tile-date">{formatDate(row.modifiedAt, language)}</span>
-        )}
         {row.kind === 'landing' && row.landingRender && (
           <span className={`team-explorer-tile-render is-${row.landingRender.state}`}>
             {t(RENDER_LABEL[row.landingRender.state])}
           </span>
         )}
-        {reason && <span className="team-explorer-tile-reason">{t(reason)}</span>}
+        {reason && <KindNote text={t(reason)} />}
       </div>
     </li>
+  );
+}
+
+const NO_COMPANIONS: readonly TeamMaterialRow[] = [];
+
+/** What a companion is, in a word: the name says "catalog", the kind says "transcript". */
+function companionLabel(row: TeamMaterialRow): TranslationKey {
+  if (/_catalog$/iu.test(row.name.trim())) return 'teamExplorerCompanionCatalog';
+  return KIND_LABEL[row.kind];
+}
+
+/**
+ * A video's own files, on its tile (024, US25).
+ *
+ * The list unfolds them as rows under the video, which a list can do for free. A grid cannot: the
+ * first attempt was a line of micro text under the caption — nobody saw it, and it made that one
+ * tile taller than its row — and pressing it dealt the catalogs out as full-size grey tiles that
+ * pushed every video after them down and looked like strangers in the folder.
+ *
+ * So the tile carries a badge on its picture — a paperclip and a count, where Frame.io puts a
+ * version stack's — and the badge opens a short list anchored to the tile. Nothing in the grid
+ * moves. A press on a line chooses that file, so the pane beside the grid shows what it is and
+ * everything that can be done with it; two presses, or the arrow, open it.
+ */
+function TileCompanions({
+  owner,
+  rows,
+  onSelect,
+  onPreview
+}: {
+  owner: TeamMaterialRow;
+  rows: readonly TeamMaterialRow[];
+  onSelect: (id: string) => void;
+  onPreview?: (material: TeamMaterialSummary) => void;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const badge = useRef<HTMLButtonElement>(null);
+  const label = t('teamExplorerCompanions', { count: rows.length });
+
+  return (
+    <>
+      {/* The picture's own box, laid over it: the badge sits in the picture's corner without
+          being inside the button that is the picture. */}
+      <span className="team-explorer-tile-badge-layer">
+        <button
+          ref={badge}
+          type="button"
+          className="team-explorer-tile-badge"
+          aria-label={`${owner.name}: ${label}`}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          title={label}
+          onClick={event => {
+            event.stopPropagation();
+            setOpen(value => !value);
+          }}
+          onDoubleClick={event => event.stopPropagation()}
+        >
+          <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          {rows.length}
+        </button>
+      </span>
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={badge}
+        placement="bottom-start"
+        frequent
+        label={label}
+        className="team-explorer-companions"
+      >
+        <p className="team-explorer-companions-title">{t('teamExplorerCompanionsOf')}</p>
+        <ul role="list" onClick={event => event.stopPropagation()}>
+          {rows.map(row => (
+            <li key={row.id}>
+              <button
+                type="button"
+                className="team-explorer-companion"
+                onClick={() => {
+                  onSelect(row.id);
+                  setOpen(false);
+                }}
+                onDoubleClick={() => onPreview?.(previewSummary(row))}
+              >
+                <KindIcon kind={row.kind} />
+                <span className="team-explorer-companion-copy">
+                  <span className="team-explorer-companion-name" title={row.name}>
+                    {row.name}
+                  </span>
+                  <span className="team-explorer-companion-kind">{t(companionLabel(row))}</span>
+                </span>
+              </button>
+              {onPreview && (
+                <button
+                  type="button"
+                  className="team-explorer-companion-open"
+                  aria-label={t('teamExplorerOpenNamed', { name: row.name })}
+                  title={t('teamExplorerOpenNamed', { name: row.name })}
+                  onClick={() => {
+                    onPreview(previewSummary(row));
+                    setOpen(false);
+                  }}
+                >
+                  <ExternalLink size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </Popover>
+    </>
   );
 }

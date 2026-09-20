@@ -9,8 +9,12 @@ import type {
   TeamMaterialProvenanceEntry,
   TeamPermissions
 } from '@video-compressor/shared';
-import { MaterialRowMenu } from '../apps/web/src/team/catalog/MaterialRowMenu.js';
 import { ToastProvider } from '../apps/web/src/components/toast.js';
+import {
+  MaterialSurface,
+  clickMaterialAction,
+  materialActionState
+} from './support/material-surface';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client.js';
 import { TeamTextEditor } from '../apps/web/src/team/catalog/TeamTextEditor.js';
 import { OperationStatus } from '../apps/web/src/team/processing/OperationStatus.js';
@@ -134,7 +138,7 @@ describe('team file operations', () => {
       });
     const changed = vi.fn();
     await openMenu(
-      <MaterialRowMenu
+      <MaterialSurface
         teamId={TEAM_ID}
         material={material({
           id: 'folder-1',
@@ -165,41 +169,50 @@ describe('team file operations', () => {
     expect(changed).toHaveBeenCalledOnce();
   });
 
+  /**
+   * The promise changed with 024 and the test changed with it: an action the
+   * role cannot perform is no longer hidden, it stands there with the reason
+   * on it. What has to stay true is that the four permissions still answer
+   * separately — one grant must not quietly unlock another.
+   */
   it('keeps download, edit, delete, and process permissions independent', async () => {
     const client = actionsClient();
     const { rerender } = await openMenu(
-      <MaterialRowMenu
+      <MaterialSurface
         teamId={TEAM_ID}
         material={material()}
         permissions={permissions()}
         client={client}
         browseClient={browseClient}
         onChanged={vi.fn()}
+        handlers={{ process: vi.fn() }}
       />
     );
-    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Move' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Move to trash' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Process' })).toBeNull();
+    expect(materialActionState('Download')).toBe('ready');
+    expect(materialActionState('Rename')).toBe('blocked');
+    expect(materialActionState('Move')).toBe('blocked');
+    expect(materialActionState('Move to trash')).toBe('blocked');
+    expect(materialActionState('Process')).toBe('blocked');
+    // And it says why, rather than leaving a dead control to puzzle over.
+    expect(screen.getAllByText('Your role cannot do this').length).toBeGreaterThan(0);
 
     rerender(
       <ToastProvider>
-        <MaterialRowMenu
+        <MaterialSurface
           teamId={TEAM_ID}
           material={material()}
           permissions={permissions({ edit: true, delete: true, process: true })}
           client={client}
           browseClient={browseClient}
           onChanged={vi.fn()}
-          onProcess={vi.fn()}
+          handlers={{ process: vi.fn() }}
         />
       </ToastProvider>
     );
-    expect(screen.getByRole('button', { name: 'Rename' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Move' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Move to trash' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Process' })).toBeTruthy();
+    expect(materialActionState('Rename')).toBe('ready');
+    expect(materialActionState('Move')).toBe('ready');
+    expect(materialActionState('Move to trash')).toBe('ready');
+    expect(materialActionState('Process')).toBe('ready');
   });
 
   it('hands browser-cutoff downloads to the compatible local agent', async () => {
@@ -218,7 +231,7 @@ describe('team file operations', () => {
         }
       });
     await openMenu(
-      <MaterialRowMenu
+      <MaterialSurface
         teamId={TEAM_ID}
         material={material({ sizeBytes: 101 * 1024 * 1024 })}
         permissions={permissions()}
@@ -228,7 +241,7 @@ describe('team file operations', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await clickMaterialAction('Download');
 
     await waitFor(() => expect(client.downloadWithAgent).toHaveBeenCalledOnce());
     expect(client.requestDownload).toHaveBeenNthCalledWith(1, TEAM_ID, 'material-1', 'browser');
@@ -243,7 +256,7 @@ describe('team file operations', () => {
     const track = vi.spyOn(analytics, 'track');
     const client = actionsClient();
     await openMenu(
-      <MaterialRowMenu
+      <MaterialSurface
         teamId={TEAM_ID}
         material={material({ sizeBytes: 24 * 1024 * 1024 })}
         permissions={permissions()}
@@ -254,7 +267,7 @@ describe('team file operations', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await clickMaterialAction('Download');
     await waitFor(() =>
       expect(track).toHaveBeenCalledWith(
         'team_file_attempt_completed',

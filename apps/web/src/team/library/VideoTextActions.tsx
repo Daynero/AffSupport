@@ -24,7 +24,8 @@ export function VideoTextActions({
   client = defaultClient,
   onTranscribe,
   onRetranscribe,
-  onCopied
+  onCopied,
+  compact = false
 }: {
   teamId: string;
   videoId: string;
@@ -34,6 +35,11 @@ export function VideoTextActions({
   onRetranscribe?: () => void;
   /** Notified after a successful copy — lets a host raise its own toast. */
   onCopied?: () => void;
+  /**
+   * Under a heading that already says "transcript", in a narrow pane: the
+   * buttons drop the word "text" and fit one line (024, round 8).
+   */
+  compact?: boolean;
 }) {
   const { t } = useI18n();
   const [payload, setPayload] = useState<LibraryVideoTextVariants | null>(null);
@@ -138,17 +144,39 @@ export function VideoTextActions({
           />
         </>
       )}
-      <Button color="neutral" variant="ghost" disabled={!text} onClick={() => setViewing(true)}>
-        {t('creativeLibraryViewText')}
+      <Button
+        color="neutral"
+        variant="outline"
+        size="sm"
+        disabled={!text}
+        aria-label={compact ? t('creativeLibraryViewText') : undefined}
+        onClick={() => setViewing(true)}
+      >
+        {t(compact ? 'teamTranscriptViewShort' : 'creativeLibraryViewText')}
       </Button>
       {/* Pressed often enough that a flash would become noise: the word changes
           and nothing moves. */}
-      <Button color="neutral" variant="ghost" disabled={!text} onClick={() => void copy()}>
-        {copied ? t('creativeLibraryTextCopied') : t('creativeLibraryCopyText')}
+      <Button
+        color="neutral"
+        variant={compact ? 'outline' : 'ghost'}
+        size="sm"
+        disabled={!text}
+        aria-label={compact && !copied ? t('creativeLibraryCopyText') : undefined}
+        onClick={() => void copy()}
+      >
+        {copied
+          ? t('creativeLibraryTextCopied')
+          : t(compact ? 'teamTranscriptCopyShort' : 'creativeLibraryCopyText')}
       </Button>
       {onRetranscribe && (
-        <Button color="neutral" variant="ghost" onClick={onRetranscribe}>
-          {t('teamTranscriptRedo')}
+        <Button
+          color="neutral"
+          variant={compact ? 'outline' : 'ghost'}
+          size="sm"
+          aria-label={compact ? t('teamTranscriptRedoLong') : undefined}
+          onClick={onRetranscribe}
+        >
+          {t(compact ? 'teamTranscriptRedoShort' : 'teamTranscriptRedo')}
         </Button>
       )}
       {viewing && text && (

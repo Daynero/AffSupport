@@ -89,7 +89,12 @@ export function useCatalogSearch(input: {
   onSearchedRef.current = onSearched;
   const findFlow = useRef<TeamFindFlow | null>(null);
 
+  const searchedTeam = useRef(teamId);
   useEffect(() => {
+    // Only a change of space, not the first mount (024): on mount this wiped the query and filters
+    // the address had just handed in, so a reloaded or shared search link opened empty.
+    if (searchedTeam.current === teamId) return;
+    searchedTeam.current = teamId;
     setQuery('');
     setFilters(EMPTY_FILTERS);
     setPage(1);
@@ -195,7 +200,7 @@ export function useCatalogSearch(input: {
     setPage(1);
     setFilters(current => ({
       ...current,
-      [key]: current[key].filter(entry => entry !== value)
+      [key]: (current[key] ?? []).filter(entry => entry !== value)
     }));
   }, []);
 

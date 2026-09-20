@@ -197,6 +197,14 @@ function wrap(ui: React.ReactElement, role: 'editor' | 'viewer' = 'editor') {
   );
 }
 
+/**
+ * 024 moved the tag, assignee and order controls behind one "Filters" trigger
+ * (FR-077). Opening it is a step a person takes, so these take it too.
+ */
+async function openMoreFilters(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: /^Filters/ }));
+}
+
 describe('the contract', () => {
   it('normalizes a name and refuses one that is blank or too long', () => {
     expect(normalizeTeamTaskLabelName('  Hot   sale ')).toBe('Hot sale');
@@ -340,6 +348,8 @@ describe('the editor', () => {
       })
     );
     expect(onLabelsChange).toHaveBeenCalledWith([ref(HOT)]);
+    // The pick closes the list (024).
+    expect(screen.queryByRole('listbox')).toBeNull();
 
     await user.click(await screen.findByRole('button', { name: 'Take «Hot» off this task' }));
     await waitFor(() =>
@@ -352,6 +362,31 @@ describe('the editor', () => {
     // Taking one off offers to put it back: the press is one gesture and the
     // tag is not on screen to find again.
     expect(await screen.findByRole('button', { name: 'Undo' })).toBeTruthy();
+  });
+
+  it('makes the first tag of an empty space from the task, typing where the tag goes (024)', async () => {
+    const user = userEvent.setup();
+    const api = client();
+    wrap(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task()}
+        members={[]}
+        canEdit
+        client={api}
+        labels={[]}
+        onClose={() => {}}
+        onChanged={() => {}}
+        onLabelsChange={() => {}}
+      />
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Tag' }));
+    // Focus is in the tag field, not left on the task's title: typing names a tag.
+    const field = await screen.findByRole('searchbox', { name: 'Find or create a tag' });
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    await user.keyboard('Launch');
+    expect(await screen.findByRole('button', { name: /Launch/u })).toBeTruthy();
   });
 
   it('sends a viewer no way to change the tags', async () => {
@@ -380,6 +415,7 @@ describe('the board', () => {
     const api = client();
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
+    await openMoreFilters(user);
     await user.click(await screen.findByRole('button', { name: 'Only tasks carrying these tags' }));
     await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Hot/u }));
     await waitFor(() =>
@@ -389,22 +425,22 @@ describe('the board', () => {
     expect(screen.getByRole('button', { name: 'Show tasks with any tag' })).toBeTruthy();
   });
 
-  it('puts the progress scales away with the eye, and remembers the choice', async () => {
+  it('puts the sliders away from the view options, and remembers the choice', async () => {
     const user = userEvent.setup();
     const api = client();
     const { unmount } = wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
     await screen.findByRole('article');
     expect(screen.getAllByRole('slider').length).toBeGreaterThan(0);
-    await user.click(screen.getByRole('button', { name: 'Hide the progress scales' }));
-    expect(screen.queryByRole('slider')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    await user.click(await screen.findByRole('switch', { name: 'Slider on cards' }));
+    expect(screen.queryAllByRole('slider')).toHaveLength(0);
 
     // The choice is this browser's, and it survives leaving the section.
     unmount();
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
     await screen.findByRole('article');
-    expect(screen.queryByRole('slider')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Show the progress scales' })).toBeTruthy();
+    expect(screen.queryAllByRole('slider')).toHaveLength(0);
   });
 
   it('narrows to one person, and to the tasks nobody is on', async () => {
@@ -412,6 +448,7 @@ describe('the board', () => {
     const api = client();
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
+    await openMoreFilters(user);
     await user.click(await screen.findByRole('button', { name: 'Only one person’s tasks' }));
     await user.click(screen.getByRole('option', { name: /Анна/u }));
     await waitFor(() =>
@@ -436,7 +473,9 @@ describe('the board', () => {
     const api = client();
     wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
 
-    await user.click(await screen.findByRole('button', { name: 'By tag' }));
+    await openMoreFilters(user);
+    // The order is a segmented control (024): one radio per option.
+    await user.click(await screen.findByRole('radio', { name: 'By tag' }));
     await waitFor(() =>
       expect(api.listTasks).toHaveBeenCalledWith(expect.objectContaining({ sort: 'label' }))
     );

@@ -49,7 +49,7 @@ export type TeamSpaceClient = {
 export type TeamEntry =
   | { kind: 'checking' }
   | { kind: 'space'; teamId: string; section: TeamSection; query: TeamRouteQuery }
-  | { kind: 'no-access' }
+  | { kind: 'no-access'; taskLink: boolean }
   | { kind: 'lobby' }
   | { kind: 'redirect'; to: string };
 
@@ -97,7 +97,10 @@ export function resolveTeamEntry(input: {
     // Absent and denied are the same answer on purpose (001 FR-016): the
     // membership list is all this client can see, so it cannot leak the
     // difference even by accident.
-    return { kind: 'no-access' };
+    /* A link to one task says so (024): "this space is not available" is true but leaves the
+       reader wondering what they were sent. Naming the task leaks nothing the address did not
+       already carry. */
+    return { kind: 'no-access', taskLink: Boolean(route.query.taskId) };
   }
 
   if (!teamsLoaded) return { kind: 'checking' };
@@ -110,6 +113,9 @@ export function resolveTeamEntry(input: {
   // just cleared, so the lobby, and with it the create wizard, could not be
   // reached at all.
   if (route.showAll) return { kind: 'lobby' };
+  // The same for "make a new space": the wizard is drawn over the lobby's
+  // answer, and entering a space underneath it would navigate away from it.
+  if (route.create) return { kind: 'lobby' };
 
   /**
    * A redirect must not lose the Drive OAuth return. The parameter is what
@@ -409,7 +415,6 @@ export function TeamSpace({
             initialFocus="[data-team-waitlist]"
             onClose={closeWorkspaceGate}
           >
-            <p className="team-workspace-eyebrow">{t('teamWorkspace')}</p>
             <h2 id={gateTitleId}>{t('teamWorkspaceGateTitle')}</h2>
             <p>{t('teamWorkspaceGateBody')}</p>
             <div className="team-workspace-gate-actions">
@@ -438,15 +443,29 @@ export function TeamSpace({
     );
   }
 
-  if (flow.mode !== 'browse') {
+  // Asked for by address — from the space switcher — as well as by the lobby's
+  // own button (024, FR-048).
+  const createAsked = route.kind === 'resolver' && route.create === true;
+  if (flow.mode !== 'browse' || createAsked) {
     return wrap(
       <CreateSpaceWizard
         client={client}
         resumeTeamId={flow.mode === 'resume' ? flow.teamId : null}
-        onCancel={() => setFlow({ mode: 'browse' })}
+        onCancel={() => {
+          setFlow({ mode: 'browse' });
+          // Cancelling goes back to wherever the wizard was opened from — a
+          // space, usually — rather than to a lobby nobody asked for. Reached
+          // with no history behind it (a pasted link), there is nowhere to go
+          // back to, and the lobby is the honest answer.
+          if (!createAsked) return;
+          if (window.history.length > 1) window.history.back();
+          else navigateTo(teamResolverRoute({ showAll: true }), true);
+        }}
         onCreated={teamId => {
           setFlow({ mode: 'browse' });
-          navigateTo(buildTeamRoute({ spaceId: teamId }));
+          // `replace` when the wizard had its own address, so Back from the new
+          // space does not walk into a wizard for a space that now exists.
+          navigateTo(buildTeamRoute({ spaceId: teamId }), createAsked);
         }}
       />
     );
@@ -481,7 +500,7 @@ export function TeamSpace({
           /* This state is the screen, so its title is the screen's heading. */
           titleAs="h2"
           title={<span id="team-no-access">{t('teamSpaceNoAccessTitle')}</span>}
-          description={t('teamSpaceNoAccessBody')}
+          description={t(entry.taskLink ? 'teamSpaceNoAccessTask' : 'teamSpaceNoAccessBody')}
           action={
             <Button
               type="button"

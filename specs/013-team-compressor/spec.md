@@ -27,12 +27,12 @@ Status: draft (owner brief, 2026-08-30). Branch base: `011-team-workspace-rework
 
 ## What exists (analysis)
 
-| Piece | State |
-| --- | --- |
+| Piece                 | State                                                                                                                                                                                                                                                                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Team process pipeline | `drive-ops/process/start` → agent `/api/team/process` → `compressionDelegate` (queue.addTeamUploaded) → finalize commits the output as a new material. `options` passes an `AgentSettingsPatch` (mode, crf, resolution, imageEmbedding…), `parseSettingsPatch`-validated; output always lands as `outputName` in `destinationFolderId`. |
-| Overwrite primitive | The operation kind `new_version` + `replaceMaterialId`/`versionOfMaterialId` in the upload conflict plan; finalize accepts `upload`/`new_version`/`process`. Replacing a material keeps its id → companions stay attached by construction. |
-| Local compressor | `SettingsPanel` (mode/custom, output next-to-originals / chosen folder, metadata, `ImageEmbeddingSection`); naming via `nextOutputPath` → `<stem>_compressed[_N].mp4`. Settings live on the agent (persisted), images in `ImageAssetStore` — this *is* the cache the owner wants. |
-| Embedding assets | `ImageAsset {id,fileName,…}` uploaded via `/api/images/:slot`; a random one per job via `draftImageEmbedding(settings.imageEmbedding)`. No per-image active flag today. |
+| Overwrite primitive   | The operation kind `new_version` + `replaceMaterialId`/`versionOfMaterialId` in the upload conflict plan; finalize accepts `upload`/`new_version`/`process`. Replacing a material keeps its id → companions stay attached by construction.                                                                                              |
+| Local compressor      | `SettingsPanel` (mode/custom, output next-to-originals / chosen folder, metadata, `ImageEmbeddingSection`); naming via `nextOutputPath` → `<stem>_compressed[_N].mp4`. Settings live on the agent (persisted), images in `ImageAssetStore` — this _is_ the cache the owner wants.                                                       |
+| Embedding assets      | `ImageAsset {id,fileName,…}` uploaded via `/api/images/:slot`; a random one per job via `draftImageEmbedding(settings.imageEmbedding)`. No per-image active flag today.                                                                                                                                                                 |
 
 ## Functional requirements
 

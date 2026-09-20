@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { I18nProvider } from 'react-aria-components/I18nProvider';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { EnvironmentBadge } from './components/EnvironmentBadge';
 import {
@@ -20,6 +21,7 @@ import PublicHomePage from './PublicHomePage';
 import { DRIVE_OAUTH_CALLBACK_PATH, DriveOAuthForwardPage } from './auth/DriveOAuthForward';
 import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
+import { useI18n } from './i18n';
 
 const ProtectedSoty = lazy(() => import('./ProtectedSoty'));
 /**
@@ -51,14 +53,25 @@ const HoneycombField = lazy(() =>
 );
 
 export default function Root() {
+  /*
+   * The library's locale, tied to the product's own (024).
+   *
+   * Dates, week starts, number formats and the words inside a calendar's
+   * announcements all come from here. Without it React Aria reads the browser's
+   * locale, which is how a Ukrainian interface came to draw a week that starts
+   * on Sunday.
+   */
+  const { language } = useI18n();
   return (
-    <AuthProvider>
-      <Suspense fallback={null}>
-        <HoneycombField />
-      </Suspense>
-      <EnvironmentBadge />
-      <Routes />
-    </AuthProvider>
+    <I18nProvider locale={language === 'uk' ? 'uk-UA' : 'en-GB'}>
+      <AuthProvider>
+        <Suspense fallback={null}>
+          <HoneycombField />
+        </Suspense>
+        <EnvironmentBadge />
+        <Routes />
+      </AuthProvider>
+    </I18nProvider>
   );
 }
 

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import type { FolderPage, TeamMaterialRow } from '@video-compressor/shared';
@@ -100,17 +101,16 @@ describe('a video’s card', () => {
     const card = await screen.findByRole('complementary', { name: 'Selected item' });
     await waitFor(() => expect(card.textContent).toContain('clip-1.mp4'));
 
-    const named = (name: string | RegExp) =>
-      Array.from(card.querySelectorAll<HTMLElement>('button')).some(button =>
-        typeof name === 'string'
-          ? button.getAttribute('aria-label') === name
-          : name.test(button.getAttribute('aria-label') ?? '')
-      );
-    // Named "the original" only because there is now something else it could be.
-    expect(named('Download the original')).toBe(true);
-    expect(named('Download re-stitched')).toBe(true);
-    expect(named(/^Share/u)).toBe(true);
-    expect(named('Move to trash')).toBe(true);
+    const user = userEvent.setup();
+    await user.click(within(card).getByRole('button', { name: /^Actions for/ }));
+
+    // One vocabulary now: the card offers the same actions, under the same
+    // names, as the row above it and the task beside it (024). "The original"
+    // and "the re-stitched copy" were two names for downloads that the row
+    // called something else.
+    for (const name of ['Download', 'Download re-stitched', 'Share', 'Move to trash']) {
+      expect(screen.getByRole('menuitem', { name })).toBeTruthy();
+    }
   });
 });
 
@@ -127,7 +127,6 @@ describe('the selection bar', () => {
       Array.from(bar.querySelectorAll<HTMLElement>('button')).some(
         button => button.getAttribute('aria-label') === name
       );
-    expect(named('Download re-stitched')).toBe(true);
     expect(named('Move to trash')).toBe(true);
     // The count is on the button now, so the label is not a fixed string: the
     // press that clears a selection says how much it is about to clear.
@@ -139,7 +138,41 @@ describe('the selection bar', () => {
      * takes them away, and only where the bar genuinely runs out of room.
      */
     expect(bar.textContent).toContain('Selected: 2');
-    expect(bar.textContent).toContain('Download re-stitched');
     expect(bar.textContent).toContain('Move to trash');
+
+    // Three acts in words; the ones a selection needs less often wait under
+    // "…" (Linear, Airtable) instead of scrolling off the bar's edge.
+    const user = userEvent.setup();
+    await user.click(within(bar).getByRole('button', { name: 'More' }));
+    expect(await screen.findByRole('menuitem', { name: 'Download re-stitched' })).toBeTruthy();
+  });
+});
+
+/**
+ * T100 — the right-click menu is the same menu (024, FR-021).
+ *
+ * The explorer had no context menu at all, which in a file manager is the
+ * first place anybody looks. It offers the registry's list, not a second
+ * shorter one — a context menu that knows fewer things than the "…" beside it
+ * is a context menu people stop using.
+ */
+describe('right-clicking a row', () => {
+  it('opens the file’s own action list, and leaves the rest of the page to the browser', async () => {
+    renderShell([video(1)]);
+    await screen.findByText('clip-1.mp4');
+    const row = document.querySelector('.team-explorer-row') as HTMLElement;
+    expect(row).toBeTruthy();
+
+    const onRow = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    row.dispatchEvent(onRow);
+    expect(onRow.defaultPrevented).toBe(true);
+    expect(await screen.findByRole('menu')).toBeTruthy();
+
+    // Off the row it is the browser's menu, as it should be: taking the
+    // right-click everywhere is how a web page starts feeling like it is
+    // holding you hostage.
+    const elsewhere = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    document.body.dispatchEvent(elsewhere);
+    expect(elsewhere.defaultPrevented).toBe(false);
   });
 });

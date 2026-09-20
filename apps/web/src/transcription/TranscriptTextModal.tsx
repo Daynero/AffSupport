@@ -725,7 +725,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
           >
             {loading ? (
               <div className="transcript-modal-loading" role="status">
-                <span className="spinner" aria-hidden="true" />
+                <span className="soty-spinner" aria-hidden="true" />
                 <span>{t('transcriptionModalLoading')}</span>
               </div>
             ) : segments.length ? (

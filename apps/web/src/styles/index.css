@@ -1,0 +1,129 @@
+/*
+ * The one stylesheet entry (024).
+ *
+ * Everything the product loads is imported here, in one place, in an order the
+ * cascade can be reasoned about. `main.tsx` imports this file and nothing else.
+ *
+ * ## The layer ladder, and why it is in this order
+ *
+ *   theme         Tailwind's and HeroUI's variables.
+ *   base          Tailwind's preflight and HeroUI's base reset.
+ *   components    HeroUI's component structure (`.button--primary`, `.menu--…`).
+ *   utilities     Tailwind's utilities.
+ *   soty          Everything this product has ever written about how it looks.
+ *
+ * One rung for all of Soty's own CSS, and it is the top one. Two things follow
+ * from that, and both are the point:
+ *
+ * The library decides nothing this product has an opinion about. Its component
+ * styles are a floor — they draw a calendar, a menu and a table this product
+ * never wrote CSS for — and anything Soty says overrides them.
+ *
+ * And inside that rung, specificity decides, exactly as it did before any of
+ * this was layered. That matters more than it sounds: the screens' stylesheets
+ * refine the inventory constantly — a table's columns, a chip's colour, a
+ * button inside a toolbar — and splitting the two across layers silently
+ * inverted twenty-four of those relationships. The explorer's file list came
+ * apart into one column per cell, and it came apart quietly, because a layer
+ * loses without a warning anywhere.
+ *
+ * `tokens.css` is deliberately **unlayered**, which puts it above the whole
+ * ladder: it is the only file allowed to spell a value, and its definitions —
+ * including the HeroUI variables it derives from Soty roles — must outrank the
+ * library's own theme layer. That is the whole of the theme bridge's authority. */
+
+@layer theme, base, components, utilities, soty;
+
+/*
+ * The library, and the utility engine it is built on. Order matters: HeroUI's
+ * sheet reads Tailwind's theme.
+ *
+ * Both resets — Tailwind's preflight and HeroUI's own base — are imported
+ * whole, and both land in `base`, which is the lowest rung of the ladder. That
+ * is deliberate, and it is why they are not excluded: this product already has
+ * its own reset (`base.css`), it sits in `soty-legacy` above them, and a rule
+ * in a higher layer wins regardless of specificity. So the two library resets
+ * apply only where this product had never said anything — which is the half of
+ * a reset worth having — and cannot reach anything it had.
+ */
+@import 'tailwindcss';
+@import '@heroui/styles';
+
+/* The token layer. Unlayered on purpose — see above. */
+@import './tokens.css';
+
+/*
+ * Dark mode, told in this product's own words.
+ *
+ * The library and Tailwind both understand a `dark` class; this product has
+ * always used `data-theme`, committed before first paint by an inline script so
+ * nothing flashes. Binding the variant to the attribute is what lets the two
+ * agree without a second source of truth for one fact.
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+ * Soty's tokens, handed to Tailwind as its theme.
+ *
+ * `inline` is not decoration. Without it a utility resolves its variable where
+ * the theme is declared rather than where the class is used, so every colour
+ * would resolve to its light value inside a `[data-theme='dark']` subtree —
+ * which is how every Soty colour works. With it, the utility carries the
+ * `var()` itself and the cascade does the rest.
+ *
+ * Only roles are exposed. There is no `blue-500` here, and there is not meant
+ * to be: `scripts/check-tailwind-classes.mjs` fails on any utility naming a
+ * value this block does not define.
+ */
+@theme inline {
+  --color-primary: var(--color-primary-solid);
+  --color-primary-soft: var(--color-primary-soft);
+  --color-secondary: var(--color-secondary-solid);
+  --color-secondary-soft: var(--color-secondary-soft);
+  --color-success: var(--color-success-solid);
+  --color-info: var(--color-info-solid);
+  --color-warning: var(--color-warning-solid);
+  --color-error: var(--color-error-solid);
+
+  --color-surface: var(--color-neutral-surface);
+  --color-surface-subtle: var(--color-neutral-surface-subtle);
+  --color-ink: var(--color-neutral-text);
+  --color-ink-muted: var(--color-neutral-text-muted);
+  --color-line: var(--color-neutral-border);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-full: var(--radius-full);
+
+  --text-display: var(--text-display);
+  --text-title: var(--text-title);
+  --text-section: var(--text-section);
+  --text-body: var(--text-body);
+  --text-label: var(--text-label);
+  --text-caption: var(--text-caption);
+  --text-micro: var(--text-micro);
+
+  --ease-out: var(--ease-out-curve);
+  --ease-in-out: var(--ease-in-out-curve);
+}
+
+/* Everything this product says about how it looks, in the order it has always
+   been loaded in — the reset, the inventory, the screens, the skin. Each of
+   these is deleted as its screens migrate. */
+@import './base.css' layer(soty);
+@import './components.css' layer(soty);
+@import '../styles.css' layer(soty);
+@import './team-accounts.css' layer(soty);
+@import './team-tasks.css' layer(soty);
+@import './transcription.css' layer(soty);
+/* The shell's own screens, redone on the inventory (024, US27–US29): the
+   header and its account menu, the tools home, the account page. Loaded last
+   so they refine everything above. */
+@import './shell.css' layer(soty);
+@import './home.css' layer(soty);
+@import './account.css' layer(soty);
+@import './landing-viewer.css' layer(soty);
+
+@import './skin.css' layer(soty);

@@ -645,6 +645,7 @@ describe('agent HTTP surface', () => {
     expect(health.headers['cache-control']).toBe('no-store');
     const body = health.json();
     expect(body.product).toBe('local-video-compressor-agent');
+    expect(body.tools).toEqual({ ffmpeg: true, ffprobe: true });
     expect(typeof body.busy).toBe('boolean');
     expect(body.busy).toBe(false);
   });

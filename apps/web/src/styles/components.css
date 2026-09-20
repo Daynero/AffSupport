@@ -267,6 +267,28 @@
     background-color var(--motion-fast) var(--ease-out-curve),
     color var(--motion-fast) var(--ease-out-curve);
 }
+/*
+ * The glyph at the size it was drawn for (the owner, 024: "every icon is tiny,
+ * you have to aim"). The library's button shrinks any svg inside a small button
+ * to its own 1rem — 12px on this type scale — whatever size the icon asked
+ * for, so a 20px lucide glyph sat in the middle of an empty 30px plate. The
+ * plate is the target; the glyph is what the eye aims at. Both grew.
+ */
+.ui-icon-button svg:not([data-slot='spinner'] svg) {
+  /* The base `max-width: 100%` measured the glyph against the plate's grid
+     track, which the library narrows — so a 20px icon drew 14px wide. */
+  max-width: none;
+  width: 20px;
+  height: 20px;
+}
+.ui-icon-button--xs svg:not([data-slot='spinner'] svg) {
+  width: 16px;
+  height: 16px;
+}
+.ui-icon-button--sm svg:not([data-slot='spinner'] svg) {
+  width: 18px;
+  height: 18px;
+}
 .ui-icon-button--xs {
   width: var(--control-height-xs);
   height: var(--control-height-xs);
@@ -726,55 +748,141 @@
   border-color: var(--color-error-solid);
 }
 
+/* Select.
+
+   A listbox with a trigger, not a native `<select>`: the value is a slot that
+   can hold an icon beside a word, the list is a surface this product draws, and
+   the keyboard is React Aria's. The hidden native select the library keeps
+   underneath is what makes a form still post. */
 .ui-select {
   position: relative;
   display: inline-flex;
   align-items: center;
   width: 100%;
 }
-.ui-select select {
+.ui-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   width: 100%;
   min-width: 0;
-  padding: 0 var(--space-6) 0 var(--space-3);
+  padding: 0 var(--space-2) 0 var(--space-3);
   border: 1px solid var(--color-neutral-border-strong);
   border-radius: var(--radius-sm);
   background: var(--color-neutral-surface);
   color: var(--color-neutral-text);
-  appearance: none;
   cursor: pointer;
+  text-align: start;
 }
-.ui-select--xs select {
+.ui-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-select--xs .ui-select-trigger {
   min-height: var(--control-height-xs);
   font-size: var(--text-micro);
 }
-.ui-select--sm select {
+.ui-select--sm .ui-select-trigger {
   min-height: var(--control-height-sm);
   font-size: var(--text-caption);
 }
-.ui-select--md select {
+.ui-select--md .ui-select-trigger {
   min-height: var(--control-height-md);
   font-size: var(--text-label);
 }
-.ui-select--lg select {
+.ui-select--lg .ui-select-trigger {
   min-height: var(--control-height-lg);
   font-size: var(--text-body);
 }
-.ui-select select:focus {
+.ui-select-trigger[data-focus-visible='true'] {
   border-color: var(--color-secondary-solid);
-  outline: none;
-  box-shadow: 0 0 0 3px var(--color-secondary-softer);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.ui-select.is-invalid .ui-select-trigger {
+  border-color: var(--color-error-border);
+}
+.ui-select.is-disabled .ui-select-trigger {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 .ui-select-chevron {
-  position: absolute;
-  right: var(--space-2);
   display: grid;
   place-items: center;
   color: var(--color-neutral-text-muted);
   pointer-events: none;
 }
-.ui-select-chevron svg {
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
+.ui-select-popover {
+  z-index: var(--layer-anchored);
+  padding: var(--space-1);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-raised);
+  box-shadow: var(--shadow-menu);
+}
+.ui-select-list {
+  display: grid;
+  gap: var(--space-px);
+  max-height: 44vh;
+  overflow: auto;
+  outline: none;
+}
+.ui-select-option {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  cursor: pointer;
+  outline: none;
+}
+.ui-select-option[data-focused='true'],
+.ui-select-option[data-hovered='true'] {
+  background: var(--color-neutral-surface-subtle);
+}
+.ui-select-option[data-selected='true'] {
+  background: var(--color-secondary-softer);
+  color: var(--color-secondary-text);
+}
+
+/* Search field. One box, one magnifier, one clear — the product had five. */
+.ui-search-field {
+  display: inline-flex;
+  width: 100%;
+}
+.ui-search-field-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text-muted);
+}
+.ui-search-field-group input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  border: 0;
+  background: none;
+  color: var(--color-neutral-text);
+  outline: none;
+}
+.ui-search-field--sm .ui-search-field-group input {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-caption);
+}
+.ui-search-field-group:has(input:focus-visible) {
+  border-color: var(--color-secondary-solid);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.ui-search-field[data-empty='true'] .ui-search-field-group button {
+  visibility: hidden;
 }
 
 .ui-input-tags {
@@ -813,19 +921,38 @@
 /* ============================================================
    Choice
    ============================================================ */
+/* Checkbox and Switch.
+
+   The library lays both out as a column — label over control — and this product
+   has always read them left to right, so the direction is stated here rather
+   than inherited. The rest is Soty's: an 18px box, the violet fill, and the one
+   focus ring. The checkmark itself is the library's, because its SVG draws
+   itself on rather than appearing, and a hand-rolled `::after` cannot.
+
+   State comes off the data attributes React Aria writes, not off an `input`
+   sibling: there is no longer a visible input to be a sibling of. */
 .ui-checkbox,
 .ui-switch {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: var(--space-2);
   cursor: pointer;
 }
-.ui-checkbox input,
-.ui-switch input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
+/* The control itself, which the field wraps: mark and caption on one line, so
+   the whole of it is the press target and not just the box. */
+.ui-checkbox-content {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: inherit;
+}
+/* The focus ring follows the input inside the content, not the field around
+   it — the field is a wrapper nobody can focus. */
+.ui-checkbox-content:has(input:focus-visible) .ui-checkbox-mark {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 .ui-checkbox-mark {
   display: inline-grid;
@@ -835,36 +962,32 @@
   border: 1px solid var(--color-neutral-border-strong);
   border-radius: var(--radius-sm);
   background: var(--color-neutral-surface);
+  color: var(--color-secondary-on-solid);
   transition:
     background-color var(--motion-fast) var(--ease-out-curve),
     border-color var(--motion-fast) var(--ease-out-curve);
 }
-.ui-checkbox input:checked + .ui-checkbox-mark {
+.ui-checkbox[data-selected='true'] .ui-checkbox-mark,
+.ui-checkbox[data-indeterminate='true'] .ui-checkbox-mark {
   border-color: var(--color-secondary-solid);
   background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
 }
-.ui-checkbox input:checked + .ui-checkbox-mark::after {
-  content: '';
-  width: 10px;
-  height: 6px;
-  border: 2px solid var(--color-secondary-on-solid);
-  border-top: 0;
-  border-right: 0;
-  transform: rotate(-45deg) translateY(-1px);
+/* The library fills its box with a scaled-in pseudo-element rather than a
+   background, so recolouring the box alone leaves the fill accent-coloured.
+   Selection in this product is violet (docs/DESIGN.md), not the honey that
+   means "the one action this surface exists for". */
+.ui-checkbox .ui-checkbox-mark::before {
+  background: var(--color-secondary-solid);
 }
-.ui-checkbox input:indeterminate + .ui-checkbox-mark::after {
-  content: '';
-  width: 10px;
-  height: 2px;
-  border: 0;
-  background: var(--color-secondary-on-solid);
-  transform: none;
-}
-.ui-checkbox input:focus-visible + .ui-checkbox-mark {
+.ui-checkbox[data-focus-visible='true'] .ui-checkbox-mark {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
-.ui-checkbox.is-disabled {
+.ui-checkbox[data-disabled='true'],
+.ui-switch[data-disabled='true'],
+.ui-checkbox.is-disabled,
+.ui-switch.is-disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -878,23 +1001,38 @@
   padding: 2px;
   border-radius: var(--radius-full);
   background: var(--color-neutral-surface-muted);
+  /* Off has an edge and a visible thumb (024): in the dark theme a surface thumb on a muted
+     track was dark on dark, and an off switch read as no switch at all. */
+  box-shadow: inset 0 0 0 1px var(--color-neutral-border);
   transition: background-color var(--motion-fast) var(--ease-out-curve);
 }
 .ui-switch-thumb {
   width: 18px;
   height: 18px;
   border-radius: var(--radius-full);
-  background: var(--color-neutral-surface);
+  background: var(--color-neutral-text-muted);
   box-shadow: var(--shadow-sm);
   transition: transform var(--motion-fast) var(--ease-out-curve);
+  /* The travel is this sheet's `translateX`, and only that (024). The library moves its thumb
+     with a margin of its own when selected; the two added up, and an "on" thumb rode 8px past
+     the end of its track and was cut off by it. */
+  margin-inline-start: 2px;
 }
-.ui-switch input:checked + .ui-switch-track {
+.ui-switch[data-selected='true'] .ui-switch-track {
   background: var(--color-secondary-solid);
 }
-.ui-switch input:checked + .ui-switch-track .ui-switch-thumb {
+.ui-switch[data-selected='true'] .ui-switch-thumb {
+  margin-inline-start: 2px;
   transform: translateX(16px);
+  /* The colour that belongs on the violet (024): the surface colour is near-black in the dark
+     theme, so an "on" switch showed a dark disc at the end of its track and read as a switch
+     with a bite taken out of it. */
+  background: var(--color-white);
 }
-.ui-switch input:focus-visible + .ui-switch-track {
+.ui-switch[data-selected='true'] .ui-switch-track {
+  box-shadow: none;
+}
+.ui-switch[data-focus-visible='true'] .ui-switch-track {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
@@ -934,6 +1072,11 @@
   background: var(--color-neutral-surface);
   color: var(--color-neutral-text);
   box-shadow: var(--shadow-sm);
+}
+/* One option out of reach while the rest stay live; its `title` says why. */
+.ui-segmented button[data-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 /* Picto group — docs/DESIGN.md, to the pixel. */
@@ -1019,9 +1162,42 @@
   font-size: var(--text-caption);
 }
 
+/* Slider.
+
+   No longer an `<input type=range>`: a track, a fill and a thumb the pointer
+   and the arrow keys both drive. The sizes are this product's; the geometry is
+   the library's. */
 .ui-slider {
   width: 100%;
-  accent-color: var(--color-secondary-solid);
+}
+.ui-slider-track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+}
+.ui-slider--sm .ui-slider-track {
+  height: 4px;
+}
+.ui-slider-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-secondary-solid);
+}
+.ui-slider--gradient .ui-slider-fill {
+  background: var(--gradient-progress);
+}
+.ui-slider-thumb {
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface);
+  border: 1px solid var(--color-secondary-solid);
+  box-shadow: var(--shadow-sm);
+}
+.ui-slider-thumb[data-focus-visible='true'] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 /* ============================================================
@@ -1294,6 +1470,10 @@
 .ui-modal--drawer {
   align-self: stretch;
   justify-self: start;
+  /* A drawer is as tall as the screen, and a grid shares spare height between its rows: with a
+     short list the header drifted to the middle and every change of filter moved it again. The
+     rows keep their own height and the panel scrolls (024). */
+  align-content: start;
   border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
   max-height: none;
   height: 100%;
@@ -1305,7 +1485,7 @@
 
 .ui-popover {
   position: absolute;
-  z-index: var(--layer-popover);
+  z-index: var(--layer-anchored);
   min-width: 200px;
   padding: var(--space-2);
   border: 1px solid var(--color-neutral-border);
@@ -1332,14 +1512,19 @@
 
 .ui-menu {
   padding: var(--space-1);
+  /* A menu is read down, not across: past this the eye has to travel to
+     find the next item, and an explanatory line becomes a paragraph. */
+  max-width: min(340px, calc(100vw - var(--space-6)));
 }
 .ui-menu-item {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: var(--control-height-sm);
-  padding: 0 var(--space-2);
+  /* A notch over the small control (024): at 30px with nothing between them, six rows read as
+     one block and the pointer landed on the neighbour — the owner said so of the space's menu. */
+  min-height: calc(var(--control-height-sm) + var(--space-1));
+  padding: 0 var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -1348,10 +1533,14 @@
   text-align: left;
   cursor: pointer;
 }
+.ui-menu-item + .ui-menu-item {
+  margin-top: var(--space-px);
+}
 .ui-menu-item:hover:not(:disabled) {
   background: var(--color-neutral-surface-muted);
 }
-.ui-menu-item:disabled {
+.ui-menu-item:disabled,
+.ui-menu-item[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.5;
 }
@@ -1363,22 +1552,47 @@
   flex: none;
   color: var(--color-neutral-text-muted);
 }
-.ui-menu-label {
+.ui-menu-copy {
+  display: grid;
   flex: 1;
+  min-width: 0;
+}
+.ui-menu-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Why an item that is present cannot be chosen. One line, quieter than the
+   label, and never a sentence where a phrase will do. */
+.ui-menu-note {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  line-height: var(--leading-caption);
+  white-space: normal;
+}
+.ui-menu-item:disabled .ui-menu-note,
+.ui-menu-item[aria-disabled='true'] .ui-menu-note {
+  color: var(--color-warning-text);
+}
 .ui-menu-trailing {
   color: var(--color-neutral-text-muted);
   font-size: var(--text-caption);
 }
+/* A separator in the items becomes a new section in the collection, so the line is drawn between
+   sections: without it groups were told apart by a gap nobody could read (024). */
+.ui-menu-section + .ui-menu-section {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-neutral-border-strong);
+}
 .ui-menu-separator {
   display: block;
   height: 1px;
-  margin: var(--space-1) 0;
-  background: var(--color-neutral-border);
+  /* Seen, and with air on both sides (024): on the raised surface the hairline border vanished,
+     so groups were told apart by a gap nobody could explain. */
+  margin: var(--space-2) var(--space-2);
+  background: var(--color-neutral-border-strong);
 }
 /* The question a run of radio items answers. Quiet: it is a label, not a row
    anyone can press. */
@@ -1868,7 +2082,7 @@
    ============================================================ */
 
 /* Buttons — the seven dialects, brought to one geometry (cleared by C1–C14). */
-.button {
+.soty-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1888,10 +2102,10 @@
     color var(--motion-fast) var(--ease-out-curve),
     transform var(--motion-fast) var(--ease-out-curve);
 }
-.button:active:not(:disabled) {
+.soty-button:active:not(:disabled) {
   transform: scale(var(--press-scale));
 }
-.button:disabled {
+.soty-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -2118,4 +2332,227 @@
 .ui-alert-text,
 .ui-empty-description {
   max-width: var(--measure);
+}
+
+/* ============================================================
+   Material actions (024)
+
+   One row of controls, wherever a material is shown. Inline actions first,
+   then the one door to the rest — never a row of six unlabelled icons, which
+   is what the task attachment carried in 158 pixels.
+   ============================================================ */
+.ui-material-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-px);
+}
+
+/* Number field. The group carries the border; the plates sit inside it, so a
+   stepper press cannot look like a separate control from the value it moves. */
+.ui-input-number-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-px);
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+}
+.ui-input-number-group input {
+  width: 96px;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-neutral-text);
+  text-align: center;
+  outline: none;
+}
+.ui-input-number--sm .ui-input-number-group input {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-caption);
+}
+.ui-input-number-group:has(input:focus-visible) {
+  border-color: var(--color-secondary-solid);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.ui-input-number.is-invalid .ui-input-number-group {
+  border-color: var(--color-error-border);
+}
+
+/* The wrapper a slider grows only when its keyboard step differs from its drag
+   step. Transparent to layout: it is there to catch keys, not to take room. */
+.ui-slider-keys {
+  display: contents;
+}
+
+/* ============================================================
+   Calendar (024)
+
+   One calendar for the whole product. The grid, the arrows and the year jump
+   are React Aria's; the proportions are this product's — a dense working tool,
+   so a day is a 34px square rather than the roomy cell a marketing page wants.
+   ============================================================ */
+.ui-calendar {
+  display: grid;
+  gap: var(--space-2);
+  /* Not `fit-content` (024): the library makes the calendar an inline-size container, and a
+     container has no intrinsic width — "as wide as its content" came out as zero, the month
+     stacked one letter to a line and the days piled on top of each other. It takes the width it
+     is given, up to the library's own cap. */
+  width: 100%;
+}
+.ui-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.ui-calendar-heading {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-emphasis);
+  text-align: center;
+  cursor: pointer;
+}
+.ui-calendar-nav {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+}
+.ui-calendar-nav[data-hovered='true'] {
+  background: var(--color-neutral-surface-subtle);
+  color: var(--color-neutral-text);
+}
+.ui-calendar-grid {
+  /* Cells touch side to side, so a range is one band rather than a row of tiles; a hairline of
+     air between the weeks keeps two bands from fusing into a block. */
+  border-collapse: separate;
+  border-spacing: 0 var(--space-px);
+}
+.ui-calendar-grid td {
+  padding: 0;
+}
+.ui-calendar-weekday {
+  padding-bottom: var(--space-1);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  text-transform: uppercase;
+}
+/*
+ * A day is two boxes (024): the cell, which carries the band of a range, and the disc inside it,
+ * which carries the day itself. They were styled as one, so a range came out as a row of violet
+ * rounded rectangles with the library's orange circles sitting inside the first and the last —
+ * two shapes and two colours for one selection. The cell is now only ever the band, the disc only
+ * ever the circle.
+ *
+ * Nothing here animates: a range is drawn under a moving pointer, and a 100 ms fade on forty
+ * cells read as lag — the highlight arriving behind the hand.
+ */
+.ui-calendar-day {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 34px;
+  border-radius: 0;
+  background: none;
+  color: var(--color-neutral-text);
+  font-size: var(--text-caption);
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+  transition: none;
+}
+.ui-calendar-day .range-calendar__cell-button,
+.ui-calendar-day .calendar__cell-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: none;
+  color: inherit;
+  box-shadow: none;
+  transition: none;
+}
+.ui-calendar-day::before,
+.ui-calendar-day::after,
+.ui-calendar-day .range-calendar__cell-button::before,
+.ui-calendar-day .range-calendar__cell-button::after {
+  content: none;
+}
+.ui-calendar-day[data-outside-month='true'] {
+  color: var(--color-neutral-text-muted);
+  opacity: 0.5;
+}
+.ui-calendar-day[data-hovered='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-hovered='true'] .calendar__cell-button {
+  background: var(--color-neutral-surface-muted);
+}
+/* Today is marked, not chosen: a ring, so it never reads as one end of a range. */
+.ui-calendar-day[data-today='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-today='true'] .calendar__cell-button {
+  box-shadow: inset 0 0 0 1px var(--color-secondary-solid);
+}
+/* The band: every chosen day, end to end. */
+.ui-calendar-day[data-selected='true'] {
+  background: var(--color-secondary-soft);
+  color: var(--color-secondary-text);
+}
+.ui-calendar-day[data-selection-start='true'] {
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+}
+.ui-calendar-day[data-selection-end='true'] {
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+.ui-calendar-day[data-selection-start='true'][data-selection-end='true'] {
+  border-radius: var(--radius-full);
+}
+/* The two ends, and a single chosen day: the disc, solid. */
+.ui-calendar-day[data-selection-start='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-selection-end='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-selected='true'] .calendar__cell-button {
+  background: var(--color-secondary-solid);
+  color: var(--color-white);
+  box-shadow: none;
+}
+.ui-calendar-day[data-focus-visible='true'] .range-calendar__cell-button,
+.ui-calendar-day[data-focus-visible='true'] .calendar__cell-button {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.ui-calendar-day[data-unavailable='true'],
+.ui-calendar-day[data-disabled='true'] {
+  color: var(--color-neutral-text-muted);
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.ui-calendar-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-neutral-border);
+}
+
+/* An overflow that exists only to be the right-click menu: reachable by
+   assistive technology, out of the row's own layout (024). */
+.ui-material-actions-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
