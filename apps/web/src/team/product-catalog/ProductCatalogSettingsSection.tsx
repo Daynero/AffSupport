@@ -361,6 +361,7 @@ function CatalogImagesSection({
           client={client as FolderPickerClient}
           title={t('productCatalogImagesPickFolder')}
           nested
+          selectionId="material"
           onClose={() => setPickingFolder(false)}
           onSelect={folder => {
             setPickingFolder(false);

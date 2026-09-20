@@ -23,7 +23,8 @@ export function FolderPicker({
   title,
   onSelect,
   onClose,
-  nested = false
+  nested = false,
+  selectionId = 'provider'
 }: {
   teamId: string;
   client: FolderPickerClient;
@@ -33,11 +34,15 @@ export function FolderPicker({
   onClose: () => void;
   /** Raised over another dialog — the space settings, for one. */
   nested?: boolean;
+  /** Most destinations need the Drive id; material-backed settings need Soty's row id. */
+  selectionId?: 'material' | 'provider';
 }) {
   const { t } = useI18n();
   const titleId = useId();
   // The root has no material row of its own, so it is named rather than listed.
-  const [trail, setTrail] = useState<{ id: string; name: string }[]>([]);
+  const [trail, setTrail] = useState<
+    { materialId: string; providerId: string; name: string }[]
+  >([]);
   const [folders, setFolders] = useState<TeamMaterialSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const currentFolder = trail.at(-1) ?? null;
@@ -47,7 +52,7 @@ export function FolderPicker({
     setFolders(null);
     setFailed(false);
     void client
-      .listMaterials(teamId, currentFolder?.id ?? null)
+      .listMaterials(teamId, currentFolder?.providerId ?? null)
       .then(items => {
         if (!active) return;
         setFolders(items.filter(item => item.kind === 'folder' && item.teamId === teamId));
@@ -58,7 +63,7 @@ export function FolderPicker({
     return () => {
       active = false;
     };
-  }, [client, currentFolder?.id, teamId]);
+  }, [client, currentFolder?.providerId, teamId]);
 
   return (
     <Modal
@@ -76,7 +81,7 @@ export function FolderPicker({
         </button>
         {trail.map((folder, index) => (
           <button
-            key={folder.id}
+            key={folder.materialId}
             type="button"
             onClick={() => setTrail(current => current.slice(0, index + 1))}
           >
@@ -103,7 +108,11 @@ export function FolderPicker({
               onClick={() =>
                 setTrail(current => [
                   ...current,
-                  { id: folder.providerId ?? folder.id, name: folder.name }
+                  {
+                    materialId: folder.id,
+                    providerId: folder.providerId ?? folder.id,
+                    name: folder.name
+                  }
                 ])
               }
             >
@@ -119,7 +128,19 @@ export function FolderPicker({
           variant="primary"
           // The root itself is a legitimate destination, and it is the one place
           // the tree cannot offer as a row.
-          onClick={() => onSelect(currentFolder ?? { id: 'root', name: t('teamFolderPickerRoot') })}
+          onClick={() =>
+            onSelect(
+              currentFolder
+                ? {
+                    id:
+                      selectionId === 'material'
+                        ? currentFolder.materialId
+                        : currentFolder.providerId,
+                    name: currentFolder.name
+                  }
+                : { id: 'root', name: t('teamFolderPickerRoot') }
+            )
+          }
         >
           {currentFolder
             ? t('teamFolderPickerSelectNamed', { name: currentFolder.name })
