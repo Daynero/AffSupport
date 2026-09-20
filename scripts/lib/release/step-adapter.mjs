@@ -206,9 +206,12 @@ async function findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, d
   const mine = candidate =>
     candidate.displayTitle?.includes(releaseId) &&
     candidate.displayTitle.endsWith(publish ? 'publish' : 'build-only');
-  const candidates = (
-    releaseId && runs.some(mine) ? runs.filter(mine) : runs.filter(candidate => candidate.headSha === sourceSha)
-  ).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  // When a release id is present, never fall back from publish to a successful
+  // build-only run with the same SHA. The two jobs intentionally share the
+  // commit but have different effects: build-only validates Windows, publish
+  // attaches the installer to the immutable GitHub release.
+  const candidates = (releaseId ? runs.filter(mine) : runs.filter(candidate => candidate.headSha === sourceSha))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   return candidates[0] ?? null;
 }
 
