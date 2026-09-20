@@ -1,6 +1,6 @@
 {
   "name": "@video-compressor/web",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,7 +17,7 @@
     "@react-aria/ssr": "3.10.1",
     "@react-aria/utils": "3.34.1",
     "@supabase/supabase-js": "^2.110.7",
-    "@video-compressor/shared": "1.2.0",
+    "@video-compressor/shared": "1.2.1",
     "@vitejs/plugin-react": "6.0.3",
     "lucide-react": "^1.37.0",
     "qrcode": "^1.5.4",

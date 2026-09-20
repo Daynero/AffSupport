@@ -1,3 +1,8 @@
+# v1.2.1
+
+- Refresh the Soty web interface with the new branded workspace experience.
+- Remove the legacy unbranded application icon.
+
 # v1.2.0
 
 - Improve overall stability and reliability.
