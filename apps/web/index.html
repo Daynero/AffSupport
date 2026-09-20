@@ -31,10 +31,7 @@
       (function () {
         try {
           var stored = localStorage.getItem('theme');
-          var theme =
-            stored === 'light' || stored === 'dark'
-              ? stored
-              : 'dark';
+          var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
           document.documentElement.dataset.theme = theme;
           document.documentElement.style.colorScheme = theme;
 

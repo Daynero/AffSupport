@@ -7,7 +7,7 @@ import {
   type RenderArtifactRef
 } from '@video-compressor/shared';
 import { X } from 'lucide-react';
-import { Button, ErrorState, IconButton, Spinner } from '../../components/ui/index';
+import { ErrorState, IconButton, Spinner } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { MaterialPreview, type MaterialPreviewClient } from '../preview/MaterialPreview';

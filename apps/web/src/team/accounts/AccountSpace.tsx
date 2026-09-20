@@ -118,7 +118,7 @@ function writeMoneyFolded(teamId: string, folded: boolean): void {
 type Editor = { kind: 'create' } | { kind: 'account'; accountId: string; state: AgentEditing };
 
 export function AccountSpace({ teamId, client }: { teamId: string; client?: AccountSpaceClient }) {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const { push } = useToasts();
   const { can, revision } = useTeam();
   const canEdit = can('edit');

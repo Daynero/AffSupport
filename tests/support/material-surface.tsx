@@ -87,9 +87,7 @@ export async function openMaterialActions(input: MaterialSurfaceInput) {
       <MaterialSurface {...input} />
     </ToastProvider>
   );
-  await userEvent.click(
-    screen.getByRole('button', { name: `Actions for ${input.material.name}` })
-  );
+  await userEvent.click(screen.getByRole('button', { name: `Actions for ${input.material.name}` }));
   return result;
 }
 
@@ -110,16 +108,13 @@ export function renderMaterialActions(input: MaterialSurfaceInput) {
  * for a reason nobody cares about.
  */
 export async function clickMaterialAction(name: string | RegExp) {
-  const item =
-    screen.queryByRole('menuitem', { name }) ?? screen.getByRole('button', { name });
+  const item = screen.queryByRole('menuitem', { name }) ?? screen.getByRole('button', { name });
   await userEvent.click(item);
 }
 
 /** Is this action on offer at all? Inline or in the menu, both count. */
 export function queryMaterialAction(name: string | RegExp) {
-  return (
-    screen.queryByRole('menuitem', { name }) ?? screen.queryByRole('button', { name })
-  );
+  return screen.queryByRole('menuitem', { name }) ?? screen.queryByRole('button', { name });
 }
 
 /**

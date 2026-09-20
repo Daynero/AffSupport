@@ -77,9 +77,7 @@ export function CatalogFilters({
   onClear: () => void;
 }) {
   const { t, language } = useI18n();
-  const visible = new Set<keyof CatalogSearchFilters>(
-    visibleKeys ?? CATALOG_FILTER_KEYS
-  );
+  const visible = new Set<keyof CatalogSearchFilters>(visibleKeys ?? CATALOG_FILTER_KEYS);
   const selections = (Object.keys(filters) as Array<keyof CatalogSearchFilters>).flatMap(key =>
     visible.has(key) ? (filters[key] as readonly string[]).map(value => ({ key, value })) : []
   );

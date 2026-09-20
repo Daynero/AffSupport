@@ -16,7 +16,6 @@ import {
   ProductCatalogSettingsSection,
   type ProductCatalogSettingsClient
 } from '../product-catalog/ProductCatalogSettingsSection';
-import { SettingsSection } from './SettingsSection';
 import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
 import type { TeamSettingsTab } from '../routes';
 import { Tabs } from '../../components/ui/index';
@@ -141,7 +140,6 @@ export function SpaceSettings({
   const { t } = useI18n();
   const { activeTeam, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
-  const canSeeHistory = activeTeam?.role === 'owner' || activeTeam?.role === 'admin';
   const tabs = [
     { id: 'general' as const, label: t('teamSettingsTabGeneral') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },

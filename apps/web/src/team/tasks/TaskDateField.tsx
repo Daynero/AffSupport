@@ -87,11 +87,11 @@ export function TaskDateField({
         className="task-date-filter-popover team-task-date-popover"
       >
         {/*
-          * The inventory's calendar (024), which is React Aria's: it knows the
-          * locale's first day of week, answers PageUp and Home, and has a year
-          * jump. The 42 buttons this replaced were hand-built here and again in
-          * the board's filter, and neither of them did any of that.
-          */}
+         * The inventory's calendar (024), which is React Aria's: it knows the
+         * locale's first day of week, answers PageUp and Home, and has a year
+         * jump. The 42 buttons this replaced were hand-built here and again in
+         * the board's filter, and neither of them did any of that.
+         */}
         <Calendar
           label={t('teamTaskDateChoose')}
           value={toCalendarDate(value)}

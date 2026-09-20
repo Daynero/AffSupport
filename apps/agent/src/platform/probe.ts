@@ -50,7 +50,10 @@ export function probeExecutable(
         resolve(runnableProbe);
         return;
       }
-      resolve({ runnable: false, failure: signal ? `SIGNAL_${signal}` : `EXIT_${code ?? 'UNKNOWN'}` });
+      resolve({
+        runnable: false,
+        failure: signal ? `SIGNAL_${signal}` : `EXIT_${code ?? 'UNKNOWN'}`
+      });
     });
   });
 }
