@@ -110,8 +110,8 @@ import { spaceReadiness } from './team/lobby/SpaceCard';
 import { buildTeamRoute, teamResolverRoute } from './team/routes';
 import { readRememberedSpaceId, useTeam } from './team/TeamContext';
 
-/** One row of spaces. More than that is the lobby's job, and the link to it is in the row's heading. */
-const HOME_SPACES = 3;
+/** The home shortcut is the last space visited; the heading link opens the full lobby. */
+const HOME_SPACES = 1;
 
 const GROUP_LABEL: Record<WebToolGroup, TranslationKey> = {
   video: 'homeGroupVideo',
@@ -377,7 +377,8 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
   const spaces = useMemo(
     () =>
       [...teams]
-        // Stable, so everything but the remembered space keeps the server's order.
+        // Keep the last visited space first, then use the server order as a safe fallback when
+        // the remembered space is no longer available.
         .sort(
           (first, second) =>
             Number(second.id === rememberedSpaceId) - Number(first.id === rememberedSpaceId)
@@ -484,13 +485,6 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                     : readiness === 'preparing'
                       ? t('teamSpaceCardPreparingHint')
                       : undefined
-                }
-                badge={
-                  space.id === rememberedSpaceId && teams.length > 1 ? (
-                    <Badge color="secondary" variant="subtle" size="xs">
-                      {t('homeSpaceLast')}
-                    </Badge>
-                  ) : undefined
                 }
                 trailing={
                   readiness === 'ready' ? (
