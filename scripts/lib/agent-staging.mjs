@@ -36,17 +36,26 @@ export async function stageAgentRuntime(destination) {
     throw new Error(`Agent runtime destination must be empty: ${destination}`);
   }
 
-  const dependencyOutput = execFileSync(
-    'npm',
-    ['ls', '--workspace', '@video-compressor/agent', '--omit=dev', '--all', '--json', '--long'],
-    {
-      cwd: repositoryRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'inherit'],
-      // npm is npm.cmd on Windows; shell resolution handles both spellings.
-      shell: process.platform === 'win32'
-    }
-  );
+  let dependencyOutput;
+  try {
+    dependencyOutput = execFileSync(
+      'npm',
+      ['ls', '--workspace', '@video-compressor/agent', '--omit=dev', '--all', '--json', '--long'],
+      {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'inherit'],
+        // npm is npm.cmd on Windows; shell resolution handles both spellings.
+        shell: process.platform === 'win32'
+      }
+    );
+  } catch (error) {
+    // npm ls exits 1 for unrelated extraneous dev packages even when the
+    // Agent's production subtree is complete. Parse its JSON and validate the
+    // subtree below; genuine missing Agent dependencies still fail there.
+    if (!error || typeof error.stdout !== 'string' || !error.stdout.trim()) throw error;
+    dependencyOutput = error.stdout;
+  }
 
   const dependencyTree = JSON.parse(dependencyOutput);
   const agentTree = dependencyTree.dependencies?.['@video-compressor/agent'];
