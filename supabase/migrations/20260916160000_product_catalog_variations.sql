@@ -27,8 +27,7 @@ alter table public.team_product_catalogs
 update public.team_product_catalogs set variant = 1 where variant is null;
 
 alter table public.team_product_catalogs
-  alter column variant set default 1,
-  alter column variant set not null;
+  alter column variant set default 1;
 
 alter table public.team_product_catalogs
   drop constraint if exists team_product_catalogs_variant_check;
