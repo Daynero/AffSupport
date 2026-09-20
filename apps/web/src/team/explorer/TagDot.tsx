@@ -58,6 +58,9 @@ export function TagDot({
   const pressed = useRef(false);
   const [aimed, setAimed] = useState<string | null>(null);
   const swatchAt = (x: number, y: number) => {
+    // jsdom does not implement hit-testing. Pointer gestures still work in a
+    // real browser; in tests there simply is no swatch under the pointer.
+    if (typeof document.elementFromPoint !== 'function') return null;
     const target = document.elementFromPoint(x, y);
     const swatch =
       target instanceof HTMLElement ? target.closest<HTMLButtonElement>('.team-tag-swatch') : null;
