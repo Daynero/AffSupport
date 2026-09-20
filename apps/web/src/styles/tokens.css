@@ -228,6 +228,7 @@
   --color-neutral-text: var(--grey-900);
   --color-neutral-text-muted: var(--grey-600);
   --color-neutral-on-solid: #ffffff;
+  --color-neutral-solid: var(--grey-900);
 
   --color-focus-ring: var(--purple-400);
   --color-overlay-backdrop: rgba(18, 15, 23, 0.38);
@@ -474,6 +475,7 @@
   --color-neutral-text: #f6f2f8;
   --color-neutral-text-muted: #b8adbe;
   --color-neutral-on-solid: #120f17;
+  --color-neutral-solid: #f6f2f8;
 
   --color-focus-ring: var(--purple-300);
   --color-overlay-backdrop: rgba(0, 0, 0, 0.62);
