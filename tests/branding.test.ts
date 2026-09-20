@@ -74,9 +74,8 @@ describe('Soty brand identity', () => {
   });
 
   it('keeps every compatibility and social image on the approved Soty assets', () => {
-    expect(readFileSync('apps/web/public/soty-app-icon.png')).toEqual(
-      readFileSync('apps/web/public/icon-512.png')
-    );
+    expect(existsSync('apps/web/public/icon-512.png')).toBe(true);
+    expect(existsSync('apps/web/public/soty-app-icon.png')).toBe(false);
     expect(existsSync('apps/web/public/soty-share-preview-v2.png')).toBe(true);
     expect(existsSync('apps/web/public/soty-share-preview.png')).toBe(false);
     expect(existsSync('apps/web/public/og-image.png')).toBe(false);
