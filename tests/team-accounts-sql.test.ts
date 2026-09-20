@@ -765,10 +765,13 @@ describe('the date a task is for (017, part 4)', () => {
     const teamId = await makeSpace('task-date-filter');
     const plain = await makeTask(teamId, 'Made today');
     const moved = await makeTask(teamId, 'Moved to the 18th');
+    const movedDay = new Date();
+    movedDay.setUTCDate(movedDay.getUTCDate() + 1);
+    const movedDate = movedDay.toISOString().slice(0, 10);
     await harness.asUser(OWNER, 'select * from public.update_team_task($1, $2, $3)', [
       teamId,
       moved,
-      JSON.stringify({ dateOn: '2026-09-18' })
+      JSON.stringify({ dateOn: movedDate })
     ]);
 
     // One day, in both forms the client sends it.
@@ -787,7 +790,7 @@ describe('the date a task is for (017, part 4)', () => {
 
     // The moved task belongs to the 18th now, however today its row is.
     expect(await oneDay(new Date().toISOString().slice(0, 10))).toEqual([plain]);
-    expect(await oneDay('2026-09-18')).toEqual([moved]);
+    expect(await oneDay(movedDate)).toEqual([moved]);
 
     // Unfiltered, the later date leads even though its row is the newer one.
     const all = await harness.asUser<TaskRow>(
