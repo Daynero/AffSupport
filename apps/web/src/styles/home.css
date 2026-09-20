@@ -259,7 +259,9 @@
 }
 
 .home-tile.has-artwork > :not(.home-tile-artwork) {
-  position: relative;
+  /* These are grid items, so z-index works without positioning them. Keeping
+     the copy positioned made it the containing block for the title link's
+     stretched ::after target, limiting clicks to the middle of the banner. */
   z-index: 1;
 }
 
