@@ -53,8 +53,12 @@ export async function stageAgentRuntime(destination) {
     // npm ls exits 1 for unrelated extraneous dev packages even when the
     // Agent's production subtree is complete. Parse its JSON and validate the
     // subtree below; genuine missing Agent dependencies still fail there.
-    if (!error || typeof error.stdout !== 'string' || !error.stdout.trim()) throw error;
-    dependencyOutput = error.stdout;
+    const stdout =
+      error && typeof error === 'object' && 'stdout' in error && typeof error.stdout === 'string'
+        ? error.stdout
+        : null;
+    if (!stdout?.trim()) throw error;
+    dependencyOutput = stdout;
   }
 
   const dependencyTree = JSON.parse(dependencyOutput);
