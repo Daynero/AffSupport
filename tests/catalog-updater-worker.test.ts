@@ -100,6 +100,7 @@ function setup(
       return batches.shift() ?? [];
     }),
     driveFor: vi.fn(async () => drive),
+    progress: vi.fn(async () => true),
     complete: vi.fn(async (id: string) => !(options.completeFalse ?? []).includes(id)),
     retry: vi.fn(async () => true),
     markNeedsReauth: vi.fn(async () => undefined),
@@ -118,6 +119,9 @@ describe('a tick', () => {
     });
     const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
     expect(summary).toMatchObject({ rounds: 1, claimed: 2, updated: 2, failed: 0 });
+    expect(deps.claim).toHaveBeenCalledWith(3, 300);
+    expect(deps.progress).toHaveBeenCalledWith('a', 'preparing');
+    expect(deps.progress).toHaveBeenCalledWith('a', 'finalizing');
     const byFile = Object.fromEntries(written.map(entry => [entry.fileId, entry.bytes]));
     const idsA = await sheetIds(byFile['drive-a']!);
     const idsB = await sheetIds(byFile['drive-b']!);
@@ -276,6 +280,37 @@ describe('reading a claimed row', () => {
 });
 
 describe('refreshing pictures (024)', () => {
+  it('checks a large picture pool concurrently with a bounded Drive fan-out', async () => {
+    const { deps, drive } = setup({
+      batches: [[claimedRow('a', { product_count: 100, refresh_images: true })]]
+    });
+    let active = 0;
+    let peak = 0;
+    Object.assign(drive, {
+      listAnyonePermissions: vi.fn(async () => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await Promise.resolve();
+        active -= 1;
+        return [{ id: 'p', role: 'reader' }];
+      }),
+      createAnyoneReaderPermission: vi.fn()
+    });
+    deps.drawImages = vi.fn(async () =>
+      Array.from({ length: 100 }, (_, index) => ({
+        driveFileId: `img-${index}`,
+        resourceKey: null
+      }))
+    );
+
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+
+    expect(drive.listAnyonePermissions).toHaveBeenCalledTimes(100);
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(8);
+    expect(deps.complete).toHaveBeenCalledOnce();
+  });
+
   it('draws the rows pictures afresh from the pool and shares them', async () => {
     const { deps, drive, written } = setup({
       batches: [[claimedRow('a', { refresh_images: true })]]

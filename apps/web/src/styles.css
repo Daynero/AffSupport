@@ -16967,6 +16967,8 @@ input[type='number'] {
 .team-updater-list {
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 0 var(--space-5) var(--space-4);
 }
 .team-updater-empty {
@@ -17858,6 +17860,9 @@ a.history-subject {
   gap: var(--space-1) var(--space-3);
   align-items: baseline;
 }
+.product-catalog-progress.is-compact {
+  margin-top: var(--space-1);
+}
 .product-catalog-progress-step {
   margin: 0;
   color: var(--color-neutral-text);
@@ -17943,19 +17948,20 @@ a.history-subject {
 }
 
 /* What an update changes (024, US23): four short ticks under one heading, each with its line. */
+.team-updater-changes {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+.team-updater-changes > .team-catalog-filter-summary {
+  width: 100%;
+  justify-content: space-between;
+}
 .team-updater-choices {
   display: grid;
   gap: var(--space-3);
   margin: 0;
   padding: var(--space-3) 0 0;
   border: 0;
-  border-top: 1px solid var(--color-border);
-}
-.team-updater-choices legend {
-  padding: 0;
-  color: var(--color-text);
-  font-size: var(--text-label);
-  font-weight: 650;
 }
 
 /* What a catalog sheet is (024, US23): its video, its size, the way to the updater. */

@@ -36,9 +36,14 @@ import { buildXlsx } from '../_shared/xlsx.ts';
  */
 
 const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-const CLAIM_LIMIT = 10;
-const LEASE_SECONDS = 60;
 const PARALLEL = 3;
+// Claim only what this invocation can work on immediately. A batch of ten left seven catalogs
+// waiting behind the first three while their leases were already counting down.
+const CLAIM_LIMIT = PARALLEL;
+// Refreshing and verifying a large picture pool can legitimately take longer than a minute.
+// Five minutes is the database's cap and keeps another worker from rewriting the same sheet.
+const LEASE_SECONDS = 300;
+const SHARE_PARALLEL = 8;
 const RETIRED_LIMIT = 10;
 const ORPHAN_LIMIT = 10;
 
@@ -98,6 +103,7 @@ export interface CatalogUpdaterDeps {
   openRounds(): Promise<number>;
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
+  progress(catalogId: string, stage: CatalogUpdateStage): Promise<boolean>;
   complete(
     catalogId: string,
     updateCount: number,
@@ -117,6 +123,9 @@ export interface CatalogUpdaterDeps {
   log(message: string, detail: string): void;
 }
 
+export type CatalogUpdateStage =
+  'preparing' | 'refreshing' | 'building' | 'uploading' | 'finalizing';
+
 export interface TickSummary {
   rounds: number;
   claimed: number;
@@ -135,6 +144,20 @@ function text(value: unknown): string | null {
 function wholeNumber(value: unknown): number | null {
   const number = typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value;
   return typeof number === 'number' && Number.isSafeInteger(number) && number >= 0 ? number : null;
+}
+
+/** Share many pool images without turning a 100-row catalog into 100 serial Drive round trips. */
+async function ensureImagesShared(
+  drive: UpdaterDrive,
+  images: ReadonlyArray<{ driveFileId: string }>
+): Promise<void> {
+  const queue = [...new Set(images.map(image => image.driveFileId))];
+  const workers = Array.from({ length: Math.min(SHARE_PARALLEL, queue.length) }, async () => {
+    for (let fileId = queue.shift(); fileId; fileId = queue.shift()) {
+      await ensureAnyoneReader(drive, fileId);
+    }
+  });
+  await Promise.all(workers);
 }
 
 /** A claimed row from `service_claim_catalog_updater_items`, or null when it is not one. */
@@ -287,12 +310,7 @@ async function refreshedRows(
     return rows;
   }
   if (drawn.length === 0) return rows;
-  const shared = new Set<string>();
-  for (const image of drawn) {
-    if (shared.has(image.driveFileId)) continue;
-    await ensureAnyoneReader(drive, image.driveFileId);
-    shared.add(image.driveFileId);
-  }
+  await ensureImagesShared(drive, drawn);
   /* A picture for the words this row already has (024, US27): a row named for a hoodie keeps
      being a hoodie when its picture is drawn afresh. */
   const base = rows ?? rowsOf(item, count);
@@ -350,12 +368,7 @@ async function addedRows(
   const texts = teamId && deps.drawTexts ? await deps.drawTexts(teamId, added).catch(() => []) : [];
   const images =
     teamId && deps.drawImages ? await deps.drawImages(teamId, added).catch(() => []) : [];
-  const shared = new Set<string>();
-  for (const image of images) {
-    if (shared.has(image.driveFileId)) continue;
-    await ensureAnyoneReader(drive, image.driveFileId);
-    shared.add(image.driveFileId);
-  }
+  await ensureImagesShared(drive, images);
   const brand = base[0]?.brand ?? inventedBrand();
   for (let index = 0; index < added; index += 1) {
     const text = texts[index % texts.length] ?? null;
@@ -483,14 +496,17 @@ async function updateOne(
 ): Promise<void> {
   const nextCount = item.updateCount + 1;
   try {
+    await deps.progress(item.catalogId, 'preparing').catch(() => false);
     const drive = await deps.driveFor(item.credentialId);
     const count = grownCount(item.productCount, item.growProducts === true);
+    await deps.progress(item.catalogId, 'refreshing').catch(() => false);
     const rows = await refreshedTexts(
       deps,
       item,
       await refreshedRows(deps, item, drive, await addedRows(deps, item, drive, count), count),
       count
     );
+    await deps.progress(item.catalogId, 'building').catch(() => false);
     const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       rows: rebuildCatalogRows({
@@ -504,6 +520,7 @@ async function updateOne(
         videoLinkOverride: item.spare?.link ?? item.currentVideoLink
       })
     });
+    await deps.progress(item.catalogId, 'uploading').catch(() => false);
     await drive.updateConvertedFile({
       fileId: item.driveFileId,
       resourceKey: item.resourceKey,
@@ -511,6 +528,7 @@ async function updateOne(
       targetMimeType: SPREADSHEET_MIME_TYPE,
       bytes
     });
+    await deps.progress(item.catalogId, 'finalizing').catch(() => false);
     const first = rows?.[0];
     const became = first
       ? {

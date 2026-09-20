@@ -18,6 +18,7 @@ import { useTeam } from '../TeamContext';
 import { UpdaterCountdown } from './UpdaterCountdown';
 import { UpdaterIntervalPicker } from './UpdaterIntervalPicker';
 import { UpdaterRowActions } from './UpdaterRowActions';
+import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import {
   filterCatalogRows,
   useCatalogRegistry,
@@ -42,6 +43,11 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
 }
 
 const defaultClient: CatalogUpdaterDialogClient = teamApi;
+
+function changesStartOpen(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+  return !window.matchMedia('(max-width: 720px), (max-height: 760px)').matches;
+}
 
 /**
  * The catalog updater (023; a schedule per catalog in 024).
@@ -86,7 +92,9 @@ export function CatalogUpdaterDialog({
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   /** Rows with a change on its way, so their controls wait instead of taking a second press. */
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [changesOpen, setChangesOpen] = useState(changesStartOpen);
   const selectAllRef = useRef<HTMLSpanElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const running = updater.state?.state === 'running';
   const rows = registry.rows ?? [];
@@ -99,6 +107,18 @@ export function CatalogUpdaterDialog({
     const input = selectAllRef.current?.querySelector('input');
     if (input) input.indeterminate = shownChosen > 0 && !allShownChosen;
   }, [allShownChosen, shownChosen]);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const scrollRows = (event: WheelEvent) => {
+      if (event.deltaY === 0 || list.scrollHeight <= list.clientHeight) return;
+      event.preventDefault();
+      list.scrollTop += event.deltaY;
+    };
+    list.addEventListener('wheel', scrollRows, { passive: false });
+    return () => list.removeEventListener('wheel', scrollRows);
+  }, []);
 
   const toggle = (catalogId: string) =>
     setSelected(current => {
@@ -337,7 +357,7 @@ export function CatalogUpdaterDialog({
         )}
       </div>
 
-      <div className="team-updater-list">
+      <div ref={listRef} className="team-updater-list">
         {registry.rows === null && !registry.error && (
           <p className="team-updater-empty">{t('catalogUpdaterLoading')}</p>
         )}
@@ -360,15 +380,17 @@ export function CatalogUpdaterDialog({
                   className={`team-updater-row${selected.has(row.catalogId) ? ' is-selected' : ''}`}
                 >
                   {mayRun ? (
-                    <label className="team-explorer-row-check team-explorer-check">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(row.catalogId)}
-                        aria-label={t('catalogUpdaterSelectFor', { name: row.name })}
-                        onChange={() => toggle(row.catalogId)}
-                      />
-                      <span />
-                    </label>
+                    <span className="team-explorer-row-check">
+                      <label className="team-explorer-check">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(row.catalogId)}
+                          aria-label={t('catalogUpdaterSelectFor', { name: row.name })}
+                          onChange={() => toggle(row.catalogId)}
+                        />
+                        <span />
+                      </label>
+                    </span>
                   ) : (
                     <span />
                   )}
@@ -396,6 +418,7 @@ export function CatalogUpdaterDialog({
                         </>
                       )}
                     </small>
+                    {row.updatePending && <CatalogUpdateProgress stage={row.updateStage} />}
                     {row.lastUpdateError && (
                       <small className="team-inline-error">
                         {t('catalogUpdaterLastFailed')}:{' '}
@@ -408,6 +431,10 @@ export function CatalogUpdaterDialog({
                       value={row.updateInterval}
                       label={t('catalogUpdaterIntervalFor', { name: row.name })}
                       disabled={!mayRun || busy}
+                      alwaysNotify={row.updatePending}
+                      offActionLabel={
+                        row.updatePending ? t('catalogUpdaterCancelUpdate') : undefined
+                      }
                       onChange={next => void schedule([row.catalogId], next)}
                     />
                     {mayRun && (
@@ -452,6 +479,7 @@ export function CatalogUpdaterDialog({
               value={null}
               label={t('catalogUpdaterIntervalForSelected')}
               disabled={busyIds.size > 0}
+              alwaysNotify
               onChange={next =>
                 void schedule(
                   liveSelected.map(row => row.catalogId),
@@ -480,60 +508,68 @@ export function CatalogUpdaterDialog({
         )}
         {/* What an update changes, as one group (024, US23): four ticks that each repeated "at
             every update" in their own label, under a heading that says it once. */}
-        <fieldset className="team-updater-choices">
-          <legend>{t('catalogUpdaterChangesTitle')}</legend>
-          {refreshImages !== null && (
-            <div className="team-updater-restitch">
-              <Checkbox
-                checked={refreshImages}
-                disabled={!mayRun}
-                onChange={event => void changeRefreshImages(event.target.checked)}
-                label={t('catalogUpdaterRefreshImages')}
-              />
-              <small>{t('catalogUpdaterRefreshImagesHint')}</small>
-            </div>
-          )}
-          {refreshTexts !== null && (
-            <div className="team-updater-restitch">
-              <Checkbox
-                checked={refreshTexts}
-                disabled={!mayRun}
-                onChange={event => void changeRefreshTexts(event.target.checked)}
-                label={t('catalogUpdaterRefreshTexts')}
-              />
-              <small>{t('catalogUpdaterRefreshTextsHint')}</small>
-            </div>
-          )}
-          {grow !== null && (
-            <div className="team-updater-restitch">
-              <Checkbox
-                checked={grow}
-                disabled={!mayRun}
-                onChange={event => void changeGrow(event.target.checked)}
-                label={t('catalogUpdaterGrow')}
-              />
-              <small>{t('catalogUpdaterGrowHint')}</small>
-            </div>
-          )}
-          <div className="team-updater-restitch">
-            <Checkbox
-              checked={updater.state?.restitch ?? false}
-              disabled={!mayRun || updater.state === null || busyIds.size > 0}
-              onChange={event => void setRestitch(event.target.checked)}
-              label={t('catalogUpdaterRestitch')}
-            />
-            <small>{t('catalogUpdaterRestitchHint')}</small>
-            {running && updater.state?.restitch && updater.state.spareReadyCount !== null && (
-              <small>
-                {t('catalogUpdaterSparesReady', {
-                  ready: updater.state.spareReadyCount,
-                  count: updater.state.catalogCount
-                })}
-              </small>
+        <details
+          className="team-updater-changes"
+          open={changesOpen}
+          onToggle={event => setChangesOpen(event.currentTarget.open)}
+        >
+          <summary className="team-catalog-filter-summary">
+            {t('catalogUpdaterChangesTitle')}
+          </summary>
+          <fieldset className="team-updater-choices" aria-label={t('catalogUpdaterChangesTitle')}>
+            {refreshImages !== null && (
+              <div className="team-updater-restitch">
+                <Checkbox
+                  checked={refreshImages}
+                  disabled={!mayRun}
+                  onChange={event => void changeRefreshImages(event.target.checked)}
+                  label={t('catalogUpdaterRefreshImages')}
+                />
+                <small>{t('catalogUpdaterRefreshImagesHint')}</small>
+              </div>
             )}
-            {preparing && <small>{t('catalogUpdaterPreparingHere')}</small>}
-          </div>
-        </fieldset>
+            {refreshTexts !== null && (
+              <div className="team-updater-restitch">
+                <Checkbox
+                  checked={refreshTexts}
+                  disabled={!mayRun}
+                  onChange={event => void changeRefreshTexts(event.target.checked)}
+                  label={t('catalogUpdaterRefreshTexts')}
+                />
+                <small>{t('catalogUpdaterRefreshTextsHint')}</small>
+              </div>
+            )}
+            {grow !== null && (
+              <div className="team-updater-restitch">
+                <Checkbox
+                  checked={grow}
+                  disabled={!mayRun}
+                  onChange={event => void changeGrow(event.target.checked)}
+                  label={t('catalogUpdaterGrow')}
+                />
+                <small>{t('catalogUpdaterGrowHint')}</small>
+              </div>
+            )}
+            <div className="team-updater-restitch">
+              <Checkbox
+                checked={updater.state?.restitch ?? false}
+                disabled={!mayRun || updater.state === null || busyIds.size > 0}
+                onChange={event => void setRestitch(event.target.checked)}
+                label={t('catalogUpdaterRestitch')}
+              />
+              <small>{t('catalogUpdaterRestitchHint')}</small>
+              {running && updater.state?.restitch && updater.state.spareReadyCount !== null && (
+                <small>
+                  {t('catalogUpdaterSparesReady', {
+                    ready: updater.state.spareReadyCount,
+                    count: updater.state.catalogCount
+                  })}
+                </small>
+              )}
+              {preparing && <small>{t('catalogUpdaterPreparingHere')}</small>}
+            </div>
+          </fieldset>
+        </details>
       </footer>
     </Modal>
   );

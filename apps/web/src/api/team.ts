@@ -243,9 +243,14 @@ export interface CatalogRegistryRow {
   nextRunAt: string | null;
   /** An update is waiting or running for it right now. */
   updatePending: boolean;
+  /** The stage the background worker last confirmed; survives page reloads. */
+  updateStage: CatalogUpdateStage | null;
   /** The provider id of the folder the sheet is in; null at the space root. */
   folderDriveId: string | null;
 }
+
+export type CatalogUpdateStage =
+  'preparing' | 'refreshing' | 'building' | 'uploading' | 'finalizing';
 
 export type CatalogUpdaterInterval = UpdaterInterval;
 
@@ -363,6 +368,14 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     updateInterval: parseUpdaterInterval(row.update_interval),
     nextRunAt: typeof row.next_run_at === 'string' ? row.next_run_at : null,
     updatePending: row.update_pending === true,
+    updateStage:
+      row.update_stage === 'preparing' ||
+      row.update_stage === 'refreshing' ||
+      row.update_stage === 'building' ||
+      row.update_stage === 'uploading' ||
+      row.update_stage === 'finalizing'
+        ? row.update_stage
+        : null,
     folderDriveId: typeof row.folder_drive_id === 'string' ? row.folder_drive_id : null
   };
 }

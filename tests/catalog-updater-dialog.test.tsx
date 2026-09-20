@@ -57,6 +57,7 @@ function row(id: string, videoName: string, patch: Partial<CatalogRegistryRow> =
     updateInterval: null,
     nextRunAt: null,
     updatePending: false,
+    updateStage: null,
     folderDriveId: 'folder-polo',
     ...patch
   } satisfies CatalogRegistryRow;
@@ -129,9 +130,17 @@ function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
   return { onClose, onChanged, onReveal };
 }
 
-const box = (name: string) => screen.getByLabelText(`Select ${name} catalog`) as HTMLInputElement;
-
 describe('what an update refreshes (024: US20, US21)', () => {
+  it('collapses the settings so the catalog list can use the dialog height', async () => {
+    renderDialog(client([row('1', 'polo.mp4')], stopped));
+    const summary = await screen.findByText('What an update changes');
+    const details = summary.closest('details');
+    expect(details?.open).toBe(true);
+
+    fireEvent.click(summary);
+    expect(details?.open).toBe(false);
+  });
+
   it('offers both choices, on by default, and saves the one that is changed', async () => {
     const setCatalogUpdaterRefreshTexts = vi.fn().mockResolvedValue(false);
     const api = client([row('1', 'polo.mp4')], stopped, {
@@ -178,7 +187,11 @@ describe('the registry', () => {
             updateInterval: '6h',
             nextRunAt: new Date(Date.now() + 3_600_000).toISOString()
           }),
-          row('2', 'shirt.mp4', { folderName: null, updatePending: true })
+          row('2', 'shirt.mp4', {
+            folderName: null,
+            updatePending: true,
+            updateStage: 'uploading'
+          })
         ],
         running
       )
@@ -194,11 +207,30 @@ describe('the registry', () => {
     ).toBeTruthy();
     // An update already waiting says so, and its "now" waits with it.
     expect(screen.getByText('Updating…')).toBeTruthy();
+    expect(await screen.findByText('Uploading the sheet to Google Drive…')).toBeTruthy();
+    expect(screen.getByText('Step 4 of 5')).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Update shirt.mp4 catalog now' }) as HTMLButtonElement)
         .disabled
     ).toBe(true);
     expect(screen.getByText(/On a schedule: 1/)).toBeTruthy();
+  });
+
+  it('keeps each checkbox hit area inside its own row cell', async () => {
+    renderDialog(client([row('1', 'polo.mp4'), row('2', 'shirt.mp4')], stopped));
+    const polo = await screen.findByLabelText('Select polo.mp4 catalog');
+    const shirt = screen.getByLabelText('Select shirt.mp4 catalog');
+
+    expect(polo.closest('.team-explorer-check')?.parentElement?.className).toBe(
+      'team-explorer-row-check'
+    );
+    expect(shirt.closest('.team-explorer-check')?.parentElement?.className).toBe(
+      'team-explorer-row-check'
+    );
+
+    await userEvent.click(shirt);
+    expect((polo as HTMLInputElement).checked).toBe(false);
+    expect((shirt as HTMLInputElement).checked).toBe(true);
   });
 
   it('says there is nothing on a schedule, and where to set one', async () => {
@@ -276,6 +308,26 @@ describe('a catalog’s own schedule', () => {
     );
   });
 
+  it('cancels a one-off update by choosing Off again', async () => {
+    const api = client(
+      [row('1', 'polo.mp4', { updatePending: true, updateStage: 'preparing' })],
+      stopped
+    );
+    renderDialog(api);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole('button', { name: 'How often polo.mp4 catalog updates: Off' })
+    );
+    await user.click(await screen.findByRole('button', { name: 'Stop this update' }));
+    await waitFor(() =>
+      expect(api.setCatalogUpdateInterval).toHaveBeenCalledWith(
+        TEAM_ID,
+        [row('1', 'x').catalogId],
+        null
+      )
+    );
+  });
+
   it('updates one catalog now, scheduled or not', async () => {
     const api = client([row('1', 'polo.mp4')], stopped);
     renderDialog(api);
@@ -312,6 +364,34 @@ describe('a catalog’s menu', () => {
 });
 
 describe('a selection', () => {
+  it('turns every selected catalog off even though the bulk control already reads Off', async () => {
+    const api = client(
+      [
+        row('1', 'polo.mp4', { inUpdater: true, updateInterval: '1h' }),
+        row('2', 'shirt.mp4', { inUpdater: true, updateInterval: '1d' })
+      ],
+      running
+    );
+    renderDialog(api);
+    const user = userEvent.setup();
+    await screen.findByText('polo.mp4 catalog');
+    fireEvent.click(screen.getByLabelText('Select all shown'));
+    const bar = screen.getByRole('group', { name: 'Selected catalogs' });
+
+    await user.click(
+      within(bar).getByRole('button', { name: 'How often the selected catalogs update: Off' })
+    );
+    await user.click(await screen.findByRole('button', { name: 'Don’t update automatically' }));
+
+    await waitFor(() =>
+      expect(api.setCatalogUpdateInterval).toHaveBeenCalledWith(
+        TEAM_ID,
+        [row('1', 'x').catalogId, row('2', 'x').catalogId],
+        null
+      )
+    );
+  });
+
   it('sets one interval and updates now across every ticked catalog', async () => {
     const api = client([row('1', 'polo.mp4'), row('2', 'shirt.mp4')], stopped);
     renderDialog(api);

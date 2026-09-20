@@ -2060,6 +2060,7 @@ export type Database = {
           next_run_at: string | null;
           update_pending: boolean;
           folder_drive_id: string | null;
+          update_stage: string | null;
         }[];
       };
       get_team_catalog_updater: {

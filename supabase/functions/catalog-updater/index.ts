@@ -142,6 +142,12 @@ Deno.serve(async request => {
           }
           return drive;
         },
+        progress: async (catalogId, stage) =>
+          (await rpcValue(service, 'service_set_catalog_update_progress', {
+            p_item: catalogId,
+            p_worker: workerId,
+            p_stage: stage
+          })) === true,
         complete: async (catalogId, updateCount, swappedCopy, became) =>
           (await rpcValue(service, 'service_complete_catalog_update', {
             p_item: catalogId,

@@ -33,12 +33,18 @@ export function UpdaterIntervalPicker({
   value,
   label,
   disabled,
+  alwaysNotify = false,
+  offActionLabel,
   onChange
 }: {
   value: CatalogUpdaterInterval | null;
   /** The accessible name: "How often <catalog> updates". */
   label: string;
   disabled?: boolean;
+  /** Bulk controls may intentionally apply the shown value to a mixed selection. */
+  alwaysNotify?: boolean;
+  /** A pending one-off run uses this choice as an explicit cancel action. */
+  offActionLabel?: string;
   onChange: (next: CatalogUpdaterInterval | null) => void;
 }) {
   const { t } = useI18n();
@@ -52,7 +58,7 @@ export function UpdaterIntervalPicker({
 
   const choose = (next: CatalogUpdaterInterval | null) => {
     setOpen(false);
-    if (next !== value) onChange(next);
+    if (alwaysNotify || next !== value) onChange(next);
   };
 
   return (
@@ -130,7 +136,7 @@ export function UpdaterIntervalPicker({
           <span className="team-updater-interval-mark" aria-hidden="true">
             {value === null && <Check size={14} strokeWidth={ICON_STROKE} />}
           </span>
-          {t('catalogUpdaterOffLong')}
+          {offActionLabel ?? t('catalogUpdaterOffLong')}
         </button>
       </Popover>
     </div>

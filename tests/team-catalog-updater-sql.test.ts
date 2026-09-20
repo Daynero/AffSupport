@@ -423,6 +423,7 @@ describe('each catalog on its own schedule (024)', () => {
         update_interval: string | null;
         next_run_at: string | null;
         update_pending: boolean;
+        update_stage: string | null;
       }>(OWNER, 'select * from public.list_team_product_catalogs($1)', [teamId])
       .then(rows => rows.find(row => row.catalog_id === id)!);
 
@@ -462,6 +463,15 @@ describe('each catalog on its own schedule (024)', () => {
 
     const claimed = await claim('w-now');
     expect(claimed.map(row => row.catalog_material_id)).toContain(loose.sheet);
+    expect(
+      (
+        await harness.root<{ ok: boolean }>(
+          "select public.service_set_catalog_update_progress($1, $2, 'uploading') as ok",
+          [loose.sheet, 'w-now']
+        )
+      )[0]!.ok
+    ).toBe(true);
+    expect((await registry(loose.sheet)).update_stage).toBe('uploading');
     expect(await complete(loose.sheet, 'w-now', 1)).toBe(true);
     expect(await registry(loose.sheet)).toMatchObject({ in_updater: false, update_pending: false });
     const rows = await harness.root(
@@ -478,6 +488,20 @@ describe('each catalog on its own schedule (024)', () => {
     // The schedule starts over from now, so "now" is not followed by a run a little later.
     expect(Date.parse(after.next_run_at!) - Date.now()).toBeGreaterThan(86_000_000);
     await stop();
+  }, 60_000);
+
+  it('revokes an active worker when the catalog is turned off', async () => {
+    const active = await catalog('cancel-active');
+    await updateNow([active.sheet]);
+    expect((await claim('w-cancel')).map(row => row.catalog_material_id)).toContain(active.sheet);
+
+    await setInterval_([active.sheet], null);
+
+    expect(await registry(active.sheet)).toMatchObject({
+      in_updater: false,
+      update_pending: false
+    });
+    expect(await complete(active.sheet, 'w-cancel', 1)).toBe(false);
   }, 60_000);
 
   it('refuses a viewer and a catalog from another space', async () => {
