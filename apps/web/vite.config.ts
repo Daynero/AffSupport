@@ -1,7 +1,11 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { PRODUCTION_SITE_ORIGIN } from '../../packages/shared/src/release';
+import { supportEmail } from './src/lib/support';
+import { staticPublicPages } from './src/static-public-pages';
 
 function currentRevision() {
   if (process.env.VITE_WEB_REVISION) return process.env.VITE_WEB_REVISION;
@@ -24,8 +28,26 @@ function siteOriginPlugin(): Plugin {
   };
 }
 
+/** Writes the crawler-readable copies of `/`, `/privacy` and `/terms` (see src/static-public-pages.ts). */
+function staticPublicPagesPlugin(): Plugin {
+  let outDir = '';
+  return {
+    name: 'soty-static-public-pages',
+    apply: 'build',
+    configResolved(config) {
+      outDir = path.resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      const index = readFileSync(path.join(outDir, 'index.html'), 'utf8');
+      for (const page of staticPublicPages(index, supportEmail)) {
+        writeFileSync(path.join(outDir, page.fileName), page.html);
+      }
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), siteOriginPlugin()],
+  plugins: [react(), siteOriginPlugin(), staticPublicPagesPlugin()],
   envDir: '../..',
   define: { 'import.meta.env.VITE_WEB_REVISION': JSON.stringify(currentRevision()) },
   server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:43117' } },

@@ -10,6 +10,7 @@ import { Tooltip, type Translate } from '../components/ui';
 import type { Language } from '../i18n';
 import { LanguageCombobox } from './LanguageCombobox';
 import { languageDisplayName } from './language';
+import { RadioGroup } from '../components/ui/index';
 
 const SETTINGS_OPEN_KEY = 'soty.transcription.settings-open.v1';
 
@@ -139,37 +140,29 @@ export const TranscriptionSettingsPanel = memo(function TranscriptionSettingsPan
             {/* The compressor's picto pair: two marks in one bordered group, and the choice
                 spelled out under it. Which model each mode loads is the download band's
                 business, not this line's. */}
-            <div
+            <RadioGroup
               className="fit-mode-pictos"
-              role="radiogroup"
-              aria-label={t('transcriptionQuality')}
-            >
-              <button
-                type="button"
-                role="radio"
-                className={quality === 'fast' ? 'is-selected' : ''}
-                // The mark alone says nothing; its tip names the mode and what it is for.
-                data-tip={`${t('transcriptionQualityFast')} · ${t('transcriptionQualityFastBody')}`}
-                aria-label={t('transcriptionQualityFast')}
-                aria-checked={quality === 'fast'}
-                disabled={disabled}
-                onClick={() => onQuality('fast')}
-              >
-                <Zap size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                role="radio"
-                className={quality === 'accurate' ? 'is-selected' : ''}
-                data-tip={`${t('transcriptionQualityAccurate')} · ${t('transcriptionQualityAccurateBody')}`}
-                aria-label={t('transcriptionQualityAccurate')}
-                aria-checked={quality === 'accurate'}
-                disabled={disabled}
-                onClick={() => onQuality('accurate')}
-              >
-                <Target size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-            </div>
+              variant="pictos"
+              label={t('transcriptionQuality')}
+              value={quality}
+              disabled={disabled}
+              onChange={onQuality}
+              options={[
+                {
+                  value: 'fast',
+                  label: t('transcriptionQualityFast'),
+                  // The mark alone says nothing; its tip names the mode and what it is for.
+                  title: `${t('transcriptionQualityFast')} · ${t('transcriptionQualityFastBody')}`,
+                  icon: <Zap size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                },
+                {
+                  value: 'accurate',
+                  label: t('transcriptionQualityAccurate'),
+                  title: `${t('transcriptionQualityAccurate')} · ${t('transcriptionQualityAccurateBody')}`,
+                  icon: <Target size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                }
+              ]}
+            />
             <p className="transcription-quality-note">
               {qualityName} ·{' '}
               {quality === 'fast'

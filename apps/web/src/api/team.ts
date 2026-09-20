@@ -15,6 +15,7 @@ import {
   parseTeamPreviewResult,
   parseTeamProcessStartResult,
   parseTeamTransferGrant,
+  type TeamTransferGrant,
   parseTeamUploadSession,
   parseLibraryJobClaim,
   parseLibraryJobFinalize,
@@ -116,6 +117,7 @@ import {
   type MaterialRestitchPrep,
   type TeamRestitchDefaults
 } from '@video-compressor/shared';
+import { parseUpdaterInterval, type UpdaterInterval } from '../team/catalog-updater/limits';
 import type { Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
@@ -165,6 +167,212 @@ export interface TeamContextSnapshot {
 }
 
 export type UnknownGuard<T> = (value: unknown) => value is T;
+
+/** 022 — a video's product catalog sheet, as the card and the tail module see it. */
+export interface ProductCatalogSummary {
+  id: string;
+  name: string;
+  sheetUrl: string;
+  sourceLink: string;
+  productCount: number;
+  createdAt: string;
+}
+
+/** 022 — the four values every catalog in a space is filled from. */
+export interface ProductCatalogSettings {
+  title: string;
+  description: string;
+  /** Whole dollars; the sheet writes `${price},00 USD`. */
+  price: number;
+  imageLink: string;
+  updatedAt: string;
+}
+
+export interface ProductCatalogCreateResult {
+  outcome: 'created' | 'recreated' | 'existing';
+  /** The server names the sheet by `materialId`; a sheet it just made has no `createdAt` yet. */
+  catalog: {
+    materialId: string;
+    name: string;
+    sheetUrl: string;
+    sourceLink: string;
+    productCount: number;
+    createdAt: string | null;
+  };
+  videoShared: boolean;
+}
+
+/** 023 — one row of the catalog registry: a live product catalog and the video it belongs to. */
+export interface CatalogRegistryRow {
+  catalogId: string;
+  name: string;
+  sheetUrl: string;
+  videoId: string;
+  videoName: string;
+  folderName: string | null;
+  productCount: number;
+  createdAt: string;
+  lastUpdatedAt: string | null;
+  updateCount: number;
+  inUpdater: boolean;
+  lastUpdateError: string | null;
+}
+
+export type CatalogUpdaterInterval = UpdaterInterval;
+
+/** A spare copy to prepare, as drive-ops hands it to a member's tab (023). */
+export interface RestitchClaim {
+  jobId: string;
+  leaseToken: string;
+  operationId: string;
+  toolId: 'restitch';
+  videoMaterialId: string;
+  videoDriveVersion: string | null;
+  options: { defaults: unknown; prepared: unknown };
+  sourceGrant: TeamTransferGrant;
+  finalizeGrant: TeamTransferGrant;
+}
+
+function restitchClaimGuard(value: unknown): value is { job: RestitchClaim | null } {
+  const row = asRecord(value);
+  if (!row || !('job' in row)) return false;
+  if (row.job === null) return true;
+  const job = asRecord(row.job);
+  return (
+    !!job &&
+    typeof job.jobId === 'string' &&
+    typeof job.leaseToken === 'string' &&
+    typeof job.operationId === 'string' &&
+    job.toolId === 'restitch' &&
+    typeof job.videoMaterialId === 'string' &&
+    (job.videoDriveVersion === null || typeof job.videoDriveVersion === 'string') &&
+    !!asRecord(job.options) &&
+    !!asRecord(job.sourceGrant) &&
+    !!asRecord(job.finalizeGrant)
+  );
+}
+
+function cancelGuard(value: unknown): value is { cancel: boolean } {
+  return typeof asRecord(value)?.cancel === 'boolean';
+}
+
+function recordedGuard(value: unknown): value is { recorded: boolean } {
+  return typeof asRecord(value)?.recorded === 'boolean';
+}
+
+/** 023 — the space's catalog updater, as the chip and the dialog show it. */
+export interface CatalogUpdaterState {
+  state: 'running' | 'stopped';
+  interval: CatalogUpdaterInterval;
+  restitch: boolean;
+  nextRunAt: string | null;
+  startedAt: string | null;
+  catalogCount: number;
+  failingCount: number;
+  spareReadyCount: number | null;
+  serverNow: string;
+}
+
+function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    (row.state !== 'running' && row.state !== 'stopped') ||
+    parseUpdaterInterval(row.interval) === null ||
+    typeof row.restitch !== 'boolean' ||
+    (row.nextRunAt !== null && typeof row.nextRunAt !== 'string') ||
+    (row.startedAt !== null && typeof row.startedAt !== 'string') ||
+    typeof row.catalogCount !== 'number' ||
+    typeof row.failingCount !== 'number' ||
+    typeof row.serverNow !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    state: row.state,
+    interval: row.interval as CatalogUpdaterInterval,
+    restitch: row.restitch,
+    nextRunAt: row.nextRunAt as string | null,
+    startedAt: row.startedAt as string | null,
+    catalogCount: row.catalogCount,
+    failingCount: row.failingCount,
+    spareReadyCount: typeof row.spareReadyCount === 'number' ? row.spareReadyCount : null,
+    serverNow: row.serverNow
+  };
+}
+
+function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.catalog_id !== 'string' ||
+    typeof row.name !== 'string' ||
+    typeof row.sheet_url !== 'string' ||
+    !/^https:\/\//u.test(row.sheet_url) ||
+    typeof row.video_id !== 'string' ||
+    typeof row.video_name !== 'string' ||
+    typeof row.product_count !== 'number' ||
+    typeof row.created_at !== 'string' ||
+    typeof row.update_count !== 'number' ||
+    typeof row.in_updater !== 'boolean'
+  ) {
+    return null;
+  }
+  return {
+    catalogId: row.catalog_id,
+    name: row.name,
+    sheetUrl: row.sheet_url,
+    videoId: row.video_id,
+    videoName: row.video_name,
+    folderName: typeof row.folder_name === 'string' ? row.folder_name : null,
+    productCount: row.product_count,
+    createdAt: row.created_at,
+    lastUpdatedAt: typeof row.last_updated_at === 'string' ? row.last_updated_at : null,
+    updateCount: row.update_count,
+    inUpdater: row.in_updater,
+    lastUpdateError: typeof row.last_update_error === 'string' ? row.last_update_error : null
+  };
+}
+
+function productCatalogSettingsFrom(value: unknown): ProductCatalogSettings | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.title !== 'string' ||
+    typeof row.description !== 'string' ||
+    typeof row.price !== 'number' ||
+    !Number.isInteger(row.price) ||
+    typeof row.image_link !== 'string' ||
+    typeof row.updated_at !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    title: row.title,
+    description: row.description,
+    price: row.price,
+    imageLink: row.image_link,
+    updatedAt: row.updated_at
+  };
+}
+
+function productCatalogCreateGuard(value: unknown): value is ProductCatalogCreateResult {
+  const row = asRecord(value);
+  const catalog = asRecord(row?.catalog);
+  return Boolean(
+    row &&
+    catalog &&
+    ['created', 'recreated', 'existing'].includes(String(row.outcome)) &&
+    typeof row.videoShared === 'boolean' &&
+    typeof catalog.materialId === 'string' &&
+    typeof catalog.name === 'string' &&
+    typeof catalog.sheetUrl === 'string' &&
+    /^https:\/\//u.test(catalog.sheetUrl) &&
+    typeof catalog.sourceLink === 'string' &&
+    typeof catalog.productCount === 'number' &&
+    (catalog.createdAt === null || typeof catalog.createdAt === 'string')
+  );
+}
 
 /**
  * Recovers the team error envelope from a failed `functions.invoke`.
@@ -1575,6 +1783,169 @@ export const teamApi = {
     };
   },
 
+  async getProductCatalog(teamId: string, videoId: string): Promise<ProductCatalogSummary | null> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_material_product_catalog', {
+        p_team: teamId,
+        p_video: videoId
+      })
+    );
+    throwRpc(error);
+    const row = asRecord(Array.isArray(data) ? data[0] : null);
+    if (
+      !row ||
+      typeof row.id !== 'string' ||
+      typeof row.name !== 'string' ||
+      typeof row.sheet_url !== 'string' ||
+      !/^https:\/\//u.test(row.sheet_url) ||
+      typeof row.source_link !== 'string' ||
+      typeof row.product_count !== 'number' ||
+      typeof row.created_at !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      id: row.id,
+      name: row.name,
+      sheetUrl: row.sheet_url,
+      sourceLink: row.source_link,
+      productCount: row.product_count,
+      createdAt: row.created_at
+    };
+  },
+
+  async listTeamProductCatalogs(teamId: string): Promise<CatalogRegistryRow[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_product_catalogs', { p_team: teamId })
+    );
+    throwRpc(error);
+    if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data.flatMap(row => {
+      const parsed = catalogRegistryRowFrom(row);
+      return parsed ? [parsed] : [];
+    });
+  },
+
+  async getCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater', { p_team: teamId })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdaterStateFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async saveCatalogUpdater(
+    teamId: string,
+    input: { catalogIds: string[]; interval: CatalogUpdaterInterval; restitch: boolean }
+  ): Promise<CatalogUpdaterState> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('save_team_catalog_updater', {
+        p_team: teamId,
+        p_catalogs: input.catalogIds,
+        p_interval: input.interval,
+        p_restitch: input.restitch
+      })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdaterStateFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  /** The next spare copy this member's computer should prepare, or null (023). */
+  async claimRestitchJob(teamId: string): Promise<RestitchClaim | null> {
+    const value = await invokeTeamFunction(
+      'drive-ops/updater/claim',
+      { teamId },
+      restitchClaimGuard
+    );
+    return value.job;
+  },
+
+  /** Keeps the lease; true means the updater no longer wants this copy. */
+  async heartbeatRestitchJob(jobId: string, leaseToken: string): Promise<boolean> {
+    const value = await invokeTeamFunction(
+      'drive-ops/updater/heartbeat',
+      { jobId, leaseToken },
+      cancelGuard
+    );
+    return value.cancel;
+  },
+
+  async completeRestitchJob(input: {
+    jobId: string;
+    leaseToken: string;
+    outcome: 'finalized' | 'failed';
+    errorCode: string | null;
+  }): Promise<boolean> {
+    const value = await invokeTeamFunction(
+      'drive-ops/updater/complete',
+      { ...input },
+      recordedGuard
+    );
+    return value.recorded;
+  },
+
+  async stopCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('stop_team_catalog_updater', { p_team: teamId })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdaterStateFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async getProductCatalogSettings(teamId: string): Promise<ProductCatalogSettings | null> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_product_catalog_settings', { p_team: teamId })
+    );
+    throwRpc(error);
+    const first = Array.isArray(data) ? data[0] : null;
+    if (first === undefined || first === null) return null;
+    const parsed = productCatalogSettingsFrom(first);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async setProductCatalogSettings(
+    teamId: string,
+    input: { title: string; description: string; price: number; imageLink: string }
+  ): Promise<ProductCatalogSettings> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_product_catalog_settings', {
+        p_team: teamId,
+        p_settings: {
+          title: input.title,
+          description: input.description,
+          price: input.price,
+          imageLink: input.imageLink
+        }
+      })
+    );
+    throwRpc(error);
+    const parsed = productCatalogSettingsFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
+  async createProductCatalog(input: {
+    teamId: string;
+    videoMaterialId: string;
+    sourceLink: string;
+    productCount: number;
+    replacesMaterialId: string | null;
+    idempotencyKey: string;
+  }): Promise<ProductCatalogCreateResult> {
+    return invokeTeamFunction(
+      'drive-ops/product-catalog/create',
+      { ...input },
+      productCatalogCreateGuard
+    );
+  },
+
   async regenerateLandingPreview(teamId: string, materialId: string): Promise<void> {
     const { error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('request_landing_render_refresh', {
@@ -2772,6 +3143,28 @@ export const teamApi = {
       throw new TeamApiError('INVALID_RESPONSE', false);
     }
     return row as unknown as LibraryProcessingContext;
+  },
+
+  /**
+   * The id of the material already carrying `name` in that folder, if any.
+   *
+   * Scoped to the one folder and matched exactly: the search is a prefix search
+   * over the space, so the page it returns is filtered down to the file whose
+   * name is the one asked for rather than one that merely starts with it.
+   */
+  async findMaterialByName(
+    teamId: string,
+    destinationFolderId: string,
+    name: string
+  ): Promise<string | null> {
+    const wanted = name.normalize('NFC');
+    const response = await teamApi.searchCatalog(
+      teamId,
+      { query: wanted, page: 1, pageSize: 50 },
+      { parentFolderId: destinationFolderId }
+    );
+    const match = response.items.find(item => item.name.normalize('NFC') === wanted);
+    return match?.id ?? null;
   },
 
   async claimLibraryJob(input: LibraryJobClaimRequest): Promise<LibraryJobClaimEnvelope> {

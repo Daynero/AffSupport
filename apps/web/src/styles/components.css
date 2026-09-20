@@ -253,6 +253,11 @@
 .ui-icon-button {
   display: inline-grid;
   place-items: center;
+  /* The plate's size is the whole point of this control, so it states both:
+     the element defaults gave it a 44px floor and 6px of side padding, which
+     left a 20px glyph a 10px column inside a 24px `xs` plate. */
+  min-height: 0;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -374,8 +379,15 @@
   border-color: var(--ui-solid);
   background: var(--ui-soft);
 }
+/* Faded to 0.55 this failed AA in both themes — a label nobody could read is
+   not a disabled state, it is a missing one. The chip keeps the neutral muted
+   role and loses its colour instead, which says "not available" without
+   saying it in a whisper. */
 .ui-chip.is-disabled {
-  opacity: 0.55;
+  border-color: transparent;
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-neutral-text-muted);
+  cursor: not-allowed;
 }
 .ui-chip-press {
   display: inline-flex;
@@ -1164,7 +1176,6 @@
   }
 }
 
-
 .ui-tooltip-anchor {
   position: relative;
   display: inline-flex;
@@ -1616,43 +1627,38 @@
 }
 
 .ui-tree,
-.ui-tree ul {
+.ui-tree [role='group'] {
   display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
+/* The row is the treeitem: one tab stop for the tree, arrows inside it. */
 .ui-tree-row {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  width: 100%;
   min-height: var(--control-height-sm);
   padding-left: calc(var(--ui-tree-depth, 0) * var(--space-4));
-  border-radius: var(--radius-sm);
-}
-.ui-tree-item.is-selected > .ui-tree-row {
-  background: var(--color-secondary-soft);
-}
-.ui-tree-item.is-drop-target > .ui-tree-row {
-  outline: 2px dashed var(--color-secondary-solid);
-}
-.ui-tree-twisty,
-.ui-tree-label {
   border: 0;
+  border-radius: var(--radius-sm);
   background: none;
   color: inherit;
   font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+.ui-tree-row.is-selected {
+  background: var(--color-secondary-soft);
+}
+.ui-tree-row.is-drop-target {
+  outline: 2px dashed var(--color-secondary-solid);
 }
 .ui-tree-twisty {
   display: inline-grid;
   place-items: center;
   width: 20px;
   height: 20px;
+  flex: none;
   color: var(--color-neutral-text-muted);
-}
-.ui-tree-twisty.is-empty {
-  cursor: default;
 }
 .ui-tree-twisty svg {
   width: var(--icon-size-sm);
@@ -1663,9 +1669,7 @@
   transform: rotate(90deg);
 }
 .ui-tree-label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+  display: grid;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1673,7 +1677,24 @@
   white-space: nowrap;
   text-align: left;
 }
+.ui-tree-name,
+.ui-tree-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-tree-description {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+}
+.ui-tree-icon {
+  display: inline-flex;
+  flex: none;
+}
 .ui-tree-meta {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
   color: var(--color-neutral-text-muted);
   font-size: var(--text-caption);
 }
@@ -1768,12 +1789,22 @@
    Layout for /design. It styles nothing the product uses — it only arranges
    the inventory so a regression is visible at a glance.
    ============================================================ */
+/* The brand's honeycomb field is behind every route, which is right for the
+   product and wrong here: a gallery of colour roles cannot be judged over an
+   orange field. The demo lays its own ground over it. */
 .ds-page {
+  position: relative;
+  z-index: var(--layer-raised);
   display: grid;
+  /* Rows size to their content: a grid that fills the viewport stretches its
+     last sections instead, which made every card look padded. */
+  align-content: start;
   gap: var(--space-6);
-  width: min(100% - var(--space-6) * 2, 1200px);
-  margin-inline: auto;
+  width: 100%;
+  min-height: 100dvh;
   padding-block: var(--space-6);
+  padding-inline: max(var(--space-6), calc((100% - 1200px) / 2));
+  background: var(--color-neutral-bg);
 }
 .ds-header {
   display: grid;
@@ -2071,4 +2102,20 @@
 }
 .ui-toast .ui-toast-text {
   color: inherit;
+}
+
+/* ============================================================
+   Measure (021, T157 — FR-023)
+
+   A paragraph is read, so it gets a measure. Applied where prose actually
+   lives — a dialog's body, a card's description, an alert, an empty state —
+   and not to every `p` in the product: a paragraph inside a table cell or a
+   chip is a label, and capping it there would leave a ragged column.
+   ============================================================ */
+.modal > p,
+.team-dialog-form > p,
+.ui-card-description,
+.ui-alert-text,
+.ui-empty-description {
+  max-width: var(--measure);
 }

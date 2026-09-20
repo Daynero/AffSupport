@@ -2013,6 +2013,75 @@ export type Database = {
           updated_at: string;
         };
       };
+      // 022 — a space's product catalog values, and a video's catalog sheet.
+      get_team_product_catalog_settings: {
+        Args: { p_team: string };
+        Returns: {
+          team_id: string;
+          title: string;
+          description: string;
+          price: number;
+          image_link: string;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      set_team_product_catalog_settings: {
+        Args: { p_team: string; p_settings: Json };
+        Returns: {
+          team_id: string;
+          title: string;
+          description: string;
+          price: number;
+          image_link: string;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      // 023 — the catalog registry and the space's catalog updater.
+      list_team_product_catalogs: {
+        Args: { p_team: string };
+        Returns: {
+          catalog_id: string;
+          name: string;
+          sheet_url: string;
+          video_id: string;
+          video_name: string;
+          folder_name: string | null;
+          product_count: number;
+          created_at: string;
+          last_updated_at: string | null;
+          update_count: number;
+          in_updater: boolean;
+          last_update_error: string | null;
+        }[];
+      };
+      get_team_catalog_updater: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
+      save_team_catalog_updater: {
+        Args: { p_team: string; p_catalogs: string[]; p_interval: string; p_restitch: boolean };
+        Returns: Json;
+      };
+      stop_team_catalog_updater: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
+      get_material_product_catalog: {
+        Args: { p_team: string; p_video: string };
+        Returns: {
+          id: string;
+          name: string;
+          drive_file_id: string;
+          sheet_url: string;
+          source_link: string;
+          product_count: number;
+          created_at: string;
+        }[];
+      };
       get_material_restitch_prep: {
         Args: { p_team: string; p_materials: string[] };
         Returns: {

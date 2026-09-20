@@ -48,9 +48,7 @@ export function SortMenu({
     { heading: t('teamExplorerSortFolders') },
     ...[true, false].map(separate => ({
       id: `folders-${separate}`,
-      label: separate
-        ? t('teamExplorerSortFoldersSeparate')
-        : t('teamExplorerSortFoldersMixed'),
+      label: separate ? t('teamExplorerSortFoldersSeparate') : t('teamExplorerSortFoldersMixed'),
       checked: sort.foldersSeparate === separate,
       onSelect: () => onChange({ ...sort, foldersSeparate: separate })
     }))

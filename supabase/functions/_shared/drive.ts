@@ -397,6 +397,146 @@ export class GoogleDriveClient {
     return metadata;
   }
 
+  /**
+   * Creates a file from bytes that Drive converts on the way in — an XLSX becoming a native
+   * spreadsheet (022). One multipart request: the file never exists in its source format, so
+   * there is no half-made original to clean up.
+   */
+  async createConvertedFile(input: {
+    name: string;
+    parentId: string;
+    sourceMimeType: string;
+    targetMimeType: string;
+    bytes: Uint8Array<ArrayBuffer>;
+  }): Promise<DriveFileMetadata> {
+    if (
+      input.name.length < 1 ||
+      input.name.length > 1024 ||
+      input.parentId.length < 1 ||
+      input.name.includes(String.fromCharCode(0)) ||
+      /[\r\n]/u.test(input.name)
+    ) {
+      throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    }
+    if (input.bytes.byteLength > 10 * 1024 * 1024) {
+      throw new TeamFunctionError('TOO_LARGE', { retryable: false });
+    }
+    const boundary = `soty-${crypto.randomUUID()}`;
+    const encoder = new TextEncoder();
+    const head = encoder.encode(
+      `--${boundary}\r\ncontent-type: application/json; charset=utf-8\r\n\r\n` +
+        JSON.stringify({
+          name: input.name,
+          mimeType: input.targetMimeType,
+          parents: [input.parentId]
+        }) +
+        `\r\n--${boundary}\r\ncontent-type: ${input.sourceMimeType}\r\n\r\n`
+    );
+    const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
+    const body = new Uint8Array(new ArrayBuffer(head.length + input.bytes.length + tail.length));
+    body.set(head, 0);
+    body.set(input.bytes, head.length);
+    body.set(tail, head.length + input.bytes.length);
+
+    const url = new URL('https://www.googleapis.com/upload/drive/v3/files');
+    url.searchParams.set('uploadType', 'multipart');
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', FILE_FIELDS);
+    const response = await this.#request(url, {
+      method: 'POST',
+      headers: { 'content-type': `multipart/related; boundary=${boundary}` },
+      body,
+      // A conversion is slower than a metadata call; still bounded.
+      signal: AbortSignal.timeout(60_000)
+    });
+    const metadata = parseMetadata(await response.json().catch(() => null));
+    if (!metadata || metadata.mimeType !== input.targetMimeType) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    return metadata;
+  }
+
+  /**
+   * Rewrites an existing converted file in place (023): the same file id, so the same link, with
+   * new contents converted on the way in — a catalog sheet whose product IDs moved on. The
+   * returned id and type are checked, because a sheet that silently became another file would
+   * leave the ad platforms reading a link that no longer changes.
+   */
+  async updateConvertedFile(input: {
+    fileId: string;
+    resourceKey?: string | null;
+    sourceMimeType: string;
+    targetMimeType: string;
+    bytes: Uint8Array<ArrayBuffer>;
+  }): Promise<DriveFileMetadata> {
+    if (input.fileId.length < 1) {
+      throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    }
+    if (input.bytes.byteLength > 10 * 1024 * 1024) {
+      throw new TeamFunctionError('TOO_LARGE', { retryable: false });
+    }
+    const boundary = `soty-${crypto.randomUUID()}`;
+    const encoder = new TextEncoder();
+    const head = encoder.encode(
+      `--${boundary}\r\ncontent-type: application/json; charset=utf-8\r\n\r\n` +
+        JSON.stringify({ mimeType: input.targetMimeType }) +
+        `\r\n--${boundary}\r\ncontent-type: ${input.sourceMimeType}\r\n\r\n`
+    );
+    const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
+    const body = new Uint8Array(new ArrayBuffer(head.length + input.bytes.length + tail.length));
+    body.set(head, 0);
+    body.set(input.bytes, head.length);
+    body.set(tail, head.length + input.bytes.length);
+
+    const url = new URL(
+      `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(input.fileId)}`
+    );
+    url.searchParams.set('uploadType', 'multipart');
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', FILE_FIELDS);
+    if (input.resourceKey) url.searchParams.set('resourceKey', input.resourceKey);
+    const response = await this.#request(url, {
+      method: 'PATCH',
+      headers: { 'content-type': `multipart/related; boundary=${boundary}` },
+      body,
+      signal: AbortSignal.timeout(60_000)
+    });
+    const metadata = parseMetadata(await response.json().catch(() => null));
+    if (!metadata || metadata.id !== input.fileId || metadata.mimeType !== input.targetMimeType) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    return metadata;
+  }
+
+  /**
+   * Deletes a file for good — not a trash (023, re-stitched copies the updater has used).
+   *
+   * The only permanent delete in the product. Its one caller passes ids the database recorded as
+   * the updater's own retired copies, never a material id from a request. A file already gone
+   * counts as deleted.
+   */
+  async deleteFile(fileId: string): Promise<{ deleted: boolean }> {
+    if (fileId.length < 1) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`);
+    url.searchParams.set('supportsAllDrives', 'true');
+    let response: Response;
+    try {
+      response = await this.#fetch(url, {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${this.#accessToken}` },
+        signal: AbortSignal.timeout(15_000)
+      });
+    } catch {
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+    }
+    if (response.status === 404) return { deleted: false };
+    if (response.ok) return { deleted: true };
+    if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
+    if (response.status === 403) throw new TeamFunctionError('PERMISSION_DENIED');
+    if (response.status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+    throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: response.status >= 500 });
+  }
+
   async listAnyonePermissions(fileId: string): Promise<Array<{ id: string; role: string }>> {
     const url = new URL(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`

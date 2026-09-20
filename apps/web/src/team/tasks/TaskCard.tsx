@@ -24,10 +24,12 @@ import type { TeamTaskPatch, TeamTaskStatus, TeamTaskSummary } from '@video-comp
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskProgressScale } from './TaskProgressScale';
+import { useCoalescedWrite } from './useCoalescedWrite';
 import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagList } from './TaskAgentTags';
 import { TaskLabelChips } from '../labels/TaskLabelChip';
 import { formatTaskDate } from './TaskDateField';
+import { Card } from '../../components/ui/index';
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest('button, a, [role="slider"]'));
@@ -63,8 +65,25 @@ export function TaskCard({
   const { t, language } = useI18n();
   const [status, setStatus] = useState<TeamTaskStatus>(task.status);
   const [progressValue, setProgressValue] = useState(task.progressValue);
-  const [updating, setUpdating] = useState(false);
   const [failed, setFailed] = useState(false);
+  const latestTask = useRef(task);
+  latestTask.current = task;
+  /*
+   * Progress and status are written as they change, and a change made while a write is out is sent
+   * right after it — never dropped. A failure shows the task as the server has it.
+   */
+  const writer = useCoalescedWrite<TeamTaskPatch>({
+    write: async patch => {
+      setFailed(false);
+      await onUpdate(patch);
+    },
+    merge: (held, next) => ({ ...held, ...next }),
+    onError: () => {
+      setStatus(latestTask.current.status);
+      setProgressValue(latestTask.current.progressValue);
+      setFailed(true);
+    }
+  });
   /**
    * The description is clamped to what fits a card; when there is more, a
    * "more" unfolds it in place — reading the whole brief must not cost
@@ -88,8 +107,10 @@ export function TaskCard({
   // (or a different task), never a status flip or any other edit. Re-syncing on
   // every updatedAt let a status change snap the marker back to the stored value.
   useEffect(() => {
-    setProgressValue(task.progressValue);
-  }, [task.id, task.progressValue]);
+    // While a write is out the knob shows what was chosen, not the reply to an earlier one.
+    if (!writer.savingRef.current) setProgressValue(task.progressValue);
+    // The reply to the last write arrives as a new progressValue and syncs then.
+  }, [task.id, task.progressValue, writer.savingRef]);
 
   useLayoutEffect(() => {
     const node = noteRef.current;
@@ -105,20 +126,6 @@ export function TaskCard({
     return () => observer?.disconnect();
   }, [task.note, task.title, expanded]);
 
-  const update = async (patch: TeamTaskPatch, reset: () => void) => {
-    if (!canEdit || updating) return;
-    setUpdating(true);
-    setFailed(false);
-    try {
-      await onUpdate(patch);
-    } catch {
-      reset();
-      setFailed(true);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
   const openFromClick = (event: MouseEvent<HTMLElement>) => {
     if (!isInteractiveTarget(event.target)) onOpen();
   };
@@ -131,7 +138,11 @@ export function TaskCard({
   };
 
   return (
-    <article
+    /* The inventory's surface (021, T104). The whole card is the target, which
+       is what `interactive` says; the board's own class keeps its layout. */
+    <Card
+      as="article"
+      interactive
       className={`team-task-card${expanded ? ' is-expanded' : ''}`}
       data-status={status}
       tabIndex={0}
@@ -145,12 +156,11 @@ export function TaskCard({
         <TaskStatusControl
           compact
           value={status}
-          disabled={!canEdit || updating}
+          disabled={!canEdit}
           onChange={next => {
-            if (next === status) return;
-            const previous = status;
+            if (next === status || !canEdit) return;
             setStatus(next);
-            void update({ status: next }, () => setStatus(previous));
+            writer.send({ status: next });
           }}
         />
         <TaskAgentTagList tags={task.agents} limit={2} />
@@ -177,11 +187,10 @@ export function TaskCard({
           value={progressValue}
           max={task.progressMax}
           label={t('teamTaskProgressScale')}
-          disabled={!canEdit || updating}
+          disabled={!canEdit}
           onChange={setProgressValue}
           onCommit={next => {
-            const previous = task.progressValue;
-            void update({ progressValue: next }, () => setProgressValue(previous));
+            if (canEdit) writer.send({ progressValue: next });
           }}
         />
       )}
@@ -228,8 +237,12 @@ export function TaskCard({
             {task.assigneeLabelSnapshot}
           </span>
         )}
-        {failed && <span className="team-task-card-error">{t('teamTaskSaveFailed')}</span>}
+        {failed && (
+          <span className="team-task-card-error ui-color-error" role="alert">
+            {t('teamTaskSaveFailed')}
+          </span>
+        )}
       </div>
-    </article>
+    </Card>
   );
 }

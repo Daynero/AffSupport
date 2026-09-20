@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Clipboard, Plus, Search, Shield, Trash2 } from 'lucide-react';
 import { analytics } from '../analytics/service';
-import { IconButton } from '../components/ui';
+import { Button, IconButton } from '../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { ToastProvider, useToasts } from '../components/toast';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -24,6 +24,8 @@ import { QuickCode } from './QuickCode';
 import { useIdle, useTotpStep } from './totp-clock';
 import { TwoFactorProvider, useTwoFactor } from './TwoFactorContext';
 import { TwoFactorEditRow, TwoFactorRow } from './TwoFactorRow';
+import { Alert, DropdownMenu, EmptyState, ErrorState } from '../components/ui/index';
+import { LabeledSkeleton } from '../components/LabeledSkeleton';
 
 type SortOrder = 'az' | 'za' | 'newest' | 'oldest';
 
@@ -219,10 +221,12 @@ function TwoFactorWallet() {
         </div>
       </header>
 
+      {/* A clock that has drifted makes every code here wrong; that is a
+          warning, and it reads as one. */}
       {clockOffBy !== null && (
-        <p className="tfa-clock-warning" role="status">
+        <Alert className="tfa-clock-warning" color="warning" variant="soft">
           {t('twoFactorClockOff', { seconds: clockOffBy })}
-        </p>
+        </Alert>
       )}
 
       {/* Always there, never behind a toggle: the moment somebody needs a code
@@ -322,28 +326,42 @@ function TwoFactorWallet() {
           </tbody>
         </table>
 
-        {status === 'loading' && <p className="tfa-notice">{t('twoFactorLoading')}</p>}
+        {status === 'loading' && <LabeledSkeleton label="twoFactorLoading" rows={3} />}
         {status === 'failed' && (
-          <p className="tfa-notice tfa-notice-error" role="alert">
-            {errorCode === 'NOT_AUTHENTICATED'
-              ? t('twoFactorLoadFailedSignedOut')
-              : t('twoFactorLoadFailed')}
-          </p>
+          <ErrorState
+            className="tfa-notice tfa-notice-error"
+            message={
+              errorCode === 'NOT_AUTHENTICATED'
+                ? t('twoFactorLoadFailedSignedOut')
+                : t('twoFactorLoadFailed')
+            }
+          />
         )}
+        {/* No action here on purpose: FR-021 asks that the way out be offered,
+            and on this page it always is — the header's Add sits above this
+            state, on screen, never behind a toggle. A second button with the
+            same name would be two answers to one question. */}
         {status === 'ready' && entries.length === 0 && !adding && (
-          <p className="tfa-notice">
-            <strong>{t('twoFactorEmpty')}</strong>
-            <span>{t('twoFactorEmptyBody')}</span>
-          </p>
+          <EmptyState
+            className="tfa-notice"
+            title={t('twoFactorEmpty')}
+            description={t('twoFactorEmptyBody')}
+          />
         )}
         {/* Distinct from the empty notebook on purpose: "you have nothing" and
             "you have things, none of them this" are different situations, and
             only one is solved by adding a key. */}
         {status === 'ready' && entries.length > 0 && visible.length === 0 && (
-          <p className="tfa-notice">
-            <strong>{t('twoFactorNoMatches', { query: query.trim() })}</strong>
-            <span>{t('twoFactorNoMatchesBody')}</span>
-          </p>
+          <EmptyState
+            className="tfa-notice"
+            title={t('twoFactorNoMatches', { query: query.trim() })}
+            description={t('twoFactorNoMatchesBody')}
+            action={
+              <Button type="button" variant="ghost" onClick={() => setQuery('')}>
+                {t('twoFactorSearchClear')}
+              </Button>
+            }
+          />
         )}
       </div>
     </main>
@@ -354,15 +372,6 @@ function SortMenu({ order, onChange }: { order: SortOrder; onChange: (order: Sor
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: MouseEvent) => {
-      if (!anchor.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
-  }, [open]);
 
   return (
     <div className="tfa-menu-anchor" ref={anchor}>
@@ -376,24 +385,20 @@ function SortMenu({ order, onChange }: { order: SortOrder; onChange: (order: Sor
         {t('twoFactorSort', { order: t(SORT_LABELS[order]) })}
         <ChevronDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
       </button>
-      {open && (
-        <div className="tfa-menu" role="menu">
-          {(Object.keys(SORT_LABELS) as SortOrder[]).map(value => (
-            <button
-              key={value}
-              type="button"
-              role="menuitemradio"
-              aria-checked={order === value}
-              onClick={() => {
-                onChange(value);
-                setOpen(false);
-              }}
-            >
-              {t(SORT_LABELS[value])}
-            </button>
-          ))}
-        </div>
-      )}
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={anchor}
+        placement="bottom-start"
+        label={t('twoFactorSort', { order: t(SORT_LABELS[order]) })}
+        className="tfa-menu"
+        items={(Object.keys(SORT_LABELS) as SortOrder[]).map(value => ({
+          id: value,
+          label: t(SORT_LABELS[value]),
+          checked: order === value,
+          onSelect: () => onChange(value)
+        }))}
+      />
     </div>
   );
 }
@@ -402,15 +407,6 @@ function AddMenu({ onPaste }: { onPaste: () => void }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: MouseEvent) => {
-      if (!anchor.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
-  }, [open]);
 
   return (
     <div className="tfa-menu-anchor" ref={anchor}>
@@ -423,21 +419,22 @@ function AddMenu({ onPaste }: { onPaste: () => void }) {
       >
         <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
       </IconButton>
-      {open && (
-        <div className="tfa-menu tfa-menu-right" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onPaste();
-            }}
-          >
-            <Clipboard size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t('twoFactorAddFromClipboard')}
-          </button>
-        </div>
-      )}
+      <DropdownMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={anchor}
+        placement="bottom-end"
+        label={t('twoFactorAddOptions')}
+        className="tfa-menu tfa-menu-right"
+        items={[
+          {
+            id: 'paste',
+            label: t('twoFactorAddFromClipboard'),
+            icon: <Clipboard size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+            onSelect: onPaste
+          }
+        ]}
+      />
     </div>
   );
 }

@@ -478,6 +478,8 @@ export function TeamSpace({
           className="team-space-no-access-card"
           size="lg"
           icon={<LockKeyhole size={26} strokeWidth={ICON_STROKE} />}
+          /* This state is the screen, so its title is the screen's heading. */
+          titleAs="h2"
           title={<span id="team-no-access">{t('teamSpaceNoAccessTitle')}</span>}
           description={t('teamSpaceNoAccessBody')}
           action={
@@ -602,7 +604,7 @@ function DiscardDraftDialog({
         <Button type="button" variant="danger" loading={busy} onClick={() => void discard()}>
           {t('teamDraftDeleteAction')}
         </Button>
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button type="button" variant="secondary" onClick={onClose}>
           {t('teamCancel')}
         </Button>
       </div>

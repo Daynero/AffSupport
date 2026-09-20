@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LibraryVideoTextVariants, TeamMaterialRow } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast';
@@ -83,8 +84,12 @@ describe('PreviewPane transcript block (012, T016/T017)', () => {
     expect(await screen.findByRole('button', { name: 'View text' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Copy text' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Re-transcribe' })).toBeTruthy();
-    // A selector lets you pick the original or the translation.
-    expect(screen.getByRole('option', { name: 'Original transcript' })).toBeTruthy();
-    expect(screen.getByRole('option', { name: 'uk translation' })).toBeTruthy();
+    // A menu lets you pick the original or the translation, and ticks the one
+    // in use (021, T133: it was an unlabelled `<select>`).
+    await userEvent.click(screen.getByRole('button', { name: 'uk translation' }));
+    expect(screen.getByRole('menuitemradio', { name: 'Original transcript' })).toBeTruthy();
+    expect(
+      screen.getByRole('menuitemradio', { name: 'uk translation', checked: true })
+    ).toBeTruthy();
   });
 });

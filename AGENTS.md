@@ -1,6 +1,9 @@
 # Agent guide
 
-Instructions for coding agents working in this repository.
+Instructions for coding agents working in this repository. Claude Code loads
+[`CLAUDE.md`](CLAUDE.md) by name and nothing else; that file is a pointer back
+to this one, so the two must not drift — anything that belongs to a subject
+below belongs _here_, not there.
 
 ## Soty Analytics
 
@@ -82,6 +85,22 @@ If the CLI reports `ANALYTICS_DATABASE_URL is not set`, tell the user to follow
 the one-time setup in `docs/ANALYTICS_CLI.md`; do not fall back to manual Supabase.
 
 Do not change production data during analytics queries.
+
+## Changing what the product looks like
+
+Two documents, in this order. [`docs/DESIGN.md`](docs/DESIGN.md) is the
+product's own rule book — the icon size, the picto group, the inline field,
+the token layer and the component inventory. It wins any disagreement.
+[`docs/DESIGN-PRINCIPLES.md`](docs/DESIGN-PRINCIPLES.md) is the general craft
+reference behind it: why a transition is 200ms and not 600, why a menu opened
+fifty times an hour does not animate at all.
+
+In practice: take the component from `apps/web/src/components/ui/` rather than
+writing a new one, and name a token from `apps/web/src/styles/tokens.css`
+rather than a value. `node scripts/check-design-tokens.mjs` fails on a raw
+colour, duration, radius or font size outside that file, and on a transition
+of a property that forces layout; it runs inside `npm run verify`. In a dev
+build the route `/design` shows every component and variant side by side.
 
 ## Verifying a change
 

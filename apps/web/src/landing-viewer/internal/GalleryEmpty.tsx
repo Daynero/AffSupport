@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { Spinner } from '../../components/ui';
-import { EmptyState } from '../../components/ui/index';
+import { EmptyState, Spinner } from '../../components/ui/index';
 
 /**
  * The gallery's empty, searching and failed states (021, T070).

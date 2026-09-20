@@ -132,7 +132,7 @@
 }
 
 .team-task-card-description > span {
-  color: color-mix(in oklab, var(--color-text-muted) 72%, transparent);
+  color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
 
@@ -262,7 +262,7 @@
 .task-date-filter .task-date-filter-trigger.is-active {
   border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
   background: color-mix(in srgb, var(--color-accent) 16%, transparent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* The status glyphs keep their own meaning-colours inside a selected pill. */
@@ -538,11 +538,13 @@ button.team-task-label-chip:hover:not(:disabled),
 
 /* --- The popover: the space's dictionary ----------------------------------- */
 
-.team-task-label-menu {
-  position: absolute;
+/* The surface is the shared popover's, placed by the component (021); this is
+   the list inside it, which owns the scroll and the measure. */
+.team-task-label-menu-popover {
   z-index: var(--layer-popover);
-  top: calc(100% + 8px);
-  left: 0;
+  padding: 0;
+}
+.team-task-label-menu {
   display: flex;
   width: min(280px, calc(100vw - 32px));
   max-height: min(360px, 55vh);
@@ -788,6 +790,37 @@ button.team-task-label-chip:hover:not(:disabled),
 
 .task-quick-ranges {
   flex-wrap: nowrap;
+}
+
+/*
+ * On a phone, with the longer translation, the group itself is wider than the
+ * window: "За весь час · За тиждень · За місяць" came to 372px inside a 390px
+ * screen and pushed the page 15px sideways. Below this width the group wraps
+ * its own buttons — each one still unbroken, because they are `nowrap` — which
+ * keeps the rule the row was built on ("no control breaks inside itself")
+ * without the page scrolling to reach one.
+ */
+/*
+ * On a phone the filter row is a strip that scrolls inside itself.
+ *
+ * With the longer translation a single group is wider than the window — "За
+ * весь час · За тиждень · За місяць" is 372px inside a 390px screen — and
+ * wrapping it fought the row: whichever group was allowed to wrap took the
+ * line and pushed the rest out. A strip that scrolls is what the rules allow
+ * for exactly this, and it keeps every control whole, which is what the row
+ * was built for.
+ */
+@media (max-width: 520px) {
+  .task-date-filter {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+
+  .task-date-filter > * {
+    flex: 0 0 auto;
+  }
 }
 
 .task-quick-range,

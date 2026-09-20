@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { useExplorer } from './ExplorerProvider';
+import { Popover } from '../../components/ui/index';
 
 /**
  * How deep a path is shown in full before the middle folds away.
@@ -113,25 +114,6 @@ function FoldedPath({
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && box.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      button.current?.focus();
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
     const frame = requestAnimationFrame(() => {
       list.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
     });
@@ -173,9 +155,21 @@ function FoldedPath({
       >
         …
       </button>
-      {open && (
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          button.current?.focus();
+        }}
+        anchor={box}
+        placement="bottom-start"
+        frequent
+        label={label}
+        surface="none"
+        className="team-explorer-menu"
+      >
         <div
-          className="team-explorer-menu"
+          className="team-explorer-menu-items"
           role="menu"
           aria-label={label}
           ref={list}
@@ -197,7 +191,7 @@ function FoldedPath({
             </button>
           ))}
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

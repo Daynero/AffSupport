@@ -195,7 +195,12 @@
   color: var(--color-text-muted);
 }
 
+/* The field suppresses its own outline so the ring sits on the whole control
+   rather than on the bare input inside it — but it is the product's ring, not
+   a border tint: a 1px colour change is not something a keyboard user finds. */
 .team-accounts-search:focus-within {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
   border-color: var(--color-focus);
 }
 
@@ -614,7 +619,7 @@
 /* The part of a line that answered the search. */
 .team-accounts-mark {
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-action) 40%, transparent);
+  background: var(--color-highlight);
   color: inherit;
   padding-inline: 1px;
 }
@@ -717,7 +722,9 @@
    * two signals.
    */
   border-top: 1px solid var(--color-border);
-  transition: background-color var(--dur-control) var(--ease-standard);
+  /* No transition on the wash: a row is crossed dozens of times a minute in a
+     table this dense, and a fade behind a moving pointer reads as lag rather
+     than as polish (docs/DESIGN-PRINCIPLES.md — frequency, not taste). */
 }
 
 .team-agent-row:nth-child(even):not(.is-free) {
@@ -1152,12 +1159,6 @@
   height: 28px;
 }
 
-.team-agent-runs-empty {
-  color: color-mix(in oklab, var(--color-text-muted) 60%, transparent);
-  font-size: var(--text-sm);
-  line-height: 28px;
-}
-
 /* When a run was written, beside it. The dates inside the run's own text are
    typed by hand; this one is not, so it is the quieter of the two. */
 .team-agent-run-age {
@@ -1335,11 +1336,10 @@
   color: var(--color-text);
 }
 
+/* Placed by the component (021): a table row clips what spills past its edge,
+   so the menu opens on the body beside the trigger. */
 .team-agent-menu-list {
-  position: absolute;
   z-index: var(--layer-popover);
-  top: calc(100% + 4px);
-  right: 0;
   display: grid;
   min-width: 200px;
   padding: var(--space-1);
@@ -1347,6 +1347,11 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
+}
+
+/* The menu's own element inside the surface; it takes no space of its own. */
+.team-agent-menu-items {
+  display: contents;
 }
 
 .team-agent-menu-item {
@@ -1863,12 +1868,6 @@ button.team-task-agent-chip.is-selected {
   font-size: var(--text-caption);
 }
 
-.team-task-accounts-empty {
-  color: color-mix(in oklab, var(--color-text-muted) 72%, transparent);
-  font-size: var(--text-caption);
-  font-style: italic;
-}
-
 /* "+ Account": the same pill as "+ Agent" in the Accounts tab. */
 .team-task-account-add {
   display: inline-flex;
@@ -2266,7 +2265,7 @@ button.team-task-agent-chip.is-selected {
   padding: 0 8px;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: var(--text-caption);
   font-weight: 650;
   text-decoration: none;

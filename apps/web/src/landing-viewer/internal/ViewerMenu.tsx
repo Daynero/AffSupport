@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode
+} from 'react';
 import { Check } from 'lucide-react';
 import { Popover } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -107,6 +114,7 @@ export function ViewerMenu({
         placement={align === 'end' ? 'bottom-end' : 'bottom-start'}
         frequent
         label={label}
+        surface="none"
         className="lv-menu"
       >
         <div id={id} ref={menu} role="menu" aria-label={label} className="lv-menu-items">

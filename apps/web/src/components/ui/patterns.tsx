@@ -19,6 +19,8 @@ import { uiClasses } from './types';
 export interface EmptyStateProps {
   icon?: ReactNode;
   title: ReactNode;
+  /** `h1`/`h2` when the state is the whole screen and needs to be findable. */
+  titleAs?: 'strong' | 'h1' | 'h2' | 'h3';
   description?: ReactNode;
   /**
    * The control that resolves the emptiness. A sentence naming where to go is
@@ -114,6 +116,8 @@ export interface ConfirmDialogProps {
   /** Destructive is the default here; a benign confirmation says so. */
   tone?: 'destructive' | 'neutral';
   busy?: boolean;
+  /** Raised over a dialog that is already open — a delete inside an editor. */
+  nested?: boolean;
 }
 
 export function ConfirmDialog({
@@ -125,7 +129,8 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   tone = 'destructive',
-  busy = false
+  busy = false,
+  nested = false
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -134,6 +139,7 @@ export function ConfirmDialog({
       title={title}
       size="sm"
       busy={busy}
+      nested={nested}
       footer={
         <>
           {/* The safe action carries the emphasis and sits where the eye lands
@@ -179,7 +185,11 @@ export function SelectionBar({
 }: SelectionBarProps) {
   if (count === 0) return null;
   return (
-    <div className={uiClasses('selection-bar', { className })} role="toolbar" aria-label={clearLabel}>
+    <div
+      className={uiClasses('selection-bar', { className })}
+      role="toolbar"
+      aria-label={clearLabel}
+    >
       <span className="ui-selection-count">{label}</span>
       <div className="ui-selection-actions">{actions}</div>
       <Button size="sm" color="neutral" variant="ghost" onClick={onClear}>

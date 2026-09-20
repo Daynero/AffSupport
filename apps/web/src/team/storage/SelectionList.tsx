@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { TeamDriveSelection } from '@video-compressor/shared';
-import { Button } from '../../components/ui';
+import { Button, Card, Chip, Empty } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
@@ -97,29 +97,33 @@ export function SelectionList({
   };
 
   return (
-    <div className="team-selection-list">
-      <h3>{t('teamSelectionsTitle')}</h3>
-      <ul>
-        {selections.map(selection => (
-          <li key={selection.id}>
-            <span>
-              {selection.name}
-              {selection.isRoot && <small> · {t('teamSelectionsRootLabel')}</small>}
-              {selection.state === 'missing' && <small> · {t('teamDriveRootMissing')}</small>}
-            </span>
-            {canManage && !selection.isRoot && (
-              <Button type="button" variant="ghost" onClick={() => void remove(selection)}>
-                {t('teamSelectionsRemove')}
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+    <Card className="team-selection-list" title={t('teamSelectionsTitle')}>
+      {/* A picked folder is a value somebody put here and can take back, which
+          is what a Chip is; the root is the one that cannot be taken back. */}
+      {selections.length === 0 ? (
+        <Empty size="sm" title={t('teamSelectionsEmpty')} />
+      ) : (
+        <ul className="team-selection-chips">
+          {selections.map(selection => (
+            <li key={selection.id}>
+              <Chip
+                color={selection.state === 'missing' ? 'warning' : 'neutral'}
+                onRemove={canManage && !selection.isRoot ? () => void remove(selection) : undefined}
+                removeLabel={t('teamSelectionsRemove')}
+              >
+                {selection.name}
+                {selection.isRoot && <small> · {t('teamSelectionsRootLabel')}</small>}
+                {selection.state === 'missing' && <small> · {t('teamDriveRootMissing')}</small>}
+              </Chip>
+            </li>
+          ))}
+        </ul>
+      )}
       {canManage && (
-        <Button type="button" variant="secondary" loading={busy} onClick={() => void add()}>
+        <Button color="neutral" variant="outline" loading={busy} onClick={() => void add()}>
           {t('teamSelectionsAdd')}
         </Button>
       )}
-    </div>
+    </Card>
   );
 }

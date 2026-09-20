@@ -12,6 +12,7 @@ import { MaterialRowMenu } from './MaterialRowMenu';
 import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
+import { EmptyState, ErrorState } from '../../components/ui/index';
 
 /** Matches the page size `useCatalogSearch` requests. */
 const PAGE_SIZE = 50;
@@ -38,6 +39,7 @@ export function MaterialResults({
   onProcess,
   onShowProvenance,
   onCreateTask,
+  onReveal,
   onChanged,
   browseClient,
   destinationFolderId = null,
@@ -58,6 +60,8 @@ export function MaterialResults({
   onProcess: (material: CatalogMaterialItem) => void;
   onShowProvenance: (material: CatalogMaterialItem) => void;
   onCreateTask?: (material: CatalogMaterialItem) => void;
+  /** Opens the file's folder in the explorer with the file selected. */
+  onReveal?: (material: CatalogMaterialItem) => void;
   onChanged: () => void;
   /** Reads the folder tree for the row menu's destination picker. */
   browseClient: FolderPickerClient;
@@ -82,9 +86,12 @@ export function MaterialResults({
    * colour the moment React re-rendered the list.
    */
   const [justTagged, setJustTagged] = useState<Record<string, TeamMaterialTagColor | null>>({});
-  if (error) return <p className="team-inline-error">{t('teamCatalogLoadFailed')}</p>;
+  if (error)
+    return <ErrorState className="team-inline-error" message={t('teamCatalogLoadFailed')} />;
   if (loading && !result) return <LabeledSkeleton label="teamCatalogLoadingResults" />;
-  if (!result || result.items.length === 0) return <p>{t('teamCatalogEmpty')}</p>;
+  // Nothing matched. The search bar above is the control that changes that, so
+  // the state says so rather than repeating it as a button.
+  if (!result || result.items.length === 0) return <EmptyState title={t('teamCatalogEmpty')} />;
 
   // The request always asks for fifty; the envelope carries the true total.
   const pageCount = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
@@ -206,6 +213,16 @@ export function MaterialResults({
                   material.lineage.isVersion) && (
                   <Button type="button" variant="ghost" onClick={() => onShowProvenance(material)}>
                     {t('teamProvenanceTitle')}
+                  </Button>
+                )}
+                {onReveal && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label={t('teamRevealInFolderFor', { name: material.name })}
+                    onClick={() => onReveal(material)}
+                  >
+                    {t('teamRevealInFolder')}
                   </Button>
                 )}
                 {onCreateTask && material.kind === 'file' && (

@@ -1,5 +1,6 @@
 import type { TeamPreviewUnavailableReason } from '@video-compressor/shared';
 import { Button } from '../../components/ui';
+import { EmptyState } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 
 const REASON_COPY: Readonly<Record<TeamPreviewUnavailableReason, TranslationKey>> = {
@@ -32,23 +33,31 @@ export function PreviewUnavailable({
   onNewVersion?: () => void;
 }) {
   const { t } = useI18n();
+  /*
+   * The shared empty state (021, T129): nothing can be shown here, and what can
+   * be done about it sits under the sentence rather than somewhere else on the
+   * screen. The class stays so the preview pane's own layout still applies.
+   */
   return (
-    <div className="team-preview-unavailable" role="status">
-      <p>{t((variant === 'landing' ? LANDING_REASON_COPY : REASON_COPY)[reason])}</p>
-      {allowedActions.length > 0 && (
-        <div className="team-preview-actions">
-          {allowedActions.includes('download') && (
-            <Button type="button" onClick={onDownload}>
-              {t('teamPreviewDownload')}
-            </Button>
-          )}
-          {allowedActions.includes('new_version') && (
-            <Button type="button" onClick={onNewVersion}>
-              {t('teamPreviewNewVersion')}
-            </Button>
-          )}
-        </div>
-      )}
-    </div>
+    <EmptyState
+      className="team-preview-unavailable"
+      title={t((variant === 'landing' ? LANDING_REASON_COPY : REASON_COPY)[reason])}
+      action={
+        allowedActions.length > 0 && (
+          <div className="team-preview-actions">
+            {allowedActions.includes('download') && (
+              <Button type="button" onClick={onDownload}>
+                {t('teamPreviewDownload')}
+              </Button>
+            )}
+            {allowedActions.includes('new_version') && (
+              <Button type="button" onClick={onNewVersion}>
+                {t('teamPreviewNewVersion')}
+              </Button>
+            )}
+          </div>
+        )
+      }
+    />
   );
 }

@@ -184,19 +184,26 @@ export function useDialogBehaviour({
         first.focus();
       }
     };
-    document.addEventListener('keydown', onKeyDown, true);
+    /*
+     * On the window, in the bubble phase. The stack already decides which
+     * overlay answers Escape; what capture would take away is the chance for
+     * something inside the surface to answer first — an inline field in a
+     * dialog closes itself and stops the key, and the dialog around it stays
+     * open. Capturing here swallowed that field's Escape and left it on screen.
+     */
+    window.addEventListener('keydown', onKeyDown);
 
     return () => {
       if (focusFrame) cancelAnimationFrame(focusFrame);
-      document.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keydown', onKeyDown);
       const at = openStack.lastIndexOf(entry);
       if (at !== -1) openStack.splice(at, 1);
       if (modal) unlockPageScroll();
       (live.current.returnFocus ?? previouslyFocused)?.focus?.();
     };
-    // Mount-only on purpose: see `live` above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, modal]);
+    // Mount-only on purpose: `live` above carries the changing callbacks, so
+    // the effect does not need them in its list and must not re-run on them.
+  }, [active, modal, surface]);
 }
 
 export interface ModalProps {
@@ -298,12 +305,25 @@ export interface PopoverProps {
   placement?: 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end';
   /** True for something opened many times an hour: no animation at all. */
   frequent?: boolean;
+  /**
+   * Other elements that count as "inside". A surface can have a second trigger
+   * — the language panel opens from a `?` and from the percentage beside it —
+   * and a press on one of those is not a press outside.
+   */
+  within?: ReadonlyArray<RefObject<HTMLElement | null>>;
   /** The surface takes the anchor's width — a select, a combobox. */
   matchWidth?: boolean;
   /** Floor for that width, so a short chip does not open an unreadable list. */
   minWidth?: number;
   maxHeight?: number;
   label?: string;
+  /**
+   * What the surface itself is. `dialog` for a panel of controls a person
+   * works in; `none` when the content inside already carries the semantics —
+   * a menu, a listbox, a group — because two nested roles make the outer one
+   * a second dialog nobody meant to open.
+   */
+  surface?: 'dialog' | 'none';
   className?: string;
   children: ReactNode;
 }
@@ -314,10 +334,12 @@ export function Popover({
   anchor,
   placement = 'bottom-start',
   frequent = false,
+  within,
   matchWidth = false,
   minWidth,
   maxHeight,
   label,
+  surface: surfaceRole = 'dialog',
   className,
   children
 }: PopoverProps) {
@@ -337,6 +359,7 @@ export function Popover({
       const target = event.target as Node;
       if (surface.current?.contains(target)) return;
       if (anchor?.current?.contains(target)) return;
+      if (within?.some(element => element.current?.contains(target))) return;
       /*
        * A dialog this popover opened is portalled to the body, outside the
        * popover's own subtree — but a press inside it is not "outside the
@@ -354,15 +377,15 @@ export function Popover({
     };
     window.addEventListener('mousedown', onPointerDown);
     return () => window.removeEventListener('mousedown', onPointerDown);
-  }, [anchor, close, open]);
+  }, [anchor, close, open, within]);
 
   if (!open || typeof document === 'undefined') return null;
 
   const surfaceElement = (
     <div
       ref={surface}
-      role="dialog"
-      aria-label={label}
+      role={surfaceRole === 'none' ? undefined : 'dialog'}
+      aria-label={surfaceRole === 'none' ? undefined : label}
       className={uiClasses('popover', {
         states: { frequent },
         className: [`ui-popover--${placement}`, className].filter(Boolean).join(' ')
@@ -457,9 +480,7 @@ export function DropdownMenu({
   className
 }: DropdownMenuProps) {
   const [active, setActive] = useState(0);
-  const rows = items.filter(
-    (item): item is MenuItem => item !== 'separator' && !isHeading(item)
-  );
+  const rows = items.filter((item): item is MenuItem => item !== 'separator' && !isHeading(item));
 
   useEffect(() => {
     if (open) setActive(0);
@@ -476,6 +497,8 @@ export function DropdownMenu({
       maxHeight={maxHeight}
       frequent
       label={label}
+      /* The inner element is the menu; the surface around it is scaffolding. */
+      surface="none"
       className={['ui-menu', className].filter(Boolean).join(' ')}
     >
       <div

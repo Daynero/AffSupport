@@ -52,6 +52,18 @@ export interface ProcessLibraryClient {
   retryFailedLibraryJobs(teamId: string, sourceMaterialIds?: readonly string[]): Promise<number>;
   finalizeLibraryJob(input: LibraryJobFinalizeRequest): Promise<LibraryJobFinalizeResult>;
   cancelOperation(teamId: string, operationId: string): Promise<unknown>;
+  /**
+   * The material already carrying a result's name in its destination folder.
+   *
+   * A sidecar's name states the source and the source's version, so a file
+   * wearing it is the output of exactly one requirement. This is how a run
+   * recognises work a previous run finished but never got to report.
+   */
+  findMaterialByName(
+    teamId: string,
+    destinationFolderId: string,
+    name: string
+  ): Promise<string | null>;
 }
 
 export interface ProcessLibraryAgent {

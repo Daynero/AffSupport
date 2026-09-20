@@ -1,5 +1,6 @@
 import type { TeamOperationSnapshot } from '../../api/team';
 import { Button, ProgressBar } from '../../components/ui';
+import { Alert } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { teamErrorMessage } from '../errors';
 
@@ -44,10 +45,12 @@ export function OperationStatus({
       <ProgressBar value={progress} active={running} label={t('teamOperationProgressLabel')} />
       <small>{stageLabel(stage, t)}</small>
       {/* The code is the contract; the sentence is what a person reads. */}
+      {/* Named as well as coloured: the word "failed" carries the state for a
+          reader who cannot see the red (FR-032). */}
       {(localFailureCode ?? operation.errorCode) && (
-        <p className="team-inline-error" role="alert">
+        <Alert color="error" variant="soft" live="alert" title={t('teamOperationFailed')}>
           {teamErrorMessage(localFailureCode ?? operation.errorCode, t)}
-        </p>
+        </Alert>
       )}
       <div className="team-material-action-buttons">
         {running && (

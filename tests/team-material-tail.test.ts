@@ -3,12 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const shared = vi.hoisted(() => ({
   /** The transcript the catalog reports for a video, or none. */
   companion: null as { id: string; name: string } | null,
+  /** The product catalog the catalog reports for a video, or none (022). */
+  catalog: null as { id: string; name: string } | null,
   linked: [] as Array<{ videoId: string; companionId: string }>
 }));
 
 vi.mock('../apps/web/src/api/team', () => ({
   teamApi: {
     getTranscriptCompanion: vi.fn(async () => shared.companion),
+    getProductCatalog: vi.fn(async () => shared.catalog),
     linkTranscriptCompanion: vi.fn(async (_team: string, videoId: string, companionId: string) => {
       shared.linked.push({ videoId, companionId });
       return true;
@@ -21,7 +24,8 @@ const {
   moveMaterialWithTail,
   renameMaterialWithTail,
   trashMaterialWithTail,
-  transcriptNameFor
+  transcriptNameFor,
+  productCatalogNameFor
 } = await import('../apps/web/src/team/materials/tail');
 
 /**
@@ -66,6 +70,7 @@ function client() {
 
 afterEach(() => {
   shared.companion = null;
+  shared.catalog = null;
   shared.linked.length = 0;
   vi.clearAllMocks();
 });
@@ -195,5 +200,75 @@ describe('a material and what belongs to it', () => {
     });
 
     expect(api.moveMaterial).toHaveBeenCalledTimes(1);
+  });
+
+  describe('the product catalog (022)', () => {
+    it('renames the catalog after the video, beside its transcript', async () => {
+      shared.companion = { id: 'txt-1', name: 'clip.txt' };
+      shared.catalog = { id: 'sheet-1', name: 'clip catalog' };
+      const api = client();
+
+      await renameMaterialWithTail({
+        teamId: TEAM,
+        material: VIDEO,
+        newName: 'final cut.mp4',
+        client: api
+      });
+
+      expect(
+        api.renameMaterial.mock.calls.map(([input]) => [input.materialId, input.newName])
+      ).toEqual([
+        ['video-1', 'final cut.mp4'],
+        ['txt-1', 'final cut.txt'],
+        ['sheet-1', 'final cut catalog']
+      ]);
+      expect(productCatalogNameFor('clip.final.mp4')).toBe('clip.final catalog');
+    });
+
+    it('moves the catalog to the same folder', async () => {
+      shared.catalog = { id: 'sheet-1', name: 'clip catalog' };
+      const api = client();
+
+      await moveMaterialWithTail({
+        teamId: TEAM,
+        material: VIDEO,
+        destinationFolderId: 'folder-2',
+        client: api
+      });
+
+      expect(api.moveMaterial.mock.calls[1]![0]).toMatchObject({
+        materialId: 'sheet-1',
+        destinationFolderId: 'folder-2'
+      });
+    });
+
+    it('trashes the catalog with the video', async () => {
+      shared.companion = { id: 'txt-1', name: 'clip.txt' };
+      shared.catalog = { id: 'sheet-1', name: 'clip catalog' };
+      const api = client();
+
+      await trashMaterialWithTail({ teamId: TEAM, material: VIDEO, client: api });
+
+      expect(api.trashMaterial.mock.calls.map(([input]) => input.materialId)).toEqual([
+        'video-1',
+        'txt-1',
+        'sheet-1'
+      ]);
+    });
+
+    it('leaves the catalog behind when the video is copied', async () => {
+      // Every row of a catalog links to one video file; a copied sheet would describe the original.
+      shared.catalog = { id: 'sheet-1', name: 'clip catalog' };
+      const api = client();
+
+      await copyMaterialWithTail({
+        teamId: TEAM,
+        material: VIDEO,
+        destinationFolderId: 'folder-2',
+        client: api
+      });
+
+      expect(api.copyMaterial.mock.calls.map(([input]) => input.materialId)).toEqual(['video-1']);
+    });
   });
 });

@@ -14,6 +14,10 @@ import { StorageChip, type StorageChipClient } from '../storage/StorageChip';
 import { useStorageHealth, type StorageHealthClient } from '../storage/useStorageHealth';
 import type { SpaceSettingsClient } from './SpaceSettings';
 import { SettingsDialog } from './SettingsDialog';
+import { CatalogUpdaterChip } from '../catalog-updater/CatalogUpdaterChip';
+import { CatalogUpdaterDialog } from '../catalog-updater/CatalogUpdaterDialog';
+import { useCatalogUpdater } from '../catalog-updater/useCatalogUpdater';
+import { useRestitchPreparer } from '../catalog-updater/useRestitchPreparer';
 import { MembersSection } from './MembersSection';
 import { SpaceSwitcher } from './SpaceSwitcher';
 import { RealtimeChip } from './RealtimeChip';
@@ -31,6 +35,7 @@ import {
   type TeamSection
 } from '../routes';
 import type { CatalogSearchFilters } from '@video-compressor/shared';
+import { Tabs } from '../../components/ui/index';
 
 const TaskSpace = lazy(() =>
   import('../tasks/TaskSpace').then(module => ({ default: module.TaskSpace }))
@@ -114,7 +119,7 @@ export function WorkspaceShell({
   query?: TeamRouteQuery;
 }) {
   const { t } = useI18n();
-  const { activeTeam, teams, revision } = useTeam();
+  const { activeTeam, teams, revision, can } = useTeam();
   const agent = useOptionalAgent();
   const connectedToDrive = activeTeam?.connectionState === 'connected';
   /**
@@ -257,6 +262,18 @@ export function WorkspaceShell({
     navigateTo(buildTeamRoute({ spaceId: teamId, section: 'explorer' }), true, false);
     setBrowserRevision(value => value + 1);
   }, [teamId]);
+
+  // The updater's state for the chip beside the settings link (023); the dialog reads its own.
+  const catalogUpdater = useCatalogUpdater(teamId);
+  // With re-stitching on, this tab lends the connected Soty app to the updater's spare copies (023).
+  const restitchPreparer = useRestitchPreparer({
+    teamId,
+    enabled:
+      catalogUpdater.state?.state === 'running' &&
+      catalogUpdater.state.restitch &&
+      can('process') &&
+      agent?.teamWorkspaceAvailable === true
+  });
 
   /** An explorer address that keeps the current folder and view. */
   const explorerRoute = useCallback(
@@ -419,6 +436,12 @@ export function WorkspaceShell({
                   {t('teamTrashEntry')}
                 </a>
               )}
+              <CatalogUpdaterChip
+                state={catalogUpdater.state}
+                offsetMs={catalogUpdater.offsetMs}
+                href={explorerRoute({ updater: true })}
+                onNavigate={event => internalLink(event, explorerRoute({ updater: true }))}
+              />
               <a
                 className="team-space-shell-utility-link"
                 href={explorerRoute({ settings: true })}
@@ -430,25 +453,22 @@ export function WorkspaceShell({
             </div>
           </header>
 
-          {/* Real links, not toggles: middle-click, copy-link and Back all work, and
-          the active one is announced rather than merely coloured. */}
-          <nav className="team-space-tabs" aria-label={t('teamSectionsNavLabel')}>
-            {CONTENT_TABS.map(tab => {
-              const href = sectionRoute(tab.section);
-              const active = section === tab.section;
-              return (
-                <a
-                  key={tab.section}
-                  className={`team-space-tab${active ? ' is-active' : ''}`}
-                  href={href}
-                  aria-current={active ? 'page' : undefined}
-                  onClick={event => internalLink(event, href)}
-                >
-                  {t(tab.label)}
-                </a>
-              );
-            })}
-          </nav>
+          {/* Real links, not toggles: middle-click, copy-link and Back all work,
+          and the active one is announced rather than merely coloured. The strip
+          is the inventory's (021, T082), which grew the address variant for
+          exactly this. */}
+          <Tabs
+            className="team-space-tabs"
+            label={t('teamSectionsNavLabel')}
+            value={section}
+            onChange={next => navigateTo(sectionRoute(next))}
+            onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id))}
+            items={CONTENT_TABS.map(tab => ({
+              id: tab.section,
+              label: t(tab.label),
+              href: sectionRoute(tab.section)
+            }))}
+          />
 
           <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
             <div className="team-space-shell-body">
@@ -541,6 +561,15 @@ export function WorkspaceShell({
               directAddMode={directAddMode}
               initialTab={query.settingsTab}
               onClose={() => navigateTo(explorerRoute({ settings: false, settingsTab: null }))}
+            />
+          )}
+
+          {query?.updater && (
+            <CatalogUpdaterDialog
+              teamId={teamId}
+              preparing={restitchPreparer.preparing}
+              onClose={() => navigateTo(explorerRoute({ updater: false }))}
+              onChanged={catalogUpdater.reload}
             />
           )}
 

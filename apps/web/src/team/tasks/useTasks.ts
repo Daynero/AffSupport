@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
+  isTeamTaskSort,
   localTaskDayBounds,
+  TEAM_TASK_STATUSES,
   teamTaskComparator,
   type TeamTaskLabelRef,
   type TeamTaskPatch,
@@ -10,6 +12,7 @@ import {
   type TeamTaskSummary
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
+import { oneOf, persistedViewKey, stringList, usePersistedState } from '../persistedView';
 import { getSupabaseClient } from '../../lib/supabase';
 
 export type TaskDateFilter = { kind: 'all' } | { kind: 'range'; from: string; to: string };
@@ -28,6 +31,88 @@ export type TaskAccountScope =
  */
 export type TaskAssigneeFilter =
   { kind: 'all' } | { kind: 'member'; userId: string } | { kind: 'unassigned' };
+
+/**
+ * The ranges people actually ask for, one press each. The calendar answers
+ * everything else, but reaching it for "today" was four interactions for the
+ * commonest question there is.
+ */
+export type QuickRange = 'today' | 'yesterday' | 'month' | 'all';
+
+export function quickRangeValue(range: Exclude<QuickRange, 'all'>, now: Date): TaskDateFilter {
+  if (range === 'today') {
+    const today = localDateValue(now);
+    return { kind: 'range', from: today, to: today };
+  }
+  if (range === 'yesterday') {
+    const yesterday = localDateValue(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12)
+    );
+    return { kind: 'range', from: yesterday, to: yesterday };
+  }
+  // The whole month, first to last: a task can be dated ahead of today (017),
+  // and "This month" that stopped at today would hide the half of the month a
+  // person plans in.
+  return {
+    kind: 'range',
+    from: localDateValue(new Date(now.getFullYear(), now.getMonth(), 1, 12)),
+    to: localDateValue(new Date(now.getFullYear(), now.getMonth() + 1, 0, 12))
+  };
+}
+
+export function activeQuickRange(value: TaskDateFilter, now: Date): QuickRange | null {
+  if (value.kind === 'all') return 'all';
+  for (const range of ['today', 'yesterday', 'month'] as const) {
+    const candidate = quickRangeValue(range, now);
+    if (candidate.kind === 'range' && candidate.from === value.from && candidate.to === value.to) {
+      return range;
+    }
+  }
+  return null;
+}
+
+/**
+ * A quick range is stored by name, so "today" means today after tomorrow's reload rather than the
+ * day it was pressed; a range picked on the calendar is stored as its days.
+ */
+function encodeDateFilter(value: TaskDateFilter): unknown {
+  const quick = activeQuickRange(value, new Date());
+  return quick && quick !== 'all' ? { kind: 'quick', range: quick } : value;
+}
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/u;
+
+export function parseStoredDateFilter(value: unknown): TaskDateFilter | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'all') return { kind: 'all' };
+  if (
+    record.kind === 'quick' &&
+    (record.range === 'today' || record.range === 'yesterday' || record.range === 'month')
+  ) {
+    return quickRangeValue(record.range, new Date());
+  }
+  if (
+    record.kind === 'range' &&
+    typeof record.from === 'string' &&
+    typeof record.to === 'string' &&
+    DAY.test(record.from) &&
+    DAY.test(record.to)
+  ) {
+    return { kind: 'range', from: record.from, to: record.to };
+  }
+  return null;
+}
+
+function parseAssigneeFilter(value: unknown): TaskAssigneeFilter | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'all' || record.kind === 'unassigned') return { kind: record.kind };
+  if (record.kind === 'member' && typeof record.userId === 'string' && record.userId.length > 0) {
+    return { kind: 'member', userId: record.userId };
+  }
+  return null;
+}
 
 export interface TasksClient {
   listTasks(input: {
@@ -116,13 +201,35 @@ export function useTasks({
   scope?: TaskAccountScope;
   client?: TasksClient;
 }) {
-  const [filter, setFilter] = useState<TaskDateFilter>({ kind: 'all' });
-  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
+  // Every choice below is the space's and outlives a reload (persistedView).
+  const [filter, setFilter] = usePersistedState<TaskDateFilter>(
+    persistedViewKey(teamId, 'tasks.date'),
+    { kind: 'all' },
+    parseStoredDateFilter,
+    encodeDateFilter
+  );
+  const [statusFilter, setStatusFilter] = usePersistedState<TaskStatusFilter>(
+    persistedViewKey(teamId, 'tasks.status'),
+    'all',
+    oneOf<TaskStatusFilter>(['all', ...TEAM_TASK_STATUSES])
+  );
   /** Which tags the board is narrowed to, and what it is ordered by (018). */
-  const [labelIds, setLabelIds] = useState<string[]>([]);
-  const [sort, setSort] = useState<TeamTaskSort>('date');
+  const [labelIds, setLabelIds] = usePersistedState<string[]>(
+    persistedViewKey(teamId, 'tasks.labels'),
+    [],
+    stringList()
+  );
+  const [sort, setSort] = usePersistedState<TeamTaskSort>(
+    persistedViewKey(teamId, 'tasks.sort'),
+    'date',
+    value => (isTeamTaskSort(value) ? value : null)
+  );
   /** Whose tasks the board shows (018 part 2). */
-  const [assignee, setAssignee] = useState<TaskAssigneeFilter>({ kind: 'all' });
+  const [assignee, setAssignee] = usePersistedState<TaskAssigneeFilter>(
+    persistedViewKey(teamId, 'tasks.assignee'),
+    { kind: 'all' },
+    parseAssigneeFilter
+  );
   const bounds = useMemo(() => taskFilterBounds(filter), [filter]);
   const status = statusFilter === 'all' ? null : statusFilter;
   const agentRowId = scope.kind === 'agent' ? scope.agentRowId : null;
@@ -374,10 +481,19 @@ export function useTasks({
   );
 
   const update = useCallback(
-    async (task: TeamTaskSummary, patch: TeamTaskPatch) => {
+    async (
+      task: TeamTaskSummary,
+      patch: TeamTaskPatch,
+      options: { checkVersion?: boolean } = {}
+    ) => {
+      /*
+       * A one-field edit from a card (progress, status) is last-writer-wins: it cannot clobber
+       * another field, and holding it to the card's copy of `updatedAt` refused it whenever the task
+       * had changed anywhere else — tags, attachments, another tab — and the progress was lost.
+       */
       const updated = await client.updateTask(teamId, task.id, {
         ...patch,
-        expectedUpdatedAt: task.updatedAt
+        ...(options.checkVersion === false ? {} : { expectedUpdatedAt: task.updatedAt })
       });
       // update_team_task returns a team_tasks row, which deliberately does not
       // include the derived attachment count. A quick status/progress edit must

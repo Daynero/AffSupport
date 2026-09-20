@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { TeamApiError, type DriveRootResult } from '../../api/team';
-import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { trackTeamStorageConnected } from '../../analytics/service';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from '../drive/BetaStorageNotice';
 import { openFolderPicker, pickerConfig, type PickFolders } from './loadPicker';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
+import { DriveDataUseNotice } from '../drive/DriveDataUseNotice';
+import { Button, Card, ErrorState, uiClasses } from '../../components/ui/index';
 
 /**
  * Connect a space's storage in two inputs (011, FR-001): authorize Google once,
@@ -142,46 +143,52 @@ export function ConnectStorageFlow({
   const unavailable = externalStorageUnavailableInBeta();
 
   return (
-    <section
+    <Card
+      as="section"
       className="team-create-step team-connect-storage"
-      aria-labelledby="connect-folder-title"
+      titleId="connect-folder-title"
+      title={t('teamCreateStepFolderTitle')}
+      description={t('teamCreateStepFolderHint')}
     >
-      <div className="team-create-step-copy">
-        <h2 id="connect-folder-title">{t('teamCreateStepFolderTitle')}</h2>
-        <p>{t('teamCreateStepFolderHint')}</p>
-        {/* Said once, before the chooser, instead of as a step after it. */}
-        <p className="team-connect-acl-note">{t('teamDriveIndependentAcl')}</p>
-        <BetaStorageNotice />
-      </div>
+      {/* Said once, before the chooser, instead of as a step after it. */}
+      <p className="team-connect-acl-note">{t('teamDriveIndependentAcl')}</p>
+      <DriveDataUseNotice />
+      <BetaStorageNotice />
 
       {!unavailable && !authorized && !authorizationUrl && (
-        <Button type="button" variant="primary" loading={busy} onClick={() => void authorize()}>
+        <Button color="primary" variant="solid" loading={busy} onClick={() => void authorize()}>
           {t('teamDriveConnect')}
         </Button>
       )}
       {!authorized && authorizationUrl && (
-        <a className="button button-primary" href={authorizationUrl} rel="noreferrer">
+        /* A link, not a button: the browser refused to leave the page on its
+           own, so the address it was given has to stay pressable. */
+        <a
+          className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
+          href={authorizationUrl}
+          rel="noreferrer"
+        >
           {t('teamDriveAuthorize')}
         </a>
       )}
       {!unavailable && authorized && (
-        <Button type="button" variant="primary" loading={busy} onClick={() => void choose()}>
+        <Button color="primary" variant="solid" loading={busy} onClick={() => void choose()}>
           {t('teamConnectChooseFolder')}
         </Button>
       )}
 
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && <ErrorState className="team-inline-error" message={error} />}
       <p className="team-create-hint">{t('teamCreateFinishHint')}</p>
       <div className="team-create-actions">
         {onBack && (
-          <Button type="button" variant="ghost" onClick={onBack}>
+          <Button color="neutral" variant="ghost" onClick={onBack}>
             {t('teamCreateBack')}
           </Button>
         )}
-        <Button type="button" variant="ghost" onClick={onCancel}>
+        <Button color="neutral" variant="ghost" onClick={onCancel}>
           {t('teamCancel')}
         </Button>
       </div>
-    </section>
+    </Card>
   );
 }

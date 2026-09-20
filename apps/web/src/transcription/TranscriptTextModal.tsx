@@ -15,7 +15,7 @@ import type {
 } from '@video-compressor/shared';
 import { TRANSLATEGEMMA_LANGUAGE_CODES } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
-import { Button, ProgressBar, Tooltip, type Translate } from '../components/ui';
+import { Tooltip, type Translate } from '../components/ui';
 import { transcriptionMediaPath, transcriptionSaveWithTranslation } from '../api/client';
 import { isRtlLanguage, languageDisplayName } from './language';
 import { useTranslationFollow } from './useTranslationFollow';
@@ -40,6 +40,7 @@ import { type KaraokeStore, useActiveWordInSegment } from './karaoke-store';
 import { useScrollSync } from './useScrollSync';
 import { useKaraoke } from './useKaraoke';
 import { hasTimings, type TranscriptExportContent, type TranscriptExportFormat } from './export';
+import { Button, EmptyState, ErrorState, IconButton, Progress } from '../components/ui/index';
 
 const TARGET_LANGUAGES = [...TRANSLATEGEMMA_LANGUAGE_CODES];
 
@@ -681,14 +682,13 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
             <Tooltip label={t('transcriptionMatchHint')}>{t('transcriptionMatchHint')}</Tooltip>
           </div>
         )}
-        <button
-          type="button"
+        <IconButton
           className="transcript-modal-close"
-          aria-label={t('transcriptionModalClose')}
+          label={t('transcriptionModalClose')}
           onClick={onClose}
         >
           <X size={18} strokeWidth={2} aria-hidden="true" />
-        </button>
+        </IconButton>
       </header>
 
       <div className="transcript-split-body" onPointerUp={onSelectionEnd}>
@@ -703,7 +703,12 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
             <span className="transcript-column-title">
               {languageDisplayName(sourceLanguage, language)}
             </span>
-            <Button variant="ghost" disabled={loading} onClick={() => void copyColumn('source')}>
+            <Button
+              color="neutral"
+              variant="ghost"
+              disabled={loading}
+              onClick={() => void copyColumn('source')}
+            >
               {copyLabel('source', hasSourceSelection)}
             </Button>
           </div>
@@ -744,19 +749,19 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                   />
                 ))}
               </div>
+            ) : loadFailed ? (
+              <ErrorState
+                className="transcript-modal-empty"
+                message={t('transcriptionModalLoadFailed')}
+                retryLabel={t('tryAgain')}
+                onRetry={() => setLoadAttempt(count => count + 1)}
+              />
             ) : (
-              <div className="transcript-modal-empty">
-                {loadFailed ? (
-                  <>
-                    <span>{t('transcriptionModalLoadFailed')}</span>
-                    <Button variant="secondary" onClick={() => setLoadAttempt(count => count + 1)}>
-                      {t('tryAgain')}
-                    </Button>
-                  </>
-                ) : (
-                  t('transcriptionModalEmpty')
-                )}
-              </div>
+              <EmptyState
+                className="transcript-modal-empty"
+                size="sm"
+                title={t('transcriptionModalEmpty')}
+              />
             )}
           </div>
         </section>
@@ -782,6 +787,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                 onChange={chooseTarget}
               />
               <Button
+                color="neutral"
                 variant="ghost"
                 disabled={!hasTargetText}
                 onClick={() => void copyColumn('target')}
@@ -809,16 +815,19 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                       : t('transcriptionTranslating', { language: targetName })}
                   </span>
                   <div className="transcript-translation-progress-row">
-                    <ProgressBar
-                      value={translationPercent}
-                      active
+                    <Progress
+                      value={translationPercent ?? undefined}
                       label={t('transcriptionTranslating', { language: targetName })}
                     />
                     <TranslationElapsed
                       startedAt={summary?.startedAt ?? null}
                       percent={translationPercent}
                     />
-                    <Button variant="ghost" onClick={() => void cancelTranslation()}>
+                    <Button
+                      color="neutral"
+                      variant="ghost"
+                      onClick={() => void cancelTranslation()}
+                    >
                       {t('transcriptionCancel')}
                     </Button>
                   </div>
@@ -864,7 +873,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
             )}
             {translationError === 'failed' && (
               <div className="transcript-translation-notice" role="alert">
-                <Button variant="secondary" onClick={retryTranslation}>
+                <Button color="neutral" variant="outline" onClick={retryTranslation}>
                   {t('transcriptionTranslationRetry')}
                 </Button>
               </div>
@@ -895,7 +904,11 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                 })}
               </div>
             ) : !translationError && !translating && !loading ? (
-              <div className="transcript-modal-empty">{t('transcriptionTranslationEmpty')}</div>
+              <EmptyState
+                className="transcript-modal-empty"
+                size="sm"
+                title={t('transcriptionTranslationEmpty')}
+              />
             ) : null}
           </div>
 
@@ -933,7 +946,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
             ) : mediaPreview?.state === 'failed' ? (
               <div className="transcript-preview-status" role="alert">
                 <span>{t('transcriptionPreviewUnavailable')}</span>
-                <Button variant="secondary" onClick={() => void preparePreview()}>
+                <Button color="neutral" variant="outline" onClick={() => void preparePreview()}>
                   {t('transcriptionTranslationRetry')}
                 </Button>
               </div>
@@ -945,12 +958,15 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                     ? ` ${Math.round(mediaPreview.progress)}%`
                     : ''}
                 </span>
-                <ProgressBar
-                  value={mediaPreview?.progress ?? null}
-                  active
+                <Progress
+                  value={mediaPreview?.progress ?? undefined}
                   label={t('transcriptionPreviewPreparing')}
                 />
-                <Button variant="ghost" onClick={() => void cancelPreviewPreparation()}>
+                <Button
+                  color="neutral"
+                  variant="ghost"
+                  onClick={() => void cancelPreviewPreparation()}
+                >
                   {t('transcriptionCancel')}
                 </Button>
               </div>
@@ -961,7 +977,8 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
 
       <footer className="transcript-modal-footer">
         <Button
-          variant="secondary"
+          color="neutral"
+          variant="outline"
           onClick={() => void togglePreview()}
           aria-expanded={previewOpen}
           aria-controls={previewId}
@@ -988,7 +1005,8 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
         )}
         {job.sourceKind === 'local' && (
           <Button
-            variant="secondary"
+            color="neutral"
+            variant="outline"
             loading={saveState === 'saving'}
             disabled={job.translation?.status !== 'completed' || saveState === 'saving'}
             title={
@@ -1004,7 +1022,12 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
               : t('transcriptionSaveWithTranslation')}
           </Button>
         )}
-        <Button variant="ghost" className="transcript-modal-footer-close" onClick={onClose}>
+        <Button
+          color="neutral"
+          variant="ghost"
+          className="transcript-modal-footer-close"
+          onClick={onClose}
+        >
           {t('transcriptionModalClose')}
         </Button>
       </footer>

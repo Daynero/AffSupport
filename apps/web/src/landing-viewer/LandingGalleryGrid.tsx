@@ -52,7 +52,9 @@ export function LandingGalleryGrid({
                 </span>
               )}
               {item.previewAvailable && item.stale && (
-                <span className="lv-tile-badge">{t('landingGalleryStatusStale')}</span>
+                <span className="lv-tile-badge ui-color-warning">
+                  {t('landingGalleryStatusStale')}
+                </span>
               )}
             </span>
             <span className="lv-tile-name">

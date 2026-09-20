@@ -1,4 +1,10 @@
-import { type HTMLAttributes, type ReactNode, type ThHTMLAttributes } from 'react';
+import {
+  Fragment,
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type ReactNode,
+  type ThHTMLAttributes
+} from 'react';
 import { uiClasses, type UiSize } from './types';
 
 /**
@@ -166,8 +172,12 @@ export interface TreeNode {
   id: string;
   label: ReactNode;
   icon?: ReactNode;
-  /** A count on the right — how many files a folder holds. */
+  /** A second line under the label — a state, a path, a count in words. */
+  description?: ReactNode;
+  /** A count or a glyph on the right — how many files a folder holds. */
   meta?: ReactNode;
+  /** A state only this row has: rendering, failed, out of date. */
+  className?: string;
   children?: ReadonlyArray<TreeNode>;
 }
 
@@ -183,6 +193,20 @@ export interface TreeProps {
   className?: string;
 }
 
+/** Every row that is on screen, in the order the arrow keys walk them. */
+function visibleRows(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>('[role="treeitem"]'));
+}
+
+/**
+ * A tree with one tab stop.
+ *
+ * Two hundred landings were two hundred tab stops before this: the row is the
+ * treeitem, the twisty is drawn inside it rather than being a control of its
+ * own, and the arrows do what a tree's arrows do — up and down walk the rows
+ * that are actually shown, right opens a closed folder or steps into an open
+ * one, left closes it or climbs to its parent.
+ */
 export function Tree({
   nodes,
   selectedId,
@@ -193,33 +217,89 @@ export function Tree({
   dropTargetId,
   className
 }: TreeProps) {
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (!target.matches('[role="treeitem"]')) return;
+    const rows = visibleRows(event.currentTarget);
+    const index = rows.indexOf(target);
+    const focus = (next: number) => rows[Math.max(0, Math.min(rows.length - 1, next))]?.focus();
+    const branch = target.dataset.branch;
+    const open = target.getAttribute('aria-expanded') === 'true';
+    switch (event.key) {
+      case 'ArrowDown':
+        focus(index + 1);
+        break;
+      case 'ArrowUp':
+        focus(index - 1);
+        break;
+      case 'Home':
+        focus(0);
+        break;
+      case 'End':
+        focus(rows.length - 1);
+        break;
+      case 'ArrowRight':
+        if (branch && !open) onToggle(branch);
+        else focus(index + 1);
+        break;
+      case 'ArrowLeft':
+        if (branch && open) onToggle(branch);
+        else {
+          const parent = target.closest('[role="group"]')?.previousElementSibling;
+          if (parent instanceof HTMLElement && parent.matches('[role="treeitem"]')) parent.focus();
+        }
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+  };
+
+  /* The tab stop: the selection when it is on screen, else the first row. A
+     tree nobody can reach from the keyboard is a tree with no tab stop at all,
+     which is what `tabIndex={-1}` on every row would leave. */
+  const firstId = nodes[0]?.id ?? null;
+  const onScreen = (list: ReadonlyArray<TreeNode>): boolean =>
+    list.some(
+      node =>
+        node.id === selectedId ||
+        (expandedIds.has(node.id) && node.children ? onScreen(node.children) : false)
+    );
+  const tabStopId = selectedId && onScreen(nodes) ? selectedId : firstId;
+
   const renderNodes = (list: ReadonlyArray<TreeNode>, depth: number): ReactNode =>
     list.map(node => {
       const expanded = expandedIds.has(node.id);
       const hasChildren = Boolean(node.children?.length);
       return (
-        <li
-          key={node.id}
-          role="treeitem"
-          aria-expanded={hasChildren ? expanded : undefined}
-          aria-selected={node.id === selectedId}
-          className={[
-            'ui-tree-item',
-            node.id === selectedId ? 'is-selected' : '',
-            node.id === dropTargetId ? 'is-drop-target' : ''
-          ]
-            .filter(Boolean)
-            .join(' ')}
-        >
-          <div className="ui-tree-row" style={{ '--ui-tree-depth': depth } as never}>
-            {hasChildren ? (
-              <button
-                type="button"
-                className={`ui-tree-twisty${expanded ? ' is-open' : ''}`}
-                aria-label={String(node.label)}
-                onClick={() => onToggle(node.id)}
-              >
-                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <Fragment key={node.id}>
+          <button
+            type="button"
+            role="treeitem"
+            aria-expanded={hasChildren ? expanded : undefined}
+            aria-selected={node.id === selectedId}
+            aria-level={depth + 1}
+            tabIndex={node.id === tabStopId ? 0 : -1}
+            data-branch={hasChildren ? node.id : undefined}
+            style={{ '--ui-tree-depth': depth } as never}
+            className={[
+              'ui-tree-row',
+              node.id === selectedId ? 'is-selected' : '',
+              node.id === dropTargetId ? 'is-drop-target' : '',
+              node.className ?? ''
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            onClick={() => (hasChildren ? onToggle(node.id) : onSelect(node.id))}
+          >
+            <span
+              className={`ui-tree-twisty${hasChildren ? '' : ' is-empty'}${
+                expanded ? ' is-open' : ''
+              }`}
+              aria-hidden="true"
+            >
+              {hasChildren && (
+                <svg viewBox="0 0 16 16" focusable="false">
                   <path
                     d="m6 4 4 4-4 4"
                     fill="none"
@@ -229,31 +309,37 @@ export function Tree({
                     strokeWidth="1.6"
                   />
                 </svg>
-              </button>
-            ) : (
-              <span className="ui-tree-twisty is-empty" aria-hidden="true" />
-            )}
-            <button type="button" className="ui-tree-label" onClick={() => onSelect(node.id)}>
-              {node.icon && (
-                <span className="ui-tree-icon" aria-hidden="true">
-                  {node.icon}
-                </span>
               )}
-              <span>{node.label}</span>
-            </button>
+            </span>
+            {node.icon && (
+              <span className="ui-tree-icon" aria-hidden="true">
+                {node.icon}
+              </span>
+            )}
+            <span className="ui-tree-label">
+              <span className="ui-tree-name">{node.label}</span>
+              {node.description !== undefined && node.description !== null && (
+                <small className="ui-tree-description">{node.description}</small>
+              )}
+            </span>
             {node.meta !== undefined && <span className="ui-tree-meta numeric">{node.meta}</span>}
-          </div>
+          </button>
           {hasChildren && expanded && (
-            <ul role="group">{renderNodes(node.children!, depth + 1)}</ul>
+            <div role="group">{renderNodes(node.children!, depth + 1)}</div>
           )}
-        </li>
+        </Fragment>
       );
     });
 
   return (
-    <ul role="tree" aria-label={label} className={uiClasses('tree', { className })}>
+    <div
+      role="tree"
+      aria-label={label}
+      className={uiClasses('tree', { className })}
+      onKeyDown={onKeyDown}
+    >
       {renderNodes(nodes, 0)}
-    </ul>
+    </div>
   );
 }
 

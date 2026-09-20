@@ -12,7 +12,10 @@ import { uiClasses, type UiSize } from './types';
  * container's border disappears so there is not a double outline.
  */
 
-export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
+export interface CheckboxProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'size' | 'type'
+> {
   label?: ReactNode;
   size?: Extract<UiSize, 'xs' | 'sm' | 'md'>;
   indeterminate?: boolean;
@@ -163,7 +166,10 @@ export function RadioGroup<T extends string>({
               type="button"
               role="radio"
               aria-checked={option.value === value}
-              aria-label={option.title ?? String(option.label)}
+              /* The name is the label; the tip may say more than the name
+                 does. They were the same field once, which made the longer
+                 hint the control's accessible name. */
+              aria-label={String(option.label)}
               /* The product draws its own tip off `data-tip` rather than the
                  native one, which appears a second late and cannot be styled;
                  `title` stays for the browsers and tools that read it. */

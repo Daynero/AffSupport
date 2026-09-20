@@ -45,7 +45,8 @@ function stubClient(): ProcessLibraryClient {
     failLibraryJob: vi.fn(),
     retryFailedLibraryJobs: vi.fn().mockResolvedValue(0),
     finalizeLibraryJob: vi.fn(),
-    cancelOperation: vi.fn()
+    cancelOperation: vi.fn(),
+    findMaterialByName: vi.fn().mockResolvedValue(null)
   };
 }
 

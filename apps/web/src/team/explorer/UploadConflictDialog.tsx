@@ -14,7 +14,7 @@
 
 import { useState } from 'react';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
+import { Button, Checkbox } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 
 export type UploadConflictChoice = 'replace' | 'keep_both' | 'skip';
@@ -49,23 +49,21 @@ export function UploadConflictDialog({
       <p>{t('teamUploadConflictBody')}</p>
       {/* Only when there is a rest to apply it to. */}
       {request.remaining > 0 && (
-        <label className="team-upload-conflict-rest">
-          <input
-            type="checkbox"
-            checked={forRest}
-            onChange={event => setForRest(event.target.checked)}
-          />
-          <span>{t('teamUploadConflictForRest', { count: request.remaining })}</span>
-        </label>
+        <Checkbox
+          className="team-upload-conflict-rest"
+          label={t('teamUploadConflictForRest', { count: request.remaining })}
+          checked={forRest}
+          onChange={event => setForRest(event.target.checked)}
+        />
       )}
       <div className="team-dialog-actions">
-        <Button type="button" variant="primary" onClick={() => onChoose('replace', forRest)}>
+        <Button color="primary" variant="solid" onClick={() => onChoose('replace', forRest)}>
           {t('teamUploadConflictReplace')}
         </Button>
-        <Button type="button" variant="secondary" onClick={() => onChoose('keep_both', forRest)}>
+        <Button color="neutral" variant="outline" onClick={() => onChoose('keep_both', forRest)}>
           {t('teamUploadConflictKeepBoth')}
         </Button>
-        <Button type="button" variant="ghost" onClick={() => onChoose('skip', forRest)}>
+        <Button color="neutral" variant="ghost" onClick={() => onChoose('skip', forRest)}>
           {t('teamUploadConflictSkip')}
         </Button>
       </div>

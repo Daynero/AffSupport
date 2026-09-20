@@ -1,0 +1,154 @@
+# 023 — Findings from the pre-spec analysis
+
+Gathered 2026-09-15 on `022-video-catalog-sheet` (released 1.1.1 + feature 022). What `/speckit-plan`
+should start from.
+
+## Re-stitching today (feature 015)
+
+- Runs only on the desktop agent (FFmpeg pipeline from 014). Web entry: `deliverRestitched`
+  (`apps/web/src/team/explorer/ExplorerShell.tsx`) → `useRestitchDelivery.deliver`
+  (`apps/web/src/team/restitch/useRestitchDelivery.ts`): loads space defaults, checks the agent,
+  asks for an agent download grant, and calls the agent download with `process: { tool: 'restitch' }`.
+- The result is copied to a **local folder** (`apps/agent/src/team-bridge/download.ts`); nothing is
+  uploaded to Drive. `apps/agent/src/team-bridge/restitch.ts` states the bridge never talks to the
+  cloud; screen images come from the agent's **local** image library — the space stores only ids.
+- Leaving the page aborts a delivery (FR-013 of 015). 015's spec lists automatic/scheduled re-stitch
+  as out of scope — 023 reopens it.
+
+## Uploading a re-stitched output to Drive
+
+- No path: `TOOL_RULES` in `supabase/functions/drive-ops/index.ts` has no `restitch`;
+  `handleProcessStart` refuses unknown tools.
+- The agent side is close: `TeamProcessBridge` already has a `restitch` delegate and uploads results
+  through `process/output/finalize` with the finalize grant (`apps/agent/src/team-bridge/transfer.ts`).
+- Needs: a `TOOL_RULES.restitch` entry, finalize handling that records the output as the catalog's
+  re-stitched copy, and a new **capability** in `AGENT_TOOL_CONTRACTS` (not a
+  `WEB_TOOL_REQUIREMENTS` key, which would block `deploy:web` until a release) — i.e. a desktop
+  release.
+
+## Work without an open tab
+
+- Team library processing is driven by the browser (`LibraryProcessingProvider.tsx`: claim, heartbeat,
+  call the agent); closing the tab releases the lease.
+- The agent never polls the server; it has an entitlement token and per-operation grants, no Supabase
+  session. Server-side claim queues exist only for Edge Function workers (catalog-sync,
+  preview-warm, archive inspections).
+- A scheduled re-stitch without a tab therefore needs a new agent loop that claims re-stitch jobs,
+  with an auth the agent can hold (e.g. a revocable updater grant issued when a member picks "this
+  computer re-stitches"), plus a claim RPC for it — a desktop release.
+
+## Server scheduling
+
+- Pattern: `private.invoke_<x>_worker()` (security definer) reads URL + secret from
+  `vault.decrypted_secrets`, no-ops if missing, `net.http_post` with an `x-<x>-secret` header;
+  `cron.schedule` re-created idempotently. Catalog sync runs every 10 s with a "work due?" pre-check
+  and a lease cap (`20260907140000_catalog_progress_keeps_its_lease.sql`); preview warm every 5 min
+  (`20260827107000_preview_warm_schedule.sql`). Secret check on the function side:
+  `_shared/auth.ts` (`x-catalog-sync-secret`). Beta writes the worker secrets on `beta:up`.
+
+## Updating a sheet in place
+
+- 022 creates sheets with `createConvertedFile` (multipart POST, XLSX → native Sheet).
+- No helper updates **content with conversion**: `updateSmallFileContent` is a media PATCH (1 MB,
+  15 s, no target mime). Needed: an `updateConvertedFile` (multipart PATCH to
+  `upload/drive/v3/files/{id}` with the XLSX body) — verify on real Drive that the file stays a native
+  Sheet with the same id/link. `drive.file` allows writing files the app created.
+
+## Deleting
+
+- Every "delete" in the codebase is `trashed: true`; no permanent delete exists. FR-017 asks for
+  permanent deletion of used re-stitched copies → a new `files.delete` helper (allowed under
+  `drive.file` for app-created files).
+
+## Other
+
+- A changed source `driveVersion` invalidates saved re-stitch prep (`usablePrep`); keep re-stitched
+  copies as separate sibling files, never as new versions of the original.
+- Feature 022 kept `packages/shared/src` untouched to stay web-only; 023's re-stitching part cannot,
+  so plan it as two deliveries: (1) registry + updater + ID updates (server + web), (2) re-stitching
+  with the desktop release.
+
+## T004 — in-place rewrite proven on real Drive (2026-09-15)
+
+On the beta's real Google Drive, `GoogleDriveClient.updateConvertedFile` (multipart PATCH,
+`uploadType=multipart`, metadata `{ mimeType: 'application/vnd.google-apps.spreadsheet' }`, XLSX body)
+rewrote a 022 catalog in place:
+
+- the Drive file id and `webViewLink` were unchanged; the file stayed a native Google Sheet;
+- Drive's `version` moved (13 → 15), nothing else about the file did;
+- the signed-out CSV export showed column A as `501…504`, and every other cell as 022 wrote it;
+- a second run with offset 0 restored the sheet exactly.
+
+Research R4 stands; the Sheets API fallback is not needed. Script (scratchpad, not committed) used the
+real `_shared/drive.ts`, `credentials.ts`, `product-catalog.ts`, `xlsx.ts` modules through `tsx`.
+
+## Implementation notes (D1)
+
+- **Tick every 10 seconds, 12 live leases, 3 sheets in parallel per invocation** — not the plan's
+  "1 minute, 3 leases". At one minute and three leases a hundred catalogs would take about half an
+  hour, past SC-001's five minutes. Idle ticks stay free: the invoker returns before any HTTP call
+  when no updater is due and no retry is waiting (same shape as catalog-sync's 10-second tick).
+- The updater's interval column is `update_interval` (`interval` is a SQL type name); the RPC payload
+  still calls it `interval`.
+- Updater-level changes write a `team_catalog_events` row with `event_kind = 'sync_state'` and no
+  material; per-sheet updates write `upserted` for the sheet. The web's existing listener refetches on
+  either.
+
+## Worker proven end to end on the beta (2026-09-15)
+
+With an updater row armed directly in the beta database for one live catalog and `next_run_at = now()`,
+the 10-second cron invoked `catalog-updater` through the derived URL and the catalog-sync secret; the
+worker rewrote the real sheet in place: IDs `1…4 → 501…504` within ~15 s, and after pulling the next
+run forward again `→ 1002…1005` within ~20 s. Price, video links (`?v=001…`) and all 31 columns
+unchanged; `update_count` 2; `next_run_at` one hour ahead. The updater was stopped afterwards.
+
+Note: a new Edge Function is only served locally after `beta:down` + `beta:up` (the edge runtime
+receives its function list at container creation). A stale `beta-up.mjs` supervisor from an earlier
+session held port 5175 and made `beta:down` refuse ("borrowed"); stopping that supervisor with TERM
+cleared it.
+
+### D1 web UI (T013–T035)
+
+- `useCatalogRegistry` lives in `useCatalogUpdater.ts` next to `useCatalogUpdater` instead of its own file (T016): both share one refresh loop (revision debounce 500 ms, 60 s floor), and a second file would have held one call.
+- The chip is always present: a plain "Catalog updater" link while stopped, the busy/warn chip while running, so the header does not jump when the updater starts (T031 allowed either).
+- Checkboxes reuse `.team-explorer-row-check.team-explorer-check` (the list-row variant); the bare `.team-explorer-check` is positioned for tiles.
+- The countdown's server offset is taken per state read (`serverNow − Date.now()`); the chip test proves a 30 s skew moves the countdown by 30 s.
+
+### Beta proof of the UI (T028, T036) — 2026-09-15
+
+On the running beta (vite dev on the branch), signed in as the beta tester, Ukrainian UI:
+
+- Header while stopped: "Оновлювач каталогів" link before "Налаштування простору". It opens `?updater=1`; Close returns to the explorer address.
+- Registry: the one catalog on the beta, "Db3_1_compressed_3.mp4 · Офер1 · Товарів: 4 · Створено … · Оновлено …". Search "Db3", "Вибрати всі показані", 1 година, Запустити → toast "Оновлювач запущено", status "Працює · наступне оновлення через 0:59:58", badge "В оновлювачі".
+- Header while running: "Оновлювач 0:59:16 1 каталог", counting down.
+- Forced round (`next_run_at` moved to now + 5 s in SQL): within ~5 s the cron worker set `update_count` 3 and the published sheet's ID column read 1504…1507 (+1503 = 500·3 + 3), after 501… and 1002… earlier.
+- Stop → nested confirmation → "Не запущено"; the header chip turned back into the plain link immediately; `state = stopped`, `next_run_at` null, 0 items.
+- 400 px wide: the dialog fills the screen with no horizontal overflow.
+- Two defects found and fixed here: the updater's backdrop sat on `--layer-fullbleed` (120), above the nested confirmation (`--layer-modal-nested`, 110), so Stop looked dead — it now uses `--layer-modal`; and the header chip waited for realtime after a start/stop — the dialog now calls `onChanged` so the shell re-reads at once.
+- A trashed sheet leaving the updater (T036, step 6) is proven by the SQL test rather than on the beta, which holds a single catalog.
+
+## Re-stitching from an open tab (web-only) — 2026-09-15
+
+The owner asked for re-stitching without an app update. The released app (1.1.1) already re-stitches a
+team video through `/api/team/process` with the ordinary grants (the `restitch` delegate behind "download
+re-stitched"), so the desktop runner and the device secret were replaced by the member's open tab:
+
+- `20260916120000_catalog_updater_restitch_web.sql` — the delivery-2 schema without devices: jobs are
+  leased by a member (`lease_owner`), one lease per member and space, `private.can(…, 'process', …)`
+  re-checked on claim and heartbeat; copies, the swap at a round and the deletion queue unchanged.
+- `drive-ops/updater-restitch.ts` — `/updater/claim|heartbeat|complete` behind the member's JWT;
+  `handleProcessStart` as that member; lapsed operations closed; a lease-unique process key.
+- `useRestitchPreparer` in the workspace shell — while the updater runs with re-stitching, the member may
+  process and the app is connected: claim every 30 s, hand the process to the app, heartbeat every 25 s,
+  cancel on `cancel`, report the outcome. A preparation from another file version or detector is dropped
+  (`usablePrep`). With no such tab, rounds move the IDs and keep the video.
+- The catalog workbook is DEFLATEd: 114 KB → 15 KB for 100 products, 421 KB → 44 KB for 400.
+
+Beta (agent built from this branch — no agent change since 1.1.1): ticked re-stitch in the dialog and
+started; the open tab prepared "restitched 6" → forced round → IDs +, column Z on the copy → the tab
+prepared "restitch 7" → forced round → the used copy deleted (`missing`), "Готових копій: 1 з 1" in the
+dialog → tab closed → forced round: update 8, IDs 4029…4032, the video link unchanged. Every update
+wrote the deflated workbook; Drive converted it in place as before.
+
+The device-based variant stays on `023-catalog-updater-restitch` for a later desktop release; its
+schema was removed from the beta database by hand (never `db reset`) before applying this one.

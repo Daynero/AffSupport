@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useI18n } from '../../i18n';
+import { Search } from 'lucide-react';
+import { Input } from '../../components/ui/index';
+import { ICON_STROKE } from '../../components/icons';
 
 /**
  * The catalog's search field.
@@ -49,11 +52,14 @@ export function CatalogSearchBar({
   return (
     <label className="team-catalog-search">
       <span>{t('teamCatalogSearch')}</span>
-      <input
+      {/* The inventory's field, with the glass that says what it is for
+          (021, T097). */}
+      <Input
         ref={inputRef}
         type="search"
         value={value}
         placeholder={t('teamCatalogSearchPlaceholder')}
+        leading={<Search size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
         onChange={event => onChange(event.target.value)}
       />
     </label>

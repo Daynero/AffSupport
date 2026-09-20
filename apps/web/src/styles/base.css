@@ -81,6 +81,24 @@ h4 {
   max-width: var(--measure);
 }
 
+/*
+ * docs/DESIGN.md: 20px is the comfortable icon, and if the space is tight the
+ * plate grows — the icon never shrinks. Without this an icon beside text is a
+ * flex item whose min-content is zero, so under pressure it collapses and the
+ * control renders empty. The explorer's view switch and the support chip both
+ * did, and neither a type nor a test could see it.
+ */
+button svg,
+a svg,
+label svg,
+[role='button'] svg,
+[role='radio'] svg,
+[role='tab'] svg,
+[class$='-field'] > svg,
+[class*='-field '] > svg {
+  flex: none;
+}
+
 small {
   font-size: var(--text-caption);
   line-height: var(--leading-caption);

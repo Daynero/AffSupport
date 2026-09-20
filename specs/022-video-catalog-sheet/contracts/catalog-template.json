@@ -1,0 +1,319 @@
+{
+  "sheetName": "catalog_products",
+  "headerRows": 2,
+  "firstProductRow": 3,
+  "productCount": {
+    "default": 100,
+    "min": 1,
+    "max": 400
+  },
+  "columns": [
+    {
+      "column": "A",
+      "key": "id",
+      "description": "# Обязательно | A unique content ID for the item. Use the item's SKU if you can. Each content ID must appear only once in your catalog. To run dynamic ads this ID must exactly match the content ID for the same item in your Meta Pixel code. Character limit: 100",
+      "source": {
+        "kind": "rowNumber"
+      }
+    },
+    {
+      "column": "B",
+      "key": "title",
+      "description": "# Обязательно | A specific and relevant title for the item. See title specifications: https://www.facebook.com/business/help/2104231189874655 Character limit: 200",
+      "source": {
+        "kind": "spaceSetting",
+        "setting": "title"
+      }
+    },
+    {
+      "column": "C",
+      "key": "description",
+      "description": "# Обязательно | A short and relevant description of the item. Include specific or unique product features like material or color. Use plain text and don't enter text in all capital letters. See description specifications: https://www.facebook.com/business/help/2302017289821154 Character limit: 9999",
+      "source": {
+        "kind": "spaceSetting",
+        "setting": "description"
+      }
+    },
+    {
+      "column": "D",
+      "key": "availability",
+      "description": "# Обязательно | The current availability of the item. | Поддерживаемые значения: in stock; out of stock",
+      "source": {
+        "kind": "fixed",
+        "value": "in stock",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "E",
+      "key": "condition",
+      "description": "# Обязательно | The current condition of the item. | Поддерживаемые значения: new; used",
+      "source": {
+        "kind": "fixed",
+        "value": "new",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "F",
+      "key": "price",
+      "description": "# Обязательно | The price of the item. Format the price as a number followed by the 3-letter currency code (ISO 4217 standards). Use a period (.) as the decimal point; don't use a comma.",
+      "source": {
+        "kind": "spaceSetting",
+        "setting": "price",
+        "format": "{price},00 USD"
+      }
+    },
+    {
+      "column": "G",
+      "key": "link",
+      "description": "# Обязательно | The URL of the specific product page where people can buy the item.",
+      "source": {
+        "kind": "dialogLink"
+      }
+    },
+    {
+      "column": "H",
+      "key": "image_link",
+      "description": "# Обязательно | The URL for the main image of your item. Images must be in a supported format (JPG/GIF/PNG) and at least 500 x 500 pixels.",
+      "source": {
+        "kind": "spaceSetting",
+        "setting": "imageLink"
+      }
+    },
+    {
+      "column": "I",
+      "key": "brand",
+      "description": "# Обязательно | Фирменное название товара. Не более 100 символов.",
+      "source": {
+        "kind": "fixed",
+        "value": "Facebook",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "J",
+      "key": "google_product_category",
+      "description": "# Необязательно | The Google product category for the item. Learn more about product categories: https://www.facebook.com/business/help/526764014610932.",
+      "source": {
+        "kind": "fixed",
+        "value": "Apparel & Accessories > Clothing",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "K",
+      "key": "fb_product_category",
+      "description": "# Необязательно | The Facebook product category for the item. Learn more about product categories: https://www.facebook.com/business/help/526764014610932.",
+      "source": {
+        "kind": "fixed",
+        "value": "Clothing & Accessories > Clothing",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "L",
+      "key": "quantity_to_sell_on_facebook",
+      "description": "# Необязательно | The quantity of this item you have to sell on Facebook and Instagram with checkout. Must be 1 or higher or the item won't be buyable",
+      "source": {
+        "kind": "fixed",
+        "value": 75,
+        "cellType": "number"
+      }
+    },
+    {
+      "column": "M",
+      "key": "sale_price",
+      "description": "# Необязательно | The discounted price of the item if it's on sale. Format the price as a number followed by the 3-letter currency code (ISO 4217 standards). Use a period (.) as the decimal point; don't use a comma. A sale price is required if you want to use an overlay for discounted prices.",
+      "source": {
+        "kind": "copyOf",
+        "column": "F"
+      }
+    },
+    {
+      "column": "N",
+      "key": "sale_price_effective_date",
+      "description": "# Необязательно | The time range for your sale period. Includes the date and time/time zone when your sale starts and ends. If this field is blank any items with a sale_price remain on sale until you remove the sale price. Use this format: YYYY-MM-DDT23:59+00:00/YYYY-MM-DDT23:59+00:00. Enter the start date as YYYY-MM-DD. Enter a 'T'. Enter the start time in 24-hour format (00:00 to 23:59) followed by the UTC time zone (-12:00 to +14:00). Enter '/' and then repeat the same format for your end date and time. The example row below uses PST time zone (-08:00).",
+      "source": {
+        "kind": "fixed",
+        "value": "2020-04-30T09:30-08:00/2020-05-30T23:59-08:00",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "O",
+      "key": "item_group_id",
+      "description": "# Необязательно | Use this field to create variants of the same item. Enter the same group ID for all variants within a group. Learn more about variants: https://www.facebook.com/business/help/2256580051262113 Character limit: 100.",
+      "source": {
+        "kind": "fixed",
+        "value": "",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "P",
+      "key": "gender",
+      "description": "# Необязательно | Пол человека; на которого рассчитан этот товар. | Поддерживаемые значения: female; male; unisex",
+      "source": {
+        "kind": "fixed",
+        "value": "unisex",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "Q",
+      "key": "color",
+      "description": "# Необязательно | The color of the item. Use one or more words to describe the color. Don't use a hex code. Character limit: 200.",
+      "source": {
+        "kind": "fixed",
+        "value": "royal blue",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "R",
+      "key": "size",
+      "description": "# Необязательно | The size of the item written as a word or abbreviation or number. For example: small; XL; 12. Character limit: 200.",
+      "source": {
+        "kind": "fixed",
+        "value": "M",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "S",
+      "key": "age_group",
+      "description": "# Необязательно | Возрастная группа; на которую рассчитан товар. | Поддерживаемые значения: adult; all ages; infant; kids; newborn; teen; toddler",
+      "source": {
+        "kind": "fixed",
+        "value": "adult",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "T",
+      "key": "material",
+      "description": "# Необязательно | Материал; из которого изготовлен товар; например хлопок; деним или кожа. Лимит: 200 символов.",
+      "source": {
+        "kind": "fixed",
+        "value": "cotton",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "U",
+      "key": "pattern",
+      "description": "# Необязательно | The pattern or graphic print on the item. Character limit: 100.",
+      "source": {
+        "kind": "fixed",
+        "value": "stripes",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "V",
+      "key": "shipping",
+      "description": "# Необязательно | Информация о доставке товара в следующем формате: \"Страна:Регион:Служба:Цена\". В цене следует указать 3-буквенный код валюты по стандарту ISO 4217. Чтобы использовать в рекламе оверлей \"Бесплатная доставка\"; для цены доставки укажите значение \"0.0\". Данные о доставке в разные регионы или страны нужно отделять точкой с запятой (\";\") или запятой (\";\"). Только люди из определенного региона или страны увидят информацию о доставке в этот регион или страну. Если данные о доставке для всей страны одинаковы; регион можно не указывать (оставьте последовательность символов \"::\").",
+      "source": {
+        "kind": "fixed",
+        "value": "US:CA:Ground:9.99 USD;US:NY:Air:15.99 USD",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "W",
+      "key": "shipping_weight",
+      "description": "# Необязательно | The shipping weight of the item. Include the unit of measurement (lb/oz/g/kg).",
+      "source": {
+        "kind": "fixed",
+        "value": "10 kg",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "X",
+      "key": "offer_disclaimer",
+      "description": "# Необязательно | Legal disclaimer text for product offers. This text provides important legal or regulatory information that must be displayed with the product offer. For example: \"Valid while supplies last. Terms and conditions apply.\"",
+      "source": {
+        "kind": "fixed",
+        "value": "Valid while supplies last. Terms and conditions apply.",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "Y",
+      "key": "offer_disclaimer_url",
+      "description": "# Необязательно | URL linking to the full disclaimer text. This provides a link to a page containing the complete disclaimer information for the product offer. For example: \"https://example.com/terms-and-conditions\"",
+      "source": {
+        "kind": "fixed",
+        "value": "https://example.com/terms-and-conditions",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "Z",
+      "key": "video[0].url",
+      "description": "# Необязательно | URL видео о товаре. Добавьте ссылку на видеофайл в файловом хранилище; а не на видеопроигрыватель. Поддерживаемые форматы видео: .3g2; .3gp; .3gpp; .asf; .avi; .dat; .divx; .dv; .f4v; .flv; .gif; .m2ts; .m4v; .mkv; .mod; .mov; .mp4; .mpe; .mpeg; .mpeg4; .mpg; .mts; .nsv; .ogm; .ogv; .qt; .tod; .ts; .vob и .wmv.",
+      "source": {
+        "kind": "videoLink",
+        "suffix": "?v=",
+        "pad": 3
+      }
+    },
+    {
+      "column": "AA",
+      "key": "video[0].tag[0]",
+      "description": "# Необязательно | URL видео о товаре. Добавьте ссылку на видеофайл в файловом хранилище; а не на видеопроигрыватель. Поддерживаемые форматы видео: .3g2; .3gp; .3gpp; .asf; .avi; .dat; .divx; .dv; .f4v; .flv; .gif; .m2ts; .m4v; .mkv; .mod; .mov; .mp4; .mpe; .mpeg; .mpeg4; .mpg; .mts; .nsv; .ogm; .ogv; .qt; .tod; .ts; .vob и .wmv.",
+      "source": {
+        "kind": "fixed",
+        "value": "Gym",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "AB",
+      "key": "gtin",
+      "description": "# Необязательно | Международный торговый код товара (GTIN). Рекомендуется для классификации товара. Может отображаться на штрихкоде; упаковке или обложке книги. Указывайте GTIN только в том случае; если вы уверены в его правильности. К типам GTIN относятся UPC (12 цифр); EAN (13 цифр); JAN (8 или 13 цифр); ISBN (13 цифр) или ITF-14 (14 цифр)",
+      "source": {
+        "kind": "fixed",
+        "value": "8806088573892",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "AC",
+      "key": "product_tags[0]",
+      "description": "# Необязательно | Add labels to products to help filter them into product sets. Max characters: 110 per label; 5000 labels per product",
+      "source": {
+        "kind": "fixed",
+        "value": "some_string",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "AD",
+      "key": "product_tags[1]",
+      "description": "# Необязательно | Add labels to products to help filter them into product sets. Max characters: 110 per label; 5000 labels per product",
+      "source": {
+        "kind": "fixed",
+        "value": "other",
+        "cellType": "text"
+      }
+    },
+    {
+      "column": "AE",
+      "key": "style[0]",
+      "description": "# Необязательно | Опишите стиль этого товара.",
+      "source": {
+        "kind": "fixed",
+        "value": "Bodycon",
+        "cellType": "text"
+      }
+    }
+  ],
+  "priceSetting": {
+    "type": "integer",
+    "min": 1,
+    "max": 999999
+  }
+}

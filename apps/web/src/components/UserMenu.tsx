@@ -89,6 +89,7 @@ export function UserMenu() {
         placement="bottom-end"
         frequent
         label={t('userMenu')}
+        surface="none"
         className="user-menu-popover"
       >
         <div className="user-menu-items" role="menu" ref={menu} onKeyDown={menuKeyDown}>

@@ -110,6 +110,11 @@
 }
 .transcription-row-main {
   display: grid;
+  /* Named, not implied: an auto column sizes to its widest child's max-content,
+     so one long file name (or one long snippet) made the card wider than the
+     screen and took the whole list with it. `min-width: 0` on the container
+     does not constrain the track — only the track can. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   min-width: 0;
 }
@@ -168,7 +173,11 @@
 }
 .transcription-row-language .transcript-language-combobox.is-compact input {
   width: auto;
-  max-width: 190px;
+  /* …and never wider than the box it sits in. `width: auto` on an input is its
+     intrinsic size, which does not shrink with its flex parent: "Українська"
+     ran 30px past the field and put the chevron on its own last letter, and
+     "Центральнокурдська" ran 85px past it and under the confidence beside it. */
+  max-width: min(190px, 100%);
   padding: 3px 20px 3px 9px;
   border-radius: var(--radius-full);
   font-size: var(--text-caption);
@@ -268,6 +277,11 @@
   color: var(--color-text);
   font-size: var(--text-caption);
   line-height: 1.45;
+}
+/* The panel's own element inside the shared popover surface; it takes no space
+   of its own. */
+.transcription-language-doubt-body {
+  display: contents;
 }
 .transcription-language-doubt-title {
   margin: 0;
@@ -398,8 +412,7 @@
 
 /* The likely alternatives sit at the top of the picker, with a line under them so the
    alphabet below reads as a separate list rather than a continuation. */
-.transcript-language-listbox li.is-pinned + li:not(.is-pinned),
-.transcript-language-combobox ul li.is-pinned + li:not(.is-pinned) {
+.transcript-language-listbox li.is-pinned + li:not(.is-pinned) {
   margin-top: 5px;
   border-top: 1px solid var(--color-border);
   padding-top: 9px;
@@ -568,6 +581,30 @@
 @media (max-width: 900px) {
   .job-row.transcription-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* The badge takes its width first and the rest of the header shares what is
+     left — on a phone that left the detected language a third of a word. It
+     drops to its own line instead, and the name and the language get the card. */
+  .transcription-row .job-row-header {
+    flex-wrap: wrap;
+  }
+  /* Basis zero, or the title asks for the width of its own file name and is
+     the thing that wraps — leaving a line holding nothing but a checkbox. */
+  .transcription-row .transcription-row-title {
+    flex: 1 1 0;
+  }
+  /* The badge takes the next line, so the name and the detected language have
+     the card's width rather than whatever a status word leaves them — a
+     zero-height full-basis break before it, so the pill keeps its own width
+     instead of stretching across the card. */
+  .transcription-row .job-row-header::after {
+    content: '';
+    flex-basis: 100%;
+    height: 0;
+  }
+  .transcription-row .job-row-header > .status-badge {
+    order: 1;
+    margin-top: 0;
   }
   .job-row.transcription-row > .transcription-row-actions {
     grid-column: 1;
@@ -1127,10 +1164,10 @@
   inset: auto;
   overflow-y: auto;
 }
+/* Placed by the component (021): the surface is the shared popover's, anchored
+   to the field and sent to the body so no list card can clip it. */
 .transcript-language-listbox {
-  position: fixed;
   z-index: var(--layer-popover);
-  margin: 0;
   padding: 4px;
   overflow-y: auto;
   list-style: none;
@@ -1153,11 +1190,6 @@
   color: var(--color-text-muted);
   cursor: default;
 }
-/* Inside the viewer the list stays in place, above the dialog's chrome. */
-.transcript-language-combobox ul {
-  z-index: var(--layer-popover);
-}
-
 /* The consent's button is pinned to the bottom of the column: the notice can be taller
    than the column on a laptop, and a button cut in half by the fold read as a bug. */
 .transcript-translation-notice .transcription-consent-actions {

@@ -126,7 +126,7 @@ describe('Soty login and OAuth callback', () => {
         <LoginPage />
       </AuthContextOverride>
     );
-    await userEvent.click(screen.getByRole('button', { name: 'UA' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'UA' }));
     expect(screen.getByRole('heading', { name: 'Увійдіть у Soty' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Продовжити з Google' })).toBeTruthy();
     expect(document.querySelector('.login-legal')?.textContent).toBe(

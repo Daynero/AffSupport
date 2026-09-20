@@ -260,6 +260,42 @@ describe('Creative Library task workflows', () => {
     expect(screen.queryByRole('button', { name: 'Download re-stitched' })).toBeNull();
   });
 
+  it('shows a saved attachment on Drive, and not a draft', async () => {
+    const attachment: TeamTaskAttachmentSummary = {
+      id: '31000000-0000-4000-8000-000000000015',
+      taskId: TASK_ID,
+      materialId: ASSET_ID,
+      name: 'RS 2.mp4',
+      category: 'video',
+      availability: 'ready',
+      previewState: 'ready',
+      position: 0,
+      driveVersion: null
+    };
+    const onReveal = vi.fn();
+    const { unmount } = render(
+      <TaskAttachmentTile
+        teamId={TEAM_ID}
+        attachment={attachment}
+        client={client()}
+        onReveal={onReveal}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Show on Drive' }));
+    expect(onReveal).toHaveBeenCalledTimes(1);
+    unmount();
+    render(
+      <TaskAttachmentTile
+        teamId={TEAM_ID}
+        attachment={{ ...attachment, id: 'draft:1' }}
+        client={client()}
+        onReveal={onReveal}
+        isDraft
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Show on Drive' })).toBeNull();
+  });
+
   it('does not leave a broken attachment preview in a loading state', async () => {
     const attachment: TeamTaskAttachmentSummary = {
       id: '31000000-0000-4000-8000-000000000005',
@@ -691,7 +727,7 @@ describe('Creative Library task workflows', () => {
       )
     );
     expect(await screen.findByRole('heading', { name: 'Task details' })).toBeTruthy();
-    const title = await screen.findByLabelText('Title');
+    const title = await screen.findByLabelText(/Title/);
     expect((title as HTMLInputElement).value).toContain('launch.mp4');
   });
 
@@ -719,6 +755,6 @@ describe('Creative Library task workflows', () => {
     // editor still leaves nothing behind (FR-026).
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(api.deleteTask).toHaveBeenCalledOnce());
-    await waitFor(() => expect(screen.queryByLabelText('Title')).toBeNull());
+    await waitFor(() => expect(screen.queryByLabelText(/Title/)).toBeNull());
   });
 });

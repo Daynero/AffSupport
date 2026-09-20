@@ -17,6 +17,7 @@ import {
   sessionHandoffOrigin
 } from './auth/session-handoff';
 import PublicHomePage from './PublicHomePage';
+import { DRIVE_OAUTH_CALLBACK_PATH, DriveOAuthForwardPage } from './auth/DriveOAuthForward';
 import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
 
@@ -26,9 +27,7 @@ const ProtectedSoty = lazy(() => import('./ProtectedSoty'));
  * is a compile-time constant, so the whole branch — and the module behind it —
  * is dropped from a production bundle rather than merely unreachable in it.
  */
-const DesignSystemPage = import.meta.env.DEV
-  ? lazy(() => import('./dev/DesignSystemPage'))
-  : null;
+const DesignSystemPage = import.meta.env.DEV ? lazy(() => import('./dev/DesignSystemPage')) : null;
 const PrivacyPage = lazy(() =>
   import('./pages/LegalPages').then(module => ({ default: module.PrivacyPage }))
 );
@@ -88,6 +87,7 @@ function Routes() {
     );
   }
   if (path === '/auth/callback') return <AuthCallbackPage />;
+  if (path === DRIVE_OAUTH_CALLBACK_PATH) return <DriveOAuthForwardPage />;
   if (path === HANDOFF_PATH) return <AuthHandoffPage />;
   if (path === '/login') return <LoginPage />;
 

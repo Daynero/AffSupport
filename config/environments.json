@@ -136,6 +136,14 @@
       "note": "A true value substitutes a hardcoded user. Refused outright in beta; it must never be set in production."
     },
     {
+      "name": "VITE_MOCK_DATA",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Answers every Supabase call from a fixture in memory, so the product can be walked with no backend. Gated on `import.meta.env.DEV` as well as on this flag, so it cannot reach a built bundle; declared here because the code reads it."
+    },
+    {
       "name": "VITE_ADMIN_EMAIL",
       "surface": "web",
       "required": [],
@@ -241,7 +249,7 @@
       "required": ["production"],
       "secret": false,
       "format": "url",
-      "note": "Must match the Google console entry exactly, character for character, or the return trip fails after the user has already consented."
+      "note": "Must match the Google console entry exactly, character for character, or the return trip fails after the user has already consented. Production ignores it and returns through <WISHLY_SITE_URL>/oauth/drive/callback (supabase/functions/_shared/google-redirect.ts), because Google brand verification cannot accept a supabase.co redirect."
     },
     {
       "name": "DRIVE_OAUTH_MODE",

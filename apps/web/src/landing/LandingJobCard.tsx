@@ -22,6 +22,7 @@ import {
   type Translate
 } from '../components/ui';
 import { ImageCompareModal } from './ImageCompareModal';
+import { Alert } from '../components/ui/index';
 
 export function LandingJobCard({
   job,
@@ -223,9 +224,12 @@ export function LandingJobCard({
               <span className="action-label">{t('teamQueueStopNow')}</span>
             </Button>
           )}
+          {/* Secondary inside a card: the page's one primary action is the
+              toolbar's, and a grid of cards each raising a filled button leaves
+              nothing leading anywhere (FR-022). */}
           {ready && (
             <Button
-              variant="primary"
+              variant="secondary"
               disabled={!connected || job.assets.length === 0}
               onClick={onStart}
             >
@@ -243,7 +247,7 @@ export function LandingJobCard({
           )}
           {completed && job.outputPath && (
             <>
-              <Button variant="primary" disabled={!connected} onClick={() => onReveal('open')}>
+              <Button variant="secondary" disabled={!connected} onClick={() => onReveal('open')}>
                 <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
                 <span className="action-label">{t('landingOpenResult')}</span>
               </Button>
@@ -289,10 +293,15 @@ export function LandingJobCard({
 
       {completed && <LandingSuccessSummary job={job} language={language} t={t} />}
       {failed && (
-        <div className="landing-batch-error" role="alert">
-          <strong>{t('landingResultFailedTitle')}</strong>
-          {job.error && <span>{job.error}</span>}
-        </div>
+        <Alert
+          className="landing-batch-error"
+          color="error"
+          variant="soft"
+          live="alert"
+          title={t('landingResultFailedTitle')}
+        >
+          {job.error}
+        </Alert>
       )}
 
       {canExpand && (

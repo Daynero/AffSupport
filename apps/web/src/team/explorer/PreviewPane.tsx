@@ -17,7 +17,10 @@ import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 import { VideoTextActions } from '../library/VideoTextActions';
+import { VideoProductCatalogActions } from '../product-catalog/VideoProductCatalogActions';
+import { useOptionalTeam } from '../TeamContext';
 import { ShareButton } from './ShareButton';
+import { EmptyState } from '../../components/ui/index';
 
 /**
  * What the selected row looks like, before it is opened (011, FR-016): the
@@ -44,7 +47,8 @@ export function PreviewPane({
   onDownloadRestitched,
   restitchPrepared,
   onShare,
-  onDelete
+  onDelete,
+  revision = 0
 }: {
   /** The selected row, or null when nothing is selected. */
   row: TeamMaterialRow | null;
@@ -66,10 +70,15 @@ export function PreviewPane({
   onShare?: boolean;
   /** Move it to the space's bin; absent when the member may not delete. */
   onDelete?: (row: TeamMaterialRow) => void;
+  /** The space's realtime revision; a video's catalog is read again when it moves (022). */
+  revision?: number;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const { teamId } = useExplorer();
+  // The catalog block needs the space (its permissions and Drive state); a pane rendered on its
+  // own, as a preview surface, simply has no catalog.
+  const team = useOptionalTeam();
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
   const [broken, setBroken] = useState(false);
@@ -104,7 +113,9 @@ export function PreviewPane({
   if (!row) {
     return (
       <aside className="team-explorer-pane is-empty" aria-label={t('teamExplorerPaneLabel')}>
-        <p className="team-explorer-muted">{t('teamExplorerPreviewEmpty')}</p>
+        {/* Nothing is chosen, which is not a failure and has no action: the
+            pattern's smallest size, with the sentence and nothing else. */}
+        <EmptyState size="sm" title={t('teamExplorerPreviewEmpty')} />
       </aside>
     );
   }
@@ -249,6 +260,14 @@ export function PreviewPane({
             />
           )}
         </div>
+      )}
+      {row.category === 'video' && team && (
+        <VideoProductCatalogActions
+          key={row.id}
+          teamId={teamId}
+          video={{ id: row.id, name: row.name }}
+          revision={revision}
+        />
       )}
     </aside>
   );

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { LibraryShareCopyRequest, LibraryShareCopyResult } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
-import { Button } from '../../components/ui';
+import { Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { MediaActionIcon } from './mediaActionIcons';
@@ -61,15 +61,15 @@ export function CopyDriveLinkButton({
 
   return (
     <Button
-      type="button"
+      color="neutral"
       variant="ghost"
+      leading={<MediaActionIcon kind="copy-link" />}
       className={`team-media-action is-copy-link ${className}`.trim()}
       loading={busy}
       aria-label={t('creativeLibraryCopyLinkFor', { name })}
       onClick={() => void copy()}
     >
-      <MediaActionIcon kind="copy-link" />
-      <span>{copied ? t('creativeLibraryLinkCopied') : t('creativeLibraryCopyLink')}</span>
+      {copied ? t('creativeLibraryLinkCopied') : t('creativeLibraryCopyLink')}
     </Button>
   );
 }

@@ -88,6 +88,18 @@ const PHASES = {
       script('typecheck:tests', 'typecheck:tests', 600_000),
       script('typecheck:scripts', 'typecheck:scripts', 300_000),
       {
+        /*
+         * The design system's fence (021). It lived only in the `verify` npm
+         * script, and every CI job calls this aggregator directly — so the one
+         * gate that fails on a raw colour was the one gate CI never ran. A
+         * rule nothing enforces is a rule that lasts until the next hurry.
+         */
+        id: 'design-tokens',
+        command: 'node',
+        args: [path.join(root, 'scripts/check-design-tokens.mjs')],
+        timeoutMs: 60_000
+      },
+      {
         id: 'styles',
         command: 'node',
         args: [path.join(root, 'scripts/verify-styles.mjs')],

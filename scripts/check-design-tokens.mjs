@@ -107,7 +107,9 @@ function loadAllowList() {
     const parsed = JSON.parse(readFileSync(ALLOW_FILE, 'utf8'));
     return Array.isArray(parsed.exemptions) ? parsed.exemptions : [];
   } catch {
-    process.stderr.write(`Could not read ${path.relative(ROOT, ALLOW_FILE)}; treating it as empty.\n`);
+    process.stderr.write(
+      `Could not read ${path.relative(ROOT, ALLOW_FILE)}; treating it as empty.\n`
+    );
     return [];
   }
 }

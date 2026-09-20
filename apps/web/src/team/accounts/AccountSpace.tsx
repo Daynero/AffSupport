@@ -36,12 +36,14 @@ import {
   filterTeamAccounts,
   sortTeamAccounts,
   sortTeamAgents,
+  TEAM_AGENT_RUN_MARKERS,
   teamAgentLabel,
   type TeamAccountAgentSummary,
   type TeamAccountMarkerFilter,
   type TeamAccountOccupancyFilter,
   type TeamAgentRun
 } from '@video-compressor/shared';
+import { boundedText, oneOf, persistedViewKey, usePersistedState } from '../persistedView';
 import { Button, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Empty, ErrorState, LoadingState } from '../../components/ui/index';
@@ -126,9 +128,21 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
    * the copy-out groups by it.
    */
   const agentLabels = useTaskLabels({ teamId, revision, scope: 'agent', client });
-  const [search, setSearch] = useState('');
-  const [occupancy, setOccupancy] = useState<TeamAccountOccupancyFilter>('all');
-  const [marker, setMarker] = useState<TeamAccountMarkerFilter>('all');
+  const [search, setSearch] = usePersistedState(
+    persistedViewKey(teamId, 'accounts.search'),
+    '',
+    boundedText()
+  );
+  const [occupancy, setOccupancy] = usePersistedState<TeamAccountOccupancyFilter>(
+    persistedViewKey(teamId, 'accounts.occupancy'),
+    'all',
+    oneOf<TeamAccountOccupancyFilter>(['all', 'free', 'busy'])
+  );
+  const [marker, setMarker] = usePersistedState<TeamAccountMarkerFilter>(
+    persistedViewKey(teamId, 'accounts.marker'),
+    'all',
+    oneOf<TeamAccountMarkerFilter>(['all', ...TEAM_AGENT_RUN_MARKERS])
+  );
   /** One editor at a time, across the whole list. */
   const [editor, setEditor] = useState<Editor | null>(null);
   /**
@@ -607,7 +621,11 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
       )}
       {accounts.error && (
-        <ErrorState message={t('teamAccountsLoadFailed')} onRetry={() => void accounts.refetch()} retryLabel={t('retry')} />
+        <ErrorState
+          message={t('teamAccountsLoadFailed')}
+          onRetry={() => void accounts.refetch()}
+          retryLabel={t('retry')}
+        />
       )}
 
       {(creating || accounts.accounts.length > 0) && (

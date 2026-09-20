@@ -369,7 +369,9 @@ function EstimatePanel({
               <span>{t('estimatedSaving', { value: saving })}</span>
             )}
           </div>
-          {saving !== null && saving < 0 && <p className="inline-warning">{t('largerEstimate')}</p>}
+          {saving !== null && saving < 0 && (
+            <p className="inline-warning ui-color-warning">{t('largerEstimate')}</p>
+          )}
         </>
       ) : (
         <div className="estimate-state">
@@ -449,7 +451,9 @@ function ResultPanel({
             happened. `keptOriginalReason` has had no writer since. */}
         {saving !== null && saving >= 0 && <span>{t('actualSaving', { value: saving })}</span>}
         {saving !== null && saving < 0 && (
-          <span className="warning-text">{t('largerActual', { value: Math.abs(saving) })}</span>
+          <span className="warning-text ui-color-warning">
+            {t('largerActual', { value: Math.abs(saving) })}
+          </span>
         )}
       </div>
       <MediaGrid
@@ -550,9 +554,12 @@ function JobActions({
           </Button>
         </>
       )}
+      {/* Secondary, not primary: the surface here is the page, and its one
+          primary action is the toolbar's — a queue of forty rows each raising
+          its own filled button leaves nothing leading anywhere (FR-022). */}
       {job.status === 'ready' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action('/api/queue/start', 'POST', { ids: [job.id] })}
         >
@@ -562,7 +569,7 @@ function JobActions({
       )}
       {job.status === 'completed' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/repeat`)}
         >
@@ -572,7 +579,7 @@ function JobActions({
       )}
       {isSettled(COMPRESSION_LIFECYCLE, job.status) && job.status !== 'completed' && (
         <Button
-          variant="primary"
+          variant="secondary"
           disabled={disabled || compressionRunning}
           onClick={() => action(`/api/jobs/${job.id}/retry`)}
         >

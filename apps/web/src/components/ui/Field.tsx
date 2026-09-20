@@ -225,9 +225,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   ref
 ) {
   return (
-    <span
-      className={uiClasses('select', { size, states: { invalid, disabled }, className })}
-    >
+    <span className={uiClasses('select', { size, states: { invalid, disabled }, className })}>
       <select ref={ref} {...props} disabled={disabled} aria-invalid={invalid || undefined}>
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map(option => (

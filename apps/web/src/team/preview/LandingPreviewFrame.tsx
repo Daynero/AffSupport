@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useI18n } from '../../i18n';
+import { Alert } from '../../components/ui/index';
 import type { LandingViewerPreset, TeamLandingValidationRecord } from '@video-compressor/shared';
 
 export interface LandingPreviewView {
@@ -48,7 +49,11 @@ export function LandingPreviewFrame({
       }
     >
       {preview.warning === 'external_navigation_blocked' && (
-        <p className="team-preview-safety-note">{t('teamPreviewExternalBlocked')}</p>
+        /* Not a failure: the frame did its job and stopped somebody else's page
+           from navigating the product away. */
+        <Alert className="team-preview-safety-note" color="info" variant="subtle" live="status">
+          {t('teamPreviewExternalBlocked')}
+        </Alert>
       )}
       {fallback && preview.screenshotUrl ? (
         <img

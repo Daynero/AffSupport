@@ -16,9 +16,12 @@ import { TaskAccountFilter } from './TaskAccountFilter';
 import { TaskAssigneeFilter } from './TaskAssigneeFilter';
 import { TaskLabelFilter } from './TaskLabelFilter';
 import { TaskSortControl } from './TaskSortControl';
+import { persistedViewKey, usePersistedState } from '../persistedView';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
+import { ErrorState } from '../../components/ui/index';
+import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export type TaskSpaceClient = TasksClient &
   TaskEditorClient &
@@ -69,6 +72,19 @@ function sourceMaterialIds(source: TaskSourceAsset | null): string[] {
   return [...new Set(candidateIds.filter(id => typeof id === 'string' && id.length > 0))];
 }
 
+function parseTaskAccountScope(value: unknown): TaskAccountScope | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'all') return { kind: 'all' };
+  if (record.kind === 'account' && typeof record.accountId === 'string') {
+    return { kind: 'account', accountId: record.accountId };
+  }
+  if (record.kind === 'agent' && typeof record.agentRowId === 'string') {
+    return { kind: 'agent', agentRowId: record.agentRowId };
+  }
+  return null;
+}
+
 export function TaskSpace({
   teamId,
   client = defaultClient,
@@ -99,7 +115,11 @@ export function TaskSpace({
    * from the Accounts tab lands narrowed and Back widens it again; mounted on
    * its own it is local state, like the open task.
    */
-  const [localScope, setLocalScope] = useState<TaskAccountScope>({ kind: 'all' });
+  const [localScope, setLocalScope] = usePersistedState<TaskAccountScope>(
+    persistedViewKey(teamId, 'tasks.scope'),
+    { kind: 'all' },
+    parseTaskAccountScope
+  );
   const scope = onScopeChange ? (scopeProp ?? { kind: 'all' }) : localScope;
   const setScope = onScopeChange ?? setLocalScope;
   const tasks = useTasks({ teamId, revision, scope, client });
@@ -359,11 +379,20 @@ export function TaskSpace({
           <TaskSortControl value={tasks.sort} onChange={tasks.setSort} />
         )}
       </TaskDateFilterControl>
-      {error && <p className="team-inline-error">{t('teamTaskCreateFailed')}</p>}
-      {tasks.loading && tasks.tasks.length === 0 && (
-        <p aria-live="polite">{t('teamTasksLoadingList')}</p>
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {t('teamTaskCreateFailed')}
+        </p>
       )}
-      {tasks.error && <p className="team-inline-error">{t('teamTasksLoadFailed')}</p>}
+      {/* The shape of the board that is coming, so the cards do not push the
+          filters when they land — with the sentence still there, because a
+          shimmer alone is indistinguishable from a stuck screen. */}
+      {tasks.loading && tasks.tasks.length === 0 && (
+        <LabeledSkeleton label="teamTasksLoadingList" rows={3} />
+      )}
+      {tasks.error && (
+        <ErrorState className="team-inline-error" message={t('teamTasksLoadFailed')} />
+      )}
       {/* Three distinguishable answers, not one: still loading, nothing here
           at all, or nothing matching the filter in force (FR-020). */}
       {!tasks.loading && !tasks.error && tasks.tasks.length === 0 && (
@@ -373,12 +402,7 @@ export function TaskSpace({
           action={
             !filtered &&
             can('edit') && (
-              <Button
-                type="button"
-                color="primary"
-                loading={busy}
-                onClick={() => void startTask()}
-              >
+              <Button type="button" color="primary" loading={busy} onClick={() => void startTask()}>
                 {t('teamTasksEmptyAction')}
               </Button>
             )
@@ -402,7 +426,7 @@ export function TaskSpace({
               })
             }
             onOpen={() => setOpenTask(task)}
-            onUpdate={patch => tasks.update(task, patch)}
+            onUpdate={patch => tasks.update(task, patch, { checkVersion: false })}
           />
         ))}
       </div>

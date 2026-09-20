@@ -22,6 +22,9 @@ import type { CatalogMaterialItem } from '@video-compressor/shared';
 
 const TEAM_ID = '20000000-0000-4000-8000-000000000001';
 const css = readFileSync(resolve('apps/web/src/styles.css'), 'utf8');
+/* The layer ladder moved to the token layer with every other value (021); the
+   rules that name its rungs still live in the screen stylesheet. */
+const tokens = readFileSync(resolve('apps/web/src/styles/tokens.css'), 'utf8');
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -157,19 +160,19 @@ describe('the layer ladder', () => {
       '--layer-fullbleed',
       '--layer-toast'
     ]) {
-      expect(css).toContain(`${token}:`);
+      expect(tokens).toContain(`${token}:`);
     }
   });
 
   it('has retired the ad-hoc bands the team overlays used', () => {
     // Everything outside the ladder's own documentation comment.
-    const rules = css.slice(css.indexOf('--layer-toast:'));
+    const rules = css;
     expect(rules).not.toMatch(/z-index:\s*45;/);
     expect(rules).not.toMatch(/z-index:\s*80;/);
   });
 
   it('puts a preview above a dialog, not underneath one', () => {
-    const layer = (name: string) => Number(css.match(new RegExp(`${name}:\\s*(\\d+)`))?.[1]);
+    const layer = (name: string) => Number(tokens.match(new RegExp(`${name}:\\s*(\\d+)`))?.[1]);
     // The exact bug: a preview opened while a modal was up rendered below it.
     expect(layer('--layer-fullbleed')).toBeGreaterThan(layer('--layer-modal'));
     // And a toast has to stay reachable above whatever raised it.

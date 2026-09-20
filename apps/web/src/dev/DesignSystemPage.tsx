@@ -97,9 +97,9 @@ export default function DesignSystemPage() {
       <header className="ds-header">
         <h1>Design system</h1>
         <p className="prose">
-          Every component the inventory declares, in every variant, size and state. Switch the
-          theme and turn on reduced motion; nothing here should become unreadable or start moving
-          when it was asked not to.
+          Every component the inventory declares, in every variant, size and state. Switch the theme
+          and turn on reduced motion; nothing here should become unreadable or start moving when it
+          was asked not to.
         </p>
       </header>
 
@@ -156,13 +156,25 @@ export default function DesignSystemPage() {
               {UI_SIZES.slice(0, 4).map(size => (
                 <IconButton key={size} label={`Icon ${size}`} size={size as UiSize}>
                   <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
-                    <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.75" fill="none" />
+                    <path
+                      d="M10 4v12M4 10h12"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      fill="none"
+                    />
                   </svg>
                 </IconButton>
               ))}
               <IconButton label="Pressed" pressed>
                 <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
-                  <circle cx="10" cy="10" r="6" stroke="currentColor" strokeWidth="1.75" fill="none" />
+                  <circle
+                    cx="10"
+                    cy="10"
+                    r="6"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    fill="none"
+                  />
                 </svg>
               </IconButton>
             </Row>
@@ -191,7 +203,12 @@ export default function DesignSystemPage() {
               <Card role="surface" title="Surface" description="A plain container on the page.">
                 <p className="prose">Content.</p>
               </Card>
-              <Card role="panel" title="Panel" aside="720p · 30 FPS" description="A group of controls.">
+              <Card
+                role="panel"
+                title="Panel"
+                aside="720p · 30 FPS"
+                description="A group of controls."
+              >
                 <p className="prose">Content.</p>
               </Card>
               <Card role="section" title="Section" description="A titled block inside a dialog.">

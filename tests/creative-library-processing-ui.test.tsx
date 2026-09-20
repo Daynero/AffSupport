@@ -10,6 +10,7 @@ import {
   type ProcessLibraryClient
 } from '../apps/web/src/team/library/process-library-contract';
 import { ToastProvider } from '../apps/web/src/components/toast';
+import { TeamApiError } from '../apps/web/src/api/team';
 
 const TEAM_ID = '43000000-0000-4000-8000-000000000001';
 const SOURCE_ID = '43000000-0000-4000-8000-000000000002';
@@ -89,7 +90,8 @@ describe('Process Library confirmation UI', () => {
         resultId: REQUIREMENT_ID,
         materialId: RESULT_ID
       }),
-      cancelOperation: vi.fn().mockResolvedValue({})
+      cancelOperation: vi.fn().mockResolvedValue({}),
+      findMaterialByName: vi.fn().mockResolvedValue(null)
     };
     const agent: ProcessLibraryAgent = {
       process: vi.fn().mockResolvedValue({
@@ -144,5 +146,99 @@ describe('Process Library confirmation UI', () => {
       1,
       expect.objectContaining({ sourceMaterialIds: [SOURCE_ID] })
     );
+  });
+
+  /*
+   * The trap this closes: a run uploads a sidecar, is cut off before it can
+   * finalize, and leaves the requirement pending with its output already in the
+   * folder. Every later attempt asked Drive for the same deterministic name and
+   * was refused by the file it had produced itself — so the material could
+   * never be processed again, and "retry the failed jobs" could not help.
+   */
+  it('adopts a result a previous run left behind instead of failing on its name', async () => {
+    const claimLibraryJob = vi
+      .fn()
+      .mockResolvedValueOnce({
+        teamId: TEAM_ID,
+        requirementId: REQUIREMENT_ID,
+        attemptId: ATTEMPT_ID,
+        sourceMaterialId: SOURCE_ID,
+        sourceVersion: 'version-1',
+        kind: 'transcription',
+        variant: 'original',
+        leaseToken: 'lease-token-with-enough-entropy-123',
+        leaseExpiresAt: '2026-08-14T11:00:00.000Z'
+      })
+      .mockRejectedValueOnce(new Error('NO_WORK'));
+    const findMaterialByName = vi.fn().mockResolvedValue(RESULT_ID);
+    const client: ProcessLibraryClient = {
+      scanLibraryRequirements: vi.fn().mockResolvedValue({
+        created: { transcription: 1, translation: 0, landingOptimization: 0 },
+        missing: { transcription: 1, translation: 0, landingOptimization: 0 },
+        ready: 0,
+        started: false
+      }),
+      claimLibraryJob,
+      getLibraryProcessingContext: vi.fn().mockResolvedValue({
+        sourceMaterialId: SOURCE_ID,
+        sourceName: 'clip.mp4',
+        category: 'video',
+        destinationFolderId: 'drive-folder-material'
+      }),
+      startProcess: vi.fn().mockRejectedValue(new TeamApiError('NAME_CONFLICT', false)),
+      heartbeatLibraryJob: vi.fn().mockResolvedValue({}),
+      cancelLibraryJob: vi.fn().mockResolvedValue(true),
+      failLibraryJob: vi.fn().mockResolvedValue(true),
+      retryFailedLibraryJobs: vi.fn().mockResolvedValue(1),
+      finalizeLibraryJob: vi.fn().mockResolvedValue({
+        state: 'accepted',
+        resultId: REQUIREMENT_ID,
+        materialId: RESULT_ID
+      }),
+      cancelOperation: vi.fn().mockResolvedValue({}),
+      findMaterialByName
+    };
+    const agent: ProcessLibraryAgent = {
+      process: vi.fn(),
+      cancel: vi.fn().mockResolvedValue(true)
+    };
+
+    render(
+      <ToastProvider>
+        <LibraryProcessingProvider
+          teamId={TEAM_ID}
+          sourceMaterialIds={[SOURCE_ID]}
+          agentCompatible
+          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          client={client}
+          agent={agent}
+          agentInstanceId={AGENT_ID}
+        >
+          <ProcessLibraryDialog
+            scope={{ kind: 'selection', count: 1 }}
+            agentCompatible
+            onClose={vi.fn()}
+          />
+        </LibraryProcessingProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Start processing' }));
+    await waitFor(() => expect(client.finalizeLibraryJob).toHaveBeenCalledTimes(1));
+
+    // The file already in the folder is the one the requirement is closed with…
+    expect(findMaterialByName).toHaveBeenCalledWith(
+      TEAM_ID,
+      'drive-folder-material',
+      'clip.transcript.version1.txt'
+    );
+    expect(client.finalizeLibraryJob).toHaveBeenCalledWith(
+      expect.objectContaining({ resultMaterialId: RESULT_ID })
+    );
+    // …the work is never handed to the agent a second time, and nothing is
+    // reported as failed.
+    expect(agent.process).not.toHaveBeenCalled();
+    expect(client.failLibraryJob).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText(/Ready: 1 · Skipped: 0 · Failed: 0/)).toBeTruthy());
   });
 });

@@ -59,6 +59,7 @@ import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { toolJobActivityEvents } from '../analytics/tools';
 import { LandingJobCard } from './LandingJobCard';
+import { RadioGroup } from '../components/ui/index';
 
 interface ToastMessage {
   id: number;
@@ -786,32 +787,32 @@ export function LandingSettingsPanel({
               arrived, and nothing said which. */}
           <div className="field-group landing-settings-field">
             <LandingFieldLabel label={t('saveResults')} tooltip={t('saveTooltip')} />
-            <div className="fit-mode-pictos" role="radiogroup" aria-label={t('saveResults')}>
-              <button
-                type="button"
-                role="radio"
-                className={settings.outputMode === 'next-to-originals' ? 'is-selected' : ''}
-                data-tip={t('nextToOriginals')}
-                aria-label={t('nextToOriginals')}
-                aria-checked={settings.outputMode === 'next-to-originals'}
-                disabled={disabled}
-                onClick={() => update({ outputMode: 'next-to-originals' })}
-              >
-                <Files size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                role="radio"
-                className={settings.outputMode === 'chosen-folder' ? 'is-selected' : ''}
-                data-tip={t('chooseFolder')}
-                aria-label={t('chooseFolder')}
-                aria-checked={settings.outputMode === 'chosen-folder'}
-                disabled={disabled}
-                onClick={chooseOutputFolder}
-              >
-                <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </button>
-            </div>
+            <RadioGroup
+              className="fit-mode-pictos"
+              variant="pictos"
+              label={t('saveResults')}
+              value={settings.outputMode}
+              disabled={disabled}
+              /* Choosing a folder opens the picker; the mode follows from what
+                 comes back, so a cancelled picker changes nothing. */
+              onChange={mode =>
+                mode === 'chosen-folder'
+                  ? chooseOutputFolder()
+                  : update({ outputMode: 'next-to-originals' })
+              }
+              options={[
+                {
+                  value: 'next-to-originals',
+                  label: t('nextToOriginals'),
+                  icon: <Files size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                },
+                {
+                  value: 'chosen-folder',
+                  label: t('chooseFolder'),
+                  icon: <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                }
+              ]}
+            />
             <span className="optimal-summary output-mode-summary">
               {settings.outputMode === 'next-to-originals'
                 ? t('nextToOriginals')
@@ -944,44 +945,34 @@ function LandingMediaField({
   return (
     <div className="field-group landing-settings-field">
       <LandingFieldLabel label={label} tooltip={hint} />
-      <div className="fit-mode-pictos" role="radiogroup" aria-label={label}>
-        <button
-          type="button"
-          role="radio"
-          className={value === 'off' ? 'is-selected' : ''}
-          data-tip={offHint}
-          aria-label={`${label}: ${t('landingMediaOff')}`}
-          aria-checked={value === 'off'}
-          disabled={disabled}
-          onClick={() => onChange('off')}
-        >
-          <Ban size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          role="radio"
-          className={value === 'optimal' ? 'is-selected' : ''}
-          data-tip={optimalHint}
-          aria-label={`${label}: ${t('optimal')}`}
-          aria-checked={value === 'optimal'}
-          disabled={disabled}
-          onClick={() => onChange('optimal')}
-        >
-          <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          role="radio"
-          className={value === 'high' ? 'is-selected' : ''}
-          data-tip={highHint}
-          aria-label={`${label}: ${t('highQuality')}`}
-          aria-checked={value === 'high'}
-          disabled={disabled}
-          onClick={() => onChange('high')}
-        >
-          <Crown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
-      </div>
+      <RadioGroup
+        className="fit-mode-pictos"
+        variant="pictos"
+        label={label}
+        value={value}
+        disabled={disabled}
+        onChange={onChange}
+        options={[
+          {
+            value: 'off',
+            label: `${label}: ${t('landingMediaOff')}`,
+            title: offHint,
+            icon: <Ban size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          },
+          {
+            value: 'optimal',
+            label: `${label}: ${t('optimal')}`,
+            title: optimalHint,
+            icon: <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          },
+          {
+            value: 'high',
+            label: `${label}: ${t('highQuality')}`,
+            title: highHint,
+            icon: <Crown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          }
+        ]}
+      />
       {/* Three pictos say nothing on their own, so the answer is spelled out under them. */}
       <span className="optimal-summary">{name}</span>
     </div>

@@ -107,8 +107,11 @@ describe('protected routing and safe OAuth returns', () => {
   });
 
   it('publishes the Google Drive data-use disclosures required for OAuth review', async () => {
-    const legalPages = await readFile('apps/web/src/pages/LegalPages.tsx', 'utf8');
-    expect(legalPages).toContain('Google Drive team workspace');
+    const legalPages = await readFile('apps/web/src/pages/legal-content.ts', 'utf8');
+    expect(legalPages).toContain('Spaces on Google Drive');
+    expect(legalPages).toContain('drive.file');
+    expect(legalPages).toContain('anyone with the link can view');
+    expect(legalPages).toContain('artificial intelligence or machine learning models');
     expect(legalPages).toContain('encrypted in Supabase Vault');
     expect(legalPages).toContain('Google API Services User Data Policy');
     expect(legalPages).toContain('Limited Use requirements');

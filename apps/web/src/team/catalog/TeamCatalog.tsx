@@ -57,6 +57,7 @@ export function TeamCatalog({
   teamId,
   client,
   onCreateTask,
+  onReveal,
   initialQuery,
   initialFilters,
   onSearched,
@@ -71,6 +72,7 @@ export function TeamCatalog({
   teamId: string;
   client: TeamCatalogClient;
   onCreateTask?: (asset: { id: string; name: string }) => void;
+  onReveal?: (material: CatalogMaterialItem) => void;
   /** Search state restored from the address. */
   initialQuery?: string;
   initialFilters?: CatalogSearchFilters;
@@ -262,6 +264,7 @@ export function TeamCatalog({
             });
         }}
         onCreateTask={onCreateTask}
+        onReveal={onReveal}
         onChanged={() => void catalog.refetch()}
         browseClient={client}
         page={catalog.page}
@@ -465,7 +468,11 @@ function TextVersionDialog({
         {t('teamFileNewName')}
         <input value={name} onChange={event => setName(event.target.value)} />
       </label>
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       <Button
         type="button"
         variant="primary"

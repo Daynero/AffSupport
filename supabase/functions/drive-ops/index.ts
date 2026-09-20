@@ -45,6 +45,7 @@ import {
 } from '../_shared/errors.ts';
 import {
   issueTransferGrant,
+  releaseNameReservation,
   startOperation,
   transitionOperation,
   type OperationAuthority
@@ -52,6 +53,21 @@ import {
 import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/library.ts';
 import { resolveTaskDropFolder } from './task-drop-folder.ts';
 import { resolveWorkspaceFolder } from './workspace-folder.ts';
+import {
+  createProductCatalog,
+  type CatalogLinkOutcome,
+  type ExistingCatalog,
+  type ProductCatalogDeps
+} from './product-catalog.ts';
+import { SPREADSHEET_MIME_TYPE } from '../_shared/product-catalog.ts';
+import {
+  claimRestitchJob,
+  completeRestitchJob,
+  heartbeatRestitchJob,
+  recordRestitchOutput,
+  RESTITCH_CONTRACT_VERSION,
+  type UpdaterRestitchDeps
+} from './updater-restitch.ts';
 import {
   isRecord,
   parseBoundedString,
@@ -141,7 +157,13 @@ const TOOL_RULES: Readonly<
     contractVersion: 2,
     outputMimeType: 'application/zip'
   },
-  imageEmbedding: { categories: ['video'], contractVersion: 2, outputMimeType: 'video/mp4' }
+  imageEmbedding: { categories: ['video'], contractVersion: 2, outputMimeType: 'video/mp4' },
+  // 023: the catalog updater's spare copies, started for a member's open tab.
+  restitch: {
+    categories: ['video'],
+    contractVersion: RESTITCH_CONTRACT_VERSION,
+    outputMimeType: 'video/mp4'
+  }
 };
 
 function clients(request: Request): { caller: RpcClient; service: RpcClient } {
@@ -1056,6 +1078,20 @@ async function handleUploadFinalize(
       // as "name (2).txt" and the folder stopped matching what Soty showed.
       await trashRetiredCompanions(client, linked);
     }
+    // 023: a re-stitched copy the updater asked for becomes the catalog's spare. Best-effort like
+    // the transcript link: the file is committed either way, and an unrecorded copy is prepared again.
+    if (resultMaterialId && operation.kind === 'process' && operation.toolId === 'restitch') {
+      await recordRestitchOutput(
+        {
+          drive: client,
+          rpc: (name, parameters) => rpcValue(service, name, parameters),
+          log: (message, detail) => console.error(message, detail)
+        },
+        { operationId, materialId: resultMaterialId, driveFileId: result.id }
+      ).catch(error => {
+        console.error('[finalize] restitch copy not recorded', mapUnknownError(error).code);
+      });
+    }
     return committed;
   } catch (error) {
     console.error(
@@ -1841,6 +1877,16 @@ async function handleProcessStart(
   const sourceClient = await driveClient(service, source.credentialId, request);
   const liveSource = await proveContext(source, sourceClient);
   requireDriveCapability(liveSource, 'canDownload');
+  // The version finalize will hold the row to is the live one bound below; a row left behind by a
+  // metadata-only change (sharing by link moves the version) is brought up to it first.
+  if (liveSource.version && liveSource.version !== source.driveVersion) {
+    await rpcValue(service, 'service_refresh_material_revision', {
+      p_material: materialId,
+      p_drive_file_id: liveSource.id,
+      p_drive_version: liveSource.version,
+      p_checksum: liveSource.checksum
+    });
+  }
   const destination = await destinationWithClient({
     request,
     service,
@@ -2297,6 +2343,262 @@ async function handleEnsureWorkspaceFolder(
   return { folderId: resolved.folderId, created: resolved.created, name: resolved.name };
 }
 
+function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatalog | null {
+  if (!row) return null;
+  const materialId = stringValue(row, 'id') ?? stringValue(row, 'materialId');
+  const name = stringValue(row, 'name');
+  const sheetUrl = stringValue(row, 'sheet_url') ?? stringValue(row, 'sheetUrl');
+  const sourceLink = stringValue(row, 'source_link') ?? stringValue(row, 'sourceLink');
+  const productCount = safeInteger(row.product_count ?? row.productCount);
+  if (!materialId || !name || !sheetUrl || !sourceLink || productCount === null) return null;
+  return {
+    materialId,
+    driveFileId: stringValue(row, 'drive_file_id') ?? stringValue(row, 'driveFileId'),
+    name,
+    sheetUrl,
+    sourceLink,
+    productCount,
+    createdAt: stringValue(row, 'created_at') ?? stringValue(row, 'createdAt')
+  };
+}
+
+/**
+ * What the product catalog handler (022) needs from this file, bound to one request. The
+ * handler itself lives in `product-catalog.ts` and never touches Deno, Supabase or Drive
+ * directly, which is what lets its order of refusals and its rollback be tested.
+ */
+function productCatalogDeps(request: Request, caller: RpcClient, service: RpcClient) {
+  const contexts = new Map<string, MaterialOperationContext>();
+  const drives = new Map<string, GoogleDriveClient>();
+  let destinationClient: GoogleDriveClient | null = null;
+
+  const deps: ProductCatalogDeps = {
+    async loadVideo({ teamId, videoId, actorId, permission }) {
+      const context = await loadContext({
+        service,
+        teamId,
+        materialId: videoId,
+        actorId,
+        permission
+      });
+      contexts.set(context.id, context);
+      return {
+        id: context.id,
+        name: context.name,
+        category: context.category,
+        driveFileId: context.driveFileId,
+        resourceKey: context.resourceKey,
+        parentFolderId: context.parentFolderId,
+        credentialId: context.credentialId
+      };
+    },
+    async readSettings(teamId) {
+      const row = firstRecord(
+        await rpcValue(service, 'service_get_team_product_catalog_settings', { p_team: teamId })
+      );
+      const title = row ? stringValue(row, 'title') : null;
+      const description = row ? stringValue(row, 'description') : null;
+      const imageLink = row ? stringValue(row, 'image_link') : null;
+      const price = row ? safeInteger(row.price) : null;
+      if (!title || !description || !imageLink || price === null) return null;
+      return { title, description, price, imageLink };
+    },
+    async readLiveCatalog(teamId, videoId) {
+      return existingCatalogFrom(
+        firstRecord(
+          await rpcValue(caller, 'get_material_product_catalog', {
+            p_team: teamId,
+            p_video: videoId
+          })
+        )
+      );
+    },
+    async driveFor(credentialId) {
+      const known = drives.get(credentialId);
+      if (known) return known;
+      const client = await driveClient(service, credentialId, request);
+      drives.set(credentialId, client);
+      return client;
+    },
+    async proveVideo(video, drive) {
+      const context = contexts.get(video.id);
+      if (!context) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+      return proveContext(context, drive as GoogleDriveClient);
+    },
+    async destination({ teamId, actorId, folderId }) {
+      const found = await destinationWithClient({
+        request,
+        service,
+        teamId,
+        destinationFolderId: folderId,
+        actorId,
+        permission: 'upload'
+      });
+      destinationClient = found.client;
+      return { materialId: found.context.materialId, live: found.live };
+    },
+    async planName({
+      teamId,
+      destinationMaterialId,
+      live,
+      name,
+      idempotencyKey,
+      replacingDriveFileId
+    }) {
+      if (!destinationClient) throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+      // Drive ids, despite the field's name: a re-create keeps the name of the sheet it retires.
+      const names = (await nameCandidates(destinationClient, live)).filter(
+        candidate => candidate.materialId !== replacingDriveFileId
+      );
+      const plan = buildUploadConflictPlan(
+        {
+          teamId,
+          destinationFolderId: destinationMaterialId,
+          name: displayDriveName(name),
+          mimeType: SPREADSHEET_MIME_TYPE,
+          sizeBytes: 0,
+          conflictMode: 'keep_both',
+          replaceMaterialId: null,
+          versionOfMaterialId: null,
+          idempotencyKey
+        },
+        names
+      );
+      return { name: plan.name, reservationKey: plan.reservationKey };
+    },
+    startOperation({
+      teamId,
+      actorId,
+      idempotencyKey,
+      videoId,
+      destinationMaterialId,
+      reservationKey
+    }) {
+      return startSimpleOperation({
+        service,
+        teamId,
+        actorId,
+        kind: 'upload',
+        idempotencyKey,
+        sourceMaterialId: videoId,
+        destinationFolderId: destinationMaterialId,
+        reservedNameKey: reservationKey,
+        bytesTotal: null
+      });
+    },
+    bindIntent({ authority, actorId, name, sizeBytes }) {
+      return bindIntent({
+        service,
+        authority,
+        actorId,
+        expectedName: name,
+        mimeType: SPREADSHEET_MIME_TYPE,
+        expectedSize: sizeBytes
+      });
+    },
+    markRunning(operationId) {
+      return transitionOperation({
+        service,
+        operationId,
+        state: 'running',
+        stage: 'uploading',
+        progress: 30
+      });
+    },
+    async failOperation(operationId, cause) {
+      const mapped = mapUnknownError(cause);
+      await rpcValue(service, 'service_transition_team_operation', {
+        p_operation: operationId,
+        p_state: 'failed',
+        p_stage: 'failed',
+        p_progress: 100,
+        p_result_material: null,
+        p_error_code: mapped.code,
+        p_retryable: mapped.retryable
+      }).catch(() => undefined);
+    },
+    async finalize({ operationId, actorId, metadata }) {
+      const committed = await rpcValue(service, 'service_finalize_uploaded_material', {
+        p_operation: operationId,
+        p_actor: actorId,
+        p_drive: driveResult(metadata)
+      });
+      const materialId = isRecord(committed) ? stringValue(committed, 'materialId') : null;
+      if (!materialId) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+      return { materialId };
+    },
+    async link({ teamId, videoId, companionId, replaces, record }) {
+      const value = await rpcValue(service, 'service_link_product_catalog_companion', {
+        p_team: teamId,
+        p_video: videoId,
+        p_companion: companionId,
+        p_replaces: replaces,
+        p_record: record
+      });
+      if (!isRecord(value)) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+      if (value.linked === true) {
+        const retired = Array.isArray(value.retired) ? value.retired : [];
+        return {
+          linked: true,
+          retired: retired.flatMap(entry => {
+            if (!isRecord(entry)) return [];
+            const driveFileId = stringValue(entry, 'driveFileId');
+            return driveFileId
+              ? [{ driveFileId, resourceKey: stringValue(entry, 'resourceKey') }]
+              : [];
+          })
+        } satisfies CatalogLinkOutcome;
+      }
+      if (value.reason === 'EXISTS') {
+        return {
+          linked: false,
+          reason: 'EXISTS',
+          existing: existingCatalogFrom(isRecord(value.existing) ? value.existing : null)
+        } satisfies CatalogLinkOutcome;
+      }
+      return { linked: false, reason: 'NOT_ELIGIBLE' } satisfies CatalogLinkOutcome;
+    },
+    log(message, detail) {
+      console.error(message, detail);
+    }
+  };
+  return deps;
+}
+
+function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterRestitchDeps {
+  return {
+    rpc: (name, parameters) => rpcValue(service, name, parameters),
+    startProcess: async (actorId, body) => {
+      const started = await handleProcessStart(request, body, service, actorId);
+      return {
+        operationId: started.operationId,
+        sourceGrant: started.sourceGrant,
+        finalizeGrant: started.finalizeGrant
+      };
+    },
+    abandonOperation: async operationId => {
+      // An operation that already finished refuses the transition; its name is released anyway.
+      await transitionOperation({
+        service,
+        operationId,
+        state: 'failed',
+        stage: 'failed',
+        errorCode: 'LEASE_EXPIRED'
+      }).catch(() => undefined);
+      await releaseNameReservation(service, operationId);
+    },
+    hashHex: async value => byteaHex(await sha256(value)),
+    randomToken: () => {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      return btoa(String.fromCharCode(...bytes))
+        .replaceAll('+', '-')
+        .replaceAll('/', '_')
+        .replace(/=+$/u, '');
+    },
+    log: (message, detail) => console.error(message, detail)
+  };
+}
+
 function routePath(url: URL) {
   const marker = '/drive-ops';
   const index = url.pathname.lastIndexOf(marker);
@@ -2368,6 +2670,30 @@ Deno.serve(async request => {
       value = await handleEnsureWorkspaceFolder(request, body, configured.service, userId);
     } else if (path === '/ensure-task-drop-folder') {
       value = await handleEnsureTaskDropFolder(request, body, configured.service, userId);
+    } else if (path === '/product-catalog/create') {
+      value = await createProductCatalog(
+        productCatalogDeps(request, configured.caller, configured.service),
+        body,
+        userId
+      );
+    } else if (path === '/updater/claim') {
+      value = await claimRestitchJob(
+        updaterRestitchDeps(request, configured.service),
+        userId,
+        body
+      );
+    } else if (path === '/updater/heartbeat') {
+      value = await heartbeatRestitchJob(
+        updaterRestitchDeps(request, configured.service),
+        userId,
+        body
+      );
+    } else if (path === '/updater/complete') {
+      value = await completeRestitchJob(
+        updaterRestitchDeps(request, configured.service),
+        userId,
+        body
+      );
     } else if (path === '/process/start') {
       value = await handleProcessStart(request, body, configured.service, userId);
       status = 202;

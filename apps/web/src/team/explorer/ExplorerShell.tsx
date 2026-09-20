@@ -19,6 +19,7 @@ import { teamApi, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { Download, ListPlus, Play, Shrink, Trash2, X } from 'lucide-react';
 import { Button } from '../../components/ui';
+import { Popover, SegmentedControl } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import {
@@ -70,6 +71,7 @@ import {
   type CompressPlanItem as CompressPlanItem_
 } from './TeamCompressorDialog';
 import type { RowActionsProps } from './RowActions';
+import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
 import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
 import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
 import {
@@ -315,6 +317,7 @@ function ExplorerBody({
   } = explorer;
   const [treeOpen, setTreeOpen] = useState(false);
   const [processing, setProcessing] = useState<{ row: TeamMaterialRow } | null>(null);
+  const [catalogFor, setCatalogFor] = useState<TeamMaterialRow | null>(null);
   /*
    * The card's live transcription progress used to have a second source: a
    * `tool` on this state that nothing ever set, so the branch that read it, the
@@ -401,6 +404,48 @@ function ExplorerBody({
     revision
   });
   const sortedRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+
+  /*
+   * A file the address names (`item`) — from "show in folder" on a search result or a task's
+   * attachment: once its folder's rows are in, it is selected and scrolled into view, once per
+   * address. A later page is fetched if the file is further down the folder.
+   */
+  const revealedItem = useRef<string | null>(null);
+  const revealItemId = query.itemId;
+  useEffect(() => {
+    if (!revealItemId) {
+      revealedItem.current = null;
+      return;
+    }
+    if (revealedItem.current === revealItemId || searching || query.trash) return;
+    if (query.folderId && explorer.nodes && !nodeOf(query.folderId)) {
+      onQueryChange({ folderId: null, itemId: revealItemId });
+      return;
+    }
+    if (currentFolderId !== (query.folderId ?? null) || page.loading) return;
+    if (!page.rows.some(row => row.id === revealItemId)) {
+      if (page.hasMore) void page.loadMore();
+      return;
+    }
+    revealedItem.current = revealItemId;
+    select(revealItemId);
+    window.requestAnimationFrame(() => {
+      Array.from(document.querySelectorAll<HTMLElement>('[data-material-id]'))
+        .find(element => element.dataset.materialId === revealItemId)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  }, [
+    currentFolderId,
+    explorer.nodes,
+    nodeOf,
+    onQueryChange,
+    page,
+    query.folderId,
+    query.trash,
+    revealItemId,
+    searching,
+    select
+  ]);
 
   /**
    * Which of the videos in view have already been looked at.
@@ -503,6 +548,25 @@ function ExplorerBody({
     rememberView(next);
     onQueryChange({ view: next });
   };
+
+  /**
+   * Where a file lives: its folder opens with the file selected. A parent the tree does not know is
+   * the space root (a file directly under it has the root's Drive id as its parent).
+   */
+  const revealMaterial = useCallback(
+    (item: { id: string; parentFolderId?: string | null }) => {
+      const parent = item.parentFolderId ?? null;
+      onQueryChange({
+        q: '',
+        scope: 'folder',
+        filters: undefined,
+        trash: false,
+        folderId: parent && nodeOf(parent) ? parent : null,
+        itemId: item.id
+      });
+    },
+    [nodeOf, onQueryChange]
+  );
 
   /** Root-relative path for a search result, from the cached tree. */
   const pathFor = useCallback(
@@ -669,6 +733,7 @@ function ExplorerBody({
         storageKind,
         onChanged: changed,
         preparedIds,
+        onProductCatalog: (row: TeamMaterialRow) => setCatalogFor(row),
         ...(permissions.download
           ? {
               onDownloadRestitched: (row: TeamMaterialRow) => void deliverRestitched([row])
@@ -1410,30 +1475,27 @@ function ExplorerBody({
             />
           )}
           {!trash && (
-            <div
+            /* A choice of two, told as one: it was a pair of `aria-pressed`
+               toggles, which says "this button is down" twice rather than
+               "this is the one of two that is chosen" (021, T088). */
+            <SegmentedControl<'list' | 'grid'>
               className="team-explorer-view-toggle"
-              role="group"
-              aria-label={t('teamExplorerViewLabel')}
-            >
-              <button
-                type="button"
-                aria-pressed={view === 'list'}
-                aria-label={t('teamExplorerViewList')}
-                title={t('teamExplorerViewList')}
-                onClick={() => setView('list')}
-              >
-                <ListViewIcon />
-              </button>
-              <button
-                type="button"
-                aria-pressed={view === 'grid'}
-                aria-label={t('teamExplorerViewGrid')}
-                title={t('teamExplorerViewGrid')}
-                onClick={() => setView('grid')}
-              >
-                <GridViewIcon />
-              </button>
-            </div>
+              label={t('teamExplorerViewLabel')}
+              value={view}
+              onChange={setView}
+              options={[
+                {
+                  value: 'list',
+                  label: <ListViewIcon />,
+                  title: t('teamExplorerViewList')
+                },
+                {
+                  value: 'grid',
+                  label: <GridViewIcon />,
+                  title: t('teamExplorerViewGrid')
+                }
+              ]}
+            />
           )}
         </div>
       </div>
@@ -1604,6 +1666,7 @@ function ExplorerBody({
             teamId={teamId}
             client={client}
             onCreateTask={onCreateTask}
+            onReveal={revealMaterial}
             initialQuery={query.q}
             initialFilters={query.filters}
             onSearched={onSearched}
@@ -1670,6 +1733,7 @@ function ExplorerBody({
         <PreviewPane
           row={focused}
           client={client}
+          revision={revision}
           onOpen={onPreview}
           onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
           onDownloadRestitched={
@@ -1847,6 +1911,14 @@ function ExplorerBody({
           )
         }
       />
+      {catalogFor && (
+        <ProductCatalogMenuDialog
+          teamId={teamId}
+          video={{ id: catalogFor.id, name: catalogFor.name }}
+          onClose={() => setCatalogFor(null)}
+          onChanged={changed}
+        />
+      )}
       {processing && (
         <MaterialProcessFlow
           teamId={teamId}
@@ -1995,26 +2067,6 @@ function ProcessMenu({
     run();
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && box.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-        button.current?.focus();
-      }
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
   // A menu that says `role="menu"` promises arrow keys; Tab alone was all it
   // had, and the first item never took focus when the menu opened.
   useEffect(() => {
@@ -2077,9 +2129,21 @@ function ProcessMenu({
       >
         {t('teamExplorerProcess')}
       </Button>
-      {open && (
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          button.current?.focus();
+        }}
+        anchor={box}
+        placement="bottom-start"
+        frequent
+        label={t('teamExplorerProcessScope')}
+        surface="none"
+        className="team-explorer-menu"
+      >
         <div
-          className="team-explorer-menu"
+          className="team-explorer-menu-items"
           role="menu"
           aria-label={t('teamExplorerProcessScope')}
           ref={list}
@@ -2127,7 +2191,7 @@ function ProcessMenu({
             </button>
           )}
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

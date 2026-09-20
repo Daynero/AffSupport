@@ -702,3 +702,123 @@ checkpoint). Restore `private.claim_catalog_sync_jobs` from `20260907100000` and
 `private.invoke_catalog_sync_worker` from `20260815102000`; reschedule
 `wishly-catalog-sync` to `* * * * *`. The new save/release RPCs can remain unused
 until all in-flight workers have finished. No catalog rows need to be deleted.
+
+## 20260915010000_product_catalogs.sql
+
+Feature 022: a video's product catalog sheet. Deploy the previous `drive-ops` first, so nothing
+creates or links a catalog while the schema goes away. Sheets already created stay in Drive and
+in the catalog as ordinary spreadsheets; unlinking them is what lets the old constraint return.
+
+```sql
+drop function if exists public.service_link_product_catalog_companion(uuid, uuid, uuid, uuid, jsonb);
+drop function if exists public.service_get_team_product_catalog_settings(uuid);
+drop function if exists public.get_material_product_catalog(uuid, uuid);
+drop function if exists public.set_team_product_catalog_settings(uuid, jsonb);
+drop function if exists public.get_team_product_catalog_settings(uuid);
+drop table if exists public.team_product_catalogs;
+drop table if exists public.team_product_catalog_settings;
+update public.team_materials
+   set companion_of = null, companion_kind = null
+ where companion_kind = 'product_catalog';
+alter table public.team_materials drop constraint if exists team_materials_companion_kind_check;
+alter table public.team_materials
+  add constraint team_materials_companion_kind_check
+  check (
+    (companion_of is null and companion_kind is null)
+    or (companion_of is not null and companion_kind in ('transcript'))
+  );
+```
+
+## 20260915140000_catalog_updater.sql
+
+Feature 023, delivery 1: the catalog updater. Unschedule the worker first so no round runs while the
+schema goes away. Sheets already updated keep their shifted IDs; nothing in Drive needs undoing.
+
+```sql
+select cron.unschedule(job.jobid) from cron.job as job where job.jobname = 'wishly-catalog-updater';
+drop function if exists private.invoke_catalog_updater_worker();
+drop function if exists private.catalog_updater_endpoint(text);
+drop function if exists public.service_retry_catalog_update(uuid, text, text, timestamptz);
+drop function if exists public.service_complete_catalog_update(uuid, text, integer);
+drop function if exists public.service_claim_catalog_updater_items(text, integer, integer);
+drop function if exists private.claim_catalog_updater_items(text, integer, integer);
+drop function if exists public.service_open_catalog_updater_rounds();
+drop function if exists public.stop_team_catalog_updater(uuid);
+drop function if exists public.save_team_catalog_updater(uuid, uuid[], text, boolean);
+drop function if exists public.get_team_catalog_updater(uuid);
+drop function if exists public.list_team_product_catalogs(uuid);
+drop function if exists private.catalog_updater_state(uuid);
+drop function if exists private.catalog_updater_interval(text);
+drop function if exists private.live_product_catalogs(uuid);
+drop table if exists public.team_catalog_updater_items;
+drop table if exists public.team_catalog_updaters;
+alter table public.team_product_catalogs
+  drop constraint if exists team_product_catalogs_update_error_check,
+  drop constraint if exists team_product_catalogs_update_count_check,
+  drop column if exists last_update_error,
+  drop column if exists last_updated_at,
+  drop column if exists update_count;
+```
+
+## 20260916070000_refresh_material_revision.sql
+
+Processes on a file whose Drive version moved without its bytes go back to failing at finalize.
+
+```sql
+drop function if exists public.service_refresh_material_revision(uuid, text, text, text);
+```
+
+## 20260916100000_catalog_sync_outage_guards.sql
+
+Re-apply `private.invoke_catalog_sync_worker()` from
+`20260907140000_catalog_progress_keeps_its_lease.sql`,
+`private.claim_catalog_sync_jobs(text, integer, integer)` from that same migration, and
+`public.get_drive_connection_status(uuid)` from
+`20260801095000_team_invitation_drive_actions.sql`. This restores the silent invalid-config
+return and the mismatched connection ordering, so prefer a forward fix in production.
+
+## 20260916120000_catalog_updater_restitch_web.sql
+
+Feature 023: re-stitched copies prepared by an open Soty tab. Turn re-stitching off in every updater
+first (`update public.team_catalog_updaters set restitch = false`) and let the worker delete the
+retired copies, or they stay in Drive as ordinary materials; the copy each sheet points at stays.
+Then re-apply the delivery-1 definitions of `save_team_catalog_updater`, `stop_team_catalog_updater`,
+`private.catalog_updater_state`, `private.invoke_catalog_updater_worker`,
+`service_claim_catalog_updater_items(text, integer, integer)` and
+`service_complete_catalog_update(uuid, text, integer)` from `20260915140000_catalog_updater.sql` after
+the drops below.
+
+```sql
+drop function if exists public.service_forget_restitch_copy(uuid, boolean);
+drop function if exists public.service_claim_retired_restitch_copies(integer);
+drop function if exists public.service_complete_catalog_update(uuid, text, integer, uuid);
+drop function if exists public.service_claim_catalog_updater_items(text, integer, integer);
+drop function if exists public.service_record_restitch_output(uuid, uuid, text, text);
+drop function if exists public.service_complete_restitch_job(uuid, uuid, bytea, text, text);
+drop function if exists public.service_heartbeat_restitch_job(uuid, uuid, bytea, integer);
+drop function if exists public.service_bind_restitch_job_operation(uuid, bytea, uuid);
+drop function if exists public.service_claim_restitch_job(uuid, uuid, bytea, integer);
+drop function if exists private.retire_restitch_spares(uuid, uuid[]);
+drop function if exists private.queue_restitch_jobs(uuid);
+drop table if exists private.catalog_restitch_operations;
+drop table if exists private.catalog_restitch_jobs;
+drop table if exists public.team_catalog_restitch_copies;
+alter table public.team_product_catalogs drop column if exists current_video_link;
+```
+
+## 20260916130000_catalog_updater_custom_interval.sql
+
+Move every custom interval back to a preset first
+(`update public.team_catalog_updaters set update_interval = '1d' where update_interval not in ('1h', '1d', '1w')`),
+then restore the preset-only rule and function body from `20260915140000_catalog_updater.sql`:
+
+```sql
+alter table public.team_catalog_updaters drop constraint if exists team_catalog_updaters_interval_check;
+alter table public.team_catalog_updaters
+  add constraint team_catalog_updaters_interval_check check (update_interval in ('1h', '1d', '1w'));
+```
+
+## 20260916140000_task_conflict_answers_at_once.sql
+
+Re-apply `public.update_team_task` from `20260905160000_team_task_date.sql` (the same body with the
+stale-copy refusal raised as SQLSTATE 40001).

@@ -21,7 +21,8 @@ import {
   type TranscriptionJob,
   type TranscriptionQualityMode
 } from '@video-compressor/shared';
-import { Button, Checkbox, ProgressBar, StatusBadge, type Translate } from '../components/ui';
+import { StatusBadge, type Translate } from '../components/ui';
+import { Button, Checkbox, Progress } from '../components/ui/index';
 import { formatDuration } from '../format';
 import type { Language } from '../i18n';
 import type { TranscriptExportContent, TranscriptExportFormat } from './export';
@@ -30,6 +31,7 @@ import { LanguageCombobox } from './LanguageCombobox';
 import { LanguageDoubt } from './LanguageDoubt';
 import { isRtlLanguage } from './language';
 import { describeError } from './errors';
+import { Alert } from '../components/ui/index';
 
 /**
  * What a row can ask the page to do. One object, stable for the page's lifetime, keyed by
@@ -189,16 +191,24 @@ export const TranscriptionRow = memo(function TranscriptionRow({
       >
         {done && (
           <>
-            {/* What is done with a finished transcript, loudest first. */}
+            {/* What is done with a finished transcript, loudest first —
+                loudest within the row, that is: the page's one primary action
+                is the toolbar's (FR-022). */}
             <div className="transcription-row-actions-main">
               <Button
-                variant="primary"
+                color="neutral"
+                variant="outline"
                 onClick={event => actions.view(job.id, event.currentTarget)}
               >
                 <Eye size={16} strokeWidth={1.75} aria-hidden="true" />
                 {t('transcriptionView')}
               </Button>
-              <Button variant="secondary" disabled={silent} onClick={() => void copy()}>
+              <Button
+                color="neutral"
+                variant="outline"
+                disabled={silent}
+                onClick={() => void copy()}
+              >
                 <Copy size={16} strokeWidth={1.75} aria-hidden="true" />
                 {copied ? t('transcriptionCopied') : t('transcriptionCopy')}
               </Button>
@@ -217,6 +227,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
                 labels are dropped by CSS alone on a narrow card, never by a prop. */}
             <div className="transcription-row-quiet-actions">
               <Button
+                color="neutral"
                 variant="ghost"
                 disabled={!connected}
                 title={t('transcriptionRepeat')}
@@ -232,6 +243,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
               </Button>
               {job.sourceKind === 'local' && (
                 <Button
+                  color="neutral"
                   variant="ghost"
                   disabled={!connected}
                   title={t('showInFolder')}
@@ -243,6 +255,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
                 </Button>
               )}
               <Button
+                color="neutral"
                 variant="ghost"
                 className="is-destructive"
                 disabled={!connected}
@@ -258,11 +271,17 @@ export const TranscriptionRow = memo(function TranscriptionRow({
         )}
         {job.status === 'ready' && (
           <div className="transcription-row-actions-main">
-            <Button variant="primary" disabled={!connected} onClick={() => actions.start(job.id)}>
+            <Button
+              color="neutral"
+              variant="outline"
+              disabled={!connected}
+              onClick={() => actions.start(job.id)}
+            >
               <Play size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('transcriptionStart')}
             </Button>
             <Button
+              color="neutral"
               variant="ghost"
               className="is-destructive"
               disabled={!connected}
@@ -279,7 +298,8 @@ export const TranscriptionRow = memo(function TranscriptionRow({
           <div className="transcription-row-actions-main">
             {running && (
               <Button
-                variant="secondary"
+                color="neutral"
+                variant="outline"
                 disabled={!connected}
                 onClick={() => actions.pause(job.id, !job.paused)}
               >
@@ -291,7 +311,12 @@ export const TranscriptionRow = memo(function TranscriptionRow({
                 {t(job.paused ? 'jobResume' : 'jobPause')}
               </Button>
             )}
-            <Button variant="danger" disabled={!connected} onClick={() => actions.cancel(job.id)}>
+            <Button
+              color="error"
+              variant="soft"
+              disabled={!connected}
+              onClick={() => actions.cancel(job.id)}
+            >
               <Ban size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('transcriptionCancel')}
             </Button>
@@ -299,11 +324,17 @@ export const TranscriptionRow = memo(function TranscriptionRow({
         )}
         {settledNotDone && (
           <div className="transcription-row-actions-main">
-            <Button variant="primary" disabled={!connected} onClick={() => actions.retry(job.id)}>
+            <Button
+              color="neutral"
+              variant="outline"
+              disabled={!connected}
+              onClick={() => actions.retry(job.id)}
+            >
               <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />
               {t('transcriptionRetry')}
             </Button>
             <Button
+              color="neutral"
               variant="ghost"
               className="is-destructive"
               disabled={!connected}
@@ -376,9 +407,9 @@ export const TranscriptionRow = memo(function TranscriptionRow({
 
         {active && (
           <div className="transcription-row-progress">
-            <ProgressBar
-              value={job.status === 'queued' ? 0 : job.progress}
-              active={running && connected && !job.paused}
+            <Progress
+              value={job.status === 'queued' ? 0 : (job.progress ?? undefined)}
+              color={running && connected && !job.paused ? 'primary' : 'neutral'}
               label={job.fileName}
             />
             <span className="transcription-row-progress-value">
@@ -398,6 +429,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
             <span>{t('transcriptionNoSpeech')}</span>
             {job.quality === 'fast' && (
               <Button
+                color="neutral"
                 variant="ghost"
                 disabled={!connected}
                 onClick={() => actions.startWith(job.id, 'accurate')}
@@ -413,6 +445,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
           <div className="transcription-row-hint" role="note">
             <span>{t('transcriptionShortHint')}</span>
             <Button
+              color="neutral"
               variant="ghost"
               disabled={!connected}
               onClick={() => actions.startWith(job.id, 'accurate')}
@@ -453,6 +486,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
               )}
               {translation.status === 'failed' && !awaitingRequested && (
                 <Button
+                  color="neutral"
                   variant="ghost"
                   disabled={!connected}
                   onClick={() => changeTarget(translation.targetLanguage)}
@@ -463,9 +497,8 @@ export const TranscriptionRow = memo(function TranscriptionRow({
               )}
             </div>
             {translating && (
-              <ProgressBar
-                value={translation.progress}
-                active
+              <Progress
+                value={translation.progress ?? undefined}
                 label={t('transcriptionRowTranslationProgress', { file: job.fileName })}
               />
             )}
@@ -473,9 +506,9 @@ export const TranscriptionRow = memo(function TranscriptionRow({
         )}
 
         {settledNotDone && job.error && (
-          <div className="transcription-row-error" role="alert">
+          <Alert className="transcription-row-error" color="error" variant="soft" live="alert">
             {describeError(job.error, t)}
-          </div>
+          </Alert>
         )}
       </div>
     </article>

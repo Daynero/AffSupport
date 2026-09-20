@@ -1,4 +1,4 @@
-import { type AnchorHTMLAttributes, type ReactNode } from 'react';
+import { type AnchorHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 import { uiClasses, type UiSize } from './types';
 
 /**
@@ -18,6 +18,13 @@ export interface TabItem<T extends string> {
   /** A count beside the label — "Tasks 12". */
   badge?: ReactNode;
   disabled?: boolean;
+  /**
+   * The address this tab *is*, when the sections of a screen are addresses
+   * rather than states. Given one, the strip renders links: middle-click,
+   * copy-link and Back keep working, and the current one is announced with
+   * `aria-current` rather than merely coloured.
+   */
+  href?: string;
 }
 
 export interface TabsProps<T extends string> {
@@ -31,6 +38,12 @@ export interface TabsProps<T extends string> {
   className?: string;
   /** Wires `aria-controls`; the panel carries the matching id. */
   panelId?: (id: T) => string;
+  /**
+   * Called instead of `onChange` when a tab that is an address is followed, so
+   * the caller can keep the navigation in the app for a plain click and let the
+   * browser have a modified one.
+   */
+  onNavigate?: (event: MouseEvent<HTMLAnchorElement>, item: TabItem<T>) => void;
 }
 
 export function Tabs<T extends string>({
@@ -41,53 +54,85 @@ export function Tabs<T extends string>({
   variant = 'underline',
   size = 'md',
   className,
-  panelId
+  panelId,
+  onNavigate
 }: TabsProps<T>) {
+  const enabled = () => items.filter(item => !item.disabled);
+  const go = (index: number) => {
+    const list = enabled();
+    const next = list[((index % list.length) + list.length) % list.length];
+    if (!next) return;
+    onChange(next.id);
+    // The strip is a roving tab stop: the chosen tab is the one Tab reaches,
+    // so the arrows have to carry focus with them.
+    requestAnimationFrame(() => document.getElementById(`tab-${next.id}`)?.focus());
+  };
   const move = (from: T, step: number) => {
-    const enabled = items.filter(item => !item.disabled);
-    const at = enabled.findIndex(item => item.id === from);
-    const next = enabled[(at + step + enabled.length) % enabled.length];
-    if (next) onChange(next.id);
+    const at = enabled().findIndex(item => item.id === from);
+    go(at + step);
   };
 
+  /* A strip of addresses is navigation, not a tablist: a screen reader that is
+     told "tab" expects the panel to change without the page doing so. */
+  const addresses = items.some(item => item.href !== undefined);
+  const Strip = addresses ? 'nav' : 'div';
+
   return (
-    <div
+    <Strip
       className={uiClasses('tabs', {
         size,
         className: [`ui-tabs--${variant}`, className].filter(Boolean).join(' ')
       })}
-      role="tablist"
+      role={addresses ? undefined : 'tablist'}
       aria-label={label}
     >
-      {items.map(item => (
-        <button
-          key={item.id}
-          type="button"
-          role="tab"
-          id={`tab-${item.id}`}
-          aria-selected={item.id === value}
-          aria-controls={panelId?.(item.id)}
-          tabIndex={item.id === value ? 0 : -1}
-          disabled={item.disabled}
-          className={`ui-tab${item.id === value ? ' is-selected' : ''}`}
-          onClick={() => onChange(item.id)}
-          onKeyDown={event => {
-            if (event.key === 'ArrowRight') move(value, 1);
-            else if (event.key === 'ArrowLeft') move(value, -1);
-            else return;
-            event.preventDefault();
-          }}
-        >
-          {item.icon && (
-            <span className="ui-tab-icon" aria-hidden="true">
-              {item.icon}
-            </span>
-          )}
-          <span className="ui-tab-label">{item.label}</span>
-          {item.badge !== undefined && <span className="ui-tab-badge">{item.badge}</span>}
-        </button>
-      ))}
-    </div>
+      {items.map(item =>
+        item.href !== undefined ? (
+          <a
+            key={item.id}
+            href={item.href}
+            aria-current={item.id === value ? 'page' : undefined}
+            className={`ui-tab${item.id === value ? ' is-selected' : ''}`}
+            onClick={event => onNavigate?.(event, item)}
+          >
+            {item.icon && (
+              <span className="ui-tab-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+            )}
+            <span className="ui-tab-label">{item.label}</span>
+            {item.badge !== undefined && <span className="ui-tab-badge">{item.badge}</span>}
+          </a>
+        ) : (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            id={`tab-${item.id}`}
+            aria-selected={item.id === value}
+            aria-controls={panelId?.(item.id)}
+            tabIndex={item.id === value ? 0 : -1}
+            disabled={item.disabled}
+            className={`ui-tab${item.id === value ? ' is-selected' : ''}`}
+            onClick={() => onChange(item.id)}
+            onKeyDown={event => {
+              if (event.key === 'ArrowRight') move(value, 1);
+              else if (event.key === 'ArrowLeft') move(value, -1);
+              else return;
+              event.preventDefault();
+            }}
+          >
+            {item.icon && (
+              <span className="ui-tab-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+            )}
+            <span className="ui-tab-label">{item.label}</span>
+            {item.badge !== undefined && <span className="ui-tab-badge">{item.badge}</span>}
+          </button>
+        )
+      )}
+    </Strip>
   );
 }
 

@@ -10,8 +10,7 @@ import {
   supportGoalTitle
 } from '../support/goals';
 import { Modal } from './Modal';
-import { Button } from './ui';
-import { fillRatio } from './ui/index';
+import { Badge, Button, Card, FormField, Progress, Textarea, uiClasses } from './ui/index';
 
 /** Header trigger that opens the "Support the project" dialog. */
 export function SupportButton() {
@@ -56,14 +55,26 @@ export function SupportButton() {
         </span>
         {goal && progress && (
           <>
-            <strong className="support-trigger-amount" aria-hidden="true">
+            <Badge
+              variant="outline"
+              color={progress.complete ? 'success' : 'neutral'}
+              size="xs"
+              className="support-trigger-amount"
+              aria-hidden="true"
+            >
               {raised}
               <span>/</span>
               {target}
-            </strong>
-            <span className="support-trigger-progress" aria-hidden="true">
-              <i style={fillRatio(progress.visualPercent)} />
-            </span>
+            </Badge>
+            {/* The button's own label already reads "raised X of Y", so the bar
+                under it is the same fact drawn rather than said. */}
+            <Progress
+              decorative
+              value={progress.visualPercent}
+              color={progress.complete ? 'success' : 'primary'}
+              size="xs"
+              className="support-trigger-progress"
+            />
           </>
         )}
       </button>
@@ -86,6 +97,7 @@ export function SupportDialog({
   const { t } = useI18n();
   const { goal } = useSupportGoal();
   const titleId = useId();
+  const messageId = useId();
   const [message, setMessage] = useState('');
   const [error, setError] = useState(false);
   const isTechnicalSupport = mode === 'technical';
@@ -129,7 +141,14 @@ export function SupportDialog({
             <div className="support-donate">
               {monobankUrl && (
                 <a
-                  className="button button-primary support-monobank"
+                  /* A link, not a button: it leaves the product. It wears the
+                     inventory's solid primary so it reads as the same control. */
+                  className={uiClasses('button', {
+                    color: 'primary',
+                    variant: 'solid',
+                    size: 'md',
+                    className: 'support-monobank'
+                  })}
                   href={monobankUrl}
                   target="_blank"
                   rel="noreferrer"
@@ -171,11 +190,16 @@ export function SupportDialog({
         </p>
         {supportEmail ? (
           <div className="support-form">
-            <label className="support-field">
-              <span>{t('supportMessageLabel')}</span>
-              <textarea
+            <FormField
+              label={t('supportMessageLabel')}
+              htmlFor={messageId}
+              error={error ? t('supportMessageRequired') : undefined}
+            >
+              <Textarea
+                id={messageId}
                 value={message}
                 rows={4}
+                invalid={error}
                 placeholder={t(
                   isTechnicalSupport
                     ? 'technicalSupportMessagePlaceholder'
@@ -186,9 +210,8 @@ export function SupportDialog({
                   if (error) setError(false);
                 }}
               />
-            </label>
-            {error && <span className="support-error">{t('supportMessageRequired')}</span>}
-            <Button variant="primary" onClick={send}>
+            </FormField>
+            <Button color="primary" variant="solid" onClick={send}>
               {t('supportSend')}
             </Button>
           </div>
@@ -211,9 +234,11 @@ function SupportGoalCard() {
   const progressText = t('supportGoalRaisedOf', { raised, target });
 
   return (
-    <section className={`support-goal-card${progress.complete ? ' is-complete' : ''}`}>
+    <Card as="section" className={`support-goal-card${progress.complete ? ' is-complete' : ''}`}>
       <div className="support-goal-heading">
-        <span>{t('supportGoalEyebrow')}</span>
+        <Badge color={progress.complete ? 'success' : 'primary'} variant="soft" size="xs">
+          {t('supportGoalEyebrow')}
+        </Badge>
         <strong>{t('supportGoalTarget', { amount: target })}</strong>
       </div>
       <h3>{supportGoalTitle(goal, language)}</h3>
@@ -235,21 +260,15 @@ function SupportGoalCard() {
           </span>
         </div>
       </div>
-      <div
-        className="support-goal-progress"
-        role="progressbar"
-        aria-label={t('supportGoalProgressLabel')}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={progress.displayPercent}
-        aria-valuetext={progressText}
-      >
-        <span style={fillRatio(progress.visualPercent)}>
-          <i />
-        </span>
-      </div>
+      <Progress
+        value={progress.visualPercent}
+        color={progress.complete ? 'success' : 'primary'}
+        size="sm"
+        label={t('supportGoalProgressLabel')}
+        valueText={progressText}
+      />
       <small className="support-goal-note">{t('supportGoalManualNote')}</small>
-    </section>
+    </Card>
   );
 }
 
@@ -306,9 +325,9 @@ function CryptoRow({ network, address }: { network: string; address: string }) {
           <strong>{network}</strong>
           <code>{address}</code>
         </div>
-        <button type="button" className="support-copy" onClick={() => void copy()}>
+        <Button variant="outline" size="sm" className="support-copy" onClick={() => void copy()}>
           {copied ? t('supportCopied') : t('supportCopy')}
-        </button>
+        </Button>
       </div>
       {qr && (
         <figure className="support-qr">

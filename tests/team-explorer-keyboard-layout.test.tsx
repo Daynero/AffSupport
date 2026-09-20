@@ -128,6 +128,61 @@ describe('explorer keyboard', () => {
   });
 });
 
+describe('showing a file in its folder', () => {
+  it('selects and scrolls to the file the address names', async () => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    render(
+      <ToastProvider>
+        <TeamProvider realtime={false} initialTeams={[TEAM]}>
+          <ExplorerShell
+            teamId={TEAM.id}
+            client={makeClient([row(1), row(2), row(3)])}
+            query={{ ...emptyTeamRouteQuery(), view: 'list', itemId: 'id-3' }}
+            onQueryChange={vi.fn()}
+            onFolderChange={vi.fn()}
+            onSearched={vi.fn()}
+            onPreview={vi.fn()}
+          />
+        </TeamProvider>
+      </ToastProvider>
+    );
+    await waitFor(() =>
+      expect(document.querySelector('.team-explorer-row.is-selected')?.textContent).toContain(
+        'file-3.png'
+      )
+    );
+    await waitFor(() => expect(scrolled).toHaveBeenCalled());
+  });
+
+  it('opens the root when the named folder is not in the tree', async () => {
+    const onQueryChange = vi.fn();
+    render(
+      <ToastProvider>
+        <TeamProvider realtime={false} initialTeams={[TEAM]}>
+          <ExplorerShell
+            teamId={TEAM.id}
+            client={makeClient([row(1)])}
+            query={{
+              ...emptyTeamRouteQuery(),
+              view: 'list',
+              folderId: 'root-drive-id',
+              itemId: 'id-1'
+            }}
+            onQueryChange={onQueryChange}
+            onFolderChange={vi.fn()}
+            onSearched={vi.fn()}
+            onPreview={vi.fn()}
+          />
+        </TeamProvider>
+      </ToastProvider>
+    );
+    await waitFor(() =>
+      expect(onQueryChange).toHaveBeenCalledWith({ folderId: null, itemId: 'id-1' })
+    );
+  });
+});
+
 describe('explorer narrow layout', () => {
   it('keeps the tree behind a toggle instead of dropping it', async () => {
     const user = userEvent.setup();

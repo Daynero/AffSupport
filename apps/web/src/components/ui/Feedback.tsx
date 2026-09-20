@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type HTMLAttributes,
-  type ReactNode
-} from 'react';
+import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
 import { uiClasses, type UiColor, type UiSize } from './types';
 
 /**
@@ -18,6 +12,13 @@ import { uiClasses, type UiColor, type UiSize } from './types';
 export interface EmptyProps {
   icon?: ReactNode;
   title: ReactNode;
+  /**
+   * What the title is, in the document's outline. A state inside a panel is a
+   * strong line; a state that *is* the screen — an unavailable space reached
+   * from a shared link — is that screen's heading, and a reader navigating by
+   * headings needs to find it.
+   */
+  titleAs?: 'strong' | 'h1' | 'h2' | 'h3';
   /** One sentence. If it needs two, the first one is not doing its job. */
   description?: ReactNode;
   /** The control that fills the emptiness, where one exists (FR-021). */
@@ -26,7 +27,15 @@ export interface EmptyProps {
   className?: string;
 }
 
-export function Empty({ icon, title, description, action, size = 'md', className }: EmptyProps) {
+export function Empty({
+  icon,
+  title,
+  titleAs: Title = 'strong',
+  description,
+  action,
+  size = 'md',
+  className
+}: EmptyProps) {
   return (
     <div className={uiClasses('empty', { size, className })} role="status">
       {icon && (
@@ -34,7 +43,7 @@ export function Empty({ icon, title, description, action, size = 'md', className
           {icon}
         </span>
       )}
-      <strong className="ui-empty-title">{title}</strong>
+      <Title className="ui-empty-title">{title}</Title>
       {description && <p className="ui-empty-description prose">{description}</p>}
       {action && <div className="ui-empty-action">{action}</div>}
     </div>
@@ -77,6 +86,18 @@ export interface ProgressProps {
   color?: UiColor;
   size?: Extract<UiSize, 'xs' | 'sm' | 'md'>;
   label?: string;
+  /**
+   * What the percentage *means*, said in words: "£120 raised of £400".
+   * A screen reader announces this instead of "37%", which is the difference
+   * between a number and an answer.
+   */
+  valueText?: string;
+  /**
+   * The bar is decoration and something else already says the number — a
+   * button whose own label reads "raised £120 of £400". A second progressbar
+   * inside that button would announce the same fact twice.
+   */
+  decorative?: boolean;
   /** A ring instead of a bar — the TOTP countdown, a small inline job. */
   circular?: boolean;
   className?: string;
@@ -87,6 +108,8 @@ export function Progress({
   color = 'primary',
   size = 'md',
   label,
+  valueText,
+  decorative = false,
   circular = false,
   className
 }: ProgressProps) {
@@ -100,14 +123,14 @@ export function Progress({
         states: { indeterminate },
         className
       })}
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={indeterminate ? undefined : Math.round(clamped)}
-      style={
-        indeterminate ? undefined : ({ '--ui-progress-ratio': clamped / 100 } as never)
-      }
+      role={decorative ? undefined : 'progressbar'}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : label}
+      aria-valuemin={decorative ? undefined : 0}
+      aria-valuemax={decorative ? undefined : 100}
+      aria-valuenow={decorative || indeterminate ? undefined : Math.round(clamped)}
+      aria-valuetext={decorative ? undefined : valueText}
+      style={indeterminate ? undefined : ({ '--ui-progress-ratio': clamped / 100 } as never)}
     >
       <span className="ui-progress-fill" aria-hidden="true" />
     </div>

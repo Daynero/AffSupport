@@ -197,7 +197,11 @@ export function InvitationPanel({
           </Button>
         </form>
       )}
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       {success && (
         <p className="team-inline-success" role="status">
           {success}

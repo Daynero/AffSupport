@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
+import { Alert } from './ui/index';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -358,9 +359,9 @@ export function ImageEmbeddingSection({
           </div>
 
           {!settings.startImages.length && !settings.endImages.length && (
-            <p className="embedding-empty-warning" role="alert">
+            <Alert className="embedding-empty-warning" color="warning" variant="soft" live="alert">
               {t('embeddingNeedsImage')}
-            </p>
+            </Alert>
           )}
         </div>
       </Collapse>

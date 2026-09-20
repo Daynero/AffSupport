@@ -1,3 +1,17 @@
+/*
+ * A registered custom property, declared here because this is the only file
+ * allowed to write a literal — and `@property` requires one. `initial-value`
+ * must be computationally independent, so a `var()` there is invalid CSS: the
+ * browser drops the registration silently and the production minifier refuses
+ * the whole stylesheet. It is the power lever's colour, animated as a colour
+ * rather than swapped as a class, which is what registering it buys.
+ */
+@property --power-level-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #7c59e0;
+}
+
 /* ============================================================
    The token layer (021)
 
@@ -122,6 +136,10 @@
   --action-download-text: var(--teal-700);
   --action-copy: var(--violet-500);
   --action-copy-text: var(--violet-600);
+
+  /* The wash over the part of a line that answered a search. Honey at a share
+     that stays readable under the row's own text in both themes. */
+  --color-highlight: color-mix(in srgb, var(--color-primary-solid) 40%, transparent);
 
   /* ---- Team tag palette (012) ---------------------------------------------
      Seven hues a person picks by hand. Like the task tags, they are labels,
@@ -328,7 +346,12 @@
   --motion-spin: 700ms;
   --motion-spin-reduced: 1200ms;
 
-  /* ---- Layers -------------------------------------------------------------- */
+  /* ---- Layers -------------------------------------------------------------
+     One ladder, in the order things actually sit. Two rules decide the top of
+     it: a full-bleed viewer opens over a dialog (a preview raised from one
+     used to render underneath it), and a toast stays reachable above whatever
+     raised it — including that viewer, which is where an Undo has to be
+     pressable from. */
   --layer-beneath: -1;
   --layer-base: 0;
   --layer-raised: 1;
@@ -341,9 +364,9 @@
   --layer-modal: 60;
   --layer-modal-nested: 70;
   --layer-preview: 80;
-  --layer-tooltip: 90;
-  --layer-toast: 100;
-  --layer-fullbleed: 110;
+  --layer-fullbleed: 90;
+  --layer-tooltip: 100;
+  --layer-toast: 110;
   --layer-top: 120;
 
   /* ---- Control geometry ---------------------------------------------------
@@ -503,6 +526,13 @@
 
   /* Accent — violet — is the secondary role: identity, navigation, selection */
   --color-accent: var(--color-secondary-solid);
+  /*
+   * The accent as *text*, which is a different shade from the accent as a
+   * fill. The contrast sweep found three screens using the solid for a label
+   * sitting on a soft accent wash — 4.26:1 in dark, just under AA — because
+   * `--color-accent` was the only accent name a rule could reach for.
+   */
+  --color-accent-text: var(--color-secondary-text);
   --color-accent-hover: var(--color-secondary-hover);
   --color-accent-active: var(--color-secondary-active);
   --color-accent-soft: var(--color-secondary-soft);

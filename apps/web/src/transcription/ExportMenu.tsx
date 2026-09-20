@@ -180,6 +180,7 @@ export function ExportMenu({
         placement="bottom-end"
         frequent
         label={t('transcriptionExportOptions')}
+        surface="none"
         className={`transcription-export-popover${portal ? ' is-portal' : ''}`}
       >
         {grid}

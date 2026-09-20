@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { freshnessStub } from './support/catalog-stub.js';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -138,6 +138,21 @@ describe('team catalog search UI', () => {
         expect.objectContaining({ geo: 'UA' })
       )
     );
+  });
+
+  it('takes a search result to the folder it lives in', async () => {
+    const api = client();
+    const onReveal = vi.fn();
+    render(
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <ToastProvider>
+          <TeamCatalog teamId={TEAM_ID} client={api} onReveal={onReveal} />
+        </ToastProvider>
+      </TeamProvider>
+    );
+    expect(await screen.findByText('launch.mp4')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show launch.mp4 in its folder' }));
+    expect(onReveal).toHaveBeenCalledWith(expect.objectContaining({ id: 'visible-material' }));
   });
 
   it('uses readable material labels instead of raw Drive MIME values', async () => {

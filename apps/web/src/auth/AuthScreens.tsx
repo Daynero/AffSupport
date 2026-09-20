@@ -10,6 +10,7 @@ import {
   sessionHandoffOrigin,
   takeDeliveredSession
 } from './session-handoff';
+import { forgetGoogleSignIn } from './google-sign-in';
 import { internalLink, navigateTo } from '../lib/navigation';
 import { useI18n } from '../i18n';
 import { Card } from '../components/Card';
@@ -177,13 +178,15 @@ export function AuthCallbackPage() {
     const code = params.get('code');
     if (providerError || !code) {
       clearReturnPath();
+      forgetGoogleSignIn();
       navigateTo(
         `/login?error=${providerError === 'access_denied' ? 'access_denied' : 'callback'}`,
         true
       );
       return;
     }
-    void exchangeOAuthCodeOnce(code, completeOAuthCallback)
+    const state = params.get('state');
+    void exchangeOAuthCodeOnce(code, value => completeOAuthCallback(value, state))
       .then(() => navigateTo(takeReturnPath(), true))
       .catch(() => {
         clearReturnPath();
@@ -302,11 +305,7 @@ export function BlockedAccountScreen({ deleted = false }: { deleted?: boolean })
         title={t(deleted ? 'deletedAccountTitle' : 'blockedAccountTitle')}
         description={t(deleted ? 'deletedAccountBody' : 'blockedAccountBody')}
         action={
-          <Button
-            color="primary"
-            loading={status === 'signing-out'}
-            onClick={() => void signOut()}
-          >
+          <Button color="primary" loading={status === 'signing-out'} onClick={() => void signOut()}>
             {t('signOut')}
           </Button>
         }

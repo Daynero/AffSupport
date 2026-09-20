@@ -114,7 +114,11 @@ export function MemberList({
           </dl>
         </details>
       )}
-      {error && <p className="team-inline-error">{error}</p>}
+      {error && (
+        <p className="team-inline-error" role="alert">
+          {error}
+        </p>
+      )}
       {client && teamId && (
         <ul className="team-member-list">
           {members.map(member => {

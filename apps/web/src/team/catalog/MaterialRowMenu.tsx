@@ -48,6 +48,8 @@ export interface MaterialRowMenuProps {
    * the entry does; it tells the member whether to expect seconds or a wait.
    */
   restitchPrepared?: boolean;
+  /** 022 — the video's product catalog: open it, or make one. Videos only. */
+  onProductCatalog?: () => void;
 }
 
 /**
@@ -82,6 +84,7 @@ export function MaterialRowMenu(props: MaterialRowMenuProps) {
         placement="bottom-end"
         frequent
         label={t('teamRowMenuOpen', { name: props.material.name })}
+        surface="none"
         className="team-row-menu-popover"
       >
         <MaterialRowMenuContent {...props} onDone={() => setOpen(false)} />
@@ -111,6 +114,7 @@ function MaterialRowMenuContent({
   folderUploadLabel,
   onDownloadRestitched,
   restitchPrepared = false,
+  onProductCatalog,
   onDone
 }: MaterialRowMenuProps & {
   onDone: () => void;
@@ -249,6 +253,18 @@ function MaterialRowMenuContent({
           {isFolder && permissions.process && onProcessFolder && (
             <Button type="button" variant="ghost" onClick={onProcessFolder}>
               {t('teamFolderProcess')}
+            </Button>
+          )}
+          {!isFolder && material.category === 'video' && onProductCatalog && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                onDone();
+                onProductCatalog();
+              }}
+            >
+              {t('productCatalogMenuEntry')}
             </Button>
           )}
           {!isFolder && permissions.edit && onRegeneratePreview && (

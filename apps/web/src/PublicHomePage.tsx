@@ -37,7 +37,7 @@ export default function PublicHomePage() {
             <p className="public-eyebrow">{t('publicHomeEyebrow')}</p>
           </div>
           <h1 id="public-home-title">{t('publicHomeTitle')}</h1>
-          <p className="public-hero-copy">{t('publicHomeDescription')}</p>
+          <p className="public-hero-copy prose">{t('publicHomeDescription')}</p>
           <div className="public-home-actions">
             <a
               className="button button-primary"
@@ -47,6 +47,16 @@ export default function PublicHomePage() {
               {t('publicHomeSignIn')}
             </a>
           </div>
+          {/* Google's verification reads the homepage for why Soty asks for Drive. */}
+          <p className="public-drive-note">
+            {t('publicHomeDriveNote')}{' '}
+            <a
+              href="/privacy#google-drive"
+              onClick={event => internalLink(event, '/privacy#google-drive')}
+            >
+              {t('googleDataUseLink')}
+            </a>
+          </p>
         </section>
       </main>
 

@@ -30,7 +30,14 @@ verify_jwt = true
 [functions.drive-oauth-callback]
 verify_jwt = false
 
+# Called before anyone is signed in: it is the sign-in.
+[functions.google-sign-in]
+verify_jwt = false
+
 [functions.catalog-sync]
+verify_jwt = false
+
+[functions.catalog-updater]
 verify_jwt = false
 
 [functions.drive-transfer]
