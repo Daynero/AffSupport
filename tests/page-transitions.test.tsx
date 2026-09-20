@@ -114,13 +114,13 @@ describe('persistent shell', () => {
     const { rerender } = render(<ProtectedSoty path="/" />);
     const header = document.querySelector('header.topbar');
     expect(header).not.toBeNull();
-    expect(screen.getByRole('heading', { name: 'Tools' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Spaces' })).toBeTruthy();
 
     rerender(<ProtectedSoty path="/compressor" />);
     // Tool pages are loaded on demand now, so the page arrives a tick after the
     // shell around it.
     expect(await screen.findByTestId('compressor-page')).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: 'Tools' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Spaces' })).toBeNull();
     expect(document.querySelector('header.topbar')).toBe(header);
 
     rerender(<ProtectedSoty path="/account" />);

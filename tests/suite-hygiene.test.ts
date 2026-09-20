@@ -24,6 +24,8 @@ function read(name: string): string {
  * before asserting nothing else happened.
  */
 const SLEEP_IS_THE_POINT: Record<string, string> = {
+  'catalog-sync.test.ts': 'a staggered delay that is the ordering assertion',
+  'task-filter-follows-edits.test.tsx': 'a debounce window that is the assertion',
   'compressor-activity.test.ts':
     'a stub encoder that has to hold the activity long enough to observe',
   'landing-preview-catalog.test.ts': 'a stub renderer whose overlap is the assertion',
