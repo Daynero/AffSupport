@@ -1264,7 +1264,10 @@ function localizedError(value: unknown, t: Translate) {
     DISK_FULL: 'errorDiskFull',
     PERMISSION_DENIED: 'errorPermissionDenied',
     PATH_NOT_GRANTED: 'errorPathNotGranted',
-    TOOL_UNAVAILABLE: 'errorToolUnavailable',
+    TOOL_UNAVAILABLE: 'engineUnavailable',
+    MEDIA_TOOL_UNAVAILABLE: 'engineUnavailable',
+    NATIVE_PICKER_UNAVAILABLE: 'nativePickerUnavailable',
+    NATIVE_PICKER_TIMEOUT: 'nativePickerTimeout',
     OPERATION_FAILED: 'genericError'
   };
   return t(map[raw] ?? 'genericError');

@@ -52,7 +52,13 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
     if (!hasCapability('native-file-picker')) {
       return reply.code(501).send({ error: 'NATIVE_FILE_PICKER_UNSUPPORTED' });
     }
-    const paths = await selectVideos();
+    let paths: string[];
+    try {
+      paths = await selectVideos();
+    } catch (error) {
+      const code = failureCode(error);
+      return reply.code(code === 'NATIVE_PICKER_TIMEOUT' ? 504 : 503).send({ error: code });
+    }
     const warnings = await queue.add(paths);
     for (const warning of warnings) {
       const selected = paths.find(value => path.basename(value) === warning.fileName);
@@ -158,7 +164,8 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
     } catch (error) {
       if (asset) await queue.releaseImageIfUnused(asset);
       const code = error instanceof ImageAssetError ? error.code : 'IMAGE_IMPORT_FAILED';
-      return reply.code(code === 'IMAGE_TOO_LARGE' ? 413 : 400).send({ error: code });
+      const status = code === 'IMAGE_TOO_LARGE' ? 413 : code === 'TOOL_UNAVAILABLE' ? 503 : 400;
+      return reply.code(status).send({ error: code });
     }
   });
 

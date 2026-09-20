@@ -308,6 +308,14 @@
   text-decoration: none;
 }
 
+/* The title is an anchor inside the heading. `inherit` makes it follow the
+   heading visually, but inherited colour changes cannot be interpolated by a
+   CSS transition on the link, so the name snaps while the caption fades. Give
+   the link its own theme colour so the global theme transition can animate it. */
+.home-tile-title .home-tile-link {
+  color: var(--color-neutral-text);
+}
+
 .home-tile-link:focus-visible {
   outline: none;
 }

@@ -62,6 +62,7 @@ export function JobRow({
   fresh?: boolean;
 }) {
   const running = job.status === 'processing' || job.status === 'queued';
+  const analysisBlocked = job.status === 'analyzing' && job.error === 'MEDIA_TOOLS_UNAVAILABLE_JOB';
   return (
     <article
       className={`job-row ${selected ? 'is-selected' : ''} ${
@@ -102,7 +103,7 @@ export function JobRow({
           <div className="job-title-block">
             <div className="job-title-line">
               <h3 data-tip={job.fileName}>{job.fileName}</h3>
-              <StatusBadge status={job.status} t={t} />
+              <StatusBadge status={analysisBlocked ? 'failed' : job.status} t={t} />
             </div>
             <JobTimer job={job} t={t} showRunning={false} live={connected} />
           </div>
@@ -295,7 +296,9 @@ function OriginalPanel({
 }) {
   return (
     <section className="media-panel original-panel" aria-label={t('originalVideoInfo')}>
-      {job.status === 'analyzing' ? (
+      {job.status === 'analyzing' && job.error === 'MEDIA_TOOLS_UNAVAILABLE_JOB' ? (
+        <div className="panel-loading ui-color-error">{t('errorToolUnavailable')}</div>
+      ) : job.status === 'analyzing' ? (
         <div className="panel-loading">
           <Spinner small /> {t('statusAnalyzing')}
         </div>
@@ -625,16 +628,17 @@ function JobActions({
           {t(priority === 'cancel' ? 'cancelPriorityEstimate' : 'prioritizeEstimate')}
         </Button>
       )}
-      {!stoppable(job) && job.status !== 'analyzing' && (
-        <Button
-          variant="danger"
-          disabled={disabled}
-          onClick={() => action(`/api/jobs/${job.id}`, 'DELETE')}
-        >
-          <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
-          {t('remove')}
-        </Button>
-      )}
+      {!stoppable(job) &&
+        (job.status !== 'analyzing' || job.error === 'MEDIA_TOOLS_UNAVAILABLE_JOB') && (
+          <Button
+            variant="danger"
+            disabled={disabled}
+            onClick={() => action(`/api/jobs/${job.id}`, 'DELETE')}
+          >
+            <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
+            {t('remove')}
+          </Button>
+        )}
     </div>
   );
 }

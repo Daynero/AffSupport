@@ -16,6 +16,13 @@ internal sealed record AgentHealth
   [JsonPropertyName("apiVersion")] public int? ApiVersion { get; init; }
   [JsonPropertyName("sourceRevision")] public string? SourceRevision { get; init; }
   [JsonPropertyName("busy")] public bool? Busy { get; init; }
+  [JsonPropertyName("tools")] public AgentTools? Tools { get; init; }
+}
+
+internal sealed record AgentTools
+{
+  [JsonPropertyName("ffmpeg")] public bool Ffmpeg { get; init; }
+  [JsonPropertyName("ffprobe")] public bool Ffprobe { get; init; }
 }
 
 internal sealed record InstalledRelease

@@ -4,8 +4,13 @@ import { Readable } from 'node:stream';
 import os from 'node:os';
 import path from 'node:path';
 
-const probeImage = vi.hoisted(() => vi.fn());
-vi.mock('../apps/agent/src/ffmpeg/tools.js', () => ({ probeImage }));
+const { probeImage, isMediaToolUnavailableError } = vi.hoisted(() => ({
+  probeImage: vi.fn(),
+  isMediaToolUnavailableError: vi.fn(
+    error => error instanceof Error && error.message === 'FFPROBE_UNAVAILABLE'
+  )
+}));
+vi.mock('../apps/agent/src/ffmpeg/tools.js', () => ({ probeImage, isMediaToolUnavailableError }));
 
 import {
   ImageAssetError,
@@ -22,6 +27,7 @@ afterEach(async () => {
 
 beforeEach(() => {
   probeImage.mockReset();
+  isMediaToolUnavailableError.mockClear();
 });
 
 describe('managed image asset storage', () => {
@@ -69,5 +75,15 @@ describe('managed image asset storage', () => {
     ).toThrowError(ImageAssetError);
     expect(isSupportedImageFile('photo.webp', 'image/webp')).toBe(true);
     expect(isSupportedImageFile('photo.jpg', 'image/png')).toBe(false);
+  });
+
+  it('reports a blocked media tool instead of blaming the image', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'image store blocked tool '));
+    probeImage.mockRejectedValueOnce(new Error('FFPROBE_UNAVAILABLE'));
+    const store = new ImageAssetStore(directory);
+
+    await expect(
+      store.import(Readable.from('png bytes'), 'opening.png', 'image/png')
+    ).rejects.toMatchObject({ code: 'TOOL_UNAVAILABLE' });
   });
 });

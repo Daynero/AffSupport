@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
 import path from 'node:path';
 import type { ImageAsset, ImageMimeType } from '@video-compressor/shared';
-import { probeImage } from '../ffmpeg/tools.js';
+import { isMediaToolUnavailableError, probeImage } from '../ffmpeg/tools.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 
 const formats = {
@@ -74,6 +74,9 @@ export class ImageAssetStore {
       await unlink(destination).catch(() => {});
       if (stream.truncated) throw new ImageAssetError('IMAGE_TOO_LARGE');
       if (error instanceof ImageAssetError) throw error;
+      // A blocked or quarantined FFprobe is not a bad picture. Preserve the
+      // actionable cause so the interface can tell the person what to repair.
+      if (isMediaToolUnavailableError(error)) throw new ImageAssetError('TOOL_UNAVAILABLE');
       throw new ImageAssetError('IMAGE_IMPORT_FAILED');
     }
   }

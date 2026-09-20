@@ -633,6 +633,10 @@ const en = {
   errorPermissionDenied: 'Soty is not allowed to read that file.',
   errorPathNotGranted: 'Add that file through the picker or by dropping it in.',
   errorToolUnavailable: 'A media tool is unavailable right now.',
+  nativePickerUnavailable:
+    'The system file picker could not open. Check whether security software or your work policy blocked PowerShell, then try again.',
+  nativePickerTimeout:
+    'The system file picker did not open. Check the taskbar for a hidden window, then try again.',
   pageTitleHome: 'Soty — your media buying assistant',
   pageTitleCompressor: 'Video Compressor — Soty',
   pageTitleLanding: 'Landing Optimizer — Soty',
@@ -755,7 +759,8 @@ const en = {
   summaryOriginal: 'Original size',
   summaryResult: 'Final size',
   summarySaved: 'Space saved',
-  engineUnavailable: 'Soty’s media engine became unavailable. Soty is restarting safely.',
+  engineUnavailable:
+    'Soty’s media engine is unavailable. Check whether security software blocked Soty, allow it, then restart Soty.',
   genericError: 'Something went wrong.',
   pairingRequired: 'Open Soty to reconnect securely.',
   connectionFailed: 'Could not reach Soty.',
@@ -3504,6 +3509,10 @@ const uk: Record<keyof typeof en, string> = {
   errorPermissionDenied: 'Soty не має доступу до цього файлу.',
   errorPathNotGranted: 'Додайте файл через вибір або перетягніть його.',
   errorToolUnavailable: 'Медіаінструмент зараз недоступний.',
+  nativePickerUnavailable:
+    'Не вдалося відкрити системний вибір файлів. Перевірте, чи антивірус або робоча політика не заблокували PowerShell, і спробуйте ще раз.',
+  nativePickerTimeout:
+    'Системний вибір файлів не відкрився. Перевірте приховане вікно на панелі завдань і спробуйте ще раз.',
   pageTitleHome: 'Soty — Твій помічник у медіабаїнгу',
   pageTitleCompressor: 'Стиснення відео — Soty',
   pageTitleLanding: 'Оптимізація лендінгів — Soty',
@@ -3628,7 +3637,8 @@ const uk: Record<keyof typeof en, string> = {
   summaryOriginal: 'Початковий розмір',
   summaryResult: 'Кінцевий розмір',
   summarySaved: 'Заощаджено місця',
-  engineUnavailable: 'Медіарушій Soty став недоступним. Soty безпечно перезапускається.',
+  engineUnavailable:
+    'Медіарушій Soty недоступний. Перевірте, чи захист системи або антивірус не заблокував Soty, дозвольте його та перезапустіть Soty.',
   genericError: 'Щось пішло не так.',
   pairingRequired: 'Відкрийте Soty для безпечного підключення.',
   connectionFailed: 'Не вдалося підключитися до Soty.',

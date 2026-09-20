@@ -27,6 +27,11 @@ const VIDEO_EXTENSIONS = [
   '.m2ts'
 ];
 
+// A native dialog may legitimately stay open while someone browses. Two minutes
+// still bounds the request when Windows starts PowerShell without ever showing
+// the dialog (policy, security software, or a broken interactive desktop).
+const WINDOWS_PICKER_TIMEOUT_MS = 120_000;
+
 export async function selectVideos(): Promise<string[]> {
   if (process.platform === 'win32') {
     return runWindowsPicker(
@@ -186,11 +191,29 @@ function grantChosen(paths: readonly string[], access: GrantAccess = 'read'): st
 
 function runWindowsPicker(script: string, failure: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-STA', '-Command', script],
-      { shell: false, windowsHide: true }
-    );
+    let child;
+    try {
+      child = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-STA', '-Command', script],
+        { shell: false, windowsHide: true }
+      );
+    } catch {
+      reject(new Error('NATIVE_PICKER_UNAVAILABLE'));
+      return;
+    }
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      callback();
+    };
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(() => reject(new Error('NATIVE_PICKER_TIMEOUT')));
+    }, WINDOWS_PICKER_TIMEOUT_MS);
+    timer.unref();
     let out = '',
       err = '';
     child.stdout.on('data', d => {
@@ -199,18 +222,20 @@ function runWindowsPicker(script: string, failure: string): Promise<string[]> {
     child.stderr.on('data', d => {
       err += d;
     });
-    child.on('error', reject);
+    child.on('error', () => finish(() => reject(new Error('NATIVE_PICKER_UNAVAILABLE'))));
     child.on('close', code => {
-      if (code === 0) {
-        resolve(
-          grantChosen(
-            out
-              .split(/\r?\n/u)
-              .map(value => value.trim())
-              .filter(Boolean)
-          )
-        );
-      } else reject(new Error(err.trim() ? `${failure} (${err.trim()})` : failure));
+      finish(() => {
+        if (code === 0) {
+          resolve(
+            grantChosen(
+              out
+                .split(/\r?\n/u)
+                .map(value => value.trim())
+                .filter(Boolean)
+            )
+          );
+        } else reject(new Error('NATIVE_PICKER_UNAVAILABLE', { cause: err.trim() || failure }));
+      });
     });
   });
 }

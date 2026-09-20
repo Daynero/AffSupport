@@ -416,6 +416,24 @@ internal sealed class TrayApplication : ApplicationContext
       agentReady = true;
       notifyIcon.Text = $"{HostConfig.ApplicationName} — ready";
     }
+    else if (
+      health is not null
+      && AgentHealthClient.MatchesExpectedBuild(health)
+      && health.Tools is { } tools
+      && (!tools.Ffmpeg || !tools.Ffprobe)
+    )
+    {
+      readinessTimer.Stop();
+      var blocked = new List<string>();
+      if (!tools.Ffmpeg) blocked.Add("ffmpeg.exe");
+      if (!tools.Ffprobe) blocked.Add("ffprobe.exe");
+      ShowFailure(
+        "Windows blocked Soty's media engine.",
+        $"Blocked: {string.Join(", ", blocked)}.\n\n"
+          + "Open Windows Security → Protection history and allow the blocked Soty files, "
+          + "or ask your administrator to allow the Soty installation folder. Then start Soty again."
+      );
+    }
     else if (health is not null && !AgentHealthClient.MatchesExpectedBuild(health))
     {
       readinessTimer.Stop();

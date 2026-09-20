@@ -70,6 +70,20 @@ describe('PE inspection', () => {
 describe('required stage layout', () => {
   const stagerSource = readFileSync('scripts/stage-windows-runtime.mjs', 'utf8');
   const workflow = readFileSync('.github/workflows/release-windows.yml', 'utf8');
+  const healthClient = readFileSync('packaging/windows/SotyAgentHost/AgentHealthClient.cs', 'utf8');
+  const trayApplication = readFileSync(
+    'packaging/windows/SotyAgentHost/TrayApplication.cs',
+    'utf8'
+  );
+
+  it('turns a blocked media binary into an actionable Windows error', () => {
+    expect(healthClient).toContain('[JsonPropertyName("tools")]');
+    expect(healthClient).toContain('[JsonPropertyName("ffmpeg")]');
+    expect(healthClient).toContain('[JsonPropertyName("ffprobe")]');
+    expect(trayApplication).toContain("Windows blocked Soty's media engine.");
+    expect(trayApplication).toContain('Windows Security → Protection history');
+    expect(trayApplication).toContain('allow the Soty installation folder');
+  });
 
   it('installs the media tools used by the Ubuntu validation suite', () => {
     const validateJob = workflow.slice(workflow.indexOf('validate:'), workflow.indexOf('  build:'));
