@@ -1,3 +1,8 @@
+# v1.2.0
+
+- Improve overall stability and reliability.
+- Fix known issues reported in previous versions.
+
 # v1.1.1
 
 **Team workspace**

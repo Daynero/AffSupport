@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.1.1",
-  "buildNumber": "64",
-  "buildId": "1.1.1+64",
+  "version": "1.2.0",
+  "buildNumber": "65",
+  "buildId": "1.2.0+65",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-09-13T16:28:18.000Z",
+  "publishedAt": "2026-09-20T00:00:00.000Z",
   "summary": {
-    "en": "Team workspace keeps what you were doing: dragged progress, tag and date edits, and a Drive authorization that returns where it started. The download page offers the installer your machine can run.",
-    "uk": "Team workspace більше не втрачає зроблене: перетягнутий прогрес, теги й дати, а авторизація Drive повертає туди, звідки почалась. Сторінка завантаження пропонує той інсталятор, який ваша машина запустить."
+    "en": "Improved stability and reliability, with fixes for known issues.",
+    "uk": "Покращено стабільність і надійність, виправлено відомі проблеми."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.1.1/Soty-v1.1.1-macOS-arm64.dmg",
-      "sha256": "1c8415b4b42b0c5ec48cd7d4b51c5365659ccc874c391c66794709c6482be326"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.0/Soty-v1.2.0-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.1.1/Soty-v1.1.1-Windows-x64.exe",
-      "sha256": "0b01509095fec85fd54b6becd5b2bbe5a550c4ab1621cac2a712145ce226c6f2"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.0/Soty-v1.2.0-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -43,5 +43,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "PCPWytktmsgAx26vGe2BqBY4sxhXW2B87t1TYYR6K7QkvRDbITGyW54fvIdUJDKDsbqZpdez-MzBn9KagvxQ5Q"
+  "signature": "4-BRbfk5GF35mu4ZrO_DlSHJEZLXcCM96l0Ou7E1yGC_EkLro4OieUi-eryxYZRLV_PCtuifnxfXE2Wl5PkxuA"
 }
