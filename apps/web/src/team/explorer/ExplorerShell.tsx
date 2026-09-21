@@ -100,6 +100,7 @@ export type ExplorerShellClient = ExplorerClient &
   FolderSubtreeClient & {
     getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
     resyncDrive?: (teamId: string) => Promise<unknown>;
+    resyncFolder?: (teamId: string, folderId: string) => Promise<unknown>;
     /** Only the space's owner may call this; the database is what enforces it. */
     setMaterialTag?: (input: {
       teamId: string;
@@ -269,18 +270,6 @@ function ExplorerBody({
   const { t } = useI18n();
   const { push, update } = useToasts();
   const [resyncing, setResyncing] = useState(false);
-  const resyncDrive = useCallback(async () => {
-    if (!client.resyncDrive || resyncing) return;
-    setResyncing(true);
-    try {
-      await client.resyncDrive(teamId);
-      push({ tone: 'success', text: t('teamToastResyncQueued') });
-    } catch {
-      push({ tone: 'error', text: t('teamDriveResyncFailed') });
-    } finally {
-      setResyncing(false);
-    }
-  }, [client, push, resyncing, t, teamId]);
   /* 015 — one running re-stitched delivery per material, held here rather than in the row:
      a delivery outlives the menu that started it and the row that scrolled past. */
   const restitch = useRestitchDelivery(teamId);
@@ -339,6 +328,19 @@ function ExplorerBody({
     pathTo,
     nodeOf
   } = explorer;
+  const resyncDrive = useCallback(async () => {
+    if ((!client.resyncDrive && !client.resyncFolder) || resyncing) return;
+    setResyncing(true);
+    try {
+      if (currentFolderId && client.resyncFolder) await client.resyncFolder(teamId, currentFolderId);
+      else if (client.resyncDrive) await client.resyncDrive(teamId);
+      push({ tone: 'success', text: t('teamToastResyncQueued') });
+    } catch {
+      push({ tone: 'error', text: t('teamDriveResyncFailed') });
+    } finally {
+      setResyncing(false);
+    }
+  }, [client, currentFolderId, push, resyncing, t, teamId]);
   const [treeOpen, setTreeOpen] = useState(false);
   const [processing, setProcessing] = useState<{ row: TeamMaterialRow } | null>(null);
   const [catalogFor, setCatalogFor] = useState<TeamMaterialRow | null>(null);
@@ -1324,9 +1326,9 @@ function ExplorerBody({
               <Button type="button" variant="secondary" onClick={() => folderInput.current?.click()}>
                 {t('teamExplorerAddFolder')}
               </Button>
-              {client.resyncDrive && (
+              {(client.resyncDrive || client.resyncFolder) && (
                 <Button type="button" variant="secondary" loading={resyncing} onClick={() => void resyncDrive()}>
-                  {t('teamDriveResync')}
+                  {currentFolderId ? t('teamDriveResyncFolder') : t('teamDriveResync')}
                 </Button>
               )}
             </>

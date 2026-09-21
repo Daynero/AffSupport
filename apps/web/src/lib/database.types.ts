@@ -3142,6 +3142,10 @@ export type Database = {
           sync_job_id: string;
         }[];
       };
+      request_team_folder_resync: {
+        Args: { p_team: string; p_folder: string };
+        Returns: { initial_sync_state: string; sync_job_id: string }[];
+      };
       remove_member: {
         Args: { p_member: string; p_team: string };
         Returns: {

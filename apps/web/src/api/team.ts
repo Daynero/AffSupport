@@ -2244,6 +2244,21 @@ export const teamApi = {
     return { syncJobId: row.sync_job_id, initialSyncState: 'scanning' };
   },
 
+  async resyncFolder(teamId: string, folderId: string): Promise<DriveCatalogResyncResult> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('request_team_folder_resync', {
+        p_team: teamId,
+        p_folder: folderId
+      })
+    );
+    throwRpc(error);
+    const row = data?.[0] as Record<string, unknown> | undefined;
+    if (typeof row?.sync_job_id !== 'string' || row.initial_sync_state !== 'scanning') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { syncJobId: row.sync_job_id, initialSyncState: 'scanning' };
+  },
+
   async startDriveOAuth(teamId: string): Promise<{ authorizationUrl: string; expiresAt: string }> {
     return invokeTeamFunction(
       'drive-connect',
