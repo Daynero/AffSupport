@@ -26,6 +26,16 @@ export interface FolderPageClient {
 }
 
 const PAGE_SIZE = 100;
+const FOLDER_PAGE_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      window.setTimeout(() => reject(new Error('FOLDER_PAGE_TIMEOUT')), milliseconds)
+    )
+  ]);
+}
 
 export interface FolderPageState {
   rows: TeamMaterialRow[];
@@ -67,12 +77,15 @@ export function useFolderPage(input: {
       const token = ++generation.current;
       setLoading(true);
       try {
-        const page = await client.listFolderPage(teamId, {
-          parentFolderId,
-          ...(kinds && kinds.length > 0 ? { kinds } : {}),
-          after,
-          limit: PAGE_SIZE
-        });
+        const page = await withTimeout(
+          client.listFolderPage(teamId, {
+            parentFolderId,
+            ...(kinds && kinds.length > 0 ? { kinds } : {}),
+            after,
+            limit: PAGE_SIZE
+          }),
+          FOLDER_PAGE_TIMEOUT_MS
+        );
         if (token !== generation.current) return;
         const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
         /*
