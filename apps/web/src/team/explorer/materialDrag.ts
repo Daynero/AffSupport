@@ -26,26 +26,20 @@ export function useMaterialDrag({
   const dragProps = useCallback(
     (row: TeamMaterialRow) => {
       if (!onDropMaterials) return {};
-      if (row.kind !== 'folder') {
-        return {
-          draggable: true,
-          onDragStart: (event: DragEvent<HTMLElement>) => {
-            const ids = selectedIds.has(row.id)
-              ? rows
-                  .filter(item => selectedIds.has(item.id) && item.kind !== 'folder')
-                  .map(item => item.id)
-              : [row.id];
-            event.dataTransfer.setData(DRAG_TYPE, ids.join(','));
-            event.dataTransfer.effectAllowed = 'move';
-            const label =
-              ids.length === 1
-                ? row.name
-                : t(fileCountKey(language, ids.length), { count: ids.length });
-            showGhost(event, label);
-          }
-        };
-      }
       return {
+        draggable: true,
+        onDragStart: (event: DragEvent<HTMLElement>) => {
+          const ids = selectedIds.has(row.id)
+            ? rows.filter(item => selectedIds.has(item.id)).map(item => item.id)
+            : [row.id];
+          event.dataTransfer.setData(DRAG_TYPE, ids.join(','));
+          event.dataTransfer.effectAllowed = 'move';
+          const label =
+            ids.length === 1
+              ? row.name
+              : t(fileCountKey(language, ids.length), { count: ids.length });
+          showGhost(event, label);
+        },
         onDragOver: (event: DragEvent<HTMLElement>) => {
           if (!event.dataTransfer.types.includes(DRAG_TYPE)) return;
           event.preventDefault();

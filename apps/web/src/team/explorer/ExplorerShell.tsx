@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type InputHTMLAttributes,
   type ReactNode
 } from 'react';
 import { usablePrep } from '@video-compressor/shared';
@@ -1260,6 +1261,13 @@ function ExplorerBody({
                 ref={fileInput}
                 type="file"
                 multiple
+                // Let the browser select a complete local folder as well as individual files.
+                // The upload pipeline still receives the files one by one, so conflicts and
+                // progress remain identical to a multi-file selection.
+                {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement> & {
+                  webkitdirectory: string;
+                  directory: string;
+                })}
                 hidden
                 onChange={event => {
                   if (event.target.files) void upload(event.target.files);
