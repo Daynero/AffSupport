@@ -3106,6 +3106,20 @@ export const teamApi = {
     return value;
   },
 
+  async ensureUploadFolder(
+    teamId: string,
+    input: { name: string; parentMaterialId?: string | null }
+  ): Promise<{ folderId: string; materialId: string; name: string; created: boolean }> {
+    return invokeTeamFunction('drive-ops/ensure-upload-folder', {
+      teamId,
+      name: input.name,
+      ...(input.parentMaterialId ? { parentMaterialId: input.parentMaterialId } : {})
+    }, (candidate): candidate is { folderId: string; materialId: string; name: string; created: boolean } => {
+      const row = asRecord(candidate);
+      return Boolean(row && typeof row.folderId === 'string' && typeof row.materialId === 'string' && typeof row.name === 'string' && typeof row.created === 'boolean');
+    });
+  },
+
   async ensureWorkspaceFolder(
     teamId: string
   ): Promise<{ folderId: string; created: boolean; name: string }> {

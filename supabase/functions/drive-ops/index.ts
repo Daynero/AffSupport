@@ -2304,6 +2304,34 @@ async function handleEnsureTaskDropFolder(
   };
 }
 
+async function handleEnsureUploadFolder(
+  request: Request,
+  body: Record<string, unknown>,
+  service: RpcClient,
+  actorId: string
+) {
+  const teamId = requireUuid(body.teamId);
+  const name = requireFolderName(body.name);
+  const parentMaterialId = body.parentMaterialId === undefined ? null : requireUuid(body.parentMaterialId);
+  const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
+  const parent = parentMaterialId
+    ? await loadDestination({ service, teamId, actorId, permission: 'upload', destination: parentMaterialId })
+    : null;
+  const client = await driveClient(service, root.credentialId, request);
+  const created = await client.createFolder({ name, parentId: parent?.driveFolderId ?? root.rootFolderId });
+  const committed = firstRecord(await rpcValue(service, 'service_commit_task_drop_folder', {
+    p_team: teamId,
+    p_connection: root.connectionId,
+    p_parent_folder_id: parent?.driveFolderId ?? root.rootFolderId,
+    p_drive_folder_id: created.id,
+    p_resource_key: created.resourceKey,
+    p_name: created.name
+  }));
+  const materialId = committed ? stringValue(committed, 'material_id') : null;
+  if (!materialId) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  return { folderId: created.id, materialId, name: created.name, created: true };
+}
+
 /** A folder name as Drive will take it: one line, and not a path. */
 function requireFolderName(value: unknown): string {
   if (typeof value !== 'string') throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
@@ -2733,6 +2761,8 @@ Deno.serve(async request => {
       value = await handleEnsureWorkspaceFolder(request, body, configured.service, userId);
     } else if (path === '/ensure-task-drop-folder') {
       value = await handleEnsureTaskDropFolder(request, body, configured.service, userId);
+    } else if (path === '/ensure-upload-folder') {
+      value = await handleEnsureUploadFolder(request, body, configured.service, userId);
     } else if (path === '/product-catalog/create') {
       value = await createProductCatalog(
         productCatalogDeps(request, configured.caller, configured.service),

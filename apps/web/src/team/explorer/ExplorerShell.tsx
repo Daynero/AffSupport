@@ -679,14 +679,33 @@ function ExplorerBody({
 
   /** Files dropped on the content area, or picked from the "Add files" input. */
   const upload = useCallback(
-    async (files: FileList | File[]) => {
-      const list = Array.from(files);
+    async (files: FileList | File[] | UploadFile[]) => {
+      const list: UploadFile[] = Array.from(files as ArrayLike<File | UploadFile>).map(item =>
+        'file' in item
+          ? item as UploadFile
+          : { file: item as File, relativePath: (item as File).webkitRelativePath || (item as File).name }
+      );
       if (list.length === 0 || !permissions?.upload) return;
       // No folder open means the space root, which the server resolves from the
       // connection. Inferring it from the first top-level folder refused every
       // upload into an empty space — with a message about Drive being
       // unavailable, which it was not.
-      const destination = currentFolderId;
+      let destination = currentFolderId;
+      const folderCache = new Map<string, string>();
+      const folderFor = async (relativePath: string) => {
+        const parts = relativePath.split('/').filter(Boolean).slice(0, -1);
+        let parent = destination;
+        let key = '';
+        for (const part of parts) {
+          key = `${key}/${part}`;
+          const cached = folderCache.get(key);
+          if (cached) { parent = cached; continue; }
+          const created = await teamApi.ensureUploadFolder(teamId, { name: part, parentMaterialId: parent });
+          folderCache.set(key, created.materialId);
+          parent = created.materialId;
+        }
+        return parent;
+      };
       /*
        * Each file says it is being sent from the moment it is dropped.
        *
@@ -706,7 +725,9 @@ function ExplorerBody({
       const byName = new Map(page.rows.map(row => [row.name.toLocaleLowerCase(), row]));
       let forAll: UploadConflictChoice | null = null;
       setUploading(count => count + list.length);
-      for (const [index, file] of list.entries()) {
+      for (const [index, item] of list.entries()) {
+        const file = item.file;
+        const fileDestination = await folderFor(item.relativePath);
         const clash = byName.get(file.name.toLocaleLowerCase());
         let choice: UploadConflictChoice = 'keep_both';
         if (clash) {
@@ -740,7 +761,7 @@ function ExplorerBody({
         try {
           await uploadTeamFile({
             teamId,
-            destinationFolderId: destination,
+            destinationFolderId: fileDestination,
             file,
             conflictMode: 'keep_both',
             replaceMaterialId: null,
@@ -1771,22 +1792,23 @@ function ExplorerBody({
 }
 
 /** Browsers expose a dropped directory through DataTransferItem entries, not files. */
-async function filesFromDrop(dataTransfer: DataTransfer): Promise<File[]> {
+async function filesFromDrop(dataTransfer: DataTransfer): Promise<UploadFile[]> {
   type DropEntry = {
+    name: string;
     isFile: boolean;
     isDirectory: boolean;
     file: (success: (file: File) => void, failure?: () => void) => void;
     createReader: () => { readEntries: (success: (entries: DropEntry[]) => void, failure?: () => void) => void };
   };
   const items = Array.from(dataTransfer.items);
-  if (items.length === 0) return Array.from(dataTransfer.files);
-  const files: File[] = [];
-  const visit = async (entry: DropEntry): Promise<void> => {
+  if (items.length === 0) return Array.from(dataTransfer.files).map(file => ({ file, relativePath: file.name }));
+  const files: UploadFile[] = [];
+  const visit = async (entry: DropEntry, parentPath = ''): Promise<void> => {
     if (entry.isFile) {
       await new Promise<void>(resolve =>
         entry.file(
           file => {
-            files.push(file);
+            files.push({ file, relativePath: `${parentPath}${file.name}` });
             resolve();
           },
           resolve
@@ -1799,20 +1821,23 @@ async function filesFromDrop(dataTransfer: DataTransfer): Promise<File[]> {
     const read = (): Promise<void> =>
       new Promise<void>(resolve => reader.readEntries(async entries => {
         if (entries.length === 0) return resolve();
-        for (const child of entries) await visit(child);
+        for (const child of entries) await visit(child, `${parentPath}${entry.name}/`);
         await read();
         resolve();
       }, resolve));
     await read();
   };
   for (const item of items) {
-    const entry = (
-      item as DataTransferItem & { webkitGetAsEntry?: () => DropEntry | null }
-    ).webkitGetAsEntry?.();
-    if (entry) await visit(entry);
+    const entry = ((item as DataTransferItem & { webkitGetAsEntry?: () => DropEntry | null })
+      .webkitGetAsEntry?.() ?? null) as DropEntry | null;
+    if (entry) await visit(entry, '');
   }
-  return files.length > 0 ? files : Array.from(dataTransfer.files);
+  return files.length > 0
+    ? files
+    : Array.from(dataTransfer.files).map(file => ({ file, relativePath: file.name }));
 }
+
+type UploadFile = { file: File; relativePath: string };
 
 const VIEW_KEY = 'soty.team.explorer.view';
 
