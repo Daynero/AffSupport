@@ -29,6 +29,6 @@ where job.jobname = 'wishly-catalog-updater';
 
 select cron.schedule(
   'wishly-catalog-updater',
-  '1 minute',
+  '60 seconds',
   $cron$select private.invoke_catalog_updater_worker()$cron$
 );
