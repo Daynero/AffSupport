@@ -273,6 +273,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let active = true;
     const promise = initialSessionWithTimeout();
+    const initializationWatchdog = window.setTimeout(() => {
+      if (active && snapshotRef.current.status === 'initializing') {
+        setSnapshot({ ...initialSnapshot, status: 'error', error: 'network' });
+      }
+    }, INITIAL_SESSION_TIMEOUT_MS);
     void promise
       ?.then(({ data, error }) => {
         if (!active) return;
@@ -320,6 +325,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       active = false;
+      window.clearTimeout(initializationWatchdog);
       subscription.unsubscribe();
     };
   }, [establishIdentity]);
