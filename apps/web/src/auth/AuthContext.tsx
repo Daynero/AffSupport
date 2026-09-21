@@ -273,16 +273,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let active = true;
     const promise = initialSessionWithTimeout();
-    void promise?.then(({ data, error }) => {
-      if (!active) return;
-      if (error) {
-        setSnapshot({ ...initialSnapshot, status: 'error', error: authErrorCode(error) });
-      } else if (data.session) {
-        void establishIdentity(data.session);
-      } else {
-        setSnapshot({ ...initialSnapshot, status: 'unauthenticated' });
-      }
-    });
+    void promise
+      ?.then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setSnapshot({ ...initialSnapshot, status: 'error', error: authErrorCode(error) });
+        } else if (data.session) {
+          void establishIdentity(data.session);
+        } else {
+          setSnapshot({ ...initialSnapshot, status: 'unauthenticated' });
+        }
+      })
+      .catch(error => {
+        if (!active) return;
+        setSnapshot({
+          ...initialSnapshot,
+          status: 'error',
+          error: authErrorCode(error)
+        });
+      });
 
     const {
       data: { subscription }
