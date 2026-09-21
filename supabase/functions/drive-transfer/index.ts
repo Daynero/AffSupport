@@ -1377,44 +1377,58 @@ async function handleLandingRenderTokens(
           typeof row.material_id === 'string'
       )
     : [];
-  const artifacts = await Promise.all(
-    visible.map(async row => {
-      const materialId = row.material_id as string;
-      const artifact = landingRenderArtifact(
-        await rpcValue(service, 'service_get_landing_render_artifact', {
-          p_team: teamId.value,
-          p_material: materialId,
-          p_preset: preset
+  const mapBounded = async <Item, Result>(
+    items: readonly Item[],
+    concurrency: number,
+    work: (item: Item, index: number) => Promise<Result>
+  ): Promise<Result[]> => {
+    const results = new Array<Result>(items.length);
+    let next = 0;
+    const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      for (let index = next++; index < items.length; index = next++) {
+        results[index] = await work(items[index]!, index);
+      }
+    });
+    await Promise.all(workers);
+    return results;
+  };
+  const artifacts = await mapBounded(visible, 2, async row => {
+    const materialId = row.material_id as string;
+    const artifact = landingRenderArtifact(
+      await rpcValue(service, 'service_get_landing_render_artifact', {
+        p_team: teamId.value,
+        p_material: materialId,
+        p_preset: preset
+      })
+    );
+    if (!artifact) return null;
+    const tokenCount = allSegments ? artifact.segmentCount : 1;
+    const grants = await mapBounded(
+      Array.from({ length: tokenCount }, (_, segment) => segment),
+      4,
+      segment =>
+        issueLandingArtifactGrant(service, {
+          teamId: teamId.value,
+          materialId,
+          actorId: userId,
+          toolId: landingArtifactGrantTool({
+            mode: 'view',
+            renderId: artifact.renderId,
+            segment
+          }),
+          maxUses: 8
         })
-      );
-      if (!artifact) return null;
-      const tokenCount = allSegments ? artifact.segmentCount : 1;
-      const grants = await Promise.all(
-        Array.from({ length: tokenCount }, (_, segment) =>
-          issueLandingArtifactGrant(service, {
-            teamId: teamId.value,
-            materialId,
-            actorId: userId,
-            toolId: landingArtifactGrantTool({
-              mode: 'view',
-              renderId: artifact.renderId,
-              segment
-            }),
-            maxUses: 8
-          })
-        )
-      );
-      return {
-        materialId,
-        sourceVersion: artifact.sourceVersion,
-        fingerprint: artifact.fingerprint,
-        preset: artifact.preset,
-        segmentCount: artifact.segmentCount,
-        artifactToken: grants[0].ticket,
-        ...(allSegments ? { segmentTokens: grants.map(grant => grant.ticket) } : {})
-      };
-    })
-  );
+    );
+    return {
+      materialId,
+      sourceVersion: artifact.sourceVersion,
+      fingerprint: artifact.fingerprint,
+      preset: artifact.preset,
+      segmentCount: artifact.segmentCount,
+      artifactToken: grants[0].ticket,
+      ...(allSegments ? { segmentTokens: grants.map(grant => grant.ticket) } : {})
+    };
+  });
   return successResponse(
     {
       artifacts: artifacts.filter(
