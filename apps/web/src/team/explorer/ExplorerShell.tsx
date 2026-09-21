@@ -1264,9 +1264,8 @@ function ExplorerBody({
                 // Let the browser select a complete local folder as well as individual files.
                 // The upload pipeline still receives the files one by one, so conflicts and
                 // progress remain identical to a multi-file selection.
-                {...({ webkitdirectory: '', directory: '' } as InputHTMLAttributes<HTMLInputElement> & {
-                  webkitdirectory: string;
-                  directory: string;
+                {...({ webkitdirectory: true } as InputHTMLAttributes<HTMLInputElement> & {
+                  webkitdirectory: boolean;
                 })}
                 hidden
                 onChange={event => {
@@ -1346,7 +1345,7 @@ function ExplorerBody({
           if (!event.dataTransfer.types.includes('Files')) return;
           event.preventDefault();
           setDropping(false);
-          void upload(event.dataTransfer.files);
+          void filesFromDrop(event.dataTransfer).then(files => upload(files));
         }}
       >
         {readOnly && (
@@ -1769,6 +1768,50 @@ function ExplorerBody({
       )}
     </div>
   );
+}
+
+/** Browsers expose a dropped directory through DataTransferItem entries, not files. */
+async function filesFromDrop(dataTransfer: DataTransfer): Promise<File[]> {
+  type DropEntry = {
+    isFile: boolean;
+    isDirectory: boolean;
+    file: (success: (file: File) => void, failure?: () => void) => void;
+    createReader: () => { readEntries: (success: (entries: DropEntry[]) => void, failure?: () => void) => void };
+  };
+  const items = Array.from(dataTransfer.items);
+  if (items.length === 0) return Array.from(dataTransfer.files);
+  const files: File[] = [];
+  const visit = async (entry: DropEntry): Promise<void> => {
+    if (entry.isFile) {
+      await new Promise<void>(resolve =>
+        entry.file(
+          file => {
+            files.push(file);
+            resolve();
+          },
+          resolve
+        )
+      );
+      return;
+    }
+    if (!entry.isDirectory) return;
+    const reader = entry.createReader();
+    const read = (): Promise<void> =>
+      new Promise<void>(resolve => reader.readEntries(async entries => {
+        if (entries.length === 0) return resolve();
+        for (const child of entries) await visit(child);
+        await read();
+        resolve();
+      }, resolve));
+    await read();
+  };
+  for (const item of items) {
+    const entry = (
+      item as DataTransferItem & { webkitGetAsEntry?: () => DropEntry | null }
+    ).webkitGetAsEntry?.();
+    if (entry) await visit(entry);
+  }
+  return files.length > 0 ? files : Array.from(dataTransfer.files);
 }
 
 const VIEW_KEY = 'soty.team.explorer.view';
