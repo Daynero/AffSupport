@@ -1331,15 +1331,20 @@ function ExplorerBody({
                 }}
               />
               <input
-                ref={folderInput}
+                ref={element => {
+                  folderInput.current = element;
+                  // React's unknown-attribute handling is not consistent across
+                  // browsers. Set the native directory flag explicitly so the
+                  // macOS picker opens in folder mode instead of file mode.
+                  if (element) {
+                    element.setAttribute('webkitdirectory', '');
+                    (element as HTMLInputElement & { webkitdirectory?: boolean }).webkitdirectory = true;
+                  }
+                }}
                 type="file"
                 multiple
                 hidden
                 // Chrome exposes the complete local folder tree through relative paths.
-                {...({ webkitdirectory: true, directory: true } as InputHTMLAttributes<HTMLInputElement> & {
-                  webkitdirectory: boolean;
-                  directory: boolean;
-                })}
                 onChange={event => {
                   if (event.target.files) void upload(event.target.files);
                   event.target.value = '';
