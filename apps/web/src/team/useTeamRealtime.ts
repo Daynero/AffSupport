@@ -1,5 +1,5 @@
 import { realtimeTopic } from '../lib/realtimeTopic';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../lib/supabase';
 
@@ -20,6 +20,7 @@ export function useTeamRealtime(input: {
   const [state, setState] = useState<TeamRealtimeState>(
     enabled && teamId ? 'connecting' : 'disabled'
   );
+  const refetchTimer = useRef<number | null>(null);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -36,7 +37,13 @@ export function useTeamRealtime(input: {
     });
 
     const refetch = () => {
-      if (active) void onRefetch();
+      if (!active || refetchTimer.current !== null) return;
+      // Indexing emits progress rows frequently. One workspace refresh per window is enough;
+      // otherwise every page causes all navigation panels to re-read the full folder tree.
+      refetchTimer.current = window.setTimeout(() => {
+        refetchTimer.current = null;
+        if (active) void onRefetch();
+      }, 1_000);
     };
     const channel: RealtimeChannel = supabase
       .channel(realtimeTopic(`team-workspace:${teamId}`))
@@ -98,6 +105,10 @@ export function useTeamRealtime(input: {
     setState('connecting');
     return () => {
       active = false;
+      if (refetchTimer.current !== null) {
+        window.clearTimeout(refetchTimer.current);
+        refetchTimer.current = null;
+      }
       void supabase.removeChannel(channel);
     };
   }, [enabled, onMembershipLost, onRefetch, teamId]);

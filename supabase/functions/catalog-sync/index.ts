@@ -141,7 +141,7 @@ async function ingestPendingTranscripts(input: {
     })
   );
   const files = new Map(input.files.map(file => [file.id, file]));
-  for (const target of targets) {
+  const ingestOne = async (target: Record<string, unknown>): Promise<void> => {
     const materialId = requiredString(target, 'material_id');
     const driveFileId = requiredString(target, 'drive_file_id');
     const file = files.get(driveFileId);
@@ -182,7 +182,18 @@ async function ingestPendingTranscripts(input: {
       p_error_code: errorCode
     });
     if (deferredError?.retryable) throw deferredError;
-  }
+  };
+  // Transcript downloads are independent. A serial loop made one slow Drive file hold the
+  // catalog lease while the browser kept receiving progress events, so the visible counter
+  // appeared frozen and every navigation refresh competed with the worker. Keep concurrency
+  // bounded to avoid turning a large folder into a Drive burst.
+  let next = 0;
+  const workers = Array.from({ length: Math.min(4, targets.length) }, async () => {
+    for (let index = next++; index < targets.length; index = next++) {
+      await ingestOne(targets[index]!);
+    }
+  });
+  await Promise.all(workers);
 }
 
 function catalogJob(row: Record<string, unknown>): CatalogSyncJob {
