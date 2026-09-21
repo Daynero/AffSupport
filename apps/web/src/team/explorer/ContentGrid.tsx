@@ -312,7 +312,6 @@ function Tile({
       <label
         className="team-explorer-check team-explorer-tile-check"
         onClick={event => event.stopPropagation()}
-        title={t('teamExplorerSelectNamed', { name: row.name })}
       >
         <input
           type="checkbox"
@@ -328,7 +327,7 @@ function Tile({
         </div>
       )}
       <div className="team-explorer-tile-caption">
-        <span className="team-explorer-tile-name" title={row.name}>
+        <span className="team-explorer-tile-name">
           {row.name}
         </span>
         {/* One quiet line under the name, as Drive and Frame.io draw it (024):

@@ -362,6 +362,7 @@ function ExplorerBody({
   } | null>(null);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
   const view: ExplorerView = query.view ?? readRememberedView();
   const [sort, setSortState] = useState<ExplorerSort>(() => readRememberedSort());
   const setSort = (next: ExplorerSort) => {
@@ -1282,22 +1283,32 @@ function ExplorerBody({
                 ref={fileInput}
                 type="file"
                 multiple
-                // Let the browser select a complete local folder as well as individual files.
-                // The upload pipeline still receives the files one by one, so conflicts and
-                // progress remain identical to a multi-file selection.
-                {...({ webkitdirectory: true } as InputHTMLAttributes<HTMLInputElement> & {
-                  webkitdirectory: boolean;
-                })}
                 hidden
                 onChange={event => {
                   if (event.target.files) void upload(event.target.files);
                   event.target.value = '';
                 }}
               />
-              {/* The folder's one primary, as "New" is Drive's: putting files in
-                  is what a person opens a folder in a file manager to do. */}
+              <input
+                ref={folderInput}
+                type="file"
+                multiple
+                hidden
+                // Chrome exposes the complete local folder tree through relative paths.
+                {...({ webkitdirectory: true, directory: true } as InputHTMLAttributes<HTMLInputElement> & {
+                  webkitdirectory: boolean;
+                  directory: boolean;
+                })}
+                onChange={event => {
+                  if (event.target.files) void upload(event.target.files);
+                  event.target.value = '';
+                }}
+              />
               <Button type="button" variant="primary" onClick={() => fileInput.current?.click()}>
                 {t('teamExplorerAddFiles')}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => folderInput.current?.click()}>
+                {t('teamExplorerAddFolder')}
               </Button>
             </>
           )}
