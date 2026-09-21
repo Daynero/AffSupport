@@ -812,6 +812,31 @@ function ExplorerBody({
     [changed, currentFolderId, page.rows, permissions?.upload, push, t, teamId, update]
   );
 
+  const pickFolder = useCallback(async () => {
+    const picker = (window as Window & { showDirectoryPicker?: () => Promise<unknown> }).showDirectoryPicker;
+    if (!picker) {
+      folderInput.current?.click();
+      return;
+    }
+    try {
+      const handle = (await picker()) as {
+        name: string;
+        values: () => AsyncIterable<{ kind: 'file' | 'directory'; name: string; getFile?: () => Promise<File>; values?: () => AsyncIterable<unknown> }>;
+      };
+      const files: UploadFile[] = [];
+      const walk = async (directory: typeof handle, prefix: string): Promise<void> => {
+        for await (const entry of directory.values()) {
+          if (entry.kind === 'file' && entry.getFile) files.push({ file: await entry.getFile(), relativePath: `${prefix}${entry.name}` });
+          else if (entry.kind === 'directory' && entry.values) await walk(entry as typeof handle, `${prefix}${entry.name}/`);
+        }
+      };
+      await walk(handle, `${handle.name}/`);
+      if (files.length > 0) void upload(files);
+    } catch (error) {
+      if ((error as { name?: string }).name !== 'AbortError') push({ tone: 'error', text: t('teamDriveResyncFailed') });
+    }
+  }, [push, t, upload]);
+
   const actions: RowActionsProps | undefined = permissions
     ? {
         teamId,
@@ -1323,7 +1348,7 @@ function ExplorerBody({
               <Button type="button" variant="primary" onClick={() => fileInput.current?.click()}>
                 {t('teamExplorerAddFiles')}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => folderInput.current?.click()}>
+              <Button type="button" variant="secondary" onClick={() => void pickFolder()}>
                 {t('teamExplorerAddFolder')}
               </Button>
               {(client.resyncDrive || client.resyncFolder) && (
