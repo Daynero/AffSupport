@@ -5,6 +5,7 @@ import type { ProductCatalogSummary } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { SotyLoader } from '../../components/ui';
 import { Button, DropdownMenu, IconButton } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
@@ -76,20 +77,36 @@ export function ProductCatalogMenuDialog({
   const titleId = useId();
   const [catalogs, setCatalogs] = useState<ProductCatalogSummary[]>([]);
   const [view, setView] = useState<View>({ kind: 'loading' });
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
-    const found = await client.listProductCatalogs(teamId, video.id).catch(() => []);
-    setCatalogs(found);
-    return found;
+    setLoadError(false);
+    try {
+      const found = await Promise.race([
+        client.listProductCatalogs(teamId, video.id),
+        new Promise<ProductCatalogSummary[]>((_, reject) =>
+          window.setTimeout(() => reject(new Error('CATALOG_LIST_TIMEOUT')), 8_000)
+        )
+      ]);
+      setCatalogs(found);
+      return found;
+    } catch {
+      setLoadError(true);
+      return null;
+    }
   }, [client, teamId, video.id]);
 
   useEffect(() => {
     let active = true;
     void load().then(found => {
       if (active) {
-        setView(
-          found.length > 0 ? { kind: 'list' } : { kind: 'create', replaces: null, fromList: false }
-        );
+        if (found) {
+          setView(
+            found.length > 0
+              ? { kind: 'list' }
+              : { kind: 'create', replaces: null, fromList: false }
+          );
+        }
       }
     });
     return () => {
@@ -123,7 +140,43 @@ export function ProductCatalogMenuDialog({
     }
   };
 
-  if (view.kind === 'loading') return null;
+  if (view.kind === 'loading')
+    return (
+      <Modal labelledBy={titleId} onClose={onClose} closeLabel={t('productCatalogDone')} size="sm">
+        <div className="team-dialog-form product-catalog-dialog" role="status" aria-live="polite">
+          <h2 id={titleId}>{t('productCatalogListTitle')}</h2>
+          {loadError ? (
+            <>
+              <p className="field-hint">{t('retry')}</p>
+              <div className="team-dialog-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() =>
+                    void load().then(found => {
+                      if (found) {
+                        setView(
+                          found.length > 0
+                            ? { kind: 'list' }
+                            : { kind: 'create', replaces: null, fromList: false }
+                        );
+                      }
+                    })
+                  }
+                >
+                  {t('teamOperationRetry')}
+                </Button>
+                <Button type="button" variant="primary" onClick={onClose}>
+                  {t('productCatalogDone')}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <SotyLoader size={26} />
+          )}
+        </div>
+      </Modal>
+    );
 
   if (view.kind === 'create') {
     const backToList = view.fromList;
