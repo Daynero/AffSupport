@@ -120,6 +120,27 @@ let initialSessionPromise: ReturnType<
   NonNullable<ReturnType<typeof getSupabaseClient>>['auth']['getSession']
 > | null = null;
 
+const INITIAL_SESSION_TIMEOUT_MS = 10_000;
+
+/**
+ * Supabase auth can wait indefinitely on a browser lock held by a stale tab
+ * or extension. The app must never leave the whole product behind an endless
+ * "checking session" screen, so turn that state into a recoverable auth error.
+ */
+function initialSessionWithTimeout() {
+  const session = initialSession();
+  if (!session) return null;
+  return Promise.race([
+    session,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(
+        () => reject(new Error('INITIAL_SESSION_TIMEOUT')),
+        INITIAL_SESSION_TIMEOUT_MS
+      );
+    })
+  ]);
+}
+
 function initialSession() {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
@@ -251,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let active = true;
-    const promise = initialSession();
+    const promise = initialSessionWithTimeout();
     void promise?.then(({ data, error }) => {
       if (!active) return;
       if (error) {
