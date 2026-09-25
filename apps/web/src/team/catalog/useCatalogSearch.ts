@@ -95,6 +95,7 @@ export function useCatalogSearch(input: {
     // the address had just handed in, so a reloaded or shared search link opened empty.
     if (searchedTeam.current === teamId) return;
     searchedTeam.current = teamId;
+    requestSequence.current += 1;
     setQuery('');
     setFilters(EMPTY_FILTERS);
     setPage(1);

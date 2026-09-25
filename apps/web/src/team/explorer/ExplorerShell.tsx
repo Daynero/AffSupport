@@ -90,6 +90,7 @@ import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
+import { useVisibleRowAnchor } from './useVisibleRowAnchor';
 import { useFolderResync, type FolderResyncClient } from './useFolderResync';
 import { usePosterFrames } from './usePosterFrames';
 
@@ -391,12 +392,15 @@ function ExplorerBody({
    */
   const canTag = !readOnly && activeTeam?.role === 'owner' && Boolean(client.setMaterialTag);
   const searching = query.q.length > 0 || query.scope === 'space';
+  const contentRef = useRef<HTMLDivElement>(null);
+  const captureAnchorRef = useRef<() => void>(() => {});
   const page = useFolderPage({
     teamId,
     client,
     parentFolderId: currentFolderId,
     kinds: query.kinds,
-    revision
+    revision,
+    beforeRowsReplace: () => captureAnchorRef.current()
   });
   const folderResync = useFolderResync({
     teamId,
@@ -434,6 +438,12 @@ function ExplorerBody({
     [allRows, openedCompanions, view]
   );
   const sortedRows = folded.rows;
+  const rowIds = useMemo(() => sortedRows.map(row => row.id), [sortedRows]);
+  captureAnchorRef.current = useVisibleRowAnchor(
+    contentRef,
+    rowIds,
+    `${teamId}|${currentFolderId ?? ''}|${view}|${query.kinds.join(',')}`
+  );
   const toggleCompanions = useCallback((rowId: string) => {
     setOpenedCompanions(current => {
       const next = new Set(current);
@@ -1702,6 +1712,7 @@ function ExplorerBody({
           />
         ) : (
           <div
+            ref={contentRef}
             className="team-explorer-content-keys"
             tabIndex={0}
             role="presentation"

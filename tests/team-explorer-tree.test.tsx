@@ -72,6 +72,33 @@ function renderTree(nodes: TeamFolderNode[], folderId: string | null = null) {
 }
 
 describe('FolderTree', () => {
+  it('does not let an old team tree response replace the new team', async () => {
+    let releaseOld!: (nodes: TeamFolderNode[]) => void;
+    const old = new Promise<TeamFolderNode[]>(resolve => {
+      releaseOld = resolve;
+    });
+    const current = bigTree().slice(0, 1);
+    const client = {
+      listFolderTree: vi.fn((teamId: string) => (teamId === TEAM ? old : Promise.resolve(current)))
+    };
+    const Snapshot = () => (
+      <output data-testid="tree-snapshot">{useExplorer().nodes?.[0]?.name}</output>
+    );
+    const view = render(
+      <ExplorerProvider teamId={TEAM} client={client}>
+        <Snapshot />
+      </ExplorerProvider>
+    );
+    view.rerender(
+      <ExplorerProvider teamId="team-2" client={client}>
+        <Snapshot />
+      </ExplorerProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('tree-snapshot').textContent).toBe('Top 0'));
+    await act(async () => releaseOld(bigTree().slice(1, 2)));
+    expect(screen.getByTestId('tree-snapshot').textContent).toBe('Top 0');
+  });
+
   it('rejects a strict tree reread so sync cannot report success with a stale tree', async () => {
     const client = { listFolderTree: vi.fn().mockResolvedValue([]) };
     const { result } = renderHook(() => useExplorer(), {

@@ -177,7 +177,19 @@ npm run beta:up
   unit test, **not** a production provider-call or latency benchmark.
 - Visible-window tests retained three loaded pages, a selected row and the
   active search page after invalidation. DOM scroll-anchor restoration and
-  two-account timing remain unverified.
+  two-account timing remained unverified at that checkpoint.
+- A follow-up DOM regression simulates a row inserted above the first visible
+  material and verifies the same row remains at the same pixel. The folder
+  hook captures the anchor before replacing the visible window; 11/11 targeted
+  live-refresh/page tests passed. This is a jsdom regression, not a two-account
+  browser timing result.
+- The visible-window refresh now retries a transient failed read without
+  discarding loaded rows, and stale folder/tree/search responses cannot replace
+  a newer revision or team. The expanded live-refresh and tree suites passed
+  **14/14**; the folder-page suite passed **8/8** separately.
+- After these US2 changes, `npm run verify -- --gates=static` passed **13/13**
+  gates. This is a static-only result; the full unit/release gates and two-account
+  acceptance still remain open.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

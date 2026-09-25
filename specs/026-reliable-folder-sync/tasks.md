@@ -54,11 +54,11 @@
 **Незалежна перевірка**: Два профілі бачать один каталог p95≤5 с/max≤15 с; reconnect, in-flight event і п’ята сторінка зберігають правильний стан.
 
 - [X] T017 [P] [US2] Додати duplicate/out-of-order event, subscribe race, reconnect/visibility, event-during-read та membership-loss tests у `tests/team-realtime.test.tsx`; numeric event gaps не означають втрату.
-- [ ] T018 [P] [US2] Додати visible-window/scroll anchor/selection/search tests для кількох завантажених сторінок у `tests/team-explorer-live-refresh.test.tsx`.
+- [X] T018 [P] [US2] Додати visible-window/scroll anchor/selection/search tests для кількох завантажених сторінок у `tests/team-explorer-live-refresh.test.tsx`.
 - [X] T019 [P] [US2] Додати RLS тести catalog events і existing operation reads для viewer/removed/foreign-team у `supabase/tests/database/workspace-live-state.test.sql`.
 - [X] T020 [US2] Після T002 узгодити дозволені subscriptions у `apps/web/src/team/useTeamRealtime.ts`, lifecycle/dirty refresh у `TeamContext.tsx`; reuse catalog/material operation events, без group progress channel, MAX(id) watermark і нового polling.
 - [ ] T021 [US2] Додати affected old/new parent invalidation у `supabase/functions/drive-ops/index.ts` та наявних catalog commit RPC через нову `supabase/migrations/*_catalog_invalidation_scope.sql`; документувати `supabase/migrations/ROLLBACK.md`, тести й типи.
-- [ ] T022 [US2] Реалізувати anchor-based visible-window refresh, dirty retry та generation guards у `apps/web/src/team/explorer/useFolderPage.ts`, `ExplorerProvider.tsx` і `apps/web/src/team/catalog/useCatalogSearch.ts`; не скидати все на першу сторінку.
+- [X] T022 [US2] Реалізувати anchor-based visible-window refresh, dirty retry та generation guards у `apps/web/src/team/explorer/useFolderPage.ts`, `ExplorerProvider.tsx` і `apps/web/src/team/catalog/useCatalogSearch.ts`; не скидати все на першу сторінку.
 - [ ] T023 [US2] Зв’язати stale/reconnecting/retry UI з реальним status у `apps/web/src/team/workspace/RealtimeChip.tsx`; записати two-account evidence у `specs/026-reliable-folder-sync/quickstart.md`.
 
 ## Phase 5 — US6: повнота initial scan і зовнішніх змін (P1)

@@ -11,7 +11,7 @@ import type {
  * One folder's rows, a page at a time, from the index (011, FR-009/FR-010).
  * The first screen and the total arrive together; further pages are appended
  * behind a stable keyset cursor, so a row inserted between pages never shifts
- * what has already been shown. A revision bump re-reads the first page.
+ * what has already been shown. A revision bump re-reads the loaded window.
  */
 export interface FolderPageClient {
   listFolderPage: (
@@ -62,8 +62,9 @@ export function useFolderPage(input: {
   parentFolderId: string | null;
   kinds?: TeamMaterialRowKind[];
   revision?: number;
+  beforeRowsReplace?: () => void;
 }): FolderPageState {
-  const { teamId, client, parentFolderId, kinds, revision = 0 } = input;
+  const { teamId, client, parentFolderId, kinds, revision = 0, beforeRowsReplace } = input;
   const [rows, setRows] = useState<TeamMaterialRow[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [next, setNext] = useState<FolderPageCursor | null>(null);
@@ -71,6 +72,8 @@ export function useFolderPage(input: {
   const [error, setError] = useState(false);
   const generation = useRef(0);
   const loadedPages = useRef(1);
+  const beforeRowsReplaceRef = useRef(beforeRowsReplace);
+  beforeRowsReplaceRef.current = beforeRowsReplace;
   const kindsKey = (kinds ?? []).join(',');
 
   /** How many rows the filter has taken out of the count so far. */
@@ -102,6 +105,7 @@ export function useFolderPage(input: {
         hiddenSoFar.current = replace
           ? page.rows.length - kept.length
           : hiddenSoFar.current + (page.rows.length - kept.length);
+        if (replace) beforeRowsReplaceRef.current?.();
         setRows(current => (replace ? kept : [...current, ...kept]));
         setTotal(Math.max(0, page.total - hiddenSoFar.current));
         setNext(page.next);
@@ -124,39 +128,51 @@ export function useFolderPage(input: {
       const targetPages = loadedPages.current;
       setLoading(true);
       try {
-        let cursor: FolderPageCursor | null = null;
-        let totalRows = 0;
-        let hidden = 0;
-        let pagesRead = 0;
-        const visible: TeamMaterialRow[] = [];
-        for (let index = 0; index < targetPages; index += 1) {
-          const page: FolderPage = await withTimeout(
-            client.listFolderPage(teamId, {
-              parentFolderId,
-              ...(kinds && kinds.length > 0 ? { kinds } : {}),
-              after: cursor,
-              limit: PAGE_SIZE
-            }),
-            FOLDER_PAGE_TIMEOUT_MS
-          );
-          if (token !== generation.current) return;
-          const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
-          visible.push(...kept);
-          hidden += page.rows.length - kept.length;
-          totalRows = page.total;
-          cursor = page.next;
-          pagesRead += 1;
-          if (!cursor) break;
+        // A transient catalog read must not replace a previously loaded
+        // window with an empty first page. Retry the whole window, not only the
+        // failed page, so every committed render comes from one fresh walk.
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            let cursor: FolderPageCursor | null = null;
+            let totalRows = 0;
+            let hidden = 0;
+            let pagesRead = 0;
+            const visible: TeamMaterialRow[] = [];
+            for (let index = 0; index < targetPages; index += 1) {
+              const page: FolderPage = await withTimeout(
+                client.listFolderPage(teamId, {
+                  parentFolderId,
+                  ...(kinds && kinds.length > 0 ? { kinds } : {}),
+                  after: cursor,
+                  limit: PAGE_SIZE
+                }),
+                FOLDER_PAGE_TIMEOUT_MS
+              );
+              if (token !== generation.current) return;
+              const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
+              visible.push(...kept);
+              hidden += page.rows.length - kept.length;
+              totalRows = page.total;
+              cursor = page.next;
+              pagesRead += 1;
+              if (!cursor) break;
+            }
+            hiddenSoFar.current = hidden;
+            loadedPages.current = pagesRead;
+            beforeRowsReplaceRef.current?.();
+            setRows(visible);
+            setTotal(Math.max(0, totalRows - hidden));
+            setNext(cursor);
+            setError(false);
+            return;
+          } catch {
+            if (token !== generation.current) return;
+            if (attempt === 2) {
+              setError(true);
+              if (reportFailure) throw new Error('FOLDER_PAGE_REFRESH_FAILED');
+            }
+          }
         }
-        hiddenSoFar.current = hidden;
-        loadedPages.current = pagesRead;
-        setRows(visible);
-        setTotal(Math.max(0, totalRows - hidden));
-        setNext(cursor);
-        setError(false);
-      } catch {
-        if (token === generation.current) setError(true);
-        if (reportFailure) throw new Error('FOLDER_PAGE_REFRESH_FAILED');
       } finally {
         if (token === generation.current) setLoading(false);
       }

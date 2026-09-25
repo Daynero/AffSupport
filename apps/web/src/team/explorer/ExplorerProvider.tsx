@@ -84,14 +84,16 @@ export function ExplorerProvider({
     [selectedRows]
   );
   const activeRef = useRef(true);
+  const readSequence = useRef(0);
   const indexingSince = useRef<number | null>(null);
 
   const read = useCallback(
     async (reportFailure = false) => {
+      const sequence = ++readSequence.current;
       setLoading(true);
       try {
         const value = await client.listFolderTree(teamId);
-        if (!activeRef.current) return;
+        if (!activeRef.current || sequence !== readSequence.current) return;
         // The server orders by byte, the list beside the tree by the reader's language: in
         // Ukrainian "Вставки" came first in the list and last in the tree.
         setNodes([...value].sort((a, b) => compareNames(a.name, b.name)));
@@ -108,10 +110,12 @@ export function ExplorerProvider({
           indexingSince.current = null;
         }
       } catch {
-        if (activeRef.current) setError(true);
-        if (reportFailure) throw new Error('FOLDER_TREE_REFRESH_FAILED');
+        if (activeRef.current && sequence === readSequence.current) {
+          setError(true);
+          if (reportFailure) throw new Error('FOLDER_TREE_REFRESH_FAILED');
+        }
       } finally {
-        if (activeRef.current) setLoading(false);
+        if (activeRef.current && sequence === readSequence.current) setLoading(false);
       }
     },
     [client, teamId]
@@ -123,6 +127,7 @@ export function ExplorerProvider({
     void read();
     return () => {
       activeRef.current = false;
+      readSequence.current += 1;
     };
   }, [read]);
 
