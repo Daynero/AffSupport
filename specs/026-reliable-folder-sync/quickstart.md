@@ -335,6 +335,13 @@ npm run beta:up
   tests passed **49/49**, with project/test typechecks, targeted lint and both
   design fences. Live macOS/Windows parity and zero-byte cloud finalize still
   require end-to-end acceptance; the latter is not proven by manifest tests.
+- T048 fixes the local stage denominator contract: preparing/catalog checks and
+  zero-byte transfer are indeterminate, while byte/item percentages use only
+  confirmed work. Toasts use the inventory Progress, announce five-point
+  increments and stage/detail copy, without making a progress network call.
+  Focused toast/feedback tests passed **20/20**, with project/test typechecks,
+  targeted lint and diff check. Provider-level progress projection and the
+  full cloud-cost parity harness remain for T054–T055.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

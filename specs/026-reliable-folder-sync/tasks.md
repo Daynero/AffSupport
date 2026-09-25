@@ -119,7 +119,7 @@
 
 **Незалежна перевірка**: Upload/move/sync, partial/retry/cancel/reload і дві вкладки; local progress on/off дає однакову кількість cloud requests/writes/subscriptions.
 
-- [ ] T048 [P] [US5] Додати stages/zero-byte denominator/aria/throttling tests у `tests/toast-progress.test.tsx` та cost regression для відсутності progress network calls у `tests/team-progress-cost.test.tsx`.
+- [X] T048 [P] [US5] Додати stages/zero-byte denominator/aria/throttling tests у `tests/toast-progress.test.tsx` та cost regression для відсутності progress network calls у `tests/team-progress-cost.test.tsx`.
 - [ ] T049 [P] [US5] Додати local journal/reload, same-size changed source, lost finalize response, duplicate tab ownership, quota failure і account isolation tests у `tests/workspace-operation-journal.test.ts`.
 - [ ] T050 [P] [US5] Додати progress parity tests усіх move входів — clipboard, tree drop, context menu — та server cycle/permission rejection у `tests/team-explorer-move-progress.test.tsx`.
 - [ ] T051 [US5] Реалізувати account/team-scoped IndexedDB metadata journal у `apps/web/src/team/explorer/workspaceOperationJournal.ts`: checkpoints лише accepted/item-state transitions, no byte callbacks/credentials/handles, terminal7d/interrupted30d retention, sign-out purge і local ownership lease.

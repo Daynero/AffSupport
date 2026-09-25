@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
-import { fillRatio } from './ui/index';
+import { Progress } from './ui/index';
 
 /**
  * A toast says one of four things, and each one is a colour role (021, T024):
@@ -40,7 +40,10 @@ export interface ToastInput {
    * takes long enough to wonder about — pasting twenty files, say. Omitted for
    * the ordinary one-line outcome.
    */
-  progress?: number;
+  progress?: number | 'indeterminate';
+  /** Current local-only stage; not a server status. */
+  stageLabel?: string;
+  detail?: string;
 }
 
 export interface ToastMessage extends ToastInput {
@@ -196,15 +199,28 @@ function ToastRegion({
         >
           <div className="ui-toast-body">
             <p className="ui-toast-text">{toast.text}</p>
+            {toast.stageLabel && (
+              <p className="ui-toast-text">
+                {toast.stageLabel}
+                {typeof toast.progress === 'number'
+                  ? ` ${Math.floor(Math.max(0, Math.min(100, toast.progress)) / 5) * 5}%`
+                  : ''}
+              </p>
+            )}
+            {toast.detail && <p className="ui-toast-text">{toast.detail}</p>}
             {toast.progress !== undefined && (
-              <div
-                className="ui-toast-progress"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(toast.progress)}
-              >
-                <span style={fillRatio(toast.progress)} />
+              <div aria-live="off">
+                <Progress
+                  value={typeof toast.progress === 'number' ? toast.progress : undefined}
+                  color={toast.tone === 'error' ? 'error' : 'info'}
+                  size="xs"
+                  label={toast.stageLabel ?? toast.text}
+                  valueText={
+                    typeof toast.progress === 'number'
+                      ? `${toast.stageLabel ?? toast.text} ${Math.floor(Math.max(0, Math.min(100, toast.progress)) / 5) * 5}%`
+                      : undefined
+                  }
+                />
               </div>
             )}
           </div>
