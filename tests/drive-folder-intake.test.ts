@@ -63,4 +63,34 @@ describe('upload folder resolution', () => {
     ).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
     expect(drive.createFolder).not.toHaveBeenCalled();
   });
+
+  it('coalesces concurrent requests with one key in the same worker', async () => {
+    let release!: (value: ReturnType<typeof folder>) => void;
+    const created = {
+      ...folder('drive-folder', 'parent'),
+      appProperties: { 'soty.upload.folder': 'concurrent-key' }
+    };
+    const drive = {
+      findFolderByAppProperty: vi.fn().mockResolvedValue(null),
+      createFolder: vi.fn().mockImplementation(
+        () =>
+          new Promise(resolve => {
+            release = resolve;
+          })
+      )
+    };
+    const input = {
+      drive,
+      parentDriveId: 'parent',
+      name: 'Assets',
+      idempotencyKey: 'concurrent-key'
+    };
+    const first = resolveUploadFolder(input);
+    const second = resolveUploadFolder(input);
+    await vi.waitFor(() => expect(drive.createFolder).toHaveBeenCalledTimes(1));
+    release(created);
+    expect(await first).toMatchObject({ created: true });
+    expect(await second).toMatchObject({ created: false });
+    expect(drive.createFolder).toHaveBeenCalledTimes(1);
+  });
 });
