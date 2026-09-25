@@ -93,4 +93,21 @@ describe('upload folder resolution', () => {
     expect(await second).toMatchObject({ created: false });
     expect(drive.createFolder).toHaveBeenCalledTimes(1);
   });
+
+  it('does not create when another worker owns the claim but has not published a folder', async () => {
+    const drive = {
+      findFolderByAppProperty: vi.fn().mockResolvedValue(null),
+      createFolder: vi.fn()
+    };
+    await expect(
+      resolveUploadFolder({
+        drive,
+        parentDriveId: 'parent',
+        name: 'Assets',
+        idempotencyKey: 'claimed-elsewhere',
+        allowCreate: false
+      })
+    ).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE', retryable: true });
+    expect(drive.createFolder).not.toHaveBeenCalled();
+  });
 });

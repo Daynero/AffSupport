@@ -1,5 +1,25 @@
 # Rollback notes
 
+## 20260924180000_upload_folder_claim.sql
+
+Stop new folder intake and let in-flight requests finish. Restore the prior
+`drive-ops` code before dropping its service-only claim function. Keep completed
+folder/material rows; do not delete their Drive folders. Then:
+
+```sql
+drop function public.service_claim_upload_folder(uuid,uuid,text,uuid,text);
+delete from public.team_operations where kind = 'folder_create';
+alter table public.team_operations drop constraint team_operations_kind_check;
+alter table public.team_operations add constraint team_operations_kind_check check (
+  kind in ('upload','download','rename','move','trash','restore',
+    'content_edit','new_version','process')
+);
+```
+
+The operation-row deletion is limited to this new kind and only after the old
+code no longer needs replay. It does not remove catalog materials or provider
+folders. Rollback forfeits automatic retry coordination for those requests.
+
 ## 20260924170000_catalog_sync_retention.sql
 
 Stop only the retention schedule, then remove its private function. This does

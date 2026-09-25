@@ -296,6 +296,18 @@ npm run beta:up
   for isolated use; chooser unification is T042–T047. Focused Explorer tests
   passed **4/4**, including an empty-directory integration case; provider tests
   passed **6/6**. Project/test typechecks and targeted lint passed.
+- T041 adds a per-directory request key, Drive app-property replay lookup and an
+  atomic `folder_create` claim in existing `team_operations`. Only the winning
+  claimant may create; another Edge instance can confirm the marked Drive
+  folder and commit its catalog row but cannot race a second create. Replayed
+  keys with a different name/parent fail. The route retains upload authorization,
+  server-side destination checks and the existing idempotent catalog upsert;
+  success follows that upsert and the operation transition. New pgTAP claim
+  assertions passed **7/7** in a rolled-back local transaction, with no local
+  migration left applied. Focused Drive/Explorer/provider tests passed **38/38**;
+  project/test typechecks, targeted lint and diff check passed. The local
+  Supabase stack is behind the pending feature migrations, so linked generated
+  types and the complete database gate remain release-verification work.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

@@ -2332,6 +2332,19 @@ async function handleEnsureUploadFolder(
         destination: parentMaterialId
       })
     : null;
+  const claim = firstRecord(
+    await rpcValue(service, 'service_claim_upload_folder', {
+      p_team: teamId,
+      p_actor: actorId,
+      p_key: idempotencyKey,
+      p_parent: parentMaterialId,
+      p_name: name
+    })
+  );
+  const operationId = claim ? stringValue(claim, 'operation_id') : null;
+  if (!operationId || typeof claim?.claimed !== 'boolean') {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
   const client = await driveClient(service, root.credentialId, request);
   const parentDriveId = parent?.driveFolderId ?? root.rootFolderId;
   const { folder, created } = await resolveUploadFolder({
@@ -2339,7 +2352,8 @@ async function handleEnsureUploadFolder(
     name,
     parentDriveId,
     driveId: root.driveId,
-    idempotencyKey
+    idempotencyKey,
+    allowCreate: claim.claimed
   });
   const committed = firstRecord(
     await rpcValue(service, 'service_commit_task_drop_folder', {
@@ -2353,6 +2367,12 @@ async function handleEnsureUploadFolder(
   );
   const materialId = committed ? stringValue(committed, 'material_id') : null;
   if (!materialId) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  await transitionOperation({
+    service,
+    operationId,
+    state: 'succeeded',
+    resultMaterialId: materialId
+  });
   return { folderId: folder.id, materialId, name: folder.name, created };
 }
 

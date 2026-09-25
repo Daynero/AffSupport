@@ -29,6 +29,7 @@ export async function resolveUploadFolder(input: {
   driveId?: string | null;
   name: string;
   idempotencyKey: string;
+  allowCreate?: boolean;
 }): Promise<FolderResolution> {
   const active = inFlight.get(input.idempotencyKey);
   if (active) {
@@ -45,6 +46,9 @@ export async function resolveUploadFolder(input: {
     if (found) {
       assertSameIntent(found, input);
       return { folder: found, created: false };
+    }
+    if (input.allowCreate === false) {
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
     }
     const folder = await input.drive.createFolder({
       name: input.name,

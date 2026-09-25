@@ -98,7 +98,7 @@
 - [X] T038 [US3] Реалізувати bounded file/directory manifest enumeration у `apps/web/src/team/explorer/localManifest.ts`, включно з усіма directory-reader batches, explicit empty directories та original-name preservation.
 - [X] T039 [US3] Створити `apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx` і `useWorkspaceOperations.ts`, змонтувати над explorer у `apps/web/src/team/workspace/WorkspaceShell.tsx`; context override для тестів, topological folder creation, per-group concurrency3/global6, чинні material idempotency keys.
 - [X] T040 [US3] З’єднати drop entry point у `apps/web/src/team/explorer/ExplorerShell.tsx` і conflicts у `UploadConflictDialog.tsx` з одним координатором; destination фіксувати до enumeration, resolved parent mappings використовувати повторно.
-- [ ] T041 [US3] Перевірити server authorization, directory creation/finalize idempotency і postcondition у `supabase/functions/drive-ops/handler.ts`, `index.ts` та `tests/drive-folder-intake.test.ts`; не додавати cloud group/items tables або progress RPC.
+- [X] T041 [US3] Перевірити server authorization, directory creation/finalize idempotency і postcondition у `supabase/functions/drive-ops/handler.ts`, `index.ts` та `tests/drive-folder-intake.test.ts`; не додавати cloud group/items tables або progress RPC.
 
 ## Phase 8 — US4: одна кнопка файли/папки (P1)
 
