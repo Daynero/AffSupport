@@ -93,7 +93,12 @@ import { useFolderPage } from './useFolderPage';
 import { useVisibleRowAnchor } from './useVisibleRowAnchor';
 import { useFolderResync, type FolderResyncClient } from './useFolderResync';
 import { usePosterFrames } from './usePosterFrames';
-import { buildLocalManifest, type LocalDropEntry, type LocalManifestSource } from './localManifest';
+import {
+  buildLocalManifest,
+  type LocalDirectoryHandle,
+  type LocalDropEntry,
+  type LocalManifestSource
+} from './localManifest';
 import { useOptionalWorkspaceOperations } from './WorkspaceOperationsProvider';
 
 export type ExplorerShellClient = ExplorerClient &
@@ -381,7 +386,6 @@ function ExplorerBody({
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const workspaceOperations = useOptionalWorkspaceOperations();
   const fileInput = useRef<HTMLInputElement>(null);
-  const folderInput = useRef<HTMLInputElement>(null);
   const view: ExplorerView = query.view ?? readRememberedView();
   const [sort, setSortState] = useState<ExplorerSort>(() => readRememberedSort());
   const setSort = (next: ExplorerSort) => {
@@ -865,40 +869,6 @@ function ExplorerBody({
     [changed, currentFolderId, page.rows, permissions?.upload, push, t, teamId, update]
   );
 
-  const pickFolder = useCallback(async () => {
-    const picker = (window as Window & { showDirectoryPicker?: () => Promise<unknown> })
-      .showDirectoryPicker;
-    if (!picker) {
-      folderInput.current?.click();
-      return;
-    }
-    try {
-      const handle = (await picker()) as {
-        name: string;
-        values: () => AsyncIterable<{
-          kind: 'file' | 'directory';
-          name: string;
-          getFile?: () => Promise<File>;
-          values?: () => AsyncIterable<unknown>;
-        }>;
-      };
-      const files: UploadFile[] = [];
-      const walk = async (directory: typeof handle, prefix: string): Promise<void> => {
-        for await (const entry of directory.values()) {
-          if (entry.kind === 'file' && entry.getFile)
-            files.push({ file: await entry.getFile(), relativePath: `${prefix}${entry.name}` });
-          else if (entry.kind === 'directory' && entry.values)
-            await walk(entry as typeof handle, `${prefix}${entry.name}/`);
-        }
-      };
-      await walk(handle, `${handle.name}/`);
-      if (files.length > 0) void upload(files);
-    } catch (error) {
-      if ((error as { name?: string }).name !== 'AbortError')
-        push({ tone: 'error', text: t('teamDriveResyncFailed') });
-    }
-  }, [push, t, upload]);
-
   const uploadDrop = useCallback(
     async (sources: LocalManifestSource[]) => {
       if (!permissions?.upload || sources.length === 0) return;
@@ -995,6 +965,24 @@ function ExplorerBody({
       workspaceOperations
     ]
   );
+
+  const pickFolder = useCallback(async () => {
+    const picker = (window as Window & { showDirectoryPicker?: () => Promise<unknown> })
+      .showDirectoryPicker;
+    if (!picker) {
+      // webkitdirectory drops empty directories. The scoped native fallback
+      // is installed separately; until then, fail before any remote writes.
+      push({ tone: 'error', text: t('teamDriveResyncFailed') });
+      return;
+    }
+    try {
+      const handle = (await picker()) as LocalDirectoryHandle;
+      await uploadDrop([{ kind: 'directory_handle', handle }]);
+    } catch (error) {
+      if ((error as { name?: string }).name !== 'AbortError')
+        push({ tone: 'error', text: t('teamDriveResyncFailed') });
+    }
+  }, [push, t, uploadDrop]);
 
   const actions: RowActionsProps | undefined = permissions
     ? {
@@ -1484,27 +1472,6 @@ function ExplorerBody({
                 type="file"
                 multiple
                 hidden
-                onChange={event => {
-                  if (event.target.files) void upload(event.target.files);
-                  event.target.value = '';
-                }}
-              />
-              <input
-                ref={element => {
-                  folderInput.current = element;
-                  // React's unknown-attribute handling is not consistent across
-                  // browsers. Set the native directory flag explicitly so the
-                  // macOS picker opens in folder mode instead of file mode.
-                  if (element) {
-                    element.setAttribute('webkitdirectory', '');
-                    (element as HTMLInputElement & { webkitdirectory?: boolean }).webkitdirectory =
-                      true;
-                  }
-                }}
-                type="file"
-                multiple
-                hidden
-                // Chrome exposes the complete local folder tree through relative paths.
                 onChange={event => {
                   if (event.target.files) void upload(event.target.files);
                   event.target.value = '';

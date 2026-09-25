@@ -308,6 +308,13 @@ npm run beta:up
   project/test typechecks, targeted lint and diff check passed. The local
   Supabase stack is behind the pending feature migrations, so linked generated
   types and the complete database gate remain release-verification work.
+- T042 chooser tests cover handle/drop manifest parity, empty-only browser
+  folder selection, no-handle behavior and chooser cancellation. The browser
+  picker now passes its directory handle through the same manifest/coordinator
+  as drop; `webkitdirectory` was removed because it loses empty folders. With
+  no browser handle, the action stops before remote writes until the scoped
+  agent fallback and actionable copy arrive in T043–T047. Focused chooser and
+  Explorer tests passed **8/8**, with project/test typechecks and targeted lint.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite
