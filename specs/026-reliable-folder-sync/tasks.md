@@ -93,7 +93,7 @@
 **Незалежна перевірка**: Змішані roots, 1k files/100 dirs/10 empty dirs, unreadable branch та навігація: збережені структура й destination; partial не success.
 
 - [X] T035 [P] [US3] Додати mixed roots, batch enumeration, empty/zero-byte, Unicode, cycles, limits і cancellation fixtures/tests у `tests/fixtures/local-manifest.ts` та `tests/local-manifest.test.ts`.
-- [ ] T036 [P] [US3] Додати drag/drop, frozen destination, explicit conflicts і failed-parent tests у `tests/team-explorer-folder-upload.test.tsx`.
+- [X] T036 [P] [US3] Додати drag/drop, frozen destination, explicit conflicts і failed-parent tests у `tests/team-explorer-folder-upload.test.tsx`.
 - [X] T037 [US3] Додати local-only operation/manifest closed unions і validators у `packages/shared/src/team/transport.ts`; server serializers не приймають File, handles або absolute paths.
 - [X] T038 [US3] Реалізувати bounded file/directory manifest enumeration у `apps/web/src/team/explorer/localManifest.ts`, включно з усіма directory-reader batches, explicit empty directories та original-name preservation.
 - [ ] T039 [US3] Створити `apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx` і `useWorkspaceOperations.ts`, змонтувати над explorer у `apps/web/src/team/workspace/WorkspaceShell.tsx`; context override для тестів, topological folder creation, per-group concurrency3/global6, чинні material idempotency keys.

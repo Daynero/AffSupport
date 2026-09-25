@@ -781,7 +781,20 @@ function ExplorerBody({
       setUploading(count => count + list.length);
       for (const [index, item] of list.entries()) {
         const file = item.file;
-        const fileDestination = await folderFor(item.relativePath);
+        let fileDestination: string | null;
+        try {
+          fileDestination = await folderFor(item.relativePath);
+        } catch (cause) {
+          setUploading(count => Math.max(0, count - 1));
+          push({
+            tone: 'error',
+            text: t('teamExplorerUploadFailedFor', {
+              name: file.name,
+              reason: teamErrorMessageFor(cause, t)
+            })
+          });
+          continue;
+        }
         const clash = byName.get(file.name.toLocaleLowerCase());
         let choice: UploadConflictChoice = 'keep_both';
         if (clash) {

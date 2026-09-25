@@ -275,6 +275,12 @@ npm run beta:up
   the design/security fences, but its repository-wide Prettier gate exceeded
   the runner's 180-second budget on this machine. This is **not** a static PASS;
   the four new/edited manifest files were checked separately with Prettier.
+- T036 Explorer DOM regressions now cover delayed drop enumeration with a
+  frozen destination, an explicit same-name skip/keep-both decision, and a
+  failed parent folder that must not stop an unrelated file. The three focused
+  tests passed **3/3**. The pre-fix failed-parent path caused an unhandled
+  rejection; the file loop now reports that item and continues. This is still
+  the existing upload path, not the future workspace-wide coordinator.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite
