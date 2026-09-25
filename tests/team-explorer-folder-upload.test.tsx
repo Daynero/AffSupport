@@ -15,6 +15,7 @@ import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { teamApi } from '../apps/web/src/api/team';
 import { uploadTeamFile } from '../apps/web/src/team/catalog/material-actions-client';
 import { makeTeam } from './team-space-fixtures';
+import { WorkspaceOperationsProvider } from '../apps/web/src/team/explorer/WorkspaceOperationsProvider';
 
 vi.mock('../apps/web/src/team/catalog/material-actions-client', async importOriginal => {
   const actual =
@@ -69,19 +70,26 @@ function client(rows: TeamMaterialRow[] = []): ExplorerShellClient {
   } as unknown as ExplorerShellClient;
 }
 
-function shell(folderId: string | null) {
+function shell(folderId: string | null, coordinated = false) {
+  const explorer = (
+    <ExplorerShell
+      teamId={team.id}
+      client={testClient}
+      query={{ ...emptyTeamRouteQuery(), folderId, view: 'list' }}
+      onQueryChange={vi.fn()}
+      onFolderChange={vi.fn()}
+      onSearched={vi.fn()}
+      onPreview={vi.fn()}
+    />
+  );
   return (
     <ToastProvider>
       <TeamProvider realtime={false} initialTeams={[team]}>
-        <ExplorerShell
-          teamId={team.id}
-          client={testClient}
-          query={{ ...emptyTeamRouteQuery(), folderId, view: 'list' }}
-          onQueryChange={vi.fn()}
-          onFolderChange={vi.fn()}
-          onSearched={vi.fn()}
-          onPreview={vi.fn()}
-        />
+        {coordinated ? (
+          <WorkspaceOperationsProvider teamId={team.id}>{explorer}</WorkspaceOperationsProvider>
+        ) : (
+          explorer
+        )}
       </TeamProvider>
     </ToastProvider>
   );
@@ -96,6 +104,27 @@ afterEach(() => {
 });
 
 describe('folder intake in Explorer', () => {
+  it('preserves an empty dropped directory through the workspace coordinator', async () => {
+    testClient = client();
+    render(shell(null, true));
+    const empty = {
+      name: 'empty',
+      isFile: false,
+      isDirectory: true,
+      createReader: () => ({ readEntries: (success: (entries: unknown[]) => void) => success([]) })
+    };
+    const zone = document.querySelector('.team-explorer-dropzone')!;
+    fireEvent.drop(zone, {
+      dataTransfer: { types: ['Files'], items: [{ webkitGetAsEntry: () => empty }], files: [] }
+    });
+    await waitFor(() => expect(teamApi.ensureUploadFolder).toHaveBeenCalled());
+    expect(teamApi.ensureUploadFolder).toHaveBeenCalledWith(team.id, {
+      name: 'empty',
+      parentMaterialId: null
+    });
+    expect(uploadTeamFile).not.toHaveBeenCalled();
+  });
+
   it('freezes the drop destination before asynchronous file enumeration', async () => {
     testClient = client();
     let deliver!: (file: File) => void;

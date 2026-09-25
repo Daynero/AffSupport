@@ -281,6 +281,21 @@ npm run beta:up
   tests passed **3/3**. The pre-fix failed-parent path caused an unhandled
   rejection; the file loop now reports that item and continues. This is still
   the existing upload path, not the future workspace-wide coordinator.
+- T039 adds the workspace-owned, in-memory upload coordinator above Explorer.
+  It creates directories topologically, retains empty directories, runs at most
+  three file transfers per group and six across the provider, refuses a known
+  conflict without an explicit choice, and does not report success until the
+  caller's authoritative catalog postcondition resolves. Focused provider
+  tests passed **6/6**; project/test typechecks and targeted lint passed. The
+  current Explorer drop/chooser still uses its previous upload loop until T040.
+- T040 connects the Explorer drop entry point to that coordinator in a workspace.
+  It snapshots the Drive/material destination before asynchronous enumeration,
+  passes native drop entries through the lossless manifest (including empty
+  directories), serializes conflict decisions, and waits for strict catalog/tree
+  refresh before reporting success. The standalone Explorer legacy path remains
+  for isolated use; chooser unification is T042–T047. Focused Explorer tests
+  passed **4/4**, including an empty-directory integration case; provider tests
+  passed **6/6**. Project/test typechecks and targeted lint passed.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

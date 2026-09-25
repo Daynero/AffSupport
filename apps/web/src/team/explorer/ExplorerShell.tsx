@@ -93,6 +93,8 @@ import { useFolderPage } from './useFolderPage';
 import { useVisibleRowAnchor } from './useVisibleRowAnchor';
 import { useFolderResync, type FolderResyncClient } from './useFolderResync';
 import { usePosterFrames } from './usePosterFrames';
+import { buildLocalManifest, type LocalDropEntry, type LocalManifestSource } from './localManifest';
+import { useOptionalWorkspaceOperations } from './WorkspaceOperationsProvider';
 
 export type ExplorerShellClient = ExplorerClient &
   FolderResyncClient &
@@ -377,6 +379,7 @@ function ExplorerBody({
     settle: (choice: UploadConflictChoice, forRest: boolean) => void;
   } | null>(null);
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
+  const workspaceOperations = useOptionalWorkspaceOperations();
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const view: ExplorerView = query.view ?? readRememberedView();
@@ -895,6 +898,103 @@ function ExplorerBody({
         push({ tone: 'error', text: t('teamDriveResyncFailed') });
     }
   }, [push, t, upload]);
+
+  const uploadDrop = useCallback(
+    async (sources: LocalManifestSource[]) => {
+      if (!permissions?.upload || sources.length === 0) return;
+      if (!workspaceOperations) {
+        // Standalone Explorer instances retain their original upload path.
+        const files = await Promise.all(
+          sources
+            .filter(
+              (source): source is Extract<LocalManifestSource, { kind: 'file' }> =>
+                source.kind === 'file'
+            )
+            .map(source => source.file)
+        );
+        await upload(files);
+        return;
+      }
+      // Capture the destination before any asynchronous directory enumeration.
+      const destination = {
+        driveFolderId: currentFolderId,
+        materialId: currentFolderId ? (nodeOf(currentFolderId)?.id ?? null) : null
+      };
+      const existingByName = new Map(
+        page.rows.map(row => [row.name.toLocaleLowerCase(), row.id] as const)
+      );
+      let forAll: UploadConflictChoice | null = null;
+      let conflictQueue = Promise.resolve();
+      setUploading(count => count + 1);
+      try {
+        const manifest = await buildLocalManifest(sources);
+        let remainingConflicts = manifest.entries.filter(
+          entry =>
+            entry.kind === 'file' &&
+            entry.parentKey === null &&
+            existingByName.has(entry.relativePath.toLocaleLowerCase())
+        ).length;
+        const group = await workspaceOperations.startUploadGroup({
+          teamId,
+          destination,
+          manifest,
+          existingByName,
+          onConflict: async ({ name, existingMaterialId }) => {
+            const previous = conflictQueue;
+            let release!: () => void;
+            conflictQueue = new Promise<void>(resolve => {
+              release = resolve;
+            });
+            await previous;
+            try {
+              remainingConflicts = Math.max(0, remainingConflicts - 1);
+              if (forAll) return forAll;
+              return await new Promise<UploadConflictChoice>(resolve => {
+                setConflict({
+                  request: { fileName: name, existingMaterialId, remaining: remainingConflicts },
+                  settle: (choice, rest) => {
+                    if (rest) forAll = choice;
+                    setConflict(null);
+                    resolve(choice);
+                  }
+                });
+              });
+            } finally {
+              release();
+            }
+          },
+          confirmCatalog: async () => {
+            await Promise.all([page.reloadStrict(), explorer.refreshStrict()]);
+            onChanged?.();
+          }
+        });
+        push({
+          tone: group.state === 'succeeded' ? 'success' : 'error',
+          text:
+            group.state === 'succeeded'
+              ? t('teamExplorerUploadedOne', { name: manifest.roots[0]?.name ?? '' })
+              : t('teamDriveResyncFailed')
+        });
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      } finally {
+        setUploading(count => Math.max(0, count - 1));
+      }
+    },
+    [
+      currentFolderId,
+      explorer,
+      nodeOf,
+      onChanged,
+      page,
+      permissions?.upload,
+      push,
+      t,
+      teamId,
+      upload,
+      workspaceOperations
+    ]
+  );
 
   const actions: RowActionsProps | undefined = permissions
     ? {
@@ -1499,7 +1599,8 @@ function ExplorerBody({
           if (!event.dataTransfer.types.includes('Files')) return;
           event.preventDefault();
           setDropping(false);
-          void filesFromDrop(event.dataTransfer).then(files => upload(files));
+          if (workspaceOperations) void uploadDrop(sourcesFromDrop(event.dataTransfer));
+          else void filesFromDrop(event.dataTransfer).then(files => upload(files));
         }}
       >
         {readOnly && (
@@ -1926,6 +2027,14 @@ function ExplorerBody({
 }
 
 /** Browsers expose a dropped directory through DataTransferItem entries, not files. */
+function sourcesFromDrop(dataTransfer: DataTransfer): LocalManifestSource[] {
+  const entries = Array.from(dataTransfer.items)
+    .map(item => item.webkitGetAsEntry?.() as LocalDropEntry | null | undefined)
+    .filter((entry): entry is LocalDropEntry => Boolean(entry));
+  if (entries.length > 0) return entries.map(entry => ({ kind: 'drop_entry', entry }));
+  return Array.from(dataTransfer.files).map(file => ({ kind: 'file', file }));
+}
+
 async function filesFromDrop(dataTransfer: DataTransfer): Promise<UploadFile[]> {
   type DropEntry = {
     name: string;
