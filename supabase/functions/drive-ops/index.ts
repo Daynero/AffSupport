@@ -54,6 +54,7 @@ import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/l
 import { resolveRestitchedFolder } from './restitched-folder.ts';
 import { resolveTaskDropFolder } from './task-drop-folder.ts';
 import { resolveWorkspaceFolder } from './workspace-folder.ts';
+import { resolveUploadFolder } from './upload-folder.ts';
 import {
   createProductCatalog,
   type CatalogLinkOutcome,
@@ -2315,24 +2316,44 @@ async function handleEnsureUploadFolder(
 ) {
   const teamId = requireUuid(body.teamId);
   const name = requireFolderName(body.name);
-  const parentMaterialId = body.parentMaterialId === undefined ? null : requireUuid(body.parentMaterialId);
+  const idempotencyKey =
+    body.idempotencyKey === undefined
+      ? crypto.randomUUID()
+      : requireIdempotency(body.idempotencyKey);
+  const parentMaterialId =
+    body.parentMaterialId === undefined ? null : requireUuid(body.parentMaterialId);
   const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
   const parent = parentMaterialId
-    ? await loadDestination({ service, teamId, actorId, permission: 'upload', destination: parentMaterialId })
+    ? await loadDestination({
+        service,
+        teamId,
+        actorId,
+        permission: 'upload',
+        destination: parentMaterialId
+      })
     : null;
   const client = await driveClient(service, root.credentialId, request);
-  const created = await client.createFolder({ name, parentId: parent?.driveFolderId ?? root.rootFolderId });
-  const committed = firstRecord(await rpcValue(service, 'service_commit_task_drop_folder', {
-    p_team: teamId,
-    p_connection: root.connectionId,
-    p_parent_folder_id: parent?.driveFolderId ?? root.rootFolderId,
-    p_drive_folder_id: created.id,
-    p_resource_key: created.resourceKey,
-    p_name: created.name
-  }));
+  const parentDriveId = parent?.driveFolderId ?? root.rootFolderId;
+  const { folder, created } = await resolveUploadFolder({
+    drive: client,
+    name,
+    parentDriveId,
+    driveId: root.driveId,
+    idempotencyKey
+  });
+  const committed = firstRecord(
+    await rpcValue(service, 'service_commit_task_drop_folder', {
+      p_team: teamId,
+      p_connection: root.connectionId,
+      p_parent_folder_id: parentDriveId,
+      p_drive_folder_id: folder.id,
+      p_resource_key: folder.resourceKey,
+      p_name: folder.name
+    })
+  );
   const materialId = committed ? stringValue(committed, 'material_id') : null;
   if (!materialId) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
-  return { folderId: created.id, materialId, name: created.name, created: true };
+  return { folderId: folder.id, materialId, name: folder.name, created };
 }
 
 /** A folder name as Drive will take it: one line, and not a path. */

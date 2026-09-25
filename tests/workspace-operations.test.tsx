@@ -29,7 +29,10 @@ function mount(client: WorkspaceOperationsClient) {
 describe('workspace upload coordinator', () => {
   it('creates parent folders once, preserves empty folders and confirms catalog before success', async () => {
     const ensureFolder = vi.fn(
-      async (_team: string, input: { name: string; parentMaterialId: string | null }) => ({
+      async (
+        _team: string,
+        input: { name: string; parentMaterialId: string | null; idempotencyKey: string }
+      ) => ({
         folderId: `created-drive-${input.name}`,
         materialId: `created-material-${input.name}`
       })
@@ -63,6 +66,10 @@ describe('workspace upload coordinator', () => {
       ['empty', 'created-material-root'],
       ['nested', 'created-material-root']
     ]);
+    expect(ensureFolder.mock.calls.map(([, input]) => input.idempotencyKey)).toEqual(
+      expect.arrayContaining([expect.any(String), expect.any(String), expect.any(String)])
+    );
+    expect(new Set(ensureFolder.mock.calls.map(([, input]) => input.idempotencyKey)).size).toBe(3);
     expect(uploadFile).toHaveBeenCalledWith(
       expect.objectContaining({
         destinationFolderId: 'created-drive-nested',

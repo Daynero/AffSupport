@@ -118,10 +118,13 @@ describe('folder intake in Explorer', () => {
       dataTransfer: { types: ['Files'], items: [{ webkitGetAsEntry: () => empty }], files: [] }
     });
     await waitFor(() => expect(teamApi.ensureUploadFolder).toHaveBeenCalled());
-    expect(teamApi.ensureUploadFolder).toHaveBeenCalledWith(team.id, {
-      name: 'empty',
-      parentMaterialId: null
-    });
+    expect(teamApi.ensureUploadFolder).toHaveBeenCalledWith(
+      team.id,
+      expect.objectContaining({
+        name: 'empty',
+        parentMaterialId: null
+      })
+    );
     expect(uploadTeamFile).not.toHaveBeenCalled();
   });
 

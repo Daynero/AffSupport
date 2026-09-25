@@ -3157,13 +3157,14 @@ export const teamApi = {
 
   async ensureUploadFolder(
     teamId: string,
-    input: { name: string; parentMaterialId?: string | null }
+    input: { name: string; parentMaterialId?: string | null; idempotencyKey?: string }
   ): Promise<{ folderId: string; materialId: string; name: string; created: boolean }> {
     return invokeTeamFunction(
       'drive-ops/ensure-upload-folder',
       {
         teamId,
         name: input.name,
+        idempotencyKey: input.idempotencyKey ?? crypto.randomUUID(),
         ...(input.parentMaterialId ? { parentMaterialId: input.parentMaterialId } : {})
       },
       (

@@ -24,6 +24,7 @@ export interface WorkspaceDestination {
 export interface WorkspaceOperationItem {
   clientItemKey: string;
   relativePath: string;
+  idempotencyKey: string;
   state: LocalItemState;
   errorCode: string | null;
 }
@@ -38,7 +39,7 @@ export interface WorkspaceOperationGroup {
 export interface WorkspaceOperationsClient {
   ensureFolder: (
     teamId: string,
-    input: { name: string; parentMaterialId: string | null }
+    input: { name: string; parentMaterialId: string | null; idempotencyKey: string }
   ) => Promise<{ folderId: string; materialId: string }>;
   uploadFile: (input: TeamFileUploadInput) => Promise<unknown>;
 }
@@ -129,6 +130,7 @@ export function WorkspaceOperationsProvider({
         items: request.manifest.entries.map(entry => ({
           clientItemKey: entry.clientItemKey,
           relativePath: entry.relativePath,
+          idempotencyKey: crypto.randomUUID(),
           state: 'pending',
           errorCode: null
         }))
@@ -176,7 +178,9 @@ export function WorkspaceOperationsProvider({
           const created = await globalSlots.current.use(() =>
             client.ensureFolder(teamId, {
               name,
-              parentMaterialId: parent.materialId
+              parentMaterialId: parent.materialId,
+              idempotencyKey: group.items.find(item => item.clientItemKey === entry.clientItemKey)!
+                .idempotencyKey
             })
           );
           resolved.set(entry.clientItemKey, {
