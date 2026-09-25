@@ -67,9 +67,9 @@
 
 **Незалежна перевірка**: 50k файлів/10 100 папок/depth20, moved-in populated subtree, restart та permissions: повний доступний каталог або явна причина неповноти.
 
-- [ ] T024 [P] [US6] Додати initial scan, moved-in/restored subtree, wide frontier понад 10k, cursor loss і 50k correctness tests у `tests/catalog-sync-completeness.test.ts`.
+- [X] T024 [P] [US6] Додати initial scan, moved-in/restored subtree, wide frontier понад 10k, cursor loss і 50k correctness tests у `tests/catalog-sync-completeness.test.ts`.
 - [ ] T025 [P] [US6] Додати empty/partial/auth-revoked/rate-limited/delayed storage tests у `tests/team-storage-health.test.tsx`.
-- [ ] T026 [US6] Enqueue-ити discovered subtree через той самий scope-join механізм і відновлювати durable frontier без truncation у `supabase/functions/catalog-sync/engine.ts`; canonical cursor commit залишається окремою authority.
+- [X] T026 [US6] Enqueue-ити discovered subtree через той самий scope-join механізм і відновлювати durable frontier без truncation у `supabase/functions/catalog-sync/engine.ts`; canonical cursor commit залишається окремою authority.
 - [ ] T027 [US6] Розширити health projection через нову `supabase/migrations/*_catalog_coverage_health.sql` і `supabase/functions/catalog-sync/index.ts`; додати `supabase/tests/database/catalog-coverage-health.test.sql`, reverse steps у `ROLLBACK.md` і DB types.
 - [ ] T028 [US6] Показувати coverage, last confirmed success і next action у `apps/web/src/team/storage/useStorageHealth.ts`, `StorageChip.tsx` та `drive/BetaStorageNotice.tsx`; не змінювати OAuth scope і не очищувати відомий каталог через access failure.
 

@@ -445,6 +445,14 @@ function dependencies(input: {
         p_parent_folder_id: request.parentId,
         p_files: request.files.map(catalogRow)
       }),
+    enqueueDiscoveredFolder: request =>
+      rpcValue(service, 'service_enqueue_discovered_catalog_subtree', {
+        p_job: request.jobId,
+        p_worker: worker,
+        p_epoch: job.leaseEpoch,
+        p_folder: request.folderId,
+        p_parent: request.parentFolderId
+      }),
     tombstoneFiles: request =>
       rpcValue(service, 'service_tombstone_catalog_files', {
         p_connection: request.connectionId,

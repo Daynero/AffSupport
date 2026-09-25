@@ -198,6 +198,21 @@ npm run beta:up
   schema copy omitted publications; no beta or production schema was migrated.
   Public types for the new nullable event field were generated against this
   isolated schema and selectively merged.
+- T026 change-feed folder discovery now requests finite coverage before the
+  canonical cursor advances. Manual and discovered requests share the same
+  scope-join helper; already indexed unchanged folders are skipped, while new,
+  moved and restored folders get work. PGlite discovered-scope tests passed
+  **3/3**, native pgTAP lease/grant tests **6/6**, and an engine harness walked
+  **50,000 files / 500 pages** before finite completion. Existing scan-generation
+  tests cover a 10,100-folder durable frontier. These are local correctness
+  fixtures, not a provider-load or production latency benchmark. The isolated
+  native database was used; beta and production remained untouched.
+- T024 completeness regressions additionally cover moved-in/restored folder
+  scheduling before cursor commit and rejected page-token recovery with a new
+  generation. The dedicated file passed **5/5**; five related catalog suites
+  passed **46/46** before those added cases. Test typecheck and `git diff --check`
+  passed. The 10,100-folder frontier assertion lives in the scan-generation
+  database test, not the dedicated engine file.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

@@ -103,6 +103,13 @@ export interface CatalogSyncDependencies {
     parentId: string | null;
     files: DriveFileMetadata[];
   }) => Promise<unknown>;
+  /** Joins or creates finite coverage before a folder change cursor is committed. */
+  enqueueDiscoveredFolder: (input: {
+    jobId: string;
+    connectionId: string;
+    folderId: string;
+    parentFolderId: string | null;
+  }) => Promise<unknown>;
   tombstoneFiles: (input: {
     jobId: string;
     connectionId: string;
@@ -388,6 +395,21 @@ async function runChanges(
       items: tombstones,
       preserveProvenance: true
     });
+  }
+  // A moved-in folder can already contain thousands of files that have no
+  // individual change records. Schedule its finite walk before advancing the
+  // canonical token; the database skips already-covered unchanged folders.
+  for (const folder of new Map(
+    active.filter(file => file.mimeType === FOLDER_MIME_TYPE).map(file => [file.id, file] as const)
+  ).values()) {
+    assertLease(
+      await dependencies.enqueueDiscoveredFolder({
+        jobId: job.jobId,
+        connectionId: job.connectionId,
+        folderId: folder.id,
+        parentFolderId: folder.parents[0] ?? null
+      })
+    );
   }
   await persistActiveFiles(job, dependencies, active, null);
 

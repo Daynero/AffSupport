@@ -3527,6 +3527,16 @@ export type Database = {
         Args: { p_connection: string };
         Returns: string;
       };
+      service_enqueue_discovered_catalog_subtree: {
+        Args: {
+          p_epoch: number;
+          p_folder: string;
+          p_job: string;
+          p_parent: string | null;
+          p_worker: string;
+        };
+        Returns: boolean;
+      };
       service_enqueue_material_enrichments: {
         Args: { p_material: string; p_source_version: string; p_team: string };
         Returns: number;

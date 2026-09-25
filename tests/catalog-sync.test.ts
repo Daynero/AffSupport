@@ -49,6 +49,7 @@ function dependencies(overrides: Partial<CatalogSyncDependencies> = {}): Catalog
     isHiddenSystemFile: vi.fn().mockResolvedValue(false),
     invalidateLandingRenders: vi.fn(),
     upsertFiles: vi.fn(),
+    enqueueDiscoveredFolder: vi.fn().mockResolvedValue(true),
     tombstoneFiles: vi.fn(),
     requeueTranscripts: vi.fn(),
     checkpoint: vi.fn(),

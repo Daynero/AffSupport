@@ -1,5 +1,24 @@
 # Rollback notes
 
+## 20260924140000_catalog_discovered_subtrees.sql
+
+Stop the catalog scheduler and drain workers first. Existing discovered jobs
+already in the durable frontier must finish or be restarted from their scope;
+never discard their material rows or use a partial listing as complete. Restore
+the previous `public.request_team_folder_resync(uuid,text)` definition from
+`20260924120000_catalog_sync_scope_join.sql`, then remove the service entry and
+shared helper:
+
+```sql
+drop function public.service_enqueue_discovered_catalog_subtree(uuid,text,bigint,text,text);
+drop function private.join_catalog_subtree(uuid,text,text,text);
+notify pgrst, 'reload schema';
+```
+
+Restore the matching Edge adapter and regenerate public types before resuming.
+Without the service entry, change-feed folder events no longer guarantee a
+finite descendant scan; keep coverage visibly partial until a forward fix.
+
 ## 20260924130000_catalog_invalidation_scope.sql
 
 Stop new Drive mutations and catalog workers while reverting the event shape.
