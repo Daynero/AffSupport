@@ -32,6 +32,7 @@ import type { StitchQueue } from '../stitcher/queue.js';
 import { registerStitcherRoutes } from '../stitcher/routes.js';
 import { registerTeamBridgeRoutes } from '../team-bridge/routes.js';
 import { registerLandingRoutes } from '../landing/routes.js';
+import { DirectoryIntake, registerDirectoryIntakeRoutes } from '../files/directory-intake.js';
 import { registerTranscriptionRoutes } from '../transcription/routes.js';
 import type { PowerGovernor } from '../power/governor.js';
 import type { EventChannel } from './sse.js';
@@ -119,7 +120,17 @@ export interface ToolModulesDeps {
 export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
   const { compressor, mediaActions, landing, landingPreview, transcription, teamWorkspace } = deps;
   const { stitcher } = deps;
+  const directoryIntake = new DirectoryIntake();
   return [
+    {
+      id: 'files',
+      lifecycle: null,
+      register: app => registerDirectoryIntakeRoutes(app, directoryIntake),
+      busy: () => directoryIntake.busy(),
+      cancel: async () => false,
+      cancelAll: async () => 0,
+      shutdown: async () => directoryIntake.shutdown()
+    },
     {
       id: 'compressor',
       lifecycle: COMPRESSION_LIFECYCLE,

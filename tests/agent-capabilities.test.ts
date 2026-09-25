@@ -5,7 +5,7 @@ import type { PlatformCapabilities } from '../apps/agent/src/platform/platform.j
 
 const macOS: PlatformCapabilities = {
   nativeFilePicker: true,
-  directoryIntake: false,
+  directoryIntake: true,
   revealInFileManager: true,
   spotlightSearch: true,
   shellContextMenuIntegration: true,
@@ -14,7 +14,7 @@ const macOS: PlatformCapabilities = {
 
 const windows: PlatformCapabilities = {
   nativeFilePicker: true,
-  directoryIntake: false,
+  directoryIntake: true,
   revealInFileManager: true,
   spotlightSearch: false,
   shellContextMenuIntegration: false,
@@ -31,10 +31,10 @@ const headless: PlatformCapabilities = {
 };
 
 describe('advertised agent capabilities', () => {
-  it('does not advertise directory intake before its native routes are registered', () => {
-    expect(advertisedCapabilities(macOS)).toEqual(
-      [...AGENT_CAPABILITIES].filter(capability => capability !== 'directory-intake')
-    );
+  it('advertises directory intake on hosts with the registered native files module', () => {
+    expect(advertisedCapabilities(macOS)).toContain('directory-intake');
+    expect(advertisedCapabilities(windows)).toContain('directory-intake');
+    expect(advertisedCapabilities(headless)).not.toContain('directory-intake');
   });
 
   it('advertises the native picker on Windows but not the Finder-only bridge', () => {

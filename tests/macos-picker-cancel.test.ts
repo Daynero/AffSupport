@@ -13,7 +13,8 @@ vi.mock('node:child_process', () => ({
   spawn: processMock.spawn
 }));
 
-const { selectOutputFolder, selectVideos } = await import('../apps/agent/src/files/picker.js');
+const { selectDirectoryIntakeFolder, selectOutputFolder, selectVideos } =
+  await import('../apps/agent/src/files/picker.js');
 
 const realPlatform = process.platform;
 
@@ -59,6 +60,11 @@ describe('macOS picker cancellation', () => {
   it('returns null when a folder choice is cancelled in any language', async () => {
     stubRun({ stderr: 'execution error: Користувач скасував. (-128)', code: 1 });
     await expect(selectOutputFolder()).resolves.toBeNull();
+  });
+
+  it('returns null when directory intake is cancelled', async () => {
+    stubRun({ stderr: 'execution error: Користувач скасував. (-128)', code: 1 });
+    await expect(selectDirectoryIntakeFolder()).resolves.toBeNull();
   });
 });
 

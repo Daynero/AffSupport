@@ -85,6 +85,7 @@ describe('tool module registry', () => {
 
   it('keeps the shutdown order the server depends on', () => {
     expect(modules.map(module => module.id)).toEqual([
+      'files',
       'compressor',
       'media-actions',
       'landing',

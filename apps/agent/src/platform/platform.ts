@@ -49,7 +49,7 @@ export function capabilities(): PlatformCapabilities {
     case 'darwin':
       return {
         nativeFilePicker: true,
-        directoryIntake: false,
+        directoryIntake: true,
         revealInFileManager: true,
         spotlightSearch: true,
         shellContextMenuIntegration: true,
@@ -59,7 +59,7 @@ export function capabilities(): PlatformCapabilities {
       // Pickers are PowerShell WinForms dialogs (files/picker.ts).
       return {
         nativeFilePicker: true,
-        directoryIntake: false,
+        directoryIntake: true,
         revealInFileManager: true,
         spotlightSearch: false,
         shellContextMenuIntegration: false,

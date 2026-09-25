@@ -100,6 +100,20 @@ export async function selectLandingPreviewFolder(): Promise<string | null> {
   return runFolderScript(script, 'Could not open the folder picker.');
 }
 
+/** Folder intake never receives a caller-provided path: this dialog is the authority. */
+export async function selectDirectoryIntakeFolder(): Promise<string | null> {
+  if (process.platform === 'win32') {
+    const folders = await runWindowsPicker(
+      windowsFolderScript('Choose a folder to add to the team workspace'),
+      'Could not open the folder picker.'
+    );
+    return folders[0] ?? null;
+  }
+  const script =
+    'POSIX path of (choose folder with prompt "Choose a folder to add to the team workspace")';
+  return runFolderScript(script, 'Could not open the folder picker.');
+}
+
 // Rapid repeat clicks on the folder button must not stack native dialogs:
 // while one picker is open, every additional request joins its promise.
 let activeFolderPick: Promise<string | null> | null = null;

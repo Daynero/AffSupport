@@ -406,7 +406,10 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
-    capabilities: advertisedCapabilities(),
+    capabilities: advertisedCapabilities().filter(
+      capability =>
+        capability !== 'directory-intake' || modules.some(module => module.id === 'files')
+    ),
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
     update: queue.updateStatus(),
@@ -424,7 +427,10 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
-    capabilities: advertisedCapabilities(),
+    capabilities: advertisedCapabilities().filter(
+      capability =>
+        capability !== 'directory-intake' || modules.some(module => module.id === 'files')
+    ),
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
     update: queue.updateStatus(),

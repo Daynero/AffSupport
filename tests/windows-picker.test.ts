@@ -17,6 +17,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 import {
+  selectDirectoryIntakeFolder,
   selectLandingFolders,
   selectLandingPreviewFolder,
   selectLandingZips,
@@ -24,6 +25,16 @@ import {
   selectTranscribeMedia,
   selectVideos
 } from '../apps/agent/src/files/picker.js';
+
+describe('Windows directory intake picker', () => {
+  it('uses a single folder dialog and preserves cancellation', async () => {
+    stubPickerRun({ stdout: 'C:\\Users\\Ada\\Project\r\n' });
+    await expect(selectDirectoryIntakeFolder()).resolves.toBe('C:\\Users\\Ada\\Project');
+    expect(lastSpawnCall().args[4]).toContain('Choose a folder to add to the team workspace');
+    stubPickerRun();
+    await expect(selectDirectoryIntakeFolder()).resolves.toBeNull();
+  });
+});
 
 const realPlatform = process.platform;
 

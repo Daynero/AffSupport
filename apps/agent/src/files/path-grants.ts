@@ -264,6 +264,11 @@ export class PathGrantLedger {
     if (grant.refs === 0) grant.expiresAt = this.now() + IDLE_GRANT_TTL_MS;
   }
 
+  /** Discard an ephemeral picker grant when its owning request/session ends. */
+  revoke(id: string): void {
+    this.#grants.delete(id);
+  }
+
   /** Everything currently live. For diagnostics and boot rebuilding. */
   all(): PathGrant[] {
     const at = this.now();

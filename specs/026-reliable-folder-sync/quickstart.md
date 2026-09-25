@@ -319,6 +319,14 @@ npm run beta:up
   capability flag and typed select/chunk-read wrappers. The capability remains
   unadvertised until the native routes exist. Boundary, capability and guard
   tests passed **84/84**, with project/test typechecks and targeted lint.
+- T044–T045 add a native folder picker and an ephemeral, picker-scoped agent
+  grant. The agent enumerates explicit empty directories within manifest bounds
+  and reads only bounded chunks of enumerated files; symlink escapes and stale
+  identities are refused. Files-module registration, health advertisement,
+  authentication, shutdown, cancel, grant expiry, and macOS/Windows picker
+  branches have focused coverage: **82/82** tests passed, plus project/test
+  typechecks, targeted lint and diff check. Live Windows picker validation
+  remains pending for T059.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

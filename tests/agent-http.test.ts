@@ -262,6 +262,24 @@ function entitlementKit() {
 }
 
 describe('agent HTTP surface', () => {
+  it('authenticates native directory selection and reads through the server guard', async () => {
+    const app = await makeServer();
+    const health = await app.inject({ url: '/api/health', headers: { 'x-session-token': TOKEN } });
+    const supported = process.platform === 'darwin' || process.platform === 'win32';
+    expect(health.json().capabilities.includes('directory-intake')).toBe(supported);
+    for (const url of ['/api/team/directory-intake/select', '/api/team/directory-intake/read']) {
+      const missing = await app.inject({ method: 'POST', url, payload: {} });
+      expect(missing.statusCode).toBe(401);
+    }
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/api/team/directory-intake/read',
+      headers: { 'x-session-token': TOKEN },
+      payload: {}
+    });
+    expect(invalid.statusCode).toBe(supported ? 400 : 501);
+  });
+
   it('advertises and guards the registered team workspace preview bridge', async () => {
     const app = await makeServer();
     const health = await app.inject({
