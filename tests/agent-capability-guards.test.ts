@@ -26,6 +26,7 @@ const { MediaActionQueue } = await import('../apps/agent/src/media-actions/queue
 
 const WINDOWS: PlatformCapabilities = {
   nativeFilePicker: true,
+  directoryIntake: false,
   revealInFileManager: true,
   spotlightSearch: false,
   shellContextMenuIntegration: false,
@@ -34,6 +35,7 @@ const WINDOWS: PlatformCapabilities = {
 
 const MACOS: PlatformCapabilities = {
   nativeFilePicker: true,
+  directoryIntake: false,
   revealInFileManager: true,
   spotlightSearch: true,
   shellContextMenuIntegration: true,

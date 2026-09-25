@@ -26,6 +26,10 @@ import {
   type TeamLandingRenderJob,
   type TeamTransferGrant,
   type TeamRestitchDefaults,
+  type NativeDirectoryIntakeResult,
+  NATIVE_DIRECTORY_READ_MAX_BYTES,
+  isLocalManifestRelativePath,
+  isNativeDirectoryIntakeResult,
   parseMaterialRestitchPrep,
   type MaterialRestitchPrep,
   normalizeToolContracts,
@@ -250,6 +254,61 @@ export async function requestBody<T>(
     throw new Error('CONNECTION_FAILED', { cause: error });
   }
   return assertOk(response) as Promise<T>;
+}
+
+/** Native fallback is opt-in only after the agent advertises its scoped routes. */
+export async function selectNativeDirectory(
+  signal?: AbortSignal
+): Promise<NativeDirectoryIntakeResult> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET', signal);
+  if (!health.capabilities?.includes('directory-intake'))
+    throw new Error('DIRECTORY_INTAKE_UNAVAILABLE');
+  const result: unknown = await requestBody(
+    '/api/team/directory-intake/select',
+    {},
+    'POST',
+    signal
+  );
+  if (!isNativeDirectoryIntakeResult(result)) throw new Error('INVALID_RESPONSE');
+  return result;
+}
+
+/** Read one bounded chunk from a picker-granted relative file, never an absolute path. */
+export async function readNativeDirectoryChunk(input: {
+  grantId: string;
+  relativePath: string;
+  offset: number;
+  length: number;
+  signal?: AbortSignal;
+}): Promise<Blob> {
+  if (
+    !isLocalManifestRelativePath(input.relativePath) ||
+    !Number.isSafeInteger(input.offset) ||
+    input.offset < 0 ||
+    !Number.isSafeInteger(input.length) ||
+    input.length < 1 ||
+    input.length > NATIVE_DIRECTORY_READ_MAX_BYTES
+  )
+    throw new Error('INVALID_INPUT');
+  const token = pairingToken();
+  if (!token) throw new PairingRequiredError(false);
+  const response = await fetch(agentUrl + '/api/team/directory-intake/read', {
+    method: 'POST',
+    headers: { 'x-session-token': token, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      grantId: input.grantId,
+      relativePath: input.relativePath,
+      offset: input.offset,
+      length: input.length
+    }),
+    signal: input.signal,
+    cache: 'no-store',
+    ...privateNetworkInit
+  });
+  if (!response.ok) await assertOk(response);
+  const blob = await response.blob();
+  if (blob.size > input.length) throw new Error('INVALID_RESPONSE');
+  return blob;
 }
 export async function uploadFile(file: File): Promise<SelectionResponse> {
   const body = new FormData();

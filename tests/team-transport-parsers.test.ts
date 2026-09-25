@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isNativeDirectoryIntakeResult,
   parseTeamAgentPreviewResult,
   parseTeamDownloadGrantResult,
   parseTeamEdgeResult,
@@ -10,6 +11,44 @@ import {
   parseTeamTransferGrant,
   parseTeamUploadSession
 } from '../packages/shared/src/team/transport.js';
+
+describe('native directory intake boundary', () => {
+  const selected = {
+    kind: 'selected',
+    grantId: '12345678-1234-1234-1234-123456789abc',
+    rootName: 'Project',
+    entries: [
+      { kind: 'directory', relativePath: 'Project' },
+      { kind: 'directory', relativePath: 'Project/Empty' },
+      { kind: 'file', relativePath: 'Project/a.txt', sizeBytes: 0, mimeType: 'text/plain' }
+    ]
+  };
+
+  it('accepts a scoped relative manifest and cancellation', () => {
+    expect(isNativeDirectoryIntakeResult(selected)).toBe(true);
+    expect(isNativeDirectoryIntakeResult({ kind: 'canceled' })).toBe(true);
+  });
+
+  it.each([
+    { ...selected, grantId: '/Users/alice/Project' },
+    {
+      ...selected,
+      entries: [{ kind: 'file', relativePath: '../secret', sizeBytes: 1, mimeType: '' }]
+    },
+    { ...selected, entries: [{ kind: 'directory', relativePath: 'Other' }] },
+    { ...selected, entries: [...selected.entries, selected.entries[1]] },
+    {
+      ...selected,
+      entries: [
+        { kind: 'file', relativePath: 'Project/huge', sizeBytes: 101 * 1024 ** 3, mimeType: '' }
+      ]
+    },
+    { ...selected, absolutePath: '/Users/alice/Project' },
+    { kind: 'canceled', grantId: selected.grantId }
+  ])('rejects unsafe or malformed grants and entries', value => {
+    expect(isNativeDirectoryIntakeResult(value)).toBe(false);
+  });
+});
 
 /**
  * These nine functions are the whole boundary between this app and whatever a

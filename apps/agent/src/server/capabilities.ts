@@ -12,7 +12,8 @@ import { capabilities, type PlatformCapabilities } from '../platform/platform.js
  */
 const PLATFORM_REQUIREMENTS: Partial<Record<AgentCapability, keyof PlatformCapabilities>> = {
   'finder-image-conversion': 'shellContextMenuIntegration',
-  'native-file-picker': 'nativeFilePicker'
+  'native-file-picker': 'nativeFilePicker',
+  'directory-intake': 'directoryIntake'
 };
 
 /**

@@ -315,6 +315,10 @@ npm run beta:up
   no browser handle, the action stops before remote writes until the scoped
   agent fallback and actionable copy arrive in T043–T047. Focused chooser and
   Explorer tests passed **8/8**, with project/test typechecks and targeted lint.
+- T043 defines the opaque native directory grant, bounded relative manifest,
+  capability flag and typed select/chunk-read wrappers. The capability remains
+  unadvertised until the native routes exist. Boundary, capability and guard
+  tests passed **84/84**, with project/test typechecks and targeted lint.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

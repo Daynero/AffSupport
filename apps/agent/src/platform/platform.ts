@@ -23,6 +23,8 @@ import { WindowsSuspendHelper } from './windows-suspend.js';
 export interface PlatformCapabilities {
   /** Native OS file/folder pickers (osascript on macOS). */
   nativeFilePicker: boolean;
+  /** Scoped native directory intake routes; enabled when their module is registered. */
+  directoryIntake: boolean;
   /** "Reveal in Finder/Explorer" style actions. */
   revealInFileManager: boolean;
   /** Content-indexed file search (Spotlight's mdfind on macOS). */
@@ -47,6 +49,7 @@ export function capabilities(): PlatformCapabilities {
     case 'darwin':
       return {
         nativeFilePicker: true,
+        directoryIntake: false,
         revealInFileManager: true,
         spotlightSearch: true,
         shellContextMenuIntegration: true,
@@ -56,6 +59,7 @@ export function capabilities(): PlatformCapabilities {
       // Pickers are PowerShell WinForms dialogs (files/picker.ts).
       return {
         nativeFilePicker: true,
+        directoryIntake: false,
         revealInFileManager: true,
         spotlightSearch: false,
         shellContextMenuIntegration: false,
@@ -67,6 +71,7 @@ export function capabilities(): PlatformCapabilities {
     default:
       return {
         nativeFilePicker: false,
+        directoryIntake: false,
         revealInFileManager: true,
         spotlightSearch: false,
         shellContextMenuIntegration: false,

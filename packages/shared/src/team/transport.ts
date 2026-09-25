@@ -204,6 +204,79 @@ export type LocalManifestEntry = LocalManifestDirectoryEntry | LocalManifestFile
 export type LocalManifestMetadataEntry =
   LocalManifestDirectoryEntry | Omit<LocalManifestFileEntry, 'source'>;
 
+/** Agent-only, picker-scoped directory grant. Local absolute paths never cross this boundary. */
+export type NativeDirectoryIntakeEntry =
+  | { kind: 'directory'; relativePath: string }
+  | { kind: 'file'; relativePath: string; sizeBytes: number; mimeType: string };
+export type NativeDirectoryIntakeResult =
+  | { kind: 'canceled' }
+  | {
+      kind: 'selected';
+      grantId: string;
+      rootName: string;
+      entries: NativeDirectoryIntakeEntry[];
+    };
+export const NATIVE_DIRECTORY_READ_MAX_BYTES = 2 * 1024 * 1024;
+
+export function isNativeDirectoryIntakeResult(
+  value: unknown
+): value is NativeDirectoryIntakeResult {
+  if (!isRecord(value)) return false;
+  if (value.kind === 'canceled') return Object.keys(value).length === 1;
+  if (
+    value.kind !== 'selected' ||
+    typeof value.grantId !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value.grantId) ||
+    typeof value.rootName !== 'string' ||
+    !isLocalManifestRelativePath(value.rootName) ||
+    value.rootName.includes('/') ||
+    !Array.isArray(value.entries) ||
+    value.entries.length > LOCAL_MANIFEST_BOUNDS.files + LOCAL_MANIFEST_BOUNDS.directories
+  )
+    return false;
+  if (Object.keys(value).some(key => !['kind', 'grantId', 'rootName', 'entries'].includes(key)))
+    return false;
+  let files = 0;
+  let directories = 0;
+  let totalBytes = 0;
+  const seen = new Set<string>();
+  return value.entries.every(entry => {
+    if (!isRecord(entry) || !isLocalManifestRelativePath(entry.relativePath)) return false;
+    if (
+      entry.relativePath !== value.rootName &&
+      !entry.relativePath.startsWith(`${value.rootName}/`)
+    )
+      return false;
+    const comparisonPath = entry.relativePath.normalize('NFC').toLocaleLowerCase('en-US');
+    if (seen.has(comparisonPath)) return false;
+    seen.add(comparisonPath);
+    if (entry.kind === 'directory') {
+      directories += 1;
+      return (
+        directories <= LOCAL_MANIFEST_BOUNDS.directories &&
+        Object.keys(entry).every(key => ['kind', 'relativePath'].includes(key))
+      );
+    }
+    if (entry.kind !== 'file' || typeof entry.sizeBytes !== 'number') return false;
+    files += 1;
+    totalBytes += entry.sizeBytes;
+    return (
+      entry.kind === 'file' &&
+      files <= LOCAL_MANIFEST_BOUNDS.files &&
+      totalBytes <= LOCAL_MANIFEST_BOUNDS.totalBytes &&
+      typeof entry.sizeBytes === 'number' &&
+      Number.isSafeInteger(entry.sizeBytes) &&
+      entry.sizeBytes >= 0 &&
+      entry.sizeBytes <= LOCAL_MANIFEST_BOUNDS.fileBytes &&
+      typeof entry.mimeType === 'string' &&
+      entry.mimeType.length <= 255 &&
+      Object.keys(entry).every(key =>
+        ['kind', 'relativePath', 'sizeBytes', 'mimeType'].includes(key)
+      )
+    );
+  });
+}
+
 export function isLocalOperationState(value: unknown): value is LocalOperationState {
   return LOCAL_OPERATION_STATES.some(state => state === value);
 }

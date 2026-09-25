@@ -600,6 +600,7 @@ export const AGENT_CAPABILITIES = [
   'landing-preview',
   'local-file-paths',
   'native-file-picker',
+  'directory-intake',
   'stitcher',
   'team-workspace',
   'transcription'
