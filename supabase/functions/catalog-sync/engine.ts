@@ -1,7 +1,13 @@
 import { classifyMaterial } from '../../../packages/shared/dist/team/material-category.js';
+import {
+  CATALOG_SYNC_BOUNDS,
+  type CatalogSyncJobKind,
+  type CatalogSyncPhase
+} from '../../../packages/shared/dist/team/transport.js';
 import type { DriveFileMetadata } from '../_shared/drive.ts';
+import { TeamFunctionError } from '../_shared/errors.ts';
 
-export type CatalogSyncPhase = 'initial_scan' | 'change_replay' | 'incremental' | 'reconcile';
+export type { CatalogSyncPhase };
 
 export interface CatalogSyncJob {
   jobId: string;
@@ -13,6 +19,8 @@ export interface CatalogSyncJob {
   pageToken: string | null;
   changeToken: string | null;
   attempts: number;
+  jobKind?: CatalogSyncJobKind;
+  leaseEpoch?: number;
   /** Child folders found on earlier pages of the folder currently being scanned. */
   discoveredFolderIds?: string[];
   /**
@@ -30,11 +38,52 @@ export interface CatalogDriveChange {
 }
 
 export interface CatalogSyncDependencies {
+  durableScan?: {
+    beginFolder: (
+      folderId: string,
+      restart: boolean
+    ) => Promise<{
+      generation: string;
+      pageToken: string | null;
+    }>;
+    frontier: () => Promise<
+      Array<{
+        folderId: string;
+        state: 'queued' | 'listing' | 'reconciling';
+      }>
+    >;
+    commitPage: (input: {
+      generation: string;
+      expectedPageToken: string | null;
+      nextPageToken: string | null;
+      files: DriveFileMetadata[];
+      complete: boolean;
+    }) => Promise<boolean>;
+    missingCandidates: (generation: string) => Promise<
+      Array<{
+        fileId: string;
+        expectedRevision: string;
+      }>
+    >;
+    resolveCandidate: (input: {
+      generation: string;
+      fileId: string;
+      expectedRevision: string;
+      outcome: 'present' | 'trashed' | 'out_of_root' | 'unavailable';
+      file: DriveFileMetadata | null;
+    }) => Promise<boolean>;
+    finishFolder: (generation: string) => Promise<boolean>;
+  };
   listChildren: (input: {
     parentId: string;
     pageToken: string | null;
     driveId: string | null;
-  }) => Promise<{ files: DriveFileMetadata[]; nextPageToken: string | null }>;
+  }) => Promise<{
+    files: DriveFileMetadata[];
+    nextPageToken: string | null;
+    incompleteSearch?: boolean;
+    invalidEntries?: number;
+  }>;
   listChanges: (input: { pageToken: string; driveId: string | null }) => Promise<{
     changes: CatalogDriveChange[];
     nextPageToken: string | null;
@@ -140,12 +189,14 @@ async function persistActiveFiles(
   parentId: string | null
 ): Promise<void> {
   if (files.length === 0) return;
-  await dependencies.upsertFiles({
-    jobId: job.jobId,
-    connectionId: job.connectionId,
-    parentId,
-    files
-  });
+  assertLease(
+    await dependencies.upsertFiles({
+      jobId: job.jobId,
+      connectionId: job.connectionId,
+      parentId,
+      files
+    })
+  );
   const transcripts = transcriptFiles(files);
   if (transcripts.length > 0) {
     await dependencies.requeueTranscripts({
@@ -166,6 +217,14 @@ async function runInitialScan(
     pageToken: job.pageToken,
     driveId: job.driveId
   });
+  // A final page is not proof of complete coverage if Drive or our parser
+  // omitted entries. Leave the checkpoint intact for an explicit retry.
+  if (page.incompleteSearch || (page.invalidEntries ?? 0) > 0) {
+    throw new TeamFunctionError('INVALID_RESPONSE', {
+      retryable: true,
+      details: { reason: 'INCOMPLETE_LISTING' }
+    });
+  }
   const visibleFiles = page.files.filter(file => file.name !== HIDDEN_SYSTEM_FOLDER);
   await persistActiveFiles(job, dependencies, visibleFiles, parentId);
 
@@ -189,11 +248,13 @@ async function runInitialScan(
   }
 
   // No further page for this folder: everything under it is in the catalog.
-  await dependencies.markFolderIndexed({
-    jobId: job.jobId,
-    connectionId: job.connectionId,
-    folderId: parentId
-  });
+  assertLease(
+    await dependencies.markFolderIndexed({
+      jobId: job.jobId,
+      connectionId: job.connectionId,
+      folderId: parentId
+    })
+  );
 
   const folderQueue = [...remaining, ...discovered];
   if (folderQueue.length > 0) {
@@ -207,6 +268,18 @@ async function runInitialScan(
       changeToken: job.changeToken
     });
     return { phase: 'initial_scan', processed: page.files.length };
+  }
+
+  if (job.jobKind && job.jobKind !== 'incremental') {
+    assertLease(
+      await dependencies.complete({
+        jobId: job.jobId,
+        connectionId: job.connectionId,
+        changeToken: null,
+        nextPhase: 'incremental'
+      })
+    );
+    return { phase: 'change_replay', processed: page.files.length };
   }
 
   await dependencies.checkpoint({
@@ -343,7 +416,7 @@ async function runChanges(
 }
 
 /** Few enough that Drive does not throttle the space, enough that a page takes seconds. */
-const CHANGE_WALKS_AT_ONCE = 6;
+const CHANGE_WALKS_AT_ONCE = CATALOG_SYNC_BOUNDS.providerConcurrency;
 
 /** `items` mapped a few at a time, answers in the order of the questions. */
 async function inOrder<Item, Answer>(
@@ -370,6 +443,10 @@ export class CatalogLeaseLostError extends Error {
   }
 }
 
+function assertLease(result: unknown): void {
+  if (result === false) throw new CatalogLeaseLostError();
+}
+
 export interface CatalogSyncRunOptions {
   /** Wall-clock budget for one scheduler invocation, in milliseconds. */
   budgetMs: number;
@@ -388,6 +465,9 @@ export async function runCatalogSyncJob(
   dependencies: CatalogSyncDependencies,
   options: CatalogSyncRunOptions
 ): Promise<{ phase: CatalogSyncPhase; processed: number; slices: number; yielded: boolean }> {
+  if (job.jobKind && job.jobKind !== 'incremental' && dependencies.durableScan) {
+    return runDurableScanJob(job, dependencies, options);
+  }
   const now = options.now ?? Date.now;
   const started = now();
   let current = job;
@@ -427,6 +507,121 @@ export async function runCatalogSyncJob(
     };
   }
   return { phase, processed, slices, yielded: lastCheckpoint() !== null };
+}
+
+async function runDurableScanJob(
+  job: CatalogSyncJob,
+  dependencies: CatalogSyncDependencies,
+  options: CatalogSyncRunOptions
+): Promise<{ phase: CatalogSyncPhase; processed: number; slices: number; yielded: boolean }> {
+  const scan = dependencies.durableScan!;
+  const now = options.now ?? Date.now;
+  const started = now();
+  let processed = 0;
+  let slices = 0;
+  // This seeds the initial frontier once in the database; subsequent claims
+  // read the same durable queue instead of rehydrating a bounded JSON array.
+  await scan.beginFolder(job.folderQueue[0] ?? job.rootFolderId, false);
+  for (;;) {
+    const [next] = await scan.frontier();
+    if (!next) {
+      assertLease(
+        await dependencies.complete({
+          jobId: job.jobId,
+          connectionId: job.connectionId,
+          changeToken: null,
+          nextPhase: 'incremental'
+        })
+      );
+      return { phase: 'change_replay', processed, slices, yielded: false };
+    }
+    const folder = await scan.beginFolder(next.folderId, false);
+    if (next.state === 'reconciling') {
+      const candidates = await scan.missingCandidates(folder.generation);
+      let unavailable = false;
+      let incompleteListing = false;
+      for (const candidate of candidates) {
+        let file: DriveFileMetadata | null = null;
+        let outcome: 'present' | 'trashed' | 'out_of_root' | 'unavailable' = 'unavailable';
+        try {
+          file = await dependencies.getFile(candidate.fileId);
+          if (file.trashed) outcome = 'trashed';
+          else if (file.parents.includes(next.folderId)) {
+            outcome = 'unavailable';
+            incompleteListing = true;
+          } else if (await dependencies.isHiddenSystemFile(file, job.rootFolderId))
+            outcome = 'out_of_root';
+          else if (await dependencies.isWithinRoot(file, job.rootFolderId)) outcome = 'present';
+          else outcome = 'out_of_root';
+        } catch (cause) {
+          if (
+            !(cause instanceof TeamFunctionError) ||
+            !['NOT_FOUND', 'PERMISSION_DENIED'].includes(cause.code)
+          )
+            throw cause;
+        }
+        if (outcome === 'unavailable') unavailable = true;
+        assertLease(
+          await scan.resolveCandidate({
+            generation: folder.generation,
+            fileId: candidate.fileId,
+            expectedRevision: candidate.expectedRevision,
+            outcome,
+            file
+          })
+        );
+      }
+      processed += candidates.length;
+      if (unavailable) {
+        await scan.beginFolder(next.folderId, true);
+        throw new TeamFunctionError(incompleteListing ? 'INVALID_RESPONSE' : 'PERMISSION_DENIED', {
+          retryable: true
+        });
+      }
+      if (candidates.length < 100) assertLease(await scan.finishFolder(folder.generation));
+    } else {
+      let page: Awaited<ReturnType<CatalogSyncDependencies['listChildren']>>;
+      try {
+        page = await dependencies.listChildren({
+          parentId: next.folderId,
+          pageToken: folder.pageToken,
+          driveId: job.driveId
+        });
+      } catch (cause) {
+        if (
+          folder.pageToken &&
+          cause instanceof TeamFunctionError &&
+          cause.code === 'INVALID_INPUT' &&
+          cause.details?.reason === 'PAGE_TOKEN_REJECTED'
+        ) {
+          await scan.beginFolder(next.folderId, true);
+          slices += 1;
+          continue;
+        }
+        throw cause;
+      }
+      if (page.incompleteSearch || (page.invalidEntries ?? 0) > 0) {
+        throw new TeamFunctionError('INVALID_RESPONSE', {
+          retryable: true,
+          details: { reason: 'INCOMPLETE_LISTING' }
+        });
+      }
+      assertLease(
+        await scan.commitPage({
+          generation: folder.generation,
+          expectedPageToken: folder.pageToken,
+          nextPageToken: page.nextPageToken,
+          files: page.files.filter(file => file.name !== HIDDEN_SYSTEM_FOLDER),
+          complete: page.nextPageToken === null
+        })
+      );
+      processed += page.files.length;
+    }
+    slices += 1;
+    if (now() - started >= options.budgetMs) {
+      return { phase: 'initial_scan', processed, slices, yielded: true };
+    }
+  }
 }
 
 export async function runCatalogSyncSlice(

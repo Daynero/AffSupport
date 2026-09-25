@@ -74,6 +74,241 @@ const baseJob: CatalogSyncJob = {
 };
 
 describe('durable catalog synchronization', () => {
+  it('commits each finite listing page with one generation and leaves the canonical cursor alone', async () => {
+    const frontier = vi
+      .fn()
+      .mockResolvedValueOnce([{ folderId: 'root', state: 'queued' }])
+      .mockResolvedValueOnce([{ folderId: 'root', state: 'listing' }])
+      .mockResolvedValueOnce([{ folderId: 'root', state: 'reconciling' }])
+      .mockResolvedValueOnce([]);
+    const scan = {
+      beginFolder: vi
+        .fn()
+        .mockResolvedValueOnce({ generation: 'generation-1', pageToken: null })
+        .mockResolvedValueOnce({ generation: 'generation-1', pageToken: null })
+        .mockResolvedValueOnce({ generation: 'generation-1', pageToken: 'page-2' })
+        .mockResolvedValueOnce({ generation: 'generation-1', pageToken: null }),
+      frontier,
+      commitPage: vi.fn().mockResolvedValue(true),
+      missingCandidates: vi.fn().mockResolvedValue([]),
+      resolveCandidate: vi.fn().mockResolvedValue(true),
+      finishFolder: vi.fn().mockResolvedValue(true)
+    };
+    const deps = dependencies({
+      durableScan: scan,
+      listChildren: vi
+        .fn()
+        .mockResolvedValueOnce({ files: [file()], nextPageToken: 'page-2' })
+        .mockResolvedValueOnce({ files: [], nextPageToken: null }),
+      complete: vi.fn().mockResolvedValue(true)
+    });
+    const result = await runCatalogSyncJob({ ...baseJob, jobKind: 'user_subtree' }, deps, {
+      budgetMs: 10_000
+    });
+    expect(result).toMatchObject({ phase: 'change_replay', yielded: false });
+    expect(scan.commitPage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        generation: 'generation-1',
+        expectedPageToken: null,
+        nextPageToken: 'page-2',
+        complete: false
+      })
+    );
+    expect(scan.commitPage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        generation: 'generation-1',
+        expectedPageToken: 'page-2',
+        nextPageToken: null,
+        complete: true
+      })
+    );
+    expect(deps.complete).toHaveBeenCalledWith(expect.objectContaining({ changeToken: null }));
+    expect(deps.checkpoint).not.toHaveBeenCalled();
+    expect(deps.listChanges).not.toHaveBeenCalled();
+  });
+
+  it('abandons a rejected page token before restarting with a fresh generation', async () => {
+    const rejected = new (await import('../supabase/functions/_shared/errors')).TeamFunctionError(
+      'INVALID_INPUT',
+      { retryable: true, details: { reason: 'PAGE_TOKEN_REJECTED' } }
+    );
+    const scan = {
+      beginFolder: vi
+        .fn()
+        .mockResolvedValueOnce({ generation: 'old', pageToken: 'expired' })
+        .mockResolvedValueOnce({ generation: 'old', pageToken: 'expired' })
+        .mockResolvedValueOnce({ generation: 'fresh', pageToken: null })
+        .mockResolvedValueOnce({ generation: 'fresh', pageToken: null })
+        .mockResolvedValueOnce({ generation: 'fresh', pageToken: null }),
+      frontier: vi
+        .fn()
+        .mockResolvedValueOnce([{ folderId: 'root', state: 'listing' }])
+        .mockResolvedValueOnce([{ folderId: 'root', state: 'listing' }])
+        .mockResolvedValueOnce([{ folderId: 'root', state: 'reconciling' }])
+        .mockResolvedValueOnce([]),
+      commitPage: vi.fn().mockResolvedValue(true),
+      missingCandidates: vi.fn().mockResolvedValue([]),
+      resolveCandidate: vi.fn().mockResolvedValue(true),
+      finishFolder: vi.fn().mockResolvedValue(true)
+    };
+    const deps = dependencies({
+      durableScan: scan,
+      listChildren: vi
+        .fn()
+        .mockRejectedValueOnce(rejected)
+        .mockResolvedValueOnce({ files: [], nextPageToken: null }),
+      complete: vi.fn().mockResolvedValue(true)
+    });
+    await runCatalogSyncJob({ ...baseJob, jobKind: 'user_subtree' }, deps, { budgetMs: 10_000 });
+    expect(scan.beginFolder).toHaveBeenCalledWith('root', true);
+    expect(scan.commitPage).toHaveBeenCalledOnce();
+    expect(scan.commitPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generation: 'fresh',
+        expectedPageToken: null
+      })
+    );
+  });
+
+  it('records ambiguous candidate access as unavailable without claiming absence', async () => {
+    const { TeamFunctionError } = await import('../supabase/functions/_shared/errors');
+    const scan = {
+      beginFolder: vi.fn().mockResolvedValue({ generation: 'generation-1', pageToken: null }),
+      frontier: vi
+        .fn()
+        .mockResolvedValueOnce([{ folderId: 'root', state: 'reconciling' }])
+        .mockResolvedValueOnce([]),
+      commitPage: vi.fn().mockResolvedValue(true),
+      missingCandidates: vi
+        .fn()
+        .mockResolvedValueOnce([{ fileId: 'inaccessible', expectedRevision: '123' }]),
+      resolveCandidate: vi.fn().mockResolvedValue(true),
+      finishFolder: vi.fn().mockResolvedValue(true)
+    };
+    const deps = dependencies({
+      durableScan: scan,
+      getFile: vi.fn().mockRejectedValue(new TeamFunctionError('PERMISSION_DENIED')),
+      complete: vi.fn().mockResolvedValue(true)
+    });
+    await expect(
+      runCatalogSyncJob({ ...baseJob, jobKind: 'user_subtree' }, deps, { budgetMs: 10_000 })
+    ).rejects.toThrow('PERMISSION_DENIED');
+    expect(scan.resolveCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileId: 'inaccessible',
+        outcome: 'unavailable',
+        file: null
+      })
+    );
+    expect(deps.tombstoneFiles).not.toHaveBeenCalled();
+    expect(scan.beginFolder).toHaveBeenCalledWith('root', true);
+  });
+
+  it('does not call a listing complete when a missing candidate still lives in that folder', async () => {
+    const scan = {
+      beginFolder: vi.fn().mockResolvedValue({ generation: 'generation-1', pageToken: null }),
+      frontier: vi.fn().mockResolvedValue([{ folderId: 'root', state: 'reconciling' }]),
+      commitPage: vi.fn().mockResolvedValue(true),
+      missingCandidates: vi.fn().mockResolvedValue([{ fileId: 'file-1', expectedRevision: '123' }]),
+      resolveCandidate: vi.fn().mockResolvedValue(true),
+      finishFolder: vi.fn().mockResolvedValue(true)
+    };
+    const deps = dependencies({
+      durableScan: scan,
+      getFile: vi.fn().mockResolvedValue(file()),
+      complete: vi.fn().mockResolvedValue(true)
+    });
+    await expect(
+      runCatalogSyncJob({ ...baseJob, jobKind: 'user_subtree' }, deps, { budgetMs: 10_000 })
+    ).rejects.toThrow('INVALID_RESPONSE');
+    expect(scan.resolveCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileId: 'file-1',
+        outcome: 'unavailable'
+      })
+    );
+    expect(scan.beginFolder).toHaveBeenCalledWith('root', true);
+    expect(scan.finishFolder).not.toHaveBeenCalled();
+  });
+
+  it('stops a finite scan on a stale page lease without marking the folder or job complete', async () => {
+    const scan = {
+      beginFolder: vi.fn().mockResolvedValue({ generation: 'generation-1', pageToken: null }),
+      frontier: vi.fn().mockResolvedValue([{ folderId: 'root', state: 'listing' }]),
+      commitPage: vi.fn().mockResolvedValue(false),
+      missingCandidates: vi.fn(),
+      resolveCandidate: vi.fn(),
+      finishFolder: vi.fn()
+    };
+    const deps = dependencies({
+      durableScan: scan,
+      listChildren: vi.fn().mockResolvedValue({ files: [file()], nextPageToken: null }),
+      complete: vi.fn()
+    });
+    await expect(
+      runCatalogSyncJob({ ...baseJob, jobKind: 'user_subtree' }, deps, { budgetMs: 10_000 })
+    ).rejects.toThrow('CATALOG_LEASE_LOST');
+    expect(scan.finishFolder).not.toHaveBeenCalled();
+    expect(deps.complete).not.toHaveBeenCalled();
+  });
+
+  it.each(['initial', 'user_subtree', 'discovered_subtree', 'reconcile'] as const)(
+    'hands a completed %s scan to the canonical replay barrier without reading the feed',
+    async jobKind => {
+      const deps = dependencies({
+        listChildren: vi.fn().mockResolvedValue({ files: [], nextPageToken: null }),
+        complete: vi.fn().mockResolvedValue(true)
+      });
+      const result = await runCatalogSyncJob({ ...baseJob, jobKind }, deps, { budgetMs: 1_000 });
+      expect(result).toMatchObject({ phase: 'change_replay', yielded: false });
+      expect(deps.complete).toHaveBeenCalledWith(expect.objectContaining({ changeToken: null }));
+      expect(deps.listChanges).not.toHaveBeenCalled();
+      expect(deps.touchReconciled).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    { incompleteSearch: true, invalidEntries: 0 },
+    { incompleteSearch: false, invalidEntries: 1 }
+  ])('refuses to confirm a directory after an incomplete provider page', async coverage => {
+    const deps = dependencies({
+      listChildren: vi.fn().mockResolvedValue({
+        files: [file()],
+        nextPageToken: null,
+        ...coverage
+      })
+    });
+    await expect(runCatalogSyncSlice(baseJob, deps)).rejects.toThrow('INVALID_RESPONSE');
+    expect(deps.markFolderIndexed).not.toHaveBeenCalled();
+    expect(deps.checkpoint).not.toHaveBeenCalled();
+    expect(deps.tombstoneFiles).not.toHaveBeenCalled();
+  });
+
+  it('stops immediately if a catalog write loses its lease', async () => {
+    const deps = dependencies({
+      listChildren: vi.fn().mockResolvedValue({ files: [file()], nextPageToken: null }),
+      upsertFiles: vi.fn().mockResolvedValue(false)
+    });
+    await expect(runCatalogSyncJob(baseJob, deps, { budgetMs: 1_000 })).rejects.toThrow(
+      'CATALOG_LEASE_LOST'
+    );
+    expect(deps.markFolderIndexed).not.toHaveBeenCalled();
+    expect(deps.checkpoint).not.toHaveBeenCalled();
+  });
+
+  it('does not finish after an expired folder-index lease', async () => {
+    const deps = dependencies({
+      listChildren: vi.fn().mockResolvedValue({ files: [], nextPageToken: null }),
+      markFolderIndexed: vi.fn().mockResolvedValue(false)
+    });
+    await expect(runCatalogSyncJob(baseJob, deps, { budgetMs: 1_000 })).rejects.toThrow(
+      'CATALOG_LEASE_LOST'
+    );
+    expect(deps.checkpoint).not.toHaveBeenCalled();
+  });
+
   it('checkpoints each initial page and resumes without repeating an upsert', async () => {
     const first = dependencies({
       listChildren: vi.fn().mockResolvedValue({

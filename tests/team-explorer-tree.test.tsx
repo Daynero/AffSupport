@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TeamFolderNode } from '@video-compressor/shared';
-import { ExplorerProvider } from '../apps/web/src/team/explorer/ExplorerProvider';
+import { ExplorerProvider, useExplorer } from '../apps/web/src/team/explorer/ExplorerProvider';
 import { FolderTree } from '../apps/web/src/team/explorer/FolderTree';
 import { Breadcrumb } from '../apps/web/src/team/explorer/Breadcrumb';
 
@@ -72,6 +72,23 @@ function renderTree(nodes: TeamFolderNode[], folderId: string | null = null) {
 }
 
 describe('FolderTree', () => {
+  it('rejects a strict tree reread so sync cannot report success with a stale tree', async () => {
+    const client = { listFolderTree: vi.fn().mockResolvedValue([]) };
+    const { result } = renderHook(() => useExplorer(), {
+      wrapper: ({ children }) => (
+        <ExplorerProvider teamId={TEAM} client={client}>
+          {children}
+        </ExplorerProvider>
+      )
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    client.listFolderTree.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => {
+      await expect(result.current.refreshStrict()).rejects.toThrow('FOLDER_TREE_REFRESH_FAILED');
+    });
+    expect(result.current.error).toBe(true);
+  });
+
   it('renders the top level from one read and expands to depth four without a second call', async () => {
     const user = userEvent.setup();
     const nodes = bigTree();

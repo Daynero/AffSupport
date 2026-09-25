@@ -60,6 +60,19 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
 
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);
 
+const SYNC_COPY: Record<string, TranslationKey> = {
+  INCOMPLETE_SCAN: 'teamErrorInvalidResponse',
+  INCOMPLETE_LISTING: 'teamErrorInvalidResponse',
+  RETRY_EXHAUSTED: 'teamErrorDriveUnavailable',
+  CURSOR_PROVENANCE_RESET: 'teamErrorDriveUnavailable',
+  SYNC_UNAVAILABLE: 'teamErrorDriveUnavailable',
+  DRIVE_NOT_CONNECTED: 'teamErrorWrongState'
+};
+
+function syncErrorCopy(code: string): TranslationKey | undefined {
+  return Object.entries(SYNC_COPY).find(([candidate]) => candidate === code)?.[1];
+}
+
 function isTeamErrorCode(value: string): value is TeamErrorCode {
   return KNOWN.has(value);
 }
@@ -76,6 +89,8 @@ export function teamErrorMessage(
   code: string | null | undefined,
   t: (key: TranslationKey) => string
 ): string {
+  const syncCopy = code ? syncErrorCopy(code) : undefined;
+  if (syncCopy) return t(syncCopy);
   if (!code || !isTeamErrorCode(code)) return t('teamErrorUnknown');
   return t(COPY[code]);
 }
@@ -92,12 +107,14 @@ export function teamErrorMessage(
  */
 export function teamErrorMessageFor(error: unknown, t: (key: TranslationKey) => string): string {
   if (error && typeof error === 'object' && 'code' in error) {
-    const { code } = error as { code: unknown };
-    if (typeof code === 'string' && isTeamErrorCode(code)) return teamErrorMessage(code, t);
+    const { code } = error;
+    if (typeof code === 'string' && (isTeamErrorCode(code) || syncErrorCopy(code)))
+      return teamErrorMessage(code, t);
     if (typeof code === 'string' && code in LOCAL_RUN) return t(LOCAL_RUN[code]!);
   }
   if (error instanceof Error) {
-    if (isTeamErrorCode(error.message)) return teamErrorMessage(error.message, t);
+    if (isTeamErrorCode(error.message) || syncErrorCopy(error.message))
+      return teamErrorMessage(error.message, t);
     if (error.message in LOCAL_RUN) return t(LOCAL_RUN[error.message]!);
   }
   return t('teamErrorUnknown');

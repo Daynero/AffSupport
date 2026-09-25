@@ -1067,6 +1067,7 @@ export type Database = {
       };
       team_materials: {
         Row: {
+          catalog_mutation_xid: number;
           category: string | null;
           checksum: string | null;
           classification_source: string;
@@ -1124,6 +1125,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          catalog_mutation_xid?: number;
           category?: string | null;
           checksum?: string | null;
           classification_source?: string;
@@ -1181,6 +1183,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          catalog_mutation_xid?: number;
           category?: string | null;
           checksum?: string | null;
           classification_source?: string;
@@ -3146,6 +3149,14 @@ export type Database = {
         Args: { p_team: string; p_folder: string };
         Returns: { initial_sync_state: string; sync_job_id: string }[];
       };
+      get_team_folder_resync_status: {
+        Args: { p_team: string; p_job: string };
+        Returns: { status: string }[];
+      };
+      get_team_folder_sync_status: {
+        Args: { p_team: string; p_job: string };
+        Returns: Json;
+      };
       remove_member: {
         Args: { p_member: string; p_team: string };
         Returns: {
@@ -3218,6 +3229,19 @@ export type Database = {
         };
         Returns: string;
       };
+      service_begin_catalog_folder: {
+        Args: {
+          p_epoch: number;
+          p_folder: string;
+          p_job: string;
+          p_restart?: boolean;
+          p_worker: string;
+        };
+        Returns: {
+          generation: string;
+          page_token: string;
+        }[];
+      };
       service_begin_change_replay: {
         Args: { p_connection: string; p_job: string };
         Returns: boolean;
@@ -3235,6 +3259,35 @@ export type Database = {
           p_operation: string;
         };
         Returns: boolean;
+      };
+      service_bootstrap_catalog_sync: {
+        Args: {
+          p_epoch: number;
+          p_job: string;
+          p_token: string;
+          p_worker: string;
+        };
+        Returns: boolean;
+      };
+      service_catalog_missing_candidates: {
+        Args: {
+          p_epoch: number;
+          p_generation: string;
+          p_job: string;
+          p_worker: string;
+        };
+        Returns: {
+          expected_revision: number;
+          file_id: string;
+        }[];
+      };
+      service_catalog_scan_frontier: {
+        Args: { p_epoch: number; p_job: string; p_worker: string };
+        Returns: {
+          folder_id: string;
+          generation: string;
+          state: string;
+        }[];
       };
       service_checkpoint_catalog_sync_job: {
         Args: {
@@ -3273,6 +3326,39 @@ export type Database = {
           root_resource_key: string;
           team_id: string;
         }[];
+      };
+      service_claim_catalog_sync_work: {
+        Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
+        Returns: {
+          attempts: number;
+          bootstrap_required: boolean;
+          connection_id: string;
+          credential_id: string;
+          cursor: Json;
+          drive_id: string;
+          drive_kind: string;
+          folder_queue: Json;
+          job_id: string;
+          job_kind: string;
+          lease_epoch: number;
+          phase: string;
+          root_folder_id: string;
+          root_resource_key: string;
+          team_id: string;
+        }[];
+      };
+      service_commit_catalog_scan_page: {
+        Args: {
+          p_complete: boolean;
+          p_epoch: number;
+          p_expected_page_token: string;
+          p_files: Json;
+          p_generation: string;
+          p_job: string;
+          p_next_page_token: string;
+          p_worker: string;
+        };
+        Returns: boolean;
       };
       service_commit_catalog_transcript: {
         Args: {
@@ -3344,15 +3430,26 @@ export type Database = {
         };
         Returns: Json;
       };
-      service_complete_catalog_sync_job: {
-        Args: {
-          p_change_token: string;
-          p_job: string;
-          p_next_phase?: string;
-          p_worker: string;
-        };
-        Returns: boolean;
-      };
+      service_complete_catalog_sync_job:
+        | {
+            Args: {
+              p_change_token: string;
+              p_job: string;
+              p_next_phase?: string;
+              p_worker: string;
+            };
+            Returns: boolean;
+          }
+        | {
+            Args: {
+              p_change_token: string;
+              p_epoch: number;
+              p_job: string;
+              p_next_phase?: string;
+              p_worker: string;
+            };
+            Returns: boolean;
+          };
       service_confirm_drive_connection: {
         Args: {
           p_actor: string;
@@ -3472,6 +3569,15 @@ export type Database = {
           material_id: string;
           name: string;
         }[];
+      };
+      service_finish_catalog_folder: {
+        Args: {
+          p_epoch: number;
+          p_generation: string;
+          p_job: string;
+          p_worker: string;
+        };
+        Returns: boolean;
       };
       service_get_drive_connection_credential: {
         Args: { p_actor: string; p_team: string };
@@ -3659,6 +3765,12 @@ export type Database = {
           team_id: string;
         }[];
       };
+      service_release_catalog_sync_job:
+        | { Args: { p_job: string; p_worker: string }; Returns: boolean }
+        | {
+            Args: { p_epoch: number; p_job: string; p_worker: string };
+            Returns: boolean;
+          };
       service_release_team_name_reservation: {
         Args: { p_operation: string };
         Returns: boolean;
@@ -3702,6 +3814,19 @@ export type Database = {
           value: string;
         }[];
       };
+      service_resolve_catalog_candidate: {
+        Args: {
+          p_epoch: number;
+          p_expected_revision: number;
+          p_file?: Json;
+          p_file_id: string;
+          p_generation: string;
+          p_job: string;
+          p_outcome: string;
+          p_worker: string;
+        };
+        Returns: boolean;
+      };
       service_resolve_team_folder: {
         Args: {
           p_actor: string;
@@ -3715,20 +3840,58 @@ export type Database = {
           resource_key: string;
         }[];
       };
-      service_retry_catalog_sync_job: {
-        Args: {
-          p_error_code: string;
-          p_job: string;
-          p_next_attempt_at: string;
-          p_permanent?: boolean;
-          p_worker: string;
-        };
-        Returns: boolean;
-      };
+      service_retry_catalog_sync_job:
+        | {
+            Args: {
+              p_epoch: number;
+              p_error_code: string;
+              p_job: string;
+              p_next_attempt_at: string;
+              p_permanent?: boolean;
+              p_worker: string;
+            };
+            Returns: boolean;
+          }
+        | {
+            Args: {
+              p_error_code: string;
+              p_job: string;
+              p_next_attempt_at: string;
+              p_permanent?: boolean;
+              p_worker: string;
+            };
+            Returns: boolean;
+          };
       service_revoke_user_team_grants: {
         Args: { p_user: string };
         Returns: number;
       };
+      service_save_catalog_sync_progress:
+        | {
+            Args: {
+              p_change_token: string;
+              p_discovered_folders?: Json;
+              p_epoch: number;
+              p_folder_queue: Json;
+              p_job: string;
+              p_page_token: string;
+              p_phase: string;
+              p_worker: string;
+            };
+            Returns: boolean;
+          }
+        | {
+            Args: {
+              p_change_token: string;
+              p_discovered_folders?: Json;
+              p_folder_queue: Json;
+              p_job: string;
+              p_page_token: string;
+              p_phase: string;
+              p_worker: string;
+            };
+            Returns: boolean;
+          };
       service_set_team_operation_intent: {
         Args: {
           p_actor: string;

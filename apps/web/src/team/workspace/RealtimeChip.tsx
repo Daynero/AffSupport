@@ -19,12 +19,11 @@ const WAITING: ReadonlySet<string> = new Set(['connecting', 'reconnecting']);
  *
  * The realtime state has been tracked since 001 but rendered nowhere, so a
  * degraded channel was invisible: the space simply stopped changing (finding
- * S5). This is deliberately quiet, because the fallback poll means degraded no
- * longer means broken.
+ * S5). Keep it quiet during a short reconnect, then offer an explicit retry.
  */
 export function RealtimeChip() {
   const { t } = useI18n();
-  const { realtimeState } = useTeam();
+  const { realtimeState, retryRealtime } = useTeam();
   const [graceElapsed, setGraceElapsed] = useState(false);
 
   useEffect(() => {
@@ -59,16 +58,10 @@ export function RealtimeChip() {
        *
        * It used to be a `<span>` that said live updates were not arriving and
        * left it there — the one chip of the four a reader most wants to act
-       * on, and the only one that offered nothing. A reload remounts the
-       * subscription, which is the same thing the person was about to do
-       * anyway, done without losing the address.
+       * on, and the only one that offered nothing. Retry remounts the existing
+       * subscription and runs its catch-up read without losing the address.
        */
-      <WorkspaceChip
-        tone="warn"
-        busy
-        label={t('teamRealtimeRetry')}
-        onPress={() => window.location.reload()}
-      >
+      <WorkspaceChip tone="warn" busy label={t('teamRealtimeRetry')} onPress={retryRealtime}>
         {t(realtimeState === 'connecting' ? 'teamRealtimeConnecting' : 'teamRealtimeReconnecting')}
       </WorkspaceChip>
     );

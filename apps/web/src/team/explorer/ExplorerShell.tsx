@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
-  type InputHTMLAttributes,
   type ReactNode
 } from 'react';
 import { usablePrep } from '@video-compressor/shared';
@@ -91,16 +90,17 @@ import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
+import { useFolderResync, type FolderResyncClient } from './useFolderResync';
 import { usePosterFrames } from './usePosterFrames';
 
 export type ExplorerShellClient = ExplorerClient &
+  FolderResyncClient &
   ContentGridClient &
   TeamCatalogClient &
   FolderPickerClient &
   FolderSubtreeClient & {
     getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
     resyncDrive?: (teamId: string) => Promise<unknown>;
-    resyncFolder?: (teamId: string, folderId: string) => Promise<unknown>;
     /** Only the space's owner may call this; the database is what enforces it. */
     setMaterialTag?: (input: {
       teamId: string;
@@ -332,8 +332,7 @@ function ExplorerBody({
     if ((!client.resyncDrive && !client.resyncFolder) || resyncing) return;
     setResyncing(true);
     try {
-      if (currentFolderId && client.resyncFolder) await client.resyncFolder(teamId, currentFolderId);
-      else if (client.resyncDrive) await client.resyncDrive(teamId);
+      if (client.resyncDrive) await client.resyncDrive(teamId);
       push({ tone: 'success', text: t('teamToastResyncQueued') });
     } catch {
       push({ tone: 'error', text: t('teamDriveResyncFailed') });
@@ -398,6 +397,25 @@ function ExplorerBody({
     parentFolderId: currentFolderId,
     kinds: query.kinds,
     revision
+  });
+  const folderResync = useFolderResync({
+    teamId,
+    folderId: currentFolderId,
+    client,
+    onComplete: async () => {
+      await Promise.all([page.reloadStrict(), explorer.refreshStrict()]);
+    },
+    onOutcome: outcome =>
+      push({
+        tone: outcome === 'succeeded' ? 'success' : 'error',
+        text: t(
+          outcome === 'succeeded'
+            ? 'teamFolderResyncDone'
+            : outcome === 'timeout'
+              ? 'teamFolderResyncTimeout'
+              : 'teamFolderResyncFailed'
+        )
+      })
   });
   const allRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
   /*
@@ -699,15 +717,18 @@ function ExplorerBody({
     async (files: FileList | File[] | UploadFile[]) => {
       const list: UploadFile[] = Array.from(files as ArrayLike<File | UploadFile>).map(item =>
         'file' in item
-          ? item as UploadFile
-          : { file: item as File, relativePath: (item as File).webkitRelativePath || (item as File).name }
+          ? (item as UploadFile)
+          : {
+              file: item as File,
+              relativePath: (item as File).webkitRelativePath || (item as File).name
+            }
       );
       if (list.length === 0 || !permissions?.upload) return;
       // No folder open means the space root, which the server resolves from the
       // connection. Inferring it from the first top-level folder refused every
       // upload into an empty space — with a message about Drive being
       // unavailable, which it was not.
-      let destination = currentFolderId;
+      const destination = currentFolderId;
       const folderCache = new Map<string, string>();
       const folderFor = async (relativePath: string) => {
         const parts = relativePath.split('/').filter(Boolean).slice(0, -1);
@@ -716,8 +737,14 @@ function ExplorerBody({
         for (const part of parts) {
           key = `${key}/${part}`;
           const cached = folderCache.get(key);
-          if (cached) { parent = cached; continue; }
-          const created = await teamApi.ensureUploadFolder(teamId, { name: part, parentMaterialId: parent });
+          if (cached) {
+            parent = cached;
+            continue;
+          }
+          const created = await teamApi.ensureUploadFolder(teamId, {
+            name: part,
+            parentMaterialId: parent
+          });
           folderCache.set(key, created.materialId);
           parent = created.materialId;
         }
@@ -813,7 +840,8 @@ function ExplorerBody({
   );
 
   const pickFolder = useCallback(async () => {
-    const picker = (window as Window & { showDirectoryPicker?: () => Promise<unknown> }).showDirectoryPicker;
+    const picker = (window as Window & { showDirectoryPicker?: () => Promise<unknown> })
+      .showDirectoryPicker;
     if (!picker) {
       folderInput.current?.click();
       return;
@@ -821,19 +849,27 @@ function ExplorerBody({
     try {
       const handle = (await picker()) as {
         name: string;
-        values: () => AsyncIterable<{ kind: 'file' | 'directory'; name: string; getFile?: () => Promise<File>; values?: () => AsyncIterable<unknown> }>;
+        values: () => AsyncIterable<{
+          kind: 'file' | 'directory';
+          name: string;
+          getFile?: () => Promise<File>;
+          values?: () => AsyncIterable<unknown>;
+        }>;
       };
       const files: UploadFile[] = [];
       const walk = async (directory: typeof handle, prefix: string): Promise<void> => {
         for await (const entry of directory.values()) {
-          if (entry.kind === 'file' && entry.getFile) files.push({ file: await entry.getFile(), relativePath: `${prefix}${entry.name}` });
-          else if (entry.kind === 'directory' && entry.values) await walk(entry as typeof handle, `${prefix}${entry.name}/`);
+          if (entry.kind === 'file' && entry.getFile)
+            files.push({ file: await entry.getFile(), relativePath: `${prefix}${entry.name}` });
+          else if (entry.kind === 'directory' && entry.values)
+            await walk(entry as typeof handle, `${prefix}${entry.name}/`);
         }
       };
       await walk(handle, `${handle.name}/`);
       if (files.length > 0) void upload(files);
     } catch (error) {
-      if ((error as { name?: string }).name !== 'AbortError') push({ tone: 'error', text: t('teamDriveResyncFailed') });
+      if ((error as { name?: string }).name !== 'AbortError')
+        push({ tone: 'error', text: t('teamDriveResyncFailed') });
     }
   }, [push, t, upload]);
 
@@ -1338,7 +1374,8 @@ function ExplorerBody({
                   // macOS picker opens in folder mode instead of file mode.
                   if (element) {
                     element.setAttribute('webkitdirectory', '');
-                    (element as HTMLInputElement & { webkitdirectory?: boolean }).webkitdirectory = true;
+                    (element as HTMLInputElement & { webkitdirectory?: boolean }).webkitdirectory =
+                      true;
                   }
                 }}
                 type="file"
@@ -1356,9 +1393,20 @@ function ExplorerBody({
               <Button type="button" variant="secondary" onClick={() => void pickFolder()}>
                 {t('teamExplorerAddFolder')}
               </Button>
-              {(client.resyncDrive || client.resyncFolder) && (
-                <Button type="button" variant="secondary" loading={resyncing} onClick={() => void resyncDrive()}>
-                  {currentFolderId ? t('teamDriveResyncFolder') : t('teamDriveResync')}
+              {(currentFolderId
+                ? client.resyncFolder && client.getFolderResyncStatus
+                : client.resyncDrive) && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={resyncing || folderResync.running}
+                  onClick={() => void (currentFolderId ? folderResync.start() : resyncDrive())}
+                >
+                  {folderResync.running
+                    ? t('teamFolderResyncRunning')
+                    : currentFolderId
+                      ? t('teamDriveResyncFolder')
+                      : t('teamDriveResync')}
                 </Button>
               )}
             </>
@@ -1860,38 +1908,41 @@ async function filesFromDrop(dataTransfer: DataTransfer): Promise<UploadFile[]> 
     isFile: boolean;
     isDirectory: boolean;
     file: (success: (file: File) => void, failure?: () => void) => void;
-    createReader: () => { readEntries: (success: (entries: DropEntry[]) => void, failure?: () => void) => void };
+    createReader: () => {
+      readEntries: (success: (entries: DropEntry[]) => void, failure?: () => void) => void;
+    };
   };
   const items = Array.from(dataTransfer.items);
-  if (items.length === 0) return Array.from(dataTransfer.files).map(file => ({ file, relativePath: file.name }));
+  if (items.length === 0)
+    return Array.from(dataTransfer.files).map(file => ({ file, relativePath: file.name }));
   const files: UploadFile[] = [];
   const visit = async (entry: DropEntry, parentPath = ''): Promise<void> => {
     if (entry.isFile) {
       await new Promise<void>(resolve =>
-        entry.file(
-          file => {
-            files.push({ file, relativePath: `${parentPath}${file.name}` });
-            resolve();
-          },
-          resolve
-        )
+        entry.file(file => {
+          files.push({ file, relativePath: `${parentPath}${file.name}` });
+          resolve();
+        }, resolve)
       );
       return;
     }
     if (!entry.isDirectory) return;
     const reader = entry.createReader();
     const read = (): Promise<void> =>
-      new Promise<void>(resolve => reader.readEntries(async entries => {
-        if (entries.length === 0) return resolve();
-        for (const child of entries) await visit(child, `${parentPath}${entry.name}/`);
-        await read();
-        resolve();
-      }, resolve));
+      new Promise<void>(resolve =>
+        reader.readEntries(async entries => {
+          if (entries.length === 0) return resolve();
+          for (const child of entries) await visit(child, `${parentPath}${entry.name}/`);
+          await read();
+          resolve();
+        }, resolve)
+      );
     await read();
   };
   for (const item of items) {
-    const entry = ((item as DataTransferItem & { webkitGetAsEntry?: () => DropEntry | null })
-      .webkitGetAsEntry?.() ?? null) as DropEntry | null;
+    const entry = ((
+      item as DataTransferItem & { webkitGetAsEntry?: () => DropEntry | null }
+    ).webkitGetAsEntry?.() ?? null) as DropEntry | null;
     if (entry) await visit(entry, '');
   }
   return files.length > 0

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TEAM_ERROR_CODES } from '@video-compressor/shared';
@@ -49,6 +49,7 @@ function teamContext(realtimeState: TeamRealtimeState): TeamContextValue {
     replaceTeams: vi.fn(),
     refreshTeams: vi.fn().mockResolvedValue(undefined),
     notifyStateChanged: vi.fn(),
+    retryRealtime: vi.fn(),
     can: () => false
   };
 }
@@ -210,8 +211,9 @@ describe('the realtime chip', () => {
   it('says so when the channel never comes up, not only when it drops', async () => {
     vi.useFakeTimers();
     try {
+      const context = teamContext('connecting');
       render(
-        <TeamContextOverride value={teamContext('connecting')}>
+        <TeamContextOverride value={context}>
           <RealtimeChip />
         </TeamContextOverride>
       );
@@ -225,10 +227,12 @@ describe('the realtime chip', () => {
       // A button now, not a bare status (024, FR-052): it says what is wrong,
       // offers the one thing a reader can do about it, and is still announced.
       const chip = screen.getByRole('button', {
-        name: 'Live updates are not arriving — reload the space'
+        name: 'Live updates are not arriving — reconnect'
       });
       expect(chip.textContent).toContain('No live updates yet');
       expect(chip.getAttribute('aria-live')).toBe('polite');
+      fireEvent.click(chip);
+      expect(context.retryRealtime).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
     }
@@ -251,7 +255,7 @@ describe('the realtime chip', () => {
       // reconnecting, and telling someone we are restoring something they
       // never had is a small lie the chip does not need to tell.
       expect(
-        screen.getByRole('button', { name: 'Live updates are not arriving — reload the space' })
+        screen.getByRole('button', { name: 'Live updates are not arriving — reconnect' })
           .textContent
       ).toContain('Reconnecting');
     } finally {

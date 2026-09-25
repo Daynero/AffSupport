@@ -142,13 +142,21 @@ describe('claim_catalog_sync_jobs', () => {
         [liveJob]
       )
     )[0]!.connection_id;
+    // Ownership is per connection now: finish the first worker before checking
+    // expired-lease fairness among finite jobs on that same connection.
+    await harness.root(
+      `update private.catalog_sync_jobs set state = 'pending',
+      lease_owner = null, lease_expires_at = null, next_attempt_at = now() + interval '1 hour'
+      where connection_id = $1`,
+      [connected]
+    );
     const queued = async (state: string, minutesAgo: number, leaseMinutesAgo: number | null) =>
       (
         await harness.root<{ id: string }>(
           `insert into private.catalog_sync_jobs
-             (connection_id, phase, cursor, folder_queue, state, next_attempt_at, created_at,
+             (connection_id, job_kind, phase, cursor, folder_queue, state, next_attempt_at, created_at,
               lease_owner, lease_expires_at, attempts)
-           values ($1, 'incremental', '{}'::jsonb, '[]'::jsonb, $2,
+           values ($1, 'discovered_subtree', 'initial_scan', '{}'::jsonb, '[]'::jsonb, $2,
                    now() - make_interval(mins => $3), now() - make_interval(mins => $3),
                    case when $4::int is null then null else 'worker-gone' end,
                    case when $4::int is null then null
@@ -266,6 +274,22 @@ describe('multi-page lease ownership', () => {
   });
 
   it('caps active leases globally even when a caller asks for a large batch', async () => {
+    // A global cap needs distinct connections; a single connection can no
+    // longer occupy all three slots with duplicate pollers.
+    const [extraTeam] = await harness.asUser<{ id: string }>(
+      OWNER,
+      "select id from public.create_team('Third claim slot')"
+    );
+    const [extraConnection] = await harness.root<{ id: string }>(
+      `insert into public.team_drive_connections
+      (team_id, credential_id, root_folder_id, root_folder_name, drive_kind, state)
+      select $1, credential_id, 'extra-root', 'Extra root', 'my_drive', 'connected'
+      from public.team_drive_connections where team_id = $2 and state = 'connected' returning id`,
+      [extraTeam!.id, teamId]
+    );
+    await harness.root("select private.enqueue_catalog_sync($1, 'initial_scan')", [
+      extraConnection!.id
+    ]);
     await harness.root(`update private.catalog_sync_jobs set state = 'pending',
       lease_owner = null, lease_expires_at = null, next_attempt_at = now()`);
     const first = await harness.root(

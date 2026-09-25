@@ -86,6 +86,126 @@ export interface TeamStructuredError {
 export type TeamEdgeResult<T> = { ok: true; value: T } | { ok: false; error: TeamStructuredError };
 export type TeamRpcResult<T> = TeamEdgeResult<T>;
 
+export const CATALOG_SYNC_PHASES = [
+  'initial_scan',
+  'change_replay',
+  'incremental',
+  'reconcile'
+] as const;
+export type CatalogSyncPhase = (typeof CATALOG_SYNC_PHASES)[number];
+export const CATALOG_SYNC_JOB_KINDS = [
+  'incremental',
+  'initial',
+  'user_subtree',
+  'discovered_subtree',
+  'reconcile'
+] as const;
+export type CatalogSyncJobKind = (typeof CATALOG_SYNC_JOB_KINDS)[number];
+export const CATALOG_COVERAGE_STATES = [
+  'unknown',
+  'complete',
+  'partial',
+  'permission_limited'
+] as const;
+export type CatalogCoverageState = (typeof CATALOG_COVERAGE_STATES)[number];
+export const CATALOG_SYNC_JOB_STATES = [
+  'pending',
+  'leased',
+  'retry',
+  'succeeded',
+  'failed',
+  'canceled'
+] as const;
+export type CatalogSyncJobState = (typeof CATALOG_SYNC_JOB_STATES)[number];
+export const FOLDER_SYNC_STATES = ['queued', 'running', 'succeeded', 'failed', 'canceled'] as const;
+export type FolderSyncState = (typeof FOLDER_SYNC_STATES)[number];
+export const FOLDER_SYNC_PHASES = ['listing', 'reconciling', 'replaying_changes', 'done'] as const;
+export const CATALOG_SYNC_BOUNDS = {
+  pageSize: 100,
+  frontierBatch: 100,
+  providerConcurrency: 6,
+  globalLeases: 3,
+  consecutiveFailures: 10,
+  cleanupBatch: 500,
+  orphanRetentionMs: 24 * 60 * 60_000,
+  finiteRetentionMs: 7 * 24 * 60 * 60_000
+} as const;
+
+export function isCatalogSyncPhase(value: unknown): value is CatalogSyncPhase {
+  return CATALOG_SYNC_PHASES.some(candidate => candidate === value);
+}
+export function isCatalogSyncJobKind(value: unknown): value is CatalogSyncJobKind {
+  return CATALOG_SYNC_JOB_KINDS.some(candidate => candidate === value);
+}
+export function isCatalogCoverageState(value: unknown): value is CatalogCoverageState {
+  return CATALOG_COVERAGE_STATES.some(candidate => candidate === value);
+}
+export function isCatalogSyncJobState(value: unknown): value is CatalogSyncJobState {
+  return CATALOG_SYNC_JOB_STATES.some(candidate => candidate === value);
+}
+export interface FolderSyncStatus {
+  jobId: string;
+  scopeFolderId: string;
+  state: FolderSyncState;
+  phase: (typeof FOLDER_SYNC_PHASES)[number];
+  discoveredFiles: number;
+  completedFolders: number;
+  pendingFolders: number | null;
+  lastProgressAt: string | null;
+  completedAt: string | null;
+  errorCode: string | null;
+}
+
+/** Safe projection only; reject accidental exposure of private queue fields. */
+export function parseFolderSyncStatus(value: unknown): FolderSyncStatus | null {
+  if (!isRecord(value)) return null;
+  const keys = [
+    'jobId',
+    'scopeFolderId',
+    'state',
+    'phase',
+    'discoveredFiles',
+    'completedFolders',
+    'pendingFolders',
+    'lastProgressAt',
+    'completedAt',
+    'errorCode'
+  ];
+  if (Object.keys(value).some(key => !keys.includes(key))) return null;
+  const state = FOLDER_SYNC_STATES.find(candidate => candidate === value.state);
+  const phase = FOLDER_SYNC_PHASES.find(candidate => candidate === value.phase);
+  const count = (n: unknown): n is number =>
+    typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
+  const nullableText = (s: unknown): s is string | null => s === null || typeof s === 'string';
+  if (
+    !state ||
+    !phase ||
+    typeof value.jobId !== 'string' ||
+    !value.jobId ||
+    typeof value.scopeFolderId !== 'string' ||
+    !value.scopeFolderId ||
+    !count(value.discoveredFiles) ||
+    !count(value.completedFolders) ||
+    !(value.pendingFolders === null || count(value.pendingFolders)) ||
+    !nullableText(value.lastProgressAt) ||
+    !nullableText(value.completedAt) ||
+    !nullableText(value.errorCode)
+  )
+    return null;
+  return {
+    jobId: value.jobId,
+    scopeFolderId: value.scopeFolderId,
+    state,
+    phase,
+    discoveredFiles: value.discoveredFiles,
+    completedFolders: value.completedFolders,
+    pendingFolders: value.pendingFolders,
+    lastProgressAt: value.lastProgressAt,
+    completedAt: value.completedAt,
+    errorCode: value.errorCode
+  };
+}
+
 export interface TeamOperationSnapshot {
   id: string;
   teamId: string;

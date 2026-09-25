@@ -2,6 +2,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { TRANSCRIPT_INDEX_MAX_BYTES } from '../../../packages/shared/dist/team/contract.js';
 import { classifyMaterial } from '../../../packages/shared/dist/team/material-category.js';
 import { ingestTranscript } from '../../../packages/shared/dist/team/transcript.js';
+import {
+  isCatalogSyncJobKind,
+  isCatalogSyncPhase
+} from '../../../packages/shared/dist/team/transport.js';
 import { requireDriveOAuthGate, requireNamedWorkerSecret } from '../_shared/auth.ts';
 import {
   readDriveCredential,
@@ -145,7 +149,7 @@ async function ingestPendingTranscripts(input: {
     const materialId = requiredString(target, 'material_id');
     const driveFileId = requiredString(target, 'drive_file_id');
     const file = files.get(driveFileId);
-    if (!file) continue;
+    if (!file) return;
     let state: 'full' | 'truncated' | 'invalid_encoding' | 'unavailable';
     let text: string | null = null;
     let indexedBytes = 0;
@@ -199,13 +203,21 @@ async function ingestPendingTranscripts(input: {
 function catalogJob(row: Record<string, unknown>): CatalogSyncJob {
   const cursor = isRecord(row.cursor) ? row.cursor : {};
   const phase = row.phase;
-  if (!['initial_scan', 'change_replay', 'incremental', 'reconcile'].includes(String(phase))) {
+  if (
+    !isCatalogSyncPhase(phase) ||
+    !isCatalogSyncJobKind(row.job_kind) ||
+    typeof row.lease_epoch !== 'number' ||
+    !Number.isSafeInteger(row.lease_epoch) ||
+    row.lease_epoch < 1
+  ) {
     throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
   }
   return {
     jobId: requiredString(row, 'job_id'),
     connectionId: requiredString(row, 'connection_id'),
-    phase: phase as CatalogSyncJob['phase'],
+    phase,
+    jobKind: row.job_kind,
+    leaseEpoch: row.lease_epoch,
     rootFolderId: requiredString(row, 'root_folder_id'),
     driveId: optionalString(row.drive_id),
     folderQueue: stringArray(row.folder_queue),
@@ -277,6 +289,91 @@ function dependencies(input: {
   const { service, drive, worker, job } = input;
   const reader = memoizedReader(drive);
   return {
+    durableScan: {
+      beginFolder: async (folderId, restart) => {
+        const [row] = rows(
+          await rpcValue(service, 'service_begin_catalog_folder', {
+            p_job: job.jobId,
+            p_worker: worker,
+            p_epoch: job.leaseEpoch,
+            p_folder: folderId,
+            p_restart: restart
+          })
+        );
+        if (!row) throw new CatalogLeaseLostError();
+        return {
+          generation: requiredString(row, 'generation'),
+          pageToken: optionalString(row.page_token)
+        };
+      },
+      frontier: async () =>
+        rows(
+          await rpcValue(service, 'service_catalog_scan_frontier', {
+            p_job: job.jobId,
+            p_worker: worker,
+            p_epoch: job.leaseEpoch
+          })
+        ).map(row => {
+          const state = requiredString(row, 'state');
+          if (state !== 'queued' && state !== 'listing' && state !== 'reconciling') {
+            throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+          }
+          return { folderId: requiredString(row, 'folder_id'), state };
+        }),
+      commitPage: async page => {
+        const committed = await rpcValue(service, 'service_commit_catalog_scan_page', {
+          p_job: job.jobId,
+          p_worker: worker,
+          p_epoch: job.leaseEpoch,
+          p_generation: page.generation,
+          p_expected_page_token: page.expectedPageToken,
+          p_next_page_token: page.nextPageToken,
+          p_files: page.files.map(catalogRow),
+          p_complete: page.complete
+        });
+        return committed === true;
+      },
+      missingCandidates: async generation =>
+        rows(
+          await rpcValue(service, 'service_catalog_missing_candidates', {
+            p_job: job.jobId,
+            p_worker: worker,
+            p_epoch: job.leaseEpoch,
+            p_generation: generation
+          })
+        ).map(row => {
+          const revision = row.expected_revision;
+          if (
+            !(typeof revision === 'string' && /^\d+$/.test(revision)) &&
+            !(typeof revision === 'number' && Number.isSafeInteger(revision))
+          ) {
+            throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+          }
+          return { fileId: requiredString(row, 'file_id'), expectedRevision: String(revision) };
+        }),
+      resolveCandidate: async candidate => {
+        const resolved = await rpcValue(service, 'service_resolve_catalog_candidate', {
+          p_job: job.jobId,
+          p_worker: worker,
+          p_epoch: job.leaseEpoch,
+          p_generation: candidate.generation,
+          p_file_id: candidate.fileId,
+          p_expected_revision: candidate.expectedRevision,
+          p_outcome: candidate.outcome,
+          p_file: candidate.file
+            ? { ...catalogRow(candidate.file), trashed: candidate.file.trashed }
+            : null
+        });
+        return resolved === true;
+      },
+      finishFolder: async generation =>
+        (await rpcValue(service, 'service_finish_catalog_folder', {
+          p_job: job.jobId,
+          p_worker: worker,
+          p_epoch: job.leaseEpoch,
+          p_generation: generation
+        })) === true
+    },
     listChildren: request => drive.listChildren(request),
     listChanges: request => drive.listChanges(request),
     getFile: fileId => drive.getFile(fileId),
@@ -287,7 +384,7 @@ function dependencies(input: {
         job.rootFolderId,
         ...(job.selectionFolderIds ?? []).filter(id => id !== job.rootFolderId)
       ];
-      let lastError: TeamFunctionError | null = null;
+      let uncertain = false;
       for (const rootFolderId of roots) {
         try {
           await proveLiveAncestry({
@@ -299,27 +396,27 @@ function dependencies(input: {
           return true;
         } catch (cause) {
           const error = mapUnknownError(cause);
-          if (
-            !['ROOT_ESCAPE', 'NOT_FOUND', 'PERMISSION_DENIED', 'INVALID_RESPONSE'].includes(
-              error.code
-            )
-          ) {
-            throw error;
+          if (error.code === 'ROOT_ESCAPE') continue;
+          if (['NOT_FOUND', 'PERMISSION_DENIED', 'INVALID_RESPONSE'].includes(error.code)) {
+            uncertain = true;
+            continue;
           }
-          lastError = error;
+          throw error;
         }
       }
-      return lastError === null;
+      if (uncertain) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: true });
+      return false;
     },
     isHiddenSystemFile: async (file, rootFolderId) => {
       try {
         return await isHiddenSystemFile(reader, file, rootFolderId);
       } catch (cause) {
         const error = mapUnknownError(cause);
-        // An incomplete ancestor response is not sufficient to prove an asset
-        // belongs in the visible catalog.  Mark it unavailable for this slice;
-        // a later valid change can restore it.
-        if (error.code === 'INVALID_RESPONSE') return true;
+        // A malformed ancestor is not proof that a known material left the
+        // visible tree. Leave the catalog row intact and retry the slice.
+        if (error.code === 'INVALID_RESPONSE') {
+          throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
+        }
         throw error;
       }
     },
@@ -368,6 +465,7 @@ function dependencies(input: {
       rpcValue(service, 'service_save_catalog_sync_progress', {
         p_job: request.jobId,
         p_worker: worker,
+        p_epoch: job.leaseEpoch,
         p_phase: request.phase,
         p_page_token: request.pageToken,
         p_change_token: request.changeToken,
@@ -378,6 +476,7 @@ function dependencies(input: {
       const saved = await rpcValue(service, 'service_complete_catalog_sync_job', {
         p_job: request.jobId,
         p_worker: worker,
+        p_epoch: job.leaseEpoch,
         p_change_token: request.changeToken,
         p_next_phase: request.nextPhase
       });
@@ -430,7 +529,7 @@ Deno.serve(async request => {
     const service = serviceClient();
     const worker = `catalog-${crypto.randomUUID()}`;
     const claimed = rows(
-      await rpcValue(service, 'service_claim_catalog_sync_jobs', {
+      await rpcValue(service, 'service_claim_catalog_sync_work', {
         p_worker: worker,
         // One bounded Drive page can require several provider reads.  Keep a
         // scheduler invocation to one job so its lease can finish inside the
@@ -468,13 +567,26 @@ Deno.serve(async request => {
           productionSignals: { siteUrl: Deno.env.get('WISHLY_SITE_URL') }
         });
         const drive = new GoogleDriveClient(token.accessToken);
+        if (row.bootstrap_required === true) {
+          const startToken = await drive.getStartPageToken(job.driveId);
+          const saved = await rpcValue(service, 'service_bootstrap_catalog_sync', {
+            p_job: job.jobId,
+            p_worker: worker,
+            p_epoch: job.leaseEpoch,
+            p_token: startToken
+          });
+          if (saved !== true) throw new CatalogLeaseLostError();
+          job.changeToken = startToken;
+          if (job.jobKind === 'incremental') job.pageToken = startToken;
+        }
         const result = await runCatalogSyncJob(job, dependencies({ service, drive, worker, job }), {
           budgetMs: catalogSyncBudgetMs()
         });
         if (result.yielded) {
           const released = await rpcValue(service, 'service_release_catalog_sync_job', {
             p_job: job.jobId,
-            p_worker: worker
+            p_worker: worker,
+            p_epoch: job.leaseEpoch
           });
           if (released !== true) throw new CatalogLeaseLostError();
         }
@@ -504,8 +616,11 @@ Deno.serve(async request => {
         await rpcValue(service, 'service_retry_catalog_sync_job', {
           p_job: job.jobId,
           p_worker: worker,
+          p_epoch: job.leaseEpoch,
           p_error_code: error.code,
-          p_next_attempt_at: new Date(Date.now() + catalogRetryDelayMs(job.attempts)).toISOString(),
+          p_next_attempt_at: new Date(
+            Date.now() + catalogRetryDelayMs(job.attempts + 1)
+          ).toISOString(),
           p_permanent: !error.retryable
         });
       }

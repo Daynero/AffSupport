@@ -122,12 +122,17 @@ export interface TeamTestDb {
   close: () => Promise<void>;
 }
 
-export async function createTeamTestDb(): Promise<TeamTestDb> {
+export async function createTeamTestDb(
+  options: { throughMigration?: string } = {}
+): Promise<TeamTestDb> {
   const db = await PGlite.create();
   await db.exec(SUPABASE_STUBS);
 
   const files = readdirSync(MIGRATIONS_DIR)
-    .filter(name => name.endsWith('.sql'))
+    .filter(
+      name =>
+        name.endsWith('.sql') && (!options.throughMigration || name <= options.throughMigration)
+    )
     .sort();
   for (const file of files) {
     const sql = portable(readFileSync(`${MIGRATIONS_DIR}/${file}`, 'utf8'));

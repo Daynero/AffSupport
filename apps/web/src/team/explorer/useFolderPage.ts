@@ -29,12 +29,14 @@ const PAGE_SIZE = 100;
 const FOLDER_PAGE_TIMEOUT_MS = 12_000;
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: number | undefined;
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) =>
-      window.setTimeout(() => reject(new Error('FOLDER_PAGE_TIMEOUT')), milliseconds)
+    new Promise<T>(
+      (_, reject) =>
+        (timer = window.setTimeout(() => reject(new Error('FOLDER_PAGE_TIMEOUT')), milliseconds))
     )
-  ]);
+  ]).finally(() => window.clearTimeout(timer));
 }
 
 export interface FolderPageState {
@@ -45,6 +47,7 @@ export interface FolderPageState {
   hasMore: boolean;
   loadMore: () => Promise<void>;
   reload: () => Promise<void>;
+  reloadStrict: () => Promise<void>;
   /**
    * Replaces one row in place — for a change the caller already knows the
    * result of, like a tag. Re-reading the whole folder to repaint one dot
@@ -67,13 +70,14 @@ export function useFolderPage(input: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const generation = useRef(0);
+  const loadedPages = useRef(1);
   const kindsKey = (kinds ?? []).join(',');
 
   /** How many rows the filter has taken out of the count so far. */
   const hiddenSoFar = useRef(0);
 
   const fetchPage = useCallback(
-    async (after: FolderPageCursor | null, replace: boolean) => {
+    async (after: FolderPageCursor | null, replace: boolean, reportFailure = false) => {
       const token = ++generation.current;
       setLoading(true);
       try {
@@ -101,9 +105,11 @@ export function useFolderPage(input: {
         setRows(current => (replace ? kept : [...current, ...kept]));
         setTotal(Math.max(0, page.total - hiddenSoFar.current));
         setNext(page.next);
+        if (!replace) loadedPages.current += 1;
         setError(false);
       } catch {
         if (token === generation.current) setError(true);
+        if (reportFailure) throw new Error('FOLDER_PAGE_REFRESH_FAILED');
       } finally {
         if (token === generation.current) setLoading(false);
       }
@@ -112,17 +118,64 @@ export function useFolderPage(input: {
     [client, teamId, parentFolderId, kindsKey]
   );
 
+  const refreshWindow = useCallback(
+    async (reportFailure = false) => {
+      const token = ++generation.current;
+      const targetPages = loadedPages.current;
+      setLoading(true);
+      try {
+        let cursor: FolderPageCursor | null = null;
+        let totalRows = 0;
+        let hidden = 0;
+        let pagesRead = 0;
+        const visible: TeamMaterialRow[] = [];
+        for (let index = 0; index < targetPages; index += 1) {
+          const page: FolderPage = await withTimeout(
+            client.listFolderPage(teamId, {
+              parentFolderId,
+              ...(kinds && kinds.length > 0 ? { kinds } : {}),
+              after: cursor,
+              limit: PAGE_SIZE
+            }),
+            FOLDER_PAGE_TIMEOUT_MS
+          );
+          if (token !== generation.current) return;
+          const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
+          visible.push(...kept);
+          hidden += page.rows.length - kept.length;
+          totalRows = page.total;
+          cursor = page.next;
+          pagesRead += 1;
+          if (!cursor) break;
+        }
+        hiddenSoFar.current = hidden;
+        loadedPages.current = pagesRead;
+        setRows(visible);
+        setTotal(Math.max(0, totalRows - hidden));
+        setNext(cursor);
+        setError(false);
+      } catch {
+        if (token === generation.current) setError(true);
+        if (reportFailure) throw new Error('FOLDER_PAGE_REFRESH_FAILED');
+      } finally {
+        if (token === generation.current) setLoading(false);
+      }
+    },
+    [client, teamId, parentFolderId, kindsKey]
+  );
+
   useEffect(() => {
     setRows([]);
     setTotal(null);
     setNext(null);
-    void fetchPage(null, true);
-  }, [fetchPage]);
+    loadedPages.current = 1;
+    void refreshWindow();
+  }, [refreshWindow]);
 
   useEffect(() => {
     if (revision === 0) return;
-    void fetchPage(null, true);
-  }, [fetchPage, revision]);
+    void refreshWindow();
+  }, [refreshWindow, revision]);
 
   const patchRow = useCallback((id: string, patch: Partial<TeamMaterialRow>) => {
     setRows(current => current.map(row => (row.id === id ? { ...row, ...patch } : row)));
@@ -135,7 +188,8 @@ export function useFolderPage(input: {
     error,
     hasMore: next !== null,
     loadMore: () => (next ? fetchPage(next, false) : Promise.resolve()),
-    reload: () => fetchPage(null, true),
+    reload: () => refreshWindow(),
+    reloadStrict: () => refreshWindow(true),
     patchRow
   };
 }

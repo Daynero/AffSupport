@@ -10,6 +10,8 @@ import {
   normalizeCatalogSearchRequest,
   normalizeMaterialMetadataPatch,
   parseTeamEdgeResult,
+  parseFolderSyncStatus,
+  type FolderSyncStatus,
   parseTeamDownloadGrantResult,
   parseTeamFileOperationResult,
   parseTeamPreviewResult,
@@ -594,6 +596,19 @@ export interface DriveConnectionStatus {
 export interface DriveCatalogResyncResult {
   syncJobId: string;
   initialSyncState: 'scanning';
+}
+
+function catalogResyncAcceptance(value: unknown): DriveCatalogResyncResult {
+  const row = Array.isArray(value) && value.length === 1 ? asRecord(value[0]) : null;
+  if (
+    !row ||
+    typeof row.sync_job_id !== 'string' ||
+    !row.sync_job_id ||
+    row.initial_sync_state !== 'scanning'
+  ) {
+    throw new TeamApiError('INVALID_RESPONSE', false);
+  }
+  return { syncJobId: row.sync_job_id, initialSyncState: 'scanning' };
 }
 
 export interface DriveFolderSummary {
@@ -2237,11 +2252,7 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    const row = data?.[0] as Record<string, unknown> | undefined;
-    if (typeof row?.sync_job_id !== 'string' || row.initial_sync_state !== 'scanning') {
-      throw new TeamApiError('INVALID_RESPONSE', false);
-    }
-    return { syncJobId: row.sync_job_id, initialSyncState: 'scanning' };
+    return catalogResyncAcceptance(data);
   },
 
   async resyncFolder(teamId: string, folderId: string): Promise<DriveCatalogResyncResult> {
@@ -2252,11 +2263,34 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    const row = data?.[0] as Record<string, unknown> | undefined;
-    if (typeof row?.sync_job_id !== 'string' || row.initial_sync_state !== 'scanning') {
+    return catalogResyncAcceptance(data);
+  },
+
+  async getFolderSyncStatus(teamId: string, jobId: string): Promise<FolderSyncStatus> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_folder_sync_status', { p_team: teamId, p_job: jobId })
+    );
+    throwRpc(error);
+    const status = parseFolderSyncStatus(data);
+    if (!status || status.jobId !== jobId) {
       throw new TeamApiError('INVALID_RESPONSE', false);
     }
-    return { syncJobId: row.sync_job_id, initialSyncState: 'scanning' };
+    return status;
+  },
+
+  async getFolderResyncStatus(
+    teamId: string,
+    jobId: string
+  ): Promise<'running' | 'succeeded' | 'failed'> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_folder_resync_status', { p_team: teamId, p_job: jobId })
+    );
+    throwRpc(error);
+    const status = data?.[0]?.status;
+    if (status !== 'running' && status !== 'succeeded' && status !== 'failed') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return status;
   },
 
   async startDriveOAuth(teamId: string): Promise<{ authorizationUrl: string; expiresAt: string }> {
@@ -3125,14 +3159,26 @@ export const teamApi = {
     teamId: string,
     input: { name: string; parentMaterialId?: string | null }
   ): Promise<{ folderId: string; materialId: string; name: string; created: boolean }> {
-    return invokeTeamFunction('drive-ops/ensure-upload-folder', {
-      teamId,
-      name: input.name,
-      ...(input.parentMaterialId ? { parentMaterialId: input.parentMaterialId } : {})
-    }, (candidate): candidate is { folderId: string; materialId: string; name: string; created: boolean } => {
-      const row = asRecord(candidate);
-      return Boolean(row && typeof row.folderId === 'string' && typeof row.materialId === 'string' && typeof row.name === 'string' && typeof row.created === 'boolean');
-    });
+    return invokeTeamFunction(
+      'drive-ops/ensure-upload-folder',
+      {
+        teamId,
+        name: input.name,
+        ...(input.parentMaterialId ? { parentMaterialId: input.parentMaterialId } : {})
+      },
+      (
+        candidate
+      ): candidate is { folderId: string; materialId: string; name: string; created: boolean } => {
+        const row = asRecord(candidate);
+        return Boolean(
+          row &&
+          typeof row.folderId === 'string' &&
+          typeof row.materialId === 'string' &&
+          typeof row.name === 'string' &&
+          typeof row.created === 'boolean'
+        );
+      }
+    );
   },
 
   async ensureWorkspaceFolder(

@@ -194,6 +194,14 @@ export function TeamSpace({
 }) {
   const { t } = useI18n();
   const auth = useOptionalAuth();
+  // Supabase replaces the session object when a backgrounded browser returns
+  // and refreshes its token. Access depends on the person and admin flag, not
+  // on that short-lived token object; keeping only those primitives prevents
+  // a routine token refresh from dropping the mounted workspace and every
+  // dialog inside it.
+  const authPresent = auth !== null;
+  const authUserId = auth?.user?.id ?? null;
+  const authIsAdmin = auth?.isAdmin ?? false;
   const entering = usePageEntrance();
   const browserRoute = useBrowserRoute();
   const route: TeamRoute = routeProp ??
@@ -216,8 +224,8 @@ export function TeamSpace({
   const [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess>(() => {
     // Component-only previews do not mount AuthProvider. Keep their existing
     // supplied-team behavior while the real application always asks the DB.
-    if (!auth) return teams.length ? 'allowed' : 'denied';
-    return auth.isAdmin ? 'allowed' : 'checking';
+    if (!authPresent) return teams.length ? 'allowed' : 'denied';
+    return authIsAdmin ? 'allowed' : 'checking';
   });
   const gateTitleId = useId();
   const resumedFromDrive = useRef(false);
@@ -294,13 +302,13 @@ export function TeamSpace({
 
   useEffect(() => {
     let active = true;
-    if (!auth) {
+    if (!authPresent) {
       setWorkspaceAccess(teams.length ? 'allowed' : 'denied');
       return () => {
         active = false;
       };
     }
-    if (auth.isAdmin) {
+    if (authIsAdmin) {
       setWorkspaceAccess('allowed');
       return () => {
         active = false;
@@ -325,7 +333,7 @@ export function TeamSpace({
     return () => {
       active = false;
     };
-  }, [auth, auth?.isAdmin, auth?.user?.id, teams.length]);
+  }, [authIsAdmin, authPresent, authUserId, teams.length]);
 
   // Every team surface renders through `wrap`, so mounting the toast provider
   // here — rather than per surface — is what lets an outcome outlive the thing

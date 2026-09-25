@@ -553,10 +553,10 @@ select is_empty(
       ('public.service_replace_drive_connection(uuid,uuid,uuid,text,text,text,text,jsonb)'),
       ('public.service_detach_drive_connection(uuid,uuid,uuid)'),
       ('public.service_mark_drive_needs_reauth(uuid)'),
-      ('public.service_claim_catalog_sync_jobs(text,integer,integer)'),
+      ('public.service_claim_catalog_sync_work(text,integer,integer)'),
       ('public.service_upsert_catalog_page(uuid,text,jsonb)'),
-      ('public.service_checkpoint_initial_sync(uuid,text,jsonb,text)'),
-      ('public.service_begin_change_replay(uuid,uuid)')
+      ('public.service_save_catalog_sync_progress(uuid,text,bigint,text,text,text,jsonb,jsonb)'),
+      ('public.service_bootstrap_catalog_sync(uuid,text,bigint,text)')
     ) as expected(signature)
     where not has_function_privilege('service_role', expected.signature, 'execute')
   $$,
@@ -1885,9 +1885,9 @@ select is_empty(
   $$
     select expected.signature
     from (values
-      ('public.service_checkpoint_catalog_sync_job(uuid,text,text,text,text,jsonb,jsonb)'),
-      ('public.service_complete_catalog_sync_job(uuid,text,text,text)'),
-      ('public.service_retry_catalog_sync_job(uuid,text,text,timestamp with time zone,boolean)'),
+      ('public.service_release_catalog_sync_job(uuid,text,bigint)'),
+      ('public.service_complete_catalog_sync_job(uuid,text,bigint,text,text)'),
+      ('public.service_retry_catalog_sync_job(uuid,text,bigint,text,timestamp with time zone,boolean)'),
       ('public.service_tombstone_catalog_files(uuid,jsonb)'),
       ('public.service_requeue_catalog_transcripts(uuid,jsonb)'),
       ('public.service_list_pending_catalog_transcripts(uuid,jsonb)'),

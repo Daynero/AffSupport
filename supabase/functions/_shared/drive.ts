@@ -47,6 +47,42 @@ export interface DriveChange {
   file: DriveFileMetadata | null;
 }
 
+export interface DriveListingPage {
+  files: DriveFileMetadata[];
+  nextPageToken: string | null;
+  incompleteSearch: boolean;
+  invalidEntries: number;
+  /** This page finishes pagination without provider/parser coverage gaps. */
+  complete: boolean;
+}
+
+function parseListing(payload: unknown): DriveListingPage {
+  if (
+    !isRecord(payload) ||
+    !Array.isArray(payload.files) ||
+    (payload.nextPageToken !== undefined && typeof payload.nextPageToken !== 'string') ||
+    (payload.incompleteSearch !== undefined && typeof payload.incompleteSearch !== 'boolean')
+  ) {
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  }
+  const files = payload.files
+    .map(parseMetadata)
+    .filter((file): file is DriveFileMetadata => file !== null);
+  const invalidEntries = payload.files.length - files.length;
+  const incompleteSearch = payload.incompleteSearch === true;
+  const nextPageToken =
+    typeof payload.nextPageToken === 'string' && payload.nextPageToken.length > 0
+      ? payload.nextPageToken
+      : null;
+  return {
+    files,
+    nextPageToken,
+    incompleteSearch,
+    invalidEntries,
+    complete: nextPageToken === null && !incompleteSearch && invalidEntries === 0
+  };
+}
+
 const FILE_FIELDS = [
   'id',
   'name',
@@ -96,10 +132,15 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
   if (
     !isRecord(value) ||
     typeof value.id !== 'string' ||
+    value.id.length === 0 ||
+    value.id.length > 1024 ||
     typeof value.name !== 'string' ||
+    value.name.length === 0 ||
+    value.name.length > 1024 ||
     typeof value.mimeType !== 'string' ||
+    value.mimeType.length === 0 ||
     !Array.isArray(value.parents) ||
-    !value.parents.every(parent => typeof parent === 'string') ||
+    !value.parents.every(parent => typeof parent === 'string' && parent.length > 0) ||
     typeof value.trashed !== 'boolean'
   ) {
     return null;
@@ -184,13 +225,13 @@ export class GoogleDriveClient {
     parentId: string;
     pageToken?: string | null;
     driveId?: string | null;
-  }): Promise<{ files: DriveFileMetadata[]; nextPageToken: string | null }> {
+  }): Promise<DriveListingPage> {
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set(
       'q',
       `'${input.parentId.replaceAll("'", "\\'")}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
     );
-    url.searchParams.set('fields', `nextPageToken,files(${FILE_FIELDS})`);
+    url.searchParams.set('fields', `nextPageToken,incompleteSearch,files(${FILE_FIELDS})`);
     url.searchParams.set('pageSize', '100');
     url.searchParams.set('supportsAllDrives', 'true');
     url.searchParams.set('includeItemsFromAllDrives', 'true');
@@ -201,33 +242,20 @@ export class GoogleDriveClient {
     }
     const response = await this.#request(url);
     const payload: unknown = await response.json().catch(() => null);
-    if (!isRecord(payload) || !Array.isArray(payload.files)) {
-      throw new TeamFunctionError('INVALID_RESPONSE');
-    }
-    // A Drive listing can contain an item whose metadata is no longer readable
-    // to the connected account.  Do not let one such item stop the entire
-    // catalog; it cannot be safely cataloged and will be picked up by a later
-    // change or reconciliation once it is readable again.
-    const files = payload.files
-      .map(parseMetadata)
-      .filter((file): file is DriveFileMetadata => file !== null);
-    return {
-      files,
-      nextPageToken: typeof payload.nextPageToken === 'string' ? payload.nextPageToken : null
-    };
+    return parseListing(payload);
   }
 
   async listChildren(input: {
     parentId: string;
     pageToken?: string | null;
     driveId?: string | null;
-  }): Promise<{ files: DriveFileMetadata[]; nextPageToken: string | null }> {
+  }): Promise<DriveListingPage> {
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set(
       'q',
       `'${input.parentId.replaceAll("'", "\\'")}' in parents and trashed = false`
     );
-    url.searchParams.set('fields', `nextPageToken,files(${FILE_FIELDS})`);
+    url.searchParams.set('fields', `nextPageToken,incompleteSearch,files(${FILE_FIELDS})`);
     url.searchParams.set('pageSize', '100');
     url.searchParams.set('supportsAllDrives', 'true');
     url.searchParams.set('includeItemsFromAllDrives', 'true');
@@ -238,18 +266,23 @@ export class GoogleDriveClient {
     }
     const response = await this.#request(url);
     const payload: unknown = await response.json().catch(() => null);
-    if (!isRecord(payload) || !Array.isArray(payload.files)) {
-      throw new TeamFunctionError('INVALID_RESPONSE');
+    return parseListing(payload);
+  }
+
+  async getStartPageToken(driveId: string | null): Promise<string> {
+    const url = new URL('https://www.googleapis.com/drive/v3/changes/startPageToken');
+    url.searchParams.set('supportsAllDrives', 'true');
+    if (driveId) url.searchParams.set('driveId', driveId);
+    const response = await this.#request(url);
+    const payload: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(payload) ||
+      typeof payload.startPageToken !== 'string' ||
+      !payload.startPageToken
+    ) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
     }
-    // See listFolders: retain only complete, safe-to-catalog metadata instead
-    // of permanently failing the whole connected Drive scan.
-    const files = payload.files
-      .map(parseMetadata)
-      .filter((file): file is DriveFileMetadata => file !== null);
-    return {
-      files,
-      nextPageToken: typeof payload.nextPageToken === 'string' ? payload.nextPageToken : null
-    };
+    return payload.startPageToken;
   }
 
   async listChanges(input: { pageToken: string; driveId?: string | null }): Promise<{
@@ -534,6 +567,12 @@ export class GoogleDriveClient {
     if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
     if (response.status === 403) throw new TeamFunctionError('PERMISSION_DENIED');
     if (response.status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+    if (response.status === 400 && url.searchParams.has('pageToken')) {
+      throw new TeamFunctionError('INVALID_INPUT', {
+        retryable: true,
+        details: { reason: 'PAGE_TOKEN_REJECTED' }
+      });
+    }
     throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: response.status >= 500 });
   }
 

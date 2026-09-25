@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { User } from '@supabase/supabase-js';
 
 const rpc = vi.hoisted(() => vi.fn());
@@ -72,5 +72,32 @@ describe('team workspace launch gate', () => {
     ).toBe(true);
     expect(rpc).toHaveBeenCalledWith('can_access_team_workspace');
     expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
+  });
+
+  it('keeps the workspace mounted when the auth session object refreshes', async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
+    const { rerender } = render(
+      <AuthContextOverride value={outsideUserContext}>
+        <TeamProvider realtime={false}>
+          <TeamSpace client={client} directAddMode="disabled" />
+        </TeamProvider>
+      </AuthContextOverride>
+    );
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+
+    // Supabase publishes a fresh context value after returning to a foreground
+    // tab even though the signed-in person and their access did not change.
+    rerender(
+      <AuthContextOverride value={{ ...outsideUserContext }}>
+        <TeamProvider realtime={false}>
+          <TeamSpace client={client} directAddMode="disabled" />
+        </TeamProvider>
+      </AuthContextOverride>
+    );
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Checking workspace access…')).toBeNull();
   });
 });

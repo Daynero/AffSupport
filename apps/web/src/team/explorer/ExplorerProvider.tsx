@@ -38,6 +38,7 @@ export interface ExplorerContextValue {
   /** Root-to-folder path, excluding the root itself. */
   pathTo: (folderId: string | null) => TeamFolderNode[];
   refresh: () => Promise<void>;
+  refreshStrict: () => Promise<void>;
   /** The focused row's material id; the preview pane follows it (011). */
   selectedId: string | null;
   select: (materialId: string | null) => void;
@@ -85,32 +86,36 @@ export function ExplorerProvider({
   const activeRef = useRef(true);
   const indexingSince = useRef<number | null>(null);
 
-  const read = useCallback(async () => {
-    setLoading(true);
-    try {
-      const value = await client.listFolderTree(teamId);
-      if (!activeRef.current) return;
-      // The server orders by byte, the list beside the tree by the reader's language: in
-      // Ukrainian "Вставки" came first in the list and last in the tree.
-      setNodes([...value].sort((a, b) => compareNames(a.name, b.name)));
-      setError(false);
-      // FR-035: the moment every folder is listed, once per indexing run.
-      const unindexed = value.filter(node => node.indexedAt === null).length;
-      if (unindexed > 0 && indexingSince.current === null) indexingSince.current = Date.now();
-      if (unindexed === 0 && indexingSince.current !== null) {
-        trackTeamIndexCompleted({
-          folderCount: value.length,
-          fileCount: value.reduce((sum, node) => sum + node.childFileCount, 0),
-          durationMs: Date.now() - indexingSince.current
-        });
-        indexingSince.current = null;
+  const read = useCallback(
+    async (reportFailure = false) => {
+      setLoading(true);
+      try {
+        const value = await client.listFolderTree(teamId);
+        if (!activeRef.current) return;
+        // The server orders by byte, the list beside the tree by the reader's language: in
+        // Ukrainian "Вставки" came first in the list and last in the tree.
+        setNodes([...value].sort((a, b) => compareNames(a.name, b.name)));
+        setError(false);
+        // FR-035: the moment every folder is listed, once per indexing run.
+        const unindexed = value.filter(node => node.indexedAt === null).length;
+        if (unindexed > 0 && indexingSince.current === null) indexingSince.current = Date.now();
+        if (unindexed === 0 && indexingSince.current !== null) {
+          trackTeamIndexCompleted({
+            folderCount: value.length,
+            fileCount: value.reduce((sum, node) => sum + node.childFileCount, 0),
+            durationMs: Date.now() - indexingSince.current
+          });
+          indexingSince.current = null;
+        }
+      } catch {
+        if (activeRef.current) setError(true);
+        if (reportFailure) throw new Error('FOLDER_TREE_REFRESH_FAILED');
+      } finally {
+        if (activeRef.current) setLoading(false);
       }
-    } catch {
-      if (activeRef.current) setError(true);
-    } finally {
-      if (activeRef.current) setLoading(false);
-    }
-  }, [client, teamId]);
+    },
+    [client, teamId]
+  );
 
   useEffect(() => {
     activeRef.current = true;
@@ -195,6 +200,7 @@ export function ExplorerProvider({
       nodeOf: id => byDriveId.get(id) ?? null,
       pathTo,
       refresh: read,
+      refreshStrict: () => read(true),
       selectedId,
       select: setSelectedId,
       selectedIds,

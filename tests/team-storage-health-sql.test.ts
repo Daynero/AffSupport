@@ -173,7 +173,8 @@ describe('get_team_storage_health', () => {
 
     // A job that is being worked on right now still reads as indexing.
     await harness.root(
-      `update private.catalog_sync_jobs set updated_at = clock_timestamp() where connection_id = $1`,
+      `update private.catalog_sync_jobs set updated_at = clock_timestamp(), last_progress_at = clock_timestamp()
+        where connection_id = $1`,
       [connectionId]
     );
     expect((await health(teamId)).kind).toBe('indexing');

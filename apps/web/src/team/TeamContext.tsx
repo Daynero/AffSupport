@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode
 } from 'react';
@@ -41,6 +42,7 @@ export interface TeamContextValue {
   replaceTeams: (teams: TeamContextSnapshot[]) => void;
   refreshTeams: () => Promise<void>;
   notifyStateChanged: () => void;
+  retryRealtime: () => void;
   can: (permission: TeamPermissionFlag) => boolean;
 }
 
@@ -76,10 +78,15 @@ export function TeamProvider({
   realtime?: boolean;
 }) {
   const [teams, setTeams] = useState<TeamContextSnapshot[]>(initialTeams);
+  const teamsRef = useRef(teams);
+  teamsRef.current = teams;
   const [loadingTeams, setLoadingTeams] = useState(Boolean(client));
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [realtimeRetryNonce, setRealtimeRetryNonce] = useState(0);
   const [activeTeamId, setActiveTeamIdState] = useState<string | null>(() => persistedTeamId());
+  const activeTeamIdRef = useRef(activeTeamId);
+  activeTeamIdRef.current = activeTeamId;
 
   // No implicit `teams[0]` fallback: "no space entered" is a first-class state
   // that renders the lobby. A persisted id that no longer resolves to a team
@@ -92,8 +99,8 @@ export function TeamProvider({
   useEffect(() => {
     // Clear a stale persisted selection once teams have loaded; keep an
     // as-yet-unresolved id while the first load is still in flight.
-    if (activeTeamId && teams.length > 0 && !activeTeam) setActiveTeamIdState(null);
-  }, [activeTeam, activeTeamId, teams.length]);
+    if (activeTeamId && !loadingTeams && !activeTeam) setActiveTeamIdState(null);
+  }, [activeTeam, activeTeamId, loadingTeams]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -123,19 +130,32 @@ export function TeamProvider({
     setTeams(nextTeams);
   }, []);
 
-  const refreshTeams = useCallback(async () => {
-    if (!client) return;
-    setLoadingTeams(true);
-    try {
-      const nextTeams = await client.listTeams();
-      setTeams(nextTeams);
-      setError(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
-    } finally {
-      setLoadingTeams(false);
-    }
-  }, [client]);
+  const [membershipLostTeamId, setMembershipLostTeamId] = useState<string | null>(null);
+  const refreshTeams = useCallback(
+    async (strict = false) => {
+      if (!client) return;
+      setLoadingTeams(true);
+      try {
+        const nextTeams = await client.listTeams();
+        const selected = activeTeamIdRef.current;
+        if (
+          selected &&
+          teamsRef.current.some(team => team.id === selected) &&
+          !nextTeams.some(team => team.id === selected)
+        ) {
+          setMembershipLostTeamId(selected);
+        }
+        setTeams(nextTeams);
+        setError(null);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
+        if (strict) throw cause;
+      } finally {
+        setLoadingTeams(false);
+      }
+    },
+    [client]
+  );
 
   useEffect(() => {
     if (client) void refreshTeams();
@@ -144,18 +164,14 @@ export function TeamProvider({
   const notifyStateChanged = useCallback(() => {
     setRevision(value => value + 1);
   }, []);
+  const retryRealtime = useCallback(() => {
+    setRealtimeRetryNonce(value => value + 1);
+  }, []);
 
   const handleRealtimeRefetch = useCallback(async () => {
-    await refreshTeams();
+    await refreshTeams(true);
     setRevision(value => value + 1);
   }, [refreshTeams]);
-
-  const [membershipLostTeamId, setMembershipLostTeamId] = useState<string | null>(null);
-  const handleMembershipLost = useCallback(() => {
-    setTeams(current => current.filter(team => team.id !== activeTeamId));
-    setMembershipLostTeamId(activeTeamId);
-    setRevision(value => value + 1);
-  }, [activeTeamId]);
   const acknowledgeMembershipLoss = useCallback(() => setMembershipLostTeamId(null), []);
 
   /*
@@ -169,7 +185,7 @@ export function TeamProvider({
   const realtimeState = useTeamRealtime({
     teamId: insideSpace ? (activeTeam?.id ?? null) : null,
     onRefetch: handleRealtimeRefetch,
-    onMembershipLost: handleMembershipLost,
+    retryNonce: realtimeRetryNonce,
     enabled: realtime && insideSpace
   });
 
@@ -197,6 +213,7 @@ export function TeamProvider({
       replaceTeams,
       refreshTeams,
       notifyStateChanged,
+      retryRealtime,
       can
     }),
     [
@@ -210,6 +227,7 @@ export function TeamProvider({
       loadingTeams,
       membershipLostTeamId,
       notifyStateChanged,
+      retryRealtime,
       realtimeState,
       refreshTeams,
       replaceTeams,

@@ -1,4 +1,18 @@
 <!--
+Sync Impact Report — 2026-09-24
+==============================
+Version change: 3.0.0 → 3.0.1 (clarification of existing transport scopes).
+Modified principle: VI. Frontend Composition & State Discipline (title unchanged).
+Agent state uses SSE; hosted team state uses the existing Supabase Realtime seam.
+One owner/reconnect path per transport; no added recurring client polling.
+Authorized in the implementation conversation after the explicit T002 proposal.
+Added/removed sections: none. Deferred placeholders: none.
+This is a working-tree amendment, not a claim of PR merge or ratification.
+Templates/commands read this document at runtime; no template changes required.
+Previous 3.0.0 amendment report retained below for context.
+-->
+
+<!--
 Sync Impact Report
 ==================
 Version change: 2.0.0 → 3.0.0
@@ -188,8 +202,15 @@ one token layer, and no data-fetching library — keep new code inside these est
   not a runtime library.
 - Call the agent only through the typed one-line wrappers in `api/client.ts`
   (`request`/`requestBody`/`uploadForm` → `assertOk`); call Supabase via
-  `getSupabaseClient()` handling `{ data, error }` explicitly. Live state is SSE via a
-  single subscribe-and-reconnect path, not polling.
+  `getSupabaseClient()` handling `{ data, error }` explicitly. Live local-agent state
+  MUST use SSE through the single agent subscribe-and-reconnect path. Hosted team
+  catalog and material-operation state MUST use the existing Supabase Realtime
+  team subscription seam, with current membership checks and authorized tables.
+  Each transport MUST have one owner for subscription, reconnect and invalidation.
+  Reconnect/foreground visibility MUST reread authoritative visible snapshots;
+  events during reads MUST schedule a bounded follow-up. New recurring client
+  polling, duplicate gateways and server delivery of local upload percentages
+  MUST NOT be introduced. Existing bounded request-status checks remain allowed.
 - Emit telemetry with `analytics.track(typedName, props)` where the name is a constrained
   union and props are typed per event. Keep `any` out of `src` (the tree is currently
   `any`-free — keep it that way).
@@ -294,4 +315,4 @@ precedents to extend (each anti-pattern above marks one such debt).
   Spec Kit templates under `.specify/` provide operational detail and MUST stay consistent
   with these principles.
 
-**Version**: 3.0.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-09-16
+**Version**: 3.0.1 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-09-24

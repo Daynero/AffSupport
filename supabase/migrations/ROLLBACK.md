@@ -1,5 +1,113 @@
 # Rollback notes
 
+## 20260924120000_catalog_sync_scope_join.sql
+
+Stop manual sync requests and drain catalog workers. Restore the
+`public.request_team_folder_resync(uuid,text)` body from
+`20260922190000_folder_resync_completion.sql`, then reload PostgREST's schema.
+The replacement has no new tables or columns. Already widened jobs retain their
+broader `requested_folder_id` and must finish or be retried from that scope;
+do not shrink a running frontier or discard its seen-generation records.
+Keep the T006/T007 ownership and scan migrations in place for those jobs.
+
+```sql
+notify pgrst, 'reload schema';
+```
+
+## 20260924110000_catalog_scan_generations.sql
+
+Drain catalog workers and stop the scheduler first. Back up the private frontier,
+generations and seen sets if the scans must be resumed. The legacy worker cannot
+resume their page checkpoints: restart each affected finite scan from its original
+scope/selection roots with a new, freshly captured provider start token. Never
+truncate a frontier into a bounded JSON queue or treat partial coverage as complete.
+Keep all material rows and their identity/metadata.
+
+Restore the epoch overload of `public.service_complete_catalog_sync_job` from
+`20260924100000_catalog_sync_ownership.sql` before removing its dependencies, then:
+
+```sql
+drop function public.get_team_folder_sync_status(uuid,uuid);
+drop function public.service_finish_catalog_folder(uuid,text,bigint,uuid);
+drop function public.service_resolve_catalog_candidate(uuid,text,bigint,uuid,text,bigint,text,jsonb);
+drop function public.service_catalog_missing_candidates(uuid,text,bigint,uuid);
+drop function public.service_commit_catalog_scan_page(uuid,text,bigint,uuid,text,text,jsonb,boolean);
+drop function public.service_catalog_scan_frontier(uuid,text,bigint);
+drop function public.service_begin_catalog_folder(uuid,text,bigint,text,boolean);
+drop function private.upsert_catalog_snapshot(uuid,text,jsonb,pg_snapshot);
+drop table private.catalog_scan_seen;
+drop table private.catalog_scan_frontier;
+drop table private.catalog_scan_generations;
+alter table private.catalog_sync_jobs drop column scan_initialized;
+drop trigger catalog_material_mutation on public.team_materials;
+drop function private.stamp_catalog_mutation();
+alter table public.team_materials drop column catalog_mutation_xid;
+notify pgrst, 'reload schema';
+```
+
+Regenerate public types and restore the matching Edge adapter before resuming.
+The removed tables contain rebuildable scan staging only, not user catalog data.
+
+## 20260924100000_catalog_sync_ownership.sql
+
+Prefer a forward fix. Stop the catalog scheduler and drain every worker before
+reverting; old workers must not overlap with the new lease protocol. Back up
+`private.catalog_sync_jobs` and `private.catalog_sync_authority` first. No
+material rows or user metadata need to be deleted.
+
+1. Save each authority's confirmed cursor and provenance. Never recover an
+   ambiguous historical cursor by sorting job tokens or update timestamps.
+2. Retire active finite jobs and change canceled jobs to failed before restoring
+   the old state constraint. Keep at most one active legacy job per connection;
+   seed it only from a confirmed authority cursor, or capture a fresh provider
+   start token and restart an initial walk. A fresh token alone is not coverage.
+3. Drop the new entry points and triggers, then the authority and added columns:
+
+```sql
+drop function public.service_bootstrap_catalog_sync(uuid, text, bigint, text);
+drop function public.service_claim_catalog_sync_work(text, integer, integer);
+drop function public.service_save_catalog_sync_progress(uuid,text,bigint,text,text,text,jsonb,jsonb);
+drop function public.service_release_catalog_sync_job(uuid,text,bigint);
+drop function public.service_complete_catalog_sync_job(uuid,text,bigint,text,text);
+drop function public.service_retry_catalog_sync_job(uuid,text,bigint,text,timestamptz,boolean);
+drop trigger catalog_sync_ensure_authority on private.catalog_sync_jobs;
+drop trigger catalog_sync_classify on private.catalog_sync_jobs;
+drop function private.ensure_catalog_sync_authority();
+drop function private.classify_catalog_sync_job();
+```
+
+4. Restore `public.get_team_folder_resync_status`, `private.claim_catalog_sync_jobs` and
+   `public.service_complete_catalog_sync_job` from
+   `20260922190000_folder_resync_completion.sql`, and
+   `public.service_retry_catalog_sync_job` from `20260801101000_team_catalog_search.sql`.
+   Restore `public.get_team_storage_health` from
+   `20260918180000_indexing_must_be_getting_somewhere.sql` before removing `last_progress_at`.
+   Then remove the now-unused lease helper, authority and columns:
+
+```sql
+drop function private.lock_catalog_sync_lease(uuid, text, bigint);
+drop table private.catalog_sync_authority;
+drop index private.catalog_sync_one_canonical;
+alter table private.catalog_sync_jobs
+  drop column job_kind, drop column lease_epoch, drop column run_count,
+  drop column last_progress_at, drop column replay_after;
+alter table private.catalog_sync_jobs drop constraint catalog_sync_jobs_state_check;
+alter table private.catalog_sync_jobs add constraint catalog_sync_jobs_state_check
+  check (state in ('pending', 'leased', 'retry', 'succeeded', 'failed'));
+grant execute on function public.service_claim_catalog_sync_jobs(text, integer, integer) to service_role;
+grant execute on function public.service_save_catalog_sync_progress(uuid,text,text,text,text,jsonb,jsonb),
+  public.service_release_catalog_sync_job(uuid,text),
+  public.service_complete_catalog_sync_job(uuid,text,text,text),
+  public.service_retry_catalog_sync_job(uuid,text,text,timestamptz,boolean),
+  public.service_checkpoint_catalog_sync_job(uuid,text,text,text,text,jsonb,jsonb),
+  public.service_checkpoint_initial_sync(uuid,text,jsonb,text),
+  public.service_begin_change_replay(uuid,uuid) to service_role;
+notify pgrst, 'reload schema';
+```
+
+5. Restore the matching legacy Edge worker, regenerate public database types,
+   validate claims/completion on an isolated database, then resume the scheduler.
+
 These migrations create the complete Wishly account and analytics foundation. Prefer a database backup and a forward-fix after production data exists.
 
 For an empty development project, roll back in reverse order:
