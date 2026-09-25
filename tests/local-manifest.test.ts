@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest';
-import { buildLocalManifest } from '../apps/web/src/team/explorer/localManifest';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  buildLocalManifest,
+  buildNativeDirectoryManifest
+} from '../apps/web/src/team/explorer/localManifest';
 import {
   isLocalManifestMetadata,
   isLocalManifestRelativePath,
@@ -17,6 +20,41 @@ import {
 } from './fixtures/local-manifest';
 
 describe('local transfer manifest', () => {
+  it('adapts a native folder with explicit empties and lazy bounded file reads', async () => {
+    const read = vi.fn().mockResolvedValue(new Blob(['ell']));
+    const manifest = buildNativeDirectoryManifest(
+      {
+        kind: 'selected',
+        grantId: '12345678-1234-1234-1234-123456789abc',
+        rootName: 'Project',
+        entries: [
+          { kind: 'directory', relativePath: 'Project' },
+          { kind: 'directory', relativePath: 'Project/Empty' },
+          { kind: 'file', relativePath: 'Project/a.txt', sizeBytes: 5, mimeType: 'text/plain' }
+        ]
+      },
+      read
+    );
+    expect(manifest.entries.map(entry => entry.relativePath)).toEqual([
+      'Project',
+      'Project/Empty',
+      'Project/a.txt'
+    ]);
+    expect(manifest.totalDirectories).toBe(2);
+    expect(manifest.totalBytes).toBe(5);
+    const source = manifest.entries[2];
+    if (source?.kind !== 'file' || !('readChunk' in source.source))
+      throw new Error('native file source missing');
+    expect(await source.source.readChunk(1, 4)).toEqual(new Blob(['ell']));
+    expect(read).toHaveBeenCalledWith({
+      grantId: '12345678-1234-1234-1234-123456789abc',
+      relativePath: 'Project/a.txt',
+      offset: 1,
+      length: 3,
+      signal: undefined
+    });
+  });
+
   it('keeps mixed roots, original names, zero-byte files and explicit empty directories', async () => {
     const campaign = handleDirectory('Кампанія', [
       handleDirectory('Порожня'),

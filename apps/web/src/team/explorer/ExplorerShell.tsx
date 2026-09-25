@@ -16,7 +16,7 @@ import type {
   TeamPermissions
 } from '@video-compressor/shared';
 import { teamApi, type TeamMaterialSummary } from '../../api/team';
-import { downloadTeamFileWithAgent } from '../../api/client';
+import { downloadTeamFileWithAgent, selectNativeDirectory } from '../../api/client';
 import {
   Download,
   ListChecks,
@@ -95,8 +95,10 @@ import { useFolderResync, type FolderResyncClient } from './useFolderResync';
 import { usePosterFrames } from './usePosterFrames';
 import {
   buildLocalManifest,
+  buildNativeDirectoryManifest,
   type LocalDirectoryHandle,
   type LocalDropEntry,
+  type LocalManifest,
   type LocalManifestSource
 } from './localManifest';
 import { useOptionalWorkspaceOperations } from './WorkspaceOperationsProvider';
@@ -386,6 +388,8 @@ function ExplorerBody({
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const workspaceOperations = useOptionalWorkspaceOperations();
   const fileInput = useRef<HTMLInputElement>(null);
+  const addMenuAnchor = useRef<HTMLButtonElement | null>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const view: ExplorerView = query.view ?? readRememberedView();
   const [sort, setSortState] = useState<ExplorerSort>(() => readRememberedSort());
   const setSort = (next: ExplorerSort) => {
@@ -870,9 +874,10 @@ function ExplorerBody({
   );
 
   const uploadDrop = useCallback(
-    async (sources: LocalManifestSource[]) => {
-      if (!permissions?.upload || sources.length === 0) return;
+    async (sources: LocalManifestSource[], preparedManifest?: LocalManifest) => {
+      if (!permissions?.upload || (sources.length === 0 && !preparedManifest)) return;
       if (!workspaceOperations) {
+        if (preparedManifest) throw new Error('DIRECTORY_INTAKE_UNAVAILABLE');
         // Standalone Explorer instances retain their original upload path.
         const files = await Promise.all(
           sources
@@ -897,7 +902,7 @@ function ExplorerBody({
       let conflictQueue = Promise.resolve();
       setUploading(count => count + 1);
       try {
-        const manifest = await buildLocalManifest(sources);
+        const manifest = preparedManifest ?? (await buildLocalManifest(sources));
         let remainingConflicts = manifest.entries.filter(
           entry =>
             entry.kind === 'file' &&
@@ -943,7 +948,7 @@ function ExplorerBody({
           text:
             group.state === 'succeeded'
               ? t('teamExplorerUploadedOne', { name: manifest.roots[0]?.name ?? '' })
-              : t('teamDriveResyncFailed')
+              : t('teamExplorerUploadIncomplete')
         });
       } catch (cause) {
         push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
@@ -970,9 +975,13 @@ function ExplorerBody({
     const picker = (window as Window & { showDirectoryPicker?: () => Promise<unknown> })
       .showDirectoryPicker;
     if (!picker) {
-      // webkitdirectory drops empty directories. The scoped native fallback
-      // is installed separately; until then, fail before any remote writes.
-      push({ tone: 'error', text: t('teamDriveResyncFailed') });
+      try {
+        const selection = await selectNativeDirectory();
+        if (selection.kind === 'selected')
+          await uploadDrop([], buildNativeDirectoryManifest(selection));
+      } catch {
+        push({ tone: 'error', text: t('teamExplorerFolderUnsupported') });
+      }
       return;
     }
     try {
@@ -980,7 +989,7 @@ function ExplorerBody({
       await uploadDrop([{ kind: 'directory_handle', handle }]);
     } catch (error) {
       if ((error as { name?: string }).name !== 'AbortError')
-        push({ tone: 'error', text: t('teamDriveResyncFailed') });
+        push({ tone: 'error', text: t('teamExplorerFolderReadFailed') });
     }
   }, [push, t, uploadDrop]);
 
@@ -1311,7 +1320,14 @@ function ExplorerBody({
    */
   const emptyUploadAction =
     permissions?.upload && !trash ? (
-      <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={event => {
+          addMenuAnchor.current = event.currentTarget;
+          setAddMenuOpen(true);
+        }}
+      >
         {t('teamExplorerAddFiles')}
       </Button>
     ) : undefined;
@@ -1473,16 +1489,41 @@ function ExplorerBody({
                 multiple
                 hidden
                 onChange={event => {
-                  if (event.target.files) void upload(event.target.files);
+                  if (event.target.files)
+                    void uploadDrop(
+                      Array.from(event.target.files, file => ({ kind: 'file', file }))
+                    );
                   event.target.value = '';
                 }}
               />
-              <Button type="button" variant="primary" onClick={() => fileInput.current?.click()}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={event => {
+                  addMenuAnchor.current = event.currentTarget;
+                  setAddMenuOpen(true);
+                }}
+              >
                 {t('teamExplorerAddFiles')}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => void pickFolder()}>
-                {t('teamExplorerAddFolder')}
-              </Button>
+              <DropdownMenu
+                open={addMenuOpen}
+                onClose={() => setAddMenuOpen(false)}
+                anchor={addMenuAnchor}
+                label={t('teamExplorerAddFiles')}
+                items={[
+                  {
+                    id: 'files',
+                    label: t('teamExplorerAddFiles'),
+                    onSelect: () => fileInput.current?.click()
+                  },
+                  {
+                    id: 'folder',
+                    label: t('teamExplorerAddFolder'),
+                    onSelect: () => void pickFolder()
+                  }
+                ]}
+              />
               {(currentFolderId
                 ? client.resyncFolder && client.getFolderResyncStatus
                 : client.resyncDrive) && (

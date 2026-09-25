@@ -129,7 +129,12 @@ export type SendChunk = (input: {
 }) => Promise<ChunkOutcome>;
 
 export interface ResumableUploadInput<TFinalize> {
-  source: Blob;
+  source:
+    | Blob
+    | {
+        size: number;
+        readChunk: (start: number, endExclusive: number, signal?: AbortSignal) => Promise<Blob>;
+      };
   sessionUri: string;
   /** Sends the bytes. Without one the chunk goes straight to the session. */
   sendChunk?: SendChunk;
@@ -155,7 +160,12 @@ export async function resumableUpload<TFinalize>(
   input: ResumableUploadInput<TFinalize>
 ): Promise<TFinalize> {
   validateSessionUri(input.sessionUri);
-  if (!(input.source instanceof Blob) || input.source.size < 1) throw uploadError('INVALID_INPUT');
+  if (
+    !Number.isSafeInteger(input.source.size) ||
+    input.source.size < 1 ||
+    (!(input.source instanceof Blob) && typeof input.source.readChunk !== 'function')
+  )
+    throw uploadError('INVALID_INPUT');
   /*
    * Two megabytes, not eight.
    *
@@ -189,7 +199,12 @@ export async function resumableUpload<TFinalize>(
   while (offset < input.source.size && !driveFileId) {
     if (input.signal?.aborted) throw input.signal.reason ?? uploadError('CANCELED');
     const endExclusive = Math.min(offset + chunkBytes, input.source.size);
-    const chunk = input.source.slice(offset, endExclusive);
+    const chunk =
+      input.source instanceof Blob
+        ? input.source.slice(offset, endExclusive)
+        : await input.source.readChunk(offset, endExclusive, input.signal);
+    if (!(chunk instanceof Blob) || chunk.size !== endExclusive - offset)
+      throw uploadError('INVALID_RESPONSE');
     const headers = new Headers({
       'content-length': String(chunk.size),
       'content-range': `bytes ${offset}-${endExclusive - 1}/${input.source.size}`

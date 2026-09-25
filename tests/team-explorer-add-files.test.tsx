@@ -14,6 +14,7 @@ import { WorkspaceOperationsProvider } from '../apps/web/src/team/explorer/Works
 import { buildLocalManifest } from '../apps/web/src/team/explorer/localManifest';
 import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { teamApi } from '../apps/web/src/api/team';
+import { selectNativeDirectory } from '../apps/web/src/api/client';
 import { makeTeam } from './team-space-fixtures';
 import {
   dropDirectory,
@@ -37,6 +38,11 @@ vi.mock('../apps/web/src/api/team', async importOriginal => {
       })
     }
   };
+});
+
+vi.mock('../apps/web/src/api/client', async importOriginal => {
+  const actual = await importOriginal<typeof import('../apps/web/src/api/client')>();
+  return { ...actual, selectNativeDirectory: vi.fn().mockRejectedValue(new Error('UNAVAILABLE')) };
 });
 
 const team = makeTeam({ permissions: DEFAULT_ROLE_PERMISSIONS.admin, role: 'admin' });
@@ -79,7 +85,23 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+async function chooseFolder() {
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Add files' })).at(-1)!);
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Add folder' }));
+}
+
 describe('Add files chooser', () => {
+  it('offers file and folder modes from one inventory action', async () => {
+    render(shell());
+    expect(screen.queryByRole('button', { name: 'Add folder' })).toBeNull();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Add files' })).at(-1)!);
+    const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!fileInput) throw new Error('file input missing');
+    const click = vi.spyOn(fileInput, 'click');
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Add files' }));
+    expect(click).toHaveBeenCalledOnce();
+  });
+
   it('enumerates the same mixed tree from a handle or drop entries, including an empty folder', async () => {
     const file = localFile('clip.mov', 0);
     const fromChooser = await buildLocalManifest([
@@ -107,7 +129,7 @@ describe('Add files chooser', () => {
       .fn()
       .mockResolvedValue(handleDirectory('Empty'));
     render(shell());
-    fireEvent.click(await screen.findByRole('button', { name: 'Add folder' }));
+    await chooseFolder();
     await waitFor(() =>
       expect(teamApi.ensureUploadFolder).toHaveBeenCalledWith(
         team.id,
@@ -121,7 +143,7 @@ describe('Add files chooser', () => {
       .fn()
       .mockRejectedValue(Object.assign(new Error('canceled'), { name: 'AbortError' }));
     render(shell());
-    fireEvent.click(await screen.findByRole('button', { name: 'Add folder' }));
+    await chooseFolder();
     await waitFor(() =>
       expect(
         (window as Window & { showDirectoryPicker?: unknown }).showDirectoryPicker
@@ -132,8 +154,36 @@ describe('Add files chooser', () => {
 
   it('does not offer a lossy webkitdirectory fallback when directory handles are unavailable', async () => {
     render(shell());
-    fireEvent.click(await screen.findByRole('button', { name: 'Add folder' }));
+    await chooseFolder();
     expect(document.querySelector('input[webkitdirectory]')).toBeNull();
+    expect(teamApi.ensureUploadFolder).not.toHaveBeenCalled();
+    await waitFor(() => expect(selectNativeDirectory).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/Connect or update the agent/u)).toBeTruthy();
+  });
+
+  it('uses the native scoped fallback to create an empty-only folder', async () => {
+    vi.mocked(selectNativeDirectory).mockResolvedValueOnce({
+      kind: 'selected',
+      grantId: '12345678-1234-1234-1234-123456789abc',
+      rootName: 'Empty',
+      entries: [{ kind: 'directory', relativePath: 'Empty' }]
+    });
+    render(shell());
+    await chooseFolder();
+    await waitFor(() =>
+      expect(teamApi.ensureUploadFolder).toHaveBeenCalledWith(
+        team.id,
+        expect.objectContaining({ name: 'Empty', parentMaterialId: null })
+      )
+    );
+    expect(document.querySelector('input[webkitdirectory]')).toBeNull();
+  });
+
+  it('treats a canceled native picker as no mutation', async () => {
+    vi.mocked(selectNativeDirectory).mockResolvedValueOnce({ kind: 'canceled' });
+    render(shell());
+    await chooseFolder();
+    await waitFor(() => expect(selectNativeDirectory).toHaveBeenCalledOnce());
     expect(teamApi.ensureUploadFolder).not.toHaveBeenCalled();
   });
 });

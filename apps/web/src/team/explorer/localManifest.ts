@@ -1,9 +1,13 @@
 import {
   LOCAL_MANIFEST_BOUNDS,
   isLocalManifestRelativePath,
+  isNativeDirectoryIntakeResult,
   type LocalManifestEntry,
-  type LocalManifestIssueCode
+  type LocalManifestIssueCode,
+  type NativeDirectoryIntakeResult,
+  type NativeDirectoryFileSource
 } from '../../../../../packages/shared/src/team/transport';
+import { readNativeDirectoryChunk } from '../../api/client';
 
 export interface LocalFileHandle {
   kind: 'file';
@@ -44,6 +48,79 @@ export interface LocalManifest {
   totalFiles: number;
   totalDirectories: number;
   totalBytes: number;
+}
+
+/** Convert a validated agent manifest without materializing file bytes in the browser. */
+export function buildNativeDirectoryManifest(
+  selection: Extract<NativeDirectoryIntakeResult, { kind: 'selected' }>,
+  readChunk: typeof readNativeDirectoryChunk = readNativeDirectoryChunk
+): LocalManifest {
+  if (!isNativeDirectoryIntakeResult(selection)) throw new Error('INVALID_RESPONSE');
+  const manifest: LocalManifest = {
+    roots: [],
+    entries: [],
+    issues: [],
+    totalFiles: 0,
+    totalDirectories: 0,
+    totalBytes: 0
+  };
+  const directoryKeys = new Map<string, string>();
+  for (const entry of selection.entries) {
+    const comparisonPath = entry.relativePath.normalize('NFC');
+    const parentPath = entry.relativePath.includes('/')
+      ? entry.relativePath.slice(0, entry.relativePath.lastIndexOf('/'))
+      : null;
+    const parentKey = parentPath === null ? null : (directoryKeys.get(parentPath) ?? null);
+    if (parentPath !== null && !parentKey) throw new Error('INVALID_RESPONSE');
+    const depth = entry.relativePath.split('/').length - 1;
+    if (entry.kind === 'directory') {
+      const clientItemKey = `directory:${comparisonPath}`;
+      directoryKeys.set(entry.relativePath, clientItemKey);
+      manifest.entries.push({
+        kind: 'directory',
+        clientItemKey,
+        relativePath: entry.relativePath,
+        comparisonPath,
+        parentKey,
+        depth
+      });
+      manifest.totalDirectories += 1;
+      if (parentKey === null)
+        manifest.roots.push({ clientItemKey, kind: 'directory', name: selection.rootName });
+    } else {
+      const clientItemKey = `file:${comparisonPath}:${entry.sizeBytes}`;
+      const source: NativeDirectoryFileSource = {
+        kind: 'native-directory-file',
+        name: entry.relativePath.split('/').at(-1)!,
+        type: entry.mimeType,
+        size: entry.sizeBytes,
+        readChunk: (start, endExclusive, signal) =>
+          readChunk({
+            grantId: selection.grantId,
+            relativePath: entry.relativePath,
+            offset: start,
+            length: endExclusive - start,
+            signal
+          })
+      };
+      manifest.entries.push({
+        kind: 'file',
+        clientItemKey,
+        relativePath: entry.relativePath,
+        comparisonPath,
+        parentKey,
+        depth,
+        sizeBytes: entry.sizeBytes,
+        mimeType: entry.mimeType,
+        source
+      });
+      manifest.totalFiles += 1;
+      manifest.totalBytes += entry.sizeBytes;
+    }
+  }
+  if (manifest.roots.length !== 1 || manifest.entries[0]?.relativePath !== selection.rootName)
+    throw new Error('INVALID_RESPONSE');
+  return manifest;
 }
 
 type PendingDirectory = {

@@ -198,7 +198,15 @@ export interface LocalManifestFileEntry {
   depth: number;
   sizeBytes: number;
   mimeType: string;
-  source: File;
+  source: File | NativeDirectoryFileSource;
+}
+/** Ephemeral agent-backed source; opaque grant stays in memory, never in cloud metadata. */
+export interface NativeDirectoryFileSource {
+  kind: 'native-directory-file';
+  name: string;
+  type: string;
+  size: number;
+  readChunk: (start: number, endExclusive: number, signal?: AbortSignal) => Promise<Blob>;
 }
 export type LocalManifestEntry = LocalManifestDirectoryEntry | LocalManifestFileEntry;
 export type LocalManifestMetadataEntry =

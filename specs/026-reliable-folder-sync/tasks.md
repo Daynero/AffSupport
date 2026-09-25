@@ -110,8 +110,8 @@
 - [X] T043 [US4] Описати directory-intake capability, relative manifest і opaque grant контракти у `packages/shared/src/team/transport.ts`; зареєструвати flag у `apps/agent/src/server/capabilities.ts` і typed wrappers у `apps/web/src/api/client.ts`.
 - [X] T044 [US4] Реалізувати fallback через чинний `apps/agent/src/files/picker.ts` та новий `apps/agent/src/files/directory-intake.ts`: capability-gated register routes у files module, picker-scoped read grant, bounded enumeration/authorized source read, no symlink escape і no cloud absolute paths; OS branching тільки через platform seam.
 - [X] T045 [US4] Додати native capability/auth/path-grant/cancel/platform tests у `tests/directory-intake.test.ts` і перевірити module health/shutdown registration у `apps/agent/src/files/directory-intake.ts`.
-- [ ] T046 [US4] Замінити toolbar controls у `apps/web/src/team/explorer/ExplorerShell.tsx` на одну інвентарну action Файли/Папка; primary showDirectoryPicker, fallback scoped agent adapter у `localManifest.ts`; webkitdirectory не називати повним folder fallback.
-- [ ] T047 [US4] Оновити тексти chooser/capability/unsupported у `apps/web/src/i18n.ts`; explicit unsupported до remote writes, а cancel не створює mutation.
+- [X] T046 [US4] Замінити toolbar controls у `apps/web/src/team/explorer/ExplorerShell.tsx` на одну інвентарну action Файли/Папка; primary showDirectoryPicker, fallback scoped agent adapter у `localManifest.ts`; webkitdirectory не називати повним folder fallback.
+- [X] T047 [US4] Оновити тексти chooser/capability/unsupported у `apps/web/src/i18n.ts`; explicit unsupported до remote writes, а cancel не створює mutation.
 
 ## Phase 9 — US5: тільки локальний прогрес і відновлення (P1)
 

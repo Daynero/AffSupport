@@ -2468,6 +2468,10 @@ const en = {
   teamExplorerCompressFolder: 'Compress everything in this folder',
   teamExplorerAddFiles: 'Add files',
   teamExplorerAddFolder: 'Add folder',
+  teamExplorerFolderUnsupported:
+    'Folder selection needs a compatible desktop browser or a connected, up-to-date Soty agent. Connect or update the agent, then try again.',
+  teamExplorerFolderReadFailed: 'Could not read that folder. Check access and try again.',
+  teamExplorerUploadIncomplete: 'Some items could not be added. Check the result and retry.',
   teamExplorerDropHint: 'Drop files here to upload them into this folder.',
   teamExplorerUploadDone: 'Uploaded {count} file(s).',
   teamExplorerUploading: 'Uploading {name}…',
@@ -5369,6 +5373,10 @@ const uk: Record<keyof typeof en, string> = {
   teamExplorerCompressFolder: 'Стиснути все в цій папці',
   teamExplorerAddFiles: 'Додати файли',
   teamExplorerAddFolder: 'Додати папку',
+  teamExplorerFolderUnsupported:
+    'Для вибору папки потрібен сумісний настільний браузер або підключений оновлений агент Soty. Підключіть чи оновіть агент і спробуйте знову.',
+  teamExplorerFolderReadFailed: 'Не вдалося прочитати папку. Перевірте доступ і спробуйте знову.',
+  teamExplorerUploadIncomplete: 'Не всі елементи додано. Перевірте результат і повторіть спробу.',
   teamExplorerDropHint: 'Перетягніть файли сюди, щоб завантажити їх у цю папку.',
   teamExplorerUploadDone: 'Завантажено файлів: {count}.',
   teamExplorerUploading: 'Завантажую {name}…',

@@ -327,6 +327,14 @@ npm run beta:up
   branches have focused coverage: **82/82** tests passed, plus project/test
   typechecks, targeted lint and diff check. Live Windows picker validation
   remains pending for T059.
+- T046–T047 use one inventory Add files menu with Files/Folder modes. Browser
+  directory handles remain primary; when absent, the native adapter retains
+  empty folders and streams enumerated files through bounded 2 MiB reads.
+  Unsupported environments receive actionable copy before any cloud write;
+  either chooser cancel is mutation-free. Focused Explorer/manifest/transfer
+  tests passed **49/49**, with project/test typechecks, targeted lint and both
+  design fences. Live macOS/Windows parity and zero-byte cloud finalize still
+  require end-to-end acceptance; the latter is not proven by manifest tests.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

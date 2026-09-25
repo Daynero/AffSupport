@@ -423,6 +423,34 @@ describe('team preview transfer contract', () => {
 });
 
 describe('resumable upload and full-download transfer contract', () => {
+  it('reads an agent-backed source one bounded chunk at a time', async () => {
+    const readChunk = vi.fn(
+      async (start: number, end: number) =>
+        new Blob([new Uint8Array(end - start).fill(start === 0 ? 1 : 2)])
+    );
+    const sendChunk = vi.fn(async ({ endExclusive }: { endExclusive: number }) =>
+      endExclusive === 512 * 1024
+        ? { complete: true as const, driveFileId: 'drive-native' }
+        : { complete: false as const, nextOffset: endExclusive }
+    );
+    const finalize = vi.fn().mockResolvedValue({ state: 'succeeded' });
+    await resumableUpload({
+      source: { size: 512 * 1024, readChunk },
+      sessionUri: 'https://www.googleapis.com/upload/drive/v3/files?upload_id=opaque',
+      operationId: 'operation-native',
+      idempotencyKey: 'native-upload-0001',
+      chunkBytes: 256 * 1024,
+      sendChunk,
+      finalize
+    });
+    expect(readChunk.mock.calls.map(([start, end]) => [start, end])).toEqual([
+      [0, 256 * 1024],
+      [256 * 1024, 512 * 1024]
+    ]);
+    expect(sendChunk).toHaveBeenCalledTimes(2);
+    expect(finalize).toHaveBeenCalledOnce();
+  });
+
   it('starts at an aligned boundary, honors 308 Range, resumes, and finalizes once', async () => {
     const payload = new Blob([new Uint8Array(768 * 1024)]);
     const fetchImpl = vi

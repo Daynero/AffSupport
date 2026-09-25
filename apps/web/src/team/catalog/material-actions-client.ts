@@ -1,4 +1,8 @@
-import type { TeamDownloadGrantResult, TeamFileOperationResult } from '@video-compressor/shared';
+import type {
+  NativeDirectoryFileSource,
+  TeamDownloadGrantResult,
+  TeamFileOperationResult
+} from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { resumableUpload } from '../drive/resumableUpload';
@@ -7,7 +11,7 @@ export interface TeamFileUploadInput {
   teamId: string;
   /** The folder's provider id, or null for the space root. */
   destinationFolderId: string | null;
-  file: File;
+  file: File | NativeDirectoryFileSource;
   conflictMode: 'cancel' | 'keep_both' | 'replace';
   replaceMaterialId: string | null;
   versionOfMaterialId: string | null;
