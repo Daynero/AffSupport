@@ -557,6 +557,7 @@ export type Database = {
           id: number;
           material_id: string | null;
           occurred_at: string;
+          parent_folder_id: string | null;
           team_id: string;
         };
         Insert: {
@@ -564,6 +565,7 @@ export type Database = {
           id?: number;
           material_id?: string | null;
           occurred_at?: string;
+          parent_folder_id?: string | null;
           team_id: string;
         };
         Update: {
@@ -571,6 +573,7 @@ export type Database = {
           id?: number;
           material_id?: string | null;
           occurred_at?: string;
+          parent_folder_id?: string | null;
           team_id?: string;
         };
         Relationships: [

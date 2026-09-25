@@ -1,5 +1,26 @@
 # Rollback notes
 
+## 20260924130000_catalog_invalidation_scope.sql
+
+Stop new Drive mutations and catalog workers while reverting the event shape.
+The scoped rows are disposable invalidations, not catalog state or a replay
+cursor; do not delete materials. Drop the trigger/function, restore the
+publication's old explicit column list, then remove the added column and grant:
+
+```sql
+drop trigger catalog_move_scope on public.team_materials;
+drop function private.emit_catalog_move_scope();
+alter publication supabase_realtime drop table public.team_catalog_events;
+alter publication supabase_realtime add table public.team_catalog_events
+  (id, team_id, material_id, event_kind, occurred_at);
+revoke select (parent_folder_id) on table public.team_catalog_events from authenticated;
+alter table public.team_catalog_events drop column parent_folder_id;
+```
+
+Regenerate the event types and restore the prior client. Existing team-wide
+invalidation events continue to work during rollback, but old/new parent scope
+is unavailable until the forward migration is applied again.
+
 ## 20260924120000_catalog_sync_scope_join.sql
 
 Stop manual sync requests and drain catalog workers. Restore the

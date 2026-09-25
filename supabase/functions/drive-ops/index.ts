@@ -1388,6 +1388,9 @@ async function handleMove(
       destinationFolderId: destination.live.id,
       sourceName: plan.name
     });
+    // The DB commit updates team_materials; catalog_move_scope emits both old
+    // and new parent invalidations in that same transaction. Do not send a
+    // second, non-atomic event from the Edge worker after Drive has moved it.
     return rpcValue(service, 'service_complete_material_group_intent', {
       p_intent: intent.intentId
     });

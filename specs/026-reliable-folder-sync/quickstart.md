@@ -190,6 +190,14 @@ npm run beta:up
 - After these US2 changes, `npm run verify -- --gates=static` passed **13/13**
   gates. This is a static-only result; the full unit/release gates and two-account
   acceptance still remain open.
+- T021 old/new-parent invalidation uses a `team_materials` move trigger in the
+  same transaction as Drive-operation and catalog-scan commits. The isolated
+  PGlite scope test passed **2/2**; native pgTAP live-state/RLS passed **8/8**,
+  and `pg_publication_tables` includes `parent_folder_id`. The isolated native
+  database needed a local `supabase_realtime` publication fixture because its
+  schema copy omitted publications; no beta or production schema was migrated.
+  Public types for the new nullable event field were generated against this
+  isolated schema and selectively merged.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

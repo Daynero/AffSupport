@@ -57,7 +57,7 @@
 - [X] T018 [P] [US2] Додати visible-window/scroll anchor/selection/search tests для кількох завантажених сторінок у `tests/team-explorer-live-refresh.test.tsx`.
 - [X] T019 [P] [US2] Додати RLS тести catalog events і existing operation reads для viewer/removed/foreign-team у `supabase/tests/database/workspace-live-state.test.sql`.
 - [X] T020 [US2] Після T002 узгодити дозволені subscriptions у `apps/web/src/team/useTeamRealtime.ts`, lifecycle/dirty refresh у `TeamContext.tsx`; reuse catalog/material operation events, без group progress channel, MAX(id) watermark і нового polling.
-- [ ] T021 [US2] Додати affected old/new parent invalidation у `supabase/functions/drive-ops/index.ts` та наявних catalog commit RPC через нову `supabase/migrations/*_catalog_invalidation_scope.sql`; документувати `supabase/migrations/ROLLBACK.md`, тести й типи.
+- [X] T021 [US2] Додати affected old/new parent invalidation у `supabase/functions/drive-ops/index.ts` та наявних catalog commit RPC через нову `supabase/migrations/*_catalog_invalidation_scope.sql`; документувати `supabase/migrations/ROLLBACK.md`, тести й типи.
 - [X] T022 [US2] Реалізувати anchor-based visible-window refresh, dirty retry та generation guards у `apps/web/src/team/explorer/useFolderPage.ts`, `ExplorerProvider.tsx` і `apps/web/src/team/catalog/useCatalogSearch.ts`; не скидати все на першу сторінку.
 - [ ] T023 [US2] Зв’язати stale/reconnecting/retry UI з реальним status у `apps/web/src/team/workspace/RealtimeChip.tsx`; записати two-account evidence у `specs/026-reliable-folder-sync/quickstart.md`.
 
