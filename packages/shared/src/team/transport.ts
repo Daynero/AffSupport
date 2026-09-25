@@ -131,6 +131,143 @@ export const CATALOG_SYNC_BOUNDS = {
   finiteRetentionMs: 7 * 24 * 60 * 60_000
 } as const;
 
+/** Browser-only intake bounds. No local source is serialized to an Edge RPC. */
+export const LOCAL_MANIFEST_BOUNDS = {
+  files: 1_000,
+  directories: 100,
+  depth: 10,
+  pathLength: 1_024,
+  segmentLength: 255,
+  fileBytes: 100 * 1024 * 1024 * 1024,
+  totalBytes: 100 * 1024 * 1024 * 1024
+} as const;
+
+export const LOCAL_OPERATION_STATES = [
+  'preparing',
+  'running',
+  'partial',
+  'succeeded',
+  'failed',
+  'canceled',
+  'interrupted_input_required'
+] as const;
+export type LocalOperationState = (typeof LOCAL_OPERATION_STATES)[number];
+export const LOCAL_ITEM_STATES = [
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'skipped',
+  'canceled',
+  'input_required'
+] as const;
+export type LocalItemState = (typeof LOCAL_ITEM_STATES)[number];
+export const LOCAL_OPERATION_STAGES = [
+  'preparing',
+  'creating_folders',
+  'transferring',
+  'moving',
+  'updating_catalog',
+  'done'
+] as const;
+export type LocalOperationStage = (typeof LOCAL_OPERATION_STAGES)[number];
+export const LOCAL_MANIFEST_ISSUE_CODES = [
+  'INVALID_PATH',
+  'UNREADABLE',
+  'LIMIT_EXCEEDED',
+  'CYCLE',
+  'CANCELED',
+  'DUPLICATE'
+] as const;
+export type LocalManifestIssueCode = (typeof LOCAL_MANIFEST_ISSUE_CODES)[number];
+
+export interface LocalManifestDirectoryEntry {
+  kind: 'directory';
+  clientItemKey: string;
+  relativePath: string;
+  comparisonPath: string;
+  parentKey: string | null;
+  depth: number;
+}
+export interface LocalManifestFileEntry {
+  kind: 'file';
+  clientItemKey: string;
+  relativePath: string;
+  comparisonPath: string;
+  parentKey: string | null;
+  depth: number;
+  sizeBytes: number;
+  mimeType: string;
+  source: File;
+}
+export type LocalManifestEntry = LocalManifestDirectoryEntry | LocalManifestFileEntry;
+export type LocalManifestMetadataEntry =
+  LocalManifestDirectoryEntry | Omit<LocalManifestFileEntry, 'source'>;
+
+export function isLocalOperationState(value: unknown): value is LocalOperationState {
+  return LOCAL_OPERATION_STATES.some(state => state === value);
+}
+export function isLocalItemState(value: unknown): value is LocalItemState {
+  return LOCAL_ITEM_STATES.some(state => state === value);
+}
+export function isLocalOperationStage(value: unknown): value is LocalOperationStage {
+  return LOCAL_OPERATION_STAGES.some(stage => stage === value);
+}
+export function isLocalManifestIssueCode(value: unknown): value is LocalManifestIssueCode {
+  return LOCAL_MANIFEST_ISSUE_CODES.some(code => code === value);
+}
+
+/** A relative, non-empty path. Display names stay unchanged; NFC is comparison only. */
+export function isLocalManifestRelativePath(value: unknown): value is string {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > LOCAL_MANIFEST_BOUNDS.pathLength ||
+    value.includes('\\') ||
+    value.startsWith('/') ||
+    value.includes('\0')
+  )
+    return false;
+  const segments = value.split('/');
+  return (
+    segments.length <= LOCAL_MANIFEST_BOUNDS.depth + 1 &&
+    segments.every(
+      segment =>
+        segment.length > 0 &&
+        segment.length <= LOCAL_MANIFEST_BOUNDS.segmentLength &&
+        segment !== '.' &&
+        segment !== '..' &&
+        !/^[A-Za-z]:$/.test(segment)
+    )
+  );
+}
+
+/** Strict metadata projection for the local journal; rejects File/handles/paths outside the tree. */
+export function isLocalManifestMetadata(value: unknown): value is LocalManifestMetadataEntry {
+  if (!isRecord(value) || !isLocalManifestRelativePath(value.relativePath)) return false;
+  const common = ['kind', 'clientItemKey', 'relativePath', 'comparisonPath', 'parentKey', 'depth'];
+  const isCommon =
+    typeof value.clientItemKey === 'string' &&
+    value.clientItemKey.length > 0 &&
+    typeof value.comparisonPath === 'string' &&
+    value.comparisonPath === value.relativePath.normalize('NFC') &&
+    (value.parentKey === null || typeof value.parentKey === 'string') &&
+    typeof value.depth === 'number' &&
+    Number.isSafeInteger(value.depth) &&
+    value.depth === value.relativePath.split('/').length - 1;
+  if (!isCommon) return false;
+  if (value.kind === 'directory') return Object.keys(value).every(key => common.includes(key));
+  if (value.kind !== 'file') return false;
+  return (
+    Object.keys(value).every(key => [...common, 'sizeBytes', 'mimeType'].includes(key)) &&
+    typeof value.sizeBytes === 'number' &&
+    Number.isSafeInteger(value.sizeBytes) &&
+    value.sizeBytes >= 0 &&
+    value.sizeBytes <= LOCAL_MANIFEST_BOUNDS.fileBytes &&
+    typeof value.mimeType === 'string'
+  );
+}
+
 export function isCatalogSyncPhase(value: unknown): value is CatalogSyncPhase {
   return CATALOG_SYNC_PHASES.some(candidate => candidate === value);
 }
@@ -919,13 +1056,27 @@ export interface ThumbnailSession {
   endpoint: string;
 }
 
-export type StorageHealth =
+export type CatalogSyncHealth = 'current' | 'working' | 'delayed' | 'needs_reauth' | 'failed';
+export type CatalogNextAction =
+  'none' | 'wait' | 'retry' | 'reconnect' | 'restore_root' | 'grant_access' | 'connect';
+
+type StorageCoverageDetail = {
+  /** Additive during rollout; absent from the legacy storage-health RPC. */
+  coverage?: CatalogCoverageState;
+  syncHealth?: CatalogSyncHealth;
+  lastConfirmedAt?: string | null;
+  nextAction?: CatalogNextAction;
+};
+
+export type StorageHealth = (
   | { kind: 'connected'; lastReconciledAt: string }
   | { kind: 'indexing'; indexedFolders: number; totalFolders: number | null; files: number }
   | { kind: 'preparing'; ready: number; pending: number }
   | { kind: 'waiting_provider'; since: string }
   | { kind: 'attention'; reason: TeamStorageAttentionReason; fixer: 'owner' | 'manager' }
-  | { kind: 'disconnected' };
+  | { kind: 'disconnected' }
+) &
+  StorageCoverageDetail;
 
 function optionalString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
@@ -1033,6 +1184,22 @@ export function isThumbnailSession(value: unknown): value is ThumbnailSession {
 
 export function isStorageHealth(value: unknown): value is StorageHealth {
   if (!isRecord(value) || typeof value.kind !== 'string') return false;
+  if (
+    (value.coverage !== undefined &&
+      !['unknown', 'complete', 'partial', 'permission_limited'].includes(
+        value.coverage as string
+      )) ||
+    (value.syncHealth !== undefined &&
+      !['current', 'working', 'delayed', 'needs_reauth', 'failed'].includes(
+        value.syncHealth as string
+      )) ||
+    (value.lastConfirmedAt !== undefined && !optionalString(value.lastConfirmedAt)) ||
+    (value.nextAction !== undefined &&
+      !['none', 'wait', 'retry', 'reconnect', 'restore_root', 'grant_access', 'connect'].includes(
+        value.nextAction as string
+      ))
+  )
+    return false;
   switch (value.kind) {
     case 'connected':
       return typeof value.lastReconciledAt === 'string';

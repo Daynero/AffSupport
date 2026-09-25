@@ -2625,7 +2625,7 @@ export const teamApi = {
 
   async getStorageHealth(teamId: string): Promise<StorageHealth> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_storage_health', {
+      requireSupabaseClient().rpc('get_team_storage_health_v2', {
         p_team: teamId
       })
     );

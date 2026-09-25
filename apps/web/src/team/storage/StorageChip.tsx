@@ -1,5 +1,10 @@
 import { useId, useRef, useState } from 'react';
-import type { StorageHealth, TeamStorageAttentionReason } from '@video-compressor/shared';
+import type {
+  CatalogCoverageState,
+  CatalogNextAction,
+  StorageHealth,
+  TeamStorageAttentionReason
+} from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
@@ -37,6 +42,22 @@ const ATTENTION_BODY: Record<TeamStorageAttentionReason, TranslationKey> = {
   sync_failed: 'teamStorageBodySyncFailed'
 };
 
+const COVERAGE_COPY: Record<CatalogCoverageState, TranslationKey> = {
+  unknown: 'teamStorageCoverageUnknown',
+  complete: 'teamStorageCoverageComplete',
+  partial: 'teamStorageCoveragePartial',
+  permission_limited: 'teamStorageCoveragePermission'
+};
+
+const NEXT_ACTION_COPY: Record<Exclude<CatalogNextAction, 'none'>, TranslationKey> = {
+  wait: 'teamStorageNextWait',
+  retry: 'teamStorageNextRetry',
+  reconnect: 'teamStorageNextReconnect',
+  restore_root: 'teamStorageNextRestore',
+  grant_access: 'teamStorageNextGrant',
+  connect: 'teamStorageNextConnect'
+};
+
 function ago(iso: string, t: ReturnType<typeof useI18n>['t']): string {
   const parsed = Date.parse(iso);
   if (Number.isNaN(parsed)) return '';
@@ -53,6 +74,12 @@ export function chipCopy(
      had just pressed pause, so the one control in the panel looked like it did nothing. */
   renderPaused?: boolean
 ): string {
+  if (health.kind === 'connected' && health.syncHealth === 'delayed')
+    return t('teamStorageChipDelayed');
+  if (health.kind === 'connected' && health.coverage === 'permission_limited')
+    return t('teamStorageChipPermissionLost');
+  if (health.kind === 'connected' && health.coverage === 'partial')
+    return t('teamStorageChipPartial');
   switch (health.kind) {
     case 'connected':
       return t('teamStorageChipConnected', { ago: ago(health.lastReconciledAt, t) });
@@ -139,7 +166,7 @@ export function StorageChip({
   /* The chip's colour is the state's role, so storage needing attention is the
      same amber as anything else that needs attention (021, T084). */
   const tone: ChipTone =
-    health.kind === 'attention'
+    health.kind === 'attention' || health.syncHealth === 'delayed' || health.coverage === 'partial'
       ? 'warn'
       : health.kind === 'indexing' ||
           health.kind === 'preparing' ||
@@ -204,7 +231,10 @@ export function StorageChip({
           up to date · 64 hours ago" was the header's permanent first word. The
           chip speaks when there is something to know; the detail stays one
           address away (`storage=1`) and in the settings. */}
-      {health.kind !== 'connected' && (
+      {(health.kind !== 'connected' ||
+        health.syncHealth === 'delayed' ||
+        health.coverage === 'partial' ||
+        health.coverage === 'permission_limited') && (
         <WorkspaceChip
           tone={tone}
           busy={busyState}
@@ -225,6 +255,17 @@ export function StorageChip({
         >
           <h3 id={titleId}>{t('teamStorageDetailTitle')}</h3>
           <p className="team-storage-detail-state">{chipCopy(health, t, render?.paused)}</p>
+          {health.coverage && <p>{t(COVERAGE_COPY[health.coverage])}</p>}
+          {health.lastConfirmedAt !== undefined && (
+            <p>
+              {health.lastConfirmedAt
+                ? t('teamStorageLastConfirmed', { ago: ago(health.lastConfirmedAt, t) })
+                : t('teamStorageNeverConfirmed')}
+            </p>
+          )}
+          {health.nextAction && health.nextAction !== 'none' && (
+            <p>{t(NEXT_ACTION_COPY[health.nextAction])}</p>
+          )}
           {health.kind === 'attention' && <p>{t(ATTENTION_BODY[health.reason])}</p>}
           {health.kind === 'waiting_provider' && <p>{t('teamStorageBodyWaiting')}</p>}
           {health.kind === 'indexing' && (

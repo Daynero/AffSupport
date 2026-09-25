@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { HardDrive } from 'lucide-react';
-import type { TeamDriveSelection } from '@video-compressor/shared';
+import type { StorageHealth, TeamDriveSelection } from '@video-compressor/shared';
 import type {
   DriveCatalogResyncResult,
   DriveConnectionStatus,
@@ -62,12 +62,14 @@ export interface DrivePanelClient {
 export function DriveConnectionPanel({
   teamId,
   client,
+  health,
   revision = 0,
   onConnected,
   config = pickerConfig()
 }: {
   teamId: string;
   client: DrivePanelClient;
+  health?: StorageHealth | null;
   revision?: number;
   onConnected?: () => void;
   config?: ReturnType<typeof pickerConfig>;
@@ -314,7 +316,7 @@ export function DriveConnectionPanel({
       }
       className="team-drive-panel"
     >
-      <BetaStorageNotice state={status.state} />
+      <BetaStorageNotice state={status.state} coverage={health?.coverage} />
       {!connected && !rootMissing && !unavailable && <DriveDataUseNotice />}
 
       {!connected && !rootMissing && !unavailable && !authorized && !authorizationUrl && (

@@ -24,11 +24,18 @@ export function useStorageHealth(input: {
 }): { health: StorageHealth | null; refresh: () => Promise<void> } {
   const { teamId, client, enabled = true } = input;
   const { revision } = useTeam();
-  const [health, setHealth] = useState<StorageHealth | null>(null);
+  const [snapshot, setSnapshot] = useState<{ teamId: string; health: StorageHealth } | null>(null);
   const activeRef = useRef(true);
+  const requestId = useRef(0);
   const previous = useRef<StorageHealth | null>(null);
   const preparingSince = useRef<number | null>(null);
   const lastAttention = useRef<string | null>(null);
+
+  useEffect(() => {
+    previous.current = null;
+    preparingSince.current = null;
+    lastAttention.current = null;
+  }, [teamId]);
 
   const observe = useCallback((next: StorageHealth) => {
     const before = previous.current;
@@ -55,19 +62,21 @@ export function useStorageHealth(input: {
 
   const refresh = useCallback(async () => {
     if (!client.getStorageHealth) return;
+    const currentRequest = ++requestId.current;
     try {
       const next = await client.getStorageHealth(teamId);
-      if (!activeRef.current) return;
+      if (!activeRef.current || currentRequest !== requestId.current) return;
       observe(next);
-      setHealth(next);
+      setSnapshot({ teamId, health: next });
     } catch {
-      if (activeRef.current) setHealth(null);
+      // A failed read is not proof that the last confirmed state vanished.
+      // Keep that snapshot while a later authoritative read retries.
     }
   }, [client, observe, teamId]);
 
   useEffect(() => {
     if (!enabled) {
-      setHealth(null);
+      setSnapshot(null);
       return;
     }
     activeRef.current = true;
@@ -75,6 +84,7 @@ export function useStorageHealth(input: {
     const timer = window.setInterval(() => void refresh(), FALLBACK_INTERVAL_MS);
     return () => {
       activeRef.current = false;
+      requestId.current += 1;
       window.clearInterval(timer);
     };
   }, [enabled, refresh]);
@@ -85,5 +95,5 @@ export function useStorageHealth(input: {
     return () => window.clearTimeout(timer);
   }, [enabled, refresh, revision]);
 
-  return { health, refresh };
+  return { health: snapshot?.teamId === teamId ? snapshot.health : null, refresh };
 }

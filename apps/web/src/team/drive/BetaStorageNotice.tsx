@@ -1,6 +1,7 @@
 import { configuredEnvironment } from '../../lib/config';
 import { pickerConfig } from '../storage/loadPicker';
 import { useI18n } from '../../i18n';
+import type { CatalogCoverageState } from '@video-compressor/shared';
 
 /**
  * Explains why external storage cannot be connected, when the reason is that
@@ -29,9 +30,27 @@ export function externalStorageUnavailableInBeta(state?: string): boolean {
   return state === undefined || state === 'unavailable';
 }
 
-export function BetaStorageNotice({ state }: { state?: string }) {
+export function BetaStorageNotice({
+  state,
+  coverage
+}: {
+  state?: string;
+  coverage?: CatalogCoverageState;
+}) {
   const { t } = useI18n();
-  if (!externalStorageUnavailableInBeta(state)) return null;
+  if (!externalStorageUnavailableInBeta(state)) {
+    if (configuredEnvironment() !== 'beta' || state !== 'connected') return null;
+    if (coverage !== 'partial' && coverage !== 'permission_limited') return null;
+    return (
+      <p className="team-beta-storage-notice" role="note">
+        {t(
+          coverage === 'permission_limited'
+            ? 'betaStorageCoveragePermission'
+            : 'betaStorageCoveragePartial'
+        )}
+      </p>
+    );
+  }
   return (
     <p className="team-beta-storage-notice" role="note">
       <strong>{t('betaExternalStorageUnavailable')}</strong>{' '}

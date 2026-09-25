@@ -2913,6 +2913,10 @@ export type Database = {
         Args: { p_team: string };
         Returns: Json;
       };
+      get_team_storage_health_v2: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
       list_team_drive_selections: {
         Args: { p_team: string };
         Returns: {

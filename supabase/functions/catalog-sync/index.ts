@@ -126,6 +126,7 @@ async function ingestPendingTranscripts(input: {
   drive: GoogleDriveClient;
   connectionId: string;
   files: DriveFileMetadata[];
+  countProviderCall: () => void;
 }): Promise<void> {
   if (input.files.length === 0) return;
   await rpcValue(input.service, 'service_requeue_catalog_transcripts', {
@@ -156,6 +157,7 @@ async function ingestPendingTranscripts(input: {
     let errorCode: string | null;
     let deferredError: TeamFunctionError | null = null;
     try {
+      input.countProviderCall();
       const body = await input.drive.downloadFileRange({
         fileId: driveFileId,
         resourceKey: optionalString(target.resource_key),
@@ -244,12 +246,13 @@ function catalogJob(row: Record<string, unknown>): CatalogSyncJob {
  */
 type DriveReader = Pick<GoogleDriveClient, 'getFile'>;
 
-function memoizedReader(drive: GoogleDriveClient): DriveReader {
+function memoizedReader(drive: GoogleDriveClient, countProviderCall: () => void): DriveReader {
   const seen = new Map<string, Promise<DriveFileMetadata>>();
   return {
     getFile: (fileId, resourceKey) => {
       const known = seen.get(fileId);
       if (known) return known;
+      countProviderCall();
       const read = drive.getFile(fileId, resourceKey);
       seen.set(fileId, read);
       read.catch(() => seen.delete(fileId));
@@ -285,9 +288,10 @@ function dependencies(input: {
   drive: GoogleDriveClient;
   worker: string;
   job: CatalogSyncJob;
+  countProviderCall: () => void;
 }): CatalogSyncDependencies {
-  const { service, drive, worker, job } = input;
-  const reader = memoizedReader(drive);
+  const { service, drive, worker, job, countProviderCall } = input;
+  const reader = memoizedReader(drive, countProviderCall);
   return {
     durableScan: {
       beginFolder: async (folderId, restart) => {
@@ -374,9 +378,20 @@ function dependencies(input: {
           p_generation: generation
         })) === true
     },
-    listChildren: request => drive.listChildren(request),
-    listChanges: request => drive.listChanges(request),
-    getFile: fileId => drive.getFile(fileId),
+    listChildren: request => {
+      countProviderCall();
+      return drive.listChildren(request);
+    },
+    listChanges: request => {
+      countProviderCall();
+      return drive.listChanges(request);
+    },
+    // Candidate reconciliation needs a fresh provider read even if ancestry
+    // was memoized earlier in this invocation.
+    getFile: fileId => {
+      countProviderCall();
+      return drive.getFile(fileId);
+    },
     isWithinRoot: async file => {
       // Any picked folder is an acceptable ancestor (011). The root is tried
       // first because under research R1 outcome A it is the only one.
@@ -436,6 +451,7 @@ function dependencies(input: {
         )
       ];
       for (const artifactRoot of artifactRoots) {
+        countProviderCall();
         await drive.updateFileMetadata({ fileId: artifactRoot, trashed: true });
       }
     },
@@ -467,7 +483,8 @@ function dependencies(input: {
         service,
         drive,
         connectionId: request.connectionId,
-        files: request.files
+        files: request.files,
+        countProviderCall
       }),
     checkpoint: request =>
       rpcValue(service, 'service_save_catalog_sync_progress', {
@@ -539,9 +556,10 @@ Deno.serve(async request => {
     const claimed = rows(
       await rpcValue(service, 'service_claim_catalog_sync_work', {
         p_worker: worker,
-        // One bounded Drive page can require several provider reads.  Keep a
+        // One bounded Drive page can require several provider reads. Keep a
         // scheduler invocation to one job so its lease can finish inside the
-        // worker request budget instead of leaving a batch half-leased.
+        // worker request budget. The SQL claim counter rotates priority across
+        // invocations, reserving every fourth ready slot for background work.
         p_limit: 1,
         // Longer than a page can take, not as long as a page should take (024): a lease that ends
         // mid-page does not slow the job down, it restarts the page for ever.
@@ -554,6 +572,12 @@ Deno.serve(async request => {
 
     for (const row of claimed) {
       const job = catalogJob(row);
+      const startedAt = performance.now();
+      let providerCalls = 0;
+      const countProviderCall = () => {
+        providerCalls += 1;
+      };
+      const queueFolders = job.folderQueue.length;
       try {
         const credentialId = requiredString(row, 'credential_id');
         job.selectionFolderIds = rows(
@@ -576,6 +600,7 @@ Deno.serve(async request => {
         });
         const drive = new GoogleDriveClient(token.accessToken);
         if (row.bootstrap_required === true) {
+          countProviderCall();
           const startToken = await drive.getStartPageToken(job.driveId);
           const saved = await rpcValue(service, 'service_bootstrap_catalog_sync', {
             p_job: job.jobId,
@@ -587,9 +612,13 @@ Deno.serve(async request => {
           job.changeToken = startToken;
           if (job.jobKind === 'incremental') job.pageToken = startToken;
         }
-        const result = await runCatalogSyncJob(job, dependencies({ service, drive, worker, job }), {
-          budgetMs: catalogSyncBudgetMs()
-        });
+        const result = await runCatalogSyncJob(
+          job,
+          dependencies({ service, drive, worker, job, countProviderCall }),
+          {
+            budgetMs: catalogSyncBudgetMs()
+          }
+        );
         if (result.yielded) {
           const released = await rpcValue(service, 'service_release_catalog_sync_job', {
             p_job: job.jobId,
@@ -600,28 +629,39 @@ Deno.serve(async request => {
         }
         completed += 1;
         processed += result.processed;
-        console.info('catalog_sync_progress', {
+        console.info('catalog_sync_job_result', {
           jobId: job.jobId,
+          jobKind: job.jobKind,
           phase: result.phase,
           processed: result.processed,
           slices: result.slices,
-          yielded: result.yielded
+          yielded: result.yielded,
+          queueFolders,
+          runtimeMs: Math.round(performance.now() - startedAt),
+          providerCalls,
+          result: 'checkpoint'
         });
       } catch (cause) {
         failed += 1;
         // Another worker owns recovery now. Do not overwrite its retry/state.
         if (cause instanceof CatalogLeaseLostError) {
-          console.warn('catalog_sync_lease_lost', { jobId: job.jobId });
+          console.warn('catalog_sync_job_result', {
+            jobId: job.jobId,
+            jobKind: job.jobKind,
+            queueFolders,
+            runtimeMs: Math.round(performance.now() - startedAt),
+            providerCalls,
+            result: 'lease_lost'
+          });
           continue;
         }
         const error = mapUnknownError(cause);
-        console.warn('catalog_sync_retry', { jobId: job.jobId, code: error.code });
         if (error.code === 'NEEDS_REAUTH') {
           await rpcValue(service, 'service_mark_drive_needs_reauth', {
             p_credential: requiredString(row, 'credential_id')
           });
         }
-        await rpcValue(service, 'service_retry_catalog_sync_job', {
+        const retrySaved = await rpcValue(service, 'service_retry_catalog_sync_job', {
           p_job: job.jobId,
           p_worker: worker,
           p_epoch: job.leaseEpoch,
@@ -630,6 +670,17 @@ Deno.serve(async request => {
             Date.now() + catalogRetryDelayMs(job.attempts + 1)
           ).toISOString(),
           p_permanent: !error.retryable
+        });
+        // Health is projected from the fenced job state. A worker that lost
+        // its lease must not report this error as the connection's new truth.
+        console.warn('catalog_sync_job_result', {
+          jobId: job.jobId,
+          jobKind: job.jobKind,
+          queueFolders,
+          runtimeMs: Math.round(performance.now() - startedAt),
+          providerCalls,
+          result: retrySaved === true ? 'retry' : 'lease_lost',
+          code: error.code
         });
       }
     }

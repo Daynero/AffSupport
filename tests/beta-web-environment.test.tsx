@@ -101,6 +101,12 @@ describe('external storage notice', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  it('explains incomplete selected-folder coverage in beta without claiming files vanished', () => {
+    environment.current = 'beta';
+    render(<BetaStorageNotice state="connected" coverage="permission_limited" />);
+    expect(screen.getByRole('note').textContent).toMatch(/cannot read every selected folder/i);
+  });
+
   it('stops advising once the beta has its own chooser keys', async () => {
     // Found on the beta stack after the documented opt-in was completed: the
     // wizard asks before any status call, so `undefined` kept the notice on a

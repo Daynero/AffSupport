@@ -243,6 +243,14 @@ const RPC: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_team_storage_health: () => [
     { team_id: TEAM_ID, kind: 'ready', reason: null, fixer: null, checked_at: ago(2) }
   ],
+  get_team_storage_health_v2: () => ({
+    kind: 'connected',
+    lastReconciledAt: ago(2),
+    coverage: 'complete',
+    syncHealth: 'current',
+    lastConfirmedAt: ago(2),
+    nextAction: 'none'
+  }),
   /* The dashboard, so its tables, tiles and filters can be walked without a
      database. Numbers chosen to be awkward on purpose: a six-figure count, a
      long display name and an account in each of the three states. */

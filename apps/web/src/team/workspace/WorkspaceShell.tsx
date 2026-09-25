@@ -955,6 +955,7 @@ export function WorkspaceShell({
                 <SettingsDialog
                   teamId={teamId}
                   client={client}
+                  health={health}
                   initialTab={query.settingsTab}
                   onTabChange={tab =>
                     navigateTo(explorerRoute({ settings: true, settingsTab: tab }), true, false)

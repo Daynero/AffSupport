@@ -19,6 +19,7 @@ import {
 import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
 import type { TeamSettingsTab } from '../routes';
 import { Tabs } from '../../components/ui/index';
+import type { StorageHealth } from '@video-compressor/shared';
 
 export interface SharePreferenceSettingsClient {
   getLibrarySharePreference?: (
@@ -125,12 +126,14 @@ export function SharePreferenceSettings({
 export function SpaceSettings({
   teamId,
   client,
+  health,
   initialTab,
   onTabChange,
   onBack
 }: {
   teamId: string;
   client: SpaceSettingsClient;
+  health?: StorageHealth | null;
   /** Which room to open in, when something sent the reader to a particular one. */
   initialTab?: TeamSettingsTab | null;
   /** The room now open — so the address names it, and a reload comes back to it. */
@@ -210,6 +213,7 @@ export function SpaceSettings({
                 key={`drive:${teamId}`}
                 teamId={teamId}
                 client={client}
+                health={health}
                 revision={revision}
                 onConnected={() => {
                   changed();

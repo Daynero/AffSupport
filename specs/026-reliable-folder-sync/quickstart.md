@@ -213,6 +213,68 @@ npm run beta:up
   passed **46/46** before those added cases. Test typecheck and `git diff --check`
   passed. The 10,100-folder frontier assertion lives in the scan-generation
   database test, not the dedicated engine file.
+- T009 regression coverage is split by authority: `catalog-sync.test.ts`
+  checks finite completion, cursor independence and lease loss (including a
+  discovered-folder scheduling refusal); PGlite scope-join/discovery tests check
+  overlapping requests; scan-generation tests check concurrent catalog
+  mutations. The five targeted suites passed **51/51**. This does not replace
+  the 20/20 provider-backed MVP acceptance run.
+- Realtime recovery regression reproduced a stale `reconnecting` indicator
+  after a failed authoritative read later succeeded. The hook now marks the
+  channel healthy only after that read succeeds. Realtime and chip UI suites
+  passed **18/18**; two-account timing evidence remains outstanding.
+- T025 partial harness checks empty confirmed versus indexing, permission loss,
+  reauthorization and provider rate-limit presentation. A failed health read
+  now retains the last same-team snapshot rather than hiding it; request
+  generations prevent an old response replacing a newer team's state. The
+  storage-health/chip/realtime suites passed **17/17** at this checkpoint;
+  partial-coverage and delayed projections were completed in the later T027/T028
+  checkpoint below.
+- T025–T028 now add an additive `get_team_storage_health_v2` projection with
+  `coverage`, `syncHealth`, `lastConfirmedAt` and `nextAction`. A queued
+  discovered subtree downgrades coverage until its finite scan completes;
+  creation time and mere job claims never count as confirmed success. The
+  existing health RPC and catalog rows are unchanged. The web chip/settings
+  display the distinction, including a beta note for partial/permission-limited
+  access. Isolated PGlite coverage tests passed **5/5**, native pgTAP **8/8**,
+  and the six targeted health/API/beta suites passed **46/46** before the final
+  discovered-subtree assertion was added. No migration was applied to beta or
+  production; this is not a provider-backed end-to-end acceptance result.
+- Final US6 check: the added discovered-subtree PGlite assertion passed in a
+  **5/5** coverage suite, native pgTAP passed **8/8**, and static verify passed
+  **13/13** gates. This static form runs no tests; it is not a full `npm run
+  verify` or `verify:release` result.
+- T029/T031 scheduler checks passed **8/8** in PGlite and **6/6** in isolated
+  native PostgreSQL. They cover 3 user-priority claims plus one background
+  claim, ten ready connections, checkpoint failure reset, seven simulated days
+  of idle polling and 100 simulated changes/min for five minutes. The worker
+  still claims one job per invocation. These are deterministic scheduling and
+  cursor-integrity tests, **not** measured provider latency or a production
+  throughput benchmark; SC-004/005/008/009 remain to be measured.
+- T032 worker result logs now record only per-job kind/phase, starting folder
+  queue length, runtime, Drive call count, processed count, slices and outcome.
+  The counters do not publish byte progress or file names, paths, content or
+  OAuth credentials. Provider call counts exclude token refresh and count the
+  worker's direct Drive operations (including ancestry and transcript reads).
+- T033 adds a private five-minute cleanup capped at 500 staging rows per call:
+  completed-generation observations, abandoned generations older than 24 hours
+  without a live lease, and terminal finite jobs older than seven days. Native
+  pgTAP passed **9/9** in the isolated database, including batch bounds and
+  protection of a live lease/canonical job. It has not run in beta or production.
+- After T032/T033, the targeted scheduler/coverage suites passed **13/13** and
+  `npm run verify -- --gates=static` passed **13/13** gates. This form runs zero
+  tests; full `npm run verify` and release verification remain open.
+- T035/T037/T038 add a browser-only manifest with explicit empty directories,
+  mixed roots, all dropped-reader batches, Unicode comparison keys, and bounded
+  counts/depth/bytes. The metadata validator rejects File/handle objects and
+  absolute/traversal paths before any future journal serialization. The focused
+  manifest suite passed **7/7** and project/test typechecks passed. This is a
+  unit-level intake seam; Explorer drop/chooser integration and native fallback
+  remain T036/T039–T047.
+- The subsequent static rerun passed lint, project/test/script typechecks and
+  the design/security fences, but its repository-wide Prettier gate exceeded
+  the runner's 180-second budget on this machine. This is **not** a static PASS;
+  the four new/edited manifest files were checked separately with Prettier.
 - `npm run verify` was retried after formatting two test files. Static gates
   passed again, but the serial full unit suite produced no terminal result
   after roughly ten minutes and was interrupted; this is **not** a full-suite

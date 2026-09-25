@@ -379,6 +379,55 @@ describe('durable catalog synchronization', () => {
     );
   });
 
+  it('deduplicates overlapping discovered-folder changes before committing the canonical cursor', async () => {
+    const changedFolder = file({ id: 'shared-folder', mimeType: folderMime, parents: ['root'] });
+    const enqueue = vi.fn().mockResolvedValue(true);
+    const complete = vi.fn().mockResolvedValue(true);
+    const deps = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: [
+          { fileId: changedFolder.id, removed: false, file: changedFolder },
+          { fileId: changedFolder.id, removed: false, file: changedFolder }
+        ],
+        nextPageToken: null,
+        newStartPageToken: 'change-11'
+      }),
+      enqueueDiscoveredFolder: enqueue,
+      complete
+    });
+    await runCatalogSyncSlice(
+      { ...baseJob, phase: 'incremental', pageToken: 'change-10', changeToken: 'change-10' },
+      deps
+    );
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'shared-folder', parentFolderId: 'root' })
+    );
+    expect(enqueue.mock.invocationCallOrder[0]).toBeLessThan(complete.mock.invocationCallOrder[0]!);
+    expect(complete).toHaveBeenCalledWith(expect.objectContaining({ changeToken: 'change-11' }));
+  });
+
+  it('does not advance a canonical cursor when discovered-subtree scheduling loses its lease', async () => {
+    const changedFolder = file({ id: 'new-folder', mimeType: folderMime });
+    const deps = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: [{ fileId: changedFolder.id, removed: false, file: changedFolder }],
+        nextPageToken: null,
+        newStartPageToken: 'change-11'
+      }),
+      enqueueDiscoveredFolder: vi.fn().mockResolvedValue(false)
+    });
+    await expect(
+      runCatalogSyncSlice(
+        { ...baseJob, phase: 'incremental', pageToken: 'change-10', changeToken: 'change-10' },
+        deps
+      )
+    ).rejects.toThrow('CATALOG_LEASE_LOST');
+    expect(deps.upsertFiles).not.toHaveBeenCalled();
+    expect(deps.complete).not.toHaveBeenCalled();
+    expect(deps.checkpoint).not.toHaveBeenCalled();
+  });
+
   it('tombstones removed/out-of-root changes, restores returned files, and keeps provenance rows', async () => {
     const deps = dependencies({
       listChanges: vi.fn().mockResolvedValue({

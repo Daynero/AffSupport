@@ -47,9 +47,10 @@ describe('team Realtime invalidation', () => {
     const { result } = renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
     expect([...events.keys()].sort()).toEqual(['team_catalog_events', 'team_operations']);
     act(() => status('SUBSCRIBED'));
-    expect(result.current).toBe('connected');
+    expect(result.current).toBe('connecting');
     await act(async () => vi.advanceTimersByTimeAsync(1_000));
     expect(onRefetch).toHaveBeenCalledTimes(1);
+    expect(result.current).toBe('connected');
   });
 
   it('coalesces duplicate/out-of-order events and re-reads after an event during a read', async () => {
@@ -88,6 +89,20 @@ describe('team Realtime invalidation', () => {
     expect(onRefetch).toHaveBeenCalledTimes(3);
     unmount();
     expect(removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the channel stale until a failed authoritative read is retried successfully', async () => {
+    const onRefetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary catalog read failure'))
+      .mockResolvedValue(undefined);
+    const { result } = renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(result.current).toBe('reconnecting');
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(onRefetch).toHaveBeenCalledTimes(2);
+    expect(result.current).toBe('connected');
   });
 
   it('remounts the subscription on an explicit retry without reloading the page', async () => {

@@ -23,6 +23,7 @@ export function useTeamRealtime(input: {
     }
 
     let active = true;
+    let subscribed = false;
     let dirty = false;
     let refreshing = false;
     let failedReads = 0;
@@ -34,8 +35,11 @@ export function useTeamRealtime(input: {
       refreshing = true;
       try {
         await onRefetch();
+        if (!active) return;
         failedReads = 0;
+        if (subscribed) setState('connected');
       } catch {
+        if (!active) return;
         failedReads += 1;
         if (failedReads <= 2) dirty = true;
         setState('reconnecting');
@@ -75,11 +79,13 @@ export function useTeamRealtime(input: {
       .subscribe(status => {
         if (!active) return;
         if (status === 'SUBSCRIBED') {
-          setState('connected');
+          subscribed = true;
           refetch();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          subscribed = false;
           setState('reconnecting');
         } else if (status === 'CLOSED') {
+          subscribed = false;
           setState('reconnecting');
         }
       });

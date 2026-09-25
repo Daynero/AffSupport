@@ -2128,6 +2128,10 @@ const en = {
   betaExternalStorageUnavailable: 'Not available in beta',
   betaExternalStorageUnavailableHint:
     'Connecting external storage needs a Google test client, which is an optional one-time setup for beta. See docs/BETA.md.',
+  betaStorageCoveragePartial:
+    'This beta connection has only partly checked the accessible folders. Known files remain visible; check storage status for the next step.',
+  betaStorageCoveragePermission:
+    'This beta connection cannot read every selected folder. Known files remain visible; grant access or reconnect the owner account.',
   teamSpaceSwitcherOther: 'Other spaces',
   teamSpaceSwitcherAll: 'All spaces',
   teamCatalogPagerLabel: 'Result pages',
@@ -2321,7 +2325,21 @@ const en = {
   teamStorageChipQuota: 'Google Drive quota is exhausted',
   teamStorageChipSyncFailed: 'The last sync failed',
   teamStorageChipDisconnected: 'No storage connected',
+  teamStorageChipDelayed: 'Storage sync is delayed',
+  teamStorageChipPartial: 'Storage was only partly checked',
   teamStorageDetailTitle: 'Storage',
+  teamStorageCoverageComplete: 'Accessible folders fully checked',
+  teamStorageCoverageUnknown: 'Coverage has not been confirmed yet',
+  teamStorageCoveragePartial: 'Some accessible folders are still unchecked',
+  teamStorageCoveragePermission: 'Some folders cannot be read with this connection',
+  teamStorageLastConfirmed: 'Last confirmed sync: {ago}',
+  teamStorageNeverConfirmed: 'No sync has been confirmed yet',
+  teamStorageNextWait: 'Next: wait for the automatic retry.',
+  teamStorageNextRetry: 'Next: ask a manager to check storage again.',
+  teamStorageNextReconnect: 'Next: the owner should reconnect storage.',
+  teamStorageNextRestore: 'Next: restore the connected folder.',
+  teamStorageNextGrant: 'Next: give this connection access to the missing folders.',
+  teamStorageNextConnect: 'Next: connect a storage folder.',
   teamStorageBodyNeedsReauth:
     'Google stopped honouring the connection. Everything already indexed stays visible, read-only, until the owner reconnects with the same folder.',
   teamStorageBodyRootMissing:
@@ -5015,6 +5033,10 @@ const uk: Record<keyof typeof en, string> = {
   betaExternalStorageUnavailable: 'Недоступно в беті',
   betaExternalStorageUnavailableHint:
     'Підключення зовнішнього сховища потребує тестового клієнта Google — це необовʼязкове разове налаштування для бети. Див. docs/BETA.md.',
+  betaStorageCoveragePartial:
+    'Це beta-підключення перевірило лише частину доступних папок. Відомі файли лишаються видимими; наступний крок — у стані сховища.',
+  betaStorageCoveragePermission:
+    'Це beta-підключення не може прочитати всі вибрані папки. Відомі файли лишаються видимими; надайте доступ або перепідключіть акаунт власника.',
   teamSpaceSwitcherOther: 'Інші простори',
   teamSpaceSwitcherAll: 'Усі простори',
   teamCatalogPagerLabel: 'Сторінки результатів',
@@ -5207,7 +5229,21 @@ const uk: Record<keyof typeof en, string> = {
   teamStorageChipQuota: 'Квоту Google Drive вичерпано',
   teamStorageChipSyncFailed: 'Останнє сканування не вдалося',
   teamStorageChipDisconnected: 'Сховище не підключено',
+  teamStorageChipDelayed: 'Синхронізація сховища затримується',
+  teamStorageChipPartial: 'Сховище перевірено лише частково',
   teamStorageDetailTitle: 'Сховище',
+  teamStorageCoverageComplete: 'Доступні папки повністю перевірено',
+  teamStorageCoverageUnknown: 'Повноту ще не підтверджено',
+  teamStorageCoveragePartial: 'Частину доступних папок ще не перевірено',
+  teamStorageCoveragePermission: 'Це підключення не може прочитати частину папок',
+  teamStorageLastConfirmed: 'Остання підтверджена синхронізація: {ago}',
+  teamStorageNeverConfirmed: 'Підтвердженої синхронізації ще немає',
+  teamStorageNextWait: 'Далі: зачекайте на автоматичну повторну спробу.',
+  teamStorageNextRetry: 'Далі: попросіть керівника простору перевірити сховище ще раз.',
+  teamStorageNextReconnect: 'Далі: власнику потрібно перепідключити сховище.',
+  teamStorageNextRestore: 'Далі: відновіть підключену папку.',
+  teamStorageNextGrant: 'Далі: надайте цьому підключенню доступ до відсутніх папок.',
+  teamStorageNextConnect: 'Далі: підключіть папку сховища.',
   teamStorageBodyNeedsReauth:
     'Google перестав приймати з’єднання. Усе вже проіндексоване лишається видимим лише для читання, доки власник не перепідключить ту саму папку.',
   teamStorageBodyRootMissing:

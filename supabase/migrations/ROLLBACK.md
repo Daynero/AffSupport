@@ -1,5 +1,52 @@
 # Rollback notes
 
+## 20260924170000_catalog_sync_retention.sql
+
+Stop only the retention schedule, then remove its private function. This does
+not restore rows already aged out; finite status history older than seven days
+is intentionally not recoverable. Canonical jobs, confirmed cursors and
+material rows are not touched by this migration.
+
+```sql
+select cron.unschedule(job.jobid) from cron.job as job
+where job.jobname = 'wishly-catalog-sync-retention';
+drop function private.cleanup_catalog_sync_retention(integer);
+```
+
+There is no public RPC/type change. If rolling back during a running cleanup,
+wait for that invocation to finish before dropping the function.
+
+## 20260924160000_catalog_sync_fairness.sql
+
+Stop catalog claims and drain live leases. Restore the
+`private.claim_catalog_sync_jobs(text,integer,integer)` definition from
+`20260924100000_catalog_sync_ownership.sql`, including its narrow grants, then
+remove the scheduling counter:
+
+```sql
+drop table private.catalog_sync_scheduler_state;
+```
+
+The counter contains no provider cursor, material or job progress; keep all
+jobs and confirmed checkpoints. The previous claim order is not fair under
+sustained manual demand, so make the rollback explicit in monitoring. Public
+RPC signatures are unchanged; regenerate types to confirm no public diff.
+
+## 20260924150000_catalog_coverage_health.sql
+
+Switch the web client back to `public.get_team_storage_health(uuid)` first,
+then remove only the additive projection. It stores no catalog data and does
+not change the existing connection or scan tables:
+
+```sql
+drop function public.get_team_storage_health_v2(uuid);
+notify pgrst, 'reload schema';
+```
+
+Regenerate the affected public type and keep all material rows and confirmed
+sync timestamps. A rollback removes coverage/freshness detail from the chip;
+it must not make an unconfirmed empty catalog look complete.
+
 ## 20260924140000_catalog_discovered_subtrees.sql
 
 Stop the catalog scheduler and drain workers first. Existing discovered jobs
