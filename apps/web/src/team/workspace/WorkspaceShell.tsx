@@ -60,6 +60,7 @@ import { SpaceStatePanel } from './SpaceStatePanel';
 import type { ExplorerShellClient } from '../explorer/ExplorerShell';
 import { BackgroundRenderProvider } from '../explorer/BackgroundRenderProvider';
 import { WorkspaceOperationsProvider } from '../explorer/WorkspaceOperationsProvider';
+import { useOptionalAuth } from '../../auth/AuthContext';
 import { renderTeamLanding } from '../../api/client';
 import {
   buildTeamRoute,
@@ -182,6 +183,7 @@ export function WorkspaceShell({
   query?: TeamRouteQuery;
 }) {
   const { t } = useI18n();
+  const user = useOptionalAuth()?.user;
   const { activeTeam, teams, revision, can, notifyStateChanged } = useTeam();
   const { push } = useToasts();
   const agent = useOptionalAgent();
@@ -643,7 +645,7 @@ export function WorkspaceShell({
       >
         {/* The local app's queue is the space's (024, FR-077): a task can start a
             transcript as well as Files can, and the run outlives either. */}
-        <WorkspaceOperationsProvider teamId={teamId}>
+        <WorkspaceOperationsProvider teamId={teamId} actorId={user?.id}>
           <AddToTaskProvider teamId={teamId}>
             <AgentQueueProvider
               teamId={teamId}

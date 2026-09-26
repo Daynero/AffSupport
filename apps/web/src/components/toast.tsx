@@ -272,3 +272,8 @@ export function useToasts(): ToastContextValue {
   if (!value) throw new Error('useToasts must be used inside ToastProvider');
   return value;
 }
+
+/** Local operation providers also mount in isolated previews without a toast host. */
+export function useOptionalToasts(): ToastContextValue | null {
+  return useContext(ToastContext);
+}

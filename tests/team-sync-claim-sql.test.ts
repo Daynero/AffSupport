@@ -98,6 +98,15 @@ describe('claim_catalog_sync_jobs', () => {
       [connection[0]!.id]
     );
 
+    // Keep the other fixture's live job out of this one-slot claim. Its own
+    // scheduling assertion is the next test, with the original ready time.
+    await harness.root(
+      `update private.catalog_sync_jobs
+       set next_attempt_at = now() + interval '1 hour'
+       where id = $1`,
+      [liveJob]
+    );
+
     const claimed = await harness.root<{ id: string }>(
       `select id from private.claim_catalog_sync_jobs('worker-exhaustion', 1, 60)`
     );
@@ -113,6 +122,12 @@ describe('claim_catalog_sync_jobs', () => {
        set state = 'succeeded', lease_owner = null, lease_expires_at = null, completed_at = now()
        where id = $1`,
       [fresh[0]!.id]
+    );
+    await harness.root(
+      `update private.catalog_sync_jobs
+       set next_attempt_at = now() - interval '1 minute'
+       where id = $1`,
+      [liveJob]
     );
   });
 

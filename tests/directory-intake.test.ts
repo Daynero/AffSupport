@@ -4,6 +4,7 @@ import path from 'node:path';
 import Fastify from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PathGrantLedger } from '../apps/agent/src/files/path-grants.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const capability = vi.hoisted(() => ({ enabled: true }));
 vi.mock('../apps/agent/src/server/capabilities.js', () => ({
@@ -27,7 +28,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   ledger.clear();
-  await rm(root, { recursive: true, force: true });
+  await removeTemporaryDirectory(root);
 });
 
 describe('native directory intake', () => {

@@ -448,6 +448,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (LOCAL_DEV_AUTH) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
+    const actorId = snapshotRef.current.user?.id;
     setSnapshot(current => ({ ...current, status: 'signing-out', error: null }));
     analytics.track('user_signed_out', {});
     await analytics.flush();
@@ -461,6 +462,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       setSnapshot(current => ({ ...current, status: 'error', error: 'signout' }));
       return;
+    }
+    if (actorId) {
+      const { WorkspaceOperationJournal } =
+        await import('../team/explorer/workspaceOperationJournal');
+      await new WorkspaceOperationJournal({ actorId }).purgeActor();
     }
     analytics.setUser(null);
     sessionStorage.removeItem('wishly.auth.analytics-user.v1');

@@ -84,6 +84,7 @@ describe('capabilities', () => {
     setPlatform('darwin');
     expect(capabilities()).toEqual({
       nativeFilePicker: true,
+      directoryIntake: true,
       revealInFileManager: true,
       spotlightSearch: true,
       shellContextMenuIntegration: true,
@@ -95,6 +96,7 @@ describe('capabilities', () => {
     setPlatform('win32');
     expect(capabilities()).toEqual({
       nativeFilePicker: true,
+      directoryIntake: true,
       revealInFileManager: true,
       spotlightSearch: false,
       // No Explorer shell extension ships.
@@ -110,6 +112,7 @@ describe('capabilities', () => {
     setPlatform('linux');
     expect(capabilities()).toEqual({
       nativeFilePicker: false,
+      directoryIntake: false,
       revealInFileManager: true,
       spotlightSearch: false,
       shellContextMenuIntegration: false,

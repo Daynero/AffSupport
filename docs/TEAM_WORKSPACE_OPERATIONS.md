@@ -129,6 +129,35 @@ The header chip is the one place storage health is shown; it reads
 Analytics: `team_storage_attention { attention_reason }` once per reason change and
 `team_previews_ready` when `preparing` ends — both from the web hook, never from the chip.
 
+## Folder intake and local operation recovery (feature 026)
+
+The Files action accepts individual files or a directory. On supported desktop browsers,
+the directory chooser uses `showDirectoryPicker`; where that API is unavailable, a paired
+agent may provide a picker-scoped native directory grant. A plain file input does not
+preserve empty directories. If neither directory route is available, show the unsupported
+state before creating any remote folders or uploads. Drag-and-drop keeps explicit empty
+directories, multiple roots and relative paths; the destination is frozen when intake
+starts. Enumeration is bounded to 1,000 files, 100 directories and depth 10.
+
+The initiator's progress is local. Upload bytes come from confirmed transfer offsets;
+folder creation and moves count confirmed items. A full transfer bar is followed by the
+catalog check before success. Other members receive finished catalog changes through the
+normal team subscription, not another member's percentage or group history. Progress
+must add no cloud requests, writes, subscriptions or telemetry of its own.
+
+IndexedDB holds only actor/team-scoped operation metadata: relative names, item states,
+operation/idempotency IDs, destination and attempt. File contents, absolute local paths,
+handles, resumable session URIs, grants and credentials remain out of the journal. After
+reload, known operation IDs must be checked before retry. An unfinished upload requires
+reselection and starts at byte zero with a new attempt even when path and size match; a
+completed item is not repeated. Two tabs use a local ownership lease. Terminal metadata
+expires after seven days and interrupted metadata after thirty; sign-out removes the
+current actor's journal. If browser storage fails, recovery lasts only for that session.
+
+Cancel stops new local scheduling and aborts active transfers; already confirmed provider
+mutations remain and are reported as such. Closing a progress toast only hides that
+notification. A failed catalog reread cannot turn an operation into success.
+
 ## Published limits
 
 | Surface               | Limit/behavior                                                                                             |

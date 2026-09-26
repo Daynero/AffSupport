@@ -1,9 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  moveMaterialWithTail,
-  renameMaterialWithTail,
-  trashMaterialWithTail
-} from '../materials/tail';
+import { renameMaterialWithTail, trashMaterialWithTail } from '../materials/tail';
+import { moveWorkspaceMaterials } from '../explorer/moveCoordinator';
 import type {
   MaterialKind,
   TeamAnalyticsAction,
@@ -41,6 +38,7 @@ export interface RowMaterial {
   name: string;
   kind: MaterialKind;
   category?: string | null;
+  parentFolderId?: string | null;
   fileExtension?: string | null;
   sizeBytes?: number | null;
   transcriptIngestState?: TranscriptIngestState;
@@ -92,7 +90,7 @@ export function useMaterialActions(input: {
   } = input;
 
   const { t } = useI18n();
-  const { push } = useToasts();
+  const { push, update, dismiss } = useToasts();
   /** What the tail module needs of this material, stable across renders. */
   const tailMaterial = useMemo(
     () => ({ id: material.id, name: material.name, category: material.category ?? null }),
@@ -295,18 +293,30 @@ export function useMaterialActions(input: {
 
   const move = useCallback(
     (folderId: string) =>
-      run('move', () =>
-        moveMaterialWithTail({
-          teamId,
-          material: tailMaterial,
-          // The picker names the space root with a `'root'` sentinel; the move
-          // API expects `null` there. Passing the literal string moves nothing.
-          destinationFolderId: folderId === 'root' ? null : folderId,
-          conflictMode: 'cancel',
-          client
-        })
-      ),
-    [client, run, tailMaterial, teamId]
+      run('move', async () => {
+        const progressToast = push({
+          tone: 'info',
+          sticky: true,
+          text: t('teamExplorerPastingMove', { done: 0, total: 1 }),
+          progress: 'indeterminate'
+        });
+        try {
+          const outcome = await moveWorkspaceMaterials({
+            teamId,
+            items: [{ ...tailMaterial, sourceFolderId: material.parentFolderId ?? null }],
+            // The picker names the space root with a `'root'` sentinel; the move
+            // API expects `null` there. Passing the literal string moves nothing.
+            destinationFolderId: folderId === 'root' ? null : folderId,
+            conflictMode: 'cancel',
+            client,
+            onProgress: state => update(progressToast, { progress: state.progress })
+          });
+          if (outcome.error) throw outcome.error;
+        } finally {
+          dismiss(progressToast);
+        }
+      }),
+    [client, dismiss, material.parentFolderId, push, run, t, tailMaterial, teamId, update]
   );
 
   const restore = useCallback(

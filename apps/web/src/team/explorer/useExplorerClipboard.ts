@@ -3,7 +3,8 @@ import type { TeamPermissions } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
-import { copyMaterialWithTail, moveMaterialWithTail, type TailClient } from '../materials/tail';
+import { copyMaterialWithTail, type TailClient } from '../materials/tail';
+import { moveWorkspaceMaterials } from './moveCoordinator';
 
 /**
  * Copy, cut and paste in the explorer (024, FR-095).
@@ -24,6 +25,7 @@ export interface ExplorerClipboardItem {
   kind: string;
   /** Category as well as kind: what travels with a file depends on it. */
   category: string | null;
+  sourceFolderId?: string | null;
 }
 
 export interface ExplorerClipboard {
@@ -86,36 +88,44 @@ export function useExplorerClipboard({
         total: items.length
       })
     });
-    for (const item of items) {
-      try {
-        const material = { id: item.id, name: item.name, category: item.category };
-        if (clip.mode === 'copy') {
+    if (clip.mode === 'cut') {
+      const outcome = await moveWorkspaceMaterials({
+        teamId,
+        items,
+        destinationFolderId: currentFolderId ?? null,
+        conflictMode: 'keep_both',
+        client: tailClient,
+        onProgress: state => {
+          done = state.completed;
+          update(progress, {
+            progress: state.progress,
+            text: t('teamExplorerPastingMove', { done, total: items.length })
+          });
+        }
+      });
+      if (outcome.error) push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
+    } else {
+      for (const item of items) {
+        try {
+          const material = { id: item.id, name: item.name, category: item.category };
           await copyMaterialWithTail({
             teamId,
             material,
             destinationFolderId: currentFolderId ?? null,
             client: tailClient
           });
-        } else {
-          await moveMaterialWithTail({
-            teamId,
-            material,
-            destinationFolderId: currentFolderId ?? null,
-            conflictMode: 'keep_both',
-            client: tailClient
+          done += 1;
+          update(progress, {
+            progress: (done / items.length) * 100,
+            text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
+              done,
+              total: items.length
+            })
           });
+        } catch (cause) {
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+          break;
         }
-        done += 1;
-        update(progress, {
-          progress: (done / items.length) * 100,
-          text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
-            done,
-            total: items.length
-          })
-        });
-      } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        break;
       }
     }
     if (clip.mode === 'cut') clipboard.current = null;

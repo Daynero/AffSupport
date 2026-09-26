@@ -32,7 +32,8 @@ import { DropdownMenu, Popover, SegmentedControl } from '../../components/ui/ind
 import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
-import { moveMaterialWithTail, trashMaterialWithTail, type TailClient } from '../materials/tail';
+import { trashMaterialWithTail, type TailClient } from '../materials/tail';
+import { moveWorkspaceMaterials } from './moveCoordinator';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
@@ -278,7 +279,7 @@ function ExplorerBody({
   trashReturnLabel?: string;
 }) {
   const { t } = useI18n();
-  const { push, update } = useToasts();
+  const { push, update, dismiss } = useToasts();
   const [resyncing, setResyncing] = useState(false);
   /* 015 — one running re-stitched delivery per material, held here rather than in the row:
      a delivery outlives the menu that started it and the row that scrolled past. */
@@ -592,9 +593,14 @@ function ExplorerBody({
   const rowFor = useCallback(
     (materialId: string) => {
       const row = page.rows.find(candidate => candidate.id === materialId);
-      return { id: materialId, name: row?.name ?? '', category: row?.category ?? null };
+      return {
+        id: materialId,
+        name: row?.name ?? '',
+        category: row?.category ?? null,
+        sourceFolderId: row?.parentFolderId ?? currentFolderId ?? null
+      };
     },
-    [page.rows]
+    [currentFolderId, page.rows]
   );
 
   const changed = useCallback(() => {
@@ -682,20 +688,29 @@ function ExplorerBody({
     async (folderDriveId: string, materialIds: string[]) => {
       if (!permissions?.edit) return;
       const previous = currentFolderId ?? null;
-      for (const materialId of materialIds) {
-        try {
-          await moveMaterialWithTail({
-            teamId,
-            material: rowFor(materialId),
-            destinationFolderId: folderDriveId,
-            conflictMode: 'keep_both',
-            client: tailClient
-          });
-        } catch (cause) {
-          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-          changed();
-          return;
-        }
+      const progressToast = push({
+        tone: 'info',
+        sticky: true,
+        progress: 'indeterminate',
+        text: t('teamExplorerPastingMove', { done: 0, total: materialIds.length })
+      });
+      const outcome = await moveWorkspaceMaterials({
+        teamId,
+        items: materialIds.map(rowFor),
+        destinationFolderId: folderDriveId,
+        conflictMode: 'keep_both',
+        client: tailClient,
+        onProgress: state =>
+          update(progressToast, {
+            progress: state.progress,
+            text: t('teamExplorerPastingMove', { done: state.completed, total: state.total })
+          })
+      });
+      dismiss(progressToast);
+      if (outcome.error) {
+        push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
+        if (outcome.completed > 0) changed();
+        return;
       }
       changed();
       clearSelection();
@@ -717,12 +732,15 @@ function ExplorerBody({
       changed,
       clearSelection,
       currentFolderId,
+      dismiss,
       nodeOf,
       permissions?.edit,
       push,
+      rowFor,
       t,
       tailClient,
-      teamId
+      teamId,
+      update
     ]
   );
 
@@ -999,7 +1017,13 @@ function ExplorerBody({
         clipboard: {
           take: (mode, row) =>
             clipboard.take(mode, [
-              { id: row.id, name: row.name, kind: row.kind, category: row.category }
+              {
+                id: row.id,
+                name: row.name,
+                kind: row.kind,
+                category: row.category,
+                sourceFolderId: row.parentFolderId ?? currentFolderId ?? null
+              }
             ]),
           // Offered only when there is something to paste: an action the
           // registry cannot perform is an action the registry drops.
@@ -1365,7 +1389,8 @@ function ExplorerBody({
             id: row.id,
             name: row.name,
             kind: row.kind,
-            category: row.category
+            category: row.category,
+            sourceFolderId: row.parentFolderId ?? currentFolderId ?? null
           }))
         );
         push({

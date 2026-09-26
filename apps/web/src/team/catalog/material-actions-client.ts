@@ -15,6 +15,12 @@ export interface TeamFileUploadInput {
   conflictMode: 'cancel' | 'keep_both' | 'replace';
   replaceMaterialId: string | null;
   versionOfMaterialId: string | null;
+  /** Reused by the local journal for this attempt; a new attempt mints a new key. */
+  idempotencyKey?: string;
+  /** Persist the server operation identity before transferring bytes. */
+  onOperationAccepted?: (operationId: string) => Promise<void>;
+  onProgress?: (confirmedBytes: number, totalBytes: number) => void;
+  signal?: AbortSignal;
 }
 
 /**
@@ -88,7 +94,8 @@ export async function uploadTeamFile(
     onProgress?: (sentBytes: number, totalBytes: number) => void;
   }
 ) {
-  const idempotencyKey = crypto.randomUUID();
+  if (input.signal?.aborted) throw input.signal.reason ?? new Error('CANCELED');
+  const idempotencyKey = input.idempotencyKey ?? crypto.randomUUID();
   const session = await teamApi.startUpload({
     teamId: input.teamId,
     destinationFolderId: input.destinationFolderId,
@@ -100,6 +107,11 @@ export async function uploadTeamFile(
     versionOfMaterialId: input.versionOfMaterialId,
     idempotencyKey
   });
+  await input.onOperationAccepted?.(session.operationId);
+  if (input.signal?.aborted) {
+    await teamApi.cancelOperation(input.teamId, session.operationId).catch(() => {});
+    throw input.signal.reason ?? new Error('CANCELED');
+  }
   if (!session.sessionUri || session.sessionUnavailable) {
     /*
      * A code, not a bare `Error`. The mapper reads `code`, so thrown as
@@ -129,6 +141,7 @@ export async function uploadTeamFile(
     return await resumableUpload({
       source: input.file,
       onProgress: input.onProgress,
+      signal: input.signal,
       sessionUri,
       operationId: session.operationId,
       idempotencyKey,

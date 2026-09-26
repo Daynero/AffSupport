@@ -11,15 +11,19 @@ import {
 import { useWorkspaceOperations } from '../apps/web/src/team/explorer/useWorkspaceOperations';
 import { buildLocalManifest } from '../apps/web/src/team/explorer/localManifest';
 import { handleDirectory, handleFile, localFile } from './fixtures/local-manifest';
+import {
+  MemoryWorkspaceJournalStorage,
+  WorkspaceOperationJournal
+} from '../apps/web/src/team/explorer/workspaceOperationJournal';
 
 const destination = { driveFolderId: 'drive-root', materialId: 'material-root' };
 const teamId = 'team-operations';
 afterEach(() => cleanup());
 
-function mount(client: WorkspaceOperationsClient) {
+function mount(client: WorkspaceOperationsClient, journal?: WorkspaceOperationJournal) {
   return renderHook(() => useWorkspaceOperations(), {
     wrapper: ({ children }: { children: ReactNode }) => (
-      <WorkspaceOperationsProvider teamId={teamId} client={client}>
+      <WorkspaceOperationsProvider teamId={teamId} client={client} journal={journal}>
         {children}
       </WorkspaceOperationsProvider>
     )
@@ -128,7 +132,7 @@ describe('workspace upload coordinator', () => {
       uploadFile: vi.fn(async () => {
         active += 1;
         maximum = Math.max(maximum, active);
-        await new Promise(resolve => setTimeout(resolve, 2));
+        await new Promise<void>(resolve => queueMicrotask(resolve));
         active -= 1;
         return {};
       })
@@ -216,5 +220,184 @@ describe('workspace upload coordinator', () => {
       errorCode: 'CONFLICT_NEEDS_DECISION'
     });
     expect(uploadFile).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a lost finalize response after reload and does not upload the completed file again', async () => {
+    let now = 1_000;
+    const storage = new MemoryWorkspaceJournalStorage();
+    const journal = () =>
+      new WorkspaceOperationJournal({
+        actorId: 'actor-one',
+        storage,
+        now: () => now
+      });
+    const ensureFolder = vi.fn(async () => ({
+      folderId: 'drive-created',
+      materialId: 'material-created'
+    }));
+    const uploadFile = vi.fn(
+      async (input: Parameters<WorkspaceOperationsClient['uploadFile']>[0]) => {
+        await input.onOperationAccepted?.('operation-finalized');
+        throw new Error('response lost');
+      }
+    );
+    const getOperation = vi.fn(async () => ({
+      id: 'operation-finalized',
+      teamId,
+      kind: 'upload',
+      state: 'succeeded' as const,
+      stage: 'done',
+      progress: 100,
+      sourceMaterialId: null,
+      resultMaterialId: 'material-file',
+      errorCode: null,
+      retryable: false,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString()
+    }));
+    const client = { ensureFolder, uploadFile, getOperation };
+    const manifest = await buildLocalManifest([
+      {
+        kind: 'directory_handle',
+        handle: handleDirectory('Project', [handleFile(localFile('a.txt', 5))])
+      }
+    ]);
+    const first = mount(client, journal());
+    let initial: WorkspaceOperationGroup | undefined;
+    await act(async () => {
+      initial = await first.result.current.startUploadGroup({
+        teamId,
+        destination,
+        manifest,
+        confirmCatalog: async () => undefined
+      });
+    });
+    expect(initial?.state).toBe('partial');
+    first.unmount();
+    now += 31_000;
+    const restored = mount(client, journal());
+    await waitFor(() =>
+      expect(
+        restored.result.current.groups[0]?.items.find(item => item.relativePath === 'Project/a.txt')
+          ?.state
+      ).toBe('succeeded')
+    );
+    expect(getOperation).toHaveBeenCalledWith(teamId, 'operation-finalized');
+    let retried: WorkspaceOperationGroup | undefined;
+    await act(async () => {
+      retried = await restored.result.current.retryUploadGroup(initial!.id, {
+        teamId,
+        destination,
+        manifest: await buildLocalManifest([
+          {
+            kind: 'directory_handle',
+            handle: handleDirectory('Project', [handleFile(new File(['other'], 'a.txt'))])
+          }
+        ]),
+        confirmCatalog: async () => undefined
+      });
+    });
+    expect(retried).toMatchObject({ state: 'succeeded', attempt: 2 });
+    expect(uploadFile).toHaveBeenCalledTimes(1);
+    expect(ensureFolder).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels active transfers and does not schedule waiting files', async () => {
+    const uploadFile = vi.fn(
+      (input: Parameters<WorkspaceOperationsClient['uploadFile']>[0]) =>
+        new Promise<unknown>((_resolve, reject) => {
+          input.signal?.addEventListener('abort', () => reject(input.signal?.reason), {
+            once: true
+          });
+        })
+    );
+    const view = mount({ ensureFolder: vi.fn(), uploadFile });
+    const manifest = await buildLocalManifest(
+      Array.from({ length: 5 }, (_, index) => ({
+        kind: 'file' as const,
+        file: localFile(`file-${index}.txt`)
+      }))
+    );
+    let pending!: Promise<WorkspaceOperationGroup>;
+    act(() => {
+      pending = view.result.current.startUploadGroup({
+        teamId,
+        destination,
+        manifest,
+        confirmCatalog: async () => undefined
+      });
+    });
+    await waitFor(() => expect(uploadFile).toHaveBeenCalledTimes(3));
+    const groupId = view.result.current.groups[0]!.id;
+    expect(view.result.current.cancelGroup(groupId)).toBe(true);
+    let canceled: WorkspaceOperationGroup | undefined;
+    await act(async () => {
+      canceled = await pending;
+    });
+    expect(canceled?.state).toBe('canceled');
+    expect(uploadFile).toHaveBeenCalledTimes(3);
+    expect(canceled?.items.every(item => item.state === 'canceled')).toBe(true);
+    expect(view.result.current.cancelGroup(groupId)).toBe(false);
+  });
+
+  it('starts a new attempt for a changed same-size source after checking the old operation', async () => {
+    const storage = new MemoryWorkspaceJournalStorage();
+    const journal = new WorkspaceOperationJournal({ actorId: 'actor-one', storage });
+    const uploadFile = vi.fn(
+      async (input: Parameters<WorkspaceOperationsClient['uploadFile']>[0]) => {
+        await input.onOperationAccepted?.(`operation-${uploadFile.mock.calls.length}`);
+        if (uploadFile.mock.calls.length === 1) throw new Error('first attempt failed');
+        input.onProgress?.(3, 5);
+        input.onProgress?.(2, 5);
+        input.onProgress?.(5, 5);
+        return { state: 'succeeded', materialId: 'new-material' };
+      }
+    );
+    const getOperation = vi.fn(async () => ({
+      id: 'operation-1',
+      teamId,
+      kind: 'upload',
+      state: 'failed' as const,
+      stage: 'done',
+      progress: 0,
+      sourceMaterialId: null,
+      resultMaterialId: null,
+      errorCode: null,
+      retryable: true,
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString()
+    }));
+    const view = mount({ ensureFolder: vi.fn(), uploadFile, getOperation }, journal);
+    const request = (file: File) => ({
+      teamId,
+      destination,
+      confirmCatalog: async () => undefined,
+      manifest: buildLocalManifest([{ kind: 'file' as const, file }])
+    });
+    const firstRequest = request(new File(['first'], 'same.txt'));
+    let first!: WorkspaceOperationGroup;
+    await act(async () => {
+      first = await view.result.current.startUploadGroup({
+        ...firstRequest,
+        manifest: await firstRequest.manifest
+      });
+    });
+    expect(first.state).toBe('failed');
+    const changedFile = new File(['other'], 'same.txt');
+    const secondRequest = request(changedFile);
+    let retried!: WorkspaceOperationGroup;
+    await act(async () => {
+      retried = await view.result.current.retryUploadGroup(first.id, {
+        ...secondRequest,
+        manifest: await secondRequest.manifest
+      });
+    });
+    expect(getOperation).toHaveBeenCalledWith(teamId, 'operation-1');
+    expect(uploadFile).toHaveBeenCalledTimes(2);
+    expect(uploadFile.mock.calls[0]![0].idempotencyKey).not.toBe(
+      uploadFile.mock.calls[1]![0].idempotencyKey
+    );
+    expect(uploadFile.mock.calls[1]![0].file).toBe(changedFile);
+    expect(retried).toMatchObject({ attempt: 2, confirmedBytes: 5, totalBytes: 5, progress: 100 });
   });
 });

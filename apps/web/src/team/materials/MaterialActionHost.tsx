@@ -91,6 +91,7 @@ export function useMaterialActionHost({
       name: material.name,
       kind: material.kind,
       category: material.category,
+      parentFolderId: material.parentFolderId,
       sizeBytes: material.sizeBytes,
       fileExtension: material.fileExtension
     },
