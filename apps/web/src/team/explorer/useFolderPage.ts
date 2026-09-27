@@ -28,6 +28,7 @@ export interface FolderPageClient {
 
 const PAGE_SIZE = 100;
 const FOLDER_PAGE_TIMEOUT_MS = 12_000;
+const EMPTY_ROWS: TeamMaterialRow[] = [];
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   let timer: number | undefined;
@@ -63,11 +64,30 @@ export function useFolderPage(input: {
   parentFolderId: string | null;
   kinds?: TeamMaterialRowKind[];
   revision?: number;
+  /** A transient empty read must not erase already displayed rows during an incomplete scan. */
+  preserveOnEmpty?: boolean;
   beforeRowsReplace?: () => void;
 }): FolderPageState {
-  const { teamId, client, parentFolderId, kinds, revision = 0, beforeRowsReplace } = input;
+  const {
+    teamId,
+    client,
+    parentFolderId,
+    kinds,
+    revision = 0,
+    preserveOnEmpty = false,
+    beforeRowsReplace
+  } = input;
+  const kindsKey = (kinds ?? []).join(',');
+  const scopeKey = JSON.stringify([teamId, parentFolderId, kindsKey]);
   const beginRead = useCatalogRead(teamId);
   const [rows, setRows] = useState<TeamMaterialRow[]>([]);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const [dataScope, setDataScope] = useState(scopeKey);
+  const dataScopeRef = useRef(dataScope);
+  dataScopeRef.current = dataScope;
+  const preserveOnEmptyRef = useRef(preserveOnEmpty);
+  preserveOnEmptyRef.current = preserveOnEmpty;
   const [total, setTotal] = useState<number | null>(null);
   const [next, setNext] = useState<FolderPageCursor | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,7 +96,6 @@ export function useFolderPage(input: {
   const loadedPages = useRef(1);
   const beforeRowsReplaceRef = useRef(beforeRowsReplace);
   beforeRowsReplaceRef.current = beforeRowsReplace;
-  const kindsKey = (kinds ?? []).join(',');
 
   /** How many rows the filter has taken out of the count so far. */
   const hiddenSoFar = useRef(0);
@@ -112,6 +131,7 @@ export function useFolderPage(input: {
         setRows(current => (replace ? kept : [...current, ...kept]));
         setTotal(Math.max(0, page.total - hiddenSoFar.current));
         setNext(page.next);
+        setDataScope(scopeKey);
         if (!replace) loadedPages.current += 1;
         setError(false);
         read.succeed();
@@ -124,7 +144,7 @@ export function useFolderPage(input: {
       }
     },
     // kindsKey stands in for the array identity.
-    [client, teamId, parentFolderId, kindsKey, beginRead]
+    [client, teamId, parentFolderId, kindsKey, scopeKey, beginRead]
   );
 
   const refreshWindow = useCallback(
@@ -166,12 +186,24 @@ export function useFolderPage(input: {
               pagesRead += 1;
               if (!cursor) break;
             }
-            hiddenSoFar.current = hidden;
-            loadedPages.current = pagesRead;
-            beforeRowsReplaceRef.current?.();
-            setRows(visible);
-            setTotal(Math.max(0, totalRows - hidden));
-            setNext(cursor);
+            // A folder being discovered can briefly answer with zero rows
+            // between catalog commits. Keep its last visible window until a
+            // completed/strict read confirms the true empty result.
+            if (!(
+              preserveOnEmptyRef.current &&
+              !reportFailure &&
+              visible.length === 0 &&
+              dataScopeRef.current === scopeKey &&
+              rowsRef.current.length > 0
+            )) {
+              hiddenSoFar.current = hidden;
+              loadedPages.current = pagesRead;
+              beforeRowsReplaceRef.current?.();
+              setRows(visible);
+              setTotal(Math.max(0, totalRows - hidden));
+              setNext(cursor);
+            }
+            setDataScope(scopeKey);
             setError(false);
             read.succeed();
             return;
@@ -191,7 +223,7 @@ export function useFolderPage(input: {
         if (token === generation.current) setLoading(false);
       }
     },
-    [client, teamId, parentFolderId, kindsKey, beginRead]
+    [client, teamId, parentFolderId, kindsKey, scopeKey, beginRead]
   );
 
   useEffect(() => {
@@ -212,12 +244,12 @@ export function useFolderPage(input: {
   }, []);
 
   return {
-    rows,
-    total,
-    loading,
-    error,
-    hasMore: next !== null,
-    loadMore: () => (next ? fetchPage(next, false) : Promise.resolve()),
+    rows: dataScope === scopeKey ? rows : EMPTY_ROWS,
+    total: dataScope === scopeKey ? total : null,
+    loading: loading || dataScope !== scopeKey,
+    error: dataScope === scopeKey && error,
+    hasMore: dataScope === scopeKey && next !== null,
+    loadMore: () => (dataScope === scopeKey && next ? fetchPage(next, false) : Promise.resolve()),
     reload: () => refreshWindow(),
     reloadStrict: () => refreshWindow(true),
     patchRow

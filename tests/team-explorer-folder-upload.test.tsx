@@ -74,12 +74,12 @@ function client(rows: TeamMaterialRow[] = []): ExplorerShellClient {
   } as unknown as ExplorerShellClient;
 }
 
-function shell(folderId: string | null, coordinated = false) {
+function shell(folderId: string | null, coordinated = false, view: 'list' | 'grid' = 'list') {
   const explorer = (
     <ExplorerShell
       teamId={team.id}
       client={testClient}
-      query={{ ...emptyTeamRouteQuery(), folderId, view: 'list' }}
+      query={{ ...emptyTeamRouteQuery(), folderId, view }}
       onQueryChange={vi.fn()}
       onFolderChange={vi.fn()}
       onSearched={vi.fn()}
@@ -108,6 +108,88 @@ afterEach(() => {
 });
 
 describe('folder intake in Explorer', () => {
+  it.each(['list', 'grid'] as const)(
+    'does not call a new, unindexed folder empty in %s view',
+    async view => {
+      testClient = client();
+      testClient.listFolderTree = vi.fn().mockResolvedValue([{ ...folders[0], indexedAt: null }]);
+      render(shell('drive-a', false, view));
+      expect(
+        await screen.findByText('This folder’s contents have not been checked yet.')
+      ).toBeTruthy();
+      expect(screen.queryByText('This folder is empty.')).toBeNull();
+    }
+  );
+
+  it('keeps an ancestor sync visible in a child, with a labeled and disabled sync button', async () => {
+    testClient = client();
+    testClient.listFolderTree = vi
+      .fn()
+      .mockResolvedValue([folders[0], { ...folders[1], parentFolderId: 'drive-a' }]);
+    testClient.resyncFolder = vi.fn().mockResolvedValue({ syncJobId: 'job-parent' });
+    testClient.getFolderResyncStatus = vi.fn().mockResolvedValue('running');
+    const view = render(shell('drive-a'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync this folder' }));
+    expect(await screen.findByRole('button', { name: 'Syncing…' })).toHaveProperty(
+      'disabled',
+      true
+    );
+    view.rerender(shell('drive-b'));
+    expect(await screen.findByText('Syncing this folder’s contents…')).toBeTruthy();
+    expect(screen.queryByText('This folder is empty.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Syncing…' })).toHaveProperty('disabled', true);
+    expect(testClient.resyncFolder).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks a folder created by an active upload as incomplete without hiding its files', async () => {
+    testClient = client();
+    testClient.resyncFolder = vi.fn();
+    testClient.getFolderResyncStatus = vi.fn();
+    const value: WorkspaceOperationsValue = {
+      groups: [
+        {
+          id: 'upload-root',
+          teamId: team.id,
+          destination: { driveFolderId: null, materialId: null },
+          state: 'running',
+          stage: 'transferring',
+          items: [
+            {
+              clientItemKey: 'folder:drive-a',
+              relativePath: 'drive-a',
+              idempotencyKey: 'folder-key',
+              state: 'succeeded',
+              errorCode: null,
+              resultFolderId: 'drive-a'
+            }
+          ]
+        }
+      ],
+      startUploadGroup: vi.fn(),
+      retryUploadGroup: vi.fn(),
+      cancelGroup: vi.fn()
+    };
+    render(
+      <ToastProvider>
+        <TeamProvider realtime={false} initialTeams={[team]}>
+          <WorkspaceOperationsContextOverride value={value}>
+            <ExplorerShell
+              teamId={team.id}
+              client={testClient}
+              query={{ ...emptyTeamRouteQuery(), folderId: 'drive-a', view: 'list' }}
+              onQueryChange={vi.fn()}
+              onFolderChange={vi.fn()}
+              onSearched={vi.fn()}
+            />
+          </WorkspaceOperationsContextOverride>
+        </TeamProvider>
+      </ToastProvider>
+    );
+    expect(await screen.findByText('Adding files to this folder…')).toBeTruthy();
+    expect(screen.queryByText('This folder is empty.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Syncing…' })).toHaveProperty('disabled', true);
+  });
+
   it('reselects into the original destination through retry, never a fresh group', async () => {
     testClient = client();
     const retryUploadGroup = vi

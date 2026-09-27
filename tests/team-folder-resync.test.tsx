@@ -137,6 +137,82 @@ describe('manual folder sync without Realtime', () => {
     expect(test.onOutcome).toHaveBeenCalledWith('succeeded');
   });
 
+  it('keeps an ancestor sync active after entering its child and blocks a duplicate request', async () => {
+    vi.useFakeTimers();
+    const client = {
+      resyncFolder: vi.fn().mockResolvedValue({ syncJobId: 'job-parent' }),
+      getFolderResyncStatus: vi.fn().mockResolvedValue('running')
+    };
+    const onComplete = vi.fn().mockResolvedValue(undefined);
+    const onOutcome = vi.fn();
+    const view = renderHook(
+      ({ folderId, scopeFolderIds }) =>
+        useFolderResync({
+          teamId: 'team-1',
+          folderId,
+          scopeFolderIds,
+          client,
+          onComplete,
+          onOutcome
+        }),
+      { initialProps: { folderId: 'parent', scopeFolderIds: ['parent'] } }
+    );
+    await act(async () => {
+      void view.result.current.start();
+    });
+    view.rerender({ folderId: 'child', scopeFolderIds: ['parent', 'child'] });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.result.current.running).toBe(true);
+    await act(async () => {
+      void view.result.current.start();
+    });
+    expect(client.resyncFolder).toHaveBeenCalledTimes(1);
+    client.getFolderResyncStatus.mockResolvedValue('succeeded');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onOutcome).toHaveBeenCalledWith('succeeded');
+    expect(view.result.current.running).toBe(false);
+  });
+
+  it('keeps the pending label when navigation beats the server accepting the scan', async () => {
+    vi.useFakeTimers();
+    let accept!: (value: { syncJobId: string }) => void;
+    const client = {
+      resyncFolder: vi.fn().mockImplementation(
+        () =>
+          new Promise<{ syncJobId: string }>(resolve => {
+            accept = resolve;
+          })
+      ),
+      getFolderResyncStatus: vi.fn().mockResolvedValue('running')
+    };
+    const view = renderHook(
+      ({ folderId, scopeFolderIds }) =>
+        useFolderResync({
+          teamId: 'team-1',
+          folderId,
+          scopeFolderIds,
+          client,
+          onComplete: vi.fn().mockResolvedValue(undefined),
+          onOutcome: vi.fn()
+        }),
+      { initialProps: { folderId: 'parent', scopeFolderIds: ['parent'] } }
+    );
+    await act(async () => {
+      void view.result.current.start();
+    });
+    view.rerender({ folderId: 'child', scopeFolderIds: ['parent', 'child'] });
+    expect(view.result.current.running).toBe(true);
+    await act(async () => accept({ syncJobId: 'job-parent' }));
+    expect(view.result.current.running).toBe(true);
+    expect(client.getFolderResyncStatus).toHaveBeenCalledWith('team-1', 'job-parent');
+    view.unmount();
+  });
+
   it('bounds waiting even when a status request hangs', async () => {
     const test = setup();
     test.client.getFolderResyncStatus.mockImplementation(() => new Promise(() => {}));

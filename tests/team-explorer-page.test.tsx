@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FolderPage, TeamMaterialRow, TeamMaterialTagColor } from '@video-compressor/shared';
@@ -226,6 +226,57 @@ describe('file tags', () => {
     // tag" is the absence of a value, not the far end of the scale.
     const reversed = sortRows(rows, { key: 'tag', direction: 'desc', foldersSeparate: false });
     expect(reversed.map(item => item.tagColor ?? 'none')).toEqual(['grey', 'green', 'red', 'none']);
+  });
+});
+
+describe('incomplete folder refresh', () => {
+  it('does not flash the previous folder’s rows while opening another folder', async () => {
+    const client = {
+      listFolderPage: vi.fn(async (_team: string, input: { parentFolderId: string | null }) => ({
+        rows: input.parentFolderId === 'first' ? [row(1)] : [],
+        total: input.parentFolderId === 'first' ? 1 : 0,
+        next: null
+      }))
+    };
+    const view = renderHook(
+      ({ parentFolderId }) =>
+        useFolderPage({ teamId: TEAM, client, parentFolderId, preserveOnEmpty: true }),
+      { initialProps: { parentFolderId: 'first' } }
+    );
+    await waitFor(() => expect(view.result.current.rows).toHaveLength(1));
+    view.rerender({ parentFolderId: 'second' });
+    expect(view.result.current.rows).toHaveLength(0);
+    expect(view.result.current.loading).toBe(true);
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+    expect(view.result.current.rows).toHaveLength(0);
+  });
+
+  it('keeps visible rows through a transient empty read, then accepts a confirmed empty result', async () => {
+    const first = { rows: [row(1)], total: 1, next: null };
+    const empty = { rows: [], total: 0, next: null };
+    const listFolderPage = vi.fn().mockResolvedValueOnce(first).mockResolvedValue(empty);
+    const client = { listFolderPage };
+    const view = renderHook(
+      ({ revision, preserveOnEmpty }) =>
+        useFolderPage({
+          teamId: TEAM,
+          client,
+          parentFolderId: 'root',
+          revision,
+          preserveOnEmpty
+        }),
+      { initialProps: { revision: 0, preserveOnEmpty: false } }
+    );
+    await waitFor(() => expect(view.result.current.rows).toHaveLength(1));
+    view.rerender({ revision: 0, preserveOnEmpty: true });
+    expect(view.result.current.rows).toHaveLength(1);
+    expect(listFolderPage).toHaveBeenCalledTimes(1);
+    view.rerender({ revision: 1, preserveOnEmpty: true });
+    await waitFor(() => expect(listFolderPage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+    expect(view.result.current.rows).toHaveLength(1);
+    await act(async () => view.result.current.reloadStrict());
+    expect(view.result.current.rows).toHaveLength(0);
   });
 });
 

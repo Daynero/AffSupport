@@ -34,6 +34,8 @@ export interface FolderResyncClient {
 export function useFolderResync(input: {
   teamId: string;
   folderId: string | null;
+  /** Current folder and its ancestors, so an accepted parent scan stays visible inside a child. */
+  scopeFolderIds?: readonly string[];
   client: FolderResyncClient;
   onComplete: () => Promise<void>;
   onOutcome: (outcome: 'succeeded' | 'failed' | 'timeout') => void;
@@ -41,25 +43,33 @@ export function useFolderResync(input: {
   const [running, setRunning] = useState(false);
   const active = useRef<AbortController | null>(null);
   const accepting = useRef(false);
+  const acceptingFolderId = useRef<string | null>(null);
   const latest = useRef(input);
   latest.current = input;
+  const scopeKey = (input.scopeFolderIds ?? (input.folderId ? [input.folderId] : [])).join('|');
 
   useEffect(() => {
-    setRunning(false);
     const { teamId, folderId, client } = input;
-    if (folderId && client.getFolderResyncStatus && readPending(pendingKey(teamId, folderId))) {
-      void monitor();
+    const scope = input.scopeFolderIds ?? (folderId ? [folderId] : []);
+    setRunning(
+      Boolean(
+        accepting.current && acceptingFolderId.current && scope.includes(acceptingFolderId.current)
+      )
+    );
+    const pendingFolderId = [...scope].reverse().find(id => readPending(pendingKey(teamId, id)));
+    if (pendingFolderId && client.getFolderResyncStatus) {
+      void monitor(pendingFolderId);
     }
     return () => {
       active.current?.abort();
       active.current = null;
     };
-  }, [input.teamId, input.folderId]);
+  }, [input.teamId, input.folderId, scopeKey]);
 
-  const monitor = async (requestedJobId?: string) => {
-    const { teamId, folderId, client } = input;
-    if (active.current || !folderId || !client.getFolderResyncStatus) return;
-    const key = pendingKey(teamId, folderId);
+  const monitor = async (scopeFolderId: string, requestedJobId?: string) => {
+    const { teamId, client } = input;
+    if (active.current || !client.getFolderResyncStatus) return;
+    const key = pendingKey(teamId, scopeFolderId);
     if (!requestedJobId && !readPending(key)) return;
     const controller = new AbortController();
     active.current = controller;
@@ -125,18 +135,22 @@ export function useFolderResync(input: {
       return;
     const key = pendingKey(teamId, folderId);
     const pending = readPending(key);
-    if (pending) return monitor(pending);
+    if (pending) return monitor(folderId, pending);
     accepting.current = true;
+    acceptingFolderId.current = folderId;
     setRunning(true);
     try {
       const job = await client.resyncFolder(teamId, folderId);
       writePending(key, job.syncJobId);
-      if (latest.current.teamId !== teamId || latest.current.folderId !== folderId) return;
-      return await monitor(job.syncJobId);
+      const latestScope =
+        latest.current.scopeFolderIds ?? (latest.current.folderId ? [latest.current.folderId] : []);
+      if (latest.current.teamId !== teamId || !latestScope.includes(folderId)) return;
+      return await monitor(folderId, job.syncJobId);
     } catch {
       latest.current.onOutcome('failed');
     } finally {
       accepting.current = false;
+      acceptingFolderId.current = null;
       if (!active.current) setRunning(false);
     }
   };

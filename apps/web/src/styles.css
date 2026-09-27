@@ -15123,6 +15123,10 @@ input[type='number'] {
   background: transparent;
   color: var(--honey-400);
 }
+.batch-toolbar .select-all-box input:checked + .checkbox-mark::after,
+.job-header input:checked + .checkbox-mark::after {
+  border-color: var(--honey-400);
+}
 
 /* ============================================================
    Batch toolbar — the reference look (scoped to this bar only)
@@ -15841,6 +15845,16 @@ input[type='number'] {
   border-color: var(--honey-600);
   background: var(--honey-500);
   color: var(--color-white);
+}
+:root[data-theme='light'] .job-header input:checked + .checkbox-mark::after,
+:root:not([data-theme='dark']) .job-header input:checked + .checkbox-mark::after,
+:root[data-theme='light'] .batch-toolbar .select-all-box input:checked + .checkbox-mark::after,
+:root:not([data-theme='dark'])
+  .batch-toolbar
+  .select-all-box
+  input:checked
+  + .checkbox-mark::after {
+  border-color: var(--color-white);
 }
 /* No violet-blue halo around cards — a soft neutral lift instead. */
 :root[data-theme='light'] .job-row,

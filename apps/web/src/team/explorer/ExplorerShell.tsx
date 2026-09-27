@@ -420,17 +420,15 @@ function ExplorerBody({
   const searching = query.q.length > 0 || query.scope === 'space';
   const contentRef = useRef<HTMLDivElement>(null);
   const captureAnchorRef = useRef<() => void>(() => {});
-  const page = useFolderPage({
-    teamId,
-    client,
-    parentFolderId: currentFolderId,
-    kinds: query.kinds,
-    revision,
-    beforeRowsReplace: () => captureAnchorRef.current()
-  });
+  const activeFolderIds = currentFolderId
+    ? pathTo(currentFolderId).map(node => node.driveFileId)
+    : [];
+  if (currentFolderId && !activeFolderIds.includes(currentFolderId))
+    activeFolderIds.push(currentFolderId);
   const folderResync = useFolderResync({
     teamId,
     folderId: currentFolderId,
+    scopeFolderIds: activeFolderIds,
     client,
     onComplete: async () => {
       await Promise.all([page.reloadStrict(), explorer.refreshStrict()]);
@@ -446,6 +444,36 @@ function ExplorerBody({
               : 'teamFolderResyncFailed'
         )
       })
+  });
+  const uploadingThisFolder = Boolean(
+    currentFolderId &&
+    workspaceOperations?.groups.some(
+      group =>
+        group.teamId === teamId &&
+        (group.state === 'preparing' || group.state === 'running') &&
+        (activeFolderIds.includes(group.destination.driveFolderId ?? '') ||
+          group.items.some(item => activeFolderIds.includes(item.resultFolderId ?? '')))
+    )
+  );
+  const unindexedFolder = Boolean(
+    currentFolderId && (explorer.loading || nodeOf(currentFolderId)?.indexedAt === null)
+  );
+  const contentsPending = folderResync.running || uploadingThisFolder || unindexedFolder;
+  const pendingLabel = t(
+    uploadingThisFolder
+      ? 'teamExplorerAddingContents'
+      : folderResync.running
+        ? 'teamExplorerSyncingContents'
+        : 'teamExplorerUncheckedContents'
+  );
+  const page = useFolderPage({
+    teamId,
+    client,
+    parentFolderId: currentFolderId,
+    kinds: query.kinds,
+    revision,
+    preserveOnEmpty: contentsPending,
+    beforeRowsReplace: () => captureAnchorRef.current()
   });
   const allRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
   /*
@@ -1631,10 +1659,14 @@ function ExplorerBody({
                 <Button
                   type="button"
                   variant="secondary"
-                  loading={resyncing || folderResync.running}
+                  disabled={resyncing || folderResync.running || uploadingThisFolder}
+                  aria-busy={resyncing || folderResync.running || uploadingThisFolder || undefined}
                   onClick={() => void (currentFolderId ? folderResync.start() : resyncDrive())}
                 >
-                  {folderResync.running
+                  {(resyncing || folderResync.running || uploadingThisFolder) && (
+                    <span className="ui-spinner" aria-hidden="true" />
+                  )}
+                  {resyncing || folderResync.running || uploadingThisFolder
                     ? t('teamFolderResyncRunning')
                     : currentFolderId
                       ? t('teamDriveResyncFolder')
@@ -1962,6 +1994,8 @@ function ExplorerBody({
                 companionRows={folded.children}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
+                contentsPending={contentsPending}
+                pendingLabel={pendingLabel}
               />
             ) : (
               <ContentList
@@ -1975,6 +2009,8 @@ function ExplorerBody({
                 onToggleCompanions={toggleCompanions}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
+                contentsPending={contentsPending}
+                pendingLabel={pendingLabel}
               />
             )}
           </div>
