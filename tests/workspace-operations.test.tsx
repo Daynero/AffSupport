@@ -31,6 +31,150 @@ function mount(client: WorkspaceOperationsClient, journal?: WorkspaceOperationJo
 }
 
 describe('workspace upload coordinator', () => {
+  it('asks again when a name appears after the initial conflict snapshot', async () => {
+    const uploadFile = vi
+      .fn<WorkspaceOperationsClient['uploadFile']>()
+      .mockRejectedValueOnce(Object.assign(new Error('conflict'), { code: 'NAME_CONFLICT' }))
+      .mockResolvedValue({ state: 'succeeded', materialId: 'new-file' });
+    const findConflicts = vi
+      .fn()
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([['same.txt', 'existing']]));
+    const onConflict = vi.fn(async () => 'keep_both' as const);
+    const view = mount({ ensureFolder: vi.fn(), uploadFile });
+    await act(async () => {
+      const result = await view.result.current.startUploadGroup({
+        teamId,
+        destination,
+        manifest: await buildLocalManifest([{ kind: 'file', file: localFile('same.txt') }]),
+        findConflicts,
+        onConflict,
+        confirmCatalog: async () => {}
+      });
+      expect(result.state).toBe('succeeded');
+    });
+    expect(uploadFile.mock.calls.map(([input]) => input.conflictMode)).toEqual([
+      'cancel',
+      'keep_both'
+    ]);
+    expect(onConflict).toHaveBeenCalledWith({
+      name: 'same.txt',
+      parentKey: null,
+      existingMaterialId: 'existing'
+    });
+  });
+
+  it('retries only catalog confirmation when all mutations already succeeded', async () => {
+    const journal = new WorkspaceOperationJournal({
+      actorId: 'actor',
+      storage: new MemoryWorkspaceJournalStorage()
+    });
+    const uploadFile = vi.fn(async () => ({ state: 'succeeded', materialId: 'new-file' }));
+    const confirmCatalog = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('stale'))
+      .mockResolvedValue(undefined);
+    const view = mount({ ensureFolder: vi.fn(), uploadFile }, journal);
+    const request = {
+      teamId,
+      destination,
+      manifest: await buildLocalManifest([{ kind: 'file' as const, file: localFile('same.txt') }]),
+      confirmCatalog
+    };
+    await act(async () => {
+      const first = await view.result.current.startUploadGroup(request);
+      expect(first.state).toBe('partial');
+      expect((await view.result.current.retryUploadGroup(first.id, request)).state).toBe(
+        'succeeded'
+      );
+    });
+    expect(uploadFile).toHaveBeenCalledOnce();
+    expect(confirmCatalog).toHaveBeenNthCalledWith(2, [
+      { materialId: 'new-file', driveFolderId: destination.driveFolderId }
+    ]);
+  });
+  it.each(['canceled', 'succeeded'] as const)(
+    'recovers an orphan upload and respects a %s cancellation result',
+    async state => {
+      const storage = new MemoryWorkspaceJournalStorage();
+      const old = new WorkspaceOperationJournal({ actorId: 'actor', storage });
+      const manifest = await buildLocalManifest([{ kind: 'file', file: localFile('resume.txt') }]);
+      await old.accept({ id: 'orphan', teamId, destination, manifest });
+      await old.checkpointItem('orphan', manifest.entries[0]!.clientItemKey, {
+        state: 'running',
+        operationId: 'old-op'
+      });
+      await old.release('orphan');
+      const snapshot = {
+        id: 'old-op',
+        teamId,
+        kind: 'upload',
+        state: 'running' as const,
+        stage: 'uploading',
+        progress: 0,
+        sourceMaterialId: null,
+        resultMaterialId: null,
+        errorCode: null,
+        retryable: false,
+        createdAt: '',
+        updatedAt: ''
+      };
+      const cancelOperation = vi.fn(async () => ({
+        ...snapshot,
+        state,
+        resultMaterialId: state === 'succeeded' ? 'already-done' : null
+      }));
+      const uploadFile = vi.fn(async () => ({ state: 'succeeded', materialId: 'new-result' }));
+      const view = mount(
+        {
+          ensureFolder: vi.fn(),
+          uploadFile,
+          getOperation: vi.fn(async () => snapshot),
+          cancelOperation
+        },
+        new WorkspaceOperationJournal({ actorId: 'actor', storage })
+      );
+      await waitFor(() => expect(view.result.current.groups).toHaveLength(1));
+      let result!: WorkspaceOperationGroup;
+      await act(async () => {
+        result = await view.result.current.retryUploadGroup('orphan', {
+          teamId,
+          destination,
+          manifest,
+          confirmCatalog: async () => {}
+        });
+      });
+      expect(cancelOperation).toHaveBeenCalledWith(teamId, 'old-op');
+      expect(uploadFile).toHaveBeenCalledTimes(state === 'succeeded' ? 0 : 1);
+      expect(result.state).toBe('succeeded');
+    }
+  );
+
+  it('reuses a directory creation key when its successful server response was lost', async () => {
+    const journal = new WorkspaceOperationJournal({
+      actorId: 'actor',
+      storage: new MemoryWorkspaceJournalStorage()
+    });
+    const ensureFolder = vi
+      .fn<WorkspaceOperationsClient['ensureFolder']>()
+      .mockRejectedValueOnce(new Error('lost response'))
+      .mockResolvedValue({ folderId: 'same-folder', materialId: 'same-material' });
+    const manifest = await buildLocalManifest([
+      { kind: 'directory_handle', handle: handleDirectory('empty') }
+    ]);
+    const view = mount({ ensureFolder, uploadFile: vi.fn() }, journal);
+    const request = { teamId, destination, manifest, confirmCatalog: async () => {} };
+    await act(async () => {
+      const first = await view.result.current.startUploadGroup(request);
+      expect(first.state).toBe('failed');
+      expect((await view.result.current.retryUploadGroup(first.id, request)).state).toBe(
+        'succeeded'
+      );
+    });
+    expect(ensureFolder.mock.calls[1]![1].idempotencyKey).toBe(
+      ensureFolder.mock.calls[0]![1].idempotencyKey
+    );
+  });
   it('creates parent folders once, preserves empty folders and confirms catalog before success', async () => {
     const ensureFolder = vi.fn(
       async (
@@ -41,7 +185,7 @@ describe('workspace upload coordinator', () => {
         materialId: `created-material-${input.name}`
       })
     );
-    const uploadFile = vi.fn(async () => ({}));
+    const uploadFile = vi.fn(async () => ({ state: 'succeeded', materialId: 'file-result' }));
     const client = { ensureFolder, uploadFile };
     const manifest = await buildLocalManifest([
       {
@@ -91,7 +235,7 @@ describe('workspace upload coordinator', () => {
         throw Object.assign(new Error('denied'), { code: 'PERMISSION_DENIED' });
       return { folderId: `drive-${input.name}`, materialId: `material-${input.name}` };
     });
-    const uploadFile = vi.fn(async () => ({}));
+    const uploadFile = vi.fn(async () => ({ state: 'succeeded', materialId: 'file-result' }));
     const manifest = await buildLocalManifest([
       {
         kind: 'directory_handle',
@@ -134,7 +278,7 @@ describe('workspace upload coordinator', () => {
         maximum = Math.max(maximum, active);
         await new Promise<void>(resolve => queueMicrotask(resolve));
         active -= 1;
-        return {};
+        return { state: 'succeeded', materialId: crypto.randomUUID() };
       })
     };
     const manifest = await buildLocalManifest(
@@ -164,7 +308,10 @@ describe('workspace upload coordinator', () => {
 
   it('does not report success when the authoritative catalog read fails', async () => {
     const manifest = await buildLocalManifest([{ kind: 'file', file: localFile('a.txt') }]);
-    const view = mount({ ensureFolder: vi.fn(), uploadFile: vi.fn(async () => ({})) });
+    const view = mount({
+      ensureFolder: vi.fn(),
+      uploadFile: vi.fn(async () => ({ state: 'succeeded', materialId: 'file-result' }))
+    });
     let group: WorkspaceOperationGroup | undefined;
     await act(async () => {
       group = await view.result.current.startUploadGroup({

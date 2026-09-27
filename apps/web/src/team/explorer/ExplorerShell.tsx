@@ -106,6 +106,7 @@ import {
   useOptionalWorkspaceOperations,
   type WorkspaceUploadRequest
 } from './WorkspaceOperationsProvider';
+import { confirmWorkspaceCatalog, findFolderConflicts } from './catalogPostcondition';
 
 export type ExplorerShellClient = ExplorerClient &
   FolderResyncClient &
@@ -933,9 +934,6 @@ function ExplorerBody({
         driveFolderId: currentFolderId,
         materialId: currentFolderId ? (nodeOf(currentFolderId)?.id ?? null) : null
       };
-      const existingByName = new Map(
-        page.rows.map(row => [row.name.toLocaleLowerCase(), row.id] as const)
-      );
       let forAll: UploadConflictChoice | null = null;
       let conflictQueue = Promise.resolve();
       const enumeration = new AbortController();
@@ -976,17 +974,12 @@ function ExplorerBody({
           })
         });
         dismiss(preparingToast);
-        let remainingConflicts = manifest.entries.filter(
-          entry =>
-            entry.kind === 'file' &&
-            entry.parentKey === null &&
-            existingByName.has(entry.relativePath.toLocaleLowerCase())
-        ).length;
+        let remainingConflicts = manifest.totalFiles;
         const request: WorkspaceUploadRequest = {
           teamId,
           destination,
           manifest,
-          existingByName,
+          findConflicts: (folderId, names) => findFolderConflicts(client, teamId, folderId, names),
           onConflict: async ({ name, existingMaterialId }) => {
             const previous = conflictQueue;
             let release!: () => void;
@@ -1011,8 +1004,11 @@ function ExplorerBody({
               release();
             }
           },
-          confirmCatalog: async () => {
-            await Promise.all([page.reloadStrict(), explorer.refreshStrict()]);
+          confirmCatalog: async expected => {
+            await confirmWorkspaceCatalog(client, teamId, expected);
+            // The initiating view may have unmounted during the upload. Its
+            // refresh is best-effort; the independent check above is the proof.
+            await Promise.allSettled([page.reloadStrict(), explorer.refreshStrict()]);
             onChanged?.();
           }
         };
@@ -1051,6 +1047,7 @@ function ExplorerBody({
     },
     [
       currentFolderId,
+      client,
       dismiss,
       explorer,
       nodeOf,
@@ -1109,7 +1106,7 @@ function ExplorerBody({
           pasteInto: clipboard.has()
             ? row => {
                 openFolder(row.driveFileId);
-                void clipboard.paste();
+                void clipboard.paste(row.driveFileId);
               }
             : undefined
         },

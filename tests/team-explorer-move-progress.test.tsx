@@ -108,41 +108,43 @@ describe('workspace move coordinator', () => {
     }
   );
 
-  it('routes clipboard cut through the same move path and preserves the destination', async () => {
-    const moveMaterial = vi.fn(async () => ({
-      operationId: 'operation',
-      state: 'succeeded' as const,
-      materialId: 'a',
-      reused: false
-    }));
-    const onChanged = vi.fn();
-    const clipboard = renderHook(
-      () =>
-        useExplorerClipboard({
-          teamId,
-          currentFolderId: 'new-folder',
-          permissions: DEFAULT_ROLE_PERMISSIONS.admin,
-          tailClient: { moveMaterial } as unknown as TailClient,
-          onChanged,
-          clearSelection: vi.fn()
-        }),
-      { wrapper: wrap }
-    );
-    act(() =>
-      clipboard.result.current.take('cut', [
-        { id: 'a', name: 'a.txt', kind: 'file', category: null, sourceFolderId: 'old-folder' }
-      ])
-    );
-    await act(async () => clipboard.result.current.paste());
-    expect(moveMaterial).toHaveBeenCalledWith(
-      expect.objectContaining({
+  it.each(['cut', 'copy'] as const)(
+    'pastes clipboard %s into the explicit destination before navigation updates',
+    async mode => {
+      const moveMaterial = vi.fn(async () => ({
+        operationId: 'operation',
+        state: 'succeeded' as const,
         materialId: 'a',
-        destinationFolderId: 'new-folder',
-        conflictMode: 'keep_both'
-      })
-    );
-    expect(onChanged).toHaveBeenCalledTimes(1);
-  });
+        reused: false
+      }));
+      const onChanged = vi.fn();
+      const clipboard = renderHook(
+        () =>
+          useExplorerClipboard({
+            teamId,
+            currentFolderId: 'new-folder',
+            permissions: DEFAULT_ROLE_PERMISSIONS.admin,
+            tailClient: { moveMaterial, copyMaterial: moveMaterial } as unknown as TailClient,
+            onChanged,
+            clearSelection: vi.fn()
+          }),
+        { wrapper: wrap }
+      );
+      act(() =>
+        clipboard.result.current.take(mode, [
+          { id: 'a', name: 'a.txt', kind: 'file', category: null, sourceFolderId: 'old-folder' }
+        ])
+      );
+      await act(async () => clipboard.result.current.paste('explicit-folder'));
+      expect(moveMaterial).toHaveBeenCalledWith(
+        expect.objectContaining({
+          materialId: 'a',
+          destinationFolderId: 'explicit-folder'
+        })
+      );
+      expect(onChanged).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it('routes a menu move through the same path and reports permission rejection', async () => {
     const moveMaterial = vi

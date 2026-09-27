@@ -24,6 +24,74 @@ async function fixture() {
 }
 
 describe('local workspace operation journal', () => {
+  it('rejects a stale reconciliation after another owner has saved a newer checkpoint', async () => {
+    let now = 1_000;
+    const storage = new MemoryWorkspaceJournalStorage();
+    const first = new WorkspaceOperationJournal({ actorId, storage, ownerId: 'a', now: () => now });
+    const second = new WorkspaceOperationJournal({
+      actorId,
+      storage,
+      ownerId: 'b',
+      now: () => now
+    });
+    await first.accept({ id: 'race', teamId, destination, manifest: await fixture() });
+    await first.claim('race');
+    await first.checkpointItem('race', 'file:Project/a.txt:5', {
+      state: 'running',
+      operationId: 'op'
+    });
+    let resolve!: (value: Map<string, { state: 'failed' }>) => void;
+    const pending = first.reconcile(
+      'race',
+      () =>
+        new Promise(r => {
+          resolve = r;
+        })
+    );
+    await vi.waitFor(() => expect(resolve).toBeDefined());
+    now += 31_000;
+    expect(await second.claim('race')).toBe(true);
+    await second.checkpointItem('race', 'file:Project/a.txt:5', {
+      state: 'succeeded',
+      resultMaterialId: 'new'
+    });
+    resolve(new Map([['op', { state: 'failed' }]]));
+    await expect(pending).rejects.toThrow('LOCAL_OPERATION_OWNED');
+    expect((await second.load(teamId))[0]?.items[1]).toMatchObject({
+      state: 'succeeded',
+      resultMaterialId: 'new'
+    });
+    await expect(first.checkpointGroup('race', { state: 'failed', stage: 'done' })).rejects.toThrow(
+      'LOCAL_OPERATION_OWNED'
+    );
+  });
+
+  it('does not allow a second tab to reconcile an actively owned group', async () => {
+    const storage = new MemoryWorkspaceJournalStorage();
+    const first = new WorkspaceOperationJournal({ actorId, storage });
+    const second = new WorkspaceOperationJournal({ actorId, storage });
+    await first.accept({ id: 'owned', teamId, destination, manifest: await fixture() });
+    await first.claim('owned');
+    await expect(second.reconcile('owned', async () => new Map())).rejects.toThrow(
+      'LOCAL_OPERATION_OWNED'
+    );
+  });
+
+  it('keeps the directory request key across a lost create response', async () => {
+    const journal = new WorkspaceOperationJournal({
+      actorId,
+      storage: new MemoryWorkspaceJournalStorage()
+    });
+    const accepted = await journal.accept({
+      id: 'folder-retry',
+      teamId,
+      destination,
+      manifest: await fixture()
+    });
+    const retry = await journal.beginRetry('folder-retry', { confirmed: true });
+    expect(retry.items[0]?.idempotencyKey).toBe(accepted.items[0]?.idempotencyKey);
+    expect(retry.items[1]?.idempotencyKey).not.toBe(accepted.items[1]?.idempotencyKey);
+  });
   it('persists only relative metadata and restores an interrupted group after reload', async () => {
     const storage = new MemoryWorkspaceJournalStorage();
     const journal = new WorkspaceOperationJournal({ actorId, storage });

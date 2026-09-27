@@ -7,6 +7,7 @@ import { useTeamRealtime } from '../apps/web/src/team/useTeamRealtime';
 import { TeamProvider, useTeam } from '../apps/web/src/team/TeamContext';
 import type { TeamContextSnapshot } from '../apps/web/src/api/team';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+import { useFolderPage } from '../apps/web/src/team/explorer/useFolderPage';
 
 vi.mock('../apps/web/src/lib/supabase', () => ({ getSupabaseClient: vi.fn() }));
 
@@ -42,6 +43,52 @@ afterEach(() => {
 });
 
 describe('team Realtime invalidation', () => {
+  it('keeps the workspace stale when teams refresh but its catalog read fails, then recovers on retry', async () => {
+    const team: TeamContextSnapshot = {
+      id: '21000000-0000-4000-8000-000000000001',
+      name: 'Team',
+      role: 'owner',
+      permissions: DEFAULT_ROLE_PERMISSIONS.owner,
+      connectionState: 'connected'
+    };
+    window.history.replaceState(null, '', `/team/${team.id}`);
+    localStorage.setItem('wishly.active-team.v1', team.id);
+    const client = {
+      listTeams: vi.fn(async () => [team]),
+      listFolderPage: vi.fn().mockRejectedValue(new Error('offline'))
+    };
+    const view = renderHook(
+      () => {
+        const context = useTeam();
+        const page = useFolderPage({
+          teamId: team.id,
+          client,
+          parentFolderId: null,
+          revision: context.revision
+        });
+        return { context, page };
+      },
+      {
+        wrapper: ({ children }) => (
+          <TeamProvider initialTeams={[team]} client={client}>
+            {children}
+          </TeamProvider>
+        )
+      }
+    );
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(client.listTeams).toHaveBeenCalled();
+    expect(view.result.current.page.error).toBe(true);
+    expect(view.result.current.context.realtimeState).toBe('reconnecting');
+    client.listFolderPage.mockResolvedValue({ rows: [], total: 0, next: null });
+    act(() => view.result.current.context.retryRealtime());
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(view.result.current.page.error).toBe(false);
+    expect(view.result.current.context.realtimeState).toBe('connected');
+    window.history.replaceState(null, '', '/');
+  });
   it('subscribes only to published catalog and operation events and catches the subscribe race', async () => {
     const onRefetch = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
@@ -51,6 +98,69 @@ describe('team Realtime invalidation', () => {
     await act(async () => vi.advanceTimersByTimeAsync(1_000));
     expect(onRefetch).toHaveBeenCalledTimes(1);
     expect(result.current).toBe('connected');
+  });
+
+  it('does not let an older catalog response clear a newer invalidation', async () => {
+    const team: TeamContextSnapshot = {
+      id: '21000000-0000-4000-8000-000000000002',
+      name: 'Team',
+      role: 'owner',
+      permissions: DEFAULT_ROLE_PERMISSIONS.owner,
+      connectionState: 'connected'
+    };
+    window.history.replaceState(null, '', `/team/${team.id}`);
+    localStorage.setItem('wishly.active-team.v1', team.id);
+    const empty = { rows: [], total: 0, next: null };
+    const client = {
+      listTeams: vi.fn(async () => [team]),
+      listFolderPage: vi.fn().mockResolvedValue(empty)
+    };
+    const view = renderHook(
+      () => {
+        const context = useTeam();
+        useFolderPage({
+          teamId: team.id,
+          client,
+          parentFolderId: null,
+          revision: context.revision
+        });
+        return context;
+      },
+      {
+        wrapper: ({ children }) => (
+          <TeamProvider initialTeams={[team]} client={client}>
+            {children}
+          </TeamProvider>
+        )
+      }
+    );
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(view.result.current.realtimeState).toBe('connected');
+    let first!: (value: typeof empty) => void;
+    let second!: (value: typeof empty) => void;
+    client.listFolderPage
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            first = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            second = resolve;
+          })
+      );
+    act(() => events.get('team_catalog_events')!());
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    act(() => events.get('team_catalog_events')!());
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    await act(async () => first(empty));
+    expect(view.result.current.realtimeState).toBe('reconnecting');
+    await act(async () => second(empty));
+    expect(view.result.current.realtimeState).toBe('connected');
+    window.history.replaceState(null, '', '/');
   });
 
   it('coalesces duplicate/out-of-order events and re-reads after an event during a read', async () => {

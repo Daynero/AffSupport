@@ -29,6 +29,8 @@ export interface JournalItem {
 }
 
 export interface JournalGroup {
+  /** Missing only on records written before atomic journal updates. */
+  revision?: number;
   key: string;
   id: string;
   actorId: string;
@@ -50,6 +52,7 @@ export interface WorkspaceJournalStorage {
   get(key: string): Promise<unknown>;
   list(): Promise<unknown[]>;
   put(group: JournalGroup): Promise<void>;
+  compareAndSwap(group: JournalGroup, owner: string, now: number): Promise<boolean>;
   delete(key: string): Promise<void>;
   claim(key: string, owner: string, now: number, until: number): Promise<boolean>;
 }
@@ -58,6 +61,7 @@ function isJournalGroup(value: unknown): value is JournalGroup {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const group = value as Record<string, unknown>;
   const groupKeys = new Set([
+    'revision',
     'key',
     'id',
     'actorId',
@@ -76,6 +80,8 @@ function isJournalGroup(value: unknown): value is JournalGroup {
   ]);
   if (
     Object.keys(group).some(key => !groupKeys.has(key)) ||
+    (group.revision !== undefined &&
+      (!Number.isSafeInteger(group.revision) || Number(group.revision) < 0)) ||
     typeof group.key !== 'string' ||
     typeof group.id !== 'string' ||
     typeof group.actorId !== 'string' ||
@@ -152,6 +158,12 @@ export class MemoryWorkspaceJournalStorage implements WorkspaceJournalStorage {
   async put(group: JournalGroup): Promise<void> {
     this.#records.set(group.key, structuredClone(group));
   }
+  async compareAndSwap(group: JournalGroup, owner: string, now: number): Promise<boolean> {
+    const current = this.#records.get(group.key);
+    if (!canWrite(current, group, owner, now)) return false;
+    this.#records.set(group.key, nextRecord(current!, group));
+    return true;
+  }
   async delete(key: string): Promise<void> {
     this.#records.delete(key);
   }
@@ -165,11 +177,34 @@ export class MemoryWorkspaceJournalStorage implements WorkspaceJournalStorage {
         group.leaseUntil > now)
     )
       return false;
+    if (group.leaseOwner !== owner) group.revision = (group.revision ?? 0) + 1;
     group.leaseOwner = owner;
     group.leaseUntil = until;
     this.#records.set(key, structuredClone(group));
     return true;
   }
+}
+
+function canWrite(
+  current: unknown,
+  next: JournalGroup,
+  owner: string,
+  now: number
+): current is JournalGroup {
+  return (
+    isJournalGroup(current) &&
+    current.leaseOwner === owner &&
+    (current.leaseUntil ?? 0) > now &&
+    (current.revision ?? 0) === (next.revision ?? 0)
+  );
+}
+
+function nextRecord(current: JournalGroup, next: JournalGroup): JournalGroup {
+  return structuredClone({
+    ...next,
+    revision: (current.revision ?? 0) + 1,
+    leaseUntil: next.leaseOwner === null ? null : current.leaseUntil
+  });
 }
 
 class IndexedDBWorkspaceJournalStorage implements WorkspaceJournalStorage {
@@ -209,6 +244,24 @@ class IndexedDBWorkspaceJournalStorage implements WorkspaceJournalStorage {
       transaction.onabort = () => reject(transaction.error);
     });
   }
+  async compareAndSwap(group: JournalGroup, owner: string, now: number): Promise<boolean> {
+    const db = await this.#database;
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('groups', 'readwrite');
+      const store = transaction.objectStore('groups');
+      const request = store.get(group.key);
+      let saved = false;
+      request.onsuccess = () => {
+        const current: unknown = request.result;
+        if (!canWrite(current, group, owner, now)) return;
+        store.put(nextRecord(current, group));
+        saved = true;
+      };
+      transaction.oncomplete = () => resolve(saved);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  }
   async delete(key: string): Promise<void> {
     const db = await this.#database;
     return new Promise((resolve, reject) => {
@@ -235,6 +288,7 @@ class IndexedDBWorkspaceJournalStorage implements WorkspaceJournalStorage {
             group.leaseUntil > now)
         )
           return;
+        if (group.leaseOwner !== owner) group.revision = (group.revision ?? 0) + 1;
         group.leaseOwner = owner;
         group.leaseUntil = until;
         transaction.objectStore('groups').put(group);
@@ -275,29 +329,38 @@ export class WorkspaceOperationJournal {
   }
 
   async #save(group: JournalGroup): Promise<void> {
-    const current = this.#session.get(group.key);
-    if (
-      current?.leaseOwner === group.leaseOwner &&
-      current.leaseUntil !== null &&
-      (group.leaseUntil === null || current.leaseUntil > group.leaseUntil)
-    )
-      group.leaseUntil = current.leaseUntil;
-    this.#session.set(group.key, structuredClone(group));
-    if (this.#sessionOnly) return;
-    try {
-      await this.#storage.put(group);
-    } catch {
-      this.#sessionOnly = true;
+    if (!this.#sessionOnly) {
+      // A rejected CAS is an ownership/version conflict, never a quota fallback.
+      const saved = await this.#storage.compareAndSwap(group, this.#ownerId, this.#now());
+      if (!saved) throw new Error('LOCAL_OPERATION_OWNED');
+      return;
     }
+    const current = this.#session.get(group.key);
+    if (!canWrite(current, group, this.#ownerId, this.#now()))
+      throw new Error('LOCAL_OPERATION_OWNED');
+    this.#session.set(group.key, nextRecord(current, group));
   }
 
   async #get(id: string): Promise<JournalGroup> {
     const key = this.#key(id);
-    const candidate =
-      this.#session.get(key) ?? (await this.#storage.get(key).catch(() => undefined));
+    const candidate = this.#sessionOnly ? this.#session.get(key) : await this.#storage.get(key);
     if (!isJournalGroup(candidate) || candidate.actorId !== this.#actorId)
       throw new Error('JOURNAL_NOT_FOUND');
     return structuredClone(candidate);
+  }
+
+  async #owned(id: string): Promise<JournalGroup> {
+    const group = await this.#get(id);
+    if (group.leaseOwner !== this.#ownerId || (group.leaseUntil ?? 0) <= this.#now())
+      throw new Error('LOCAL_OPERATION_OWNED');
+    return group;
+  }
+
+  async release(id: string): Promise<void> {
+    const group = await this.#owned(id);
+    group.leaseOwner = null;
+    group.leaseUntil = null;
+    await this.#save(group);
   }
 
   async accept(input: {
@@ -308,6 +371,7 @@ export class WorkspaceOperationJournal {
   }): Promise<JournalGroup> {
     const at = this.#now();
     const group: JournalGroup = {
+      revision: 0,
       key: this.#key(input.id),
       id: input.id,
       actorId: this.#actorId,
@@ -320,8 +384,8 @@ export class WorkspaceOperationJournal {
       createdAt: at,
       updatedAt: at,
       reconciledAt: null,
-      leaseOwner: null,
-      leaseUntil: null,
+      leaseOwner: this.#ownerId,
+      leaseUntil: at + OWNER_LEASE_MS,
       items: input.manifest.entries.map(entry => ({
         clientItemKey: entry.clientItemKey,
         kind: entry.kind,
@@ -337,7 +401,14 @@ export class WorkspaceOperationJournal {
         idempotencyKey: crypto.randomUUID()
       }))
     };
-    await this.#save(group);
+    if (!this.#sessionOnly) {
+      try {
+        await this.#storage.put(group);
+      } catch {
+        this.#sessionOnly = true;
+      }
+    }
+    if (this.#sessionOnly) this.#session.set(group.key, structuredClone(group));
     return structuredClone(group);
   }
 
@@ -352,7 +423,7 @@ export class WorkspaceOperationJournal {
       )
         records.set(candidate.key, candidate);
     }
-    for (const candidate of this.#session.values())
+    for (const candidate of this.#sessionOnly ? this.#session.values() : [])
       if (
         isJournalGroup(candidate) &&
         candidate.actorId === this.#actorId &&
@@ -381,7 +452,7 @@ export class WorkspaceOperationJournal {
       errorCode?: string | null;
     }
   ): Promise<JournalGroup> {
-    const group = await this.#get(id);
+    const group = await this.#owned(id);
     const item = group.items.find(candidate => candidate.clientItemKey === clientItemKey);
     if (!item) throw new Error('JOURNAL_ITEM_NOT_FOUND');
     item.state = patch.state;
@@ -399,7 +470,7 @@ export class WorkspaceOperationJournal {
     id: string,
     patch: { state: LocalOperationState; stage: LocalOperationStage }
   ): Promise<JournalGroup> {
-    const group = await this.#get(id);
+    const group = await this.#owned(id);
     group.state = patch.state;
     group.stage = patch.stage;
     group.updatedAt = this.#now();
@@ -418,7 +489,7 @@ export class WorkspaceOperationJournal {
       >
     >
   ): Promise<JournalGroup> {
-    const group = await this.#get(id);
+    const group = await this.#owned(id);
     const ids = [
       ...new Set(
         group.items.map(item => item.operationId).filter((value): value is string => value !== null)
@@ -444,7 +515,7 @@ export class WorkspaceOperationJournal {
 
   async beginRetry(id: string, input: { confirmed: boolean }): Promise<JournalGroup> {
     if (!input.confirmed) throw new Error('RESELECTION_REQUIRED');
-    const group = await this.#get(id);
+    const group = await this.#owned(id);
     if (group.items.some(item => item.operationId) && group.reconciledAt === null)
       throw new Error('RECONCILE_REQUIRED');
     group.attempt += 1;
@@ -459,7 +530,7 @@ export class WorkspaceOperationJournal {
       item.operationId = null;
       item.resultMaterialId = null;
       item.resultFolderId = null;
-      item.idempotencyKey = crypto.randomUUID();
+      if (item.kind === 'file') item.idempotencyKey = crypto.randomUUID();
     }
     await this.#save(group);
     return group;
@@ -480,7 +551,7 @@ export class WorkspaceOperationJournal {
         }
         return claimed;
       } catch {
-        this.#sessionOnly = true;
+        return false;
       }
     }
     const group = this.#session.get(key);

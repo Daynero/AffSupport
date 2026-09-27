@@ -29,7 +29,7 @@
 - [x] T004 [P] Створити paginated/concurrent/invalid-metadata Drive fixtures у `tests/fixtures/catalog-sync.ts` та перевірки boundary parsers у `tests/team-sync-contracts.test.ts`.
 - [x] T005 Додати closed sync status/job/coverage unions і shared bounds у `packages/shared/src/team/transport.ts` та exports у `packages/shared/src/team/index.ts`; build shared перед використанням Edge functions.
 - [x] T006 Додати нову chronological `supabase/migrations/*_catalog_sync_ownership.sql`: canonical job, lease epoch, finite kinds, confirmed-cursor provenance, backfill і retire duplicates до uniqueness enforcement; ambiguous cursors запускають reconciliation, не порівнюються як числа/рядки. Додати pgTAP у `supabase/tests/database/catalog-sync-ownership.test.sql`, reverse steps у `supabase/migrations/ROLLBACK.md` і типи через npm run types:supabase.
-- [X] T007 Додати chronological `supabase/migrations/*_catalog_scan_generations.sql`: private seen generations, durable frontier, conditional commit/reconcile RPC, completion status, baseline checks; RLS/revoke/narrow grants/empty search_path. Додати `supabase/tests/database/catalog-scan-generations.test.sql`, `supabase/migrations/ROLLBACK.md` і перегенерувати `apps/web/src/lib/database.types.ts`.
+- [x] T007 Додати chronological `supabase/migrations/*_catalog_scan_generations.sql`: private seen generations, durable frontier, conditional commit/reconcile RPC, completion status, baseline checks; RLS/revoke/narrow grants/empty search_path. Додати `supabase/tests/database/catalog-scan-generations.test.sql`, `supabase/migrations/ROLLBACK.md` і перегенерувати `apps/web/src/lib/database.types.ts`.
 - [x] T008 Додати типізовані request/status/catalog-read wrappers у `apps/web/src/api/team.ts` та shared error mapping у `apps/web/src/team/errors.ts`; не додавати group progress або event replay endpoints.
 
 ## Phase 3 — US1: точкова синхронізація (P1, MVP)
@@ -38,13 +38,13 @@
 
 **Незалежна перевірка**: 20/20 повторів Лікарі/Будь-ласка побач її/картинка.png: правильне дерево без reload/full reindex; concurrent changes не губляться.
 
-- [X] T009 [P] [US1] Додати regression tests finite completion, overlapping manual/discovery/ancestor requests, cursor independence, concurrent upload/move/delete та lost lease у `tests/catalog-sync.test.ts`.
-- [X] T010 [P] [US1] Додати UI regressions accepted≠complete, error, navigation/reload sync-status recovery і failed catalog reread у `tests/team-folder-resync.test.tsx`.
+- [x] T009 [P] [US1] Додати regression tests finite completion, overlapping manual/discovery/ancestor requests, cursor independence, concurrent upload/move/delete та lost lease у `tests/catalog-sync.test.ts`.
+- [x] T010 [P] [US1] Додати UI regressions accepted≠complete, error, navigation/reload sync-status recovery і failed catalog reread у `tests/team-folder-resync.test.tsx`.
 - [x] T011 [US1] Розширити `supabase/functions/_shared/drive.ts` та `tests/drive-listing-integrity.test.ts`: повертати incompleteSearch, invalid-entry diagnostics, completeness; не перетворювати відкинуті parser-ом записи на підтверджену відсутність.
-- [X] T012 [US1] Реалізувати finite subtree lifecycle, scan generation і seen-page checkpoints у `supabase/functions/catalog-sync/engine.ts`; після page-token rejection починати нове покоління, не змішуючи seen rows.
-- [X] T013 [US1] Реалізувати lease/version-guarded reconciliation у `supabase/functions/catalog-sync/engine.ts` та RPC adapters у `index.ts`: missing candidates перевіряти за актуальним parent/trash, ambiguous access лишати unavailable, чекати canonical replay barrier; перевірити subtree visibility й незмінність material identity.
-- [X] T014 [US1] Реалізувати ancestor overlap join або один follow-up, fencing і terminal cleanup у `supabase/functions/catalog-sync/index.ts` та новій `supabase/migrations/*_catalog_sync_scope_join.sql`; додати `supabase/tests/database/folder-resync.test.sql`, `ROLLBACK.md` і regenerate DB types.
-- [X] T015 [US1] Підключити безпечний accepted/status результат до `apps/web/src/team/explorer/useFolderResync.ts`, оновлення `ExplorerProvider.tsx` після підтвердження; використовувати один існуючий status seam без окремого progress polling.
+- [x] T012 [US1] Реалізувати finite subtree lifecycle, scan generation і seen-page checkpoints у `supabase/functions/catalog-sync/engine.ts`; після page-token rejection починати нове покоління, не змішуючи seen rows.
+- [x] T013 [US1] Реалізувати lease/version-guarded reconciliation у `supabase/functions/catalog-sync/engine.ts` та RPC adapters у `index.ts`: missing candidates перевіряти за актуальним parent/trash, ambiguous access лишати unavailable, чекати canonical replay barrier; перевірити subtree visibility й незмінність material identity.
+- [x] T014 [US1] Реалізувати ancestor overlap join або один follow-up, fencing і terminal cleanup у `supabase/functions/catalog-sync/index.ts` та новій `supabase/migrations/*_catalog_sync_scope_join.sql`; додати `supabase/tests/database/folder-resync.test.sql`, `ROLLBACK.md` і regenerate DB types.
+- [x] T015 [US1] Підключити безпечний accepted/status результат до `apps/web/src/team/explorer/useFolderResync.ts`, оновлення `ExplorerProvider.tsx` після підтвердження; використовувати один існуючий status seam без окремого progress polling.
 - [ ] T016 [US1] Записати результати MVP прогону й targeted tests у `specs/026-reliable-folder-sync/quickstart.md`; перевірити singleton/retry поведінку до першої beta демонстрації.
 
 ## Phase 4 — US2: актуальний простір для команди (P1)
@@ -53,12 +53,12 @@
 
 **Незалежна перевірка**: Два профілі бачать один каталог p95≤5 с/max≤15 с; reconnect, in-flight event і п’ята сторінка зберігають правильний стан.
 
-- [X] T017 [P] [US2] Додати duplicate/out-of-order event, subscribe race, reconnect/visibility, event-during-read та membership-loss tests у `tests/team-realtime.test.tsx`; numeric event gaps не означають втрату.
-- [X] T018 [P] [US2] Додати visible-window/scroll anchor/selection/search tests для кількох завантажених сторінок у `tests/team-explorer-live-refresh.test.tsx`.
-- [X] T019 [P] [US2] Додати RLS тести catalog events і existing operation reads для viewer/removed/foreign-team у `supabase/tests/database/workspace-live-state.test.sql`.
-- [X] T020 [US2] Після T002 узгодити дозволені subscriptions у `apps/web/src/team/useTeamRealtime.ts`, lifecycle/dirty refresh у `TeamContext.tsx`; reuse catalog/material operation events, без group progress channel, MAX(id) watermark і нового polling.
-- [X] T021 [US2] Додати affected old/new parent invalidation у `supabase/functions/drive-ops/index.ts` та наявних catalog commit RPC через нову `supabase/migrations/*_catalog_invalidation_scope.sql`; документувати `supabase/migrations/ROLLBACK.md`, тести й типи.
-- [X] T022 [US2] Реалізувати anchor-based visible-window refresh, dirty retry та generation guards у `apps/web/src/team/explorer/useFolderPage.ts`, `ExplorerProvider.tsx` і `apps/web/src/team/catalog/useCatalogSearch.ts`; не скидати все на першу сторінку.
+- [x] T017 [P] [US2] Додати duplicate/out-of-order event, subscribe race, reconnect/visibility, event-during-read та membership-loss tests у `tests/team-realtime.test.tsx`; numeric event gaps не означають втрату.
+- [x] T018 [P] [US2] Додати visible-window/scroll anchor/selection/search tests для кількох завантажених сторінок у `tests/team-explorer-live-refresh.test.tsx`.
+- [x] T019 [P] [US2] Додати RLS тести catalog events і existing operation reads для viewer/removed/foreign-team у `supabase/tests/database/workspace-live-state.test.sql`.
+- [x] T020 [US2] Після T002 узгодити дозволені subscriptions у `apps/web/src/team/useTeamRealtime.ts`, lifecycle/dirty refresh у `TeamContext.tsx`; reuse catalog/material operation events, без group progress channel, MAX(id) watermark і нового polling.
+- [x] T021 [US2] Додати affected old/new parent invalidation у `supabase/functions/drive-ops/index.ts` та наявних catalog commit RPC через нову `supabase/migrations/*_catalog_invalidation_scope.sql`; документувати `supabase/migrations/ROLLBACK.md`, тести й типи.
+- [x] T022 [US2] Реалізувати anchor-based visible-window refresh, dirty retry та generation guards у `apps/web/src/team/explorer/useFolderPage.ts`, `ExplorerProvider.tsx` і `apps/web/src/team/catalog/useCatalogSearch.ts`; не скидати все на першу сторінку.
 - [ ] T023 [US2] Зв’язати stale/reconnecting/retry UI з реальним status у `apps/web/src/team/workspace/RealtimeChip.tsx`; записати two-account evidence у `specs/026-reliable-folder-sync/quickstart.md`.
 
 ## Phase 5 — US6: повнота initial scan і зовнішніх змін (P1)
@@ -67,11 +67,11 @@
 
 **Незалежна перевірка**: 50k файлів/10 100 папок/depth20, moved-in populated subtree, restart та permissions: повний доступний каталог або явна причина неповноти.
 
-- [X] T024 [P] [US6] Додати initial scan, moved-in/restored subtree, wide frontier понад 10k, cursor loss і 50k correctness tests у `tests/catalog-sync-completeness.test.ts`.
-- [X] T025 [P] [US6] Додати empty/partial/auth-revoked/rate-limited/delayed storage tests у `tests/team-storage-health.test.tsx`.
-- [X] T026 [US6] Enqueue-ити discovered subtree через той самий scope-join механізм і відновлювати durable frontier без truncation у `supabase/functions/catalog-sync/engine.ts`; canonical cursor commit залишається окремою authority.
-- [X] T027 [US6] Розширити health projection через нову `supabase/migrations/*_catalog_coverage_health.sql` і `supabase/functions/catalog-sync/index.ts`; додати `supabase/tests/database/catalog-coverage-health.test.sql`, reverse steps у `ROLLBACK.md` і DB types.
-- [X] T028 [US6] Показувати coverage, last confirmed success і next action у `apps/web/src/team/storage/useStorageHealth.ts`, `StorageChip.tsx` та `drive/BetaStorageNotice.tsx`; не змінювати OAuth scope і не очищувати відомий каталог через access failure.
+- [x] T024 [P] [US6] Додати initial scan, moved-in/restored subtree, wide frontier понад 10k, cursor loss і 50k correctness tests у `tests/catalog-sync-completeness.test.ts`.
+- [x] T025 [P] [US6] Додати empty/partial/auth-revoked/rate-limited/delayed storage tests у `tests/team-storage-health.test.tsx`.
+- [x] T026 [US6] Enqueue-ити discovered subtree через той самий scope-join механізм і відновлювати durable frontier без truncation у `supabase/functions/catalog-sync/engine.ts`; canonical cursor commit залишається окремою authority.
+- [x] T027 [US6] Розширити health projection через нову `supabase/migrations/*_catalog_coverage_health.sql` і `supabase/functions/catalog-sync/index.ts`; додати `supabase/tests/database/catalog-coverage-health.test.sql`, reverse steps у `ROLLBACK.md` і DB types.
+- [x] T028 [US6] Показувати coverage, last confirmed success і next action у `apps/web/src/team/storage/useStorageHealth.ts`, `StorageChip.tsx` та `drive/BetaStorageNotice.tsx`; не змінювати OAuth scope і не очищувати відомий каталог через access failure.
 
 ## Phase 6 — US7: обмежені ресурси й затримки (P2)
 
@@ -79,11 +79,11 @@
 
 **Незалежна перевірка**: 10 ready spaces: p95≤60 с/max≤180 с і кожна≤180 с; 7 simulated days no-change; 100 changes/min; 1→100 members ≤10% зміни provider calls.
 
-- [X] T029 [P] [US7] Додати scheduler tests із fake clock, 7 days no-change→new event, 100 changes/min та stall visibility у `tests/catalog-sync-scheduler.test.ts`.
-- [X] T030 [P] [US7] Додати provider-call/catch-up counter harness для 1/100 клієнтів у `tests/team-realtime-scale.test.tsx`.
-- [X] T031 [US7] Реалізувати bounded fair scheduling і successful-checkpoint failure reset у активних `supabase/functions/catalog-sync/engine.ts`, `index.ts` та новій `supabase/migrations/*_catalog_sync_fairness.sql`; додати pgTAP, `supabase/migrations/ROLLBACK.md`, DB types. Не переписувати ownership migration.
-- [X] T032 [US7] Додати агреговані per-job queue/runtime/provider-call/result counters у `supabase/functions/catalog-sync/index.ts`; без file content, secrets або byte-progress events.
-- [X] T033 [US7] Додати retention cleanup: seen generations після completion, orphan >24h без живого lease, terminal finite jobs 7d, batch≤500 у новій `supabase/migrations/*_catalog_sync_retention.sql`; додати `supabase/tests/database/catalog-sync-retention.test.sql` і `ROLLBACK.md`; не видаляти canonical cursor.
+- [x] T029 [P] [US7] Додати scheduler tests із fake clock, 7 days no-change→new event, 100 changes/min та stall visibility у `tests/catalog-sync-scheduler.test.ts`.
+- [x] T030 [P] [US7] Додати provider-call/catch-up counter harness для 1/100 клієнтів у `tests/team-realtime-scale.test.tsx`.
+- [x] T031 [US7] Реалізувати bounded fair scheduling і successful-checkpoint failure reset у активних `supabase/functions/catalog-sync/engine.ts`, `index.ts` та новій `supabase/migrations/*_catalog_sync_fairness.sql`; додати pgTAP, `supabase/migrations/ROLLBACK.md`, DB types. Не переписувати ownership migration.
+- [x] T032 [US7] Додати агреговані per-job queue/runtime/provider-call/result counters у `supabase/functions/catalog-sync/index.ts`; без file content, secrets або byte-progress events.
+- [x] T033 [US7] Додати retention cleanup: seen generations після completion, orphan >24h без живого lease, terminal finite jobs 7d, batch≤500 у новій `supabase/migrations/*_catalog_sync_retention.sql`; додати `supabase/tests/database/catalog-sync-retention.test.sql` і `ROLLBACK.md`; не видаляти canonical cursor.
 - [ ] T034 [US7] Записати measured SC-004/005/008/009 результати у `specs/026-reliable-folder-sync/quickstart.md`, окремо provider calls, catalog delivery й latency; mock harness не називати production benchmark.
 
 ## Phase 7 — US3: повний drag-and-drop дерева (P1)
@@ -92,13 +92,13 @@
 
 **Незалежна перевірка**: Змішані roots, 1k files/100 dirs/10 empty dirs, unreadable branch та навігація: збережені структура й destination; partial не success.
 
-- [X] T035 [P] [US3] Додати mixed roots, batch enumeration, empty/zero-byte, Unicode, cycles, limits і cancellation fixtures/tests у `tests/fixtures/local-manifest.ts` та `tests/local-manifest.test.ts`.
-- [X] T036 [P] [US3] Додати drag/drop, frozen destination, explicit conflicts і failed-parent tests у `tests/team-explorer-folder-upload.test.tsx`.
-- [X] T037 [US3] Додати local-only operation/manifest closed unions і validators у `packages/shared/src/team/transport.ts`; server serializers не приймають File, handles або absolute paths.
-- [X] T038 [US3] Реалізувати bounded file/directory manifest enumeration у `apps/web/src/team/explorer/localManifest.ts`, включно з усіма directory-reader batches, explicit empty directories та original-name preservation.
-- [X] T039 [US3] Створити `apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx` і `useWorkspaceOperations.ts`, змонтувати над explorer у `apps/web/src/team/workspace/WorkspaceShell.tsx`; context override для тестів, topological folder creation, per-group concurrency3/global6, чинні material idempotency keys.
-- [X] T040 [US3] З’єднати drop entry point у `apps/web/src/team/explorer/ExplorerShell.tsx` і conflicts у `UploadConflictDialog.tsx` з одним координатором; destination фіксувати до enumeration, resolved parent mappings використовувати повторно.
-- [X] T041 [US3] Перевірити server authorization, directory creation/finalize idempotency і postcondition у `supabase/functions/drive-ops/handler.ts`, `index.ts` та `tests/drive-folder-intake.test.ts`; не додавати cloud group/items tables або progress RPC.
+- [x] T035 [P] [US3] Додати mixed roots, batch enumeration, empty/zero-byte, Unicode, cycles, limits і cancellation fixtures/tests у `tests/fixtures/local-manifest.ts` та `tests/local-manifest.test.ts`.
+- [x] T036 [P] [US3] Додати drag/drop, frozen destination, explicit conflicts і failed-parent tests у `tests/team-explorer-folder-upload.test.tsx`.
+- [x] T037 [US3] Додати local-only operation/manifest closed unions і validators у `packages/shared/src/team/transport.ts`; server serializers не приймають File, handles або absolute paths.
+- [x] T038 [US3] Реалізувати bounded file/directory manifest enumeration у `apps/web/src/team/explorer/localManifest.ts`, включно з усіма directory-reader batches, explicit empty directories та original-name preservation.
+- [x] T039 [US3] Створити `apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx` і `useWorkspaceOperations.ts`, змонтувати над explorer у `apps/web/src/team/workspace/WorkspaceShell.tsx`; context override для тестів, topological folder creation, per-group concurrency3/global6, чинні material idempotency keys.
+- [x] T040 [US3] З’єднати drop entry point у `apps/web/src/team/explorer/ExplorerShell.tsx` і conflicts у `UploadConflictDialog.tsx` з одним координатором; destination фіксувати до enumeration, resolved parent mappings використовувати повторно.
+- [x] T041 [US3] Перевірити server authorization, directory creation/finalize idempotency і postcondition у `supabase/functions/drive-ops/handler.ts`, `index.ts` та `tests/drive-folder-intake.test.ts`; не додавати cloud group/items tables або progress RPC.
 
 ## Phase 8 — US4: одна кнопка файли/папки (P1)
 
@@ -106,12 +106,12 @@
 
 **Незалежна перевірка**: macOS/Windows: keyboard file(s)/folder choice і cancel; folder picker зберігає порожні каталоги так само, як drop.
 
-- [X] T042 [P] [US4] Додати chooser/drop parity, no-handle environment, empty-only tree і cancel tests у `tests/team-explorer-add-files.test.tsx`.
-- [X] T043 [US4] Описати directory-intake capability, relative manifest і opaque grant контракти у `packages/shared/src/team/transport.ts`; зареєструвати flag у `apps/agent/src/server/capabilities.ts` і typed wrappers у `apps/web/src/api/client.ts`.
-- [X] T044 [US4] Реалізувати fallback через чинний `apps/agent/src/files/picker.ts` та новий `apps/agent/src/files/directory-intake.ts`: capability-gated register routes у files module, picker-scoped read grant, bounded enumeration/authorized source read, no symlink escape і no cloud absolute paths; OS branching тільки через platform seam.
-- [X] T045 [US4] Додати native capability/auth/path-grant/cancel/platform tests у `tests/directory-intake.test.ts` і перевірити module health/shutdown registration у `apps/agent/src/files/directory-intake.ts`.
-- [X] T046 [US4] Замінити toolbar controls у `apps/web/src/team/explorer/ExplorerShell.tsx` на одну інвентарну action Файли/Папка; primary showDirectoryPicker, fallback scoped agent adapter у `localManifest.ts`; webkitdirectory не називати повним folder fallback.
-- [X] T047 [US4] Оновити тексти chooser/capability/unsupported у `apps/web/src/i18n.ts`; explicit unsupported до remote writes, а cancel не створює mutation.
+- [x] T042 [P] [US4] Додати chooser/drop parity, no-handle environment, empty-only tree і cancel tests у `tests/team-explorer-add-files.test.tsx`.
+- [x] T043 [US4] Описати directory-intake capability, relative manifest і opaque grant контракти у `packages/shared/src/team/transport.ts`; зареєструвати flag у `apps/agent/src/server/capabilities.ts` і typed wrappers у `apps/web/src/api/client.ts`.
+- [x] T044 [US4] Реалізувати fallback через чинний `apps/agent/src/files/picker.ts` та новий `apps/agent/src/files/directory-intake.ts`: capability-gated register routes у files module, picker-scoped read grant, bounded enumeration/authorized source read, no symlink escape і no cloud absolute paths; OS branching тільки через platform seam.
+- [x] T045 [US4] Додати native capability/auth/path-grant/cancel/platform tests у `tests/directory-intake.test.ts` і перевірити module health/shutdown registration у `apps/agent/src/files/directory-intake.ts`.
+- [x] T046 [US4] Замінити toolbar controls у `apps/web/src/team/explorer/ExplorerShell.tsx` на одну інвентарну action Файли/Папка; primary showDirectoryPicker, fallback scoped agent adapter у `localManifest.ts`; webkitdirectory не називати повним folder fallback.
+- [x] T047 [US4] Оновити тексти chooser/capability/unsupported у `apps/web/src/i18n.ts`; explicit unsupported до remote writes, а cancel не створює mutation.
 
 ## Phase 9 — US5: тільки локальний прогрес і відновлення (P1)
 
@@ -119,22 +119,22 @@
 
 **Незалежна перевірка**: Upload/move/sync, partial/retry/cancel/reload і дві вкладки; local progress on/off дає однакову кількість cloud requests/writes/subscriptions.
 
-- [X] T048 [P] [US5] Додати stages/zero-byte denominator/aria/throttling tests у `tests/toast-progress.test.tsx` та cost regression для відсутності progress network calls у `tests/team-progress-cost.test.tsx`.
+- [x] T048 [P] [US5] Додати stages/zero-byte denominator/aria/throttling tests у `tests/toast-progress.test.tsx` та cost regression для відсутності progress network calls у `tests/team-progress-cost.test.tsx`.
 - [x] T049 [P] [US5] Додати local journal/reload, same-size changed source, lost finalize response, duplicate tab ownership, quota failure і account isolation tests у `tests/workspace-operation-journal.test.ts`.
 - [x] T050 [P] [US5] Додати progress parity tests усіх move входів — clipboard, tree drop, context menu — та server cycle/permission rejection у `tests/team-explorer-move-progress.test.tsx`.
 - [x] T051 [US5] Реалізувати account/team-scoped IndexedDB metadata journal у `apps/web/src/team/explorer/workspaceOperationJournal.ts`: checkpoints лише accepted/item-state transitions, no byte callbacks/credentials/handles, terminal7d/interrupted30d retention, sign-out purge і local ownership lease.
 - [x] T052 [US5] Підключити local journal, attempt-aware cancel/retry і reload reconciliation existing operation IDs у `WorkspaceOperationsProvider.tsx` та `useWorkspaceOperations.ts`; unfinalized uploads після reselection починати з byte0/new attempt, перед retry перевіряти lost-finalize outcome, succeeded items не дублювати.
 - [x] T053 [US5] Звести clipboard, moveTo/tree drop і context-menu дії в один coordinator через `apps/web/src/team/explorer/useExplorerClipboard.ts`, `ExplorerShell.tsx` та `apps/web/src/team/catalog/useMaterialActions.ts`; зберегти material tails і old/new parent invalidation.
 - [x] T054 [US5] Агрегувати confirmed offsets у `apps/web/src/team/explorer/useWorkspaceOperations.ts`, використовуючи чинний `apps/web/src/team/drive/resumableUpload.ts` callback; stage transition/new attempt явно змінює denominator, shared uploader не містить group state.
-- [X] T055 [US5] Розширити `apps/web/src/components/toast.tsx` інвентарним determinate/indeterminate Progress, preparing/detail labels і throttled aria; local provider проєктує ≤3 тости та local summary через `apps/web/src/team/workspace/BackgroundWorkChip.tsx`, включно з sync status без додаткових progress запитів.
-- [X] T056 [US5] Оновити local-only/reselection/session-only/partial/cancel тексти у `apps/web/src/i18n.ts`; catalog postcondition має пройти до success, dismissal не скасовує action.
+- [x] T055 [US5] Розширити `apps/web/src/components/toast.tsx` інвентарним determinate/indeterminate Progress, preparing/detail labels і throttled aria; local provider проєктує ≤3 тости та local summary через `apps/web/src/team/workspace/BackgroundWorkChip.tsx`, включно з sync status без додаткових progress запитів.
+- [x] T056 [US5] Оновити local-only/reselection/session-only/partial/cancel тексти у `apps/web/src/i18n.ts`; catalog postcondition має пройти до success, dismissal не скасовує action.
 
 ## Phase 10 — Наскрізне приймання
 
 **Мета**: Документація, реальні beta сценарії та proportionate verification.
 
 - [x] T057 [P] Оновити `docs/TEAM_WORKSPACE_OPERATIONS.md`: scope/coverage, локальний прогрес, відсутність shared percentage/history, recovery limits і native fallback.
-- [X] T058 [P] Перевірити redaction metadata/native grant/logs у `tests/log-redaction.test.ts`; жодних local paths, file content, tokens у cloud telemetry.
+- [x] T058 [P] Перевірити redaction metadata/native grant/logs у `tests/log-redaction.test.ts`; жодних local paths, file content, tokens у cloud telemetry.
 - [ ] T059 Пройти macOS/Windows picker/drop parity, keyboard/screen-reader і 20 local groups, two-account sync та network-cost сценарії; записати evidence у `specs/026-reliable-folder-sync/quickstart.md`, відсутнє середовище позначати неперевіреним.
 - [ ] T060 Виконати npm run verify, relevant web/agent/shared builds і npm run verify:release для реалізації; читати канонічний `verification-result.json` та виправити feature failures.
 - [ ] T061 Звірити повноту `specs/026-reliable-folder-sync/spec.md`, `plan.md`, `tasks.md` і supporting contracts після реалізації; packaged-beta evidence збирати за `docs/BETA.md` для конкретного commit, production release не включати у завершення фічі.
@@ -195,5 +195,15 @@ Shared code у `engine.ts`, `transport.ts`, `ExplorerShell.tsx`, `api/team.ts` �
 
 ## Phase 11: Convergence
 
-- [X] T062 [US5] Додати локальне зведення завершених і перерваних груп з окремими станами, проблемними відносними шляхами, діями cancel/retry та явним reselection для незавершених uploads у `BackgroundWorkChip.tsx`/workspace UI; підключити наявні `cancelGroup`/`retryUploadGroup`, не повторювати succeeded items, перевірити keyboard/screen-reader і partial/reload у тестах per US5.5–6, FR-032–034 (partial).
-- [X] T063 [US5] Передавати bounded лічильники знайдених файлів/папок із `localManifest.ts` до indeterminate preparing toast під час enumeration; не додавати cloud progress I/O, перевірити інкрементальний показ, cancel і zero-byte/empty-only сценарії per US5.1, FR-029 (partial).
+- [x] T062 [US5] Додати локальне зведення завершених і перерваних груп з окремими станами, проблемними відносними шляхами, діями cancel/retry та явним reselection для незавершених uploads у `BackgroundWorkChip.tsx`/workspace UI; підключити наявні `cancelGroup`/`retryUploadGroup`, не повторювати succeeded items, перевірити keyboard/screen-reader і partial/reload у тестах per US5.5–6, FR-032–034 (partial).
+- [x] T063 [US5] Передавати bounded лічильники знайдених файлів/папок із `localManifest.ts` до indeterminate preparing toast під час enumeration; не додавати cloud progress I/O, перевірити інкрементальний показ, cancel і zero-byte/empty-only сценарії per US5.1, FR-029 (partial).
+
+## Review fixes — 2026-09-27
+
+- [x] T064 [US5] Захистити записи IndexedDB атомарною перевіркою власника, lease і версії; не дозволяти іншій вкладці переписати активну групу під час reconciliation.
+- [x] T065 [US5] Перед retry завершувати покинуту серверну upload-операцію через чинне атомарне cancel RPC; зберігати успіх при одночасному finalize, звільняти локальне володіння на всіх виходах.
+- [x] T066 [US3] Зберігати ключ створення папки після втрати відповіді; новий ключ спроби генерувати лише для незавершеного файла.
+- [x] T067 [US5] Передавати цільову папку явно в clipboard paste, незалежно від асинхронної навігації.
+- [x] T068 [US3] Перевіряти конфлікти за всіма сторінками папки призначення без UI-фільтрів; повторно запитувати рішення при серверному конфлікті після snapshot.
+- [x] T069 [US5] Підтверджувати наявність конкретних результатів у потрібних папках; superseded refresh не вважати успіхом, retry підтвердження не повторює готові мутації.
+- [x] T070 [US2] Відокремити стан каналу від актуальності видимих читань каталогу; pending/failed read залишає reconnecting, пізня стара відповідь не підтверджує нову invalidation.

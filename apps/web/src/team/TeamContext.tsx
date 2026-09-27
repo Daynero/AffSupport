@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode
 } from 'react';
 import type { TeamPermissionFlag, TeamPermissions } from '@video-compressor/shared';
@@ -13,6 +14,7 @@ import type { TeamContextSnapshot } from '../api/team';
 import { navigateTo, useBrowserRoute } from '../lib/navigation';
 import { buildTeamRoute, teamResolverRoute } from './routes';
 import { useTeamRealtime, type TeamRealtimeState } from './useTeamRealtime';
+import { CatalogFreshness, CatalogFreshnessContext } from './catalog/CatalogFreshness';
 
 const ACTIVE_TEAM_STORAGE_KEY = 'wishly.active-team.v1';
 
@@ -83,6 +85,12 @@ export function TeamProvider({
   const [loadingTeams, setLoadingTeams] = useState(Boolean(client));
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const catalogFreshness = useMemo(() => new CatalogFreshness(), []);
+  const catalogRevision = useSyncExternalStore(
+    catalogFreshness.subscribe,
+    catalogFreshness.snapshot,
+    catalogFreshness.snapshot
+  );
   const [realtimeRetryNonce, setRealtimeRetryNonce] = useState(0);
   const [activeTeamId, setActiveTeamIdState] = useState<string | null>(() => persistedTeamId());
   const activeTeamIdRef = useRef(activeTeamId);
@@ -169,9 +177,11 @@ export function TeamProvider({
   }, []);
 
   const handleRealtimeRefetch = useCallback(async () => {
+    const selected = activeTeamIdRef.current;
+    if (selected) catalogFreshness.invalidate(selected);
     await refreshTeams(true);
     setRevision(value => value + 1);
-  }, [refreshTeams]);
+  }, [refreshTeams, catalogFreshness]);
   const acknowledgeMembershipLoss = useCallback(() => setMembershipLostTeamId(null), []);
 
   /*
@@ -182,12 +192,19 @@ export function TeamProvider({
    * when the address leaves it; which space to reopen is remembered, and `/team` walks back in.
    */
   const insideSpace = useBrowserRoute().startsWith('/team');
-  const realtimeState = useTeamRealtime({
+  const channelState = useTeamRealtime({
     teamId: insideSpace ? (activeTeam?.id ?? null) : null,
     onRefetch: handleRealtimeRefetch,
     retryNonce: realtimeRetryNonce,
     enabled: realtime && insideSpace
   });
+  const realtimeState = useMemo(
+    () =>
+      channelState === 'connected' && activeTeam && !catalogFreshness.isFresh(activeTeam.id)
+        ? 'reconnecting'
+        : channelState,
+    [channelState, activeTeam, catalogFreshness, catalogRevision]
+  );
 
   const can = useCallback(
     (permission: TeamPermissionFlag) => activeTeam?.permissions[permission] === true,
@@ -237,7 +254,11 @@ export function TeamProvider({
     ]
   );
 
-  return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>;
+  return (
+    <CatalogFreshnessContext.Provider value={catalogFreshness}>
+      <TeamContext.Provider value={value}>{children}</TeamContext.Provider>
+    </CatalogFreshnessContext.Provider>
+  );
 }
 
 export function TeamContextOverride({

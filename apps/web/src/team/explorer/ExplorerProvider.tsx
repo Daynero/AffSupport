@@ -11,6 +11,7 @@ import {
 import type { TeamFolderNode, TeamMaterialRow } from '@video-compressor/shared';
 import { trackTeamIndexCompleted } from '../../analytics/service';
 import { compareNames } from './sort';
+import { useCatalogRead } from '../catalog/CatalogFreshness';
 
 /**
  * The explorer's shared state (011): the one-call folder tree, the open
@@ -71,6 +72,7 @@ export function ExplorerProvider({
   onFolderChange?: (folderId: string | null) => void;
   children: ReactNode;
 }) {
+  const beginRead = useCatalogRead(teamId);
   const [nodes, setNodes] = useState<TeamFolderNode[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -89,15 +91,20 @@ export function ExplorerProvider({
 
   const read = useCallback(
     async (reportFailure = false) => {
+      const status = beginRead();
       const sequence = ++readSequence.current;
       setLoading(true);
       try {
         const value = await client.listFolderTree(teamId);
-        if (!activeRef.current || sequence !== readSequence.current) return;
+        if (!activeRef.current || sequence !== readSequence.current) {
+          if (reportFailure) throw new Error('CATALOG_REFRESH_SUPERSEDED');
+          return;
+        }
         // The server orders by byte, the list beside the tree by the reader's language: in
         // Ukrainian "Вставки" came first in the list and last in the tree.
         setNodes([...value].sort((a, b) => compareNames(a.name, b.name)));
         setError(false);
+        status.succeed();
         // FR-035: the moment every folder is listed, once per indexing run.
         const unindexed = value.filter(node => node.indexedAt === null).length;
         if (unindexed > 0 && indexingSince.current === null) indexingSince.current = Date.now();
@@ -110,15 +117,16 @@ export function ExplorerProvider({
           indexingSince.current = null;
         }
       } catch {
+        status.fail();
         if (activeRef.current && sequence === readSequence.current) {
           setError(true);
-          if (reportFailure) throw new Error('FOLDER_TREE_REFRESH_FAILED');
         }
+        if (reportFailure) throw new Error('FOLDER_TREE_REFRESH_FAILED');
       } finally {
         if (activeRef.current && sequence === readSequence.current) setLoading(false);
       }
     },
-    [client, teamId]
+    [client, teamId, beginRead]
   );
 
   useEffect(() => {

@@ -33,7 +33,7 @@ export interface ExplorerClipboard {
   take: (mode: 'copy' | 'cut', items: ExplorerClipboardItem[]) => void;
   /** Whether there is anything to paste. */
   has: () => boolean;
-  paste: () => Promise<void>;
+  paste: (destinationFolderId?: string | null) => Promise<void>;
 }
 
 export function useExplorerClipboard({
@@ -61,101 +61,107 @@ export function useExplorerClipboard({
     items: ExplorerClipboardItem[];
   } | null>(null);
 
-  const paste = useCallback(async () => {
-    const clip = clipboard.current;
-    if (!clip) return;
-    if (clip.mode === 'copy' && !permissions?.upload) return;
-    if (clip.mode === 'cut' && !permissions?.edit) return;
-    // The Drive API cannot copy folders; a cut (move) handles them fine.
-    const items =
-      clip.mode === 'copy' ? clip.items.filter(item => item.kind !== 'folder') : clip.items;
-    const skipped = clip.items.length - items.length;
-    if (items.length === 0) {
-      push({ tone: 'error', text: t('teamExplorerPasteFoldersOnly') });
-      return;
-    }
-    let done = 0;
-    // Copying a file is a Drive-side operation per file, and each one brings its
-    // transcript with it — twenty pasted videos is forty round trips. A single
-    // line that counts is the difference between "nothing is happening" and
-    // "this is going to take a moment".
-    const progress = push({
-      tone: 'info',
-      sticky: true,
-      progress: 0,
-      text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
-        done: 0,
-        total: items.length
-      })
-    });
-    if (clip.mode === 'cut') {
-      const outcome = await moveWorkspaceMaterials({
-        teamId,
-        items,
-        destinationFolderId: currentFolderId ?? null,
-        conflictMode: 'keep_both',
-        client: tailClient,
-        onProgress: state => {
-          done = state.completed;
-          update(progress, {
-            progress: state.progress,
-            text: t('teamExplorerPastingMove', { done, total: items.length })
-          });
-        }
+  const paste = useCallback(
+    async (destinationFolderId: string | null = currentFolderId) => {
+      const clip = clipboard.current;
+      if (!clip) return;
+      if (clip.mode === 'copy' && !permissions?.upload) return;
+      if (clip.mode === 'cut' && !permissions?.edit) return;
+      // The Drive API cannot copy folders; a cut (move) handles them fine.
+      const items =
+        clip.mode === 'copy' ? clip.items.filter(item => item.kind !== 'folder') : clip.items;
+      const skipped = clip.items.length - items.length;
+      if (items.length === 0) {
+        push({ tone: 'error', text: t('teamExplorerPasteFoldersOnly') });
+        return;
+      }
+      let done = 0;
+      // Copying a file is a Drive-side operation per file, and each one brings its
+      // transcript with it — twenty pasted videos is forty round trips. A single
+      // line that counts is the difference between "nothing is happening" and
+      // "this is going to take a moment".
+      const progress = push({
+        tone: 'info',
+        sticky: true,
+        progress: 0,
+        text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
+          done: 0,
+          total: items.length
+        })
       });
-      if (outcome.error) push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
-    } else {
-      for (const item of items) {
-        try {
-          const material = { id: item.id, name: item.name, category: item.category };
-          await copyMaterialWithTail({
-            teamId,
-            material,
-            destinationFolderId: currentFolderId ?? null,
-            client: tailClient
-          });
-          done += 1;
-          update(progress, {
-            progress: (done / items.length) * 100,
-            text: t(clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove', {
-              done,
-              total: items.length
-            })
-          });
-        } catch (cause) {
-          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-          break;
+      if (clip.mode === 'cut') {
+        const outcome = await moveWorkspaceMaterials({
+          teamId,
+          items,
+          destinationFolderId,
+          conflictMode: 'keep_both',
+          client: tailClient,
+          onProgress: state => {
+            done = state.completed;
+            update(progress, {
+              progress: state.progress,
+              text: t('teamExplorerPastingMove', { done, total: items.length })
+            });
+          }
+        });
+        if (outcome.error) push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
+      } else {
+        for (const item of items) {
+          try {
+            const material = { id: item.id, name: item.name, category: item.category };
+            await copyMaterialWithTail({
+              teamId,
+              material,
+              destinationFolderId,
+              client: tailClient
+            });
+            done += 1;
+            update(progress, {
+              progress: (done / items.length) * 100,
+              text: t(
+                clip.mode === 'copy' ? 'teamExplorerPastingCopy' : 'teamExplorerPastingMove',
+                {
+                  done,
+                  total: items.length
+                }
+              )
+            });
+          } catch (cause) {
+            push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+            break;
+          }
         }
       }
-    }
-    if (clip.mode === 'cut') clipboard.current = null;
-    if (done > 0) {
-      changed();
-      clearSelection();
-      update(progress, {
-        tone: 'success',
-        sticky: false,
-        progress: undefined,
-        text: t('teamExplorerPastedCount', { count: done })
-      });
-      if (skipped > 0) {
-        push({ tone: 'error', text: t('teamExplorerPasteFoldersSkipped', { count: skipped }) });
+      if (clip.mode === 'cut') clipboard.current = null;
+      if (done > 0) {
+        changed();
+        clearSelection();
+        update(progress, {
+          tone: 'success',
+          sticky: false,
+          progress: undefined,
+          text: t('teamExplorerPastedCount', { count: done })
+        });
+        if (skipped > 0) {
+          push({ tone: 'error', text: t('teamExplorerPasteFoldersSkipped', { count: skipped }) });
+        }
+      } else {
+        dismiss(progress);
       }
-    } else {
-      dismiss(progress);
-    }
-  }, [
-    changed,
-    clearSelection,
-    currentFolderId,
-    dismiss,
-    permissions,
-    push,
-    t,
-    tailClient,
-    teamId,
-    update
-  ]);
+    },
+    [
+      changed,
+      clearSelection,
+      currentFolderId,
+      dismiss,
+      permissions,
+      push,
+      t,
+      tailClient,
+      teamId,
+      update
+    ]
+  );
 
   return {
     take: (mode, items) => {

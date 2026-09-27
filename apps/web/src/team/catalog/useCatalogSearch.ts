@@ -9,6 +9,7 @@ import {
 } from '@video-compressor/shared';
 import { useTeam } from '../TeamContext';
 import { isHousekeepingFile } from './housekeeping';
+import { useCatalogRead } from './CatalogFreshness';
 import {
   completeTeamFindFlow,
   startTeamFindFlow,
@@ -68,7 +69,7 @@ export function useCatalogSearch(input: {
     scope
   } = input;
   const scopeKey = `${scope?.parentFolderId ?? ''}|${(scope?.kinds ?? []).join(',')}`;
-  const { revision, realtimeState } = useTeam();
+  const { revision } = useTeam();
   const [query, setQuery] = useState(initialQuery);
   const [filters, setFilters] = useState<CatalogSearchFilters>(initialFilters ?? EMPTY_FILTERS);
   const [page, setPage] = useState(1);
@@ -82,7 +83,6 @@ export function useCatalogSearch(input: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const requestSequence = useRef(0);
-  const lastRealtimeState = useRef(realtimeState);
   // Held in a ref, not a dependency: an inline callback would change identity
   // every render and restart the debounced fetch forever.
   const onSearchedRef = useRef(onSearched);
@@ -130,9 +130,11 @@ export function useCatalogSearch(input: {
       }),
     [filters, fixedFilters, page, query]
   );
+  const beginRead = useCatalogRead(teamId, request !== null);
 
   const refetch = useCallback(async () => {
     if (!request) return;
+    const status = beginRead();
     const sequence = ++requestSequence.current;
     const cue = (['geo', 'offer', 'language', 'category'] as const).find(
       key => request.filters[key].length > 0
@@ -159,6 +161,7 @@ export function useCatalogSearch(input: {
         items: next.items.filter(material => !isHousekeepingFile(material.name))
       });
       setError(false);
+      status.succeed();
       if (findFlow.current) {
         completeTeamFindFlow(findFlow.current, {
           outcome: next.items.length > 0 ? 'success' : 'failure',
@@ -167,6 +170,7 @@ export function useCatalogSearch(input: {
         findFlow.current = null;
       }
     } catch {
+      status.fail();
       if (sequence !== requestSequence.current) return;
       setResult(null);
       setError(true);
@@ -178,19 +182,12 @@ export function useCatalogSearch(input: {
       if (sequence === requestSequence.current) setLoading(false);
     }
     // scopeKey stands in for the scope object's identity.
-  }, [client, filters, request, teamId, scopeKey]);
+  }, [client, filters, request, teamId, scopeKey, beginRead]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refetch(), debounceMs);
     return () => window.clearTimeout(timer);
   }, [debounceMs, refetch, revision]);
-
-  useEffect(() => {
-    if (lastRealtimeState.current !== 'connected' && realtimeState === 'connected') {
-      void refetch();
-    }
-    lastRealtimeState.current = realtimeState;
-  }, [realtimeState, refetch]);
 
   const setFacet = useCallback((key: keyof CatalogSearchFilters, value: string | null) => {
     setPage(1);

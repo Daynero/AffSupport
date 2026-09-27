@@ -13,7 +13,9 @@ describe('beta startup flow', () => {
   });
 
   it('serves source beta through the pinned web workspace', () => {
-    expect(START).toContain("['run', 'dev:beta', '--workspace', '@video-compressor/web']");
+    expect(START).toContain("'node_modules/vite/bin/vite.js'");
+    expect(START).toContain("path.resolve('apps/web')");
+    expect(START).not.toContain("start('web', 'npm'");
     expect(START).not.toContain("start('web', 'npx'");
   });
 

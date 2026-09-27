@@ -543,6 +543,37 @@ No production migration/deployment, two-account beta acceptance, Windows picker
 validation or provider-load benchmark has been performed. These checks do not
 complete T016/T034/T060 or prove that T012–T013 runtime adoption is finished.
 
+### Review-fix verification, 2026-09-27
+
+- The seven review fixes cover journal lease/CAS ownership, retry probing and
+  cancellation, complete destination conflict lookup, catalog postconditions,
+  explicit paste destination, superseded reads, and visible-catalog freshness
+  after Realtime invalidation. A subsequent edge-case pass prevented a lease
+  renewal from racing release and stopped an empty search from holding the
+  freshness indicator pending.
+- Focused journal, upload, postcondition and Realtime suites passed **36/36**;
+  web TypeScript passed. Static verification passed **13/13**. After starting
+  the local Supabase stack, release E2E passed **8/8**, including database,
+  accessibility and browser CSP checks.
+- The full fast suite ran after these fixes. Its only failures were the three
+  existing web download budgets: total **860,582 B > 635,811 B**, entry
+  **6,022 B > 5,645 B**, and largest chunk **122,173 B > 95,563 B**.
+  The largest asset is the shared CSS; HeroUI/UI chunks also dominate the
+  bundle. At this checkpoint neither `npm run verify` nor T060 was a PASS.
+  The 024 migration's T143 still requires a final remeasurement after its CSS
+  cleanup.
+- Release decision after that run: the 026 sync release may use a **temporary**
+  baseline measured from the same 91 built assets (860,582 B total / 6,022 B
+  entry / 122,173 B largest). The original 021 numbers and the explicit
+  post-CSS-cleanup remeasurement obligation are preserved in
+  `performance-baseline.json` and 024 T143. This does not complete the 024
+  design migration or its final weight review.
+- With that provisional baseline, the budget suite passed **4/4** and the
+  complete `npm run verify` passed **14/14 gates** (3,977 tests passed, 9
+  skipped). Earlier release E2E remained **8/8**; a new full
+  `npm run verify:release` and the manual two-account/Windows acceptance runs
+  are not claimed by this checkpoint.
+
 Зупинити локальну beta:
 
 ```bash

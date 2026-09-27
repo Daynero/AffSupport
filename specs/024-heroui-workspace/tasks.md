@@ -884,7 +884,10 @@ processed copy from the attachment, and see all three on the task without it clo
 - [ ] T142 Run the accessibility gate; `a11y-baseline.json` must show no new violation.
 - [ ] T143 Build, measure, and re-ratchet `performance-baseline.json` **once**, against T008's
       before-numbers, with a note naming both halves — the library added and the CSS deleted
-      (SC-013).
+      (SC-013). The baseline was provisionally raised for the 026 sync release on 2026-09-27
+      (860,582 B total / 6,022 B entry / 122,173 B largest). Do not treat that as completing
+      T143: compare both this temporary baseline and the original 021 values recorded in
+      `performance-baseline.json`, then set the final post-cleanup budget.
 - [ ] T144 Regenerate the CSP headers; `generate:csp:check` must report no drift.
 - [ ] T145 Run `npx prettier --write apps packages tests scripts docs`, then `npm run lint` and
       the full gate list from quickstart.

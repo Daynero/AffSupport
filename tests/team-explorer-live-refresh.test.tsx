@@ -36,6 +36,35 @@ const row = (index: number): TeamMaterialRow => ({
 });
 
 describe('visible explorer window refresh', () => {
+  it('rejects a strict refresh superseded by a newer read instead of confirming success', async () => {
+    let release!: (value: FolderPage) => void;
+    const client = {
+      listFolderPage: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [row(1)], total: 1, next: null })
+        .mockImplementationOnce(
+          () =>
+            new Promise<FolderPage>(resolve => {
+              release = resolve;
+            })
+        )
+        .mockResolvedValue({ rows: [row(3)], total: 1, next: null })
+    };
+    const view = renderHook(() => useFolderPage({ teamId, client, parentFolderId: 'root' }));
+    await waitFor(() => expect(view.result.current.rows).toHaveLength(1));
+    let strict!: Promise<void>;
+    act(() => {
+      strict = view.result.current.reloadStrict();
+    });
+    await act(async () => {
+      await view.result.current.reload();
+    });
+    await act(async () => {
+      release({ rows: [row(2)], total: 1, next: null });
+      await expect(strict).rejects.toThrow('CATALOG_REFRESH_SUPERSEDED');
+    });
+    expect(view.result.current.rows[0]?.id).toBe('id-3');
+  });
   it('ignores a search response from the previous team', async () => {
     let releaseOld!: (value: CatalogSearchResponse) => void;
     const old = new Promise<CatalogSearchResponse>(resolve => {

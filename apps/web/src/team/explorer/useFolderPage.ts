@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isHousekeepingFile } from '../catalog/housekeeping';
+import { useCatalogRead } from '../catalog/CatalogFreshness';
 import type {
   FolderPage,
   FolderPageCursor,
@@ -65,6 +66,7 @@ export function useFolderPage(input: {
   beforeRowsReplace?: () => void;
 }): FolderPageState {
   const { teamId, client, parentFolderId, kinds, revision = 0, beforeRowsReplace } = input;
+  const beginRead = useCatalogRead(teamId);
   const [rows, setRows] = useState<TeamMaterialRow[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [next, setNext] = useState<FolderPageCursor | null>(null);
@@ -81,6 +83,7 @@ export function useFolderPage(input: {
 
   const fetchPage = useCallback(
     async (after: FolderPageCursor | null, replace: boolean, reportFailure = false) => {
+      const read = beginRead();
       const token = ++generation.current;
       setLoading(true);
       try {
@@ -111,7 +114,9 @@ export function useFolderPage(input: {
         setNext(page.next);
         if (!replace) loadedPages.current += 1;
         setError(false);
+        read.succeed();
       } catch {
+        read.fail();
         if (token === generation.current) setError(true);
         if (reportFailure) throw new Error('FOLDER_PAGE_REFRESH_FAILED');
       } finally {
@@ -119,11 +124,12 @@ export function useFolderPage(input: {
       }
     },
     // kindsKey stands in for the array identity.
-    [client, teamId, parentFolderId, kindsKey]
+    [client, teamId, parentFolderId, kindsKey, beginRead]
   );
 
   const refreshWindow = useCallback(
     async (reportFailure = false) => {
+      const read = beginRead();
       const token = ++generation.current;
       const targetPages = loadedPages.current;
       setLoading(true);
@@ -148,7 +154,10 @@ export function useFolderPage(input: {
                 }),
                 FOLDER_PAGE_TIMEOUT_MS
               );
-              if (token !== generation.current) return;
+              if (token !== generation.current) {
+                if (reportFailure) throw new Error('CATALOG_REFRESH_SUPERSEDED');
+                return;
+              }
               const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
               visible.push(...kept);
               hidden += page.rows.length - kept.length;
@@ -164,10 +173,15 @@ export function useFolderPage(input: {
             setTotal(Math.max(0, totalRows - hidden));
             setNext(cursor);
             setError(false);
+            read.succeed();
             return;
           } catch {
-            if (token !== generation.current) return;
+            if (token !== generation.current) {
+              if (reportFailure) throw new Error('CATALOG_REFRESH_SUPERSEDED');
+              return;
+            }
             if (attempt === 2) {
+              read.fail();
               setError(true);
               if (reportFailure) throw new Error('FOLDER_PAGE_REFRESH_FAILED');
             }
@@ -177,7 +191,7 @@ export function useFolderPage(input: {
         if (token === generation.current) setLoading(false);
       }
     },
-    [client, teamId, parentFolderId, kindsKey]
+    [client, teamId, parentFolderId, kindsKey, beginRead]
   );
 
   useEffect(() => {
