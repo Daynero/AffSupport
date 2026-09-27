@@ -200,7 +200,7 @@ describe('workspace move coordinator', () => {
     };
     const rows: TeamMaterialRow[] = [
       { ...base, id: 'folder', name: 'Target', kind: 'folder', driveFileId: 'drive-target' },
-      { ...base, id: 'file', name: 'source.txt', kind: 'file', driveFileId: 'drive-file' }
+      { ...base, id: 'file', name: 'source.txt', kind: 'document', driveFileId: 'drive-file' }
     ];
     const folders: TeamFolderNode[] = [
       {
@@ -224,6 +224,12 @@ describe('workspace move coordinator', () => {
     const client = {
       listFolderTree: vi.fn().mockResolvedValue(folders),
       listFolderPage: vi.fn(async (): Promise<FolderPage> => ({ rows, total: 2, next: null })),
+      listFolderSubtree: vi.fn().mockResolvedValue({
+        videos: [],
+        landings: [],
+        foldersVisited: 1,
+        truncated: false
+      }),
       mintThumbnailSession: vi.fn().mockRejectedValue(new Error('unused')),
       thumbnailUrl: () => '',
       listMaterials: vi.fn().mockResolvedValue([]),
@@ -263,7 +269,8 @@ describe('workspace move coordinator', () => {
       </ToastProvider>
     );
     const file = (await screen.findByText('source.txt')).closest('[role="row"]')!;
-    const folder = screen.getAllByText('Target')
+    const folder = screen
+      .getAllByText('Target')
       .map(element => element.closest('[role="row"]'))
       .find((row): row is HTMLElement => row instanceof HTMLElement)!;
     fireEvent.dragStart(file, { dataTransfer });

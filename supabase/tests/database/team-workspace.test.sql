@@ -1,6 +1,6 @@
 begin;
 
-select plan(305);
+select plan(307);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -228,7 +228,7 @@ select is_empty(
           'delete_google_drive_credential', 'create_drive_oauth_transaction',
           'consume_drive_oauth_transaction', 'issue_team_transfer_grant',
           'consume_team_transfer_grant', 'revoke_team_transfer_grants',
-          'enqueue_catalog_sync', 'claim_catalog_sync_jobs',
+          'enqueue_catalog_sync',
           'checkpoint_catalog_sync_job', 'commit_team_transcript',
           'tombstone_team_material'
         ))
@@ -241,7 +241,8 @@ select is_empty(
           'service_get_material_operation_context', 'service_resolve_team_folder',
           'service_find_team_name_conflicts', 'service_transition_team_operation',
           'service_release_team_name_reservation', 'service_finalize_uploaded_material',
-          'service_commit_team_text_edit', 'service_commit_team_material_mutation'
+          'service_commit_team_text_edit', 'service_commit_team_material_mutation',
+          'service_claim_catalog_sync_work'
         ))
       )
       and not has_function_privilege('service_role', p.oid, 'execute')
@@ -3634,8 +3635,24 @@ select throws_ok(
   $$,
   '42501',
   'PERMISSION_DENIED',
-  'only the space owner can queue a full Drive resync'
+  'only a space owner or admin can queue a full Drive resync'
 );
+insert into public.team_members (team_id, user_id, base_role)
+values ((select id from pg_temp.us7_same_root_team),
+  '10000000-0000-4000-8000-000000000002', 'admin');
+select is(
+  private.team_role((select id from pg_temp.us7_same_root_team), auth.uid()),
+  'admin',
+  'the resync authorization check now runs as a space admin'
+);
+select is(
+  (select sync_job_id from public.request_team_catalog_resync((select id from pg_temp.us7_same_root_team))),
+  (select sync_job_id from pg_temp.us7_manual_resync),
+  'a space admin can join the existing full Drive resync'
+);
+delete from public.team_members
+where team_id = (select id from pg_temp.us7_same_root_team)
+  and user_id = '10000000-0000-4000-8000-000000000002';
 
 -- 024: a space can be renamed by its owner, keeping names unique among the owner's spaces.
 select throws_ok(

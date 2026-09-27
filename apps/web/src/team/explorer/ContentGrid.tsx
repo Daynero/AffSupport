@@ -327,9 +327,7 @@ function Tile({
         </div>
       )}
       <div className="team-explorer-tile-caption">
-        <span className="team-explorer-tile-name">
-          {row.name}
-        </span>
+        <span className="team-explorer-tile-name">{row.name}</span>
         {/* One quiet line under the name, as Drive and Frame.io draw it (024):
             the picture already says "image" or "video", so the kind is named
             only where there is no picture; then size and date. The colour tag

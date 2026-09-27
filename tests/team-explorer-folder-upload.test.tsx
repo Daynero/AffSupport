@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FolderPage, TeamFolderNode, TeamMaterialRow } from '@video-compressor/shared';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -15,7 +15,11 @@ import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { teamApi } from '../apps/web/src/api/team';
 import { uploadTeamFile } from '../apps/web/src/team/catalog/material-actions-client';
 import { makeTeam } from './team-space-fixtures';
-import { WorkspaceOperationsProvider } from '../apps/web/src/team/explorer/WorkspaceOperationsProvider';
+import {
+  WorkspaceOperationsProvider,
+  WorkspaceOperationsContextOverride,
+  type WorkspaceOperationsValue
+} from '../apps/web/src/team/explorer/WorkspaceOperationsProvider';
 
 vi.mock('../apps/web/src/team/catalog/material-actions-client', async importOriginal => {
   const actual =
@@ -104,6 +108,130 @@ afterEach(() => {
 });
 
 describe('folder intake in Explorer', () => {
+  it('reselects into the original destination through retry, never a fresh group', async () => {
+    testClient = client();
+    const retryUploadGroup = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('RESELECTION_MISMATCH'))
+      .mockResolvedValue({ state: 'succeeded' });
+    const startUploadGroup = vi.fn();
+    const onRetryComplete = vi.fn();
+    const value: WorkspaceOperationsValue = {
+      groups: [
+        {
+          id: 'retry-me',
+          teamId: team.id,
+          destination: { driveFolderId: 'drive-a', materialId: 'folder-a' },
+          state: 'partial',
+          stage: 'done',
+          items: [
+            {
+              clientItemKey: 'file:retry.txt:1',
+              relativePath: 'retry.txt',
+              idempotencyKey: 'key',
+              state: 'failed',
+              errorCode: 'DRIVE_UNAVAILABLE'
+            }
+          ]
+        }
+      ],
+      startUploadGroup,
+      retryUploadGroup,
+      cancelGroup: vi.fn()
+    };
+    render(
+      <ToastProvider>
+        <TeamProvider realtime={false} initialTeams={[team]}>
+          <WorkspaceOperationsContextOverride value={value}>
+            <ExplorerShell
+              teamId={team.id}
+              client={testClient}
+              retryGroupId="retry-me"
+              onRetryComplete={onRetryComplete}
+              query={{ ...emptyTeamRouteQuery(), folderId: 'drive-b', view: 'list' }}
+              onQueryChange={vi.fn()}
+              onFolderChange={vi.fn()}
+              onSearched={vi.fn()}
+            />
+          </WorkspaceOperationsContextOverride>
+        </TeamProvider>
+      </ToastProvider>
+    );
+    expect(screen.getByText(/Select the same files again/i)).toBeTruthy();
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'retry.txt')] } });
+    await waitFor(() => expect(retryUploadGroup).toHaveBeenCalledOnce());
+    expect(await screen.findByText(/This selection does not match the original set/i)).toBeTruthy();
+    expect(onRetryComplete).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { files: [new File(['x'], 'retry.txt')] } });
+    await waitFor(() => expect(retryUploadGroup).toHaveBeenCalledTimes(2));
+    expect(retryUploadGroup).toHaveBeenCalledWith(
+      'retry-me',
+      expect.objectContaining({
+        destination: { driveFolderId: 'drive-a', materialId: 'folder-a' }
+      })
+    );
+    expect(startUploadGroup).not.toHaveBeenCalled();
+    expect(onRetryComplete).toHaveBeenCalledOnce();
+  });
+
+  it('shows discovered folder counts while a child file is still being read', async () => {
+    testClient = client();
+    let deliver!: (file: File) => void;
+    const file = new File([], 'zero.txt');
+    const child = {
+      name: file.name,
+      isFile: true,
+      isDirectory: false,
+      file: (success: (value: File) => void) => {
+        deliver = success;
+      }
+    };
+    let batch = 0;
+    const root = {
+      name: 'root',
+      isFile: false,
+      isDirectory: true,
+      createReader: () => ({
+        readEntries: (success: (entries: unknown[]) => void) =>
+          success(batch++ === 0 ? [child] : [])
+      })
+    };
+    render(shell(null, true));
+    const zone = document.querySelector('.team-explorer-dropzone')!;
+    fireEvent.drop(zone, {
+      dataTransfer: { types: ['Files'], items: [{ webkitGetAsEntry: () => root }], files: [] }
+    });
+    expect(await screen.findByText('0 files and 1 folders found')).toBeTruthy();
+    expect(screen.getByRole('progressbar').hasAttribute('aria-valuenow')).toBe(false);
+    expect(deliver).toBeTypeOf('function');
+    await act(async () => deliver(file));
+    await waitFor(() => expect(uploadTeamFile).toHaveBeenCalled());
+  });
+
+  it('cancels delayed enumeration before any remote mutation', async () => {
+    testClient = client();
+    let deliver!: (file: File) => void;
+    const file = new File(['x'], 'later.txt');
+    const entry = {
+      name: file.name,
+      isFile: true,
+      isDirectory: false,
+      file: (success: (value: File) => void) => {
+        deliver = success;
+      }
+    };
+    render(shell(null, true));
+    fireEvent.drop(document.querySelector('.team-explorer-dropzone')!, {
+      dataTransfer: { types: ['Files'], items: [{ webkitGetAsEntry: () => entry }], files: [] }
+    });
+    expect(await screen.findByRole('button', { name: 'Cancel operation' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel operation' }));
+    await act(async () => deliver(file));
+    expect(uploadTeamFile).not.toHaveBeenCalled();
+    expect(teamApi.ensureUploadFolder).not.toHaveBeenCalled();
+  });
+
   it('preserves an empty dropped directory through the workspace coordinator', async () => {
     testClient = client();
     render(shell(null, true));

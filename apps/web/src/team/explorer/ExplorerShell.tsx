@@ -102,7 +102,10 @@ import {
   type LocalManifest,
   type LocalManifestSource
 } from './localManifest';
-import { useOptionalWorkspaceOperations } from './WorkspaceOperationsProvider';
+import {
+  useOptionalWorkspaceOperations,
+  type WorkspaceUploadRequest
+} from './WorkspaceOperationsProvider';
 
 export type ExplorerShellClient = ExplorerClient &
   FolderResyncClient &
@@ -172,6 +175,8 @@ const NO_COMPANIONS_OPEN: ReadonlySet<string> = new Set();
 
 export function ExplorerShell({
   teamId,
+  retryGroupId,
+  onRetryComplete,
   client,
   revision = 0,
   query,
@@ -190,6 +195,8 @@ export function ExplorerShell({
   trashReturnLabel
 }: {
   teamId: string;
+  retryGroupId?: string | null;
+  onRetryComplete?: () => void;
   client: ExplorerShellClient;
   revision?: number;
   query: TeamRouteQuery;
@@ -223,6 +230,8 @@ export function ExplorerShell({
     >
       <ExplorerBody
         teamId={teamId}
+        retryGroupId={retryGroupId}
+        onRetryComplete={onRetryComplete}
         client={client}
         revision={revision}
         query={query}
@@ -245,6 +254,8 @@ export function ExplorerShell({
 
 function ExplorerBody({
   teamId,
+  retryGroupId,
+  onRetryComplete,
   client,
   revision,
   query,
@@ -262,6 +273,8 @@ function ExplorerBody({
   trashReturnLabel
 }: {
   teamId: string;
+  retryGroupId?: string | null;
+  onRetryComplete?: () => void;
   client: ExplorerShellClient;
   revision: number;
   query: TeamRouteQuery;
@@ -909,7 +922,14 @@ function ExplorerBody({
         return;
       }
       // Capture the destination before any asynchronous directory enumeration.
-      const destination = {
+      const retryGroup = retryGroupId
+        ? workspaceOperations.groups.find(group => group.id === retryGroupId)
+        : null;
+      if (retryGroupId && !retryGroup) {
+        push({ tone: 'error', text: t('teamErrorUnknown') });
+        return;
+      }
+      const destination = retryGroup?.destination ?? {
         driveFolderId: currentFolderId,
         materialId: currentFolderId ? (nodeOf(currentFolderId)?.id ?? null) : null
       };
@@ -918,16 +938,51 @@ function ExplorerBody({
       );
       let forAll: UploadConflictChoice | null = null;
       let conflictQueue = Promise.resolve();
+      const enumeration = new AbortController();
       setUploading(count => count + 1);
+      const preparingToast = push({
+        tone: 'info',
+        sticky: true,
+        text: t('teamOperationRunning'),
+        stageLabel: t('teamWorkspaceStagePreparing'),
+        progress: 'indeterminate',
+        action: { label: t('teamOperationCancel'), run: () => enumeration.abort() }
+      });
+      let lastPreparationUpdate = 0;
       try {
-        const manifest = preparedManifest ?? (await buildLocalManifest(sources));
+        const manifest =
+          preparedManifest ??
+          (await buildLocalManifest(sources, {
+            onProgress: counts => {
+              const now = performance.now();
+              if (counts.files + counts.directories > 1 && now - lastPreparationUpdate < 150)
+                return;
+              lastPreparationUpdate = now;
+              update(preparingToast, {
+                detail: t('teamWorkspaceDiscovered', {
+                  files: counts.files,
+                  folders: counts.directories
+                })
+              });
+            },
+            signal: enumeration.signal
+          }));
+        if (enumeration.signal.aborted || manifest.issues.some(issue => issue.code === 'CANCELED'))
+          return;
+        update(preparingToast, {
+          detail: t('teamWorkspaceDiscovered', {
+            files: manifest.totalFiles,
+            folders: manifest.totalDirectories
+          })
+        });
+        dismiss(preparingToast);
         let remainingConflicts = manifest.entries.filter(
           entry =>
             entry.kind === 'file' &&
             entry.parentKey === null &&
             existingByName.has(entry.relativePath.toLocaleLowerCase())
         ).length;
-        const group = await workspaceOperations.startUploadGroup({
+        const request: WorkspaceUploadRequest = {
           teamId,
           destination,
           manifest,
@@ -960,30 +1015,54 @@ function ExplorerBody({
             await Promise.all([page.reloadStrict(), explorer.refreshStrict()]);
             onChanged?.();
           }
-        });
+        };
+        const group = retryGroup
+          ? await workspaceOperations.retryUploadGroup(retryGroup.id, request)
+          : await workspaceOperations.startUploadGroup(request);
+        if (retryGroup && group.state === 'succeeded') onRetryComplete?.();
         push({
-          tone: group.state === 'succeeded' ? 'success' : 'error',
+          tone:
+            group.state === 'succeeded'
+              ? 'success'
+              : group.state === 'partial' || group.state === 'canceled'
+                ? 'warning'
+                : 'error',
           text:
             group.state === 'succeeded'
               ? t('teamExplorerUploadedOne', { name: manifest.roots[0]?.name ?? '' })
-              : t('teamExplorerUploadIncomplete')
+              : group.state === 'partial'
+                ? t('teamWorkspacePartial')
+                : group.state === 'canceled'
+                  ? t('teamWorkspaceCanceled')
+                  : t('teamExplorerUploadIncomplete')
         });
       } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        push({
+          tone: 'error',
+          text:
+            retryGroup && cause instanceof Error && cause.message === 'RESELECTION_MISMATCH'
+              ? t('teamWorkspaceReselectMismatch')
+              : teamErrorMessageFor(cause, t)
+        });
       } finally {
+        dismiss(preparingToast);
         setUploading(count => Math.max(0, count - 1));
       }
     },
     [
       currentFolderId,
+      dismiss,
       explorer,
       nodeOf,
       onChanged,
+      onRetryComplete,
       page,
       permissions?.upload,
       push,
+      retryGroupId,
       t,
       teamId,
+      update,
       upload,
       workspaceOperations
     ]
@@ -1612,6 +1691,14 @@ function ExplorerBody({
           )}
         </div>
       </div>
+      {retryGroupId && (
+        <div role="status">
+          {t('teamWorkspaceReselect')}{' '}
+          <Button type="button" variant="secondary" onClick={onRetryComplete}>
+            {t('teamOperationClose')}
+          </Button>
+        </div>
+      )}
       <div
         className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}${
           uploading > 0 ? ' is-uploading' : ''

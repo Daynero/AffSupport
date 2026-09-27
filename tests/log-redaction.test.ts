@@ -38,6 +38,7 @@ async function captureLog() {
   });
 
   app.get('/api/images/:id/content', async () => ({ ok: true }));
+  app.post('/api/team/directory-intake/read', async () => ({ ok: true }));
   app.get('/pair', async (_request, reply) =>
     reply.redirect(`https://example.test/#agentToken=${TOKEN}`)
   );
@@ -101,5 +102,24 @@ describe('what reaches the log', () => {
     await app.close();
 
     expect(lines.join('\n')).not.toContain('private holiday');
+  });
+
+  it('does not log native directory grant, relative metadata, or file content', async () => {
+    const { app, lines } = await captureLog();
+    const grantId = 'private-native-grant-identifier';
+    const relativePath = 'Private Folder/client-secret.txt';
+    const content = 'private file content';
+    await app.inject({
+      method: 'POST',
+      url: '/api/team/directory-intake/read',
+      headers: { 'x-session-token': TOKEN },
+      payload: { grantId, relativePath, content }
+    });
+    await app.close();
+
+    const written = lines.join('\n');
+    expect(written).toContain('/api/team/directory-intake/read');
+    for (const secret of [grantId, relativePath, content, TOKEN])
+      expect(written).not.toContain(secret);
   });
 });

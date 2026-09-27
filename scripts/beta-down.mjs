@@ -1,10 +1,10 @@
 /**
  * Stops the beta environment cleanly.
  *
- * Anything still holding a beta port is asked to stop, then killed if it will
- * not; the local stack is stopped last. The command exits non-zero naming
- * whatever would not release, so "it looked like it stopped" is never the
- * outcome.
+ * Only a listener matching this beta invocation's ownership record is asked
+ * to stop, then killed if it will not; the local stack is stopped last. The
+ * command exits non-zero naming whatever would not release, so "it looked
+ * like it stopped" is never the outcome.
  */
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
@@ -98,7 +98,13 @@ for (let attempt = 0; attempt < 20; attempt += 1) {
   sleep(100);
 }
 for (const port of appPorts) {
-  for (const pid of listeners(port)) {
+  const pids = listeners(port);
+  if (!pids.length) continue;
+  if (!betaStopPolicy(ownership, { [String(port)]: pids }, BETA_PROFILE).ok) {
+    process.stderr.write(`Beta stop refused: listener on ${port} changed ownership.\n`);
+    process.exit(1);
+  }
+  for (const pid of pids) {
     try {
       process.kill(pid, 'SIGKILL');
     } catch {

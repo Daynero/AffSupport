@@ -244,6 +244,8 @@ export function WorkspaceShell({
     return () => window.clearInterval(timer);
   }, [health?.kind, refreshHealth]);
   const [batchSelectionOpen, setBatchSelectionOpen] = useState(false);
+  const [retryGroupId, setRetryGroupId] = useState<string | null>(null);
+  useEffect(() => setRetryGroupId(null), [teamId]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const spaceMenuTrigger = useRef<HTMLButtonElement>(null);
@@ -685,6 +687,19 @@ export function WorkspaceShell({
                    folder run "the whole space" and widened what a second press
                    of Start would touch. */
                         onOpen={() => navigateTo(hereRoute({ process: true }))}
+                        onRetryGroup={group => {
+                          setRetryGroupId(group.id);
+                          navigateTo(
+                            buildTeamRoute({
+                              spaceId: teamId,
+                              section: 'explorer',
+                              query: {
+                                ...emptyTeamRouteQuery(),
+                                folderId: group.destination.driveFolderId
+                              }
+                            })
+                          );
+                        }}
                       />
                       <CatalogUpdaterChip
                         state={catalogUpdater.state}
@@ -915,6 +930,8 @@ export function WorkspaceShell({
                       <ExplorerShell
                         key={`explorer:${teamId}`}
                         teamId={teamId}
+                        retryGroupId={retryGroupId}
+                        onRetryComplete={() => setRetryGroupId(null)}
                         client={client}
                         revision={revision + browserRevision}
                         query={

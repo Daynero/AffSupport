@@ -126,15 +126,15 @@
 - [x] T052 [US5] Підключити local journal, attempt-aware cancel/retry і reload reconciliation existing operation IDs у `WorkspaceOperationsProvider.tsx` та `useWorkspaceOperations.ts`; unfinalized uploads після reselection починати з byte0/new attempt, перед retry перевіряти lost-finalize outcome, succeeded items не дублювати.
 - [x] T053 [US5] Звести clipboard, moveTo/tree drop і context-menu дії в один coordinator через `apps/web/src/team/explorer/useExplorerClipboard.ts`, `ExplorerShell.tsx` та `apps/web/src/team/catalog/useMaterialActions.ts`; зберегти material tails і old/new parent invalidation.
 - [x] T054 [US5] Агрегувати confirmed offsets у `apps/web/src/team/explorer/useWorkspaceOperations.ts`, використовуючи чинний `apps/web/src/team/drive/resumableUpload.ts` callback; stage transition/new attempt явно змінює denominator, shared uploader не містить group state.
-- [ ] T055 [US5] Розширити `apps/web/src/components/toast.tsx` інвентарним determinate/indeterminate Progress, preparing/detail labels і throttled aria; local provider проєктує ≤3 тости та local summary через `apps/web/src/team/workspace/BackgroundWorkChip.tsx`, включно з sync status без додаткових progress запитів.
-- [ ] T056 [US5] Оновити local-only/reselection/session-only/partial/cancel тексти у `apps/web/src/i18n.ts`; catalog postcondition має пройти до success, dismissal не скасовує action.
+- [X] T055 [US5] Розширити `apps/web/src/components/toast.tsx` інвентарним determinate/indeterminate Progress, preparing/detail labels і throttled aria; local provider проєктує ≤3 тости та local summary через `apps/web/src/team/workspace/BackgroundWorkChip.tsx`, включно з sync status без додаткових progress запитів.
+- [X] T056 [US5] Оновити local-only/reselection/session-only/partial/cancel тексти у `apps/web/src/i18n.ts`; catalog postcondition має пройти до success, dismissal не скасовує action.
 
 ## Phase 10 — Наскрізне приймання
 
 **Мета**: Документація, реальні beta сценарії та proportionate verification.
 
 - [x] T057 [P] Оновити `docs/TEAM_WORKSPACE_OPERATIONS.md`: scope/coverage, локальний прогрес, відсутність shared percentage/history, recovery limits і native fallback.
-- [ ] T058 [P] Перевірити redaction metadata/native grant/logs у `tests/log-redaction.test.ts`; жодних local paths, file content, tokens у cloud telemetry.
+- [X] T058 [P] Перевірити redaction metadata/native grant/logs у `tests/log-redaction.test.ts`; жодних local paths, file content, tokens у cloud telemetry.
 - [ ] T059 Пройти macOS/Windows picker/drop parity, keyboard/screen-reader і 20 local groups, two-account sync та network-cost сценарії; записати evidence у `specs/026-reliable-folder-sync/quickstart.md`, відсутнє середовище позначати неперевіреним.
 - [ ] T060 Виконати npm run verify, relevant web/agent/shared builds і npm run verify:release для реалізації; читати канонічний `verification-result.json` та виправити feature failures.
 - [ ] T061 Звірити повноту `specs/026-reliable-folder-sync/spec.md`, `plan.md`, `tasks.md` і supporting contracts після реалізації; packaged-beta evidence збирати за `docs/BETA.md` для конкретного commit, production release не включати у завершення фічі.
@@ -192,3 +192,8 @@ Shared code у `engine.ts`, `transport.ts`, `ExplorerShell.tsx`, `api/team.ts` �
 ## Verification policy
 
 Документаційні зміни перевіряються форматуванням, IDs/dependencies і покриттям. Runtime gates, beta resets/builds, migrations та uploads виконуються лише на implementation/validation етапі. Наявну beta не скидати для підготовки документації.
+
+## Phase 11: Convergence
+
+- [X] T062 [US5] Додати локальне зведення завершених і перерваних груп з окремими станами, проблемними відносними шляхами, діями cancel/retry та явним reselection для незавершених uploads у `BackgroundWorkChip.tsx`/workspace UI; підключити наявні `cancelGroup`/`retryUploadGroup`, не повторювати succeeded items, перевірити keyboard/screen-reader і partial/reload у тестах per US5.5–6, FR-032–034 (partial).
+- [X] T063 [US5] Передавати bounded лічильники знайдених файлів/папок із `localManifest.ts` до indeterminate preparing toast під час enumeration; не додавати cloud progress I/O, перевірити інкрементальний показ, cancel і zero-byte/empty-only сценарії per US5.1, FR-029 (partial).

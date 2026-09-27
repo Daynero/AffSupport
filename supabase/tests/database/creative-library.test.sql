@@ -1,6 +1,6 @@
 begin;
 
-select plan(84);
+select plan(85);
 
 select has_table('public', 'team_upload_batches', 'upload batch authority exists');
 select has_table('public', 'team_upload_batch_items', 'upload batch items exist');
@@ -702,6 +702,14 @@ select set_config(
   'request.jwt.claim.sub',
   '10000000-0000-4000-8000-000000000002',
   true
+);
+select throws_ok(
+  $$select * from public.list_library_contribution_totals(
+    '20000000-0000-4000-8000-000000000001', null, null
+  )$$,
+  '42501',
+  'PERMISSION_DENIED',
+  'a foreign-team caller cannot read contribution aggregates'
 );
 select throws_ok(
   $$select * from public.list_team_tasks(

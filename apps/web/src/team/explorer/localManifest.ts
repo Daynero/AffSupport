@@ -49,6 +49,11 @@ export interface LocalManifest {
   totalDirectories: number;
   totalBytes: number;
 }
+export interface LocalManifestProgress {
+  files: number;
+  directories: number;
+  issues: number;
+}
 
 /** Convert a validated agent manifest without materializing file bytes in the browser. */
 export function buildNativeDirectoryManifest(
@@ -150,7 +155,7 @@ function dropBatch(
 /** Build a browser-only manifest. It contains File objects and must never be serialized to the server. */
 export async function buildLocalManifest(
   sources: LocalManifestSource[],
-  options: { signal?: AbortSignal } = {}
+  options: { signal?: AbortSignal; onProgress?: (counts: LocalManifestProgress) => void } = {}
 ): Promise<LocalManifest> {
   const manifest: LocalManifest = {
     roots: [],
@@ -164,12 +169,20 @@ export async function buildLocalManifest(
   const visited = new WeakSet<object>();
   const paths = new Set<string>();
   let halted = false;
+  const report = () =>
+    options.onProgress?.({
+      files: manifest.totalFiles,
+      directories: manifest.totalDirectories,
+      issues: manifest.issues.length
+    });
+  report();
   const issue = (code: LocalManifestIssueCode, relativePath?: string) => {
     manifest.issues.push({
       code,
       ...(relativePath ? { relativePath } : {}),
       recoverable: code !== 'INVALID_PATH'
     });
+    report();
   };
   const canceled = () => {
     if (!options.signal?.aborted) return false;
@@ -218,6 +231,7 @@ export async function buildLocalManifest(
       depth: relativePath.split('/').length - 1
     });
     manifest.totalDirectories += 1;
+    report();
     if (parentKey === null)
       manifest.roots.push({ clientItemKey, kind: 'directory', name: source.name });
     pending.push({ source, kind, relativePath, parentKey: clientItemKey });
@@ -270,6 +284,7 @@ export async function buildLocalManifest(
     });
     manifest.totalFiles += 1;
     manifest.totalBytes += file.size;
+    report();
     if (parentKey === null) manifest.roots.push({ clientItemKey, kind: 'file', name: file.name });
   };
 

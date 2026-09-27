@@ -70,6 +70,8 @@ export interface WorkspaceUploadRequest {
 }
 export interface WorkspaceOperationsValue {
   groups: WorkspaceOperationGroup[];
+  /** IndexedDB failed; recovery is limited to this browser session. */
+  sessionOnly?: boolean;
   startUploadGroup: (request: WorkspaceUploadRequest) => Promise<WorkspaceOperationGroup>;
   retryUploadGroup: (
     id: string,
@@ -166,6 +168,7 @@ export function WorkspaceOperationsProvider({
   children: ReactNode;
 }) {
   const [groups, setGroups] = useState<WorkspaceOperationGroup[]>([]);
+  const [sessionOnly, setSessionOnly] = useState(false);
   const { t } = useI18n();
   const toastHost = useOptionalToasts();
   const toastPush = toastHost?.push;
@@ -194,16 +197,20 @@ export function WorkspaceOperationsProvider({
   const activeTeam = useRef(teamId);
   activeTeam.current = teamId;
   useEffect(() => setGroups([]), [teamId]);
-  const publish = useCallback((group: WorkspaceOperationGroup) => {
-    if (group.teamId !== activeTeam.current) return;
-    setGroups(current => [group, ...current.filter(item => item.id !== group.id)]);
-  }, []);
+  const publish = useCallback(
+    (group: WorkspaceOperationGroup) => {
+      if (group.teamId !== activeTeam.current) return;
+      if (journal?.sessionOnly()) setSessionOnly(true);
+      setGroups(current => [group, ...current.filter(item => item.id !== group.id)]);
+    },
+    [journal]
+  );
 
   useEffect(() => {
     if (!toastPush || !toastUpdate || !toastDismiss) return;
-    const visible = groups.filter(group =>
-      ownedGroups.current.has(group.id) && group.stage !== 'done'
-    ).slice(0, 3);
+    const visible = groups
+      .filter(group => ownedGroups.current.has(group.id) && group.stage !== 'done')
+      .slice(0, 3);
     const visibleIds = new Set(visible.map(group => group.id));
     for (const [id, toastId] of toastIds.current) {
       if (visibleIds.has(id)) continue;
@@ -688,8 +695,8 @@ export function WorkspaceOperationsProvider({
   }, []);
 
   const value = useMemo<WorkspaceOperationsValue>(
-    () => ({ groups, startUploadGroup, retryUploadGroup, cancelGroup }),
-    [groups, startUploadGroup, retryUploadGroup, cancelGroup]
+    () => ({ groups, sessionOnly, startUploadGroup, retryUploadGroup, cancelGroup }),
+    [groups, sessionOnly, startUploadGroup, retryUploadGroup, cancelGroup]
   );
   return (
     <WorkspaceOperationsContext.Provider value={value}>

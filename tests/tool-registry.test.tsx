@@ -235,7 +235,7 @@ describe('web tool registry', () => {
     expect(sections.at(-1)?.classList.contains('home-section--spaces')).toBe(true);
   });
 
-  it('lists the spaces themselves, the remembered one first, each at its own address', () => {
+  it('links the remembered space directly and offers the full lobby for the others', () => {
     const first = '11111111-1111-4111-8111-111111111111';
     const second = '22222222-2222-4222-8222-222222222222';
     localStorage.setItem('wishly.active-team.v1', second);
@@ -245,8 +245,8 @@ describe('web tool registry', () => {
     const links = screen
       .getAllByRole('link')
       .filter(link => link.getAttribute('href')?.startsWith('/team/'));
-    expect(links.map(link => link.textContent)).toEqual(['Gambling', 'Nutra']);
-    expect(screen.getByText(translate('en', 'homeSpaceLast'))).toBeTruthy();
+    expect(links.map(link => link.textContent)).toEqual(['Gambling']);
+    expect(links[0].getAttribute('href')).toBe(`/team/${second}`);
     expect(screen.getByText(translate('en', 'teamRoleEditor'))).toBeTruthy();
 
     fireEvent.click(links[0]);

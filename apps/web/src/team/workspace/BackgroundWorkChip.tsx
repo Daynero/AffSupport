@@ -1,8 +1,13 @@
 import { useId, useState } from 'react';
 import { Modal } from '../../components/Modal';
+import { Button } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { useOptionalWorkspaceOperations } from '../explorer/WorkspaceOperationsProvider';
+import {
+  useOptionalWorkspaceOperations,
+  type WorkspaceOperationGroup
+} from '../explorer/WorkspaceOperationsProvider';
 import { useOptionalLibraryProcessing } from '../library/LibraryProcessingProvider';
+import { teamErrorMessage } from '../errors';
 import { WorkspaceChip } from './WorkspaceChip';
 
 const STAGE_KEY: Record<string, TranslationKey> = {
@@ -18,18 +23,26 @@ const STAGE_KEY: Record<string, TranslationKey> = {
  *
  * Batch progress used to exist only inside the dialog that started it, so
  * closing the window left the run invisible as well as — until this feature —
- * cancelled (finding B1, FR-032). Visible only while something is running:
- * a permanent chip would stop being a signal.
+ * cancelled (finding B1, FR-032). Local results stay discoverable while their
+ * journal metadata is retained, including after the initiating view closes.
  */
-export function BackgroundWorkChip({ onOpen }: { onOpen: () => void }) {
+export function BackgroundWorkChip({
+  onOpen,
+  onRetryGroup
+}: {
+  onOpen: () => void;
+  onRetryGroup?: (group: WorkspaceOperationGroup) => void;
+}) {
   const { t } = useI18n();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const summaryId = useId();
   const batch = useOptionalLibraryProcessing();
   const operations = useOptionalWorkspaceOperations();
   const active = operations?.groups.filter(group => group.stage !== 'done') ?? [];
+  const reviewable = operations?.groups.filter(group => group.stage === 'done').slice(0, 20) ?? [];
+  const visibleGroups = [...active, ...reviewable];
   const batchRunning = batch?.phase === 'running';
-  if (!batchRunning && active.length === 0) return null;
+  if (!batchRunning && visibleGroups.length === 0 && !operations?.sessionOnly) return null;
 
   const settled = batch ? batch.done + batch.skipped + batch.failed : 0;
   const total = batch ? Math.max(batch.total, settled + (batch.activeKind ? 1 : 0), 1) : 1;
@@ -46,34 +59,99 @@ export function BackgroundWorkChip({ onOpen }: { onOpen: () => void }) {
           {t('teamBatchChip', { done: batch.done, total })}
         </WorkspaceChip>
       )}
-      {active.length > 0 && (
+      {visibleGroups.length > 0 && (
         <>
           <WorkspaceChip
-            tone="busy"
-            busy
-            label={t('teamWorkspaceGroupsOpen', { count: active.length })}
+            tone={
+              active.length > 0
+                ? 'busy'
+                : reviewable.some(group => group.state !== 'succeeded')
+                  ? 'warn'
+                  : 'quiet'
+            }
+            busy={active.length > 0}
+            label={t('teamWorkspaceGroupsOpen', { count: visibleGroups.length })}
             onPress={() => setSummaryOpen(true)}
             opensDialog
           >
-            {t('teamWorkspaceGroupsChip', { count: active.length })}
+            {t('teamWorkspaceGroupsChip', { count: visibleGroups.length })}
           </WorkspaceChip>
           {summaryOpen && (
             <Modal labelledBy={summaryId} size="sm" onClose={() => setSummaryOpen(false)}>
               <h2 id={summaryId}>{t('teamWorkspaceGroupsTitle')}</h2>
               <ul>
-                {active.map(group => (
+                {visibleGroups.map(group => (
                   <li key={group.id}>
-                    {t(STAGE_KEY[group.stage] ?? 'teamOperationRunning')} —{' '}
+                    {t(
+                      group.state === 'interrupted_input_required'
+                        ? 'teamWorkspaceReselect'
+                        : group.state === 'partial'
+                          ? 'teamWorkspacePartial'
+                          : group.state === 'succeeded'
+                            ? 'teamOperationSucceeded'
+                            : group.state === 'failed'
+                              ? 'teamOperationFailed'
+                              : group.state === 'canceled'
+                                ? 'teamWorkspaceCanceled'
+                                : (STAGE_KEY[group.stage] ?? 'teamOperationRunning')
+                    )}{' '}
+                    —{' '}
                     {t('teamWorkspaceItemsProgress', {
                       done: group.items.filter(item => item.state === 'succeeded').length,
                       total: group.items.length
                     })}
+                    {group.items.some(
+                      item => item.state === 'failed' || item.state === 'skipped'
+                    ) && (
+                      <ul>
+                        {group.items
+                          .filter(item => item.state === 'failed' || item.state === 'skipped')
+                          .map(item => (
+                            <li key={item.clientItemKey}>
+                              {item.relativePath} —{' '}
+                              {item.errorCode === 'PARENT_FAILED'
+                                ? t('teamWorkspaceParentFailed')
+                                : item.errorCode
+                                  ? teamErrorMessage(item.errorCode, t)
+                                  : t('teamOperationFailed')}
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                    {group.stage !== 'done' && group.state !== 'interrupted_input_required' && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => operations?.cancelGroup(group.id)}
+                      >
+                        {t('teamOperationCancel')}
+                      </Button>
+                    )}
+                    {onRetryGroup &&
+                      group.state !== 'succeeded' &&
+                      (group.stage === 'done' || group.state === 'interrupted_input_required') && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setSummaryOpen(false);
+                            onRetryGroup(group);
+                          }}
+                        >
+                          {t('teamOperationRetry')}
+                        </Button>
+                      )}
                   </li>
                 ))}
               </ul>
             </Modal>
           )}
         </>
+      )}
+      {operations?.sessionOnly && (
+        <WorkspaceChip tone="warn" label={t('teamWorkspaceSessionOnly')}>
+          {t('teamWorkspaceSessionOnly')}
+        </WorkspaceChip>
       )}
     </>
   );

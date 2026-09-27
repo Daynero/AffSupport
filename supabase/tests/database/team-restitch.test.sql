@@ -101,8 +101,9 @@ select ok(
   (select bool_and(has_function_privilege('authenticated', p.oid, 'execute'))
    from pg_catalog.pg_proc as p
    join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname like '%restitch%'),
-  'signed-in callers may execute the re-stitch functions'
+   where n.nspname = 'public' and p.proname like '%restitch%'
+     and p.proname not like 'service_%'),
+  'signed-in callers may execute the caller-facing re-stitch functions'
 );
 
 -- The value checks are the last line of defence against a direct call; the shared clamp is

@@ -243,7 +243,7 @@ npm run beta:up
 - Final US6 check: the added discovered-subtree PGlite assertion passed in a
   **5/5** coverage suite, native pgTAP passed **8/8**, and static verify passed
   **13/13** gates. This static form runs no tests; it is not a full `npm run
-  verify` or `verify:release` result.
+verify` or `verify:release` result.
 - T029/T031 scheduler checks passed **8/8** in PGlite and **6/6** in isolated
   native PostgreSQL. They cover 3 user-priority claims plus one background
   claim, ten ready connections, checkpoint failure reset, seven simulated days
@@ -350,6 +350,194 @@ npm run beta:up
 - The earlier complete `npm run verify` was not green: 3 bundle-budget failures,
   2 space-settings failures and 1 tool-registry failure were reported. That full
   suite has not yet been rerun after this block.
+- 2026-09-26 local-only progress follow-up: `npm run verify` passed all 13
+  static/build gates but failed the unit suite (3,956 tests reported). The
+  failure list was three download-budget assertions, two space-settings cases,
+  one tool-registry case and one two-factor SQL case. A targeted rerun passed
+  two-factor SQL (14/14); the single space-settings callback case passed in
+  isolation (1/1), though it timed out in the combined rerun. The tool-registry
+  case still failed in isolation: it expected both remembered spaces but got
+  only the first. This is not a green `verify` result.
+- A fresh `npm run build -w @video-compressor/web` and
+  `npm run build -w @video-compressor/agent` passed. The download-budget test
+  still failed against fresh web assets: total gzip 858,282 versus 635,811
+  allowed, entry 6,027 versus 5,645, and largest chunk 122,173 versus 95,563.
+  The baseline must not be raised merely to make this gate green. Targeted
+  local-progress, realtime and Explorer tests passed 30/30; the native grant
+  log-redaction, operation-summary and coordinator tests passed 17/17 in a
+  separate run. No provider-backed 20/20 MVP run or two-account timing was
+  performed, and `verify:release` remains pending.
+- US1 targeted rerun on the same checkout passed `catalog-sync.test.ts` and
+  `team-folder-resync.test.tsx` **37/37**, covering finite sync and accepted
+  versus completed UI regressions. This is deterministic test evidence only;
+  the 20/20 provider-backed folder run, singleton/retry beta observation and
+  cross-account timing required by T016/T023 are still unverified.
+- `npm run verify:release` was also run on 2026-09-26. Its canonical
+  `verification-result.json` reports **13/14 gates**, 3,956 tests and a failed
+  suite gate; coverage has no final value because the suite failed. The six
+  reported failures were the same three fresh-asset download budgets, two
+  `space-settings` cases and the `tool-registry` expectation above. The
+  earlier fast form additionally reported one transient two-factor SQL failure;
+  its isolated 14/14 rerun passed. Neither verification form is a PASS, and
+  no production or beta promotion was attempted.
+- After T062–T063, `npm run verify` was rerun on 2026-09-26. The canonical
+  `verification-result.json` reports **13/14 gates**, 3,962 tests and a failed
+  suite gate. No new folder-sync test failure was reported. The five failures
+  were the same three fresh-asset download budgets, one `space-settings`
+  callback case (`STACK_TRACE_ERROR` only in the full suite), and the
+  `tool-registry` two-space expectation. All six `space-settings` tests passed
+  in isolation; the `tool-registry` expectation still fails in isolation
+  because the HomePage limit renders one space. This is not a full verify PASS.
+- Bundle triage on that build: the largest asset is the generated CSS at
+  **122,173 B gzip**, followed by shared `heroui` (**114,489 B**) and `ui`
+  (**109,187 B**) chunks. The local operations provider chunk is **7,009 B**.
+  The budget baseline was measured on 2026-09-14, before multiple subsequent
+  UI changes. This breakdown does not establish a single feature cause or
+  justify increasing the baseline; T060 stays open pending an intentional
+  budget review or reduction. `git diff --check` passed.
+- `npm run beta:doctor` on 2026-09-26 failed only its running-container-runtime
+  prerequisite. Colima is installed but `colima start` could not inspect its
+  existing VM: the host-agent socket under the external Colima data volume
+  refused the connection. No VM deletion/recreation or `beta:reset` was
+  attempted. Thus provider-backed 20/20, two-account timing, and packaged-beta
+  verification remain **unverified due to local environment**, not failed
+  product acceptance. Native Windows picker and real Google Drive load
+  scenarios are also unverified on this macOS host.
+- A later `colima status`/Docker check and `npm run beta:doctor` on 2026-09-26
+  still found no running container runtime. A non-destructive `colima start`
+  again failed while inspecting the existing instance because its Lima
+  host-agent socket refused the connection. `colima list` reports the default
+  profile as **Broken**, while a Lima hostagent process and the socket still
+  exist; `limactl list` does not find an instance under its default directory.
+  This points to a host runtime state/configuration problem, not a product
+  acceptance result. The existing VM/processes were not reset, killed or
+  deleted, and no beta data was changed.
+- A normal `colima stop` followed by `colima start` also left the existing
+  profile `Broken` with the same refused host-agent socket. No profile reset
+  or deletion was performed.
+- Later on 2026-09-26, a separate `soty-beta-026` Colima profile (4 CPU, 8 GiB)
+  started successfully after explicit DNS configuration. The broken `default`
+  VM was stopped through Lima's instance-scoped force-stop; its orphaned SSH
+  port-forward process was terminated after confirming it held only beta ports.
+  Neither VM disk was deleted. Supabase CLI's Colima socket detection matches
+  paths under `/.colima/`, so a local alias socket to the new profile was needed
+  for its vector container to mount the guest Docker socket. With that alias,
+  `beta:doctor` and `beta:up` passed; the local stack, web (5175), and agent
+  (43140) became healthy. This is infrastructure recovery, not provider-backed
+  feature acceptance.
+- The fresh beta database initially had no users, spaces, or Drive connection.
+  After backing up the 55 MiB of resettable `Soty Beta` local state to
+  `/Volumes/LaCie/DevData/Colima/beta-state-backup-026.qXwXL6`, documented
+  `beta:reset` applied the full migration chain and seeded one beta account and
+  one space. It cleared eight resettable local entries; models and runtime were
+  preserved. `beta:down`/`beta:up` then restored the seeded database. No Drive
+  connection exists yet, so US1 provider-backed 20/20 and two-account evidence
+  are still unverified.
+- Native PostgreSQL on the seeded beta stack passed **90/90** pgTAP assertions
+  across `folder-resync` (18), catalog ownership (14), scan generations (14),
+  discovered subtree (6), coverage health (8), fairness (6), retention (9),
+  workspace live state (8), and upload folder claim (7). These were run with
+  pgTAP created inside each test transaction; every file rolled back. The beta
+  fixture counts remained one user/one space afterward and pgTAP was not left
+  installed. The `supabase test db --local` wrapper itself failed to connect
+  through the host port-forward, so this is native SQL evidence, not a green
+  wrapper result.
+- A subsequent `npm run verify:release` after correcting the stale HomePage
+  shortcut expectation reported **13/14 gates** and 3,962 tests in canonical
+  `verification-result.json`. The suite still failed: the same three download
+  budgets, plus two `space-settings` UI cases. The first UI case exceeded the
+  default 5-second test timeout under the full suite; its successor then saw
+  duplicate `Sync now` buttons from the unfinished test. Both cases now have
+  15-second per-test timeouts without weakened assertions. Their targeted
+  rerun with `tool-registry` passed **23/23**, test typecheck and diff check
+  passed. At that checkpoint the whole release gate had **not** been rerun after
+  the second timeout adjustment. The budget ratchet belongs to
+  unfinished `specs/024-heroui-workspace` T143, which explicitly pairs added
+  UI-library weight with deleted CSS; it must not be raised in isolation here.
+- Convergence T062–T063 closed two US5 UI gaps. Browser manifest enumeration
+  now reports bounded discovered file/folder counts to an indeterminate
+  preparing toast; a delayed zero-byte child test sees the folder count before
+  enumeration finishes. The local summary retains terminal outcomes, exposes
+  failed relative paths and cancel, and routes retry to Explorer for explicit
+  reselection of the original manifest/destination. A mismatched reselection
+  stays in retry mode; it never falls back to a fresh group. Provider tests
+  retain the succeeded-item/lost-finalize guards. Focused manifest/provider/
+  Explorer/summary tests passed **29/29** after adding a delayed-enumeration
+  cancel regression (no remote write after cancel); the fast static form passed
+  **13/13 gates**. This does not supersede the failed full verification or
+  live keyboard/screen-reader and two-account acceptance in T059.
+- A repeat fast static verification on 2026-09-26 passed **13/13 gates**
+  (`npm run verify -- --gates=static`), including format, lint, all typechecks,
+  and design checks. This is not a full-suite or release result.
+- On 2026-09-27 local time, the repeated `npm run verify:release` reported
+  **13/14 gates** and 3,962 tests in canonical `verification-result.json`.
+  The two `space-settings` failures were caused by an ambiguous test query:
+  both the Explorer root and the Drive settings panel now have a `Sync now`
+  button. The tests now select the button inside the `Google Drive storage`
+  section and pass **6/6** in isolation; the full release suite reports no
+  `space-settings` failure. Its only reported failures are the three unchanged
+  download budgets: total 858,282 B versus 635,811 B allowed, entry 6,027 B
+  versus 5,645 B, and largest chunk 122,173 B versus 95,563 B. Web and agent
+  builds pass separately. The baseline remains unchanged pending the 024
+  HeroUI/CSS weight review (T143), so T060 is still open and this is not a
+  release-verification PASS.
+- The existing `soty-beta-026` Colima VM and seeded local beta were restarted
+  without reset. `beta:doctor` and `beta:up` passed using the profile's existing
+  `~/.colima/soty-beta-026/docker.sock` alias. The first `beta:up` attempt with
+  the external volume socket failed because Supabase vector could not reach its
+  guest Docker socket; the alias resolved that local runtime issue.
+- With the beta stack reachable, the standard `npm run test:db` first exposed
+  six failures across 549 assertions. Three `catalog-progress` assertions used
+  the retired ten-second schedule and lease-less worker signatures; one
+  re-stitch assertion incorrectly included service-only functions; and the
+  team-workspace grant list still required a retired claim helper. Those
+  contract tests now assert the current 30-second read-relief cadence, fenced
+  worker grants and caller-facing re-stitch API. The remaining failure was a
+  real authorization bug: a non-member's null role bypassed the owner/admin
+  check in `request_team_catalog_resync`. New migration
+  `20260927010000_catalog_resync_role_guard.sql` makes null membership a
+  denial without changing the function signature. Its rollback is documented;
+  generated local public types still match the checked-in RPC shape.
+- After that migration was tested in a rolled-back transaction and applied
+  **only to local beta**, `npm run test:db` passed **553/553** across 15 files.
+  The extra assertions confirm both non-member denial and administrator access.
+  This database result is newer than the last `verify:release`, which stopped
+  at the bundle-budget suite gate before reaching its database gate.
+- On the current checkout, `npm run verify -- --gates=static` passed **13/13**;
+  `npm run verify:release -- --gates=build` passed **5/5**; and
+  `npm run verify:release -- --gates=e2e` passed **8/8**, including the standard
+  database gate, accessibility gate and browser CSP smoke. The focused
+  catalog-sync, ownership and folder-resync Vitest files passed **42/42** after
+  the new migration. These split-phase results do not replace a full
+  `verify:release` PASS because the suite phase still fails its three web
+  download-budget assertions.
+- A further full `npm run verify:release` after the catalog role-guard migration
+  again passed all static gates and reported no other suite failure. It stopped
+  at the same three download budgets on freshly built assets: total 859,161 B
+  versus 635,811 B allowed, entry 6,028 B versus 5,645 B, and largest chunk
+  122,173 B versus 95,563 B. This run preceded the Creative Library SQL-only
+  fix below; its bundle sizes remain the relevant measured baseline.
+- A second nullable `NOT IN` guard was found in the existing Creative Library
+  contribution-aggregate RPC. A new foreign-team pgTAP assertion failed before
+  the fix (`caught: no exception`), then passed after
+  `20260927011000_library_totals_role_guard.sql` made missing membership an
+  explicit denial. The migration was exercised in a rolled-back local
+  transaction, its reverse guidance was documented, and generated types still
+  match the checked-in function signature. It was applied **only to local
+  beta**. The full `npm run test:db` suite then passed **554/554** across 15
+  files, and focused Creative Library security/contribution Vitest files passed
+  **6/6**. Neither guard migration has reached production.
+- The beta lifecycle exposed a separate process-ownership issue: `beta:up`
+  recorded the npm wrapper PID, while Vite listened from its child PID, so
+  `beta:down` treated its own web listener as borrowed. The launcher now starts
+  Vite directly from the web workspace. A subsequent local `beta:up` and
+  `beta:down` both passed; ports 43140 and 5175 were released without resetting
+  the seeded database. The static verification phase passed **13/13** after
+  this change.
+- `beta:down` now rechecks listener ownership before its `SIGKILL` escalation,
+  so a process that takes over a released beta port is not force-killed. The
+  beta-service policy tests passed **3/3**, static gates passed **13/13**, and
+  another live `beta:up` → `beta:down` cycle passed with both ports released.
 
 No production migration/deployment, two-account beta acceptance, Windows picker
 validation or provider-load benchmark has been performed. These checks do not

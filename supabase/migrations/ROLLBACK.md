@@ -1,5 +1,24 @@
 # Rollback notes
 
+## 20260927011000_library_totals_role_guard.sql
+
+This migration changes only the body of
+`public.list_library_contribution_totals(uuid,timestamptz,timestamptz)`; its
+signature, grants and generated types are unchanged. A safe rollback must keep
+the null-safe owner/admin guard while restoring any previous function body.
+Restoring the original nullable `NOT IN` expression would disclose another
+space's contribution aggregates to a non-member. No stored records change.
+
+## 20260927010000_catalog_resync_role_guard.sql
+
+This migration changes only the body of
+`public.request_team_catalog_resync(uuid)`; its signature, grants and generated
+types are unchanged. If it must be reverted, restore the previous definition
+from `20260921130000_admin_can_resync_drive.sql` only after replacing its
+nullable `NOT IN` guard with an equivalent null-safe owner/admin check. Restoring
+the vulnerable guard would let non-members request a full Drive resync. No jobs,
+connections or catalog rows need deletion.
+
 ## 20260924180000_upload_folder_claim.sql
 
 Stop new folder intake and let in-flight requests finish. Restore the prior

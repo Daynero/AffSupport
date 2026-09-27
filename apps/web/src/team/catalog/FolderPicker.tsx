@@ -40,9 +40,9 @@ export function FolderPicker({
   const { t } = useI18n();
   const titleId = useId();
   // The root has no material row of its own, so it is named rather than listed.
-  const [trail, setTrail] = useState<
-    { materialId: string; providerId: string; name: string }[]
-  >([]);
+  const [trail, setTrail] = useState<{ materialId: string; providerId: string; name: string }[]>(
+    []
+  );
   const [folders, setFolders] = useState<TeamMaterialSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const currentFolder = trail.at(-1) ?? null;

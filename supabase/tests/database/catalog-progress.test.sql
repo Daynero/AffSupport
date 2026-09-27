@@ -1,9 +1,9 @@
 begin;
-select plan(5);
+select plan(7);
 
 select is(
   (select schedule from cron.job where jobname = 'wishly-catalog-sync'),
-  '10 seconds', 'catalog continuations are eligible every ten seconds'
+  '30 seconds', 'catalog continuations use the read-relief cadence'
 );
 select is_empty(
   $$select p.oid::regprocedure::text from pg_catalog.pg_proc p
@@ -23,11 +23,17 @@ select is_empty(
   'browser callers cannot save or release worker progress'
 );
 select ok(has_function_privilege('service_role',
-  'public.service_save_catalog_sync_progress(uuid,text,text,text,text,jsonb,jsonb)', 'execute'),
-  'worker can save progress');
+  'public.service_save_catalog_sync_progress(uuid,text,bigint,text,text,text,jsonb,jsonb)', 'execute'),
+  'worker can save progress with a lease epoch');
 select ok(has_function_privilege('service_role',
+  'public.service_release_catalog_sync_job(uuid,text,bigint)', 'execute'),
+  'worker can release progress with a lease epoch');
+select ok(not has_function_privilege('service_role',
+  'public.service_save_catalog_sync_progress(uuid,text,text,text,text,jsonb,jsonb)', 'execute'),
+  'old workers cannot save progress without a lease epoch');
+select ok(not has_function_privilege('service_role',
   'public.service_release_catalog_sync_job(uuid,text)', 'execute'),
-  'worker can release progress');
+  'old workers cannot release progress without a lease epoch');
 
 select * from finish();
 rollback;

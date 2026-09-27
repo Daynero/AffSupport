@@ -1182,8 +1182,18 @@ export function TaskEditor({
                 role="group"
                 aria-labelledby="team-task-progress-title"
               >
-                {/* "0 / 100" on the caption line (024): the maximum is part of the reading, not
-                    a boxed field of its own that looked required on every task. */}
+                <TaskProgressScale
+                  value={progressValue}
+                  max={progressMax}
+                  disabled={!canEdit}
+                  label={t('teamTaskProgressScale')}
+                  onChange={setProgressValue}
+                  onCommit={next => {
+                    if (canEdit) progressWriter.send({ progressValue: next, progressMax });
+                  }}
+                />
+                {/* Keep the name and its value at the end of the scale: the bar and
+                    its reading are one control, not two stacked fields. */}
                 <div className="team-task-editor-progress-head">
                   <span id="team-task-progress-title" className="team-task-accounts-label">
                     {t('teamTaskProgressTitle')}
@@ -1236,16 +1246,6 @@ export function TaskEditor({
                       </Button>
                     )}
                 </div>
-                <TaskProgressScale
-                  value={progressValue}
-                  max={progressMax}
-                  disabled={!canEdit}
-                  label={t('teamTaskProgressScale')}
-                  onChange={setProgressValue}
-                  onCommit={next => {
-                    if (canEdit) progressWriter.send({ progressValue: next, progressMax });
-                  }}
-                />
               </div>
               {error && (
                 <ErrorState

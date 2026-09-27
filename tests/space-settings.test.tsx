@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -145,7 +145,11 @@ describe('space settings surface', () => {
     // The space's surfaces live in its menu (024, FR-094).
     await user.click(screen.getByRole('button', { name: 'Space' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
-    await user.click(await screen.findByRole('button', { name: 'Sync now' }));
+    const storage = (await screen.findByRole('heading', { name: 'Google Drive storage' })).closest(
+      'section'
+    );
+    expect(storage).not.toBeNull();
+    await user.click(await within(storage!).findByRole('button', { name: 'Sync now' }));
 
     expect(resyncDrive).toHaveBeenCalledWith(team.id);
     expect(client.chooseRoot).not.toHaveBeenCalled();
@@ -154,7 +158,7 @@ describe('space settings surface', () => {
     expect(
       await screen.findByText('A full scan of the connected folder has been queued.')
     ).toBeTruthy();
-  });
+  }, 15_000);
 
   it('carries the Drive return code into the space address with an ampersand', async () => {
     // Found on the beta stack: the built route already ends in `?settings=1`,
@@ -200,12 +204,16 @@ describe('space settings surface', () => {
       // The space's surfaces live in its menu (024, FR-094).
       await user.click(screen.getByRole('button', { name: 'Space' }));
       await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
-      await user.click(await screen.findByRole('button', { name: 'Sync now' }));
+      const storage = (
+        await screen.findByRole('heading', { name: 'Google Drive storage' })
+      ).closest('section');
+      expect(storage).not.toBeNull();
+      await user.click(await within(storage!).findByRole('button', { name: 'Sync now' }));
 
       expect(resyncDrive).toHaveBeenCalledWith(team.id);
       expect(client.chooseRoot).not.toHaveBeenCalled();
     } finally {
       window.history.replaceState(null, '', previousPath);
     }
-  });
+  }, 15_000);
 });

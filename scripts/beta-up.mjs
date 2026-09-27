@@ -93,8 +93,8 @@ const writtenEnvironment = [];
 const ownershipDirectory = 'release/automation';
 const ownershipPath = path.join(ownershipDirectory, 'beta-service.json');
 
-function start(label, command, args) {
-  const child = spawn(command, args, { shell: false, stdio: 'inherit', env: environment });
+function start(label, command, args, cwd) {
+  const child = spawn(command, args, { shell: false, stdio: 'inherit', env: environment, cwd });
   child.on('error', error => fail(`${label} could not start: ${error.message}`));
   child.on('exit', code => {
     if (code !== 0 && !shuttingDown) {
@@ -360,10 +360,23 @@ const bringStackUp = async () => {
   seedVadModel();
 
   start('agent', process.execPath, ['apps/agent/dist/index.js']);
-  // Run through the web workspace so npm resolves that workspace's pinned Vite
-  // version. Invoking `npx vite` from the repository root can pick Vitest's
-  // transitive Vite instead, which is incompatible with the web React plugin.
-  start('web', 'npm', ['run', 'dev:beta', '--workspace', '@video-compressor/web']);
+  // Spawn the workspace's pinned Vite directly. npm adds a child process, so
+  // recording npm's PID makes beta:down reject Vite's actual listener as borrowed.
+  start(
+    'web',
+    process.execPath,
+    [
+      'node_modules/vite/bin/vite.js',
+      '--mode',
+      'beta',
+      '--host',
+      '127.0.0.1',
+      '--port',
+      String(BETA_PROFILE.webPort),
+      '--strictPort'
+    ],
+    path.resolve('apps/web')
+  );
 };
 if (admission) await admission.withAdmission('readiness', bringStackUp);
 else await bringStackUp();

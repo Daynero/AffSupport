@@ -97,6 +97,29 @@ describe('local transfer manifest', () => {
     expect(result.issues).toEqual([]);
   });
 
+  it('reports discovered counts during traversal, including empty and zero-byte entries', async () => {
+    const snapshots: Array<{ files: number; directories: number; issues: number }> = [];
+    const result = await buildLocalManifest(
+      [
+        {
+          kind: 'directory_handle',
+          handle: handleDirectory('root', [
+            handleDirectory('empty'),
+            handleFile(localFile('zero.txt', 0))
+          ])
+        }
+      ],
+      { onProgress: counts => snapshots.push(counts) }
+    );
+    expect(snapshots).toEqual([
+      { files: 0, directories: 0, issues: 0 },
+      { files: 0, directories: 1, issues: 0 },
+      { files: 0, directories: 2, issues: 0 },
+      { files: 1, directories: 2, issues: 0 }
+    ]);
+    expect(result.totalBytes).toBe(0);
+  });
+
   it('compares Unicode-normalized names without changing the displayed spelling', async () => {
     const name = 'Cafe\u0301';
     const result = await buildLocalManifest([{ kind: 'file', file: localFile(name) }]);
