@@ -2226,6 +2226,7 @@ export const teamApi = {
     sourceLink: string;
     productCount: number;
     replacesMaterialId: string | null;
+    restitchOperationId?: string | null;
     idempotencyKey: string;
   }): Promise<ProductCatalogCreateResult> {
     return invokeTeamFunction(

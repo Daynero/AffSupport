@@ -278,16 +278,16 @@ export function snapToAacFrames(
   return { aacFrames: frames, seconds: (frames * AAC_FRAME_SAMPLES) / sampleRate };
 }
 
-/** True when `time` lands on one of the source's keyframes, within half a frame. */
+/** Only timestamp-rounding error is allowed: a nearby keyframe can still be the old screen. */
 export function isOnKeyframe(profile: SourceProfile, time: number): boolean {
   if (time <= 0) return true;
-  const tolerance = profile.frameRate > 0 ? 0.5 / profile.frameRate : 0.001;
+  const tolerance = 1e-6;
   return profile.keyframeTimes.some(candidate => Math.abs(candidate - time) <= tolerance);
 }
 
 /** The first keyframe strictly after `time`, or null when the source has none left. */
 export function nextKeyframeAfter(profile: SourceProfile, time: number): number | null {
-  const tolerance = profile.frameRate > 0 ? 0.5 / profile.frameRate : 0.001;
+  const tolerance = 1e-6;
   return profile.keyframeTimes.find(candidate => candidate > time + tolerance) ?? null;
 }
 

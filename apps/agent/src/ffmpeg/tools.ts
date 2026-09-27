@@ -120,13 +120,18 @@ export async function probeMedia(inputPath: string, command = ffprobePath): Prom
       ?.rotation ?? video.tags?.rotate
   );
   const rotated = rotation === 90 || rotation === 270;
+  const nominal = parseFrameRate(video.r_frame_rate);
+  const average = parseFrameRate(video.avg_frame_rate);
+  const differs = nominal && average && Math.abs(nominal - average) / nominal > 0.01;
+  const bodyRate = differs ? await probeBodyFrameRate(inputPath, nominal, command) : null;
 
   return {
     duration,
     videoDuration,
     width: rotated ? codedHeight : codedWidth,
     height: rotated ? codedWidth : codedHeight,
-    frameRate: parseFrameRate(video.avg_frame_rate) ?? parseFrameRate(video.r_frame_rate),
+    // The average includes sparse held screens and cannot time individual body frames.
+    frameRate: bodyRate ?? average ?? nominal,
     nominalFrameRate: parseFrameRate(video.r_frame_rate) ?? parseFrameRate(video.avg_frame_rate),
     bitrate: streamBitrate ?? formatBitrate,
     codec: nonEmptyString(video.codec_name),
@@ -139,6 +144,57 @@ export async function probeMedia(inputPath: string, command = ffprobePath): Prom
     audioChannels: audio ? positiveNumber(audio.channels) : null,
     audioLayout: audio ? nonEmptyString(audio.channel_layout) : null
   };
+}
+
+/** Read the moving cadence when sparse screens make whole-file rates misleading.
+ * r_frame_rate can itself be a common multiple (e.g. 120 for a 30 fps body).
+ * Use packet spacing, and snap back to that exact rational divisor when it agrees.
+ */
+export async function probeBodyFrameRate(
+  inputPath: string,
+  nominal: number,
+  command = ffprobePath
+): Promise<number | null> {
+  const rates: number[] = [];
+  for (const start of [3, 15, 45]) {
+    const data = await probeJson(
+      [
+        '-v',
+        'error',
+        '-select_streams',
+        'v:0',
+        '-read_intervals',
+        `${start}%+4`,
+        '-show_entries',
+        'packet=pts_time',
+        '-of',
+        'json',
+        inputPath
+      ],
+      command
+    );
+    const packets: unknown[] = Array.isArray(data?.packets) ? data.packets : [];
+    const times = packets
+      .flatMap(packet => {
+        if (!packet || typeof packet !== 'object' || !('pts_time' in packet)) return [];
+        const value = Number(packet.pts_time);
+        return Number.isFinite(value) ? [value] : [];
+      })
+      .sort((a, b) => a - b);
+    const gaps = times
+      .slice(1)
+      .map((time, index) => time - times[index]!)
+      .filter(gap => gap > 0)
+      .sort((a, b) => a - b);
+    if (gaps.length < 5) continue;
+    const median = gaps[Math.floor(gaps.length / 2)]!;
+    if (!gaps.slice(1, -1).every(gap => Math.abs(gap - median) / median <= 0.02)) continue;
+    rates.push(1 / median);
+  }
+  if (!rates.length) return null;
+  const measured = Math.max(...rates);
+  const exact = nominal / Math.max(1, Math.round(nominal / measured));
+  return Math.abs(exact - measured) / measured <= 0.01 ? exact : measured;
 }
 
 export interface ImageInfo {

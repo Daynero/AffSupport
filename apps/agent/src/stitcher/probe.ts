@@ -10,7 +10,7 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parseSourceProfile, type SourceProfile } from '@video-compressor/shared';
-import { ffprobePath } from '../ffmpeg/tools.js';
+import { ffprobePath, probeBodyFrameRate } from '../ffmpeg/tools.js';
 import { runTool, toolSucceeded } from './run.js';
 
 export type ProbeFailure = 'unreadable' | 'tool-unavailable';
@@ -182,7 +182,9 @@ export function sourceProfileFromProbe(
 
   const nominal = parseRational(video.r_frame_rate);
   const average = parseRational(video.avg_frame_rate);
-  const frameRate = average ?? nominal;
+  // Sparse appended screens lower the whole-file average, not the body's cadence.
+  // This rate also controls frame-count limits when copying the body.
+  const frameRate = nominal ?? average;
   const duration = positive(format.duration) ?? positive(video.duration);
   const width = positive(video.width);
   const height = positive(video.height);
@@ -274,7 +276,12 @@ export async function probeSource(
   }
   const timing = await bodyTimingIsConstant(input, first.value.durationSeconds, options);
   if (timing === null) return first;
-  return sourceProfileFromProbe(parsed, facts, keyframeTimes, timing);
+  const result = sourceProfileFromProbe(parsed, facts, keyframeTimes, timing);
+  if (result.ok && timing) {
+    const measured = await probeBodyFrameRate(input, result.value.frameRate);
+    if (measured !== null) result.value.frameRate = measured;
+  }
+  return result;
 }
 
 /**

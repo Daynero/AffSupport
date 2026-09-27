@@ -127,7 +127,7 @@ export function PaneActions({
       {catalogOpen && (
         <ProductCatalogMenuDialog
           teamId={teamId}
-          video={{ id: row.id, name: row.name }}
+          video={{ id: row.id, name: row.name, parentFolderId: row.parentFolderId }}
           onClose={() => setCatalogOpen(false)}
           onChanged={onCompanionsChanged}
         />

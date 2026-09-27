@@ -1,14 +1,24 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
+import { Dices, Timer } from 'lucide-react';
+import {
+  restitchDefaultsSaveable,
+  type FinalImageDurationMode,
+  type TeamRestitchDefaults
+} from '@video-compressor/shared';
 import type {
   ProductCatalogCreateResult,
   ProductCatalogSettings,
   ProductCatalogSummary
 } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
+import { Button, Checkbox } from '../../components/ui';
 import { Button as InventoryButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { startTeamAgentProcess, agentCanRestitch } from '../../api/client';
+import { teamApi } from '../../api/team';
+import { formatMinutesInput, parseMinutesInput } from '../../components/ImageEmbeddingSection';
 import { teamErrorMessageFor } from '../errors';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { useTeam } from '../TeamContext';
@@ -23,12 +33,18 @@ import { ProductCatalogProgress } from './ProductCatalogProgress';
 
 export interface CreateProductCatalogClient {
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
+  getRestitchDefaults?: (teamId: string) => Promise<TeamRestitchDefaults | null>;
+  startProcess?: typeof teamApi.startProcess;
+  runAgentProcess?: typeof startTeamAgentProcess;
+  canRestitch?: typeof agentCanRestitch;
+  cancelOperation?: typeof teamApi.cancelOperation;
   createProductCatalog: (input: {
     teamId: string;
     videoMaterialId: string;
     sourceLink: string;
     productCount: number;
     replacesMaterialId: string | null;
+    restitchOperationId?: string | null;
     idempotencyKey: string;
   }) => Promise<ProductCatalogCreateResult>;
   /** The number the next variation will take, so its name shows before it is made (024). */
@@ -43,7 +59,7 @@ interface ShownCatalog {
 
 type Phase =
   | { kind: 'form' }
-  | { kind: 'busy' }
+  | { kind: 'busy'; step: 'restitch' | 'catalog' }
   | { kind: 'result'; heading: TranslationKey; catalog: ShownCatalog };
 
 function errorKey(error: unknown): TranslationKey | null {
@@ -77,7 +93,7 @@ export function CreateProductCatalogDialog({
   onCreated
 }: {
   teamId: string;
-  video: { id: string; name: string };
+  video: { id: string; name: string; parentFolderId?: string | null };
   /** The variation being replaced; absent to create one. */
   replaces?: ProductCatalogSummary | null;
   /** The video already has catalogs, so this one is a new variation beside them. */
@@ -101,6 +117,17 @@ export function CreateProductCatalogDialog({
   );
   const [touched, setTouched] = useState({ link: false, count: false });
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
+  const [restitch, setRestitch] = useState(false);
+  const [restitchDefaults, setRestitchDefaults] = useState<TeamRestitchDefaults | null | undefined>(
+    undefined
+  );
+  const [durationMode, setDurationMode] = useState<FinalImageDurationMode>('random-40-50');
+  const [customMinutes, setCustomMinutes] = useState('45');
+  const [processed, setProcessed] = useState<{
+    operationId: string;
+    choice: string;
+    catalogKey: string;
+  } | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
   const [failure, setFailure] = useState<string | null>(null);
   /*
@@ -139,10 +166,42 @@ export function CreateProductCatalogDialog({
     };
   }, [client, teamId]);
 
+  useEffect(() => {
+    if (!restitch) return;
+    let active = true;
+    setRestitchDefaults(undefined);
+    void (client.getRestitchDefaults ?? teamApi.getRestitchDefaults)(teamId)
+      .then(found => {
+        if (!active) return;
+        setRestitchDefaults(found);
+        if (found) {
+          setDurationMode(found.finalDurationMode);
+          setCustomMinutes(formatMinutesInput(found.customFinalDurationSeconds));
+        }
+      })
+      .catch(() => {
+        if (active) setRestitchDefaults(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, restitch, teamId]);
+
   const linkCheck = validateWebLink(link, SOURCE_LINK_MAX);
   const countCheck = validateProductCount(count);
   const settingsMissing = settings === null;
-  const canConfirm = linkCheck.ok && countCheck.ok && !settingsMissing && phase.kind === 'form';
+  const customSeconds = parseMinutesInput(customMinutes);
+  const durationValid = durationMode !== 'custom' || customSeconds !== null;
+  const canConfirm =
+    linkCheck.ok &&
+    countCheck.ok &&
+    !settingsMissing &&
+    (!restitch ||
+      (restitchDefaults !== undefined &&
+        restitchDefaults !== null &&
+        restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' }) &&
+        durationValid)) &&
+    phase.kind === 'form';
 
   /*
    * The server's own steps, in its own order (`drive-ops/product-catalog.ts`):
@@ -155,18 +214,75 @@ export function CreateProductCatalogDialog({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setTouched({ link: true, count: true });
-    if (!linkCheck.ok || !countCheck.ok || settingsMissing || phase.kind !== 'form') return;
-    setPhase({ kind: 'busy' });
+    if (!linkCheck.ok || !countCheck.ok || !canConfirm || phase.kind !== 'form') return;
+    setPhase({ kind: 'busy', step: restitch ? 'restitch' : 'catalog' });
     setFailure(null);
     try {
+      let restitchOperationId: string | null = null;
+      let catalogKey = `product-catalog:${crypto.randomUUID()}`;
+      if (restitch) {
+        const defaults = restitchDefaults;
+        if (!defaults) throw new Error('RESTITCH_DEFAULTS_INVALID');
+        const choice = JSON.stringify({ durationMode, customSeconds, defaults });
+        if (processed?.choice === choice) {
+          restitchOperationId = processed.operationId;
+          catalogKey = processed.catalogKey;
+        } else {
+          const available = await (client.canRestitch ?? agentCanRestitch)();
+          if (available !== 'yes') throw new Error('AGENT_UPDATE_REQUIRED');
+          const stem = video.name.replace(/\.[^.]+$/u, '') || video.name;
+          const started = await (client.startProcess ?? teamApi.startProcess)({
+            teamId,
+            materialId: video.id,
+            toolId: 'restitch',
+            optionsSummary: { finalDurationMode: durationMode },
+            destinationFolderId: (video.parentFolderId ?? null) as unknown as string,
+            outputName: `${stem} restitched.mp4`,
+            conflictMode: 'keep_both',
+            idempotencyKey: crypto.randomUUID(),
+            agentContractVersion: 1,
+            toolContractVersion: 1
+          });
+          try {
+            const finished = await (client.runAgentProcess ?? startTeamAgentProcess)({
+              operationId: started.operationId,
+              toolId: 'restitch',
+              options: {
+                defaults: {
+                  ...defaults,
+                  operation: 'restitch',
+                  finalDurationMode: durationMode,
+                  customFinalDurationSeconds:
+                    durationMode === 'custom' ? customSeconds! : defaults.customFinalDurationSeconds
+                },
+                prepared: null
+              },
+              sourceGrant: started.sourceGrant,
+              finalizeGrant: started.finalizeGrant
+            });
+            if (finished.state !== 'succeeded' || !finished.materialId)
+              throw new Error('PROCESS_FAILED');
+            restitchOperationId = started.operationId;
+            setProcessed({ operationId: started.operationId, choice, catalogKey });
+          } catch (error) {
+            await (client.cancelOperation ?? teamApi.cancelOperation)(
+              teamId,
+              started.operationId
+            ).catch(() => undefined);
+            throw error;
+          }
+        }
+        setPhase({ kind: 'busy', step: 'catalog' });
+      }
       const result = await client.createProductCatalog({
         teamId,
         videoMaterialId: video.id,
         sourceLink: linkCheck.value,
         productCount: countCheck.value,
         replacesMaterialId: replaces?.id ?? null,
-        // One key per confirmation: a retried request is recognised, a new attempt is not.
-        idempotencyKey: `product-catalog:${crypto.randomUUID()}`
+        ...(restitchOperationId ? { restitchOperationId } : {}),
+        // A retry after the video finished must reuse the same catalog operation.
+        idempotencyKey: catalogKey
       });
       setPhase({
         kind: 'result',
@@ -342,7 +458,99 @@ export function CreateProductCatalogDialog({
           {t(countError ? 'productCatalogCountInvalid' : 'productCatalogCountHint')}
         </p>
 
-        <ProductCatalogProgress active={busy} productTotal={productTotal} />
+        <div className="product-catalog-restitch">
+          <Checkbox
+            checked={restitch}
+            disabled={busy}
+            onChange={event => {
+              setRestitch(event.target.checked);
+              setProcessed(null);
+            }}
+            label={t('productCatalogRestitch')}
+          />
+          {restitch &&
+            restitchDefaults !== undefined &&
+            (!restitchDefaults ||
+              !restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' })) && (
+              <div className="product-catalog-dialog-missing" role="status">
+                <p className="team-inline-note">{t('teamRestitchNotConfigured')}</p>
+                <SpaceSettingsLink
+                  target={{ kind: 'settings', tab: 'restitch' }}
+                  label={t('productCatalogOpenSettings')}
+                />
+              </div>
+            )}
+          {restitch &&
+            restitchDefaults &&
+            restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' }) && (
+              <div className="start-duration-row">
+                <div className="fit-mode-pictos" role="group" aria-label={t('finalImageDuration')}>
+                  {(
+                    [
+                      ['random-30-40', 'randomDuration30To40', '30–40'],
+                      ['random-40-50', 'randomDuration40To50', '40–50'],
+                      ['random-50-60', 'randomDuration50To60', '50–60']
+                    ] as const
+                  ).map(([mode, label, range]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={`is-labeled${durationMode === mode ? ' is-selected' : ''}`}
+                      disabled={busy}
+                      data-tip={t(label)}
+                      title={t(label)}
+                      aria-label={t(label)}
+                      aria-pressed={durationMode === mode}
+                      onClick={() => setDurationMode(mode)}
+                    >
+                      <Dices size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                      <span>{range}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className={durationMode === 'custom' ? 'is-selected' : ''}
+                    disabled={busy}
+                    data-tip={t('customDuration')}
+                    title={t('customDuration')}
+                    aria-label={t('customDuration')}
+                    aria-pressed={durationMode === 'custom'}
+                    onClick={() => setDurationMode('custom')}
+                  >
+                    <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </button>
+                </div>
+                {durationMode === 'custom' && (
+                  <div className="custom-duration-input">
+                    <input
+                      className={`time-input${customMinutes && !durationValid ? ' is-invalid' : ''}`}
+                      type="text"
+                      inputMode="numeric"
+                      value={customMinutes}
+                      disabled={busy}
+                      aria-label={t('customDurationInput')}
+                      aria-invalid={customMinutes !== '' && !durationValid}
+                      onChange={event => setCustomMinutes(event.target.value)}
+                    />
+                    <span>{t('minutesUnit')}</span>
+                  </div>
+                )}
+                {customMinutes !== '' && !durationValid && (
+                  <span className="soty-field-error">{t('invalidCustomDuration')}</span>
+                )}
+              </div>
+            )}
+        </div>
+
+        {phase.kind === 'busy' && phase.step === 'restitch' && (
+          <p className="field-hint" role="status">
+            {t('productCatalogRestitching')}
+          </p>
+        )}
+        <ProductCatalogProgress
+          active={phase.kind === 'busy' && phase.step === 'catalog'}
+          productTotal={productTotal}
+        />
         {failure && (
           <p className="team-inline-error" role="alert">
             {failure}

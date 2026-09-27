@@ -69,8 +69,10 @@ export interface TeamRestitchDefaults {
  *    the file's average, which an end screen of up to forty-five minutes at one frame a
  *    second dragged far below the nominal rate. Every video this product re-stitched was
  *    refused on the next pass — and the refusal was cached, so it stayed refused.
+ * 3: edge timing and body frame limits use the nominal cadence rather than an average
+ *    diluted by sparse end screens. Re-read cached boundaries and source profiles.
  */
-export const RESTITCH_DETECTOR_VERSION = 2;
+export const RESTITCH_DETECTOR_VERSION = 3;
 
 export interface MaterialRestitchPrep {
   materialId: string;

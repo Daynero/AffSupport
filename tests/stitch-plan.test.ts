@@ -275,9 +275,11 @@ describe('the keyframe decision (D6)', () => {
     expect(value.headReencodeUntilSeconds).toBeCloseTo(8.333333, 6);
   });
 
-  it('treats a boundary within half a frame of a keyframe as being on it', () => {
-    expect(isOnKeyframe(profile(), 8.333333 + 0.01)).toBe(true);
+  it('does not copy an earlier keyframe just because it is within half a frame', () => {
+    expect(isOnKeyframe(profile(), 8.333333 + 0.0000003)).toBe(true);
+    expect(isOnKeyframe(profile(), 8.333333 + 0.01)).toBe(false);
     expect(isOnKeyframe(profile(), 8.333333 + 0.02)).toBe(false);
+    expect(isOnKeyframe(profile({ keyframeTimes: [0.021029, 1.554362] }), 1 / 30)).toBe(false);
     expect(nextKeyframeAfter(profile(), 8.4)).toBeCloseTo(16.666667, 6);
     expect(nextKeyframeAfter(profile(), 40)).toBeNull();
   });

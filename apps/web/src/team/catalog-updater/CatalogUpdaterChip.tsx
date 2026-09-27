@@ -29,6 +29,7 @@ export function CatalogUpdaterChip({
   if (!state || state.state !== 'running') return null;
 
   const attention = state.failingCount > 0;
+  const oneOff = state.nextRunAt === null;
   const catalogs = t(catalogCountKey(language, state.catalogCount), { count: state.catalogCount });
   return (
     <WorkspaceChip
@@ -37,16 +38,22 @@ export function CatalogUpdaterChip({
       className="team-updater-chip"
       href={href}
       onPress={onNavigate}
-      label={`${t('catalogUpdaterChipOpen')}: ${catalogs}`}
+      label={`${t('catalogUpdaterChipOpen')}: ${oneOff ? t('catalogUpdaterUpdatingNow') : catalogs}`}
     >
       <span>{t('catalogUpdaterChipLabel')}</span>
-      <UpdaterCountdown
-        targetIso={state.nextRunAt}
-        offsetMs={offsetMs}
-        dueLabel={t('catalogUpdaterChipDue')}
-      />
-      <span>{catalogs}</span>
-      {state.restitch && state.spareReadyCount !== null && (
+      {oneOff ? (
+        <span>{t('catalogUpdaterUpdatingNow')}</span>
+      ) : (
+        <>
+          <UpdaterCountdown
+            targetIso={state.nextRunAt}
+            offsetMs={offsetMs}
+            dueLabel={t('catalogUpdaterChipDue')}
+          />
+          <span>{catalogs}</span>
+        </>
+      )}
+      {!oneOff && state.restitch && state.spareReadyCount !== null && (
         <span>
           {t('catalogUpdaterChipSpares', {
             ready: state.spareReadyCount,

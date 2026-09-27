@@ -42,7 +42,8 @@ const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 //    can read once the silence is joined to it.
 // 5: and so is the re-encoded head's, which v4 still copied — a body cut off a keyframe
 //    carried both configurations at once and went silent at the seam.
-const PREPARED_BODY_FORMAT = 5;
+// 6: old average-FPS frame limits could cache only seconds of a minutes-long body.
+const PREPARED_BODY_FORMAT = 6;
 
 export interface PreparedBody {
   path: string;
@@ -71,6 +72,7 @@ export function preparedBodyKey(profile: SourceProfile, plan: StitchPlan): strin
         path.resolve(profile.path),
         profile.sizeBytes,
         Math.round(profile.modifiedAtMs),
+        profile.frameRate,
         plan.bodyStartSeconds.toFixed(6),
         plan.bodyEndSeconds.toFixed(6)
       ].join('|')

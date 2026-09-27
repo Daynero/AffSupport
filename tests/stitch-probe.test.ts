@@ -193,6 +193,19 @@ describe('narrowing a payload', () => {
  * depends on, so when a window of it can be read, it decides.
  */
 describe('judging the body rather than the file', () => {
+  it('keeps the body cadence when a sparse screen lowers the average to 1.1 fps', () => {
+    const result = unwrap(
+      sourceProfileFromProbe(
+        probePayload({ video: { r_frame_rate: '30/1', avg_frame_rate: '18247680/16542037' } }),
+        FILE,
+        [],
+        true
+      )
+    );
+    expect(result.frameRate).toBe(30);
+    expect(result.variableFrameRate).toBe(false);
+  });
+
   const evenly = (count: number, gap: number, start = 0) =>
     Array.from({ length: count }, (_, index) => (start + index * gap).toFixed(4)).join('\n');
 

@@ -66,7 +66,7 @@ export function ProductCatalogMenuDialog({
   onChanged
 }: {
   teamId: string;
-  video: { id: string; name: string };
+  video: { id: string; name: string; parentFolderId?: string | null };
   client?: VideoProductCatalogClient;
   onClose: () => void;
   onChanged?: () => void;

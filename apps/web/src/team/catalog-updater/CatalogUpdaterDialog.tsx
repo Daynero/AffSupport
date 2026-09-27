@@ -278,20 +278,25 @@ export function CatalogUpdaterDialog({
   );
   const when = (iso: string) => dateFormat.format(new Date(iso));
 
-  const status = running ? (
-    <p className="team-updater-status" role="status">
-      {t('catalogUpdaterStatusScheduled', { count: updater.state?.catalogCount ?? 0 })}{' '}
-      <UpdaterCountdown
-        targetIso={updater.state?.nextRunAt ?? null}
-        offsetMs={updater.offsetMs}
-        dueLabel={t('catalogUpdaterChipDue')}
-      />
-    </p>
-  ) : (
-    <p className="team-updater-status" role="status">
-      {t('catalogUpdaterStatusNone')}
-    </p>
-  );
+  const status =
+    running && updater.state?.nextRunAt === null ? (
+      <p className="team-updater-status" role="status">
+        {t('catalogUpdaterUpdatingNow')}
+      </p>
+    ) : running ? (
+      <p className="team-updater-status" role="status">
+        {t('catalogUpdaterStatusScheduled', { count: updater.state?.catalogCount ?? 0 })}{' '}
+        <UpdaterCountdown
+          targetIso={updater.state?.nextRunAt ?? null}
+          offsetMs={updater.offsetMs}
+          dueLabel={t('catalogUpdaterChipDue')}
+        />
+      </p>
+    ) : (
+      <p className="team-updater-status" role="status">
+        {t('catalogUpdaterStatusNone')}
+      </p>
+    );
 
   const rowFacts = (row: CatalogRegistryRow) => {
     if (row.updatePending) return t('catalogUpdaterUpdatingNow');

@@ -11,6 +11,8 @@ import { detectStitching } from '../apps/agent/src/stitcher/plan.js';
 import { probeSource } from '../apps/agent/src/stitcher/probe.js';
 import { runTool } from '../apps/agent/src/stitcher/run.js';
 import { measureSegment } from '../apps/agent/src/stitcher/verify.js';
+import { probeBodyFrameRate, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
+import { detectStaticEdgeTrims } from '../apps/agent/src/images/static-edges.js';
 import { describeRequiring } from './support/requires.js';
 import { ffmpegBinaries } from './support/toolchain.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
@@ -411,6 +413,98 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
     expect(detected.startSeconds).toBeLessThan(0.5);
     expect(detected.endSeconds).toBeGreaterThan(5);
   }, 60_000);
+
+  it('preserves the moving body and a one-frame intro boundary behind a sparse long screen', async () => {
+    const sparse = path.join(directory, 'sparse-tail.mp4');
+    const made = await runTool('ffmpeg', [
+      '-y',
+      '-v',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=red:s=160x160:r=30:d=0.033333',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=s=160x160:r=30:d=6',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=blue:s=160x160:r=1:d=120',
+      '-filter_complex',
+      '[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]',
+      '-map',
+      '[v]',
+      '-fps_mode',
+      'vfr',
+      '-c:v',
+      'libx264',
+      '-g',
+      '30',
+      sparse
+    ]);
+    expect(made.code).toBe(0);
+    const profile = unwrap(await probeSource(sparse));
+    expect(profile.frameRate).toBeCloseTo(30);
+    // A container may declare a common multiple of the body's cadence.
+    expect(await probeBodyFrameRate(sparse, 120)).toBeCloseTo(30);
+    const detected = await detectStitching(profile);
+    expect(detected.startSeconds).toBeCloseTo(1 / 30, 5);
+    expect(profile.durationSeconds - detected.endSeconds).toBeCloseTo(6 + 1 / 30, 1);
+
+    // The compressor and its estimate worker use this probe/scan pair.
+    const media = await probeMedia(sparse);
+    expect(media.frameRate).toBeCloseTo(30);
+    const trims = await detectStaticEdgeTrims(sparse, media.duration!, media.frameRate!);
+    expect(trims.startSeconds).toBeCloseTo(1 / 30, 5);
+    expect(media.duration! - trims.endSeconds).toBeCloseTo(6 + 1 / 30, 1);
+
+    const plan = unwrap(planStitch(profile, detected, SCREENS, 'unstitch'));
+    const workDir = await mkdtemp(path.join(directory, 'sparse-unstitch-'));
+    const produced = await runStitchPipeline({
+      request: {
+        profile,
+        plan,
+        screens: SCREENS,
+        destination: { kind: 'beside' },
+        outputSuffix: ''
+      },
+      workDir,
+      threads: null,
+      signal: new AbortController().signal,
+      onChild: () => {},
+      onStage: () => {},
+      imagePathFor: async () => photo,
+      bodies: new PreparedBodyCache({ root: workDir })
+    });
+    if (!produced.ok) throw new Error(produced.error);
+    expect(produced.verification.videoTrackSeconds).toBeCloseTo(6, 0);
+    expect(produced.verification.frameCount).toBeGreaterThanOrEqual(175);
+  }, 120_000);
+
+  it('rejects a truncated prepared body before measurements can redefine the promise', async () => {
+    const profile = unwrap(await probeSource(legacy));
+    const plan = unwrap(planStitch(profile, await detectStitching(profile), SCREENS, 'unstitch'));
+    const workDir = await mkdtemp(path.join(directory, 'truncated-body-'));
+    const produced = await runStitchPipeline({
+      request: {
+        profile: { ...profile, frameRate: 1.1 },
+        plan,
+        screens: SCREENS,
+        destination: { kind: 'beside' },
+        outputSuffix: ''
+      },
+      workDir,
+      threads: null,
+      signal: new AbortController().signal,
+      onChild: () => {},
+      onStage: () => {},
+      imagePathFor: async () => photo,
+      bodies: new PreparedBodyCache({ root: workDir })
+    });
+    expect(produced).toEqual({ ok: false, error: 'STITCH_VERIFICATION_FAILED' });
+  }, 120_000);
 
   it('re-stitches it into a file that matches what it promised', async () => {
     const { produced } = await stitch(legacy);

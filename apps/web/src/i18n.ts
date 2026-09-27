@@ -1703,6 +1703,8 @@ const en = {
   productCatalogSourceLinkHint:
     'The product or landing page — it goes into every row of the catalog.',
   productCatalogCountLabel: 'Products',
+  productCatalogRestitch: 'Re-stitch video',
+  productCatalogRestitching: 'Re-stitching the video before creating the catalog…',
   productCatalogCountHint: 'From 1 to 400',
   productCatalogCountInvalid: 'A whole number from 1 to 400.',
   productCatalogConfirm: 'Create',
@@ -1797,7 +1799,7 @@ const en = {
   catalogUpdaterIntervalInvalid: 'Enter whole hours from 1 to 720.',
   catalogUpdaterRestitch: 'Re-stitched video',
   catalogUpdaterRestitchHint:
-    'Copies are prepared while Soty is open in a browser on a computer with the Soty app. With none open, updates change the IDs and keep the current video.',
+    'Copies are prepared while Soty is open in a browser on a computer with the Soty app. Update now waits for a copy, then keeps the current video if none is ready after 30 minutes.',
   catalogUpdaterSparesReady: 'Copies ready: {ready} of {count}',
   catalogUpdaterPreparingHere: 'This computer is preparing a copy now.',
   catalogUpdaterNoPermission: 'Only members who can process materials can run the updater.',
@@ -4634,6 +4636,8 @@ const uk: Record<keyof typeof en, string> = {
   productCatalogSourceLinkLabel: 'Посилання',
   productCatalogSourceLinkHint: 'На товар чи лендинг — воно піде в кожен рядок каталогу.',
   productCatalogCountLabel: 'Кількість товарів',
+  productCatalogRestitch: 'Перезашити відео',
+  productCatalogRestitching: 'Перезашиваємо відео перед створенням каталогу…',
   productCatalogCountHint: 'Від 1 до 400',
   productCatalogCountInvalid: 'Ціле число від 1 до 400.',
   productCatalogConfirm: 'Створити',
@@ -4731,7 +4735,7 @@ const uk: Record<keyof typeof en, string> = {
   catalogUpdaterIntervalInvalid: 'Введіть цілу кількість годин від 1 до 720.',
   catalogUpdaterRestitch: 'Перезашите відео',
   catalogUpdaterRestitchHint:
-    'Копії готуються, поки Soty відкритий у браузері на комп’ютері із застосунком Soty. Якщо ніде не відкрито, оновлення змінюють ID і лишають поточне відео.',
+    'Копії готуються, поки Soty відкритий у браузері на комп’ютері із застосунком Soty. «Оновити зараз» чекає на копію; якщо за 30 хвилин вона не готова, лишає поточне відео.',
   catalogUpdaterSparesReady: 'Готових копій: {ready} з {count}',
   catalogUpdaterPreparingHere: 'Цей комп’ютер зараз готує копію.',
   catalogUpdaterNoPermission:

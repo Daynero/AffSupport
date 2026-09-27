@@ -75,6 +75,18 @@ const created: ProductCatalogCreateResult = {
   videoShared: true
 };
 
+const restitchDefaults = {
+  operation: 'restitch' as const,
+  startImageIds: [],
+  endImageIds: ['screen-1'],
+  fitMode: 'cover' as const,
+  finalDurationMode: 'random-40-50' as const,
+  customFinalDurationSeconds: 45 * 60,
+  configured: true,
+  updatedAt: '2026-09-15T00:00:00.000Z',
+  updatedBy: null
+};
+
 beforeEach(() => {
   localStorage.setItem('wishly.active-team.v1', TEAM_ID);
   localStorage.setItem('language', 'en');
@@ -125,9 +137,74 @@ function renderDialog(
 const confirm = () => screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement;
 
 describe('creating a catalog', () => {
+  it('re-stitches with the chosen duration before sending the catalog creation request', async () => {
+    const sourceGrant = { ticket: 'source' } as never;
+    const finalizeGrant = { ticket: 'finalize' } as never;
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      canRestitch: vi.fn().mockResolvedValue('yes'),
+      startProcess: vi.fn().mockResolvedValue({
+        operationId: 'restitch-op',
+        sourceGrant,
+        finalizeGrant
+      }),
+      runAgentProcess: vi.fn().mockResolvedValue({
+        operationId: 'restitch-op',
+        state: 'succeeded',
+        materialId: 'copy-id',
+        reused: false
+      })
+    });
+    renderDialog(client);
+    const user = userEvent.setup();
+    const checkbox = screen.getByRole('checkbox', { name: 'Re-stitch video' }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Random 30–40 minutes' })).toBeNull();
+    await user.click(checkbox);
+    expect(await screen.findByRole('button', { name: /30.*40/u })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /30.*40/u }));
+    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    expect(await screen.findByText('The catalog is ready')).toBeTruthy();
+    expect(client.runAgentProcess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolId: 'restitch',
+        options: expect.objectContaining({
+          defaults: expect.objectContaining({ finalDurationMode: 'random-30-40' })
+        })
+      })
+    );
+    expect(client.createProductCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ videoMaterialId: VIDEO.id, restitchOperationId: 'restitch-op' })
+    );
+    expect(vi.mocked(client.runAgentProcess!).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(client.createProductCatalog).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('validates a custom end duration before starting the re-stitch', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      canRestitch: vi.fn().mockResolvedValue('yes'),
+      startProcess: vi.fn()
+    });
+    renderDialog(client);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await screen.findByRole('button', { name: 'Custom duration' });
+    await user.click(screen.getByRole('button', { name: 'Custom duration' }));
+    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test');
+    const minutes = screen.getByRole('textbox', { name: /custom.*duration/iu });
+    await user.clear(minutes);
+    await user.type(minutes, '0');
+    expect(confirm().disabled).toBe(true);
+    expect(client.startProcess).not.toHaveBeenCalled();
+  });
+
   it('shows the name the catalog will have, with a copy, before it is made (024)', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+    userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
     renderDialog(dialogClient({ nextProductCatalogVariant: vi.fn().mockResolvedValue(2) }));
     expect(await screen.findByText('clip_v2_catalog')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Copy the name clip_v2_catalog' }));

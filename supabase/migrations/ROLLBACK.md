@@ -1,5 +1,24 @@
 # Rollback notes
 
+## 20260928130000_catalog_create_with_restitch.sql
+
+Stop new catalog creation with re-stitching and let in-flight creates finish.
+Revert the web and `drive-ops` code, then drop
+`public.service_link_restitched_product_catalog_companion(uuid,uuid,uuid,uuid,jsonb)`.
+Catalogs already created with a re-stitched video keep their in-use copy and
+`current_video_link`; the existing updater can continue to serve them.
+
+## 20260928120000_catalog_update_now_restitch.sql
+
+Let one-off catalog updates finish or cancel them before reverting. Restore
+`private.sync_catalog_updater`, `private.queue_restitch_jobs`,
+`private.claim_catalog_updater_items`, and
+`private.forget_unscheduled_catalog_item` from
+`20260916170000_catalog_updater_per_catalog.sql`. Then restore the original
+`team_catalog_updaters_due_check` from `20260915140000_catalog_updater.sql`.
+The old behavior updates an unscheduled catalog without waiting for a
+re-stitched copy; existing in-use video copies remain intact.
+
 ## 20260927011000_library_totals_role_guard.sql
 
 This migration changes only the body of

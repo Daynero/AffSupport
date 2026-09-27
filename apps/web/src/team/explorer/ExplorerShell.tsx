@@ -2154,7 +2154,11 @@ function ExplorerBody({
       {catalogFor && (
         <ProductCatalogMenuDialog
           teamId={teamId}
-          video={{ id: catalogFor.id, name: catalogFor.name }}
+          video={{
+            id: catalogFor.id,
+            name: catalogFor.name,
+            parentFolderId: catalogFor.parentFolderId
+          }}
           onClose={() => setCatalogFor(null)}
           onChanged={changed}
         />

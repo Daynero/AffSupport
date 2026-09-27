@@ -101,6 +101,16 @@ export const runStitchPipeline: StitchPipeline = async context => {
 
   // What the body actually is, not what it was predicted to be: see `measureSegment`.
   const measuredBody = await measureSegment(body.value.path, { signal: context.signal });
+  // Segment measurements may correct muxing drift, but must never redefine a lost body
+  // as the promised result. Check the video track before adopting measured durations.
+  const plannedBodySeconds = plan.bodyEndSeconds - plan.bodyStartSeconds;
+  const bodyToleranceSeconds = Math.max(0.25, 3 / profile.frameRate);
+  if (
+    !measuredBody ||
+    Math.abs(measuredBody.videoTrackSeconds - plannedBodySeconds) > bodyToleranceSeconds
+  ) {
+    return { ok: false, error: 'STITCH_VERIFICATION_FAILED' };
+  }
 
   context.onStage('screens');
   const screen = async (

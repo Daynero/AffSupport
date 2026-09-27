@@ -732,7 +732,9 @@ export async function startTeamAgentProcess(
         ? 'transcription'
         : input.toolId === 'translation'
           ? 'transcription'
-          : 'compressor';
+          : input.toolId === 'restitch'
+            ? 'stitcher'
+            : 'compressor';
   if (!toolContractCompatible(tool, health.toolContracts ?? {})) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }

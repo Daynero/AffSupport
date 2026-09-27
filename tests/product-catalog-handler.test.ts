@@ -25,6 +25,8 @@ const VIDEO = '22000000-0000-4000-8000-000000000002';
 const OLD_SHEET = '22000000-0000-4000-8000-000000000003';
 const NEW_SHEET = '22000000-0000-4000-8000-000000000004';
 const ACTOR = '22000000-0000-4000-8000-000000000005';
+const COPY = '22000000-0000-4000-8000-000000000006';
+const RESTITCH_OPERATION = '22000000-0000-4000-8000-000000000007';
 
 const settings = {
   title: 'Polo',
@@ -146,6 +148,15 @@ function setup(
         credentialId: 'cred'
       };
     }),
+    resolveRestitchedVideo: vi.fn(async () => ({
+      id: COPY,
+      name: 'clip restitched.mp4',
+      category: 'video',
+      driveFileId: 'drive-copy',
+      resourceKey: null,
+      parentFolderId: 'folder',
+      credentialId: 'cred'
+    })),
     readSettings: vi.fn(async () => (options.settings === undefined ? settings : options.settings)),
     // No pools in these fixtures: every row repeats the settings, as before pools (024).
     drawTexts: vi.fn(async () => options.texts ?? []),
@@ -153,8 +164,11 @@ function setup(
     readLiveCatalogs: vi.fn(async () => options.catalogs ?? (options.live ? [options.live] : [])),
     nextVariant: vi.fn(async () => options.next ?? 1),
     driveFor: vi.fn(async () => drive as unknown as CatalogDrive),
-    proveVideo: vi.fn(async () =>
-      metadata({ capabilities: { ...metadata().capabilities, canShare: options.canShare ?? true } })
+    proveVideo: vi.fn(async video =>
+      metadata({
+        id: video.id === COPY ? 'drive-copy' : 'drive-video',
+        capabilities: { ...metadata().capabilities, canShare: options.canShare ?? true }
+      })
     ),
     destination: vi.fn(async () => ({
       materialId: null,
@@ -275,6 +289,34 @@ describe('refusals leave nothing behind', () => {
 });
 
 describe('making a catalog', () => {
+  it('builds the sheet with the completed re-stitch while keeping the original video as its companion', async () => {
+    const { deps, drive } = setup();
+    const result = await createProductCatalog(
+      deps,
+      body({ restitchOperationId: RESTITCH_OPERATION }),
+      ACTOR
+    );
+    expect(result.outcome).toBe('created');
+    expect(deps.resolveRestitchedVideo).toHaveBeenCalledWith({
+      teamId: TEAM,
+      videoId: VIDEO,
+      actorId: ACTOR,
+      operationId: RESTITCH_OPERATION
+    });
+    expect(drive.createAnyoneReaderPermission).toHaveBeenCalledWith('drive-copy');
+    expect(deps.link).toHaveBeenCalledWith(
+      expect.objectContaining({
+        videoId: VIDEO,
+        record: expect.objectContaining({
+          videoLink: expect.stringContaining('/drive-video/'),
+          currentVideoLink: expect.stringContaining('/drive-copy/'),
+          restitchMaterialId: COPY,
+          restitchOperationId: RESTITCH_OPERATION
+        })
+      })
+    );
+  });
+
   it('gives each row its own drawn text, picture and a price in the range (024)', async () => {
     const { deps, drive } = setup({
       settings: {

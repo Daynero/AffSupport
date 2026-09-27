@@ -197,6 +197,59 @@ describe('space catalog settings', () => {
 });
 
 describe('a video and its catalog', () => {
+  it('links a verified re-stitched copy to the first sheet while keeping the original video as companion', async () => {
+    const source = await video('restitch-source.mp4');
+    const copy = await video('restitch-copy.mp4');
+    const catalog = await sheet('restitch catalog');
+    const operation = await harness.root<{ id: string }>(
+      `insert into public.team_operations
+         (team_id, actor_id, kind, state, source_material_id, result_material_id,
+          idempotency_key, request_nonce, finished_at)
+       values ($1, $2, 'process', 'succeeded', $3, $4, $5, $6, now()) returning id`,
+      [teamId, OWNER, source, copy, `restitch-${fileSeq}`, `request-nonce-${fileSeq}`]
+    );
+    const operationId = operation[0]!.id;
+    await harness.root(
+      `insert into private.team_operation_intents (operation_id, team_id, tool_id)
+       values ($1, $2, 'restitch')`,
+      [operationId, teamId]
+    );
+    const currentVideoLink = 'https://drive.google.com/file/d/restitched-copy/view';
+    const payload = record({
+      restitchOperationId: operationId,
+      restitchMaterialId: copy,
+      currentVideoLink
+    });
+    const linked = await harness.root<{ result: { linked: boolean } }>(
+      'select public.service_link_restitched_product_catalog_companion($1, $2, $3, null, $4) as result',
+      [teamId, source, catalog, JSON.stringify(payload)]
+    );
+    expect(linked[0]!.result.linked).toBe(true);
+    expect(await row(catalog)).toMatchObject({ companion_of: source });
+    const stored = await harness.root<{ current_video_link: string }>(
+      'select current_video_link from public.team_product_catalogs where material_id = $1',
+      [catalog]
+    );
+    expect(stored[0]!.current_video_link).toBe(currentVideoLink);
+    const copies = await harness.root<{ material_id: string; role: string }>(
+      'select material_id, role from public.team_catalog_restitch_copies where catalog_material_id = $1',
+      [catalog]
+    );
+    expect(copies).toEqual([{ material_id: copy, role: 'in_use' }]);
+
+    await expect(
+      harness.root(
+        'select public.service_link_restitched_product_catalog_companion($1, $2, $3, null, $4)',
+        [
+          teamId,
+          await video('wrong-source.mp4'),
+          await sheet('wrong catalog'),
+          JSON.stringify(payload)
+        ]
+      )
+    ).rejects.toThrow(/WRONG_STATE/);
+  }, 60_000);
+
   it('links a sheet and reads it back for any member', async () => {
     const v = await video();
     const s = await sheet();

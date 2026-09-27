@@ -39,6 +39,7 @@ const BODY_KEYS = new Set([
   'sourceLink',
   'productCount',
   'replacesMaterialId',
+  'restitchOperationId',
   'idempotencyKey'
 ]);
 
@@ -91,6 +92,13 @@ export interface ProductCatalogDeps {
     permission: 'view' | 'edit';
   }): Promise<CatalogVideo>;
   readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
+  /** A completed re-stitch of this video by this member, verified before the sheet is made. */
+  resolveRestitchedVideo(input: {
+    teamId: string;
+    videoId: string;
+    actorId: string;
+    operationId: string;
+  }): Promise<CatalogVideo>;
   /** Texts from the space's pool, none repeated until the pool is spent (024). */
   drawTexts(teamId: string, count: number): Promise<Array<{ title: string; description: string }>>;
   /** Pictures from the space's pool, likewise. */
@@ -160,6 +168,7 @@ export interface CreateProductCatalogRequest {
   sourceLink: string;
   productCount: number;
   replacesMaterialId: string | null;
+  restitchOperationId: string | null;
   idempotencyKey: string;
 }
 
@@ -182,7 +191,7 @@ function wrongState(reason: 'not_a_video' | 'settings_missing'): never {
 
 export function parseCreateProductCatalogRequest(body: unknown): CreateProductCatalogRequest {
   if (!isRecord(body) || Object.keys(body).some(key => !BODY_KEYS.has(key))) invalid();
-  const { teamId, videoMaterialId, replacesMaterialId, idempotencyKey } = body;
+  const { teamId, videoMaterialId, replacesMaterialId, restitchOperationId, idempotencyKey } = body;
   if (typeof teamId !== 'string' || !UUID.test(teamId)) invalid();
   if (typeof videoMaterialId !== 'string' || !UUID.test(videoMaterialId)) invalid();
   if (
@@ -192,6 +201,12 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
   ) {
     invalid();
   }
+  if (
+    restitchOperationId !== null &&
+    restitchOperationId !== undefined &&
+    (typeof restitchOperationId !== 'string' || !UUID.test(restitchOperationId))
+  )
+    invalid();
   if (typeof idempotencyKey !== 'string' || !IDEMPOTENCY_KEY.test(idempotencyKey)) invalid();
   const link = parseWebLink(body.sourceLink, SOURCE_LINK_MAX);
   if (!link.ok) invalid('link');
@@ -205,6 +220,7 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
     sourceLink: link.value,
     productCount: count.value,
     replacesMaterialId: typeof replacesMaterialId === 'string' ? replacesMaterialId : null,
+    restitchOperationId: typeof restitchOperationId === 'string' ? restitchOperationId : null,
     idempotencyKey
   };
 }
@@ -263,6 +279,15 @@ export async function createProductCatalog(
   }
   const replaces = live ? live.materialId : null;
 
+  const restitched = request.restitchOperationId
+    ? await deps.resolveRestitchedVideo({
+        teamId,
+        videoId,
+        actorId,
+        operationId: request.restitchOperationId
+      })
+    : null;
+
   const drive = await deps.driveFor(video.credentialId);
   const liveVideo = await deps.proveVideo(video, drive);
   const destination = await deps.destination({
@@ -280,7 +305,23 @@ export async function createProductCatalog(
     }
     videoShared = (await ensureAnyoneReader(drive, liveVideo.id)).added;
   }
-  const videoLink = videoShareLink(liveVideo.id, liveVideo.resourceKey ?? video.resourceKey);
+  const originalVideoLink = videoShareLink(
+    liveVideo.id,
+    liveVideo.resourceKey ?? video.resourceKey
+  );
+  let videoLink = originalVideoLink;
+  if (restitched) {
+    const copyDrive = await deps.driveFor(restitched.credentialId);
+    const liveCopy = await deps.proveVideo(restitched, copyDrive);
+    if ((await copyDrive.listAnyonePermissions(liveCopy.id)).length === 0) {
+      await deps.loadVideo({ teamId, videoId: restitched.id, actorId, permission: 'edit' });
+      if (liveCopy.capabilities.canShare !== true) {
+        throw new TeamFunctionError('SHARE_NOT_ALLOWED', { retryable: false });
+      }
+      await ensureAnyoneReader(copyDrive, liveCopy.id);
+    }
+    videoLink = videoShareLink(liveCopy.id, liveCopy.resourceKey ?? restitched.resourceKey);
+  }
 
   /*
    * Each row its own name, text, price and picture (024): drawn from the space's pools without
@@ -388,7 +429,14 @@ export async function createProductCatalog(
           sourceLink: request.sourceLink,
           productCount: request.productCount,
           sheetUrl,
-          videoLink,
+          videoLink: originalVideoLink,
+          ...(restitched && request.restitchOperationId
+            ? {
+                currentVideoLink: videoLink,
+                restitchMaterialId: restitched.id,
+                restitchOperationId: request.restitchOperationId
+              }
+            : {}),
           settingsSnapshot: snapshot,
           createdBy: actorId,
           variant

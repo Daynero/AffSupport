@@ -270,6 +270,83 @@ describe('who prepares', () => {
 });
 
 describe('spares', () => {
+  it('prepares a video before a one-off update, then stops when that update finishes', async () => {
+    const { sheet } = await catalog('one-off');
+    await harness.asUser(OWNER, 'select public.set_team_catalog_updater_restitch($1, true)', [
+      teamId
+    ]);
+    expect((await state()).state).toBe('stopped');
+    const opened = await harness.asUser<{ count: number }>(
+      OWNER,
+      'select public.run_team_catalog_update_now($1, $2) as count',
+      [teamId, [sheet]]
+    );
+    expect(opened[0]!.count).toBe(1);
+    expect((await state()).state).toBe('running');
+    expect(await jobs(sheet)).toHaveLength(1);
+    expect(
+      await harness.root('select * from public.service_claim_catalog_updater_items($1, 10, 60)', [
+        'worker-r'
+      ])
+    ).toHaveLength(0);
+
+    const link = 'https://drive.google.com/file/d/one-off-copy/view';
+    const copy = await prepareSpare(enroll(), sheet, link);
+    const claimed = await harness.root<{
+      catalog_material_id: string;
+      spare_material_id: string | null;
+      spare_link: string | null;
+    }>('select * from public.service_claim_catalog_updater_items($1, 10, 60)', ['worker-r']);
+    expect(claimed.find(row => row.catalog_material_id === sheet)).toMatchObject({
+      spare_material_id: copy,
+      spare_link: link
+    });
+    expect(await completeRound(sheet, 1, copy)).toBe(true);
+    expect((await state()).state).toBe('stopped');
+    const records = await harness.root<{ current_video_link: string }>(
+      'select current_video_link from public.team_product_catalogs where material_id = $1',
+      [sheet]
+    );
+    expect(records[0]!.current_video_link).toBe(link);
+    expect(await copies(sheet)).toMatchObject([{ material_id: copy, role: 'in_use' }]);
+  }, 60_000);
+
+  it('uses the existing video after the one-off wait expires, unless a copy is still running', async () => {
+    const { sheet } = await catalog('one-off-timeout');
+    await harness.asUser(OWNER, 'select public.set_team_catalog_updater_restitch($1, true)', [
+      teamId
+    ]);
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1, $2)', [
+      teamId,
+      [sheet]
+    ]);
+    const lease = token();
+    expect(await claimJob(enroll(), lease)).toBeTruthy();
+    await harness.root(
+      `update public.team_catalog_updater_items
+          set round_due_at = now() - interval '31 minutes'
+        where catalog_material_id = $1`,
+      [sheet]
+    );
+    const workerClaim = () =>
+      harness.root<{ catalog_material_id: string; spare_material_id: string | null }>(
+        'select * from public.service_claim_catalog_updater_items($1, 10, 60)',
+        ['worker-r']
+      );
+    expect(await workerClaim()).toHaveLength(0);
+    await harness.root(
+      `update private.catalog_restitch_jobs
+          set lease_expires_at = now() - interval '1 minute'
+        where catalog_material_id = $1`,
+      [sheet]
+    );
+    expect(await workerClaim()).toMatchObject([
+      { catalog_material_id: sheet, spare_material_id: null }
+    ]);
+    expect(await completeRound(sheet, 1, null)).toBe(true);
+    expect((await state()).state).toBe('stopped');
+  }, 60_000);
+
   it('queues one job per catalog when re-stitching is on, and none when it is off', async () => {
     const a = await catalog('turn-on-a');
     const b = await catalog('turn-on-b');

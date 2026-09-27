@@ -2466,6 +2466,27 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         credentialId: context.credentialId
       };
     },
+    async resolveRestitchedVideo({ teamId, videoId, actorId, operationId }) {
+      const operation = firstRecord(
+        await rpcValue(service, 'service_get_team_operation', {
+          p_operation: operationId,
+          p_actor: actorId
+        })
+      );
+      if (
+        !operation ||
+        stringValue(operation, 'team_id') !== teamId ||
+        stringValue(operation, 'source_material_id') !== videoId ||
+        stringValue(operation, 'kind') !== 'process' ||
+        stringValue(operation, 'tool_id') !== 'restitch' ||
+        stringValue(operation, 'state') !== 'succeeded'
+      ) {
+        throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+      }
+      const copyId = stringValue(operation, 'result_material_id');
+      if (!copyId) throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+      return deps.loadVideo({ teamId, videoId: copyId, actorId, permission: 'view' });
+    },
     async readSettings(teamId) {
       const row = firstRecord(
         await rpcValue(service, 'service_get_team_product_catalog_settings', { p_team: teamId })
@@ -2652,13 +2673,19 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       return { materialId };
     },
     async link({ teamId, videoId, companionId, replaces, record }) {
-      const value = await rpcValue(service, 'service_link_product_catalog_companion', {
-        p_team: teamId,
-        p_video: videoId,
-        p_companion: companionId,
-        p_replaces: replaces,
-        p_record: record
-      });
+      const value = await rpcValue(
+        service,
+        typeof record.restitchOperationId === 'string'
+          ? 'service_link_restitched_product_catalog_companion'
+          : 'service_link_product_catalog_companion',
+        {
+          p_team: teamId,
+          p_video: videoId,
+          p_companion: companionId,
+          p_replaces: replaces,
+          p_record: record
+        }
+      );
       if (!isRecord(value)) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
       if (value.linked === true) {
         const retired = Array.isArray(value.retired) ? value.retired : [];
