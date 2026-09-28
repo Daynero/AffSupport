@@ -1942,6 +1942,14 @@ export type Database = {
       };
     };
     Functions: {
+      list_team_account_two_factor_seeds: {
+        Args: { p_team: string };
+        Returns: { account_id: string; secret: string }[];
+      };
+      set_team_account_two_factor_seed: {
+        Args: { p_team: string; p_account: string; p_secret: string | null };
+        Returns: boolean;
+      };
       /* 016 — the 2FA notebook. Added by hand for the same reason 015 was: the
          committed types predate several unrelated columns in the local schema, and a
          wholesale regeneration would drag that drift into this feature's diff.

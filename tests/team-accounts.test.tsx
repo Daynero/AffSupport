@@ -107,6 +107,7 @@ function client(accounts: TeamAccountSummary[] = fixture()): AccountSpaceClient 
       updatedAt: STAMP
     })),
     deleteAccount: vi.fn().mockResolvedValue(true),
+    setAccountTwoFactor: vi.fn().mockResolvedValue(undefined),
     addAccountAgent: vi.fn(async ({ accountId, agentId, note }) =>
       agent(accountId, agentId, note ?? null)
     ),

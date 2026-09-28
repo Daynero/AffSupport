@@ -671,7 +671,8 @@
 
 /* "+ Agent": a labelled button rather than a bare plus, because it is the
    action this list exists for. The word goes when the row gets narrow. */
-.team-account-add-agent {
+.team-account-add-agent,
+.team-account-two-factor {
   display: inline-flex;
   min-height: 34px;
   align-items: center;
@@ -692,9 +693,46 @@
     border-color var(--dur-control) var(--ease-standard);
 }
 
-.team-account-add-agent:hover {
+.team-account-add-agent:hover,
+.team-account-two-factor:hover {
   border-color: var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+.team-account-two-factor.is-active {
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
+}
+
+.team-account-two-factor.is-active:hover,
+.team-account-two-factor.is-active:focus-visible {
+  border-color: var(--color-success-border);
+  background: color-mix(in srgb, var(--color-success) 6%, transparent);
+}
+
+.team-account-two-factor.is-urgent,
+.team-account-two-factor.is-urgent:hover,
+.team-account-two-factor.is-urgent:focus-visible {
+  border-color: var(--color-error-border);
+  color: var(--color-error-text);
+  background: color-mix(in srgb, var(--color-error) 6%, transparent);
+}
+
+.team-account-two-factor-timer {
+  display: inline-block;
+}
+
+.team-account-two-factor-timer.is-pulsing {
+  animation: team-account-two-factor-tick var(--dur-pop) var(--ease-standard) both;
+}
+
+@keyframes team-account-two-factor-tick {
+  from {
+    transform: scale(1.1);
+  }
+  to {
+    transform: scale(1);
+  }
 }
 
 /* --- Agent rows ------------------------------------------------------------- */
@@ -787,23 +825,8 @@
   color: var(--color-success);
 }
 
-.team-agent-two-factor {
-  min-height: 28px;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-size: var(--text-caption);
+.team-account-two-factor {
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.team-agent-two-factor:hover,
-.team-agent-two-factor:focus-visible {
-  border-color: var(--color-accent);
-  color: var(--color-text);
 }
 
 @media (hover: none) {
@@ -1481,13 +1504,13 @@
   flex: 2 1 260px;
 }
 
-.team-agent-edit-two-factor {
-  flex: 2 1 260px;
-}
-
 .team-account-edit-name {
   flex: 1 1 240px;
   max-width: 420px;
+}
+
+.team-account-edit-two-factor {
+  flex: 1 1 280px;
 }
 
 .team-accounts-field {

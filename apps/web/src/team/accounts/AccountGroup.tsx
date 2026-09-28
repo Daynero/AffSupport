@@ -24,7 +24,10 @@ import {
 import { Check, ChevronDown, Pencil, Plus, Trash2, UserRound, X } from 'lucide-react';
 import {
   countTeamAccounts,
+  generateTotp,
   normalizeTeamAccountName,
+  parseTwoFactorSeed,
+  totpStepEndsAt,
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
   type TeamAgentRun,
@@ -39,6 +42,7 @@ import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
+import { copyText } from '../../two-factor/clipboard';
 import { buildTeamRoute } from '../routes';
 import { AgentEditRow, AgentRow, EditField } from './AgentRow';
 import { Marked } from './Marked';
@@ -125,6 +129,7 @@ export function AccountGroup({
   onDirtyChange,
   onEditingChange,
   onRename,
+  onSetTwoFactor,
   onDelete,
   onAddAgent,
   onUpdateAgent,
@@ -154,12 +159,9 @@ export function AccountGroup({
   onDirtyChange?: (dirty: boolean) => void;
   onEditingChange: (editing: AgentEditing) => void;
   onRename: (name: string) => Promise<void>;
+  onSetTwoFactor?: (seed: string | null) => Promise<void>;
   onDelete: () => Promise<void>;
-  onAddAgent: (value: {
-    agentId: string;
-    note: string | null;
-    twoFactorSeed?: string | null;
-  }) => Promise<void>;
+  onAddAgent: (value: { agentId: string; note: string | null }) => Promise<void>;
   onUpdateAgent: (agent: TeamAccountAgentSummary, agentId: string) => Promise<void>;
   onDeleteAgent: (agent: TeamAccountAgentSummary) => Promise<void>;
   onAddRun: (agent: TeamAccountAgentSummary, note: string) => Promise<void>;
@@ -190,6 +192,46 @@ export function AccountGroup({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [addedCount, setAddedCount] = useState(0);
+  const [totpSeconds, setTotpSeconds] = useState<number | null>(null);
+  const [totpDeadlineMs, setTotpDeadlineMs] = useState<number | null>(null);
+  useEffect(() => {
+    if (totpDeadlineMs === null) return;
+    const tick = () => {
+      const remainingMs = totpDeadlineMs - Date.now();
+      if (remainingMs <= 0) {
+        setTotpSeconds(null);
+        setTotpDeadlineMs(null);
+        return;
+      }
+      setTotpSeconds(Math.ceil(remainingMs / 1000));
+    };
+    tick();
+    const timer = window.setInterval(tick, 250);
+    const wake = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('focus', wake);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('focus', wake);
+    };
+  }, [totpDeadlineMs]);
+  const copyTotp = () => {
+    if (!account.twoFactorSeed) return;
+    const now = Date.now();
+    const code = generateTotp(account.twoFactorSeed, now);
+    const deadline = totpStepEndsAt(now);
+    const seconds = Math.max(0, Math.ceil((deadline - now) / 1000));
+    void copyText(code).then(ok => {
+      if (ok) {
+        setTotpSeconds(seconds);
+        setTotpDeadlineMs(deadline);
+        push({ tone: 'success', text: t('teamAccountTwoFactorCopied') });
+      } else push({ tone: 'error', text: t('teamAgentTwoFactorCopyFailed') });
+    });
+  };
   const counts = countTeamAccounts([account]);
   /**
    * How many of the account's agents carry each agent tag (019), in the order
@@ -297,11 +339,13 @@ export function AccountGroup({
       {renaming ? (
         <AccountNameRow
           initialName={account.name}
+          twoFactorSeed={account.twoFactorSeed ?? null}
           hold={hold}
           onDirtyChange={onDirtyChange}
           onCancel={() => closeEditor(...HEAD_FOCUS)}
-          onSave={async name => {
+          onSave={async (name, seed) => {
             await onRename(name);
+            if (seed !== undefined) await onSetTwoFactor?.(seed);
             closeEditor(...HEAD_FOCUS);
           }}
         />
@@ -400,6 +444,33 @@ export function AccountGroup({
           {/* Nothing here folds the account: each of these is its own action,
               and the press stops before it reaches the strip. */}
           <div className="team-account-actions" onClick={event => event.stopPropagation()}>
+            {account.twoFactorSeed && (
+              <button
+                type="button"
+                className={`team-account-two-factor${totpSeconds !== null ? ' is-active' : ''}${totpSeconds !== null && totpSeconds <= 5 ? ' is-urgent' : ''}`}
+                aria-label={
+                  totpSeconds === null
+                    ? `${t('teamAccountTwoFactor')} ${account.name}`
+                    : t('teamAccountTwoFactorCopiedFor', {
+                        account: account.name,
+                        seconds: totpSeconds
+                      })
+                }
+                title={t('teamAccountTwoFactorCopy')}
+                onClick={copyTotp}
+              >
+                {totpSeconds === null ? (
+                  t('teamAccountTwoFactor')
+                ) : (
+                  <span
+                    key={totpSeconds}
+                    className={`team-account-two-factor-timer${totpSeconds <= 5 ? ' is-pulsing' : ''}`}
+                  >
+                    {t('teamAccountTwoFactorCountdown', { seconds: totpSeconds })}
+                  </span>
+                )}
+              </button>
+            )}
             {canEdit && (
               <>
                 <button
@@ -557,21 +628,26 @@ export function AccountGroup({
 /** The head row as an editor: naming a new account, or renaming one. */
 export function AccountNameRow({
   initialName = '',
+  twoFactorSeed = null,
   hold = false,
   onDirtyChange,
   onSave,
   onCancel
 }: {
   initialName?: string;
+  twoFactorSeed?: string | null;
   hold?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
-  onSave: (name: string) => Promise<void>;
+  onSave: (name: string, seed?: string | null) => Promise<void>;
   onCancel: () => void;
 }) {
   const { t } = useI18n();
   const [name, setName] = useState(initialName);
   const [error, setError] = useState<TranslationKey | null>(null);
   const [saving, setSaving] = useState(false);
+  const [seed, setSeed] = useState(twoFactorSeed ?? '');
+  const [savedSeed, setSavedSeed] = useState(twoFactorSeed ?? '');
+  const [seedError, setSeedError] = useState<TranslationKey | null>(null);
   const field = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -583,7 +659,7 @@ export function AccountNameRow({
     if (hold) field.current?.focus();
   }, [hold]);
 
-  const dirty = name !== initialName;
+  const dirty = name !== initialName || seed !== savedSeed;
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
@@ -595,9 +671,22 @@ export function AccountNameRow({
       setError('teamAccountNameInvalid');
       return;
     }
+    const value = seed.trim();
+    const parsed = value ? parseTwoFactorSeed(value) : null;
+    if (initialName && value && !parsed?.ok) {
+      setSeedError(
+        parsed?.error === 'EMPTY' ? 'teamAgentTwoFactorRequired' : 'teamAgentTwoFactorInvalid'
+      );
+      return;
+    }
     setSaving(true);
     try {
-      await onSave(clean);
+      await onSave(clean, initialName ? (parsed?.ok ? parsed.secret : null) : undefined);
+      if (initialName) {
+        setSeed(parsed?.ok ? parsed.secret : '');
+        setSavedSeed(parsed?.ok ? parsed.secret : '');
+        setSeedError(null);
+      }
     } catch (cause) {
       setError(nameErrorKey(cause));
     } finally {
@@ -630,9 +719,26 @@ export function AccountNameRow({
           }}
           onKeyDown={onKeyDown}
         />
+        {initialName && (
+          <EditField
+            className="team-account-edit-two-factor"
+            value={seed}
+            label={t('teamAccountTwoFactorPlaceholder')}
+            onChange={value => {
+              setSeed(value);
+              setSeedError(null);
+            }}
+            onKeyDown={onKeyDown}
+          />
+        )}
         {error && (
           <span className="team-accounts-edit-error" role="alert">
             {t(error)}
+          </span>
+        )}
+        {seedError && (
+          <span className="team-accounts-edit-error" role="alert">
+            {t(seedError)}
           </span>
         )}
         {!error && hold && (

@@ -25,13 +25,17 @@ export interface AccountsClient {
     accountId: string;
     name: string;
   }): Promise<Omit<TeamAccountSummary, 'agents'>>;
+  setAccountTwoFactor(input: {
+    teamId: string;
+    accountId: string;
+    seed: string | null;
+  }): Promise<void>;
   deleteAccount(input: { teamId: string; accountId: string }): Promise<true>;
   addAccountAgent(input: {
     teamId: string;
     accountId: string;
     agentId: string;
     note?: string | null;
-    twoFactorSeed?: string | null;
   }): Promise<TeamAccountAgentSummary>;
   updateAccountAgent(input: {
     teamId: string;
@@ -277,14 +281,23 @@ export function useAccounts({
     [client, teamId]
   );
 
+  const setAccountTwoFactor = useCallback(
+    async (accountId: string, seed: string | null) => {
+      await client.setAccountTwoFactor({ teamId, accountId, seed });
+      writes.current += 1;
+      setAccounts(current =>
+        replaceAccount(current, accountId, account => ({
+          ...account,
+          twoFactorSeed: seed
+        }))
+      );
+    },
+    [client, teamId]
+  );
+
   const addAgent = useCallback(
-    async (
-      accountId: string,
-      agentId: string,
-      note: string | null,
-      twoFactorSeed?: string | null
-    ) => {
-      const created = await client.addAccountAgent({ teamId, accountId, agentId, note, twoFactorSeed });
+    async (accountId: string, agentId: string, note: string | null) => {
+      const created = await client.addAccountAgent({ teamId, accountId, agentId, note });
       writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, accountId, account => ({
@@ -439,6 +452,7 @@ export function useAccounts({
     createAccount,
     renameAccount,
     deleteAccount,
+    setAccountTwoFactor,
     addAgent,
     updateAgent,
     deleteAgent,

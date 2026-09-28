@@ -4050,26 +4050,40 @@ export const teamApi = {
     if (accounts.some(account => account === null)) {
       throw new TeamApiError('INVALID_RESPONSE', false);
     }
-    const parsedAccounts = accounts.filter((account): account is TeamAccountSummary => account !== null);
+    const parsedAccounts = accounts.filter(
+      (account): account is TeamAccountSummary => account !== null
+    );
     const { data: seedRows, error: seedError } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_agent_two_factor_seeds', { p_team: teamId })
+      requireSupabaseClient().rpc('list_team_account_two_factor_seeds', { p_team: teamId })
     );
     throwRpc(seedError);
     if (!Array.isArray(seedRows)) throw new TeamApiError('INVALID_RESPONSE', false);
     const seeds = new Map<string, string>();
     for (const row of seedRows) {
-      if (!row || typeof row.agent_id !== 'string' || typeof row.secret !== 'string') {
+      if (!row || typeof row.account_id !== 'string' || typeof row.secret !== 'string') {
         throw new TeamApiError('INVALID_RESPONSE', false);
       }
-      seeds.set(row.agent_id, row.secret);
+      seeds.set(row.account_id, row.secret);
     }
     return parsedAccounts.map(account => ({
       ...account,
-      agents: account.agents.map(agent => ({
-        ...agent,
-        twoFactorSeed: seeds.get(agent.id) ?? null
-      }))
+      twoFactorSeed: seeds.get(account.id) ?? null
     }));
+  },
+
+  async setAccountTwoFactor(input: {
+    teamId: string;
+    accountId: string;
+    seed: string | null;
+  }): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_account_two_factor_seed', {
+        p_team: input.teamId,
+        p_account: input.accountId,
+        p_secret: input.seed
+      })
+    );
+    throwRpc(error);
   },
 
   async createAccount(input: { teamId: string; name: string }): Promise<TeamAccountSummary> {
@@ -4127,32 +4141,23 @@ export const teamApi = {
     accountId: string;
     agentId: string;
     note?: string | null;
-    twoFactorSeed?: string | null;
   }): Promise<TeamAccountAgentSummary> {
     const agentId = normalizeTeamAgentId(input.agentId);
     const note = normalizeTeamAgentNote(input.note);
     if (!agentId || note === undefined) throw new TeamApiError('INVALID_INPUT', false);
     const { data, error } = await withFreshSession(() => {
       const supabase = requireSupabaseClient();
-      return input.twoFactorSeed
-        ? supabase.rpc('add_team_account_agent_with_2fa', {
-            p_team: input.teamId,
-            p_account: input.accountId,
-            p_agent_id: agentId,
-            p_note: note,
-            p_two_factor_secret: input.twoFactorSeed
-          })
-        : supabase.rpc('add_team_account_agent', {
-            p_team: input.teamId,
-            p_account: input.accountId,
-            p_agent_id: agentId,
-            p_note: note ?? undefined
-          });
+      return supabase.rpc('add_team_account_agent', {
+        p_team: input.teamId,
+        p_account: input.accountId,
+        p_agent_id: agentId,
+        p_note: note ?? undefined
+      });
     });
     throwRpc(error);
     const agent = parseTeamAccountAgent(data);
     if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
-    return { ...agent, twoFactorSeed: input.twoFactorSeed ?? null };
+    return agent;
   },
 
   /** The id alone; runs have their own calls below. */

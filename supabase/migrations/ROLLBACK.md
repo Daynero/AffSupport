@@ -1172,3 +1172,21 @@ drop trigger if exists team_agent_two_factor_delete_secret on private.team_agent
 drop function if exists private.delete_team_agent_two_factor_secret();
 drop table if exists private.team_agent_two_factor;
 ```
+
+## 20260929100000_team_account_two_factor.sql
+
+Rolling back removes social-account 2FA seeds. The former agent association is intentionally not
+recreated: the new meaning is one seed per social account, and the old per-agent assignments were
+discarded when the migration moved them. Restore from a database backup if those credentials are
+needed after rollback.
+
+```sql
+delete from vault.secrets as secret
+using private.team_account_two_factor as credential
+where secret.id = credential.vault_secret_id;
+drop function if exists public.set_team_account_two_factor_seed(uuid, uuid, text);
+drop function if exists public.list_team_account_two_factor_seeds(uuid);
+drop trigger if exists team_account_two_factor_delete_secret on private.team_account_two_factor;
+drop function if exists private.delete_team_account_two_factor_secret();
+drop table if exists private.team_account_two_factor;
+```

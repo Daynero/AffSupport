@@ -689,6 +689,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                   requestEditor(state ? { kind: 'account', accountId: account.id, state } : null)
                 }
                 onRename={name => accounts.renameAccount(account.id, name).then(() => undefined)}
+                onSetTwoFactor={seed => accounts.setAccountTwoFactor(account.id, seed)}
                 onDelete={async () => {
                   await accounts.deleteAccount(account.id);
                   // The section is gone with its buttons; the dialog has nowhere
@@ -699,12 +700,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                   );
                 }}
                 onAddAgent={async value => {
-                  const created = await accounts.addAgent(
-                    account.id,
-                    value.agentId,
-                    value.note,
-                    value.twoFactorSeed
-                  );
+                  const created = await accounts.addAgent(account.id, value.agentId, value.note);
                   push({
                     tone: 'success',
                     text: t('teamAccountsToastAgentAdded', {
