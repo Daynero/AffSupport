@@ -206,6 +206,8 @@ export interface TeamAccountAgentSummary {
   accountId: string;
   teamId: string;
   agentId: string;
+  /** Decrypted team credential, loaded through the private 2FA RPC only. */
+  twoFactorSeed?: string | null;
   /** The runs on this agent, oldest first; none means free. */
   runs: TeamAgentRun[];
   /** The agent tags hung on it (019), in natural order by name. */
@@ -333,6 +335,7 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
     accountId: account_id,
     teamId: team_id,
     agentId: agent_id,
+    twoFactorSeed: typeof value.two_factor_seed === 'string' ? value.two_factor_seed : null,
     runs: parsedRuns,
     labels,
     balance,

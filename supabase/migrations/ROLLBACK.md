@@ -1156,3 +1156,19 @@ alter table public.team_catalog_updaters
 
 Re-apply `public.update_team_task` from `20260905160000_team_task_date.sql` (the same body with the
 stale-copy refusal raised as SQLSTATE 40001).
+
+## 20260928150000_team_agent_two_factor.sql
+
+Remove the encrypted Vault values before dropping their pointers. Team agents and their ordinary
+account data remain intact; only the optional 2FA credentials are removed.
+
+```sql
+delete from vault.secrets as secret
+using private.team_agent_two_factor as credential
+where secret.id = credential.vault_secret_id;
+drop function if exists public.add_team_account_agent_with_2fa(uuid, uuid, text, text, text);
+drop function if exists public.list_team_agent_two_factor_seeds(uuid);
+drop trigger if exists team_agent_two_factor_delete_secret on private.team_agent_two_factor;
+drop function if exists private.delete_team_agent_two_factor_secret();
+drop table if exists private.team_agent_two_factor;
+```

@@ -699,7 +699,12 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                   );
                 }}
                 onAddAgent={async value => {
-                  const created = await accounts.addAgent(account.id, value.agentId, value.note);
+                  const created = await accounts.addAgent(
+                    account.id,
+                    value.agentId,
+                    value.note,
+                    value.twoFactorSeed
+                  );
                   push({
                     tone: 'success',
                     text: t('teamAccountsToastAgentAdded', {

@@ -787,6 +787,25 @@
   color: var(--color-success);
 }
 
+.team-agent-two-factor {
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.team-agent-two-factor:hover,
+.team-agent-two-factor:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
 @media (hover: none) {
   .team-agent-copy.icon-button {
     opacity: 1;
@@ -1459,6 +1478,10 @@
 }
 
 .team-agent-edit-note {
+  flex: 2 1 260px;
+}
+
+.team-agent-edit-two-factor {
   flex: 2 1 260px;
 }
 

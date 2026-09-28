@@ -155,7 +155,11 @@ export function AccountGroup({
   onEditingChange: (editing: AgentEditing) => void;
   onRename: (name: string) => Promise<void>;
   onDelete: () => Promise<void>;
-  onAddAgent: (value: { agentId: string; note: string | null }) => Promise<void>;
+  onAddAgent: (value: {
+    agentId: string;
+    note: string | null;
+    twoFactorSeed?: string | null;
+  }) => Promise<void>;
   onUpdateAgent: (agent: TeamAccountAgentSummary, agentId: string) => Promise<void>;
   onDeleteAgent: (agent: TeamAccountAgentSummary) => Promise<void>;
   onAddRun: (agent: TeamAccountAgentSummary, note: string) => Promise<void>;

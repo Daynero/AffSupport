@@ -31,6 +31,7 @@ export interface AccountsClient {
     accountId: string;
     agentId: string;
     note?: string | null;
+    twoFactorSeed?: string | null;
   }): Promise<TeamAccountAgentSummary>;
   updateAccountAgent(input: {
     teamId: string;
@@ -277,8 +278,13 @@ export function useAccounts({
   );
 
   const addAgent = useCallback(
-    async (accountId: string, agentId: string, note: string | null) => {
-      const created = await client.addAccountAgent({ teamId, accountId, agentId, note });
+    async (
+      accountId: string,
+      agentId: string,
+      note: string | null,
+      twoFactorSeed?: string | null
+    ) => {
+      const created = await client.addAccountAgent({ teamId, accountId, agentId, note, twoFactorSeed });
       writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, accountId, account => ({

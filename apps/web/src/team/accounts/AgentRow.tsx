@@ -28,10 +28,13 @@ import {
 } from 'react';
 import { Check, CircleCheck, Copy, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react';
 import {
+  generateTotp,
   nextTeamAgentRunMarker,
   normalizeTeamAgentId,
   normalizeTeamAgentNote,
+  parseTwoFactorSeed,
   teamAgentLabel,
+  totpStepEndsAt,
   type TeamAccountAgentSummary,
   type TeamAgentRun,
   type TeamAgentRunMarker,
@@ -384,6 +387,7 @@ export function AgentRow({
   const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [totpSeconds, setTotpSeconds] = useState<number | null>(null);
   const free = agent.runs.length === 0;
   const tag = teamAgentLabel(accountName, agent.agentId);
   const waiting = busy || pending;
@@ -396,6 +400,27 @@ export function AgentRow({
     const timer = window.setTimeout(() => setCopied(false), 1800);
     return () => window.clearTimeout(timer);
   }, [copied]);
+
+  const showTotpCountdown = totpSeconds !== null;
+  useEffect(() => {
+    if (!showTotpCountdown) return;
+    const tick = () => {
+      const seconds = Math.max(0, Math.ceil((totpStepEndsAt() - Date.now()) / 1000));
+      setTotpSeconds(seconds === 0 ? null : seconds);
+    };
+    tick();
+    const timer = window.setInterval(tick, 250);
+    const wake = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('focus', wake);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('focus', wake);
+    };
+  }, [showTotpCountdown]);
 
   /**
    * The clipboard write happens inside the click, synchronously — Safari
@@ -414,6 +439,17 @@ export function AgentRow({
       }
       setRevealed(true);
       push({ tone: 'error', text: t('teamAgentCopyFailed') });
+    });
+  };
+
+  const copyTotp = () => {
+    if (!agent.twoFactorSeed) return;
+    const now = Date.now();
+    const digits = generateTotp(agent.twoFactorSeed, now);
+    const seconds = Math.max(0, Math.ceil((totpStepEndsAt(now) - now) / 1000));
+    void copyText(digits).then(ok => {
+      if (ok) setTotpSeconds(seconds);
+      else push({ tone: 'error', text: t('teamAgentTwoFactorCopyFailed') });
     });
   };
 
@@ -536,6 +572,23 @@ export function AgentRow({
             <Copy size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
           )}
         </IconButton>
+        {agent.twoFactorSeed && (
+          <button
+            type="button"
+            className="team-agent-two-factor"
+            aria-label={
+              totpSeconds === null
+                ? `${t('teamAgentTwoFactorCopy')} ${tag}`
+                : t('teamAgentTwoFactorCopiedFor', { agent: tag, seconds: totpSeconds })
+            }
+            title={t('teamAgentTwoFactorCopy')}
+            onClick={copyTotp}
+          >
+            {totpSeconds === null
+              ? t('teamAgentTwoFactor')
+              : t('teamAgentTwoFactorCountdown', { seconds: totpSeconds })}
+          </button>
+        )}
         {/* The agent's own tags (019), beside its name — the heading the
             copied payment list will group this row under. */}
         <AgentLabels
@@ -906,12 +959,17 @@ export function AgentEditRow({
   /** Another editor was asked for while this one has unsaved typing. */
   hold?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
-  onSave: (value: { agentId: string; note: string | null }) => Promise<void>;
+  onSave: (value: {
+    agentId: string;
+    note: string | null;
+    twoFactorSeed?: string | null;
+  }) => Promise<void>;
   onCancel: () => void;
 }) {
   const { t } = useI18n();
   const [agentId, setAgentId] = useState(agent?.agentId ?? '');
   const [note, setNote] = useState('');
+  const [twoFactor, setTwoFactor] = useState('');
   const [error, setError] = useState<TranslationKey | null>(null);
   const [saving, setSaving] = useState(false);
   const firstField = useRef<HTMLInputElement>(null);
@@ -928,7 +986,7 @@ export function AgentEditRow({
 
   // Dirty means "differs from what was there": a correction abandoned unchanged
   // is not typing anyone would miss.
-  const dirty = agentId !== (agent?.agentId ?? '') || note !== '';
+  const dirty = agentId !== (agent?.agentId ?? '') || note !== '' || twoFactor !== '';
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
@@ -945,9 +1003,20 @@ export function AgentEditRow({
       setError('teamAgentNoteInvalid');
       return;
     }
+    let twoFactorSeed: string | null = null;
+    if (twoFactor.trim()) {
+      const parsed = parseTwoFactorSeed(twoFactor.trim());
+      if (!parsed.ok) {
+        setError(
+          parsed.error === 'EMPTY' ? 'teamAgentTwoFactorRequired' : 'teamAgentTwoFactorInvalid'
+        );
+        return;
+      }
+      twoFactorSeed = parsed.secret;
+    }
     setSaving(true);
     try {
-      await onSave({ agentId: cleanId, note: cleanNote });
+      await onSave({ agentId: cleanId, note: cleanNote, twoFactorSeed });
     } catch (cause) {
       // Typed values survive a refusal; the message names what was refused.
       setError(agentErrorKey(cause));
@@ -991,6 +1060,18 @@ export function AgentEditRow({
             label={t('teamAgentNotePlaceholder')}
             onChange={value => {
               setNote(value);
+              setError(null);
+            }}
+            onKeyDown={onKeyDown}
+          />
+        )}
+        {adding && (
+          <EditField
+            className="team-agent-edit-two-factor"
+            value={twoFactor}
+            label={t('teamAgentTwoFactorPlaceholder')}
+            onChange={value => {
+              setTwoFactor(value);
               setError(null);
             }}
             onKeyDown={onKeyDown}
