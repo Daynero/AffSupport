@@ -22,7 +22,17 @@ interface IntakeGrant {
   rootDev: number;
   rootIno: number;
   expiresAt: number;
-  files: Map<string, { dev: number; ino: number; size: number }>;
+  files: Map<
+    string,
+    {
+      dev: number;
+      ino: number;
+      size: number;
+      birthtimeMs: number;
+      ctimeMs: number;
+      mtimeMs: number;
+    }
+  >;
 }
 
 /** One agent-owned, ephemeral scope per native selection; never a cloud path. */
@@ -63,7 +73,17 @@ export class DirectoryIntake {
       const rootName = path.basename(grant.path);
       if (!isLocalManifestRelativePath(rootName)) throw new Error('INVALID_INPUT');
       const entries: NativeDirectoryIntakeEntry[] = [{ kind: 'directory', relativePath: rootName }];
-      const files = new Map<string, { dev: number; ino: number; size: number }>();
+      const files = new Map<
+        string,
+        {
+          dev: number;
+          ino: number;
+          size: number;
+          birthtimeMs: number;
+          ctimeMs: number;
+          mtimeMs: number;
+        }
+      >();
       const pending = [{ absolute: grant.path, relative: rootName, depth: 0 }];
       let directories = 1;
       let totalBytes = 0;
@@ -109,7 +129,14 @@ export class DirectoryIntake {
               sizeBytes: info.size,
               mimeType: 'application/octet-stream'
             });
-            files.set(relative, { dev: info.dev, ino: info.ino, size: info.size });
+            files.set(relative, {
+              dev: info.dev,
+              ino: info.ino,
+              size: info.size,
+              birthtimeMs: info.birthtimeMs,
+              ctimeMs: info.ctimeMs,
+              mtimeMs: info.mtimeMs
+            });
           } else {
             throw new Error('FILE_UNAVAILABLE');
           }
@@ -167,6 +194,9 @@ export class DirectoryIntake {
         info.dev !== expected.dev ||
         info.ino !== expected.ino ||
         info.size !== expected.size ||
+        info.birthtimeMs !== expected.birthtimeMs ||
+        info.ctimeMs !== expected.ctimeMs ||
+        info.mtimeMs !== expected.mtimeMs ||
         (await realpath(absolute)) !== resolved
       )
         throw new Error('FILE_UNAVAILABLE');

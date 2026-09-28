@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import Fastify from 'fastify';
@@ -137,6 +137,8 @@ describe('native directory intake', () => {
     if (result.kind !== 'selected') throw new Error('selection failed');
     await rm(path.join(picked, 'a.txt'));
     await writeFile(path.join(picked, 'a.txt'), 'hello');
+    // Windows can recycle the file ID immediately; make the replacement's metadata distinct.
+    await utimes(path.join(picked, 'a.txt'), new Date(0), new Date(0));
     await expect(
       intake.read({ grantId: result.grantId, relativePath: 'Project/a.txt', offset: 0, length: 1 })
     ).rejects.toThrow('FILE_UNAVAILABLE');
