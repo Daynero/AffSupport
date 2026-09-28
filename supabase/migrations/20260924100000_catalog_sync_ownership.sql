@@ -6,7 +6,8 @@ alter table private.catalog_sync_jobs
   add column last_progress_at timestamptz,
   add column replay_after bigint;
 update private.catalog_sync_jobs set last_progress_at = updated_at;
-alter table private.catalog_sync_jobs alter column last_progress_at set not null;
+-- Older Agents still omit this column; the insert trigger below fills it.
+-- Defer the schema-level NOT NULL until those Agents are no longer supported.
 alter table private.catalog_sync_jobs drop constraint catalog_sync_jobs_state_check;
 alter table private.catalog_sync_jobs add constraint catalog_sync_jobs_state_check
   check (state in ('pending', 'leased', 'retry', 'succeeded', 'failed', 'canceled'));
@@ -14,7 +15,7 @@ update private.catalog_sync_jobs set job_kind = case
   when requested_folder_id is not null then 'user_subtree'
   when phase = 'initial_scan' then 'initial'
   when phase = 'reconcile' then 'reconcile' else 'incremental' end;
-alter table private.catalog_sync_jobs alter column job_kind set not null;
+-- The same trigger classifies inserts from older Agents that omit job_kind.
 alter table private.catalog_sync_jobs add constraint catalog_sync_jobs_kind_check
   check (job_kind in ('incremental', 'initial', 'user_subtree', 'discovered_subtree', 'reconcile'));
 
