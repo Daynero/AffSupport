@@ -19,21 +19,21 @@ The canonical production signal is `PRODUCTION_SITE_ORIGIN` from
 OAuth transaction origin are checked independently; any one matching production requires
 `verified`. Changing the mode after OAuth start does not bypass the callback check.
 
-Production remains `disabled` until the restricted Google Drive scope has completed the
-required verification/security assessment. Record the approval owner, project/client id,
-scope list, approval date, and next review date outside this repository. Review the restricted
-scope approval at least annually and before changing domains, OAuth client, privacy policy,
-data use, or scope. If approval lapses, set the deployment to `disabled`; never fall back to
-`testing` on the production origin.
+Production may use `verified` with the non-restricted `drive.file` scope. Full Drive access
+remains unavailable until the restricted scope has completed Google's verification and security
+assessment. Record the approval owner, project/client id, scope list, approval date, and next
+review date outside this repository before a future release enables it. Never use `testing` on
+the production origin.
 
 ### Scope set (feature 011)
 
 Storage connects under the non-restricted `https://www.googleapis.com/auth/drive.file` scope,
 with the owner choosing the root in Google's own folder chooser. That scope needs no
 verification review, shows no "unverified app" warning, and its refresh tokens do not expire
-weekly. The restricted `https://www.googleapis.com/auth/drive` scope is added to the request
-only when `DRIVE_RESTRICTED_SCOPE_APPROVED=true` is set on the deployment, which records
-Google's approval of the production client; readiness reports `scopes`,
+weekly. The restricted `https://www.googleapis.com/auth/drive` scope is available in isolated
+beta when `DRIVE_RESTRICTED_SCOPE_APPROVED=true`. Production requests only `drive.file` until a
+future release explicitly enables the restricted scope after Google's approval; a deployment
+flag by itself is not proof. Readiness reports `scopes`,
 `restrictedScopeApproved` and `scopeGate`, and `npm run verify:team-production` refuses a
 restricted scope without the approval or a browser build without
 `VITE_GOOGLE_PICKER_API_KEY` / `VITE_GOOGLE_PROJECT_NUMBER`. A space may hold more than one

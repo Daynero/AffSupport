@@ -32,13 +32,9 @@ import {
   type DriveConnectCommand,
   type RootCandidateSnapshot
 } from './handler.ts';
-import { evaluateTeamProviderReadiness } from './readiness.ts';
+import { evaluateTeamProviderReadiness, resolveDriveScopesForDeployment } from './readiness.ts';
 import { driveRedirectUri, type GoogleRedirectEnvironment } from '../_shared/google-redirect.ts';
-import {
-  assertScopesAllowed,
-  resolveDriveScopes,
-  restrictedScopeApproval
-} from '../_shared/scopes.ts';
+import { assertScopesAllowed, restrictedScopeApproval } from '../_shared/scopes.ts';
 import { evaluateDriveOAuthGate } from '../_shared/auth.ts';
 
 interface RpcFailure {
@@ -169,18 +165,16 @@ async function startOAuth(
   const environment = {
     DRIVE_RESTRICTED_SCOPE_APPROVED: Deno.env.get('DRIVE_RESTRICTED_SCOPE_APPROVED')
   };
-  const scopes = resolveDriveScopes(environment);
+  const production = evaluateDriveOAuthGate(Deno.env.get('DRIVE_OAUTH_MODE'), signals).production;
+  const scopes = resolveDriveScopesForDeployment(environment, production);
   assertScopesAllowed(
     scopes,
-    evaluateDriveOAuthGate(Deno.env.get('DRIVE_OAUTH_MODE'), signals).production,
+    production,
     restrictedScopeApproval(environment.DRIVE_RESTRICTED_SCOPE_APPROVED)
   );
   authorizationUrl.searchParams.set('scope', scopes.join(' '));
   authorizationUrl.searchParams.set('access_type', 'offline');
-  // Incremental auth: when the restricted scope is approved later (011, D1), an
-  // owner who re-consents keeps `drive.file` and gains the wider scope in one
-  // grant, so nothing already connected has to be reconnected.
-  authorizationUrl.searchParams.set('include_granted_scopes', 'true');
+  // Do not carry an earlier broad Drive grant into a drive.file-only consent.
   authorizationUrl.searchParams.set('prompt', 'consent');
   authorizationUrl.searchParams.set('state', state);
   authorizationUrl.searchParams.set('code_challenge_method', 'S256');
@@ -311,6 +305,7 @@ Deno.serve(async request => {
         evaluateTeamProviderReadiness(
           {
             DRIVE_OAUTH_MODE: Deno.env.get('DRIVE_OAUTH_MODE'),
+            DRIVE_RESTRICTED_SCOPE_APPROVED: Deno.env.get('DRIVE_RESTRICTED_SCOPE_APPROVED'),
             GOOGLE_CLIENT_ID: Deno.env.get('GOOGLE_CLIENT_ID'),
             GOOGLE_CLIENT_SECRET: Deno.env.get('GOOGLE_CLIENT_SECRET'),
             GOOGLE_REDIRECT_URI: Deno.env.get('GOOGLE_REDIRECT_URI'),

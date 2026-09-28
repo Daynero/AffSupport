@@ -7,6 +7,7 @@ import {
   restrictedScopeApproval,
   restrictedScopeGate
 } from '../supabase/functions/_shared/scopes';
+import { resolveDriveScopesForDeployment } from '../supabase/functions/drive-connect/readiness';
 import { executeDriveConnectCommand } from '../supabase/functions/drive-connect/handler';
 import { completeDriveOAuthCallback } from '../supabase/functions/drive-oauth-callback/handler';
 
@@ -59,6 +60,9 @@ describe('Drive scopes (011)', () => {
       DRIVE_FILE_SCOPE,
       DRIVE_RESTRICTED_SCOPE
     ]);
+    expect(
+      resolveDriveScopesForDeployment({ DRIVE_RESTRICTED_SCOPE_APPROVED: 'true' }, true)
+    ).toEqual([DRIVE_FILE_SCOPE]);
     expect(restrictedScopeApproval('TRUE')).toBe('approved');
     expect(restrictedScopeApproval(undefined)).toBe('not_approved');
     expect(restrictedScopeApproval('yes')).toBe('invalid');

@@ -1,5 +1,6 @@
 import { evaluateDriveOAuthGate, type OAuthProductionSignals } from '../_shared/auth.ts';
 import {
+  DRIVE_FILE_SCOPE,
   resolveDriveScopes,
   restrictedScopeApproval,
   restrictedScopeGate
@@ -7,6 +8,15 @@ import {
 import { DRIVE_CALLBACK_PATH, driveRedirectUri } from '../_shared/google-redirect.ts';
 
 export type TeamProviderEnvironment = Readonly<Record<string, string | undefined>>;
+
+export function resolveDriveScopesForDeployment(
+  environment: TeamProviderEnvironment,
+  production: boolean
+): string[] {
+  // The production client is verified for drive.file only. The deployment flag
+  // can enable the broader scope in isolated beta, but cannot approve it in Google.
+  return production ? [DRIVE_FILE_SCOPE] : resolveDriveScopes(environment);
+}
 
 function configured(value: string | undefined, minimumLength = 1): boolean {
   return typeof value === 'string' && value.trim().length >= minimumLength;
@@ -35,7 +45,7 @@ export function evaluateTeamProviderReadiness(
   // production origin without Google's approval is refused here, before any
   // person is sent through the unverified-app flow.
   const approval = restrictedScopeApproval(environment.DRIVE_RESTRICTED_SCOPE_APPROVED);
-  const scopes = resolveDriveScopes(environment);
+  const scopes = resolveDriveScopesForDeployment(environment, gate.production);
   const scopeGate = restrictedScopeGate(scopes, gate.production, approval);
   // The address Google returns to, as the authorization will actually send it.
   const redirectUri = driveRedirectUri(environment);

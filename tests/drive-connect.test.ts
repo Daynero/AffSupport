@@ -194,10 +194,7 @@ describe('Drive OAuth release gate', () => {
       )
     ).toMatchObject({
       ready: true,
-      scopes: [
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive'
-      ],
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
       restrictedScopeApproved: true
     });
     expect(
