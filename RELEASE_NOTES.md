@@ -1,3 +1,7 @@
+# v1.2.2
+
+- Виправлено критичні помилки в перезашивці відео.
+
 # v1.2.1
 
 - Refresh the Soty web interface with the new branded workspace experience.
