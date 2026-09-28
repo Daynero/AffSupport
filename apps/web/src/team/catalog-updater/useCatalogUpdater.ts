@@ -11,6 +11,7 @@ import { useTeam } from '../TeamContext';
  */
 
 const FALLBACK_POLL_MS = 60_000;
+const ACTIVE_UPDATE_POLL_MS = 5_000;
 const REVISION_DEBOUNCE_MS = 500;
 
 export interface CatalogUpdaterClient {
@@ -85,6 +86,12 @@ export function useCatalogRegistry(
     () => client.listTeamProductCatalogs(teamId),
     enabled
   );
+  const hasPendingUpdate = value?.some(row => row.updatePending) ?? false;
+  useEffect(() => {
+    if (!enabled || !hasPendingUpdate) return;
+    const timer = window.setInterval(reload, ACTIVE_UPDATE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [enabled, hasPendingUpdate, reload]);
   return { rows: value, error, reload };
 }
 

@@ -42,6 +42,7 @@ function setup(overrides: { claim?: unknown; start?: () => Promise<never>; bound
       case 'service_bind_restitch_job_operation':
         return overrides.bound ?? true;
       case 'service_heartbeat_restitch_job':
+      case 'service_report_restitch_job_progress':
         return false;
       case 'service_complete_restitch_job':
         return true;
@@ -180,6 +181,19 @@ describe('heartbeat and completion', () => {
     expect(call('service_heartbeat_restitch_job')).toMatchObject({
       p_actor: ACTOR,
       p_lease_token_hash: `hash(${LEASE})`
+    });
+    expect(
+      await heartbeatRestitchJob(deps, ACTOR, {
+        jobId: JOB,
+        leaseToken: LEASE,
+        progress: 47,
+        stage: 'processing'
+      })
+    ).toEqual({ cancel: false });
+    expect(call('service_report_restitch_job_progress')).toMatchObject({
+      p_actor: ACTOR,
+      p_progress: 47,
+      p_stage: 'processing'
     });
     await expect(
       heartbeatRestitchJob(deps, ACTOR, { jobId: JOB, leaseToken: 'x' })

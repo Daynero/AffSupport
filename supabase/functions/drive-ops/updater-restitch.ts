@@ -226,12 +226,26 @@ export async function heartbeatRestitchJob(
   actorId: string,
   body: Record<string, unknown>
 ) {
-  const cancel = await deps.rpc('service_heartbeat_restitch_job', {
-    p_actor: actorId,
-    p_job: uuid(body.jobId),
-    p_lease_token_hash: await deps.hashHex(leaseToken(body.leaseToken)),
-    p_lease_seconds: LEASE_SECONDS
-  });
+  const progress = body.progress;
+  const stage = body.stage;
+  const reporting = progress !== undefined || stage !== undefined;
+  if (
+    reporting &&
+    (!Number.isInteger(progress) ||
+      (progress as number) < 0 ||
+      (progress as number) > 100 ||
+      !['downloading', 'processing', 'uploading', 'finalizing'].includes(stage as string))
+  )
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  const cancel = await deps.rpc(
+    reporting ? 'service_report_restitch_job_progress' : 'service_heartbeat_restitch_job',
+    {
+      p_actor: actorId,
+      p_job: uuid(body.jobId),
+      p_lease_token_hash: await deps.hashHex(leaseToken(body.leaseToken)),
+      ...(reporting ? { p_progress: progress, p_stage: stage } : { p_lease_seconds: LEASE_SECONDS })
+    }
+  );
   return { cancel: cancel !== false };
 }
 

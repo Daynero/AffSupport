@@ -247,12 +247,21 @@ export interface CatalogRegistryRow {
   updatePending: boolean;
   /** The stage the background worker last confirmed; survives page reloads. */
   updateStage: CatalogUpdateStage | null;
+  /** Live progress of the video copy, reported by the member's local app. */
+  restitchProgress: number | null;
+  restitchStage: 'downloading' | 'processing' | 'uploading' | 'finalizing' | null;
   /** The provider id of the folder the sheet is in; null at the space root. */
   folderDriveId: string | null;
 }
 
 export type CatalogUpdateStage =
-  'preparing' | 'refreshing' | 'building' | 'uploading' | 'finalizing';
+  | 'waiting_video'
+  | 'restitching'
+  | 'preparing'
+  | 'refreshing'
+  | 'building'
+  | 'uploading'
+  | 'finalizing';
 
 export type CatalogUpdaterInterval = UpdaterInterval;
 
@@ -371,12 +380,28 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     nextRunAt: typeof row.next_run_at === 'string' ? row.next_run_at : null,
     updatePending: row.update_pending === true,
     updateStage:
+      row.update_stage === 'waiting_video' ||
+      row.update_stage === 'restitching' ||
       row.update_stage === 'preparing' ||
       row.update_stage === 'refreshing' ||
       row.update_stage === 'building' ||
       row.update_stage === 'uploading' ||
       row.update_stage === 'finalizing'
         ? row.update_stage
+        : null,
+    restitchProgress:
+      typeof row.restitch_progress === 'number' &&
+      Number.isInteger(row.restitch_progress) &&
+      row.restitch_progress >= 0 &&
+      row.restitch_progress <= 100
+        ? row.restitch_progress
+        : null,
+    restitchStage:
+      row.restitch_stage === 'downloading' ||
+      row.restitch_stage === 'processing' ||
+      row.restitch_stage === 'uploading' ||
+      row.restitch_stage === 'finalizing'
+        ? row.restitch_stage
         : null,
     folderDriveId: typeof row.folder_drive_id === 'string' ? row.folder_drive_id : null
   };
@@ -1965,10 +1990,17 @@ export const teamApi = {
   },
 
   /** Keeps the lease; true means the updater no longer wants this copy. */
-  async heartbeatRestitchJob(jobId: string, leaseToken: string): Promise<boolean> {
+  async heartbeatRestitchJob(
+    jobId: string,
+    leaseToken: string,
+    progress?: {
+      progress: number;
+      stage: 'downloading' | 'processing' | 'uploading' | 'finalizing';
+    }
+  ): Promise<boolean> {
     const value = await invokeTeamFunction(
       'drive-ops/updater/heartbeat',
-      { jobId, leaseToken },
+      { jobId, leaseToken, ...progress },
       cancelGuard
     );
     return value.cancel;

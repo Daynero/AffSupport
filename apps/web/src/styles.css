@@ -17921,6 +17921,26 @@ a.history-subject {
   animation: product-catalog-step calc(var(--motion-slow) * 3) var(--ease-in-out-curve) infinite
     alternate;
 }
+.product-catalog-restitch-track {
+  grid-column: 1 / -1;
+  height: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+}
+.product-catalog-restitch-track span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-secondary-solid);
+  transform-origin: left center;
+  transition: transform var(--motion-base) var(--ease-out-curve);
+}
+.product-catalog-restitch-track span.is-waiting {
+  animation: product-catalog-step calc(var(--motion-slow) * 3) var(--ease-in-out-curve) infinite
+    alternate;
+}
 @keyframes product-catalog-step {
   from {
     opacity: 0.35;
@@ -17933,6 +17953,9 @@ a.history-subject {
   .product-catalog-progress-track span.is-now {
     animation: none;
     opacity: 0.6;
+  }
+  .product-catalog-restitch-track span.is-waiting {
+    animation: none;
   }
 }
 

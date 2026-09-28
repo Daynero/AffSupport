@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseMaterialRestitchPrep, usablePrep } from '@video-compressor/shared';
-import { cancelTeamAgentProcess, startTeamAgentProcess } from '../../api/client';
+import { cancelTeamAgentProcess, startTeamAgentProcess, toolEventUrl } from '../../api/client';
+import { useAgentEventStream } from '../../api/useAgentEventStream';
+import { useOptionalAgent } from '../../AgentContext';
 import { teamApi, type RestitchClaim } from '../../api/team';
 
 /**
@@ -19,11 +21,16 @@ import { teamApi, type RestitchClaim } from '../../api/team';
 const POLL_MS = 30_000;
 const AFTER_JOB_MS = 3_000;
 const HEARTBEAT_MS = 25_000;
+const PROGRESS_POLL_MS = 5_000;
 const MAX_BACKOFF_MS = 5 * 60_000;
 
 export interface RestitchPreparerClient {
   claimRestitchJob: (teamId: string) => Promise<RestitchClaim | null>;
-  heartbeatRestitchJob: (jobId: string, leaseToken: string) => Promise<boolean>;
+  heartbeatRestitchJob: (
+    jobId: string,
+    leaseToken: string,
+    progress?: RestitchProgress
+  ) => Promise<boolean>;
   completeRestitchJob: (input: {
     jobId: string;
     leaseToken: string;
@@ -36,11 +43,19 @@ export interface RestitchPreparerClient {
 
 const defaultClient: RestitchPreparerClient = {
   claimRestitchJob: teamId => teamApi.claimRestitchJob(teamId),
-  heartbeatRestitchJob: (jobId, leaseToken) => teamApi.heartbeatRestitchJob(jobId, leaseToken),
+  heartbeatRestitchJob: (jobId, leaseToken, progress) =>
+    teamApi.heartbeatRestitchJob(jobId, leaseToken, progress),
   completeRestitchJob: input => teamApi.completeRestitchJob(input),
   startProcess: startTeamAgentProcess,
   cancelProcess: cancelTeamAgentProcess
 };
+
+type RestitchProgressStage = 'downloading' | 'processing' | 'uploading' | 'finalizing';
+interface RestitchProgress {
+  progress: number;
+  stage: RestitchProgressStage;
+}
+const PROGRESS_STAGES: readonly string[] = ['downloading', 'processing', 'uploading', 'finalizing'];
 
 /** A preparation the app can trust for this exact file, or none — the run then inspects for itself. */
 function preparedFor(claim: RestitchClaim): unknown {
@@ -57,20 +72,38 @@ function errorCode(error: unknown): string {
 export async function runRestitchClaim(
   claim: RestitchClaim,
   client: RestitchPreparerClient,
-  isStopped: () => boolean
+  isStopped: () => boolean,
+  liveProgress: () => RestitchProgress | null = () => null
 ): Promise<void> {
   let cancelled = false;
+  let reporting = false;
+  let lastReport: RestitchProgress | null = null;
+  let lastHeartbeatAt = Date.now();
   const heartbeat = window.setInterval(() => {
+    if (reporting || cancelled) return;
+    const progress = liveProgress();
+    if (
+      Date.now() - lastHeartbeatAt < HEARTBEAT_MS &&
+      (!progress ||
+        (lastReport?.progress === progress.progress && lastReport.stage === progress.stage))
+    )
+      return;
+    reporting = true;
     void client
-      .heartbeatRestitchJob(claim.jobId, claim.leaseToken)
+      .heartbeatRestitchJob(claim.jobId, claim.leaseToken, progress ?? undefined)
       .then(cancel => {
+        lastHeartbeatAt = Date.now();
+        lastReport = progress;
         if (cancel && !cancelled) {
           cancelled = true;
           void client.cancelProcess(claim.operationId).catch(() => false);
         }
       })
-      .catch(() => undefined);
-  }, HEARTBEAT_MS);
+      .catch(() => undefined)
+      .finally(() => {
+        reporting = false;
+      });
+  }, PROGRESS_POLL_MS);
   let outcome: 'finalized' | 'failed' = 'failed';
   let code: string | null = null;
   try {
@@ -110,6 +143,33 @@ export function useRestitchPreparer(input: {
   const clientRef = useRef(input.client ?? defaultClient);
   clientRef.current = input.client ?? defaultClient;
   const [preparing, setPreparing] = useState(false);
+  const [watching, setWatching] = useState<string | null>(null);
+  const progressRef = useRef<RestitchProgress | null>(null);
+  const agent = useOptionalAgent();
+
+  useAgentEventStream<{
+    type: 'team:operations';
+    operations: Array<{ operationId: string; state: string; stage: string; progress: number }>;
+  }>({
+    url: watching ? toolEventUrl('team') : null,
+    channel: 'team',
+    multiplexed: Boolean(agent?.capabilities?.includes('event-stream')),
+    enabled: Boolean(watching),
+    onMessage: event => {
+      if (event.type !== 'team:operations' || !watching) return;
+      const operation = event.operations.find(item => item.operationId === watching);
+      if (
+        operation?.state !== 'running' ||
+        !PROGRESS_STAGES.includes(operation.stage) ||
+        !Number.isFinite(operation.progress)
+      )
+        return;
+      progressRef.current = {
+        progress: Math.max(0, Math.min(100, Math.round(operation.progress))),
+        stage: operation.stage as RestitchProgressStage
+      };
+    }
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -140,10 +200,21 @@ export function useRestitchPreparer(input: {
         return;
       }
       setPreparing(true);
+      progressRef.current = { progress: 0, stage: 'downloading' };
+      setWatching(claim.operationId);
       try {
-        await runRestitchClaim(claim, clientRef.current, () => stopped);
+        await runRestitchClaim(
+          claim,
+          clientRef.current,
+          () => stopped,
+          () => progressRef.current
+        );
       } finally {
-        if (!stopped) setPreparing(false);
+        progressRef.current = null;
+        if (!stopped) {
+          setWatching(null);
+          setPreparing(false);
+        }
       }
       schedule(AFTER_JOB_MS);
     };

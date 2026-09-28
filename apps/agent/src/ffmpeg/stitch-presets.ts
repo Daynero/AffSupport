@@ -463,7 +463,26 @@ export function buildConcatArgs(options: ConcatOptions): string[] {
  * and opens a new one. A path with an apostrophe in it is ordinary on macOS, so this is a
  * correctness requirement rather than a nicety.
  */
-export function concatListContents(paths: readonly string[]): string {
+export function concatListContents(
+  paths: readonly string[],
+  durations: readonly (number | null)[] = []
+): string {
   if (paths.length === 0) throw new StitchArgumentError('CONCAT_LIST_EMPTY');
-  return `${paths.map(value => `file '${value.replaceAll("'", "'\\''")}'`).join('\n')}\n`;
+  if (durations.length > 0 && durations.length !== paths.length)
+    throw new StitchArgumentError('CONCAT_DURATIONS_INVALID');
+  return `${paths
+    .map((value, index) => {
+      const duration = durations[index];
+      if (
+        duration !== null &&
+        duration !== undefined &&
+        !(Number.isFinite(duration) && duration > 0)
+      )
+        throw new StitchArgumentError('CONCAT_DURATION_INVALID');
+      const file = `file '${value.replaceAll("'", "'\\''")}'`;
+      return duration === null || duration === undefined
+        ? file
+        : `${file}\nduration ${decimal(duration, 9)}`;
+    })
+    .join('\n')}\n`;
 }

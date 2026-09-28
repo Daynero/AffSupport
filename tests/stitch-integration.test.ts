@@ -32,6 +32,7 @@ let legacy = '';
 let clean = '';
 let photoTail = '';
 let cardThenPhoto = '';
+let bframeCut = '';
 let photo = '';
 
 const SCREENS: StitchScreens = {
@@ -163,6 +164,7 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
     clean = path.join(directory, 'clean.mp4');
     photoTail = path.join(directory, 'photo-tail.mp4');
     cardThenPhoto = path.join(directory, 'card-then-photo.mp4');
+    bframeCut = path.join(directory, 'bframe-cut.mp4');
     photo = path.join(directory, 'photo.png');
 
     await ffmpeg([
@@ -260,6 +262,30 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
       '-movflags',
       '+faststart',
       clean
+    ]);
+    await ffmpeg([
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=size=320x320:rate=30:duration=9',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:sample_rate=48000:duration=9',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'medium',
+      '-g',
+      '30',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '96k',
+      bframeCut
     ]);
     /*
      * The shape that broke the detector on a real file: a long tail held on a *detailed*
@@ -504,6 +530,44 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
       bodies: new PreparedBodyCache({ root: workDir })
     });
     expect(produced).toEqual({ ok: false, error: 'STITCH_VERIFICATION_FAILED' });
+  }, 120_000);
+
+  it('places a sparse end screen after every B-frame of the cut body', async () => {
+    const profile = unwrap(await probeSource(bframeCut));
+    const screens = { ...SCREENS, startImageId: null, endDurationSeconds: 1200 };
+    const plan = unwrap(
+      planStitch(profile, { startSeconds: 0, endSeconds: 0.43, adjustedByUser: true }, screens)
+    );
+    const workDir = await mkdtemp(path.join(directory, 'bframe-seam-'));
+    const produced = await runStitchPipeline({
+      request: { profile, plan, screens, destination: { kind: 'beside' }, outputSuffix: '' },
+      workDir,
+      threads: null,
+      signal: new AbortController().signal,
+      onChild: () => {},
+      onStage: () => {},
+      imagePathFor: async () => photo,
+      bodies: new PreparedBodyCache({ root: workDir })
+    });
+    if (!produced.ok) throw new Error(produced.error);
+    const packets = await runTool('ffprobe', [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'packet=pts_time',
+      '-of',
+      'csv=p=0',
+      produced.stagedPath
+    ]);
+    const times = packets.stdout.split('\n').map(Number).filter(Number.isFinite);
+    const firstScreenIndex = times.findIndex(
+      (time, index) => index > 0 && index < times.length - 1 && times[index + 1]! - time > 2
+    );
+    expect(firstScreenIndex).toBeGreaterThan(0);
+    const previousBodyPresentation = Math.max(...times.slice(0, firstScreenIndex));
+    expect(times[firstScreenIndex]!).toBeGreaterThan(previousBodyPresentation);
   }, 120_000);
 
   it('re-stitches it into a file that matches what it promised', async () => {

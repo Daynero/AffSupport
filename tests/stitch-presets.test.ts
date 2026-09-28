@@ -370,6 +370,13 @@ describe('joining (D1)', () => {
     expect(contents.trimEnd().split('\n')).toHaveLength(2);
   });
 
+  it('can keep the next segment behind the last presented body packet', () => {
+    expect(concatListContents(['/tmp/body.mp4', '/tmp/screen.mp4'], [108.409896, null])).toBe(
+      "file '/tmp/body.mp4'\nduration 108.409896\nfile '/tmp/screen.mp4'\n"
+    );
+    expect(() => concatListContents(['/tmp/body.mp4'], [0])).toThrow(StitchArgumentError);
+  });
+
   it('refuses an empty join', () => {
     expect(() => concatListContents([])).toThrow(StitchArgumentError);
   });

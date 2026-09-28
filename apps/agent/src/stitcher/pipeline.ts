@@ -19,7 +19,7 @@ import type {
   StitchStage,
   StitchVerification
 } from '@video-compressor/shared';
-import { ffmpegPath } from '../ffmpeg/tools.js';
+import { concatSegmentDuration, ffmpegPath } from '../ffmpeg/tools.js';
 import { buildConcatArgs, concatListContents } from '../ffmpeg/stitch-presets.js';
 import { audioShapeDisagreements, measureAudioShape } from './audio-shape.js';
 import { PreparedBodyCache } from './body-cache.js';
@@ -101,12 +101,14 @@ export const runStitchPipeline: StitchPipeline = async context => {
 
   // What the body actually is, not what it was predicted to be: see `measureSegment`.
   const measuredBody = await measureSegment(body.value.path, { signal: context.signal });
+  const bodyConcatSeconds = measuredBody ? await concatSegmentDuration(body.value.path) : null;
   // Segment measurements may correct muxing drift, but must never redefine a lost body
   // as the promised result. Check the video track before adopting measured durations.
   const plannedBodySeconds = plan.bodyEndSeconds - plan.bodyStartSeconds;
   const bodyToleranceSeconds = Math.max(0.25, 3 / profile.frameRate);
   if (
     !measuredBody ||
+    bodyConcatSeconds === null ||
     Math.abs(measuredBody.videoTrackSeconds - plannedBodySeconds) > bodyToleranceSeconds
   ) {
     return { ok: false, error: 'STITCH_VERIFICATION_FAILED' };
@@ -153,7 +155,7 @@ export const runStitchPipeline: StitchPipeline = async context => {
   const joining = segments.length > 1;
   const bodySeconds = measuredBody
     ? joining
-      ? measuredBody.durationSeconds
+      ? bodyConcatSeconds!
       : measuredBody.videoTrackSeconds
     : 0;
   const expected: StitchPlan = measuredBody
@@ -223,7 +225,14 @@ export const runStitchPipeline: StitchPipeline = async context => {
     if (disagreements.length > 0) return { ok: false, error: 'STITCH_AUDIO_MISMATCH' };
 
     const listPath = path.join(workDir, 'segments.txt');
-    await writeFile(listPath, concatListContents(segments), 'utf8');
+    await writeFile(
+      listPath,
+      concatListContents(
+        segments,
+        segments.map(segment => (segment === body.value.path ? bodyConcatSeconds : null))
+      ),
+      'utf8'
+    );
     const joined = await runTool(
       ffmpegPath,
       buildConcatArgs({ listPath, output: staged, progress: true }),

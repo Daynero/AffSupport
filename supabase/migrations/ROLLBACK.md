@@ -1,5 +1,15 @@
 # Rollback notes
 
+## 20260928140000_catalog_restitch_visible_progress.sql
+
+Stop progress reports from the web before reverting. Restore
+`public.list_team_product_catalogs(uuid)` from
+`20260920110000_catalog_update_real_progress.sql`, then drop
+`public.service_report_restitch_job_progress(uuid,uuid,bytea,integer,text)`,
+the `catalog_restitch_job_progress_reset` trigger and its function, and the
+`progress` and `progress_stage` columns on `private.catalog_restitch_jobs`.
+This removes display progress only; queued jobs and video copies remain.
+
 ## 20260928130000_catalog_create_with_restitch.sql
 
 Stop new catalog creation with re-stitching and let in-flight creates finish.
@@ -271,46 +281,46 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
 
 0. `20260920110000_catalog_update_real_progress.sql`: re-apply `list_team_product_catalogs` from `20260916180000`; drop `service_set_catalog_update_progress` and `private.catalog_update_progress`.
 
-0. `20260920100000_catalog_updater_cancel.sql`: re-apply `set_team_catalog_update_interval` and `stop_team_catalog_updater` from `20260916170000_catalog_updater_per_catalog.sql`.
+1. `20260920100000_catalog_updater_cancel.sql`: re-apply `set_team_catalog_update_interval` and `stop_team_catalog_updater` from `20260916170000_catalog_updater_per_catalog.sql`.
 
-0. `20260918180000_indexing_must_be_getting_somewhere.sql`: re-apply `public.get_team_storage_health` from `20260913000500_preview_chip_counts_only_live_work.sql`.
-0. `20260918170000_pool_picture_names.sql`: drop `public.list_team_product_catalog_pool_names`; drop and re-apply `service_draw_product_catalog_images` from `20260917170000` (without the name column).
-0. `20260918160000_folder_page_companions.sql`: re-apply `public.list_team_folder_page` from `20260906160000_a_file_can_be_tagged.sql`.
-0. `20260918150000_missing_reason.sql`: re-apply `service_tombstone_catalog_files` from `20260801101000` and `private.queue_orphan_cleanups` from `20260918140000`; drop `private.is_gone_for_good` and column `team_materials.missing_reason`.
-0. `20260918140000_orphan_cleanup.sql`: drop `service_claim_orphan_cleanups`, `service_complete_orphan_cleanup` and `private.queue_orphan_cleanups`; drop table `private.orphan_cleanups`. Files already moved to Drive's bin stay there — restore them from Drive.
-0. `20260918130000_catalog_update_in_history.sql`: delete the actorless rows first (`delete from public.team_audit_events where actor_id is null`), then `alter table public.team_audit_events alter column actor_id set not null`; re-apply `service_complete_catalog_update` from `20260918120000` and drop `private.record_team_system_audit`; delete the `catalog.updated` rows from `team_audit_events` if they are unwanted.
-0. `20260918120000_catalog_updater_grow.sql`: drop `set/get_team_catalog_updater_grow`; drop column `team_catalog_updaters.grow_products`; re-apply `service_claim_catalog_updater_items` from `20260918110000` and `service_complete_catalog_update` from `20260916120000` (dropping the six-argument form first).
-0. `20260918110000_catalog_updater_refresh_texts.sql`: drop `set/get_team_catalog_updater_refresh_texts`; drop column `team_catalog_updaters.refresh_texts`; re-apply `service_claim_catalog_updater_items` from `20260917170000`.
-1. `20260918100000_search_by_word_start.sql`: re-apply `public.search_materials` from `20260916230000`; drop `private.material_search_query(text)`.
-2. `20260917180000_history_events_in_order.sql`: `alter table public.team_audit_events alter column occurred_at set default now();`
-3. `20260917170000_catalog_pools.sql`: drop functions `service_draw_product_catalog_images`, `service_draw_product_catalog_texts`, `private.draw_product_catalog_items`, `private.product_catalog_pool_images`, `list/set_team_product_catalog_image_sources`, `list/replace/update_team_product_catalog_text(s)`, `set/get_team_catalog_updater_refresh_images`; drop tables `private.product_catalog_draws`, `team_product_catalog_texts`, `team_product_catalog_image_sources`; drop column `team_catalog_updaters.refresh_images`; re-apply `service_claim_catalog_updater_items` from `20260916120000` and `set_team_product_catalog_settings` from `20260915010000`; fill null title/description/image_link, drop `price_min`/`price_max`, restore the original checks and NOT NULLs.
-4. `20260917160000_catalog_name_and_file_tasks.sql`: drop `public.next_product_catalog_variant(uuid, uuid)` and `public.list_material_tasks(uuid, uuid)`.
-5. `20260917150000_agent_counts_open_tasks.sql`: re-apply `private.team_agent_json` from `20260906220000`.
-6. `20260917140000_history_actor_id.sql`: drop `public.list_team_audit_events(uuid, integer, timestamptz)` and re-apply it with its grants from `20260917130000`.
-7. `20260917130000_history_records_work.sql`: drop triggers `team_tasks_audit_work`, `team_task_attachments_audit`, `team_task_agents_audit`, `team_agent_runs_audit` and functions `private.audit_team_task_work()`, `private.audit_team_task_links()`, `private.audit_team_agent_runs()`, `private.team_agent_label(uuid)`; re-apply `private.record_team_audit` from `20260823120000` and `public.list_team_audit_events` from `20260906140000`.
-8. `20260917120000_attachment_parent_folder.sql`: drop `public.list_task_attachment_folders(uuid, uuid)`; re-apply `public.get_team_task` from `20260906200000`.
-9. `20260917110000_drive_status_folder_id.sql`: drop `public.get_drive_connection_status(uuid)` and re-apply it with its grants from `20260916100000`.
-10. `20260917100000_rename_space.sql`: drop `public.rename_team(uuid, text)`.
-11. `20260916230000_search_shows_note.sql`: re-apply `search_materials` from `20260916210000`.
-12. `20260916220000_material_notes.sql`: drop `public.get_team_material_note(uuid, uuid)`, re-apply
+2. `20260918180000_indexing_must_be_getting_somewhere.sql`: re-apply `public.get_team_storage_health` from `20260913000500_preview_chip_counts_only_live_work.sql`.
+3. `20260918170000_pool_picture_names.sql`: drop `public.list_team_product_catalog_pool_names`; drop and re-apply `service_draw_product_catalog_images` from `20260917170000` (without the name column).
+4. `20260918160000_folder_page_companions.sql`: re-apply `public.list_team_folder_page` from `20260906160000_a_file_can_be_tagged.sql`.
+5. `20260918150000_missing_reason.sql`: re-apply `service_tombstone_catalog_files` from `20260801101000` and `private.queue_orphan_cleanups` from `20260918140000`; drop `private.is_gone_for_good` and column `team_materials.missing_reason`.
+6. `20260918140000_orphan_cleanup.sql`: drop `service_claim_orphan_cleanups`, `service_complete_orphan_cleanup` and `private.queue_orphan_cleanups`; drop table `private.orphan_cleanups`. Files already moved to Drive's bin stay there — restore them from Drive.
+7. `20260918130000_catalog_update_in_history.sql`: delete the actorless rows first (`delete from public.team_audit_events where actor_id is null`), then `alter table public.team_audit_events alter column actor_id set not null`; re-apply `service_complete_catalog_update` from `20260918120000` and drop `private.record_team_system_audit`; delete the `catalog.updated` rows from `team_audit_events` if they are unwanted.
+8. `20260918120000_catalog_updater_grow.sql`: drop `set/get_team_catalog_updater_grow`; drop column `team_catalog_updaters.grow_products`; re-apply `service_claim_catalog_updater_items` from `20260918110000` and `service_complete_catalog_update` from `20260916120000` (dropping the six-argument form first).
+9. `20260918110000_catalog_updater_refresh_texts.sql`: drop `set/get_team_catalog_updater_refresh_texts`; drop column `team_catalog_updaters.refresh_texts`; re-apply `service_claim_catalog_updater_items` from `20260917170000`.
+10. `20260918100000_search_by_word_start.sql`: re-apply `public.search_materials` from `20260916230000`; drop `private.material_search_query(text)`.
+11. `20260917180000_history_events_in_order.sql`: `alter table public.team_audit_events alter column occurred_at set default now();`
+12. `20260917170000_catalog_pools.sql`: drop functions `service_draw_product_catalog_images`, `service_draw_product_catalog_texts`, `private.draw_product_catalog_items`, `private.product_catalog_pool_images`, `list/set_team_product_catalog_image_sources`, `list/replace/update_team_product_catalog_text(s)`, `set/get_team_catalog_updater_refresh_images`; drop tables `private.product_catalog_draws`, `team_product_catalog_texts`, `team_product_catalog_image_sources`; drop column `team_catalog_updaters.refresh_images`; re-apply `service_claim_catalog_updater_items` from `20260916120000` and `set_team_product_catalog_settings` from `20260915010000`; fill null title/description/image_link, drop `price_min`/`price_max`, restore the original checks and NOT NULLs.
+13. `20260917160000_catalog_name_and_file_tasks.sql`: drop `public.next_product_catalog_variant(uuid, uuid)` and `public.list_material_tasks(uuid, uuid)`.
+14. `20260917150000_agent_counts_open_tasks.sql`: re-apply `private.team_agent_json` from `20260906220000`.
+15. `20260917140000_history_actor_id.sql`: drop `public.list_team_audit_events(uuid, integer, timestamptz)` and re-apply it with its grants from `20260917130000`.
+16. `20260917130000_history_records_work.sql`: drop triggers `team_tasks_audit_work`, `team_task_attachments_audit`, `team_task_agents_audit`, `team_agent_runs_audit` and functions `private.audit_team_task_work()`, `private.audit_team_task_links()`, `private.audit_team_agent_runs()`, `private.team_agent_label(uuid)`; re-apply `private.record_team_audit` from `20260823120000` and `public.list_team_audit_events` from `20260906140000`.
+17. `20260917120000_attachment_parent_folder.sql`: drop `public.list_task_attachment_folders(uuid, uuid)`; re-apply `public.get_team_task` from `20260906200000`.
+18. `20260917110000_drive_status_folder_id.sql`: drop `public.get_drive_connection_status(uuid)` and re-apply it with its grants from `20260916100000`.
+19. `20260917100000_rename_space.sql`: drop `public.rename_team(uuid, text)`.
+20. `20260916230000_search_shows_note.sql`: re-apply `search_materials` from `20260916210000`.
+21. `20260916220000_material_notes.sql`: drop `public.get_team_material_note(uuid, uuid)`, re-apply
     `update_material_metadata`, `private.refresh_team_material_search` and its trigger from
     `20260801101000`, then drop the `team_materials_note_check` constraint and the `note` column.
     Dropping the column deletes every note.
 
-13. `20260916210000_search_by_marker.sql`: re-apply `search_materials` from `20260906170000`
+22. `20260916210000_search_by_marker.sql`: re-apply `search_materials` from `20260906170000`
     and `get_team_vocab_and_facets` from `20260916200000`. No data is touched.
 
-14. `20260916200000_filter_languages_in_use.sql`: re-apply `get_team_vocab_and_facets` from
+23. `20260916200000_filter_languages_in_use.sql`: re-apply `get_team_vocab_and_facets` from
     `20260815113000` (without `usedLanguages`). No data is touched.
 
-15. `20260916190000_batch_chooses_its_work.sql`: drop
+24. `20260916190000_batch_chooses_its_work.sql`: drop
     `scan_library_requirements(uuid, text, uuid[], boolean, text[])` and re-create the four-argument
     function with its grants from `20260906100000`. No data is touched.
 
-16. `20260916180000_catalog_registry_folder.sql`: drop `list_team_product_catalogs(uuid)` and
+25. `20260916180000_catalog_registry_folder.sql`: drop `list_team_product_catalogs(uuid)` and
     re-create it from `20260916170000` (without `folder_drive_id`). No data is touched.
 
-17. `20260916170000_catalog_updater_per_catalog.sql`: re-apply `private.queue_restitch_jobs`,
+26. `20260916170000_catalog_updater_per_catalog.sql`: re-apply `private.queue_restitch_jobs`,
     `private.catalog_updater_state`, `save_team_catalog_updater`, `stop_team_catalog_updater`,
     `service_claim_catalog_updater_items`'s `private.claim_catalog_updater_items` and
     `private.invoke_catalog_updater_worker` from `20260916120000`/`20260915140000`, and
@@ -323,7 +333,7 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
     `update_interval` is null, then drop the check, the index and the `update_interval` and
     `next_run_at` columns of `team_catalog_updater_items`.
 
-18. `20260916160000_product_catalog_variations.sql`: first leave each video at most one live
+27. `20260916160000_product_catalog_variations.sql`: first leave each video at most one live
     `product_catalog` companion (trash the extra sheets), then re-apply
     `service_link_product_catalog_companion` from `20260915010000`, drop
     `public.list_material_product_catalogs(uuid, uuid)` and
@@ -332,23 +342,23 @@ Dropping `profiles` permanently removes user preferences and consent history. Dr
     `(team_id, companion_of, companion_kind) where companion_of is not null and lifecycle =
 'active'`, then drop the `variant` column and its check from `team_product_catalogs`.
 
-19. `20260916150000_task_progress_max_per_space.sql`: re-apply `create_team_task` from
+28. `20260916150000_task_progress_max_per_space.sql`: re-apply `create_team_task` from
     `20260830160000` (the default read from `profiles`), drop
     `public.get_team_task_progress_max_default(uuid)` and
     `public.set_team_task_progress_max_default(uuid, integer)`, then drop the
     `task_progress_max_default` column and its check from `public.teams`. The per-person column
     on `profiles` was never touched. No task data is lost.
 
-20. `20260830170000_task_progress_manual_only.sql`: restore `update_team_task` with the
+29. `20260830170000_task_progress_manual_only.sql`: restore `update_team_task` with the
     auto-fill branch (`elsif next_status = 'done' and not next_manual then next_value := next_max`).
     Pure function redefinition; no data changes.
 
-21. `20260830160000_task_progress_max_default.sql`: restore `create_team_task` to its prior body
+30. `20260830160000_task_progress_max_default.sql`: restore `create_team_task` to its prior body
     (no `progress_max` from the profile), drop `public.get_task_progress_max_default()` and
     `public.set_task_progress_max_default(integer)`, then drop the `task_progress_max_default`
     column and its check from `public.profiles`. No task data is lost.
 
-22. `20260830150000_video_text_variants_companion.sql`: `list_video_text_variants` gained a
+31. `20260830150000_video_text_variants_companion.sql`: `list_video_text_variants` gained a
     companion-transcript fallback. To revert, re-create the function from
     `20260830100000`-era definition (library-results only). No data is touched — it is a pure
     function redefinition.

@@ -197,6 +197,41 @@ export async function probeBodyFrameRate(
   return Math.abs(exact - measured) / measured <= 0.01 ? exact : measured;
 }
 
+/**
+ * The concat demuxer starts the next file after the previous container's duration. An MP4
+ * copied from B-frames can claim to end *before* its last video packet is presented. If the
+ * next segment is a sparse end screen, its first keyframe then overlaps that body packet and
+ * is discarded; the next screen frame can be eleven seconds away. Read packet timestamps
+ * rather than trusting the container header at this seam.
+ */
+export async function concatSegmentDuration(inputPath: string): Promise<number | null> {
+  const data = await probeJson([
+    '-v',
+    'error',
+    '-select_streams',
+    'v:0',
+    '-show_entries',
+    'packet=pts_time,duration_time:format=duration',
+    '-of',
+    'json',
+    inputPath
+  ]);
+  const container = Number(data?.format?.duration);
+  const packets: unknown[] = Array.isArray(data?.packets) ? data.packets : [];
+  let lastPictureEnd = -Infinity;
+  for (const packet of packets) {
+    if (!packet || typeof packet !== 'object' || !('pts_time' in packet)) continue;
+    const pts = Number(packet.pts_time);
+    const duration = 'duration_time' in packet ? Number(packet.duration_time) : 0;
+    if (Number.isFinite(pts) && Number.isFinite(duration) && duration >= 0) {
+      lastPictureEnd = Math.max(lastPictureEnd, pts + duration);
+    }
+  }
+  return Number.isFinite(container) && container > 0 && Number.isFinite(lastPictureEnd)
+    ? Math.max(container, lastPictureEnd)
+    : null;
+}
+
 export interface ImageInfo {
   width: number;
   height: number;

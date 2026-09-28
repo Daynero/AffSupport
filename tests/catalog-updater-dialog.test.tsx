@@ -58,6 +58,8 @@ function row(id: string, videoName: string, patch: Partial<CatalogRegistryRow> =
     nextRunAt: null,
     updatePending: false,
     updateStage: null,
+    restitchProgress: null,
+    restitchStage: null,
     folderDriveId: 'folder-polo',
     ...patch
   } satisfies CatalogRegistryRow;
@@ -326,6 +328,28 @@ describe('a catalog’s own schedule', () => {
         null
       )
     );
+  });
+
+  it('shows measured video progress while the catalog waits for re-stitching', async () => {
+    const api = client(
+      [
+        row('1', 'polo.mp4', {
+          updatePending: true,
+          updateStage: 'restitching',
+          restitchProgress: 47,
+          restitchStage: 'processing'
+        })
+      ],
+      running
+    );
+    renderDialog(api);
+    expect(await screen.findByText('Re-stitching the video…')).toBeTruthy();
+    expect(
+      screen
+        .getByRole('progressbar', { name: 'Video re-stitching progress' })
+        .getAttribute('aria-valuenow')
+    ).toBe('47');
+    expect(screen.queryByText('Step 1 of 5')).toBeNull();
   });
 
   it('updates one catalog now, scheduled or not', async () => {

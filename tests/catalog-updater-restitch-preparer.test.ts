@@ -106,8 +106,15 @@ describe('preparing a spare copy', () => {
           })
       )
     });
-    const running = runRestitchClaim(claim, api, () => false);
-    await vi.advanceTimersByTimeAsync(25_000);
+    const progress = { progress: 47, stage: 'processing' as const };
+    const running = runRestitchClaim(
+      claim,
+      api,
+      () => false,
+      () => progress
+    );
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(api.heartbeatRestitchJob).toHaveBeenCalledWith('job-1', claim.leaseToken, progress);
     expect(api.cancelProcess).toHaveBeenCalledWith('op-1');
     finish();
     await running;

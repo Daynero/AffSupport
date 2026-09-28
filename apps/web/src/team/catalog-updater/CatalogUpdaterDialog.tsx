@@ -423,7 +423,13 @@ export function CatalogUpdaterDialog({
                         </>
                       )}
                     </small>
-                    {row.updatePending && <CatalogUpdateProgress stage={row.updateStage} />}
+                    {row.updatePending && (
+                      <CatalogUpdateProgress
+                        stage={row.updateStage}
+                        restitchProgress={row.restitchProgress}
+                        restitchStage={row.restitchStage}
+                      />
+                    )}
                     {row.lastUpdateError && (
                       <small className="team-inline-error">
                         {t('catalogUpdaterLastFailed')}:{' '}

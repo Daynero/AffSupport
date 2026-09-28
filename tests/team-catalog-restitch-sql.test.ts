@@ -425,6 +425,45 @@ describe('spares', () => {
     expect(await copies(sheet)).toMatchObject([{ material_id: late.copy, role: 'retired' }]);
   }, 60_000);
 
+  it('shows the measured video progress on a pending catalog without moving backwards', async () => {
+    const { sheet } = await catalog('visible-progress');
+    await harness.asUser(OWNER, 'select public.set_team_catalog_updater_restitch($1, true)', [
+      teamId
+    ]);
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1, $2)', [
+      teamId,
+      [sheet]
+    ]);
+    const lease = token();
+    expect((await claimJob(enroll(), lease))?.jobId).toBe(sheet);
+    const read = async () =>
+      (
+        await harness.asUser<{
+          catalog_id: string;
+          update_stage: string;
+          restitch_progress: number;
+          restitch_stage: string | null;
+        }>(OWNER, 'select * from public.list_team_product_catalogs($1)', [teamId])
+      ).find(row => row.catalog_id === sheet)!;
+    expect(await read()).toMatchObject({ update_stage: 'restitching', restitch_progress: 0 });
+    const report = (key: Buffer, progress: number, stage: string) =>
+      harness.root<{ cancel: boolean }>(
+        'select public.service_report_restitch_job_progress($1, $2, $3, $4, $5) as cancel',
+        [OWNER, sheet, key, progress, stage]
+      );
+    expect((await report(lease, 47, 'processing'))[0]!.cancel).toBe(false);
+    expect(await read()).toMatchObject({
+      update_stage: 'restitching',
+      restitch_progress: 47,
+      restitch_stage: 'processing'
+    });
+    await report(lease, 22, 'downloading');
+    expect(await read()).toMatchObject({ restitch_progress: 47, restitch_stage: 'processing' });
+    expect((await report(token(), 75, 'uploading'))[0]!.cancel).toBe(true);
+    expect(await read()).toMatchObject({ restitch_progress: 47 });
+    await stop();
+  }, 60_000);
+
   it('backs a failed job off', async () => {
     const { sheet } = await catalog('failure');
     const device = enroll();

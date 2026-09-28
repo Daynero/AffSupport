@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { SourceProfile, StitchPlan } from '@video-compressor/shared';
-import { ffmpegPath } from '../ffmpeg/tools.js';
+import { concatSegmentDuration, ffmpegPath } from '../ffmpeg/tools.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import {
   buildBodyRemuxArgs,
@@ -43,7 +43,8 @@ const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 // 5: and so is the re-encoded head's, which v4 still copied — a body cut off a keyframe
 //    carried both configurations at once and went silent at the seam.
 // 6: old average-FPS frame limits could cache only seconds of a minutes-long body.
-const PREPARED_BODY_FORMAT = 6;
+// 7: concat must wait for the last presented B-frame, not an early MP4 duration.
+const PREPARED_BODY_FORMAT = 7;
 
 export interface PreparedBody {
   path: string;
@@ -226,7 +227,13 @@ async function buildBody(
     return { ok: false, error: 'BODY_AUDIO_MISMATCH' };
 
   const listPath = path.join(workDir, 'body.txt');
-  await writeFile(listPath, concatListContents([headPath, tailPath]), 'utf8');
+  const headConcatSeconds = await concatSegmentDuration(headPath);
+  if (headConcatSeconds === null) return { ok: false, error: 'BODY_TIMING_UNREADABLE' };
+  await writeFile(
+    listPath,
+    concatListContents([headPath, tailPath], [headConcatSeconds, null]),
+    'utf8'
+  );
   const output = path.join(workDir, 'body.mp4');
   const joined = await runTool(ffmpegPath, buildConcatArgs({ listPath, output }), run);
   if (!toolSucceeded(joined)) return { ok: false, error: failureOf(joined, 'BODY_JOIN') };

@@ -11,7 +11,7 @@ import {
   heldFinalImageSeconds
 } from './presets.js';
 import { buildConcatArgs, concatListContents } from './stitch-presets.js';
-import { ffmpegPath } from './tools.js';
+import { concatSegmentDuration, ffmpegPath } from './tools.js';
 
 export interface EncodeResult {
   code: number | null;
@@ -190,7 +190,19 @@ function encodeWithHeldScreen(options: {
       if (second.code !== 0 || second.cancelled || second.spawnErrorCode) return second;
 
       const listPath = path.join(workDir, 'segments.txt');
-      await writeFile(listPath, concatListContents([bodyPath, screenPath]), 'utf8');
+      const bodyConcatSeconds = await concatSegmentDuration(bodyPath);
+      if (bodyConcatSeconds === null)
+        return {
+          code: 1,
+          stderr: 'BODY_TIMING_UNREADABLE',
+          cancelled: false,
+          spawnErrorCode: null
+        };
+      await writeFile(
+        listPath,
+        concatListContents([bodyPath, screenPath], [bodyConcatSeconds, null]),
+        'utf8'
+      );
       const join = spawnPass(
         governor,
         buildConcatArgs({ listPath, output: options.output }),
