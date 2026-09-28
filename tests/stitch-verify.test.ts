@@ -81,6 +81,7 @@ describe('the probe it verifies with', () => {
     const args = buildVerifyProbeArgs('/out/result.mp4');
     expect(args).toContain('-count_packets');
     expect(args).not.toContain('-count_frames');
+    expect(args.join(' ')).toContain('packet=stream_index,pts_time,duration_time');
   });
 
   it('reads a payload into a measurement, and refuses one with no video', () => {
@@ -102,6 +103,23 @@ describe('the probe it verifies with', () => {
     expect(parsed).toMatchObject({ frameCount: 1953, videoTrackSeconds: 65.06, audioCodec: 'aac' });
     expect(measurementFromProbe({ streams: [], format: {} })).toBeNull();
     expect(measurementFromProbe('nonsense')).toBeNull();
+  });
+
+  it('uses the last presented B-frame when the MP4 video duration ends early', () => {
+    const parsed = measurementFromProbe({
+      streams: [
+        { codec_type: 'video', duration: '99.953711', nb_read_packets: '2998' },
+        { codec_type: 'audio', duration: '100.021000' }
+      ],
+      packets: [
+        { stream_index: 0, pts_time: '100.020378', duration_time: '0.033333' },
+        { stream_index: 0, pts_time: '99.953711', duration_time: '0.033333' },
+        { stream_index: 1, pts_time: '100.000000', duration_time: '0.021000' }
+      ],
+      format: { duration: '100.021000' }
+    });
+    expect(parsed?.videoTrackSeconds).toBeCloseTo(100.053711, 6);
+    expect(parsed?.audioTrackSeconds).toBe(100.021);
   });
 });
 
