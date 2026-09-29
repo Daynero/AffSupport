@@ -264,8 +264,8 @@ export function encodingFromSettings(settings: AgentSettings): EncodingSettings 
     return {
       mode: 'optimal',
       stripMetadata: settings.stripMetadata,
-      frameRate: OPTIMAL_FRAME_RATE,
-      resolutionLimit: OPTIMAL_RESOLUTION_LIMIT,
+      frameRate: null,
+      resolutionLimit: null,
       rateControl: 'crf',
       crf: DEFAULT_CRF,
       videoBitrateKbps: null
