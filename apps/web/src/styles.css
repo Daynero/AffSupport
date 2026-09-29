@@ -16982,7 +16982,7 @@ input[type='number'] {
   font-variant-numeric: tabular-nums;
 }
 .team-updater-search {
-  flex: 1 1 18rem;
+  flex: 0 1 16rem;
   min-width: 0;
 }
 .team-updater-select-all {
@@ -18001,16 +18001,29 @@ a.history-subject {
 .team-updater-changes {
   flex: 1 0 100%;
   min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
 }
 .team-updater-changes > .team-catalog-filter-summary {
-  width: 100%;
-  justify-content: space-between;
+  width: fit-content;
+  background: var(--color-surface-muted);
+}
+.team-updater-changes > .team-catalog-filter-summary::after {
+  content: none;
+}
+.team-updater-changes > .team-catalog-filter-summary svg {
+  transition: transform var(--motion-fast) var(--ease-out-curve);
+}
+.team-updater-changes[open] > .team-catalog-filter-summary svg {
+  transform: rotate(180deg);
 }
 .team-updater-choices {
   display: grid;
   gap: var(--space-3);
   margin: 0;
-  padding: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-2) var(--space-2);
   border: 0;
 }
 

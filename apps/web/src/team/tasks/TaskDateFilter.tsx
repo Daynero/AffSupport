@@ -103,12 +103,14 @@ export function TaskDateFilterControl({
   onChange,
   status,
   onStatusChange,
+  showStatus = true,
   children
 }: {
   value: TaskDateFilter;
   onChange: (value: TaskDateFilter) => void;
   status: TaskStatusFilter;
   onStatusChange: (value: TaskStatusFilter) => void;
+  showStatus?: boolean;
   /** A further filter that shares the row — the account scope (017). */
   children?: React.ReactNode;
 }) {
@@ -241,23 +243,25 @@ export function TaskDateFilterControl({
         </Popover>
       </div>
       {children}
-      <div className="task-status-filter" aria-label={t('teamTaskStatus')}>
-        {statuses.map(option => {
-          const label = option === 'all' ? t('teamTaskStatusAll') : taskStatusLabel(option, t);
-          return (
-            <button
-              key={option}
-              type="button"
-              className={`task-status-filter-option ${option === 'all' ? 'is-all' : `is-${option}`} ${status === option ? 'is-active' : ''}`.trim()}
-              aria-pressed={status === option}
-              onClick={() => onStatusChange(option)}
-            >
-              {option !== 'all' && <TaskStatusIcon status={option as TeamTaskStatus} />}
-              <span>{label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {showStatus && (
+        <div className="task-status-filter" aria-label={t('teamTaskStatus')}>
+          {statuses.map(option => {
+            const label = option === 'all' ? t('teamTaskStatusAll') : taskStatusLabel(option, t);
+            return (
+              <button
+                key={option}
+                type="button"
+                className={`task-status-filter-option ${option === 'all' ? 'is-all' : `is-${option}`} ${status === option ? 'is-active' : ''}`.trim()}
+                aria-pressed={status === option}
+                onClick={() => onStatusChange(option)}
+              >
+                {option !== 'all' && <TaskStatusIcon status={option as TeamTaskStatus} />}
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

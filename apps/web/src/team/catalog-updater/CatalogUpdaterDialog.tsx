@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { RefreshCw, Search, X } from 'lucide-react';
+import { ChevronDown, RefreshCw, Search, X } from 'lucide-react';
 import type {
   CatalogRegistryRow,
   CatalogUpdaterInterval,
@@ -7,7 +7,7 @@ import type {
 } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Checkbox } from '../../components/ui';
+import { Checkbox, ConfirmDialog } from '../../components/ui';
 import { Button, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
@@ -19,6 +19,8 @@ import { UpdaterCountdown } from './UpdaterCountdown';
 import { UpdaterIntervalPicker } from './UpdaterIntervalPicker';
 import { UpdaterRowActions } from './UpdaterRowActions';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
+import { TaskDateFilterControl } from '../tasks/TaskDateFilter';
+import type { TaskDateFilter } from '../tasks/useTasks';
 import {
   filterCatalogRows,
   useCatalogRegistry,
@@ -89,6 +91,8 @@ export function CatalogUpdaterDialog({
   const updater = useCatalogUpdater(teamId, client);
   const registry = useCatalogRegistry(teamId, true, client);
   const [query, setQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<TaskDateFilter>({ kind: 'all' });
+  const [confirmDelete, setConfirmDelete] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   /** Rows with a change on its way, so their controls wait instead of taking a second press. */
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -98,7 +102,18 @@ export function CatalogUpdaterDialog({
 
   const running = updater.state?.state === 'running';
   const rows = registry.rows ?? [];
-  const shown = useMemo(() => filterCatalogRows(rows, query), [rows, query]);
+  const shown = useMemo(
+    () =>
+      filterCatalogRows(rows, query)
+        .filter(
+          row =>
+            dateFilter.kind === 'all' ||
+            (row.createdAt.slice(0, 10) >= dateFilter.from &&
+              row.createdAt.slice(0, 10) <= dateFilter.to)
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [rows, query, dateFilter]
+  );
   const liveSelected = rows.filter(row => selected.has(row.catalogId));
   const shownChosen = shown.filter(row => selected.has(row.catalogId)).length;
   const allShownChosen = shown.length > 0 && shownChosen === shown.length;
@@ -168,6 +183,17 @@ export function CatalogUpdaterDialog({
             : t('catalogUpdaterNowStarted', { count: opened })
       });
     });
+
+  const deleteSelected = async () => {
+    const ids = confirmDelete;
+    await withBusy(ids, async () => {
+      for (const materialId of ids) {
+        await teamApi.trashMaterial({ teamId, materialId, idempotencyKey: crypto.randomUUID() });
+      }
+      setSelected(current => new Set([...current].filter(id => !ids.includes(id))));
+      setConfirmDelete([]);
+    });
+  };
 
   /*
    * New pictures at every update (024), on unless turned off: a catalog whose rows keep the same
@@ -301,11 +327,7 @@ export function CatalogUpdaterDialog({
   const rowFacts = (row: CatalogRegistryRow) => {
     if (row.updatePending) return t('catalogUpdaterUpdatingNow');
     const where = row.folderName ?? t('catalogUpdaterSpaceRoot');
-    return `${where} · ${
-      row.lastUpdatedAt
-        ? t('catalogUpdaterUpdated', { date: when(row.lastUpdatedAt) })
-        : t('catalogUpdaterNeverUpdated')
-    }`;
+    return `${where} · ${t('catalogUpdaterCreated', { date: when(row.createdAt) })}`;
   };
 
   return (
@@ -350,6 +372,13 @@ export function CatalogUpdaterDialog({
             </button>
           )}
         </label>
+        <TaskDateFilterControl
+          value={dateFilter}
+          onChange={setDateFilter}
+          status="all"
+          onStatusChange={() => {}}
+          showStatus={false}
+        />
         {mayRun && (
           <span ref={selectAllRef} className="team-updater-select-all">
             <Checkbox
@@ -359,6 +388,41 @@ export function CatalogUpdaterDialog({
               label={t('catalogUpdaterSelectAll')}
             />
           </span>
+        )}
+        {liveSelected.length > 0 && (
+          <div className="team-updater-bulk" role="group" aria-label={t('catalogUpdaterBulkLabel')}>
+            <span className="team-updater-selected" aria-live="polite">
+              {t(catalogSelectedCountKey(language, liveSelected.length), {
+                count: liveSelected.length
+              })}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={busyIds.size > 0}
+              onClick={() =>
+                void schedule(
+                  liveSelected.map(row => row.catalogId),
+                  null
+                )
+              }
+            >
+              {t('catalogUpdaterDisableSelected')}
+            </Button>
+            {can('delete') && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                color="error"
+                disabled={busyIds.size > 0}
+                onClick={() => setConfirmDelete(liveSelected.map(row => row.catalogId))}
+              >
+                {t('catalogUpdaterDeleteSelected')}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -405,10 +469,7 @@ export function CatalogUpdaterDialog({
                     <strong title={row.videoName}>{row.name}</strong>
                     <small
                       className={row.updatePending ? 'is-pending' : undefined}
-                      title={`${t('catalogUpdaterProducts', { count: row.productCount })} · ${t(
-                        'catalogUpdaterCreated',
-                        { date: when(row.createdAt) }
-                      )}`}
+                      title={t('catalogUpdaterProducts', { count: row.productCount })}
                     >
                       {rowFacts(row)}
                       {row.inUpdater && row.nextRunAt && !row.updatePending && (
@@ -481,11 +542,6 @@ export function CatalogUpdaterDialog({
         {liveSelected.length > 0 ? (
           /* The same two controls a row has, for every ticked row. */
           <div className="team-updater-bulk" role="group" aria-label={t('catalogUpdaterBulkLabel')}>
-            <span className="team-updater-selected" aria-live="polite">
-              {t(catalogSelectedCountKey(language, liveSelected.length), {
-                count: liveSelected.length
-              })}
-            </span>
             <UpdaterIntervalPicker
               value={null}
               label={t('catalogUpdaterIntervalForSelected')}
@@ -525,6 +581,7 @@ export function CatalogUpdaterDialog({
           onToggle={event => setChangesOpen(event.currentTarget.open)}
         >
           <summary className="team-catalog-filter-summary">
+            <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('catalogUpdaterChangesTitle')}
           </summary>
           <fieldset className="team-updater-choices" aria-label={t('catalogUpdaterChangesTitle')}>
@@ -582,6 +639,18 @@ export function CatalogUpdaterDialog({
           </fieldset>
         </details>
       </footer>
+      {confirmDelete.length > 0 && (
+        <ConfirmDialog
+          nested
+          title={t('catalogUpdaterDeleteSelected')}
+          body={t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })}
+          confirmLabel={t('catalogUpdaterDeleteSelected')}
+          cancelLabel={t('teamCancel')}
+          busy={busyIds.size > 0}
+          onCancel={() => setConfirmDelete([])}
+          onConfirm={() => void deleteSelected()}
+        />
+      )}
     </Modal>
   );
 }
