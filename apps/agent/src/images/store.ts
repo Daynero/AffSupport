@@ -40,7 +40,8 @@ export class ImageAssetStore {
   async import(
     stream: Readable & { truncated?: boolean },
     originalName: string,
-    mimeType: string
+    mimeType: string,
+    preferredId?: string
   ): Promise<ImageAsset> {
     const format = imageFormat(originalName);
     if (!format || (mimeType !== 'application/octet-stream' && mimeType !== format.mimeType)) {
@@ -49,7 +50,16 @@ export class ImageAssetStore {
     }
 
     await mkdir(this.root, { recursive: true });
-    const id = randomUUID();
+    if (
+      preferredId &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        preferredId
+      )
+    ) {
+      stream.resume();
+      throw new ImageAssetError('IMAGE_UNAVAILABLE');
+    }
+    const id = preferredId ?? randomUUID();
     const extension = format.extension;
     const destination = path.join(this.root, `${id}${extension}`);
     try {
@@ -71,7 +81,10 @@ export class ImageAssetStore {
         extension
       };
     } catch (error) {
-      await unlink(destination).catch(() => {});
+      // `wx` refusing an existing ID must not delete the previously stored image.
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        await unlink(destination).catch(() => {});
+      }
       if (stream.truncated) throw new ImageAssetError('IMAGE_TOO_LARGE');
       if (error instanceof ImageAssetError) throw error;
       // A blocked or quarantined FFprobe is not a bad picture. Preserve the

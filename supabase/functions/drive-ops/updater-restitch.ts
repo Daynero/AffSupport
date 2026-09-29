@@ -160,6 +160,11 @@ export async function claimRestitchJob(
   if (claimed === null || claimed === undefined) return { job: null };
   const job = parseClaimedRestitchJob(claimed);
   if (!job) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
+  const effective = await deps.rpc('service_get_effective_restitch_defaults', {
+    p_team: job.teamId,
+    p_actor: actorId
+  });
+  job.defaults = isRecord(effective) ? effective : null;
 
   // Nothing a run could make without the space's re-stitch settings: fail the job, not the round.
   if (!job.defaults || job.defaults.configured !== true) {

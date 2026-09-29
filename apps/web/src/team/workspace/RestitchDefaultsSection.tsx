@@ -1,5 +1,5 @@
 /**
- * The space's one answer for re-stitching.
+ * Owner defaults and each member's optional personal re-stitch settings.
  *
  * Deliberately not a new screen full of new controls: it mounts the tool's own — the operation
  * row, the two photo galleries with their enable/disable behaviour, the fit mode and the hold
@@ -7,9 +7,8 @@
  * three things that only make sense for a space: whether it is set up at all, where its
  * downloads land, and the button that prepares its material.
  *
- * The photos live on the agent, as they always have. This records *which of them may be
- * drawn* — ids, never images — so a space's defaults survive a member changing their own
- * library, and so two members with the same space draw from the same set.
+ * Selected photos are published as private space assets before their IDs are saved. A member's
+ * paired agent materializes those bytes under the same IDs when a run needs them.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -42,6 +41,8 @@ import {
 } from '../restitch/useRestitchPreparation';
 import { SettingsSection } from './SettingsSection';
 import { Alert, PermissionState, SegmentedControl } from '../../components/ui/index';
+import { Checkbox } from '../../components/ui';
+import { publishRestitchImages } from '../restitch/images';
 
 export interface RestitchDefaultsClient {
   getRestitchDefaults: (teamId: string) => Promise<TeamRestitchDefaults | null>;
@@ -57,6 +58,14 @@ export interface RestitchDefaultsClient {
       | 'customFinalDurationSeconds'
     >
   ) => Promise<TeamRestitchDefaults>;
+  getMemberRestitchPreference?: (teamId: string) => Promise<{
+    ownerId: string;
+    sourceUserId: string;
+    useOwner: boolean;
+    personalConfigured: boolean;
+  }>;
+  setMemberRestitchUseOwner?: (teamId: string, useOwner: boolean) => Promise<void>;
+  setMemberRestitchDefaults?: RestitchDefaultsClient['setRestitchDefaults'];
 }
 
 const OPERATION_KEYS = {
@@ -86,13 +95,16 @@ export function RestitchDefaultsSection({
   const { activeTeam, can } = useTeam();
   const agent = useOptionalAgent();
   const connected = agent?.connection === 'connected';
-  const editable = can('manage_metadata');
+  const isOwner = activeTeam?.role === 'owner';
+  const editable = isOwner ? can('manage_metadata') : can('view');
 
   const [defaults, setDefaults] = useState<TeamRestitchDefaults | null>(null);
   const [operation, setOperation] = useState<StitchOperation>('restitch');
   const [compressor, setCompressor] = useState<AgentSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [useOwner, setUseOwner] = useState(true);
+  const [switching, setSwitching] = useState(false);
   const preparation = useRestitchPreparation(teamId);
   // Preparation touches the space's drive; without one there is nothing to prepare, and the
   // way forward is the connection panel one section down rather than a button that would fail.
@@ -100,11 +112,16 @@ export function RestitchDefaultsSection({
 
   useEffect(() => {
     let active = true;
-    void client
-      .getRestitchDefaults(teamId)
-      .then(found => {
+    void Promise.all([
+      client.getRestitchDefaults(teamId),
+      !isOwner && client.getMemberRestitchPreference
+        ? client.getMemberRestitchPreference(teamId)
+        : Promise.resolve(null)
+    ])
+      .then(([found, preference]) => {
         if (!active) return;
         setDefaults(found);
+        setUseOwner(preference?.useOwner ?? true);
         if (found) setOperation(found.operation);
       })
       .catch(() => {})
@@ -114,10 +131,10 @@ export function RestitchDefaultsSection({
     return () => {
       active = false;
     };
-  }, [teamId, client]);
+  }, [teamId, client, isOwner]);
 
   useEffect(() => {
-    if (!connected) return;
+    if (!connected || (!isOwner && useOwner)) return;
     let active = true;
     void fetchCompressorState()
       .then(queue => {
@@ -127,7 +144,7 @@ export function RestitchDefaultsSection({
     return () => {
       active = false;
     };
-  }, [connected]);
+  }, [connected, isOwner, useOwner]);
 
   const updateEmbedding = useCallback((patch: ImageEmbeddingSettingsPatch) => {
     void updateCompressorSettings({ imageEmbedding: patch })
@@ -148,16 +165,24 @@ export function RestitchDefaultsSection({
     if (!embedding) return;
     setSaving(true);
     try {
-      const stored = await client.setRestitchDefaults(teamId, {
+      const chosen = {
         operation,
         // A snapshot of what is switched on right now — the galleries above are the library,
         // and this is the space saying which of it to draw from.
         startImageIds: enabledIds(embedding.startImages, embedding.disabledImageIds),
         endImageIds: enabledIds(embedding.endImages, embedding.disabledImageIds),
+        startEnabled: embedding.startEnabled,
+        endEnabled: embedding.endEnabled,
+        startDurationMode: embedding.startDurationMode,
+        customStartDurationMs: embedding.customStartDurationMs,
         fitMode: embedding.fitMode,
         finalDurationMode: embedding.finalDurationMode,
         customFinalDurationSeconds: embedding.customFinalDurationSeconds
-      });
+      };
+      await publishRestitchImages(teamId, embedding, chosen);
+      const stored = await (isOwner
+        ? client.setRestitchDefaults(teamId, chosen)
+        : client.setMemberRestitchDefaults!(teamId, chosen));
       setDefaults(stored);
       // Which operation a space settles on, and how many photos it draws from — no ids, no
       // names, nothing about the space itself.
@@ -174,6 +199,40 @@ export function RestitchDefaultsSection({
     }
   };
 
+  const toggleOwner = async (checked: boolean) => {
+    if (!client.setMemberRestitchUseOwner) return;
+    setSwitching(true);
+    try {
+      await client.setMemberRestitchUseOwner(teamId, checked);
+      setUseOwner(checked);
+      const effective = await client.getRestitchDefaults(teamId);
+      setDefaults(effective);
+      if (effective) setOperation(effective.operation);
+    } catch (error) {
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  if (!isOwner && useOwner) {
+    return (
+      <SettingsSection
+        icon={Replace}
+        titleId="team-restitch-settings-title"
+        title={t('teamRestitchSection')}
+        className="team-restitch-defaults"
+      >
+        <Checkbox
+          checked
+          disabled={switching || !loaded}
+          onChange={event => void toggleOwner(event.target.checked)}
+          label={t('teamRestitchUseOwner')}
+        />
+      </SettingsSection>
+    );
+  }
+
   return (
     <SettingsSection
       icon={Replace}
@@ -181,6 +240,14 @@ export function RestitchDefaultsSection({
       title={t('teamRestitchSection')}
       className="team-restitch-defaults"
     >
+      {!isOwner && (
+        <Checkbox
+          checked={false}
+          disabled={switching}
+          onChange={event => void toggleOwner(event.target.checked)}
+          label={t('teamRestitchUseOwner')}
+        />
+      )}
       {/* The controls below say what the space does; a machine-assembled recap
           above them ("Перезашити, фото: 21, Випадково: 30–40 хв") said it again
           in a shape no one writes. What is left is the one thing the controls
@@ -275,7 +342,7 @@ export function RestitchDefaultsSection({
         </div>
       )}
 
-      {editable && (
+      {editable && can('process') && (
         <div className="team-restitch-prepare">
           <p className="team-inline-note prose">{t('teamRestitchPrepareExplain')}</p>
           {/* One reason at a time. Two "first do this" lines side by side make neither of them

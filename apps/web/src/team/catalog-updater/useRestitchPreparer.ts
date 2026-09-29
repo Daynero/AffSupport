@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { parseMaterialRestitchPrep, usablePrep } from '@video-compressor/shared';
+import {
+  parseMaterialRestitchPrep,
+  usablePrep,
+  type TeamRestitchDefaults
+} from '@video-compressor/shared';
 import { cancelTeamAgentProcess, startTeamAgentProcess, toolEventUrl } from '../../api/client';
 import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamApi, type RestitchClaim } from '../../api/team';
+import { ensureRestitchImages } from '../restitch/images';
 
 /**
  * This tab as a preparer of the catalog updater's spare copies (023).
@@ -39,6 +44,7 @@ export interface RestitchPreparerClient {
   }) => Promise<boolean>;
   startProcess: typeof startTeamAgentProcess;
   cancelProcess: typeof cancelTeamAgentProcess;
+  ensureImages?: typeof ensureRestitchImages;
 }
 
 const defaultClient: RestitchPreparerClient = {
@@ -47,7 +53,8 @@ const defaultClient: RestitchPreparerClient = {
     teamApi.heartbeatRestitchJob(jobId, leaseToken, progress),
   completeRestitchJob: input => teamApi.completeRestitchJob(input),
   startProcess: startTeamAgentProcess,
-  cancelProcess: cancelTeamAgentProcess
+  cancelProcess: cancelTeamAgentProcess,
+  ensureImages: ensureRestitchImages
 };
 
 type RestitchProgressStage = 'downloading' | 'processing' | 'uploading' | 'finalizing';
@@ -73,7 +80,8 @@ export async function runRestitchClaim(
   claim: RestitchClaim,
   client: RestitchPreparerClient,
   isStopped: () => boolean,
-  liveProgress: () => RestitchProgress | null = () => null
+  liveProgress: () => RestitchProgress | null = () => null,
+  teamId?: string
 ): Promise<void> {
   let cancelled = false;
   let reporting = false;
@@ -107,6 +115,9 @@ export async function runRestitchClaim(
   let outcome: 'finalized' | 'failed' = 'failed';
   let code: string | null = null;
   try {
+    if (client.ensureImages && teamId) {
+      await client.ensureImages(teamId, claim.options.defaults as TeamRestitchDefaults);
+    }
     const result = await client.startProcess({
       operationId: claim.operationId,
       toolId: claim.toolId,
@@ -207,7 +218,8 @@ export function useRestitchPreparer(input: {
           claim,
           clientRef.current,
           () => stopped,
-          () => progressRef.current
+          () => progressRef.current,
+          teamId
         );
       } finally {
         progressRef.current = null;

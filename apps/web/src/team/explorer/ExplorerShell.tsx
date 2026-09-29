@@ -15,7 +15,7 @@ import type {
   TeamMaterialTagColor,
   TeamPermissions
 } from '@video-compressor/shared';
-import { teamApi, type TeamMaterialSummary } from '../../api/team';
+import { teamApi, TeamApiError, type TeamMaterialSummary } from '../../api/team';
 import { downloadTeamFileWithAgent, selectNativeDirectory } from '../../api/client';
 import {
   Download,
@@ -1222,7 +1222,12 @@ function ExplorerBody({
   const downloadOriginal = useCallback(
     async (row: TeamMaterialRow) => {
       try {
-        const grant = await teamApi.requestDownload(teamId, row.id, 'browser');
+        const grant = await teamApi.requestDownload(teamId, row.id, 'browser').catch(cause => {
+          if (cause instanceof TeamApiError && cause.code === 'AGENT_REQUIRED') {
+            return teamApi.requestDownload(teamId, row.id, 'agent');
+          }
+          throw cause;
+        });
         if (grant.kind === 'agent') {
           await downloadTeamFileWithAgent({
             transferUrl: grant.transferUrl,

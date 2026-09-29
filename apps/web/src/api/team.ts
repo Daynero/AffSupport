@@ -4427,15 +4427,53 @@ export const teamApi = {
    */
   async getRestitchDefaults(teamId: string): Promise<TeamRestitchDefaults | null> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_restitch_defaults', {
+      requireSupabaseClient().rpc('get_effective_restitch_defaults', {
         p_team: teamId
       })
     );
     throwRpc(error);
     if (data === null || data === undefined) return null;
-    const parsed = parseTeamRestitchDefaults(mapRestitchRow(data));
+    const parsed = parseTeamRestitchDefaults(data);
     if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed.value.configured ? parsed.value : null;
+  },
+
+  async getMemberRestitchPreference(teamId: string): Promise<{
+    ownerId: string;
+    sourceUserId: string;
+    useOwner: boolean;
+    personalConfigured: boolean;
+  }> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_member_restitch_preference', { p_team: teamId })
+    );
+    throwRpc(error);
+    const row = asRecord(data);
+    if (
+      !row ||
+      typeof row.ownerId !== 'string' ||
+      typeof row.sourceUserId !== 'string' ||
+      typeof row.useOwner !== 'boolean' ||
+      typeof row.personalConfigured !== 'boolean'
+    ) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return {
+      ownerId: row.ownerId,
+      sourceUserId: row.sourceUserId,
+      useOwner: row.useOwner,
+      personalConfigured: row.personalConfigured
+    };
+  },
+
+  async setMemberRestitchUseOwner(teamId: string, useOwner: boolean): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_member_restitch_use_owner', {
+        p_team: teamId,
+        p_use_owner: useOwner
+      })
+    );
+    throwRpc(error);
   },
 
   /** Stores the space's defaults. Refusals arrive as their own codes, not as sentences. */
@@ -4459,6 +4497,30 @@ export const teamApi = {
     );
     throwRpc(error);
     const parsed = parseTeamRestitchDefaults(mapRestitchRow(data));
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value;
+  },
+
+  async setMemberRestitchDefaults(
+    teamId: string,
+    defaults: Pick<
+      TeamRestitchDefaults,
+      | 'operation'
+      | 'startImageIds'
+      | 'endImageIds'
+      | 'fitMode'
+      | 'finalDurationMode'
+      | 'customFinalDurationSeconds'
+    >
+  ): Promise<TeamRestitchDefaults> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_member_restitch_defaults', {
+        p_team: teamId,
+        p_defaults: defaults as unknown as Json
+      })
+    );
+    throwRpc(error);
+    const parsed = parseTeamRestitchDefaults(data);
     if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed.value;
   },
@@ -4519,6 +4581,10 @@ function mapRestitchRow(value: unknown): unknown {
     operation: row.operation,
     startImageIds: row.start_image_ids,
     endImageIds: row.end_image_ids,
+    startEnabled: row.start_enabled,
+    endEnabled: row.end_enabled,
+    startDurationMode: row.start_duration_mode,
+    customStartDurationMs: row.custom_start_duration_ms,
     fitMode: row.fit_mode,
     finalDurationMode: row.final_duration_mode,
     customFinalDurationSeconds: row.custom_final_duration_seconds,

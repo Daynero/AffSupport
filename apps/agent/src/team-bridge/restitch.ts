@@ -110,9 +110,11 @@ export function spaceScreens(
       // The space's lists are already the enabled set; a second exclusion list here would
       // silently subtract one member's local preferences from everyone else's space.
       disabledImageIds: [],
-      startEnabled: wantsScreens,
-      endEnabled: wantsScreens,
+      startEnabled: wantsScreens && defaults.startEnabled !== false,
+      endEnabled: wantsScreens && defaults.endEnabled !== false,
       fitMode: defaults.fitMode,
+      startDurationMode: defaults.startDurationMode ?? 'one-frame',
+      customStartDurationMs: defaults.customStartDurationMs ?? 100,
       finalDurationMode: defaults.finalDurationMode,
       customFinalDurationSeconds: defaults.customFinalDurationSeconds
     },

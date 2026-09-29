@@ -34,11 +34,25 @@ const claimed = {
   prepared: null
 };
 
-function setup(overrides: { claim?: unknown; start?: () => Promise<never>; bound?: boolean } = {}) {
+function setup(
+  overrides: {
+    claim?: unknown;
+    effective?: unknown;
+    start?: () => Promise<never>;
+    bound?: boolean;
+  } = {}
+) {
   const rpc = vi.fn(async (name: string, _parameters: Record<string, unknown>) => {
     switch (name) {
       case 'service_claim_restitch_job':
         return 'claim' in overrides ? overrides.claim : claimed;
+      case 'service_get_effective_restitch_defaults':
+        if ('effective' in overrides) return overrides.effective;
+        return 'claim' in overrides &&
+          typeof overrides.claim === 'object' &&
+          overrides.claim !== null
+          ? ((overrides.claim as { defaults?: unknown }).defaults ?? null)
+          : claimed.defaults;
       case 'service_bind_restitch_job_operation':
         return overrides.bound ?? true;
       case 'service_heartbeat_restitch_job':
@@ -107,6 +121,17 @@ describe('claiming', () => {
         finalizeGrant: { f: 1 }
       }
     });
+  });
+
+  it('uses the claiming member’s personal defaults when inheritance is off', async () => {
+    const personal = { operation: 'stitch', configured: true, startImageIds: ['personal-image'] };
+    const { deps, call } = setup({ effective: personal });
+    const result = await claimRestitchJob(deps, ACTOR, { teamId: TEAM });
+    expect(call('service_get_effective_restitch_defaults')).toEqual({
+      p_team: TEAM,
+      p_actor: ACTOR
+    });
+    expect(result.job?.options.defaults).toEqual(personal);
   });
 
   it('puts the copy in the space’s one re-stitched folder, and beside the video without it', async () => {

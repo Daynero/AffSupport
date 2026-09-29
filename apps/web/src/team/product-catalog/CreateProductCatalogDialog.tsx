@@ -30,6 +30,7 @@ import {
   validateWebLink
 } from './limits';
 import { ProductCatalogProgress } from './ProductCatalogProgress';
+import { ensureRestitchImages } from '../restitch/images';
 
 export interface CreateProductCatalogClient {
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
@@ -230,6 +231,7 @@ export function CreateProductCatalogDialog({
         } else {
           const available = await (client.canRestitch ?? agentCanRestitch)();
           if (available !== 'yes') throw new Error('AGENT_UPDATE_REQUIRED');
+          await ensureRestitchImages(teamId, defaults);
           const stem = video.name.replace(/\.[^.]+$/u, '') || video.name;
           const started = await (client.startProcess ?? teamApi.startProcess)({
             teamId,

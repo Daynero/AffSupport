@@ -25,6 +25,9 @@ vi.mock('../apps/web/src/stitcher/api', () => ({
   removeScreenImage: vi.fn()
 }));
 vi.mock('../apps/web/src/api/useSubresourceUrl', () => ({ useSubresourceUrl: () => null }));
+vi.mock('../apps/web/src/team/restitch/images', () => ({
+  publishRestitchImages: vi.fn().mockResolvedValue(undefined)
+}));
 
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
@@ -156,21 +159,82 @@ describe('a space’s re-stitching settings', () => {
       // `end-b` is switched off in the gallery, so the space never draws it.
       endImageIds: ['end-a'],
       fitMode: 'cover',
-      finalDurationMode: 'random-30-40'
+      finalDurationMode: 'random-30-40',
+      startEnabled: true,
+      endEnabled: true,
+      startDurationMode: 'one-frame',
+      customStartDurationMs: 100
     });
   });
 
-  it('is readable, and not editable, without permission to manage the space', async () => {
+  it('inherits owner settings by default and hides personal controls', async () => {
     renderSection(
       {
         getRestitchDefaults: vi.fn().mockResolvedValue(stored),
-        setRestitchDefaults: vi.fn()
+        setRestitchDefaults: vi.fn(),
+        getMemberRestitchPreference: vi.fn().mockResolvedValue({
+          ownerId: 'owner',
+          sourceUserId: 'owner',
+          useOwner: true,
+          personalConfigured: false
+        }),
+        setMemberRestitchUseOwner: vi.fn()
       },
       viewing
     );
-    expect(await screen.findByText('Only a space manager can change these.')).toBeTruthy();
-    // The reason is shown; the control is simply not there to press.
+    expect(await screen.findByRole('checkbox', { name: "Use owner's settings" })).toHaveProperty(
+      'checked',
+      true
+    );
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Re-stitch' })).toBeNull();
+  });
+
+  it('opens personal settings when a member unchecks inheritance', async () => {
+    const setMemberRestitchUseOwner = vi.fn().mockResolvedValue(undefined);
+    renderSection(
+      {
+        getRestitchDefaults: vi.fn().mockResolvedValue(stored),
+        setRestitchDefaults: vi.fn(),
+        getMemberRestitchPreference: vi.fn().mockResolvedValue({
+          ownerId: 'owner',
+          sourceUserId: 'owner',
+          useOwner: true,
+          personalConfigured: false
+        }),
+        setMemberRestitchUseOwner,
+        setMemberRestitchDefaults: vi.fn().mockResolvedValue(stored)
+      },
+      viewing
+    );
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('checkbox', { name: "Use owner's settings" }));
+    await waitFor(() => expect(setMemberRestitchUseOwner).toHaveBeenCalledWith(TEAM_ID, false));
+    expect(await screen.findByRole('radio', { name: 'Re-stitch' })).toBeTruthy();
+  });
+
+  it('saves personal settings without changing the owner defaults', async () => {
+    const setRestitchDefaults = vi.fn();
+    const setMemberRestitchDefaults = vi.fn().mockResolvedValue(stored);
+    renderSection(
+      {
+        getRestitchDefaults: vi.fn().mockResolvedValue(stored),
+        setRestitchDefaults,
+        getMemberRestitchPreference: vi.fn().mockResolvedValue({
+          ownerId: 'owner',
+          sourceUserId: 'member',
+          useOwner: false,
+          personalConfigured: true
+        }),
+        setMemberRestitchUseOwner: vi.fn(),
+        setMemberRestitchDefaults
+      },
+      viewing
+    );
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(setMemberRestitchDefaults).toHaveBeenCalled());
+    expect(setRestitchDefaults).not.toHaveBeenCalled();
   });
 
   it('says what is missing when the local app is not running', async () => {

@@ -123,14 +123,14 @@ select ok(
   'preparation is only returned while it still describes the material'
 );
 
--- The two permissions this feature separates: changing what a space does is a management act,
+-- The two permissions this feature separates: changing what a space does is the owner's act,
 -- recording what a run found is part of running a tool.
 select ok(
-  (select pg_catalog.pg_get_functiondef(p.oid) like '%manage_metadata%'
+  (select pg_catalog.pg_get_functiondef(p.oid) like '%owner_id = auth.uid()%'
    from pg_catalog.pg_proc as p
    join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'set_restitch_defaults'),
-  'only a space manager may change the defaults'
+  'only the space owner may change shared defaults'
 );
 select ok(
   (select pg_catalog.pg_get_functiondef(p.oid) like '%''process''%'

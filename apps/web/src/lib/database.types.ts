@@ -2011,6 +2011,22 @@ export type Database = {
           updated_at: string;
         } | null;
       };
+      get_effective_restitch_defaults: {
+        Args: { p_team: string };
+        Returns: Json | null;
+      };
+      get_member_restitch_preference: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
+      set_member_restitch_use_owner: {
+        Args: { p_team: string; p_use_owner: boolean };
+        Returns: Json;
+      };
+      set_member_restitch_defaults: {
+        Args: { p_team: string; p_defaults: Json };
+        Returns: Json;
+      };
       set_restitch_defaults: {
         Args: { p_team: string; p_defaults: Json };
         Returns: {

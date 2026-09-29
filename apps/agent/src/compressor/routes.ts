@@ -169,6 +169,39 @@ export function registerCompressorRoutes(app: FastifyInstance, ctx: CompressorCo
     }
   });
 
+  app.post<{ Params: { slot: string; id: string } }>(
+    '/api/team/restitch-images/:slot/:id',
+    async (request, reply) => {
+      const slot = imageSlot(request.params.slot);
+      if (!slot) return reply.code(400).send({ error: 'IMAGE_SLOT_INVALID' });
+      const images = queue.state().settings.imageEmbedding;
+      const inSlot = slot === 'start' ? images.startImages : images.endImages;
+      if (inSlot.some(asset => asset.id === request.params.id)) return queue.state();
+      const existing = queue.imageAsset(request.params.id);
+      if (existing) {
+        await queue.addImage(slot, existing);
+        return queue.state();
+      }
+      const part = await request.file({ limits: { fileSize: MAX_IMAGE_BYTES } });
+      if (!part) return reply.code(400).send({ error: 'IMAGE_MISSING' });
+      let asset: ImageAsset | null = null;
+      try {
+        asset = await imageStore.import(
+          part.file,
+          part.filename || 'image',
+          part.mimetype || 'application/octet-stream',
+          request.params.id
+        );
+        await queue.addImage(slot, asset);
+        return queue.state();
+      } catch (error) {
+        if (asset) await queue.releaseImageIfUnused(asset);
+        const code = error instanceof ImageAssetError ? error.code : 'IMAGE_IMPORT_FAILED';
+        return reply.code(code === 'IMAGE_TOO_LARGE' ? 413 : 400).send({ error: code });
+      }
+    }
+  );
+
   app.delete<{ Params: { slot: string; id: string } }>(
     '/api/images/:slot/:id',
     async (request, reply) => {

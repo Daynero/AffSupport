@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MaterialRestitchPrep, TeamRestitchDefaults } from '@video-compressor/shared';
+import type { MaterialRestitchPrep } from '@video-compressor/shared';
 import { usablePrep } from '@video-compressor/shared';
 import {
   agentCanRestitch,
@@ -27,6 +27,7 @@ import { teamApi } from '../../api/team';
 import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
+import { ensureRestitchImages } from './images';
 
 export type RestitchDeliveryPhase =
   /** Waiting for the person to say where it goes — asked once per space, then remembered. */
@@ -148,7 +149,6 @@ export function useRestitchDelivery(teamId: string) {
   const { t } = useI18n();
   const [states, setStates] = useState<Record<string, RestitchDeliveryState>>({});
   const [pending, setPending] = useState<RestitchDeliveryTarget | null>(null);
-  const defaults = useRef<TeamRestitchDefaults | null>(null);
   const running = useRef(new AbortController());
   /** The agent-side run behind each material, so it can be stopped by name. */
   const operations = useRef(new Map<string, string>());
@@ -215,8 +215,8 @@ export function useRestitchDelivery(teamId: string) {
 
   const deliver = useCallback(
     async (target: RestitchDeliveryTarget): Promise<void> => {
-      const known = defaults.current ?? (await teamApi.getRestitchDefaults(teamId));
-      defaults.current = known;
+      // The member may have switched between owner and personal settings since the last run.
+      const known = await teamApi.getRestitchDefaults(teamId);
       if (!known) {
         // Not a failure — the space simply has not been set up. The caller offers to do it,
         // and remembers what was asked for so it can continue afterwards.
@@ -275,6 +275,7 @@ export function useRestitchDelivery(teamId: string) {
         const grant = await teamApi.requestDownload(teamId, target.materialId, 'agent');
         if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
 
+        await ensureRestitchImages(teamId, known);
         const saved = await downloadTeamFileWithAgent({
           operationId,
           transferUrl: grant.transferUrl,
@@ -354,7 +355,6 @@ export function useRestitchDelivery(teamId: string) {
     const target = pending;
     if (!target) return;
     setPending(null);
-    defaults.current = null;
     await deliver(target);
   }, [pending, deliver]);
 

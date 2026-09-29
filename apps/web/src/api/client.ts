@@ -354,6 +354,30 @@ export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueSta
   return assertOk(response) as Promise<QueueState>;
 }
 
+export async function importTeamRestitchImage(
+  slot: ImageSlot,
+  id: string,
+  file: File
+): Promise<QueueState> {
+  const body = new FormData();
+  body.append('file', file, file.name);
+  let response: Response;
+  try {
+    response = await fetch(
+      `${agentUrl}/api/team/restitch-images/${slot}/${encodeURIComponent(id)}`,
+      {
+        method: 'POST',
+        headers: { 'x-session-token': pairingToken() },
+        body,
+        ...privateNetworkInit
+      }
+    );
+  } catch (error) {
+    throw new Error('CONNECTION_FAILED', { cause: error });
+  }
+  return assertOk(response) as Promise<QueueState>;
+}
+
 /** Builds a subresource URL carrying a ticket, or null when none could be had. */
 export async function ticketedUrl(
   path: string,

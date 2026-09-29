@@ -94,6 +94,28 @@ describe('preparing a spare copy', () => {
     );
   });
 
+  it('loads selected space images before starting and reports missing assets clearly', async () => {
+    const ensureImages = vi.fn(async () => {
+      throw new Error('RESTITCH_IMAGE_UNAVAILABLE');
+    });
+    const api = client({ ensureImages });
+    await runRestitchClaim(
+      claim,
+      api,
+      () => false,
+      () => null,
+      'team-1'
+    );
+    expect(ensureImages).toHaveBeenCalledWith('team-1', claim.options.defaults);
+    expect(api.startProcess).not.toHaveBeenCalled();
+    expect(api.completeRestitchJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'failed',
+        errorCode: 'RESTITCH_IMAGE_UNAVAILABLE'
+      })
+    );
+  });
+
   it('cancels the run when the heartbeat says the updater no longer wants it, and reports nothing', async () => {
     vi.useFakeTimers();
     let finish: () => void = () => undefined;

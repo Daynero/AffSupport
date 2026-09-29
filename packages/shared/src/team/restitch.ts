@@ -18,8 +18,10 @@ import {
 } from '../stitcher.js';
 import {
   DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
+  clampCustomStartDurationMs,
   type FinalImageDurationMode,
-  type ImageFitMode
+  type ImageFitMode,
+  type StartImageDurationMode
 } from '../types.js';
 
 export const RESTITCH_OPERATIONS = ['restitch', 'stitch', 'unstitch'] as const;
@@ -40,6 +42,10 @@ export interface TeamRestitchDefaults {
   fitMode: ImageFitMode;
   finalDurationMode: FinalImageDurationMode;
   customFinalDurationSeconds: number;
+  startEnabled?: boolean;
+  endEnabled?: boolean;
+  startDurationMode?: StartImageDurationMode;
+  customStartDurationMs?: number;
   /** Whether this set could actually produce a file; see `restitchDefaultsSaveable`. */
   configured: boolean;
   updatedAt: string;
@@ -116,10 +122,16 @@ export type RestitchParse<T> = { ok: true; value: T } | { ok: false; error: stri
  * Removing the stitching needs no photograph. Everything else needs somewhere to draw one.
  */
 export function restitchDefaultsSaveable(
-  defaults: Pick<TeamRestitchDefaults, 'operation' | 'startImageIds' | 'endImageIds'>
+  defaults: Pick<
+    TeamRestitchDefaults,
+    'operation' | 'startImageIds' | 'endImageIds' | 'startEnabled' | 'endEnabled'
+  >
 ): boolean {
   if (defaults.operation === 'unstitch') return true;
-  return defaults.startImageIds.length > 0 || defaults.endImageIds.length > 0;
+  return (
+    (defaults.startEnabled !== false && defaults.startImageIds.length > 0) ||
+    (defaults.endEnabled !== false && defaults.endImageIds.length > 0)
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -164,11 +176,25 @@ export function parseTeamRestitchDefaults(value: unknown): RestitchParse<TeamRes
       customFinalDurationSeconds: clampStitchEndDuration(
         custom ?? DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
       ),
+      startEnabled: value.startEnabled !== false,
+      endEnabled: value.endEnabled !== false,
+      startDurationMode: oneOf(
+        value.startDurationMode,
+        ['one-frame', 'ms-2', 'ms-5', 'ms-10', 'custom'] as const,
+        'one-frame'
+      ),
+      customStartDurationMs: clampCustomStartDurationMs(value.customStartDurationMs),
       // Never trusted from the row: a set that cannot produce a file is not configured,
       // whatever a caller wrote there.
       configured:
         value.configured === true &&
-        restitchDefaultsSaveable({ operation, startImageIds, endImageIds }),
+        restitchDefaultsSaveable({
+          operation,
+          startImageIds,
+          endImageIds,
+          startEnabled: value.startEnabled !== false,
+          endEnabled: value.endEnabled !== false
+        }),
       updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : '',
       updatedBy: typeof value.updatedBy === 'string' ? value.updatedBy : null
     }

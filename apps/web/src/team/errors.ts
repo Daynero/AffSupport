@@ -61,6 +61,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);
 
 const SYNC_COPY: Record<string, TranslationKey> = {
+  RESTITCH_IMAGE_UNAVAILABLE: 'teamRestitchImageUnavailable',
   INCOMPLETE_SCAN: 'teamErrorInvalidResponse',
   INCOMPLETE_LISTING: 'teamErrorInvalidResponse',
   RETRY_EXHAUSTED: 'teamErrorDriveUnavailable',

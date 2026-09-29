@@ -1579,6 +1579,7 @@ const en = {
   teamSettingsTabRestitch: 'Re-stitching',
   teamSettingsTabHistory: 'History',
   teamRestitchSection: 'Re-stitching',
+  teamRestitchUseOwner: "Use owner's settings",
   teamRestitchNotConfigured: 'Not set up yet',
   teamRestitchConfigured: 'Set up',
   teamRestitchSummary: '{operation}, {photos} photos, {hold}',
@@ -1589,6 +1590,8 @@ const en = {
   teamTaskReadOnly: 'You can read this task; changing it is for editors of this space.',
   teamRestitchNoScreens: 'Choose a photo for the start, the end, or both.',
   teamRestitchInvalid: 'One of these values is out of range.',
+  teamRestitchImageUnavailable:
+    'A selected image is missing. Ask the settings owner to open re-stitching settings and save them again.',
   teamRestitchForbidden: 'You cannot change this space.',
   teamSettingsTabProductCatalog: 'Catalog',
   productCatalogSettingsTitle: 'Product catalog',
@@ -4534,6 +4537,7 @@ const uk: Record<keyof typeof en, string> = {
   teamSettingsTabRestitch: 'Перезашивка',
   teamSettingsTabHistory: 'Історія',
   teamRestitchSection: 'Перезашивка',
+  teamRestitchUseOwner: 'Використовувати налаштування власника',
   teamRestitchNotConfigured: 'Ще не налаштовано',
   teamRestitchConfigured: 'Налаштовано',
   teamRestitchSummary: '{operation}, фото: {photos}, {hold}',
@@ -4544,6 +4548,8 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskReadOnly: 'Завдання можна читати; змінювати його можуть редактори простору.',
   teamRestitchNoScreens: 'Оберіть фото для початку, кінця або для обох.',
   teamRestitchInvalid: 'Одне зі значень поза межами.',
+  teamRestitchImageUnavailable:
+    'Бракує вибраного зображення. Попросіть власника налаштувань відкрити перезашивку й зберегти їх ще раз.',
   teamRestitchForbidden: 'Ви не можете змінювати цей простір.',
   teamSettingsTabProductCatalog: 'Каталог',
   productCatalogSettingsTitle: 'Каталог товарів',
