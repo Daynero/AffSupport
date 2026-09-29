@@ -294,8 +294,6 @@ export interface TeamAccountSummary {
   name: string;
   createdAt: string;
   updatedAt: string;
-  /** Decrypted social-account credential, loaded through the private 2FA RPC only. */
-  twoFactorSeed?: string | null;
   agents: TeamAccountAgentSummary[];
 }
 
@@ -376,7 +374,6 @@ export function parseTeamAccount(value: unknown): TeamAccountSummary | null {
     name,
     createdAt: created_at,
     updatedAt: updated_at,
-    twoFactorSeed: typeof value.two_factor_seed === 'string' ? value.two_factor_seed : null,
     agents: parsed
   };
 }
