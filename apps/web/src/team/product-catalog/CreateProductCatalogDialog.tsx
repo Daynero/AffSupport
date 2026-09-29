@@ -16,12 +16,14 @@ import { Button as InventoryButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { useBrowserRoute } from '../../lib/navigation';
 import { startTeamAgentProcess, agentCanRestitch } from '../../api/client';
 import { teamApi } from '../../api/team';
 import { formatMinutesInput, parseMinutesInput } from '../../components/ImageEmbeddingSection';
 import { teamErrorMessageFor } from '../errors';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { useTeam } from '../TeamContext';
+import { parseTeamRoute } from '../routes';
 import { productCatalogNameFor } from '../materials/tail';
 import {
   PRODUCT_COUNT_DEFAULT,
@@ -30,10 +32,12 @@ import {
   validateWebLink
 } from './limits';
 import { ProductCatalogProgress } from './ProductCatalogProgress';
+import { PRICE_RANGE_DEFAULT } from './ProductCatalogSettingsSection';
 import { ensureRestitchImages } from '../restitch/images';
 
 export interface CreateProductCatalogClient {
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
+  setProductCatalogSettings?: typeof teamApi.setProductCatalogSettings;
   getRestitchDefaults?: (teamId: string) => Promise<TeamRestitchDefaults | null>;
   startProcess?: typeof teamApi.startProcess;
   runAgentProcess?: typeof startTeamAgentProcess;
@@ -108,6 +112,8 @@ export function CreateProductCatalogDialog({
   const { t } = useI18n();
   const { push } = useToasts();
   const { can } = useTeam();
+  const route = parseTeamRoute(useBrowserRoute());
+  const settingsOpen = route?.kind === 'space' && route.query.settings;
   const titleId = useId();
   const linkId = useId();
   const countId = useId();
@@ -165,7 +171,7 @@ export function CreateProductCatalogDialog({
     return () => {
       active = false;
     };
-  }, [client, teamId]);
+  }, [client, teamId, settingsOpen]);
 
   useEffect(() => {
     if (!restitch) return;
@@ -190,13 +196,13 @@ export function CreateProductCatalogDialog({
 
   const linkCheck = validateWebLink(link, SOURCE_LINK_MAX);
   const countCheck = validateProductCount(count);
-  const settingsMissing = settings === null;
   const customSeconds = parseMinutesInput(customMinutes);
   const durationValid = durationMode !== 'custom' || customSeconds !== null;
   const canConfirm =
     linkCheck.ok &&
     countCheck.ok &&
-    !settingsMissing &&
+    settings !== undefined &&
+    (settings !== null || can('manage_metadata')) &&
     (!restitch ||
       (restitchDefaults !== undefined &&
         restitchDefaults !== null &&
@@ -219,6 +225,20 @@ export function CreateProductCatalogDialog({
     setPhase({ kind: 'busy', step: restitch ? 'restitch' : 'catalog' });
     setFailure(null);
     try {
+      // The displayed price range is a usable default even before anyone has saved settings.
+      if (settings === null) {
+        const saved = await (client.setProductCatalogSettings ?? teamApi.setProductCatalogSettings)(
+          teamId,
+          {
+            title: null,
+            description: null,
+            imageLink: null,
+            priceMin: PRICE_RANGE_DEFAULT.min,
+            priceMax: PRICE_RANGE_DEFAULT.max
+          }
+        );
+        setSettings(saved);
+      }
       let restitchOperationId: string | null = null;
       let catalogKey = `product-catalog:${crypto.randomUUID()}`;
       if (restitch) {
@@ -406,24 +426,14 @@ export function CreateProductCatalogDialog({
 
         {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}
 
-        {settingsMissing && (
-          <div className="product-catalog-dialog-missing" role="status">
-            {can('manage_metadata') ? (
-              <>
-                <p className="team-inline-note">{t('productCatalogErrorSettingsMissing')}</p>
-                <SpaceSettingsLink
-                  target={{ kind: 'settings', tab: 'product-catalog' }}
-                  label={t('productCatalogOpenSettings')}
-                />
-              </>
-            ) : (
-              <p className="team-inline-note">{t('productCatalogMissingSettingsNoAccess')}</p>
-            )}
-          </div>
+        {settings === null && !can('manage_metadata') && (
+          <p className="team-inline-note">{t('productCatalogMissingSettingsNoAccess')}</p>
         )}
 
         <label htmlFor={linkId}>
-          <span>{t('productCatalogSourceLinkLabel')}</span>
+          <span>
+            {t('productCatalogSourceLinkLabel')} · {t('productCatalogRequiredLabel')}
+          </span>
           <input
             id={linkId}
             type="text"
@@ -443,7 +453,9 @@ export function CreateProductCatalogDialog({
         )}
 
         <label htmlFor={countId}>
-          <span>{t('productCatalogCountLabel')}</span>
+          <span>
+            {t('productCatalogCountLabel')} · {t('productCatalogRequiredLabel')}
+          </span>
           <input
             id={countId}
             className="product-catalog-count"

@@ -854,7 +854,7 @@ function CatalogValuesSection({
       <SettingsSection
         icon={DollarSign}
         titleId="product-catalog-settings-title"
-        title={t('productCatalogPriceTitle')}
+        title={`${t('productCatalogPriceTitle')} · ${t('productCatalogRequiredLabel')}`}
         description={t('productCatalogPriceDescription')}
         aside={
           rangeOk && minCheck.ok && maxCheck.ok

@@ -96,6 +96,8 @@ export function CatalogUpdaterDialog({
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   /** Rows with a change on its way, so their controls wait instead of taking a second press. */
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [restitchOverride, setRestitchOverride] = useState<boolean | null>(null);
+  const [restitchSaving, setRestitchSaving] = useState(false);
   const [changesOpen, setChangesOpen] = useState(changesStartOpen);
   const selectAllRef = useRef<HTMLSpanElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -289,10 +291,27 @@ export function CatalogUpdaterDialog({
     }
   };
 
-  const setRestitch = (restitch: boolean) =>
-    withBusy([], async () => {
+  useEffect(() => {
+    if (restitchOverride !== null && updater.state?.restitch === restitchOverride) {
+      setRestitchOverride(null);
+    }
+  }, [restitchOverride, updater.state?.restitch]);
+
+  const setRestitch = async (restitch: boolean) => {
+    setRestitchOverride(restitch);
+    setRestitchSaving(true);
+    try {
       await client.setCatalogUpdaterRestitch(teamId, restitch);
-    });
+      updater.reload();
+      registry.reload();
+      onChanged?.();
+    } catch (error) {
+      setRestitchOverride(null);
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setRestitchSaving(false);
+    }
+  };
 
   const dateFormat = useMemo(
     () =>
@@ -620,8 +639,8 @@ export function CatalogUpdaterDialog({
             )}
             <div className="team-updater-restitch">
               <Checkbox
-                checked={updater.state?.restitch ?? false}
-                disabled={!mayRun || updater.state === null || busyIds.size > 0}
+                checked={restitchOverride ?? updater.state?.restitch ?? false}
+                disabled={!mayRun || updater.state === null || restitchSaving || busyIds.size > 0}
                 onChange={event => void setRestitch(event.target.checked)}
                 label={t('catalogUpdaterRestitch')}
               />
