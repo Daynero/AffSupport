@@ -12366,13 +12366,67 @@ button.team-landing-tile:hover {
   gap: var(--space-3);
   min-width: 0;
 }
+.team-explorer-location {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 20rem;
+}
+.team-explorer-history {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-muted);
+  padding: 2px;
+  gap: 2px;
+  overflow: hidden;
+}
+.team-explorer-history-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.team-explorer-history-button + .team-explorer-history-button::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  border-left: 1px solid var(--color-border);
+}
+.team-explorer-history-button:hover:not(:disabled),
+.team-explorer-history-button:focus-visible {
+  background: var(--color-surface-muted);
+}
+.team-explorer-history-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.team-explorer-history-button:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+.team-explorer-history-button:disabled svg {
+  opacity: 0.45;
+}
 .team-explorer-breadcrumb {
   min-width: 0;
   /* A basis wide enough that the toolbar's buttons wrap to their own line
      before the path is starved. At `12rem` the strip went 372px at 1280 and
      200px at 1100 and back to 685px at 1024 — narrowing the window made the
      path shorter, then longer again, which is not a thing a layout should do. */
-  flex: 1 1 20rem;
+  flex: 1 1 auto;
   /* The path ran right up against Search. */
   padding-right: var(--space-2);
   /* Measured on the strip the path actually gets, not on the window: with the
@@ -12957,9 +13011,11 @@ button.team-landing-tile:hover {
     order: -2;
     flex: none;
   }
-  .team-explorer-breadcrumb {
+  .team-explorer-location {
     flex: 1 1 8rem;
     order: -1;
+  }
+  .team-explorer-breadcrumb {
     padding-right: 0;
   }
   .team-explorer-toolbar-actions {

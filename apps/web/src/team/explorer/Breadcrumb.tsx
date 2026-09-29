@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { useExplorer } from './ExplorerProvider';
 import { Popover } from '../../components/ui/index';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
 /**
  * How deep a path is shown in full before the middle folds away.
@@ -16,6 +18,25 @@ const VISIBLE_TAIL = 2;
 export function Breadcrumb() {
   const { t } = useI18n();
   const { currentFolderId, pathTo, openFolder } = useExplorer();
+  const [history, setHistory] = useState<{ entries: (string | null)[]; index: number }>(() => ({
+    entries: [currentFolderId],
+    index: 0
+  }));
+  useEffect(() => {
+    setHistory(previous => {
+      if (previous.entries[previous.index] === currentFolderId) return previous;
+      return {
+        entries: [...previous.entries.slice(0, previous.index + 1), currentFolderId],
+        index: previous.index + 1
+      };
+    });
+  }, [currentFolderId]);
+  const moveHistory = (step: -1 | 1) => {
+    const index = history.index + step;
+    if (index < 0 || index >= history.entries.length) return;
+    setHistory(previous => ({ ...previous, index }));
+    openFolder(history.entries[index] ?? null);
+  };
   const path = pathTo(currentFolderId);
   const folded = path.length > VISIBLE_TAIL + 1 ? path.slice(0, path.length - VISIBLE_TAIL) : [];
   const shown = folded.length > 0 ? path.slice(path.length - VISIBLE_TAIL) : path;
@@ -31,61 +52,93 @@ export function Breadcrumb() {
   const ancestors = path.slice(0, path.length - 1);
 
   return (
-    <nav className="team-explorer-breadcrumb" aria-label={t('teamExplorerBreadcrumbLabel')}>
-      <ol>
-        {path.length > 0 && (
-          <li className="team-explorer-breadcrumb-compact">
-            <FoldedPath
-              nodes={[
-                { id: 'root', driveFileId: '', name: t('teamExplorerRootLabel') },
-                ...ancestors
-              ]}
-              onOpen={driveFileId => openFolder(driveFileId === '' ? null : driveFileId)}
-              label={t('teamExplorerBreadcrumbFolded', { count: ancestors.length + 1 })}
-            />
-            <Separator />
-          </li>
-        )}
-        <li className="team-explorer-breadcrumb-step">
-          {path.length === 0 ? (
-            <span aria-current="page">{t('teamExplorerRootLabel')}</span>
-          ) : (
-            <button type="button" onClick={() => openFolder(null)}>
-              {t('teamExplorerRootLabel')}
-            </button>
+    <div className="team-explorer-location">
+      <div
+        className="team-explorer-history"
+        role="group"
+        aria-label={t('teamExplorerHistoryLabel')}
+      >
+        <button
+          type="button"
+          className="team-explorer-history-button"
+          aria-label={t('teamExplorerHistoryBack')}
+          title={t('teamExplorerHistoryBack')}
+          disabled={history.index === 0}
+          onClick={() => moveHistory(-1)}
+        >
+          <ChevronLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="team-explorer-history-button"
+          aria-label={t('teamExplorerHistoryForward')}
+          title={t('teamExplorerHistoryForward')}
+          disabled={history.index === history.entries.length - 1}
+          onClick={() => moveHistory(1)}
+        >
+          <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </button>
+      </div>
+      <nav className="team-explorer-breadcrumb" aria-label={t('teamExplorerBreadcrumbLabel')}>
+        <ol>
+          {path.length > 0 && (
+            <li className="team-explorer-breadcrumb-compact">
+              <FoldedPath
+                nodes={[
+                  { id: 'root', driveFileId: '', name: t('teamExplorerRootLabel') },
+                  ...ancestors
+                ]}
+                onOpen={driveFileId => openFolder(driveFileId === '' ? null : driveFileId)}
+                label={t('teamExplorerBreadcrumbFolded', { count: ancestors.length + 1 })}
+              />
+              <Separator />
+            </li>
           )}
-        </li>
-        {folded.length > 0 && (
           <li className="team-explorer-breadcrumb-step">
-            <Separator />
-            <FoldedPath
-              nodes={folded}
-              onOpen={driveFileId => openFolder(driveFileId)}
-              label={t('teamExplorerBreadcrumbFolded', { count: folded.length })}
-            />
-          </li>
-        )}
-        {shown.map((node, index) => (
-          <li
-            key={node.id}
-            className={index === shown.length - 1 ? '' : 'team-explorer-breadcrumb-step'}
-          >
-            <Separator
-              className={index === shown.length - 1 ? 'team-explorer-breadcrumb-step' : ''}
-            />
-            {index === shown.length - 1 ? (
-              <span aria-current="page" title={node.name}>
-                {node.name}
-              </span>
+            {path.length === 0 ? (
+              <span aria-current="page">{t('teamExplorerRootLabel')}</span>
             ) : (
-              <button type="button" title={node.name} onClick={() => openFolder(node.driveFileId)}>
-                {node.name}
+              <button type="button" onClick={() => openFolder(null)}>
+                {t('teamExplorerRootLabel')}
               </button>
             )}
           </li>
-        ))}
-      </ol>
-    </nav>
+          {folded.length > 0 && (
+            <li className="team-explorer-breadcrumb-step">
+              <Separator />
+              <FoldedPath
+                nodes={folded}
+                onOpen={driveFileId => openFolder(driveFileId)}
+                label={t('teamExplorerBreadcrumbFolded', { count: folded.length })}
+              />
+            </li>
+          )}
+          {shown.map((node, index) => (
+            <li
+              key={node.id}
+              className={index === shown.length - 1 ? '' : 'team-explorer-breadcrumb-step'}
+            >
+              <Separator
+                className={index === shown.length - 1 ? 'team-explorer-breadcrumb-step' : ''}
+              />
+              {index === shown.length - 1 ? (
+                <span aria-current="page" title={node.name}>
+                  {node.name}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  title={node.name}
+                  onClick={() => openFolder(node.driveFileId)}
+                >
+                  {node.name}
+                </button>
+              )}
+            </li>
+          ))}
+        </ol>
+      </nav>
+    </div>
   );
 }
 
