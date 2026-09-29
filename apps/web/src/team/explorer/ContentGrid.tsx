@@ -56,8 +56,6 @@ export function ContentGrid({
   actions,
   tagging,
   emptyAction,
-  contentsPending = false,
-  pendingLabel,
   onDropMaterials,
   companionRows
 }: {
@@ -89,8 +87,6 @@ export function ContentGrid({
    */
   emptyAction?: ReactNode;
   /** An unconfirmed catalog is not an empty folder. */
-  contentsPending?: boolean;
-  pendingLabel?: string;
   /** Each video's own files — its text, its catalogs — listed on its tile (024, US25). */
   companionRows?: ReadonlyMap<string, readonly TeamMaterialRow[]>;
   /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
@@ -151,25 +147,20 @@ export function ContentGrid({
         </h2>
         {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
-      {page.loading && page.rows.length === 0 && !contentsPending && (
+      {page.loading && page.rows.length === 0 && (
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
       )}
       {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
           same thing twice above a card that had collapsed to a strip. */}
-      {!page.error && page.rows.length === 0 && (contentsPending || !page.loading) && (
+      {!page.error && page.rows.length === 0 && !page.loading && (
         <EmptyState
           className="team-explorer-empty"
           icon={<FolderOpen size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-          title={contentsPending ? pendingLabel : t('teamExplorerEmpty')}
-          action={contentsPending ? undefined : emptyAction}
+          title={t('teamExplorerEmpty')}
+          action={emptyAction}
         />
-      )}
-      {contentsPending && rows.length > 0 && !page.error && (
-        <p className="team-explorer-muted" role="status">
-          {pendingLabel}
-        </p>
       )}
       <ul className="team-explorer-grid" role="list">
         {rows.map(row => (

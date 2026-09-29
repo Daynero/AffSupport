@@ -44,8 +44,6 @@ export function ContentList({
   actions,
   tagging,
   emptyAction,
-  contentsPending = false,
-  pendingLabel,
   companionCounts,
   openedCompanions,
   onToggleCompanions,
@@ -79,8 +77,6 @@ export function ContentList({
    */
   emptyAction?: ReactNode;
   /** An unconfirmed catalog is not an empty folder. */
-  contentsPending?: boolean;
-  pendingLabel?: string;
   /** How many companions each video holds, folded away until opened (024, US25). */
   companionCounts?: ReadonlyMap<string, number>;
   openedCompanions?: ReadonlySet<string>;
@@ -108,25 +104,20 @@ export function ContentList({
         </h2>
         {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
-      {page.loading && page.rows.length === 0 && !contentsPending && (
+      {page.loading && page.rows.length === 0 && (
         <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
       )}
       {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
           same thing twice above a card that had collapsed to a strip. */}
-      {!page.error && page.rows.length === 0 && (contentsPending || !page.loading) && (
+      {!page.error && page.rows.length === 0 && !page.loading && (
         <EmptyState
           className="team-explorer-empty"
           icon={<FolderOpen size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-          title={contentsPending ? pendingLabel : t('teamExplorerEmpty')}
-          action={contentsPending ? undefined : emptyAction}
+          title={t('teamExplorerEmpty')}
+          action={emptyAction}
         />
-      )}
-      {contentsPending && rows.length > 0 && !page.error && (
-        <p className="team-explorer-muted" role="status">
-          {pendingLabel}
-        </p>
       )}
       {rows.length > 0 && (
         <Table

@@ -455,17 +455,8 @@ function ExplorerBody({
           group.items.some(item => activeFolderIds.includes(item.resultFolderId ?? '')))
     )
   );
-  const unindexedFolder = Boolean(
-    currentFolderId && (explorer.loading || nodeOf(currentFolderId)?.indexedAt === null)
-  );
+  const unindexedFolder = Boolean(currentFolderId && nodeOf(currentFolderId)?.indexedAt === null);
   const contentsPending = folderResync.running || uploadingThisFolder || unindexedFolder;
-  const pendingLabel = t(
-    uploadingThisFolder
-      ? 'teamExplorerAddingContents'
-      : folderResync.running
-        ? 'teamExplorerSyncingContents'
-        : 'teamExplorerUncheckedContents'
-  );
   const page = useFolderPage({
     teamId,
     client,
@@ -1999,8 +1990,6 @@ function ExplorerBody({
                 companionRows={folded.children}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
-                contentsPending={contentsPending}
-                pendingLabel={pendingLabel}
               />
             ) : (
               <ContentList
@@ -2014,8 +2003,6 @@ function ExplorerBody({
                 onToggleCompanions={toggleCompanions}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
-                contentsPending={contentsPending}
-                pendingLabel={pendingLabel}
               />
             )}
           </div>
