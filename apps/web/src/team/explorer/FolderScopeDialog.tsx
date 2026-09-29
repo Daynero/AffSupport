@@ -37,18 +37,16 @@ export interface ProcessableFolder {
  * one flow rather than two products.
  */
 /** What the walk is being asked for — the window says so in its own title. */
-export type FolderScopeIntent = 'process' | 'compress' | 'previews';
+export type FolderScopeIntent = 'process' | 'compress';
 
 const TITLE_BY_INTENT = {
   process: 'teamBatchTitleFolder',
-  compress: 'teamBatchCompressFolderTitle',
-  previews: 'teamBatchPreviewsFolderTitle'
+  compress: 'teamBatchCompressFolderTitle'
 } as const;
 
 const EMPTY_BY_INTENT = {
   process: 'teamBatchFolderEmpty',
-  compress: 'teamBatchFolderNoVideos',
-  previews: 'teamBatchFolderNoLandings'
+  compress: 'teamBatchFolderNoVideos'
 } as const;
 
 export function FolderScopeDialog({
@@ -94,9 +92,7 @@ export function FolderScopeDialog({
         const found =
           intent === 'compress'
             ? result.videos.length
-            : intent === 'previews'
-              ? result.landings.length
-              : result.videos.length + result.landings.length;
+            : result.videos.length + result.landings.length;
         /*
          * Five answers, in the order that keeps each one true.
          *

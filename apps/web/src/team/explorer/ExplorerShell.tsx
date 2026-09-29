@@ -385,7 +385,7 @@ function ExplorerBody({
      folder-wide commands need the same walk, so they share one window. */
   const [folderScope, setFolderScope] = useState<{
     folder: ProcessableFolder;
-    intent: 'process' | 'compress' | 'previews';
+    intent: 'process' | 'compress';
   } | null>(null);
   const [compressing, setCompressing] = useState<CompressPlanItem_[] | null>(null);
   const [dropping, setDropping] = useState(false);
@@ -1343,50 +1343,6 @@ function ExplorerBody({
 
   const runCompressPlan = (plan: CompressPlan) => queue.enqueue(compressJobs(plan));
 
-  /**
-   * Landing previews, folder-wide: the same per-row command, said once.
-   *
-   * It used to announce success before doing anything and swallow every
-   * failure — six previews that all failed on an expired connection read as
-   * "оновлюємо: 6" and nothing else, ever. The line counts as it goes and ends
-   * on what actually happened.
-   */
-  const refreshLandingPreviews = (landingIds: string[]) => {
-    if (landingIds.length === 0) return;
-    const line = push({
-      tone: 'info',
-      sticky: true,
-      progress: 0,
-      text: t('teamExplorerPreviewsRunning', { done: 0, total: landingIds.length })
-    });
-    void (async () => {
-      let done = 0;
-      let failed = 0;
-      for (const id of landingIds) {
-        try {
-          await teamApi.regenerateLandingPreview(teamId, id);
-          done += 1;
-        } catch {
-          failed += 1;
-        }
-        update(line, {
-          progress: ((done + failed) / landingIds.length) * 100,
-          text: t('teamExplorerPreviewsRunning', { done: done + failed, total: landingIds.length })
-        });
-      }
-      update(line, {
-        tone: failed > 0 ? 'error' : 'success',
-        sticky: false,
-        progress: undefined,
-        text:
-          failed > 0
-            ? t('teamExplorerPreviewsPartial', { done, failed })
-            : t('teamExplorerPreviewsDone', { count: done })
-      });
-      if (done > 0) changed();
-    })();
-  };
-
   const onContentKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (sortedRows.length === 0) return;
     const target = event.target instanceof HTMLElement ? event.target : null;
@@ -1687,7 +1643,6 @@ function ExplorerBody({
                   ? folder => setFolderScope({ folder, intent: 'compress' })
                   : undefined
               }
-              onRefreshFolderPreviews={folder => setFolderScope({ folder, intent: 'previews' })}
               onSpace={onProcessLibrary}
             />
           )}
@@ -2071,10 +2026,6 @@ function ExplorerBody({
               );
               return;
             }
-            if (intent === 'previews') {
-              refreshLandingPreviews(result.landings.map(landing => landing.id));
-              return;
-            }
             const ids = scopeIdsOf(result);
             /* An empty scope is not a small batch: with no ids the server reads
                the request as the whole space, so a folder that yielded nothing
@@ -2090,7 +2041,8 @@ function ExplorerBody({
               // Separately, because the window's "already done" line is about
               // videos with a transcript, and one video is exactly one
               // transcription job.
-              videos: result.videos.length
+              videos: result.videos.length,
+              landingIds: result.landings.map(landing => landing.id)
             });
           }}
           onClose={() => setFolderScope(null)}
@@ -2335,18 +2287,15 @@ function ProcessMenu({
   folder,
   onFolder,
   onCompressFolder,
-  onRefreshFolderPreviews,
   onSpace
 }: {
   folder: ProcessableFolder | null;
   onFolder: (folder: ProcessableFolder) => void;
   onCompressFolder?: (folder: ProcessableFolder) => void;
-  onRefreshFolderPreviews?: (folder: ProcessableFolder) => void;
   onSpace?: () => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
   const list = useRef<HTMLDivElement | null>(null);
 
@@ -2406,7 +2355,7 @@ function ProcessMenu({
   if (!folder) return null;
 
   return (
-    <div className="team-explorer-process-menu" ref={box}>
+    <div className="team-explorer-process-menu">
       <Button
         type="button"
         ref={button}
@@ -2423,7 +2372,7 @@ function ProcessMenu({
           setOpen(false);
           button.current?.focus();
         }}
-        anchor={box}
+        anchor={button}
         placement="bottom-start"
         frequent
         label={t('teamExplorerProcessScope')}
@@ -2447,26 +2396,6 @@ function ProcessMenu({
               {t('teamExplorerProcessFolder')}
             </button>
           )}
-          {folder && onCompressFolder && (
-            <button
-              type="button"
-              role="menuitem"
-              className="team-explorer-menu-item"
-              onClick={() => choose(() => onCompressFolder(folder))}
-            >
-              {t('teamExplorerCompressFolder')}
-            </button>
-          )}
-          {folder && onRefreshFolderPreviews && (
-            <button
-              type="button"
-              role="menuitem"
-              className="team-explorer-menu-item"
-              onClick={() => choose(() => onRefreshFolderPreviews(folder))}
-            >
-              {t('teamFolderProcessLandings')}
-            </button>
-          )}
           {folder && onSpace && <hr className="team-explorer-menu-rule" aria-hidden="true" />}
           {onSpace && (
             <button
@@ -2480,6 +2409,11 @@ function ProcessMenu({
           )}
         </div>
       </Popover>
+      {onCompressFolder && (
+        <Button type="button" variant="secondary" onClick={() => onCompressFolder(folder)}>
+          {t('teamExplorerCompressFolder')}
+        </Button>
+      )}
     </div>
   );
 }

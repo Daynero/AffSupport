@@ -13924,6 +13924,8 @@ button.team-landing-tile:hover {
 .team-explorer-process-menu {
   position: relative;
   display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .team-explorer-process-menu .team-explorer-menu {
   /* Opens under its button, and wide enough to say what it says: at the shared

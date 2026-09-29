@@ -6,6 +6,7 @@ import type {
   TeamFileOperationResult,
   TeamProcessStartResult
 } from '@video-compressor/shared';
+import type { CatalogSearchRequestInput, CatalogSearchResponse } from '@video-compressor/shared';
 import type { TeamLibraryAgentProcessRequest } from '../../api/client';
 import type {
   LibraryJobClaimEnvelope,
@@ -23,6 +24,11 @@ const AGENT_INSTANCE_KEY = 'wishly.creative-library.agent-instance.v1';
  * dialog that views it share one definition instead of importing each other.
  */
 export interface ProcessLibraryClient {
+  searchCatalog?: (
+    teamId: string,
+    request: CatalogSearchRequestInput
+  ) => Promise<CatalogSearchResponse>;
+  regenerateLandingPreview?: (teamId: string, materialId: string) => Promise<void>;
   scanLibraryRequirements(
     teamId: string,
     interfaceLanguage: string,
@@ -99,6 +105,13 @@ export function stableLibraryAgentInstanceId(
  */
 export type LibraryBatchScope =
   | { kind: 'space' }
-  | { kind: 'folder'; name: string; folders?: number; files?: number; videos?: number }
+  | {
+      kind: 'folder';
+      name: string;
+      folders?: number;
+      files?: number;
+      videos?: number;
+      landingIds?: string[];
+    }
   /** `picked` is the whole selection when some of it cannot be processed. */
   | { kind: 'selection'; count: number; picked?: number };

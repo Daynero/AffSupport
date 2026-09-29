@@ -158,7 +158,29 @@ export function ProcessLibraryDialog({
                 </label>
               );
             })}
+            {batch.scope.kind !== 'selection' && (
+              <label className={`team-batch-choice${batch.previewCount === 0 ? ' is-empty' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={batch.previewsChosen && batch.previewCount > 0}
+                  disabled={batch.previewCount === 0 || running}
+                  onChange={event => batch.setPreviewsChosen(event.target.checked)}
+                />
+                <span className="team-batch-choice-label">{t('teamBatchPreviews')}</span>
+                <span className="team-batch-choice-count">
+                  {batch.previewCount === 0 ? t('teamBatchChoiceNothing') : batch.previewCount}
+                </span>
+              </label>
+            )}
           </fieldset>
+        )}
+        {batch.scan && batch.previewsChosen && batch.previewCount > 0 && (
+          <p className="team-batch-note">{t('teamBatchPreviewsNote')}</p>
+        )}
+        {batch.previewError && (
+          <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
+            {t('teamBatchPreviewsScanFailed')}
+          </Alert>
         )}
         {batch.scan && unsupported(batch.scan, batch.supportedKinds).length > 0 && (
           <p className="team-explorer-muted">
@@ -183,15 +205,14 @@ export function ProcessLibraryDialog({
           )}
         {batch.phase === 'ready' &&
           batch.scan &&
-          totalOf(batch.scan, batch.supportedKinds) === 0 && (
-            <EmptyState size="sm" title={t('teamBatchNothing')} />
-          )}
-        {!agentCompatible && (
+          totalOf(batch.scan, batch.supportedKinds) === 0 &&
+          batch.previewCount === 0 && <EmptyState size="sm" title={t('teamBatchNothing')} />}
+        {!agentCompatible && batch.previewCount === 0 && (
           <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
             {t('teamProcessAgentUpdate')}
           </Alert>
         )}
-        {agentCompatible && batch.supportedKinds.length === 0 && (
+        {agentCompatible && batch.supportedKinds.length === 0 && batch.previewCount === 0 && (
           <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
             {t('teamProcessToolUpdate')}
           </Alert>
@@ -235,7 +256,7 @@ export function ProcessLibraryDialog({
         <div className="team-dialog-actions">
           {batch.phase !== 'running' &&
             batch.scan &&
-            totalOf(batch.scan, batch.supportedKinds) > 0 && (
+            (totalOf(batch.scan, batch.supportedKinds) > 0 || batch.previewCount > 0) && (
               <Button
                 type="button"
                 variant="primary"
@@ -250,7 +271,7 @@ export function ProcessLibraryDialog({
               {t('teamBatchCancel')}
             </Button>
           )}
-          {tally.failed > 0 && !running && (
+          {tally.failed > 0 && !running && !batch.previewsChosen && (
             <Button type="button" variant="secondary" onClick={() => void batch.retryFailed()}>
               {t('teamBatchRetry')}
             </Button>
@@ -297,7 +318,8 @@ export function ProcessLibraryDialog({
 const KIND_NOUN: Record<string, TranslationKey> = {
   transcription: 'teamBatchKindTranscription',
   translation: 'teamBatchKindTranslation',
-  landing_optimization: 'teamBatchKindLanding'
+  landing_optimization: 'teamBatchKindLanding',
+  previews: 'teamBatchKindPreview'
 };
 
 /** The three kinds, paired with the count and the word the window uses. */

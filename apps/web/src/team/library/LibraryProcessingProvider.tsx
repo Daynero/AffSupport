@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from 'react';
 import {
+  normalizeCatalogSearchRequest,
   transcriptSidecarName,
   translationSidecarName,
   type LibraryJobKind,
@@ -75,7 +76,11 @@ export interface LibraryProcessingValue {
   /** The kinds the person chose to run (024): a folder can be transcribed without its landings. */
   chosenKinds: LibraryJobKind[];
   setChosenKinds: (kinds: LibraryJobKind[]) => void;
-  activeKind: LibraryJobKind | null;
+  previewCount: number;
+  previewError: string | null;
+  previewsChosen: boolean;
+  setPreviewsChosen: (chosen: boolean) => void;
+  activeKind: LibraryJobKind | 'previews' | null;
   done: number;
   skipped: number;
   failed: number;
@@ -184,7 +189,10 @@ export function LibraryProcessingProvider({
 
   const [phase, setPhase] = useState<LibraryProcessingPhase>('idle');
   const [scan, setScan] = useState<LibraryRequirementScanResult | null>(null);
-  const [activeKind, setActiveKind] = useState<LibraryJobKind | null>(null);
+  const [activeKind, setActiveKind] = useState<LibraryJobKind | 'previews' | null>(null);
+  const [previewIds, setPreviewIds] = useState<string[]>([]);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewsChosen, setPreviewsChosen] = useState(false);
   const [done, setDone] = useState(0);
   const [skipped, setSkipped] = useState(0);
   const [failed, setFailed] = useState(0);
@@ -193,6 +201,7 @@ export function LibraryProcessingProvider({
   const [outcome, setOutcome] = useState<LibraryBatchOutcome | null>(null);
   const control = useRef({
     stopped: false,
+    previewRunning: false,
     attempt: null as LibraryJobClaimEnvelope | null,
     operationId: null as string | null
   });
@@ -237,6 +246,9 @@ export function LibraryProcessingProvider({
     setAppliedScope(requestedScope.current);
     setPhase('idle');
     setScan(null);
+    setPreviewIds([]);
+    setPreviewError(null);
+    setPreviewsChosen(false);
     setActiveKind(null);
     setDone(0);
     setSkipped(0);
@@ -272,6 +284,16 @@ export function LibraryProcessingProvider({
     () => supportedKinds.filter(kind => chosenKinds.includes(kind)),
     [chosenKinds, supportedKinds]
   );
+  const pendingKinds = useMemo(
+    () =>
+      runKinds.filter(kind => {
+        if (!scan) return false;
+        if (kind === 'transcription') return scan.missing.transcription > 0;
+        if (kind === 'translation') return scan.missing.translation > 0;
+        return scan.missing.landingOptimization > 0;
+      }),
+    [runKinds, scan]
+  );
 
   const rescan = useCallback(async () => {
     setPhase('scanning');
@@ -287,13 +309,42 @@ export function LibraryProcessingProvider({
       /* Counting only. Opening this window used to enqueue every job it
          counted, for everyone in the space, while saying nothing starts
          without confirmation. Start is what enqueues now. */
+      let landings: string[] = [];
+      setPreviewError(null);
+      try {
+        if (client.regenerateLandingPreview && appliedScope.kind === 'folder') {
+          landings = appliedScope.landingIds ?? [];
+        } else if (
+          client.regenerateLandingPreview &&
+          client.searchCatalog &&
+          appliedScope.kind === 'space'
+        ) {
+          const pageSize = 100;
+          for (let page = 1; ; page++) {
+            const request = normalizeCatalogSearchRequest({
+              query: '',
+              filters: { category: ['landing'] },
+              page,
+              pageSize
+            });
+            if (!request) throw new Error('INVALID_INPUT');
+            const result = await client.searchCatalog(teamId, request);
+            landings.push(...result.items.map(item => item.id));
+            if (landings.length >= result.total || result.items.length === 0) break;
+          }
+        }
+      } catch (error) {
+        landings = [];
+        setPreviewError(safeErrorCode(error));
+      }
+      setPreviewIds([...new Set(landings)]);
       setScan(await client.scanLibraryRequirements(teamId, language, sources, false));
       setPhase('ready');
     } catch (error) {
       setErrorCode(safeErrorCode(error));
       setPhase('failed');
     }
-  }, [client, language, sources, teamId]);
+  }, [appliedScope, client, language, sources, teamId]);
 
   /** Give the server back the lease this device is holding, if any. */
   const releaseActive = useCallback(async () => {
@@ -320,7 +371,7 @@ export function LibraryProcessingProvider({
   // Only leaving the space releases the lease — not closing the dialog.
   useEffect(
     () => () => {
-      if (control.current.attempt) void releaseActive();
+      if (control.current.attempt || control.current.previewRunning) void releaseActive();
     },
     [releaseActive]
   );
@@ -331,11 +382,13 @@ export function LibraryProcessingProvider({
    * adding it here promised jobs the loop would never ask for, and the batch
    * then ended "complete" several short of its own number.
    */
-  const total = scan
-    ? (runKinds.includes('transcription') ? scan.missing.transcription : 0) +
-      (runKinds.includes('translation') ? scan.missing.translation : 0) +
-      (runKinds.includes('landing_optimization') ? scan.missing.landingOptimization : 0)
-    : 0;
+  const total =
+    (previewsChosen ? previewIds.length : 0) +
+    (scan
+      ? (runKinds.includes('transcription') ? scan.missing.transcription : 0) +
+        (runKinds.includes('translation') ? scan.missing.translation : 0) +
+        (runKinds.includes('landing_optimization') ? scan.missing.landingOptimization : 0)
+      : 0);
 
   /**
    * The summary, said once when the batch settles.
@@ -369,17 +422,19 @@ export function LibraryProcessingProvider({
   );
 
   const start = useCallback(async () => {
-    if (runKinds.length === 0) return;
+    if (pendingKinds.length === 0 && (!previewsChosen || previewIds.length === 0)) return;
     control.current.stopped = false;
     setPhase('running');
     /* The queue is written here, at the press that agreed to it. Until now the
        window had only counted. */
-    try {
-      await client.scanLibraryRequirements(teamId, language, sources, true, runKinds);
-    } catch (error) {
-      setErrorCode(safeErrorCode(error));
-      setPhase('failed');
-      return;
+    if (pendingKinds.length > 0) {
+      try {
+        await client.scanLibraryRequirements(teamId, language, sources, true, pendingKinds);
+      } catch (error) {
+        setErrorCode(safeErrorCode(error));
+        setPhase('failed');
+        return;
+      }
     }
     setErrorCode(null);
     /* A run counts itself. Carrying the previous run's tally forward put the
@@ -391,6 +446,43 @@ export function LibraryProcessingProvider({
     setFailed(0);
     setFailedNames([]);
     const counts = { done: 0, skipped: 0, failed: 0, names: [] as string[] };
+    if (previewsChosen && client.regenerateLandingPreview) {
+      control.current.previewRunning = true;
+      setActiveKind('previews');
+      for (const id of previewIds) {
+        if (control.current.stopped) {
+          control.current.previewRunning = false;
+          return;
+        }
+        try {
+          await client.regenerateLandingPreview(teamId, id);
+          if (control.current.stopped) {
+            control.current.previewRunning = false;
+            return;
+          }
+          counts.done += 1;
+          setDone(value => value + 1);
+        } catch {
+          if (control.current.stopped) {
+            control.current.previewRunning = false;
+            return;
+          }
+          counts.failed += 1;
+          counts.names.push(id);
+          setFailed(value => value + 1);
+          setFailedNames(value => [...value, id]);
+        }
+      }
+      control.current.previewRunning = false;
+      setActiveKind(null);
+      onChanged?.();
+    }
+    if (pendingKinds.length === 0) {
+      setOutcome({ kind: 'complete', ...snapshot(counts) });
+      setPhase('complete');
+      summarize(counts);
+      return;
+    }
     for (;;) {
       if (control.current.stopped) return;
       let job: LibraryJobClaimEnvelope;
@@ -401,7 +493,7 @@ export function LibraryProcessingProvider({
         job = await client.claimLibraryJob({
           teamId,
           agentInstanceId: instanceId,
-          supportedKinds: runKinds,
+          supportedKinds: pendingKinds,
           interfaceLanguage: language,
           ...(sources.length > 0 ? { sourceMaterialIds: sources } : {})
         });
@@ -588,7 +680,9 @@ export function LibraryProcessingProvider({
     rescan,
     sources,
     summarize,
-    runKinds,
+    pendingKinds,
+    previewIds,
+    previewsChosen,
     teamId,
     toolContracts.landingOptimizer,
     toolContracts.transcription
@@ -630,6 +724,10 @@ export function LibraryProcessingProvider({
       supportedKinds,
       chosenKinds,
       setChosenKinds,
+      previewCount: previewIds.length,
+      previewError,
+      previewsChosen,
+      setPreviewsChosen,
       activeKind,
       done,
       skipped,
@@ -659,6 +757,9 @@ export function LibraryProcessingProvider({
       start,
       supportedKinds,
       chosenKinds,
+      previewIds.length,
+      previewError,
+      previewsChosen,
       total
     ]
   );

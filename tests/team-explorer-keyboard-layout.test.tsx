@@ -359,16 +359,15 @@ describe('the batch entry points', () => {
     const items = await screen.findAllByRole('menuitem');
     expect(items.map(item => item.textContent)).toEqual([
       'This folder and everything in it',
-      'Compress everything in this folder',
-      'Refresh landing previews',
       'Everything in the space'
     ]);
+    expect(screen.getByRole('button', { name: 'Compress everything in this folder' })).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(items[0]));
 
     await user.keyboard('{ArrowDown}');
     expect(document.activeElement).toBe(items[1]);
     await user.keyboard('{End}');
-    expect(document.activeElement).toBe(items[3]);
+    expect(document.activeElement).toBe(items[1]);
 
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('menuitem')).toBeNull());

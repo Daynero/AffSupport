@@ -79,6 +79,58 @@ function mount(
 }
 
 describe('the batch window and its scope', () => {
+  it('refreshes every landing preview in a folder only when that choice is started', async () => {
+    const client = stubClient();
+    (client.scanLibraryRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
+      created: { transcription: 0, translation: 0, landingOptimization: 0 },
+      missing: { transcription: 0, translation: 0, landingOptimization: 0 },
+      ready: 0,
+      started: false
+    });
+    client.regenerateLandingPreview = vi.fn().mockResolvedValue(undefined);
+    mount(client, [FIRST, SECOND], {
+      kind: 'folder',
+      name: 'Campaign',
+      landingIds: [FIRST, SECOND]
+    });
+
+    const choice = await screen.findByRole('checkbox', { name: /Refresh all landing previews/u });
+    expect(choice).toHaveProperty('checked', false);
+    expect(client.regenerateLandingPreview).not.toHaveBeenCalled();
+    fireEvent.click(choice);
+    fireEvent.click(screen.getByRole('button', { name: 'Start · 2' }));
+    await waitFor(() => expect(client.regenerateLandingPreview).toHaveBeenCalledTimes(2));
+    expect(client.regenerateLandingPreview).toHaveBeenNthCalledWith(1, TEAM_ID, FIRST);
+    expect(client.regenerateLandingPreview).toHaveBeenNthCalledWith(2, TEAM_ID, SECOND);
+    expect(client.claimLibraryJob).not.toHaveBeenCalled();
+  });
+
+  it('collects landing previews across every space search page', async () => {
+    const client = stubClient();
+    (client.scanLibraryRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
+      created: { transcription: 0, translation: 0, landingOptimization: 0 },
+      missing: { transcription: 0, translation: 0, landingOptimization: 0 },
+      ready: 0,
+      started: false
+    });
+    client.searchCatalog = vi.fn().mockImplementation(async (_teamId, request) => ({
+      items: [{ id: request.page === 1 ? FIRST : SECOND }],
+      total: 2
+    }));
+    client.regenerateLandingPreview = vi.fn().mockResolvedValue(undefined);
+    mount(client, [], { kind: 'space' });
+
+    const choice = await screen.findByRole('checkbox', { name: /Refresh all landing previews/u });
+    fireEvent.click(choice);
+    fireEvent.click(screen.getByRole('button', { name: 'Start · 2' }));
+    await waitFor(() => expect(client.regenerateLandingPreview).toHaveBeenCalledTimes(2));
+    expect(
+      (client.searchCatalog as ReturnType<typeof vi.fn>).mock.calls
+        .slice(0, 2)
+        .map(call => call[1].page)
+    ).toEqual([1, 2]);
+  });
+
   it('scans a chosen set in one question and claims against the whole set', async () => {
     const client = stubClient();
     mount(client, [FIRST, SECOND], { kind: 'selection', count: 2 });

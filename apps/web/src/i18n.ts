@@ -1913,9 +1913,15 @@ const en = {
   teamBatchTranscriptions: 'Transcriptions',
   teamBatchTranslations: 'Translations',
   teamBatchLandings: 'Landing optimizations',
+  teamBatchPreviews: 'Refresh all landing previews',
+  teamBatchPreviewsNote:
+    'Refresh requests are sent for every landing in this scope, including ones with an existing preview.',
+  teamBatchPreviewsScanFailed:
+    'Could not count landing previews. Other processing is still available.',
   teamBatchKindTranscription: 'transcription',
   teamBatchKindTranslation: 'translation',
   teamBatchKindLanding: 'a landing page',
+  teamBatchKindPreview: 'a landing preview',
   teamBatchNothing: 'Everything supported is already current.',
   teamBatchAlreadyDone: '{count} of the videos already have a transcript — those are skipped.',
   teamBatchMissingOnly:
@@ -4884,9 +4890,15 @@ const uk: Record<keyof typeof en, string> = {
   teamBatchTranscriptions: 'Транскрипції',
   teamBatchTranslations: 'Переклади',
   teamBatchLandings: 'Оптимізації лендінгів',
+  teamBatchPreviews: 'Оновити всі превʼю лендінгів',
+  teamBatchPreviewsNote:
+    'Запити на оновлення надсилаються для всіх лендінгів у вибраній області, зокрема й тих, що вже мають превʼю.',
+  teamBatchPreviewsScanFailed:
+    'Не вдалося порахувати превʼю лендінгів. Інші види обробки доступні.',
   teamBatchKindTranscription: 'транскрибація',
   teamBatchKindTranslation: 'переклад',
   teamBatchKindLanding: 'лендінг',
+  teamBatchKindPreview: 'превʼю лендінгу',
   teamBatchNothing: 'Усі підтримувані результати вже актуальні.',
   teamBatchAlreadyDone: 'Із відео {count} уже мають транскрипт — їх пропущено.',
   teamBatchMissingOnly: 'Пораховано лише файли, де цього ще немає. Зроблене не повторюється.',
