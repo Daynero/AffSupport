@@ -39,6 +39,7 @@ export interface WorkspaceOperationItem {
 export interface WorkspaceOperationGroup {
   id: string;
   teamId: string;
+  createdAt?: number;
   destination: WorkspaceDestination;
   state: LocalOperationState;
   stage: LocalOperationStage;
@@ -98,6 +99,7 @@ function fromJournal(group: JournalGroup): WorkspaceOperationGroup {
   return {
     id: group.id,
     teamId: group.teamId,
+    createdAt: group.createdAt,
     destination: { ...group.destination },
     state: group.state,
     stage: group.stage,

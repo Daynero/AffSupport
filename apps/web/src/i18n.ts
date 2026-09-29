@@ -1502,6 +1502,9 @@ const en = {
   teamWorkspaceGroupsChip: '{count} local operations',
   teamWorkspaceGroupsOpen: 'Open summary of {count} local operations',
   teamWorkspaceGroupsTitle: 'Local operations',
+  teamWorkspaceActiveChip: 'In progress: {count}',
+  teamWorkspaceAttentionChip: 'Needs attention: {count}',
+  teamWorkspaceMoreItems: '+{count} more',
   teamWorkspacePartial: 'Some items completed. Check the failed items before retrying.',
   teamWorkspaceCanceled: 'Stopped. Items already confirmed remain in the workspace.',
   teamWorkspaceReselect:
@@ -4466,6 +4469,9 @@ const uk: Record<keyof typeof en, string> = {
   teamWorkspaceGroupsChip: 'Локальні операції: {count}',
   teamWorkspaceGroupsOpen: 'Відкрити підсумок {count} локальних операцій',
   teamWorkspaceGroupsTitle: 'Локальні операції',
+  teamWorkspaceActiveChip: 'Виконується: {count}',
+  teamWorkspaceAttentionChip: 'Потребує уваги: {count}',
+  teamWorkspaceMoreItems: '+ще {count}',
   teamWorkspacePartial: 'Частину елементів завершено. Перевірте помилки перед повторною спробою.',
   teamWorkspaceCanceled: 'Зупинено. Уже підтверджені елементи залишилися в просторі.',
   teamWorkspaceReselect:
