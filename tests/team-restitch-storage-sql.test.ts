@@ -70,3 +70,26 @@ it('rejects malformed paths without a UUID cast failure', async () => {
     )
   ).rejects.toThrow(/row-level security/);
 });
+
+it('reads saved owner settings through the same RPC after a page reload', async () => {
+  await harness.asUser(owner, 'select public.set_restitch_defaults($1, $2::jsonb)', [
+    team,
+    JSON.stringify({
+      operation: 'restitch',
+        startImageIds: [owner],
+      endImageIds: [],
+      startEnabled: true,
+      endEnabled: false,
+      fitMode: 'cover',
+      finalDurationMode: 'random-50-60',
+      customFinalDurationSeconds: 2700
+    })
+  ]);
+  const rows = await harness.asUser<{ settings: { configured: boolean; startImageIds: string[] } }>(
+    owner,
+    'select public.get_effective_restitch_defaults($1) as settings',
+    [team]
+  );
+  expect(rows[0]!.settings.configured).toBe(true);
+  expect(rows[0]!.settings.startImageIds).toEqual([owner]);
+});
