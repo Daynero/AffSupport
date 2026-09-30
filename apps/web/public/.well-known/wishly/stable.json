@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.2.2",
-  "buildNumber": "67",
-  "buildId": "1.2.2+67",
+  "version": "1.2.3",
+  "buildNumber": "68",
+  "buildId": "1.2.3+68",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-09-28T00:00:00.000Z",
+  "publishedAt": "2026-09-30T00:00:00.000Z",
   "summary": {
-    "en": "Fixed critical errors in video re-stitching.",
-    "uk": "Виправлено критичні помилки в перезашивці відео."
+    "en": "Fixed known issues and improved overall performance and stability.",
+    "uk": "Виправлено відомі помилки та покращено загальну продуктивність і стабільність."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.2/Soty-v1.2.2-macOS-arm64.dmg",
-      "sha256": "df5d07a3dabbd938ca9eb7db37834ba182327223041dcb0cab32ae8fbeb82c4f"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.3/Soty-v1.2.3-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.2/Soty-v1.2.2-Windows-x64.exe",
-      "sha256": "9f4e23cc788eba717b8f84d358c50d919273b92b1f741b46c7f4f521cc24796f"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.3/Soty-v1.2.3-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -43,5 +43,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "bYJh3VYlKlrUmvudKeqQ-KjURaPWm4utFJOs-_JooDBeWSGQgDsDbLhc6ib60XnkdbIdusKfikTznZRHa8Ml_A"
+  "signature": "YAgj1G56FnpO92sAb2CJcKrUkuCnh0qhyLyTyw4K-SbOmNXGW60b6y4vS3V45GRHDTH_-JQSeI5ev1z6TA74PQ"
 }
