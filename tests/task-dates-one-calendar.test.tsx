@@ -85,6 +85,8 @@ describe('both date surfaces render the inventory calendar', () => {
         <RangeCalendar
           label="Range"
           value={null}
+          minValue={toCalendarDate('2026-09-01')}
+          maxValue={toCalendarDate('2026-09-30')}
           onChange={next => changes.push(`${next.start.toString()}..${next.end.toString()}`)}
         />
       </I18nProvider>
