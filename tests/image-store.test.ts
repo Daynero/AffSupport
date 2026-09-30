@@ -86,4 +86,20 @@ describe('managed image asset storage', () => {
       store.import(Readable.from('png bytes'), 'opening.png', 'image/png')
     ).rejects.toMatchObject({ code: 'TOOL_UNAVAILABLE' });
   });
+
+  it('rejects invalid preferred IDs and never removes an existing image on an ID collision', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'image store id collision '));
+    probeImage.mockResolvedValue({ width: 2, height: 3, codec: 'png', frames: 1 });
+    const store = new ImageAssetStore(directory);
+    await expect(
+      store.import(Readable.from('invalid'), 'photo.png', 'image/png', '../outside')
+    ).rejects.toMatchObject({ code: 'IMAGE_UNAVAILABLE' });
+
+    const id = '17000000-0000-4000-8000-000000000001';
+    const first = await store.import(Readable.from('first'), 'photo.png', 'image/png', id);
+    await expect(
+      store.import(Readable.from('second'), 'photo.png', 'image/png', id)
+    ).rejects.toMatchObject({ code: 'IMAGE_IMPORT_FAILED' });
+    expect(await store.exists(first)).toBe(true);
+  });
 });

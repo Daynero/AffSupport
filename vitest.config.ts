@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -13,6 +14,14 @@ import { defineConfig } from 'vitest/config';
  * that trains people to ignore a red run.
  */
 export default defineConfig({
+  resolve: {
+    // Exercise the source that coverage measures, not the prebuilt workspace package.
+    alias: {
+      '@video-compressor/shared': fileURLToPath(
+        new URL('./packages/shared/src/index.ts', import.meta.url)
+      )
+    }
+  },
   test: {
     // Deliberately no `include` here. Both projects inherit this block, and an
     // `include` at this level is merged into each of them rather than replaced

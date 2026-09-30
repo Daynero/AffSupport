@@ -351,4 +351,39 @@ describe('persistent transcription state', () => {
     expect(await queue.remove('upload-1')).toBe(true);
     await expect(access(imported)).rejects.toThrow();
   });
+
+  it('preserves an unavailable translation and ignores malformed persisted jobs', async () => {
+    const source = path.join(directory, 'source.mp3');
+    await writeFile(source, 'media');
+    await writeDocument('translated-1');
+    await writeFile(
+      stateFile,
+      JSON.stringify({
+        settings: { language: 'en', translationLanguage: 'uk', quality: 'fast' },
+        jobs: [
+          null,
+          { id: 'incomplete', inputPath: source },
+          {
+            ...makeJob({ id: 'translated-1', inputPath: source, status: 'completed' }),
+            translation: {
+              targetLanguage: 'uk',
+              status: 'unavailable',
+              totalSegments: 3
+            }
+          }
+        ]
+      })
+    );
+
+    const restored = await loadTranscriptionState(stateFile);
+    expect(restored.jobs).toHaveLength(1);
+    expect(restored.jobs[0].translation).toEqual({
+      targetLanguage: 'uk',
+      status: 'unavailable',
+      progress: null,
+      completedSegments: 0,
+      totalSegments: 0,
+      error: 'TRANSLATOR_UNAVAILABLE'
+    });
+  });
 });

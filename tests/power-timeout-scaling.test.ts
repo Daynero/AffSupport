@@ -3,7 +3,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
-import { setActiveGovernor } from '../apps/agent/src/power/spawn.js';
+import {
+  defaultInferenceThreads,
+  inferenceThreads,
+  setActiveGovernor
+} from '../apps/agent/src/power/spawn.js';
 
 /**
  * Throttling is supposed to make work slower, never to make it fail.
@@ -21,6 +25,18 @@ afterEach(() => {
 });
 
 describe('scaleTimeout', () => {
+  it('uses the default inference budget only without an active limit', async () => {
+    expect(defaultInferenceThreads(4)).toBe(2);
+    expect(defaultInferenceThreads(16)).toBe(8);
+    setActiveGovernor(null);
+    expect(inferenceThreads()).toBe(defaultInferenceThreads());
+
+    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    await power.setLimit(50);
+    setActiveGovernor(power);
+    expect(inferenceThreads()).toBe(power.budget().threadBudget);
+  });
+
   it('leaves deadlines untouched when unrestricted', () => {
     const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
     for (const budget of [15_000, 20_000, 90_000, 180_000])

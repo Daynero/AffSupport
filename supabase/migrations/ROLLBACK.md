@@ -1190,3 +1190,9 @@ drop trigger if exists team_account_two_factor_delete_secret on private.team_acc
 drop function if exists private.delete_team_account_two_factor_secret();
 drop table if exists private.team_account_two_factor;
 ```
+
+## 20260930130000_release_security_hardening.sql
+
+No independent rollback: this migration only tightens permissions and RLS. Keep the
+hardening in place while either object exists; the objects themselves are removed
+by their originating migrations' rollback steps above.
