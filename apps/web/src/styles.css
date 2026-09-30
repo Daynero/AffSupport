@@ -326,6 +326,8 @@ a {
 .soty-logo-lockup {
   display: inline-grid;
   align-items: center;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .soty-wordmark-img {
   grid-area: 1 / 1;
@@ -333,6 +335,8 @@ a {
   height: 46px;
   width: auto;
   object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
   transition: opacity var(--motion-slow) var(--ease-in-out-curve);
 }
 .soty-wordmark-img-dark {

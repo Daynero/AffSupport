@@ -417,6 +417,7 @@ export function Stitcher() {
             <StitchRow
               key={job.id}
               job={job}
+              operation={operation}
               language={language}
               disabled={!connected}
               selected={selected.has(job.id)}
@@ -624,7 +625,7 @@ function StitchSettingsPanel({
           </div>
         </div>
 
-        {compressor && (
+        {compressor && operation !== 'unstitch' && (
           <ImageEmbeddingSection
             settings={compressor.imageEmbedding}
             disabled={disabled}
@@ -649,6 +650,7 @@ function StitchSettingsPanel({
 
 function StitchRow({
   job,
+  operation,
   language,
   disabled,
   selected,
@@ -662,6 +664,7 @@ function StitchRow({
   t
 }: {
   job: StitchJob;
+  operation: StitchOperation;
   language: Language;
   disabled: boolean;
   selected: boolean;
@@ -767,7 +770,7 @@ function StitchRow({
               {job.status === 'ready' ? (
                 <Button variant="secondary" disabled={disabled} onClick={onStart}>
                   <Play size={16} strokeWidth={1.75} aria-hidden="true" />
-                  {t('stitcherStartOne')}
+                  {t(operation === 'unstitch' ? 'stitcherOpUnstitch' : 'stitcherStartOne')}
                 </Button>
               ) : (
                 <Button variant="secondary" disabled={disabled} onClick={onRepeat}>

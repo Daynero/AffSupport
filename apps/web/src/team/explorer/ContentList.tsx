@@ -254,11 +254,7 @@ function Row({
       onDoubleClick={open}
     >
       <TableCell className="team-explorer-row-check">
-        <label
-          className="team-explorer-check"
-          onClick={event => event.stopPropagation()}
-          title={t('teamExplorerSelectNamed', { name: row.name })}
-        >
+        <label className="team-explorer-check" onClick={event => event.stopPropagation()}>
           <input
             type="checkbox"
             aria-label={t('teamExplorerSelectNamed', { name: row.name })}

@@ -19,12 +19,14 @@ export function SotyLogo({ name }: { name: string }) {
         className="soty-wordmark-img soty-wordmark-img-light"
         src="/soty-header-logo-light.svg"
         alt={name}
+        draggable={false}
       />
       <img
         className="soty-wordmark-img soty-wordmark-img-dark"
         src="/soty-header-logo-dark.svg"
         alt=""
         aria-hidden="true"
+        draggable={false}
       />
     </span>
   );

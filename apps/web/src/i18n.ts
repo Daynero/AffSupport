@@ -2511,6 +2511,8 @@ const en = {
   teamExplorerCompressFolder: 'Compress everything in this folder',
   teamExplorerAddFiles: 'Add files',
   teamExplorerAddFolder: 'Add folder',
+  teamExplorerCreateFolder: 'New folder',
+  teamExplorerFolderName: 'Folder name',
   teamExplorerFolderUnsupported:
     'Folder selection needs a compatible desktop browser or a connected, up-to-date Soty agent. Connect or update the agent, then try again.',
   teamExplorerFolderReadFailed: 'Could not read that folder. Check access and try again.',
@@ -5479,6 +5481,8 @@ const uk: Record<keyof typeof en, string> = {
   teamExplorerCompressFolder: 'Стиснути все в цій папці',
   teamExplorerAddFiles: 'Додати файли',
   teamExplorerAddFolder: 'Додати папку',
+  teamExplorerCreateFolder: 'Нова папка',
+  teamExplorerFolderName: 'Назва папки',
   teamExplorerFolderUnsupported:
     'Для вибору папки потрібен сумісний настільний браузер або підключений оновлений агент Soty. Підключіть чи оновіть агент і спробуйте знову.',
   teamExplorerFolderReadFailed: 'Не вдалося прочитати папку. Перевірте доступ і спробуйте знову.',

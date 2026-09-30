@@ -48,6 +48,7 @@ export interface ExplorerContextValue {
   /** The selected rows themselves, kept so a batch can span several folders. */
   selectedRows: ReadonlyMap<string, TeamMaterialRow>;
   toggleSelected: (row: TeamMaterialRow) => void;
+  selectRows: (rows: readonly TeamMaterialRow[]) => void;
   clearSelection: () => void;
 }
 
@@ -223,6 +224,12 @@ export function ExplorerProvider({
           const next = new Map(current);
           if (next.has(row.id)) next.delete(row.id);
           else next.set(row.id, row);
+          return next;
+        }),
+      selectRows: (rows: readonly TeamMaterialRow[]) =>
+        setSelectedRows(current => {
+          const next = new Map(current);
+          for (const row of rows) next.set(row.id, row);
           return next;
         }),
       clearSelection: () => setSelectedRows(new Map())

@@ -324,6 +324,106 @@ describe('list_team_trashed_materials', () => {
     expect(rows.map(row => row.name)).toEqual(['asset-0.png']);
   });
 
+  it('trashes and restores a folder with its active descendants', async () => {
+    const teamId = await trashedSpace('folder-trash', 0);
+    const connection = await harness.root<{ id: string }>(
+      'select id from public.team_drive_connections where team_id = $1',
+      [teamId]
+    );
+    const folder = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind)
+       values ($1, $2, 'folder-to-trash', 'root-folder', 'Campaign', 'folder') returning id`,
+      [teamId, connection[0]!.id]
+    );
+    await harness.root(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind)
+       values ($1, $2, 'child-file', 'folder-to-trash', 'clip.mp4', 'file')`,
+      [teamId, connection[0]!.id]
+    );
+    await harness.root(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind)
+       values ($1, $2, 'nested-folder', 'folder-to-trash', 'Nested', 'folder'),
+              ($1, $2, 'nested-file', 'nested-folder', 'inside.mp4', 'file')`,
+      [teamId, connection[0]!.id]
+    );
+    await harness.root(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, lifecycle, trashed_at)
+       values ($1, $2, 'old-trash', 'folder-to-trash', 'old.mp4', 'file', 'trashed', now())`,
+      [teamId, connection[0]!.id]
+    );
+    const complete = async (action: 'trash' | 'restore') => {
+      const operation = await harness.root<{ id: string }>(
+        `insert into public.team_operations
+           (team_id, actor_id, kind, state, source_material_id, idempotency_key, request_nonce)
+         values ($1, $2, $3, 'running', $4, gen_random_uuid()::text, gen_random_uuid()::text)
+         returning id`,
+        [teamId, MEMBER, action, folder[0]!.id]
+      );
+      const intent = await harness.root<{ intent_id: string }>(
+        `select intent_id from public.service_create_folder_lifecycle_intent(
+           $1, $2, $3, $4, $5, null)`,
+        [teamId, MEMBER, operation[0]!.id, folder[0]!.id, action]
+      );
+      await harness.root('select public.service_checkpoint_material_group_intent($1, $2)', [
+        intent[0]!.intent_id,
+        folder[0]!.id
+      ]);
+      await harness.root('select public.service_complete_material_group_intent($1)', [
+        intent[0]!.intent_id
+      ]);
+    };
+    await complete('trash');
+    const hidden = await harness.root<{
+      name: string;
+      lifecycle: string;
+      folder_trash_root: string | null;
+    }>(
+      `select name, lifecycle, folder_trash_root from public.team_materials
+       where team_id = $1 and parent_folder_id = 'folder-to-trash' order by name`,
+      [teamId]
+    );
+    expect(hidden).toMatchObject([
+      { name: 'Nested', lifecycle: 'trashed', folder_trash_root: folder[0]!.id },
+      { name: 'clip.mp4', lifecycle: 'trashed', folder_trash_root: folder[0]!.id },
+      { name: 'old.mp4', lifecycle: 'trashed', folder_trash_root: null }
+    ]);
+    const nested = await harness.root<{ lifecycle: string; folder_trash_root: string | null }>(
+      `select lifecycle, folder_trash_root from public.team_materials
+       where team_id = $1 and drive_file_id = 'nested-file'`,
+      [teamId]
+    );
+    expect(nested[0]).toMatchObject({ lifecycle: 'trashed', folder_trash_root: folder[0]!.id });
+    const bin = await harness.asUser<{ name: string }>(
+      MEMBER,
+      'select name from public.list_team_trashed_materials($1)',
+      [teamId]
+    );
+    expect(bin.map(row => row.name)).toContain('Campaign');
+    expect(bin.map(row => row.name)).not.toContain('clip.mp4');
+
+    await complete('restore');
+    const restored = await harness.root<{ name: string; lifecycle: string }>(
+      `select name, lifecycle from public.team_materials
+       where team_id = $1 and parent_folder_id = 'folder-to-trash' order by name`,
+      [teamId]
+    );
+    expect(restored).toEqual([
+      { name: 'Nested', lifecycle: 'active' },
+      { name: 'clip.mp4', lifecycle: 'active' },
+      { name: 'old.mp4', lifecycle: 'trashed' }
+    ]);
+    const restoredNested = await harness.root<{ lifecycle: string }>(
+      `select lifecycle from public.team_materials
+       where team_id = $1 and drive_file_id = 'nested-file'`,
+      [teamId]
+    );
+    expect(restoredNested[0]?.lifecycle).toBe('active');
+  });
+
   it('pages with a keyset cursor', async () => {
     const teamId = await trashedSpace('trash-paging', 4);
     const first = await harness.asUser<{ name: string; trashed_at: string }>(

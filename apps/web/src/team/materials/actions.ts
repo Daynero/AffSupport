@@ -615,8 +615,7 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     icon: Trash2,
     destructive: true,
     inlinePriority: null,
-    applies: (material, context) =>
-      isFile(material) && !material.trashed && context.host !== 'task-attachment',
+    applies: (material, context) => !material.trashed && context.host !== 'task-attachment',
     available: (material, context) => all(ready(material), may(context, 'delete'))
   },
   {

@@ -114,6 +114,26 @@ describe('a video’s card', () => {
   });
 });
 
+describe('a folder’s actions', () => {
+  it('offers Move to trash', async () => {
+    renderShell([
+      {
+        ...video(1),
+        name: 'Campaign',
+        kind: 'folder',
+        category: null,
+        mimeType: 'application/vnd.google-apps.folder',
+        fileExtension: null
+      }
+    ]);
+    await screen.findByText('Campaign');
+    fireEvent.click(document.querySelector('.team-explorer-row')!);
+    const card = await screen.findByRole('complementary', { name: 'Selected item' });
+    await userEvent.setup().click(within(card).getByRole('button', { name: /^Actions for/ }));
+    expect(screen.getByRole('menuitem', { name: 'Move to trash' })).toBeTruthy();
+  });
+});
+
 describe('the selection bar', () => {
   it('offers a re-stitched download for the videos in the selection', async () => {
     renderShell([video(1), video(2)]);

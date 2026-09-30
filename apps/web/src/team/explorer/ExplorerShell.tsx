@@ -52,6 +52,7 @@ import { ContentGrid, type ContentGridClient } from './ContentGrid';
 import { ContentList } from './ContentList';
 import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerProvider';
 import { FolderTree } from './FolderTree';
+import { CreateFolderDialog } from './CreateFolderDialog';
 import { KindFilterMenu } from './KindFilterMenu';
 import { SortMenu } from './SortMenu';
 import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
@@ -405,6 +406,7 @@ function ExplorerBody({
   const fileInput = useRef<HTMLInputElement>(null);
   const addMenuAnchor = useRef<HTMLButtonElement | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const view: ExplorerView = query.view ?? readRememberedView();
   const [sort, setSortState] = useState<ExplorerSort>(() => readRememberedSort());
   const setSort = (next: ExplorerSort) => {
@@ -1106,6 +1108,25 @@ function ExplorerBody({
     }
   }, [push, t, uploadDrop]);
 
+  const createFolder = useCallback(
+    async (name: string) => {
+      try {
+        const parentMaterialId = currentFolderId ? nodeOf(currentFolderId)?.id : null;
+        if (currentFolderId && !parentMaterialId) throw new Error('FOLDER_NOT_FOUND');
+        await teamApi.ensureUploadFolder(teamId, {
+          name,
+          parentMaterialId
+        });
+        setCreatingFolder(false);
+        changed();
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        throw cause;
+      }
+    },
+    [changed, currentFolderId, nodeOf, push, t, teamId]
+  );
+
   const actions: RowActionsProps | undefined = permissions
     ? {
         teamId,
@@ -1245,16 +1266,15 @@ function ExplorerBody({
     async (rows: TeamMaterialRow[]) => {
       if (!permissions?.delete) return;
       const trashed: string[] = [];
-      /* Folders do not go to the trash — Drive has no such move for them here.
-         Silently dropping them meant the bin did nothing at all over a
-         selection of folders: no toast, no error, the selection still there. */
-      const folders = rows.filter(row => row.kind === 'folder').length;
-      if (folders === rows.length) {
-        push({ tone: 'info', text: t('teamExplorerTrashFoldersOnly') });
-        return;
-      }
+      const selectedFolders = new Set(
+        rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
+      );
       for (const row of rows) {
-        if (row.kind === 'folder') continue;
+        if (
+          row.parentFolderId &&
+          pathTo(row.parentFolderId).some(folder => selectedFolders.has(folder.driveFileId))
+        )
+          continue;
         try {
           // The transcript goes with its video, here as everywhere else.
           await trashMaterialWithTail({
@@ -1269,8 +1289,6 @@ function ExplorerBody({
         }
       }
       if (trashed.length === 0) return;
-      if (folders > 0)
-        push({ tone: 'info', text: t('teamExplorerTrashSkippedFolders', { count: folders }) });
       select(null);
       clearSelection();
       changed();
@@ -1304,6 +1322,7 @@ function ExplorerBody({
       changed,
       clearSelection,
       permissions?.delete,
+      pathTo,
       push,
       select,
       t,
@@ -1577,6 +1596,9 @@ function ExplorerBody({
                   event.target.value = '';
                 }}
               />
+              <Button type="button" variant="secondary" onClick={() => setCreatingFolder(true)}>
+                {t('teamExplorerCreateFolder')}
+              </Button>
               <Button
                 type="button"
                 variant="primary"
@@ -1753,6 +1775,14 @@ function ExplorerBody({
                 </span>
               )}
             </span>
+            {sortedRows.some(row => !selectedRowsMap.has(row.id)) && (
+              <SelectionAction
+                label={t('selectAll')}
+                onClick={() => explorer.selectRows(sortedRows)}
+              >
+                <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </SelectionAction>
+            )}
             <div className="team-explorer-selection-actions">
               {onCreateTaskFromSelection && (
                 <SelectionAction
@@ -2083,6 +2113,9 @@ function ExplorerBody({
 
       {/* 015 — the running deliveries speak for themselves; nothing is rendered inline. */}
       {conflict && <UploadConflictDialog request={conflict.request} onChoose={conflict.settle} />}
+      {creatingFolder && (
+        <CreateFolderDialog onCreate={createFolder} onClose={() => setCreatingFolder(false)} />
+      )}
       <RestitchDeliveryNotices
         states={restitch.states}
         onConfigure={() =>

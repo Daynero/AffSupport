@@ -39,7 +39,12 @@
     "noEmit": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["tests/**/*.ts", "tests/**/*.tsx", "tests/types/*.d.ts"],
+  "include": [
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "tests/types/*.d.ts",
+    "apps/web/src/team/accounts/two-factor-types.d.ts"
+  ],
   // The ratchet reached zero (T240). Every test file is typechecked.
   // tests/typecheck-ratchet.test.ts fails if this list ever grows again.
   "exclude": []

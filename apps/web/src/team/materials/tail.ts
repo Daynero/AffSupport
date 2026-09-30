@@ -156,7 +156,8 @@ export async function copyMaterialWithTail(input: {
   return result;
 }
 
-/** Moves a material, and its transcript and catalog to the same folder. */
+/** Moves companions first, then their video. The source keeps showing one complete
+ * video until the move finishes, instead of exposing orphan catalog folders. */
 export async function moveMaterialWithTail(input: {
   teamId: string;
   material: TailMaterial;
@@ -166,26 +167,28 @@ export async function moveMaterialWithTail(input: {
 }): Promise<TeamFileOperationResult> {
   const { teamId, material, destinationFolderId, client } = input;
   const tail = await tailOf(teamId, material);
-  const result = await client.moveMaterial({
+  await Promise.all(
+    [tail.transcript, ...tail.catalogs]
+      .filter(companion => companion !== null)
+      .map(companion =>
+        client
+          .moveMaterial({
+            teamId,
+            materialId: companion.id,
+            destinationFolderId,
+            conflictMode: 'keep_both',
+            idempotencyKey: key()
+          })
+          .catch(() => undefined)
+      )
+  );
+  return client.moveMaterial({
     teamId,
     materialId: material.id,
     destinationFolderId,
     conflictMode: input.conflictMode ?? 'cancel',
     idempotencyKey: key()
   });
-  for (const companion of [tail.transcript, ...tail.catalogs]) {
-    if (!companion) continue;
-    await client
-      .moveMaterial({
-        teamId,
-        materialId: companion.id,
-        destinationFolderId,
-        conflictMode: 'keep_both',
-        idempotencyKey: key()
-      })
-      .catch(() => undefined);
-  }
-  return result;
 }
 
 /** Renames a material, and its transcript and catalog after it. */

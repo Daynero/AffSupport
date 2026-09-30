@@ -152,13 +152,46 @@ describe('a material and what belongs to it', () => {
     });
 
     expect(api.moveMaterial.mock.calls.map(([input]) => input.materialId)).toEqual([
-      'video-1',
-      'txt-1'
+      'txt-1',
+      'video-1'
     ]);
-    expect(api.moveMaterial.mock.calls[1]![0]).toMatchObject({
+    expect(api.moveMaterial.mock.calls[0]![0]).toMatchObject({
       materialId: 'txt-1',
       destinationFolderId: 'folder-2'
     });
+  });
+
+  it('waits for all catalog folders before moving the video', async () => {
+    shared.companion = { id: 'txt-1', name: 'clip.txt' };
+    shared.catalog = { id: 'sheet-1', name: 'clip catalog' };
+    const api = client();
+    let finishCatalog!: () => void;
+    const pendingCatalog = new Promise<void>(resolve => {
+      finishCatalog = resolve;
+    });
+    api.moveMaterial.mockImplementation(async input => {
+      if (input.materialId === 'sheet-1') await pendingCatalog;
+      return {
+        operationId: 'operation',
+        state: 'succeeded',
+        materialId: input.materialId,
+        reused: false
+      };
+    });
+    const moving = moveMaterialWithTail({
+      teamId: TEAM,
+      material: VIDEO,
+      destinationFolderId: 'folder-2',
+      client: api
+    });
+    await vi.waitFor(() => expect(api.moveMaterial).toHaveBeenCalledTimes(2));
+    expect(api.moveMaterial.mock.calls.map(([input]) => input.materialId)).toEqual([
+      'txt-1',
+      'sheet-1'
+    ]);
+    finishCatalog();
+    await moving;
+    expect(api.moveMaterial.mock.calls[2]![0].materialId).toBe('video-1');
   });
 
   it('renames the transcript after the video', async () => {
@@ -262,7 +295,7 @@ describe('a material and what belongs to it', () => {
         client: api
       });
 
-      expect(api.moveMaterial.mock.calls[1]![0]).toMatchObject({
+      expect(api.moveMaterial.mock.calls[0]![0]).toMatchObject({
         materialId: 'sheet-1',
         destinationFolderId: 'folder-2'
       });

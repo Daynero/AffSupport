@@ -79,6 +79,8 @@ const SUPABASE_STUBS = `
     name text,
     owner uuid
   );
+  create function storage.foldername(text) returns text[] language sql immutable
+  as $$ select string_to_array($1, '/') $$;
 
   create schema net;
   create function net.http_post(url text, body jsonb, params jsonb, headers jsonb, timeout_milliseconds integer)

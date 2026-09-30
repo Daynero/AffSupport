@@ -57,7 +57,7 @@ const client = {
   updateMaterialMetadata: vi.fn()
 } as unknown as ExplorerShellClient;
 
-function shell() {
+function shell(folderId: string | null = null) {
   return (
     <ToastProvider>
       <TeamProvider realtime={false} initialTeams={[team]}>
@@ -65,7 +65,7 @@ function shell() {
           <ExplorerShell
             teamId={team.id}
             client={client}
-            query={{ ...emptyTeamRouteQuery(), view: 'list' }}
+            query={{ ...emptyTeamRouteQuery(), view: 'list', folderId }}
             onQueryChange={vi.fn()}
             onFolderChange={vi.fn()}
             onSearched={vi.fn()}
@@ -91,6 +91,50 @@ async function chooseFolder() {
 }
 
 describe('Add files chooser', () => {
+  it('creates a folder in the open directory', async () => {
+    render(shell());
+    fireEvent.click(await screen.findByRole('button', { name: 'New folder' }));
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Folder name' }), {
+      target: { value: 'Campaign' }
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: 'New folder' }).at(-1)!);
+    await waitFor(() =>
+      expect(teamApi.ensureUploadFolder).toHaveBeenCalledWith(
+        team.id,
+        expect.objectContaining({ name: 'Campaign', parentMaterialId: null })
+      )
+    );
+  });
+
+  it('uses the open folder as the new folder parent', async () => {
+    vi.mocked(client.listFolderTree).mockResolvedValueOnce([
+      {
+        id: 'parent-material',
+        driveFileId: 'parent-drive',
+        parentFolderId: 'root',
+        selectionId: null,
+        name: 'Current',
+        indexedAt: '2026-09-01T00:00:00.000Z',
+        childFolderCount: 0,
+        childFileCount: 0,
+        thumbnailReadyCount: 0
+      }
+    ]);
+    render(shell('parent-drive'));
+    await waitFor(() => expect(client.listFolderTree).toHaveBeenCalled());
+    fireEvent.click(await screen.findByRole('button', { name: 'New folder' }));
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Folder name' }), {
+      target: { value: 'Inside' }
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: 'New folder' }).at(-1)!);
+    await waitFor(() =>
+      expect(teamApi.ensureUploadFolder).toHaveBeenCalledWith(
+        team.id,
+        expect.objectContaining({ name: 'Inside', parentMaterialId: 'parent-material' })
+      )
+    );
+  });
+
   it('offers file and folder modes from one inventory action', async () => {
     render(shell());
     expect(screen.queryByRole('button', { name: 'Add folder' })).toBeNull();

@@ -211,6 +211,22 @@ describe('the first thing the page asks for', () => {
     expect(startStitchJobs.mock.calls[0]).toEqual([['job-1'], 'restitch']);
   });
 
+  it('hides image settings and names the row action when removing screens', async () => {
+    const ready = job({ status: 'ready', outputPath: null, result: null, elapsedMs: null });
+    renderPage(stitcherStore([ready]));
+    expect(await screen.findByText('Frame fit')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Remove the stitching' }));
+
+    expect(screen.queryByText('Frame fit')).toBeNull();
+    const rowAction = screen
+      .getAllByRole('button', { name: 'Remove the stitching' })
+      .find(button => button.closest('.job-actions'));
+    expect(rowAction).toBeTruthy();
+    fireEvent.click(rowAction!);
+    await waitFor(() => expect(startStitchJobs).toHaveBeenCalledWith(['job-1'], 'unstitch'));
+  });
+
   it('starts nothing while nothing is selected', async () => {
     const ready = job({ status: 'ready', outputPath: null, result: null, elapsedMs: null });
     renderPage(stitcherStore([ready]));

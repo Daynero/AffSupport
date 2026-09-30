@@ -1580,14 +1580,20 @@ async function handleTrashRestore(
     progress: 25
   });
   const intent = parseLibraryGroupIntent(
-    await rpcValue(service, 'service_create_material_lifecycle_intent', {
-      p_team: common.teamId,
-      p_actor: actorId,
-      p_operation: authority.operationId,
-      p_material: common.materialId,
-      p_action: action,
-      p_destination_parent_id: destination?.live.id ?? null
-    })
+    await rpcValue(
+      service,
+      source.kind === 'folder'
+        ? 'service_create_folder_lifecycle_intent'
+        : 'service_create_material_lifecycle_intent',
+      {
+        p_team: common.teamId,
+        p_actor: actorId,
+        p_operation: authority.operationId,
+        p_material: common.materialId,
+        p_action: action,
+        p_destination_parent_id: destination?.live.id ?? null
+      }
+    )
   );
   if (!intent) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
   await applyLibraryGroupMutation({
