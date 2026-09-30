@@ -73,7 +73,6 @@ export function TeamCatalog({
   autoFocusSearch = false,
   scopeFolderId,
   scope = 'folder',
-  onScopeChange,
   kinds,
   pathFor,
   tagging
@@ -89,13 +88,9 @@ export function TeamCatalog({
   onSearched?: (state: { query: string; filters: CatalogSearchFilters }) => void;
   /** Focus the search field on mount (the explorer's "Search" button opened it). */
   autoFocusSearch?: boolean;
-  /**
-   * 011: the explorer's search. When a folder is given, a scope toggle lets the
-   * person widen from it to the whole space; kinds narrow either way.
-   */
+  /** The current folder for links that restore an existing folder-scoped search. */
   scopeFolderId?: string | null;
   scope?: 'folder' | 'space';
-  onScopeChange?: (scope: 'folder' | 'space') => void;
   kinds?: TeamMaterialRowKind[];
   pathFor?: (material: CatalogMaterialItem) => string | null;
   /** Present only for the space's owner: the tag on a result (011). */
@@ -223,24 +218,6 @@ export function TeamCatalog({
         onChange={catalog.setQuery}
         autoFocus={autoFocusSearch}
       />
-      {scopeFolderId !== undefined && onScopeChange && (
-        <div className="team-explorer-scope" role="group" aria-label={t('teamExplorerScopeLabel')}>
-          <button
-            type="button"
-            aria-pressed={scope === 'folder'}
-            onClick={() => onScopeChange('folder')}
-          >
-            {t('teamExplorerScopeFolder')}
-          </button>
-          <button
-            type="button"
-            aria-pressed={scope === 'space'}
-            onClick={() => onScopeChange('space')}
-          >
-            {t('teamExplorerScopeSpace')}
-          </button>
-        </div>
-      )}
       <CatalogFilters
         filters={catalog.filters}
         vocabulary={catalog.vocabulary}

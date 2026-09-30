@@ -1931,7 +1931,6 @@ function ExplorerBody({
             autoFocusSearch
             scopeFolderId={currentFolderId}
             scope={query.scope}
-            onScopeChange={scope => onQueryChange({ scope })}
             kinds={query.kinds}
             pathFor={pathFor}
             tagging={

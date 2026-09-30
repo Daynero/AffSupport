@@ -14048,14 +14048,12 @@ button.team-landing-tile:hover {
   font-weight: 600;
 }
 
-.team-explorer-kinds,
-.team-explorer-scope {
+.team-explorer-kinds {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
-.team-explorer-kind-chip,
-.team-explorer-scope button {
+.team-explorer-kind-chip {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   background: var(--color-surface);
@@ -14064,8 +14062,7 @@ button.team-landing-tile:hover {
   padding: 2px var(--space-3);
   cursor: pointer;
 }
-.team-explorer-kind-chip[aria-pressed='true'],
-.team-explorer-scope button[aria-pressed='true'] {
+.team-explorer-kind-chip[aria-pressed='true'] {
   background: var(--color-accent-softer);
   border-color: var(--color-accent);
   color: var(--color-text);
