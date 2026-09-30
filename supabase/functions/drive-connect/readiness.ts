@@ -1,6 +1,7 @@
 import { evaluateDriveOAuthGate, type OAuthProductionSignals } from '../_shared/auth.ts';
 import {
   DRIVE_FILE_SCOPE,
+  DRIVE_RESTRICTED_SCOPE,
   resolveDriveScopes,
   restrictedScopeApproval,
   restrictedScopeGate
@@ -15,7 +16,33 @@ export function resolveDriveScopesForDeployment(
 ): string[] {
   // The production client is verified for drive.file only. The deployment flag
   // can enable the broader scope in isolated beta, but cannot approve it in Google.
-  return production ? [DRIVE_FILE_SCOPE] : resolveDriveScopes(environment);
+  // A separate operator opt-in enables an explicitly unverified production pilot.
+  return production
+    ? environment.DRIVE_UNVERIFIED_PILOT_ENABLED === 'true'
+      ? [DRIVE_FILE_SCOPE, DRIVE_RESTRICTED_SCOPE]
+      : [DRIVE_FILE_SCOPE]
+    : resolveDriveScopes(environment);
+}
+
+export function driveDeploymentScopeGate(
+  environment: TeamProviderEnvironment,
+  production: boolean
+): 'RESTRICTED_SCOPE_NOT_APPROVED' | null {
+  const pilot = environment.DRIVE_UNVERIFIED_PILOT_ENABLED;
+  const approval = restrictedScopeApproval(environment.DRIVE_RESTRICTED_SCOPE_APPROVED);
+  if (
+    approval === 'invalid' ||
+    (pilot !== undefined && pilot !== '' && pilot !== 'false' && pilot !== 'true')
+  ) {
+    return 'RESTRICTED_SCOPE_NOT_APPROVED';
+  }
+  // Explicit operator acceptance of Google's warning/user cap is not Google approval.
+  if (pilot === 'true') return null;
+  return restrictedScopeGate(
+    resolveDriveScopesForDeployment(environment, production),
+    production,
+    approval
+  );
 }
 
 function configured(value: string | undefined, minimumLength = 1): boolean {
@@ -42,11 +69,10 @@ export function evaluateTeamProviderReadiness(
 ) {
   const gate = evaluateDriveOAuthGate(environment.DRIVE_OAUTH_MODE, signals);
   // 011: the scope set is a deployment fact. A restricted scope on the
-  // production origin without Google's approval is refused here, before any
-  // person is sent through the unverified-app flow.
+  // production origin requires Google approval or explicit unverified pilot acceptance.
   const approval = restrictedScopeApproval(environment.DRIVE_RESTRICTED_SCOPE_APPROVED);
   const scopes = resolveDriveScopesForDeployment(environment, gate.production);
-  const scopeGate = restrictedScopeGate(scopes, gate.production, approval);
+  const scopeGate = driveDeploymentScopeGate(environment, gate.production);
   // The address Google returns to, as the authorization will actually send it.
   const redirectUri = driveRedirectUri(environment);
   const googleDrive =
@@ -68,6 +94,7 @@ export function evaluateTeamProviderReadiness(
     oauthMode: gate.mode,
     scopes,
     restrictedScopeApproved: approval === 'approved',
+    unverifiedPilotEnabled: environment.DRIVE_UNVERIFIED_PILOT_ENABLED === 'true',
     scopeGate,
     redirectUri,
     memberOnboarding: directMemberAdd

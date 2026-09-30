@@ -152,6 +152,14 @@ npm run release:backend-plan -- --out=plan.json
 віддалений набір pending не збігається з планом точно, реліз зупиняється — так
 міграція з чужої гілки не поїде «заодно».
 
+For a server-only change, use `npm run release:backend-plan -- --since=<deployed-sha>
+--out=<plan>` followed by `npm run release:backend-apply -- --plan=<plan>` for inspection,
+then the same command with `--confirm`. This is the runner's backend adapter with identical
+digest, pending-migration, compatibility and receipt checks; it does not rebuild clients or
+replace release artifacts. Run the relevant tests and `npm run verify` before applying.
+Provider configuration changes still require explicit operator acceptance. The unverified
+Drive pilot accepted on 2026-09-30 is documented in `TEAM_WORKSPACE_OPERATIONS.md`.
+
 Дві речі, які план ловить, а людина пропускає:
 
 - **Зміна в `_shared`** — це зміна кожної функції, яка його імпортує, хоча

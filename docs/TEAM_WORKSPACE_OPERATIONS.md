@@ -20,10 +20,20 @@ OAuth transaction origin are checked independently; any one matching production 
 `verified`. Changing the mode after OAuth start does not bypass the callback check.
 
 Production may use `verified` with the non-restricted `drive.file` scope. Full Drive access
-remains unavailable until the restricted scope has completed Google's verification and security
+normally requires the restricted scope to complete Google's verification and security
 assessment. Record the approval owner, project/client id, scope list, approval date, and next
 review date outside this repository before a future release enables it. Never use `testing` on
 the production origin.
+
+On 2026-09-30 the operator explicitly accepted the unverified-app warning, lifetime OAuth
+user cap (3/100 used at acceptance), and broad Drive access to restore recursive indexing.
+`DRIVE_UNVERIFIED_PILOT_ENABLED=true` requests `drive.file` plus `drive` in production for
+this pilot. It is disabled by default and does **not** set `DRIVE_RESTRICTED_SCOPE_APPROVED`.
+Google publishing status must remain In production (not Testing). Readiness exposes
+`unverifiedPilotEnabled`; the production gate accepts only this explicit opt-in or recorded
+approval. Reauthorize the owner, then retry the existing root's initial sync. Do not delete
+the connection or catalog. Disable the pilot by setting the flag to `false`; this narrows
+future consent requests but does not revoke previously issued Google grants.
 
 ### Scope set (feature 011)
 
@@ -32,10 +42,11 @@ with the owner choosing the root in Google's own folder chooser. That scope need
 verification review, shows no "unverified app" warning, and its refresh tokens do not expire
 weekly. The restricted `https://www.googleapis.com/auth/drive` scope is available in isolated
 beta when `DRIVE_RESTRICTED_SCOPE_APPROVED=true`. Production requests only `drive.file` until a
-future release explicitly enables the restricted scope after Google's approval; a deployment
+future release explicitly enables the restricted scope after Google's approval, except for the
+explicit unverified pilot above; a deployment
 flag by itself is not proof. Readiness reports `scopes`,
 `restrictedScopeApproved` and `scopeGate`, and `npm run verify:team-production` refuses a
-restricted scope without the approval or a browser build without
+restricted scope without approval or explicit pilot acceptance, or a browser build without
 `VITE_GOOGLE_PICKER_API_KEY` / `VITE_GOOGLE_PROJECT_NUMBER`. A space may hold more than one
 picked folder (`team_drive_selections`); the root is always the first.
 

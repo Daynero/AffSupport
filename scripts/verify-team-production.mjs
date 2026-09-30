@@ -119,16 +119,26 @@ if (
 
 // Feature 011: storage connects under the non-restricted drive.file scope. A
 // deployment that would ask for a restricted scope without Google's approval
-// puts every owner through the unverified-app flow and weekly re-consent, so
-// it is refused here. A backend that predates 011 reports no scope set and
+// puts owners through the unverified-app flow and lifetime user cap, so it
+// requires explicit pilot acceptance. Testing's weekly expiry is a separate policy.
+// A backend that predates 011 reports no scope set and
 // is left alone; once it does, the browser must also carry the chooser keys.
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 if (Array.isArray(readiness.scopes)) {
   const scopes = readiness.scopes.filter(scope => typeof scope === 'string');
   if (scopes.length === 0) fail('the deployed readiness reports an empty Drive scope set');
   const restricted = scopes.filter(scope => scope !== DRIVE_FILE_SCOPE);
-  if (restricted.length > 0 && readiness.restrictedScopeApproved !== true) {
+  if (
+    restricted.length > 0 &&
+    readiness.restrictedScopeApproved !== true &&
+    readiness.unverifiedPilotEnabled !== true
+  ) {
     fail(`restricted Drive scopes are requested without approval: ${restricted.join(', ')}`);
+  }
+  if (restricted.length > 0 && readiness.unverifiedPilotEnabled === true) {
+    console.log(
+      'Explicit unverified Drive pilot: Google warning and lifetime user cap apply; not Google approval.'
+    );
   }
   if (readiness.scopeGate) fail(`the deployed scope gate refuses: ${String(readiness.scopeGate)}`);
   const pickerKey = environment.VITE_GOOGLE_PICKER_API_KEY?.trim();

@@ -268,6 +268,14 @@
       "note": "Only meaningful once a restricted scope is requested; unset means not approved."
     },
     {
+      "name": "DRIVE_UNVERIFIED_PILOT_ENABLED",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Explicit operator opt-in to full Drive access for an unverified pilot. Google warning and lifetime OAuth user cap apply. This is not Google approval; default is disabled."
+    },
+    {
       "name": "RESEND_API_KEY",
       "surface": "functions",
       "required": ["production"],

@@ -189,6 +189,21 @@ describe('Drive OAuth release gate', () => {
     });
     expect(
       evaluateTeamProviderReadiness(
+        { ...complete, DRIVE_UNVERIFIED_PILOT_ENABLED: 'true' },
+        signals
+      )
+    ).toMatchObject({
+      ready: true,
+      scopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive'
+      ],
+      restrictedScopeApproved: false,
+      unverifiedPilotEnabled: true,
+      scopeGate: null
+    });
+    expect(
+      evaluateTeamProviderReadiness(
         { ...complete, DRIVE_RESTRICTED_SCOPE_APPROVED: 'true' },
         signals
       )

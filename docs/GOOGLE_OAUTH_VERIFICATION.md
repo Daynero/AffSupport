@@ -4,7 +4,9 @@ Soty requests `openid`, `userinfo.email`, `userinfo.profile` and
 `https://www.googleapis.com/auth/drive.file`. All four are non-sensitive, so Google asks for
 **brand verification only**: no scope review, no demo video, no CASA security assessment.
 Adding any other Drive scope (`drive`, `drive.readonly`, `drive.metadata*`) turns the
-submission into a restricted-scope review with a paid annual assessment. Do not add one.
+submission into a restricted-scope review and potentially a paid annual assessment. The
+explicit operator-approved unverified pilot is documented in `TEAM_WORKSPACE_OPERATIONS.md`;
+it requests `drive` for recursive indexing and must not be described as Google-approved.
 
 ## What Google checks, and where Soty meets it
 

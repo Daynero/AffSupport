@@ -32,9 +32,12 @@ import {
   type DriveConnectCommand,
   type RootCandidateSnapshot
 } from './handler.ts';
-import { evaluateTeamProviderReadiness, resolveDriveScopesForDeployment } from './readiness.ts';
+import {
+  driveDeploymentScopeGate,
+  evaluateTeamProviderReadiness,
+  resolveDriveScopesForDeployment
+} from './readiness.ts';
 import { driveRedirectUri, type GoogleRedirectEnvironment } from '../_shared/google-redirect.ts';
-import { assertScopesAllowed, restrictedScopeApproval } from '../_shared/scopes.ts';
 import { evaluateDriveOAuthGate } from '../_shared/auth.ts';
 
 interface RpcFailure {
@@ -161,17 +164,16 @@ async function startOAuth(
   authorizationUrl.searchParams.set('client_id', clientId);
   authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
   authorizationUrl.searchParams.set('response_type', 'code');
-  // 011: drive.file by default; the restricted scope only on recorded approval.
+  // drive.file by default; full Drive requires explicit deployment policy.
   const environment = {
-    DRIVE_RESTRICTED_SCOPE_APPROVED: Deno.env.get('DRIVE_RESTRICTED_SCOPE_APPROVED')
+    DRIVE_RESTRICTED_SCOPE_APPROVED: Deno.env.get('DRIVE_RESTRICTED_SCOPE_APPROVED'),
+    DRIVE_UNVERIFIED_PILOT_ENABLED: Deno.env.get('DRIVE_UNVERIFIED_PILOT_ENABLED')
   };
   const production = evaluateDriveOAuthGate(Deno.env.get('DRIVE_OAUTH_MODE'), signals).production;
   const scopes = resolveDriveScopesForDeployment(environment, production);
-  assertScopesAllowed(
-    scopes,
-    production,
-    restrictedScopeApproval(environment.DRIVE_RESTRICTED_SCOPE_APPROVED)
-  );
+  if (driveDeploymentScopeGate(environment, production)) {
+    throw new TeamFunctionError('RESTRICTED_SCOPE_NOT_APPROVED', { retryable: false });
+  }
   authorizationUrl.searchParams.set('scope', scopes.join(' '));
   authorizationUrl.searchParams.set('access_type', 'offline');
   // Do not carry an earlier broad Drive grant into a drive.file-only consent.
@@ -306,6 +308,7 @@ Deno.serve(async request => {
           {
             DRIVE_OAUTH_MODE: Deno.env.get('DRIVE_OAUTH_MODE'),
             DRIVE_RESTRICTED_SCOPE_APPROVED: Deno.env.get('DRIVE_RESTRICTED_SCOPE_APPROVED'),
+            DRIVE_UNVERIFIED_PILOT_ENABLED: Deno.env.get('DRIVE_UNVERIFIED_PILOT_ENABLED'),
             GOOGLE_CLIENT_ID: Deno.env.get('GOOGLE_CLIENT_ID'),
             GOOGLE_CLIENT_SECRET: Deno.env.get('GOOGLE_CLIENT_SECRET'),
             GOOGLE_REDIRECT_URI: Deno.env.get('GOOGLE_REDIRECT_URI'),

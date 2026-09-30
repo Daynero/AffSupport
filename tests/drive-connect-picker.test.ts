@@ -7,7 +7,10 @@ import {
   restrictedScopeApproval,
   restrictedScopeGate
 } from '../supabase/functions/_shared/scopes';
-import { resolveDriveScopesForDeployment } from '../supabase/functions/drive-connect/readiness';
+import {
+  driveDeploymentScopeGate,
+  resolveDriveScopesForDeployment
+} from '../supabase/functions/drive-connect/readiness';
 import { executeDriveConnectCommand } from '../supabase/functions/drive-connect/handler';
 import { completeDriveOAuthCallback } from '../supabase/functions/drive-oauth-callback/handler';
 
@@ -51,6 +54,28 @@ function driveFolder(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Drive scopes (011)', () => {
+  it('enables full production Drive only for an explicit unverified pilot, without faking approval', () => {
+    const environment = {
+      DRIVE_UNVERIFIED_PILOT_ENABLED: 'true',
+      DRIVE_RESTRICTED_SCOPE_APPROVED: 'false'
+    };
+    expect(resolveDriveScopesForDeployment(environment, true)).toEqual([
+      DRIVE_FILE_SCOPE,
+      DRIVE_RESTRICTED_SCOPE
+    ]);
+    expect(driveDeploymentScopeGate(environment, true)).toBeNull();
+    expect(
+      driveDeploymentScopeGate({ ...environment, DRIVE_RESTRICTED_SCOPE_APPROVED: 'maybe' }, true)
+    ).toBe('RESTRICTED_SCOPE_NOT_APPROVED');
+    for (const value of ['false', '', undefined]) {
+      expect(
+        resolveDriveScopesForDeployment({ DRIVE_UNVERIFIED_PILOT_ENABLED: value }, true)
+      ).toEqual([DRIVE_FILE_SCOPE]);
+    }
+    expect(driveDeploymentScopeGate({ DRIVE_UNVERIFIED_PILOT_ENABLED: 'yes' }, true)).toBe(
+      'RESTRICTED_SCOPE_NOT_APPROVED'
+    );
+  });
   it('asks for drive.file alone unless approval is recorded', () => {
     expect(resolveDriveScopes({})).toEqual([DRIVE_FILE_SCOPE]);
     expect(resolveDriveScopes({ DRIVE_RESTRICTED_SCOPE_APPROVED: 'false' })).toEqual([
