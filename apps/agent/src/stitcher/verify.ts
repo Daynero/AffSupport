@@ -38,7 +38,7 @@ export function buildVerifyProbeArgs(input: string): string[] {
     // frame, so the count is the same and it comes off the index.
     '-count_packets',
     '-show_entries',
-    'stream=codec_type,codec_name,width,height,pix_fmt,duration,nb_read_packets:format=duration',
+    'stream=codec_type,codec_name,width,height,pix_fmt,duration,nb_read_packets:packet=stream_index,pts_time,duration_time:format=duration',
     '-of',
     'json',
     input
@@ -62,7 +62,22 @@ export function measurementFromProbe(raw: unknown): MeasuredOutput | null {
   const format = isRecord(raw.format) ? raw.format : {};
   if (!video) return null;
   const duration = number(format.duration);
-  const videoSeconds = number(video.duration) ?? duration;
+  // With copied B-frames, MP4 may report the duration of the last packet in decode order,
+  // although a preceding packet is presented later. The concat planner already uses the
+  // latest presentation timestamp; verification must measure the same end of the picture.
+  const videoIndex = streams.indexOf(video);
+  const packets = Array.isArray(raw.packets) ? raw.packets.filter(isRecord) : [];
+  let lastPictureEnd = -Infinity;
+  for (const packet of packets) {
+    if (number(packet.stream_index) !== videoIndex) continue;
+    const pts = number(packet.pts_time);
+    const length = number(packet.duration_time);
+    if (pts !== null && length !== null && length >= 0)
+      lastPictureEnd = Math.max(lastPictureEnd, pts + length);
+  }
+  const videoSeconds = Number.isFinite(lastPictureEnd)
+    ? Math.max(number(video.duration) ?? 0, lastPictureEnd)
+    : (number(video.duration) ?? duration);
   if (duration === null || videoSeconds === null) return null;
   return {
     durationSeconds: duration,
