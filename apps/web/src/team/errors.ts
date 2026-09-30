@@ -62,6 +62,9 @@ const KNOWN = new Set<string>(TEAM_ERROR_CODES);
 
 const SYNC_COPY: Record<string, TranslationKey> = {
   RESTITCH_IMAGE_UNAVAILABLE: 'teamRestitchImageUnavailable',
+  RESTITCH_AGENT_UNAVAILABLE: 'teamRestitchImageAgentUnavailable',
+  RESTITCH_LOCAL_IMAGE_MISSING: 'teamRestitchLocalImageMissing',
+  RESTITCH_IMAGE_UPLOAD_FAILED: 'teamRestitchImageUploadFailed',
   INCOMPLETE_SCAN: 'teamErrorInvalidResponse',
   INCOMPLETE_LISTING: 'teamErrorInvalidResponse',
   RETRY_EXHAUSTED: 'teamErrorDriveUnavailable',

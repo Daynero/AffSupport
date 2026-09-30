@@ -1595,7 +1595,13 @@ const en = {
   teamRestitchNoScreens: 'Choose a photo for the start, the end, or both.',
   teamRestitchInvalid: 'One of these values is out of range.',
   teamRestitchImageUnavailable:
-    'A selected image is missing. Ask the settings owner to open re-stitching settings and save them again.',
+    'A selected image is unavailable in the space. Open re-stitching settings and save the images again; if you cannot edit them, contact the settings owner.',
+  teamRestitchImageAgentUnavailable:
+    'Could not read the images from Soty on this computer. Restore the connection to Soty and save again.',
+  teamRestitchLocalImageMissing:
+    'A selected image is no longer on this computer. Add it again in re-stitching settings and save.',
+  teamRestitchImageUploadFailed:
+    'Could not upload the images to the space. Check your internet connection and try saving again. Your settings have not been saved.',
   teamRestitchForbidden: 'You cannot change this space.',
   teamSettingsTabProductCatalog: 'Catalog',
   productCatalogSettingsTitle: 'Product catalog',
@@ -4569,7 +4575,13 @@ const uk: Record<keyof typeof en, string> = {
   teamRestitchNoScreens: 'Оберіть фото для початку, кінця або для обох.',
   teamRestitchInvalid: 'Одне зі значень поза межами.',
   teamRestitchImageUnavailable:
-    'Бракує вибраного зображення. Попросіть власника налаштувань відкрити перезашивку й зберегти їх ще раз.',
+    'Вибране зображення недоступне в просторі. Відкрийте налаштування перезашивки й збережіть зображення ще раз; якщо не можете їх змінити, зверніться до власника налаштувань.',
+  teamRestitchImageAgentUnavailable:
+    'Не вдалося прочитати зображення із Soty на цьому комп’ютері. Відновіть зв’язок із Soty й збережіть ще раз.',
+  teamRestitchLocalImageMissing:
+    'Вибраного зображення вже немає на цьому комп’ютері. Додайте його знову в налаштуваннях перезашивки й збережіть.',
+  teamRestitchImageUploadFailed:
+    'Не вдалося завантажити зображення в простір. Перевірте інтернет і повторіть збереження. Налаштування не збережено.',
   teamRestitchForbidden: 'Ви не можете змінювати цей простір.',
   teamSettingsTabProductCatalog: 'Каталог',
   productCatalogSettingsTitle: 'Каталог товарів',

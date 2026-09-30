@@ -43,15 +43,21 @@ export async function publishRestitchImages(
 ): Promise<void> {
   const client = requireSupabaseClient();
   const { data: user, error: userError } = await client.auth.getUser();
-  if (userError || !user.user) throw new Error('RESTITCH_IMAGE_UNAVAILABLE');
+  if (userError || !user.user) throw new Error('AUTH_REQUIRED');
   const assets = selected(embedding, defaults);
   for (let offset = 0; offset < assets.length; offset += 4) {
     await Promise.all(
       assets.slice(offset, offset + 4).map(async ({ slot, asset }) => {
-        const url = await imageContentUrl(asset.id);
-        if (!url) throw new Error('RESTITCH_IMAGE_UNAVAILABLE');
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('RESTITCH_IMAGE_UNAVAILABLE');
+        let response: Response;
+        try {
+          const url = await imageContentUrl(asset.id);
+          if (!url) throw new Error('RESTITCH_AGENT_UNAVAILABLE');
+          response = await fetch(url);
+        } catch {
+          throw new Error('RESTITCH_AGENT_UNAVAILABLE');
+        }
+        if (response.status === 404) throw new Error('RESTITCH_LOCAL_IMAGE_MISSING');
+        if (!response.ok) throw new Error('RESTITCH_AGENT_UNAVAILABLE');
         const blob = await response.blob();
         const { error } = await client.storage
           .from(BUCKET)
@@ -60,7 +66,8 @@ export async function publishRestitchImages(
             upsert: false
           });
         // A previously published immutable image is already the right file.
-        if (error && error.statusCode !== '409') throw new Error('RESTITCH_IMAGE_UNAVAILABLE');
+        if (error && Number(error.statusCode) !== 409)
+          throw new Error('RESTITCH_IMAGE_UPLOAD_FAILED');
       })
     );
   }
