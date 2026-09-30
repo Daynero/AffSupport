@@ -143,6 +143,7 @@ describe('creating a catalog', () => {
     const client = dialogClient({
       getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
       canRestitch: vi.fn().mockResolvedValue('yes'),
+      ensureRestitchImages: vi.fn().mockResolvedValue(undefined),
       startProcess: vi.fn().mockResolvedValue({
         operationId: 'restitch-op',
         sourceGrant,
@@ -163,7 +164,7 @@ describe('creating a catalog', () => {
     await user.click(checkbox);
     expect(await screen.findByRole('button', { name: /30.*40/u })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /30.*40/u }));
-    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test');
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(await screen.findByText('The catalog is ready')).toBeTruthy();
@@ -194,7 +195,7 @@ describe('creating a catalog', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
     await screen.findByRole('button', { name: 'Custom duration' });
     await user.click(screen.getByRole('button', { name: 'Custom duration' }));
-    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test');
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
     const minutes = screen.getByRole('textbox', { name: /custom.*duration/iu });
     await user.clear(minutes);
     await user.type(minutes, '0');
@@ -213,15 +214,15 @@ describe('creating a catalog', () => {
 
   it('opens with the count at 100 and confirm waiting for a link', async () => {
     renderDialog(dialogClient());
-    expect((screen.getByLabelText('Products') as HTMLInputElement).value).toBe('100');
+    expect((screen.getByLabelText(/^Products · Required$/) as HTMLInputElement).value).toBe('100');
     await waitFor(() => expect(confirm().disabled).toBe(true));
   });
 
   it.each(['0', '401', ''])('keeps confirm unavailable for the count %j', async value => {
     renderDialog(dialogClient());
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test/?a=1');
-    const count = screen.getByLabelText('Products');
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/?a=1');
+    const count = screen.getByLabelText(/^Products · Required$/);
     await user.clear(count);
     if (value) await user.type(count, value);
     await user.tab();
@@ -231,7 +232,7 @@ describe('creating a catalog', () => {
 
   it('does not let a fourth digit or a letter into the count', () => {
     renderDialog(dialogClient());
-    const count = screen.getByLabelText('Products') as HTMLInputElement;
+    const count = screen.getByLabelText(/^Products · Required$/) as HTMLInputElement;
     // A change event rather than typed keys: what is asserted is the field's own filter, and
     // simulated typing into a controlled field races under load.
     fireEvent.change(count, { target: { value: '12345' } });
@@ -244,7 +245,7 @@ describe('creating a catalog', () => {
     const client = dialogClient();
     renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), 'offer.example.test/?sub=1');
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'offer.example.test/?sub=1');
     await user.tab();
     expect(screen.queryByText(/Paste a link/)).toBeNull();
     await waitFor(() => expect(confirm().disabled).toBe(false));
@@ -260,8 +261,11 @@ describe('creating a catalog', () => {
     const client = dialogClient();
     renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), ' https://offer.example.test/?a=1 ');
-    const count = screen.getByLabelText('Products');
+    await user.type(
+      screen.getByLabelText(/^Link · Required$/),
+      ' https://offer.example.test/?a=1 '
+    );
+    const count = screen.getByLabelText(/^Products · Required$/);
     await user.clear(count);
     await user.type(count, '3');
     await waitFor(() => expect(confirm().disabled).toBe(false));
@@ -298,7 +302,7 @@ describe('creating a catalog', () => {
     });
     renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
 
@@ -322,7 +326,7 @@ describe('creating a catalog', () => {
       })
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(await screen.findByText('This video already has a catalog')).toBeTruthy();
@@ -337,7 +341,7 @@ describe('creating a catalog', () => {
       })
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(
@@ -348,14 +352,19 @@ describe('creating a catalog', () => {
 });
 
 describe('a space without catalog settings', () => {
-  it('points a manager at the settings and does not allow confirming', async () => {
-    renderDialog(dialogClient({ getProductCatalogSettings: vi.fn().mockResolvedValue(null) }));
-    expect(await screen.findByText('This space has no catalog settings yet.')).toBeTruthy();
-    const link = screen.getByRole('link', { name: 'Open catalog settings' }) as HTMLAnchorElement;
-    expect(link.getAttribute('href')).toContain('tab=product-catalog');
+  it('saves default price settings when a manager creates the first catalog', async () => {
+    const setProductCatalogSettings = vi.fn().mockResolvedValue(settings);
+    const client = dialogClient({
+      getProductCatalogSettings: vi.fn().mockResolvedValue(null),
+      setProductCatalogSettings
+    });
+    renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Link'), 'https://offer.example.test/');
-    expect(confirm().disabled).toBe(true);
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    await waitFor(() => expect(setProductCatalogSettings).toHaveBeenCalledOnce());
+    expect(await screen.findByText('The catalog is ready')).toBeTruthy();
   });
 
   it('tells a member who cannot fix it who can', async () => {
@@ -374,8 +383,10 @@ describe('re-creating a catalog', () => {
       createProductCatalog: vi.fn().mockResolvedValue({ ...created, outcome: 'recreated' })
     });
     renderDialog(client, { replaces: catalog });
-    expect((screen.getByLabelText('Link') as HTMLInputElement).value).toBe(catalog.sourceLink);
-    expect((screen.getByLabelText('Products') as HTMLInputElement).value).toBe('100');
+    expect((screen.getByLabelText(/^Link · Required$/) as HTMLInputElement).value).toBe(
+      catalog.sourceLink
+    );
+    expect((screen.getByLabelText(/^Products · Required$/) as HTMLInputElement).value).toBe('100');
     expect(
       screen.getByText(
         'The current catalog goes to the trash, and its link will not show the new products.'
@@ -462,8 +473,8 @@ describe('a video’s catalogs (024, US15)', () => {
     await user.click(await screen.findByRole('button', { name: 'New variation' }));
 
     expect(screen.getByRole('heading', { name: 'New catalog variation' })).toBeTruthy();
-    expect((screen.getByLabelText('Products') as HTMLInputElement).value).toBe('40');
-    await user.type(screen.getByLabelText('Link'), 'https://third.example.test/');
+    expect((screen.getByLabelText(/^Products · Required$/) as HTMLInputElement).value).toBe('40');
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://third.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
 
@@ -482,7 +493,9 @@ describe('a video’s catalogs (024, US15)', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Actions for clip_v2_catalog' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Re-create catalog' }));
-    expect((screen.getByLabelText('Link') as HTMLInputElement).value).toBe(second.sourceLink);
+    expect((screen.getByLabelText(/^Link · Required$/) as HTMLInputElement).value).toBe(
+      second.sourceLink
+    );
     const button = screen.getByRole('button', { name: 'Re-create' }) as HTMLButtonElement;
     await waitFor(() => expect(button.disabled).toBe(false));
     await user.click(button);
@@ -512,7 +525,7 @@ describe('a video’s catalogs (024, US15)', () => {
       listProductCatalogs: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([catalog])
     });
     const { onClose } = renderList(api);
-    const link = await screen.findByLabelText('Link');
+    const link = await screen.findByLabelText(/^Link · Required$/);
     fireEvent.change(link, { target: { value: 'https://offer.example.test/' } });
     await waitFor(() => expect(confirm().disabled).toBe(false));
     fireEvent.click(confirm());

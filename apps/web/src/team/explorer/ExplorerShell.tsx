@@ -459,6 +459,13 @@ function ExplorerBody({
   );
   const unindexedFolder = Boolean(currentFolderId && nodeOf(currentFolderId)?.indexedAt === null);
   const contentsPending = folderResync.running || uploadingThisFolder || unindexedFolder;
+  const emptyState = uploadingThisFolder
+    ? 'uploading'
+    : folderResync.running
+      ? 'syncing'
+      : unindexedFolder
+        ? 'unchecked'
+        : undefined;
   const page = useFolderPage({
     teamId,
     client,
@@ -1974,6 +1981,7 @@ function ExplorerBody({
                 companionRows={folded.children}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
+                emptyState={emptyState}
               />
             ) : (
               <ContentList
@@ -1987,6 +1995,7 @@ function ExplorerBody({
                 onToggleCompanions={toggleCompanions}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
+                emptyState={emptyState}
               />
             )}
           </div>

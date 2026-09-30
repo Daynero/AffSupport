@@ -423,7 +423,7 @@ describe('a selection', () => {
     await screen.findByText('polo.mp4 catalog');
     fireEvent.click(screen.getByLabelText('Select all shown'));
     const bar = screen.getByRole('group', { name: 'Selected catalogs' });
-    expect(within(bar).getByText('2 catalogs selected')).toBeTruthy();
+    expect(screen.getByText('2 catalogs selected')).toBeTruthy();
 
     await user.click(
       within(bar).getByRole('button', { name: /^How often the selected catalogs update/ })

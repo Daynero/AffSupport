@@ -98,7 +98,7 @@ describe('workspace background summary', () => {
       </WorkspaceOperationsContextOverride>
     );
     await userEvent.click(screen.getByRole('button', { name: /2 local operations/i }));
-    expect(screen.getByText(/root\/failed.txt/)).toBeTruthy();
+    expect(screen.getAllByText(/root\/failed.txt/)).toHaveLength(2);
     expect(screen.getByText(/Some items completed/i)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Cancel operation' }));
     expect(cancelGroup).toHaveBeenCalledExactlyOnceWith('running');

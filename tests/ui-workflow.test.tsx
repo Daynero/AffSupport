@@ -67,7 +67,7 @@ describe('compression settings UI', () => {
     // The mode is a pair of pictos, so the chosen one is spelled out under
     // them with the preset's numbers; the same numbers are the row's tip.
     expect(markup).toMatch(
-      /<span class="optimal-summary" title="30 FPS · CRF 26 · 720p">Optimal · 30 FPS · CRF 26 · 720p<\/span>/
+      /<span class="optimal-summary" title="Original FPS · original resolution · CRF 26">Optimal · Original FPS · original resolution · CRF 26<\/span>/
     );
     expect(picto(markup, 'Optimal', true)).toBe(true);
     // Custom settings stay mounted for smooth expand/collapse, but they are

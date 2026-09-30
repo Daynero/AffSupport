@@ -44,12 +44,14 @@ export function BackgroundWorkChip({
       .filter(
         group =>
           group.stage === 'done' &&
-          (group.state === 'failed' ||
+          (group.state === 'succeeded' ||
+            group.state === 'failed' ||
             group.state === 'partial' ||
             group.state === 'interrupted_input_required')
       )
       .slice(0, 20) ?? [];
   const visibleGroups = [...active, ...reviewable];
+  const needsAttention = reviewable.some(group => group.state !== 'succeeded');
   const batchRunning = batch?.phase === 'running';
   if (!batchRunning && visibleGroups.length === 0 && !operations?.sessionOnly) return null;
 
@@ -71,17 +73,13 @@ export function BackgroundWorkChip({
       {visibleGroups.length > 0 && (
         <>
           <WorkspaceChip
-            tone={active.length > 0 ? 'busy' : reviewable.length > 0 ? 'warn' : 'quiet'}
+            tone={active.length > 0 ? 'busy' : needsAttention ? 'warn' : 'quiet'}
             busy={active.length > 0}
-            label={t(active.length > 0 ? 'teamWorkspaceActiveChip' : 'teamWorkspaceAttentionChip', {
-              count: active.length > 0 ? active.length : reviewable.length
-            })}
+            label={t('teamWorkspaceGroupsChip', { count: visibleGroups.length })}
             onPress={() => setSummaryOpen(true)}
             opensDialog
           >
-            {t(active.length > 0 ? 'teamWorkspaceActiveChip' : 'teamWorkspaceAttentionChip', {
-              count: active.length > 0 ? active.length : reviewable.length
-            })}
+            {t('teamWorkspaceGroupsChip', { count: visibleGroups.length })}
           </WorkspaceChip>
           {summaryOpen && (
             <Modal labelledBy={summaryId} size="sm" onClose={() => setSummaryOpen(false)}>

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -131,8 +131,20 @@ function Harness({
 /** Starts the batch without going through the dialog, so closing it is testable. */
 function Starter() {
   const batch = useLibraryProcessing();
+  const [requested, setRequested] = useState(false);
+  useEffect(() => {
+    if (!requested || batch.phase !== 'ready') return;
+    setRequested(false);
+    void batch.start();
+  }, [batch, requested]);
   return (
-    <button type="button" onClick={() => void batch.start()}>
+    <button
+      type="button"
+      onClick={() => {
+        setRequested(true);
+        if (batch.phase === 'idle') void batch.rescan();
+      }}
+    >
       start-batch
     </button>
   );

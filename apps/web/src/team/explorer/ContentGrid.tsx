@@ -56,6 +56,7 @@ export function ContentGrid({
   actions,
   tagging,
   emptyAction,
+  emptyState,
   onDropMaterials,
   companionRows
 }: {
@@ -86,6 +87,7 @@ export function ContentGrid({
    * which is the same rule as the toolbar's (FR-021, FR-004).
    */
   emptyAction?: ReactNode;
+  emptyState?: 'uploading' | 'syncing' | 'unchecked';
   /** An unconfirmed catalog is not an empty folder. */
   /** Each video's own files — its text, its catalogs — listed on its tile (024, US25). */
   companionRows?: ReadonlyMap<string, readonly TeamMaterialRow[]>;
@@ -158,8 +160,16 @@ export function ContentGrid({
         <EmptyState
           className="team-explorer-empty"
           icon={<FolderOpen size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-          title={t('teamExplorerEmpty')}
-          action={emptyAction}
+          title={t(
+            emptyState === 'uploading'
+              ? 'teamExplorerAddingContents'
+              : emptyState === 'syncing'
+                ? 'teamExplorerSyncingContents'
+                : emptyState === 'unchecked'
+                  ? 'teamExplorerUncheckedContents'
+                  : 'teamExplorerEmpty'
+          )}
+          action={emptyState ? undefined : emptyAction}
         />
       )}
       <ul className="team-explorer-grid" role="list">

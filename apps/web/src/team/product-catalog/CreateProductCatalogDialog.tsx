@@ -42,6 +42,7 @@ export interface CreateProductCatalogClient {
   startProcess?: typeof teamApi.startProcess;
   runAgentProcess?: typeof startTeamAgentProcess;
   canRestitch?: typeof agentCanRestitch;
+  ensureRestitchImages?: typeof ensureRestitchImages;
   cancelOperation?: typeof teamApi.cancelOperation;
   createProductCatalog: (input: {
     teamId: string;
@@ -251,7 +252,7 @@ export function CreateProductCatalogDialog({
         } else {
           const available = await (client.canRestitch ?? agentCanRestitch)();
           if (available !== 'yes') throw new Error('AGENT_UPDATE_REQUIRED');
-          await ensureRestitchImages(teamId, defaults);
+          await (client.ensureRestitchImages ?? ensureRestitchImages)(teamId, defaults);
           const stem = video.name.replace(/\.[^.]+$/u, '') || video.name;
           const started = await (client.startProcess ?? teamApi.startProcess)({
             teamId,

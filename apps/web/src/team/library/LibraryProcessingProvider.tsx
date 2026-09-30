@@ -422,7 +422,13 @@ export function LibraryProcessingProvider({
   );
 
   const start = useCallback(async () => {
-    if (pendingKinds.length === 0 && (!previewsChosen || previewIds.length === 0)) return;
+    if (pendingKinds.length === 0 && (!previewsChosen || previewIds.length === 0)) {
+      const counts = { done: 0, skipped: 0, failed: 0, names: [] };
+      setOutcome({ kind: 'complete', ...snapshot(counts) });
+      setPhase('complete');
+      summarize(counts);
+      return;
+    }
     control.current.stopped = false;
     setPhase('running');
     /* The queue is written here, at the press that agreed to it. Until now the

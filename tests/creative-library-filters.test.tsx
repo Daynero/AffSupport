@@ -64,6 +64,8 @@ describe('Creative Library rules that outlived the surface', () => {
     const onChange = vi.fn();
     const onStatusChange = vi.fn();
     const first = new Date();
+    // Keep both picks in the currently displayed month, including month-end.
+    first.setDate(first.getDate() > 2 ? first.getDate() - 2 : first.getDate());
     const second = new Date(first);
     second.setDate(second.getDate() + 1);
     const firstDate = localDateValue(first);

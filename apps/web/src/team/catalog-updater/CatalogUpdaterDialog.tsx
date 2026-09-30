@@ -409,7 +409,7 @@ export function CatalogUpdaterDialog({
           </span>
         )}
         {liveSelected.length > 0 && (
-          <div className="team-updater-bulk" role="group" aria-label={t('catalogUpdaterBulkLabel')}>
+          <div className="team-updater-bulk">
             <span className="team-updater-selected" aria-live="polite">
               {t(catalogSelectedCountKey(language, liveSelected.length), {
                 count: liveSelected.length

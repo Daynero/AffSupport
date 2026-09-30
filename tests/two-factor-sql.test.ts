@@ -267,7 +267,9 @@ describe('the shape of the protection', () => {
     expect(rows.map(row => row.proname)).toEqual([
       'create_two_factor_entry',
       'delete_two_factor_entry',
+      'list_team_account_two_factor_seeds',
       'list_two_factor_entries',
+      'set_team_account_two_factor_seed',
       'update_two_factor_entry'
     ]);
     for (const row of rows) {

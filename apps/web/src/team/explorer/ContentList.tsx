@@ -44,6 +44,7 @@ export function ContentList({
   actions,
   tagging,
   emptyAction,
+  emptyState,
   companionCounts,
   openedCompanions,
   onToggleCompanions,
@@ -76,6 +77,7 @@ export function ContentList({
    * which is the same rule as the toolbar's (FR-021, FR-004).
    */
   emptyAction?: ReactNode;
+  emptyState?: 'uploading' | 'syncing' | 'unchecked';
   /** An unconfirmed catalog is not an empty folder. */
   /** How many companions each video holds, folded away until opened (024, US25). */
   companionCounts?: ReadonlyMap<string, number>;
@@ -115,8 +117,16 @@ export function ContentList({
         <EmptyState
           className="team-explorer-empty"
           icon={<FolderOpen size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-          title={t('teamExplorerEmpty')}
-          action={emptyAction}
+          title={t(
+            emptyState === 'uploading'
+              ? 'teamExplorerAddingContents'
+              : emptyState === 'syncing'
+                ? 'teamExplorerSyncingContents'
+                : emptyState === 'unchecked'
+                  ? 'teamExplorerUncheckedContents'
+                  : 'teamExplorerEmpty'
+          )}
+          action={emptyState ? undefined : emptyAction}
         />
       )}
       {rows.length > 0 && (
