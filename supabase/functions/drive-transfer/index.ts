@@ -53,6 +53,11 @@ import {
   type PreviewMode
 } from './handler.ts';
 import { thumbnailCachePath as sharedThumbnailCachePath } from '../_shared/thumbnails.ts';
+import {
+  DriveThumbnailCache,
+  ensureDriveCacheRoot,
+  ensureDriveCacheFolder
+} from '../_shared/drive-cache.ts';
 
 const WEBP_MIME_TYPE = 'image/webp';
 const LANDING_RENDER_GRANT_TTL_MS = 20 * 60 * 1000;
@@ -63,7 +68,6 @@ const MAX_THUMBNAIL_BYTES = 4 * 1024 * 1024;
  * enough that a bad actor cannot use this route as storage.
  */
 const POSTER_MAX_BASE64 = 1024 * 1024;
-const THUMBNAIL_CACHE_BUCKET = 'team-thumbnail-cache';
 const THUMBNAIL_SESSION_TTL_MS = 15 * 60 * 1000;
 const THUMBNAIL_SESSION_MAX_USES = 5000;
 const THUMBNAIL_MIME_TYPES = new Set([
@@ -86,17 +90,9 @@ interface RpcClient extends ServiceRpcClient, CallerAuthClient {
   ) => Promise<{ data: unknown; error: RpcFailure | null }>;
 }
 
-interface ThumbnailCacheBucket {
-  download(path: string): Promise<{ data: Blob | null; error: unknown | null }>;
-  upload(
-    path: string,
-    body: Blob | Uint8Array,
-    options: { cacheControl: string; contentType: string; upsert: boolean }
-  ): Promise<{ data: unknown; error: unknown | null }>;
-}
-
-interface ThumbnailStorage {
-  from(bucket: string): ThumbnailCacheBucket;
+// Read-through migration only. No route may write new media to Supabase Storage.
+interface LegacyThumbnailStorage {
+  from(bucket: string): { download(path: string): Promise<{ data: Blob | null; error: unknown }> };
 }
 
 interface TransferContext {
@@ -136,7 +132,7 @@ interface LandingRenderUpload {
 function clients(request: Request): {
   caller: RpcClient;
   service: RpcClient;
-  thumbnailStorage: ThumbnailStorage;
+  legacyThumbnails: LegacyThumbnailStorage;
 } {
   const url = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -155,7 +151,7 @@ function clients(request: Request): {
   return {
     caller: caller as unknown as RpcClient,
     service: service as unknown as RpcClient,
-    thumbnailStorage: service.storage as unknown as ThumbnailStorage
+    legacyThumbnails: service.storage as unknown as LegacyThumbnailStorage
   };
 }
 
@@ -739,14 +735,6 @@ function thumbnailHeaders(
   return headers;
 }
 
-async function readCachedThumbnail(storage: ThumbnailStorage, path: string) {
-  const { data, error } = await storage.from(THUMBNAIL_CACHE_BUCKET).download(path);
-  if (error || !data) return null;
-  const mimeType = data.type.split(';', 1)[0]?.trim().toLowerCase() ?? '';
-  if (!validThumbnail(mimeType, data.size)) return null;
-  return { body: data, mimeType, contentLength: data.size };
-}
-
 /**
  * A thumbnail session (011): one team-bound grant for a whole grid. Consumed
  * per read like every other grant, and `view` is re-checked each time.
@@ -776,8 +764,8 @@ async function consumeSessionGrant(
  * lands at the one cache path the relay reads, so nothing downstream changes.
  */
 async function handlePosterFrame(
+  request: Request,
   service: RpcClient,
-  thumbnailStorage: ThumbnailStorage,
   body: Record<string, unknown>,
   cors: Record<string, string>
 ) {
@@ -809,12 +797,18 @@ async function handlePosterFrame(
   if (!path || !context.driveVersion) {
     throw new TeamFunctionError('WRONG_STATE', { retryable: false });
   }
-  const stored = await thumbnailStorage.from(THUMBNAIL_CACHE_BUCKET).upload(path, bytes, {
-    cacheControl: '31536000',
-    contentType: 'image/webp',
-    upsert: true
+  const drive = await driveClient(service, context.credentialId, request);
+  await proveLiveAncestry({
+    client: drive,
+    fileId: context.driveFileId,
+    rootFolderId: context.rootFolderId,
+    resourceKey: context.resourceKey
   });
-  if (stored.error) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  await new DriveThumbnailCache(drive, context.teamId, context.rootFolderId).store(
+    path,
+    bytes,
+    'image/webp'
+  );
   await rpcValue(service, 'service_commit_thumbnail', {
     p_material: context.materialId,
     p_state: 'ready',
@@ -861,7 +855,7 @@ async function handleThumbnailSession(
 async function handleThumbnail(
   request: Request,
   service: RpcClient,
-  thumbnailStorage: ThumbnailStorage,
+  legacyThumbnails: LegacyThumbnailStorage,
   cors: Record<string, string>
 ) {
   const url = new URL(request.url);
@@ -893,13 +887,25 @@ async function handleThumbnail(
   if (!context || context.teamId !== teamId) {
     throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
   }
-  // A session read serves the prepared cache without touching the provider
-  // (FR-009's spirit for previews): the warm worker wrote it for exactly this
-  // version, and the catalog's lifecycle was just re-checked above.
+  const drive = await driveClient(service, context.credentialId, request);
+  const thumbnailCache = new DriveThumbnailCache(drive, context.teamId, context.rootFolderId);
+  const read = async (path: string) => {
+    const cached = await thumbnailCache.read(path).catch(() => null);
+    if (cached) return cached;
+    // Keep existing posters working while old objects move lazily to Drive.
+    const { data, error } = await legacyThumbnails.from('team-thumbnail-cache').download(path);
+    if (error || !data || !validThumbnail(data.type, data.size)) return null;
+    await thumbnailCache
+      .store(path, new Uint8Array(await data.arrayBuffer()), data.type)
+      .catch(() => undefined);
+    return { body: data, mimeType: data.type, contentLength: data.size };
+  };
+  // The catalog's lifecycle and membership were re-checked above. Cache bytes
+  // now live in the connected Drive, not in a server-side media bucket.
   if (parsed.mode === 'session') {
     const prepared = await thumbnailCachePath(context, null, null);
     if (prepared) {
-      const cached = await readCachedThumbnail(thumbnailStorage, prepared);
+      const cached = await read(prepared);
       if (cached) {
         const headers = thumbnailHeaders(cached.mimeType, cached.contentLength, cors, 'hit');
         headers.set('cache-control', 'private, max-age=900');
@@ -907,7 +913,6 @@ async function handleThumbnail(
       }
     }
   }
-  const drive = await driveClient(service, context.credentialId, request);
   const live = await proveLiveAncestry({
     client: drive,
     fileId: context.driveFileId,
@@ -923,7 +928,7 @@ async function handleThumbnail(
   }
   const cachePath = await thumbnailCachePath(context, live.version, live.checksum);
   if (cachePath) {
-    const cached = await readCachedThumbnail(thumbnailStorage, cachePath);
+    const cached = await read(cachePath);
     if (cached) {
       return new Response(cached.body.stream(), {
         status: 200,
@@ -953,14 +958,7 @@ async function handleThumbnail(
     throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
   }
   if (cachePath) {
-    await thumbnailStorage
-      .from(THUMBNAIL_CACHE_BUCKET)
-      .upload(cachePath, body, {
-        cacheControl: '31536000',
-        contentType: mimeType,
-        upsert: false
-      })
-      .catch(() => undefined);
+    await thumbnailCache.store(cachePath, body, mimeType).catch(() => undefined);
   }
   return new Response(body, {
     status: 200,
@@ -1014,8 +1012,10 @@ async function landingArtifactFolder(input: {
   const root = await drive.getFile(context.rootFolderId, context.rootResourceKey);
   requireDriveCapability(root, 'canListChildren');
   requireDriveCapability(root, 'canAddChildren');
+  const cacheRoot = await ensureDriveCacheRoot(drive, context.teamId, context.rootFolderId);
+  const landingRoot = await ensureDriveCacheFolder(drive, cacheRoot, 'Landing previews');
   const folderId = await ensureLandingArtifactFolder(drive, {
-    rootFolderId: context.rootFolderId,
+    rootFolderId: landingRoot,
     materialId: input.grant.materialId,
     sourceVersion: input.upload.sourceVersion,
     fingerprint: input.fingerprint,
@@ -1453,7 +1453,7 @@ Deno.serve(async request => {
       return await handleLandingRenderRange(request, configured.service, cors);
     }
     if (request.method === 'GET' && url.pathname.endsWith('/thumbnail')) {
-      return await handleThumbnail(request, configured.service, configured.thumbnailStorage, cors);
+      return await handleThumbnail(request, configured.service, configured.legacyThumbnails, cors);
     }
     if (request.method === 'GET' && url.pathname.endsWith('/range')) {
       return await handleRange(request, configured.service, cors);
@@ -1477,12 +1477,7 @@ Deno.serve(async request => {
       );
     }
     if (parsed.value.action === 'poster_frame') {
-      return await handlePosterFrame(
-        configured.service,
-        configured.thumbnailStorage,
-        parsed.value,
-        cors
-      );
+      return await handlePosterFrame(request, configured.service, parsed.value, cors);
     }
     if (parsed.value.action === 'thumbnail_session') {
       return await handleThumbnailSession(

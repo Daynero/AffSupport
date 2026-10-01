@@ -336,16 +336,19 @@ export class GoogleDriveClient {
     key: string;
     value: string;
     driveId?: string | null;
+    parentId?: string;
   }): Promise<DriveFileMetadata | null> {
     const escape = (text: string) => text.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set(
       'q',
       `appProperties has { key='${escape(input.key)}' and value='${escape(input.value)}' } ` +
-        `and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
+        `and mimeType = 'application/vnd.google-apps.folder' and trashed = false` +
+        (input.parentId ? ` and '${escape(input.parentId)}' in parents` : '')
     );
     url.searchParams.set('fields', `files(${FILE_FIELDS})`);
     url.searchParams.set('pageSize', '10');
+    url.searchParams.set('orderBy', 'createdTime');
     url.searchParams.set('supportsAllDrives', 'true');
     url.searchParams.set('includeItemsFromAllDrives', 'true');
     if (input.driveId) {
@@ -441,6 +444,7 @@ export class GoogleDriveClient {
     sourceMimeType: string;
     targetMimeType: string;
     bytes: Uint8Array<ArrayBuffer>;
+    appProperties?: Record<string, string>;
   }): Promise<DriveFileMetadata> {
     if (
       input.name.length < 1 ||
@@ -461,7 +465,8 @@ export class GoogleDriveClient {
         JSON.stringify({
           name: input.name,
           mimeType: input.targetMimeType,
-          parents: [input.parentId]
+          parents: [input.parentId],
+          ...(input.appProperties ? { appProperties: input.appProperties } : {})
         }) +
         `\r\n--${boundary}\r\ncontent-type: ${input.sourceMimeType}\r\n\r\n`
     );

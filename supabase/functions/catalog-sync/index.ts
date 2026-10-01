@@ -13,6 +13,7 @@ import {
   type ServiceRpcClient
 } from '../_shared/credentials.ts';
 import { GoogleDriveClient, proveLiveAncestry, type DriveFileMetadata } from '../_shared/drive.ts';
+import { isHiddenPreviewCache } from '../_shared/drive-cache.ts';
 import {
   errorResponse,
   mapUnknownError,
@@ -266,7 +267,7 @@ async function isHiddenSystemFile(
   file: DriveFileMetadata,
   rootFolderId: string
 ): Promise<boolean> {
-  if (file.name === '.soty') return true;
+  if (isHiddenPreviewCache(file)) return true;
   let frontier = [...file.parents];
   const visited = new Set<string>();
   for (let depth = 0; depth < 100 && frontier.length > 0; depth += 1) {
@@ -275,7 +276,7 @@ async function isHiddenSystemFile(
       if (parentId === rootFolderId || visited.has(parentId)) continue;
       visited.add(parentId);
       const parent = await drive.getFile(parentId);
-      if (parent.name === '.soty') return true;
+      if (isHiddenPreviewCache(parent)) return true;
       next.push(...parent.parents);
     }
     frontier = next;

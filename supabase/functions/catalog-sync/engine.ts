@@ -5,6 +5,7 @@ import {
   type CatalogSyncPhase
 } from '../../../packages/shared/dist/team/transport.js';
 import type { DriveFileMetadata } from '../_shared/drive.ts';
+import { isHiddenPreviewCache } from '../_shared/drive-cache.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 
 export type { CatalogSyncPhase };
@@ -164,7 +165,6 @@ export interface CatalogSyncDependencies {
 }
 
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
-const HIDDEN_SYSTEM_FOLDER = '.soty';
 
 function fileExtension(name: string): string | null {
   const index = name.lastIndexOf('.');
@@ -232,7 +232,7 @@ async function runInitialScan(
       details: { reason: 'INCOMPLETE_LISTING' }
     });
   }
-  const visibleFiles = page.files.filter(file => file.name !== HIDDEN_SYSTEM_FOLDER);
+  const visibleFiles = page.files.filter(file => !isHiddenPreviewCache(file));
   await persistActiveFiles(job, dependencies, visibleFiles, parentId);
 
   const newFolders = visibleFiles
@@ -633,7 +633,7 @@ async function runDurableScanJob(
           generation: folder.generation,
           expectedPageToken: folder.pageToken,
           nextPageToken: page.nextPageToken,
-          files: page.files.filter(file => file.name !== HIDDEN_SYSTEM_FOLDER),
+          files: page.files.filter(file => !isHiddenPreviewCache(file)),
           complete: page.nextPageToken === null
         })
       );

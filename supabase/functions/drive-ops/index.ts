@@ -24,7 +24,13 @@ import {
   type TeamTransferGrant
 } from '../../../packages/shared/dist/team/transport.js';
 import { authorizeCaller, type OAuthProductionSignals } from '../_shared/auth.ts';
-import { THUMBNAIL_CACHE_BUCKET, thumbnailCachePath } from '../_shared/thumbnails.ts';
+import { thumbnailCachePath } from '../_shared/thumbnails.ts';
+import {
+  DriveThumbnailCache,
+  ensureDriveCacheRoot,
+  moveGeneratedFolderToCache,
+  consolidateGeneratedFolders
+} from '../_shared/drive-cache.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import {
   readDriveCredential,
@@ -1504,6 +1510,12 @@ async function handleCopy(
       }).catch(() => undefined);
       await copyCachedThumbnail({
         service,
+        sourceCache: new DriveThumbnailCache(sourceClient, common.teamId, source.rootFolderId),
+        destinationCache: new DriveThumbnailCache(
+          destination.client,
+          common.teamId,
+          destination.context.rootFolderId
+        ),
         teamId: common.teamId,
         source: {
           materialId: common.materialId,
@@ -1714,6 +1726,8 @@ function randomTicket(): string {
  */
 async function copyCachedThumbnail(input: {
   service: RpcClient;
+  sourceCache: DriveThumbnailCache;
+  destinationCache: DriveThumbnailCache;
   teamId: string;
   source: { materialId: string; identity: string | null; mimeType: string | null };
   copy: {
@@ -1737,22 +1751,23 @@ async function copyCachedThumbnail(input: {
     mimeType: input.copy.mimeType
   });
   if (!from || !to) return;
-  const storage = (input.service as unknown as { storage: SupabaseStorage }).storage;
-  const { error } = await storage.from(THUMBNAIL_CACHE_BUCKET).copy(from, to);
-  if (error) return;
+  const cached = await input.sourceCache.read(from).catch(() => null);
+  if (!cached) return;
+  try {
+    await input.destinationCache.store(
+      to,
+      new Uint8Array(await cached.body.arrayBuffer()),
+      cached.mimeType
+    );
+  } catch {
+    return;
+  }
   await rpcValue(input.service, 'service_commit_thumbnail', {
     p_material: input.copy.materialId,
     p_state: 'ready',
     p_reason: null,
     p_version: input.copy.driveVersion
   }).catch(() => undefined);
-}
-
-/** The sliver of the storage client this function uses. */
-interface SupabaseStorage {
-  from(bucket: string): {
-    copy(from: string, to: string): Promise<{ error: unknown }>;
-  };
 }
 
 /**
@@ -2259,6 +2274,18 @@ async function handleEnsureTaskDropFolder(
   const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
   const client = await driveClient(service, root.credentialId, request);
 
+  const cacheId = await ensureDriveCacheRoot(client, teamId, root.rootFolderId);
+  const drops = async () => {
+    const resolved = await resolveTaskDropFolder({ teamId, rootFolderId: cacheId, drive: client });
+    const folder = await moveGeneratedFolderToCache(
+      client,
+      resolved.folder,
+      root.rootFolderId,
+      cacheId
+    );
+    return { ...resolved, folder };
+  };
+
   if (childName) {
     const parent = parentMaterialId
       ? await loadDestination({
@@ -2269,10 +2296,7 @@ async function handleEnsureTaskDropFolder(
           destination: parentMaterialId
         })
       : null;
-    const parentDriveId = parent
-      ? parent.driveFolderId
-      : (await resolveTaskDropFolder({ teamId, rootFolderId: root.rootFolderId, drive: client }))
-          .folder.id;
+    const parentDriveId = parent ? parent.driveFolderId : (await drops()).folder.id;
     const created = await client.createFolder({ name: childName, parentId: parentDriveId });
     const committedChild = firstRecord(
       await rpcValue(service, 'service_commit_task_drop_folder', {
@@ -2289,16 +2313,12 @@ async function handleEnsureTaskDropFolder(
     return { folderId: created.id, materialId: childMaterialId, name: created.name, created: true };
   }
 
-  const resolved = await resolveTaskDropFolder({
-    teamId,
-    rootFolderId: root.rootFolderId,
-    drive: client
-  });
+  const resolved = await drops();
   const committed = firstRecord(
     await rpcValue(service, 'service_commit_task_drop_folder', {
       p_team: teamId,
       p_connection: root.connectionId,
-      p_parent_folder_id: root.rootFolderId,
+      p_parent_folder_id: cacheId,
       p_drive_folder_id: resolved.folder.id,
       p_resource_key: resolved.folder.resourceKey,
       p_name: resolved.folder.name
@@ -2406,12 +2426,20 @@ async function handleEnsureWorkspaceFolder(
   const cached = firstRecord(
     await rpcValue(service, 'service_get_workspace_folder', { p_team: teamId })
   );
+  const cacheId = await ensureDriveCacheRoot(client, teamId, root.rootFolderId);
+  await consolidateGeneratedFolders(client, teamId, root.rootFolderId, cacheId);
   const resolved = await resolveWorkspaceFolder({
     teamId,
-    rootFolderId: root.rootFolderId,
+    rootFolderId: cacheId,
     drive: client,
     cachedFolderId: cached ? stringValue(cached, 'drive_folder_id') : null
   });
+  await moveGeneratedFolderToCache(
+    client,
+    await client.getFile(resolved.folderId),
+    root.rootFolderId,
+    cacheId
+  );
   // Written every time, not only when it changes: `verified_at` is the record of when the id
   // was last known to be that folder.
   await rpcValue(service, 'service_commit_workspace_folder', {
@@ -2729,11 +2757,13 @@ function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterResti
     restitchedFolder: async (teamId, actorId) => {
       const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
       const drive = await driveClient(service, root.credentialId, request);
+      const cacheId = await ensureDriveCacheRoot(drive, teamId, root.rootFolderId);
       const resolved = await resolveRestitchedFolder({
         teamId,
-        rootFolderId: root.driveFolderId,
+        rootFolderId: cacheId,
         drive
       });
+      await moveGeneratedFolderToCache(drive, resolved.folder, root.rootFolderId, cacheId);
       return resolved.folder.id;
     },
     startProcess: async (actorId, body) => {

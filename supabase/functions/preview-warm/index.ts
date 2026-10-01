@@ -5,7 +5,7 @@ import {
   refreshGoogleAccessToken,
   type ServiceRpcClient
 } from '../_shared/credentials.ts';
-import { GoogleDriveClient } from '../_shared/drive.ts';
+import { GoogleDriveClient, proveLiveAncestry } from '../_shared/drive.ts';
 import {
   errorResponse,
   mapUnknownError,
@@ -17,13 +17,13 @@ import {
   type ArchiveInspectionRow
 } from '../_shared/archive-inspection.ts';
 import { runPreviewWarmSlice, type PreviewWarmRow } from '../_shared/preview-warm.ts';
-import { THUMBNAIL_CACHE_BUCKET } from '../_shared/thumbnails.ts';
+import { DriveThumbnailCache } from '../_shared/drive-cache.ts';
 import { isRecord } from '../_shared/validation.ts';
 
 /**
  * Prepares provider thumbnails ahead of use (011, FR-014/FR-015): claims
  * pending materials in indexed folders, fetches each provider thumbnail into
- * the private cache bucket, and records the outcome against the version it was
+ * the connected Drive cache, and records the outcome against the version it was
  * fetched for. Nothing here needs a member's local app.
  */
 interface RpcFailure {
@@ -35,28 +35,19 @@ interface RpcClient extends ServiceRpcClient {
     name: string,
     parameters: Record<string, unknown>
   ) => Promise<{ data: unknown; error: RpcFailure | null }>;
-  storage: {
-    from: (bucket: string) => {
-      upload: (
-        path: string,
-        body: Uint8Array,
-        options: { cacheControl: string; contentType: string; upsert: boolean }
-      ) => Promise<{ error: { message: string } | null }>;
-    };
-  };
 }
 
 const CLAIM_LIMIT = 50;
 /** Archives looked into per pass: one or two small range reads each. */
 const ARCHIVE_CLAIM_LIMIT = 20;
 
-function serviceClient(): RpcClient {
+function serviceClient(): RpcClient & Pick<ReturnType<typeof createClient>, 'from'> {
   const url = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !serviceKey) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
   return createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false }
-  }) as unknown as RpcClient;
+  }) as unknown as RpcClient & Pick<ReturnType<typeof createClient>, 'from'>;
 }
 
 async function rpcValue(
@@ -161,10 +152,35 @@ Deno.serve(async request => {
       return drive;
     };
 
+    const caches = new Map<string, DriveThumbnailCache>();
+    const roots = new Map<string, string>();
+    const rootFor = async (row: PreviewWarmRow) => {
+      const known = roots.get(row.connectionId);
+      if (known) return known;
+      const { data, error } = await service
+        .from('team_drive_connections')
+        .select('root_folder_id')
+        .eq('id', row.connectionId)
+        .eq('team_id', row.teamId)
+        .eq('credential_id', row.credentialId)
+        .eq('state', 'connected')
+        .single();
+      const connection: unknown = data;
+      if (error || !isRecord(connection) || typeof connection.root_folder_id !== 'string') {
+        throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+      }
+      roots.set(row.connectionId, connection.root_folder_id);
+      return connection.root_folder_id;
+    };
     const summary = await runPreviewWarmSlice(claimed, {
       getFile: async row => {
         const drive = await driveFor(row.credentialId);
-        const live = await drive.getFile(row.driveFileId, row.resourceKey);
+        const live = await proveLiveAncestry({
+          client: drive,
+          fileId: row.driveFileId,
+          resourceKey: row.resourceKey,
+          rootFolderId: await rootFor(row)
+        });
         return {
           trashed: live.trashed,
           mimeType: live.mimeType,
@@ -181,13 +197,17 @@ Deno.serve(async request => {
         const bytes = new Uint8Array(await upstream.arrayBuffer());
         return { status: upstream.status, mimeType, bytes };
       },
-      store: async (path, bytes, mimeType) => {
-        const { error } = await service.storage.from(THUMBNAIL_CACHE_BUCKET).upload(path, bytes, {
-          cacheControl: '31536000',
-          contentType: mimeType,
-          upsert: true
-        });
-        if (error) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+      store: async (path, bytes, mimeType, row) => {
+        let cache = caches.get(row.connectionId);
+        if (!cache) {
+          cache = new DriveThumbnailCache(
+            await driveFor(row.credentialId),
+            row.teamId,
+            await rootFor(row)
+          );
+          caches.set(row.connectionId, cache);
+        }
+        await cache.store(path, bytes, mimeType);
       },
       commit: async (row, outcome) => {
         await rpcValue(service, 'service_commit_thumbnail', {

@@ -41,7 +41,7 @@ export interface PreviewWarmDependencies {
     row: PreviewWarmRow,
     thumbnailLink: string
   ) => Promise<{ status: number; mimeType: string; bytes: Uint8Array }>;
-  store: (path: string, bytes: Uint8Array, mimeType: string) => Promise<void>;
+  store: (path: string, bytes: Uint8Array, mimeType: string, row: PreviewWarmRow) => Promise<void>;
   commit: (row: PreviewWarmRow, outcome: PreviewWarmCommit) => Promise<void>;
 }
 
@@ -111,6 +111,6 @@ async function warmOne(
     mimeType: row.mimeType
   });
   if (!version || !path) return { state: 'unavailable', reason: 'provider_missing' };
-  await dependencies.store(path, response.bytes, response.mimeType);
+  await dependencies.store(path, response.bytes, response.mimeType, row);
   return { state: 'ready', version };
 }

@@ -76,7 +76,7 @@ it('reads saved owner settings through the same RPC after a page reload', async 
     team,
     JSON.stringify({
       operation: 'restitch',
-        startImageIds: [owner],
+      startImageIds: [owner],
       endImageIds: [],
       startEnabled: true,
       endEnabled: false,

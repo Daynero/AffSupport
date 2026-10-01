@@ -353,6 +353,30 @@ describe('durable catalog synchronization', () => {
     );
   });
 
+  it('skips marked preview caches even after renaming, but keeps user folders with the same name', async () => {
+    const deps = dependencies({
+      listChildren: vi.fn().mockResolvedValue({
+        files: [
+          file({
+            id: 'cache',
+            name: 'Renamed previews',
+            mimeType: folderMime,
+            appProperties: { 'soty.cache.hidden': '1' }
+          }),
+          file({ id: 'user', name: 'Thumbnails', mimeType: folderMime, appProperties: {} })
+        ],
+        nextPageToken: null
+      })
+    });
+    await runCatalogSyncSlice(baseJob, deps);
+    expect(deps.upsertFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ files: [expect.objectContaining({ id: 'user' })] })
+    );
+    expect(deps.checkpoint).toHaveBeenCalledWith(
+      expect.objectContaining({ folderQueue: ['user'] })
+    );
+  });
+
   it('replays every change page and commits the new start token only after the final page', async () => {
     const deps = dependencies({
       listChanges: vi

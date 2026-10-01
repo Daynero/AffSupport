@@ -55,7 +55,8 @@ describe('runPreviewWarmSlice', () => {
     expect(deps.store).toHaveBeenCalledWith(
       expect.stringMatching(/^[0-9a-f]{2}\/[0-9a-f]{64}\.thumbnail$/u),
       expect.any(Uint8Array),
-      'image/jpeg'
+      'image/jpeg',
+      expect.objectContaining({ teamId: 'team-1', connectionId: 'connection-1' })
     );
     expect(deps.commit).toHaveBeenCalledWith(
       expect.objectContaining({ materialId: 'material-1' }),
