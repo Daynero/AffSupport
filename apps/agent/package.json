@@ -15,7 +15,7 @@
     "@jsquash/webp": "^1.5.0",
     "@playwright/browser-chromium": "1.62.1",
     "@video-compressor/shared": "1.2.3",
-    "fastify": "^5.6.1",
+    "fastify": "^5.12.5",
     "playwright-core": "1.62.1",
     "yazl": "^3.3.1",
     "yauzl": "^3.4.0"
