@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, open } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -60,6 +60,14 @@ afterEach(async () => {
 });
 
 describe('the silence at the end of a file', () => {
+  it('rejects a damaged prepared WAV instead of declaring it silent', async () => {
+    const file = path.join(directory, 'damaged.wav');
+    await writeFile(file, 'not a WAV');
+    await expect(measureSpeechExtent(file)).rejects.toThrow('RIFF/WAVE');
+    const truncated = await wav(1, 0, 'truncated.wav');
+    await writeFile(truncated, (await readFile(truncated)).subarray(0, 48));
+    await expect(measureSpeechExtent(truncated)).rejects.toThrow('truncated');
+  });
   it('finds where the sound stops, and offers only what has sound in it', async () => {
     // The shape of a stitched creative, in miniature: a little speech, a long held screen.
     const file = await wav(70, 3504);
@@ -79,6 +87,19 @@ describe('the silence at the end of a file', () => {
     expect(extent.audibleSeconds).toBe(extent.durationSeconds);
   });
 
+  it('does not trim a quiet final utterance below the old amplitude cutoff', async () => {
+    const file = await wav(1, 40);
+    const handle = await open(file, 'r+');
+    try {
+      const sample = Buffer.alloc(2);
+      sample.writeInt16LE(1);
+      await handle.write(sample, 0, 2, 44 + 39 * SAMPLE_RATE * 2);
+    } finally {
+      await handle.close();
+    }
+    expect((await measureSpeechExtent(file)).trimmedSeconds).toBe(0);
+  });
+
   it('does not touch a pause between sentences', async () => {
     // Well under the minimum: quiet this short is speech, not a tail.
     const file = await wav(30, MIN_TAIL_SECONDS - 5);
@@ -95,9 +116,8 @@ describe('the silence at the end of a file', () => {
     expect(extent.trimmedSeconds).toBe(0);
   });
 
-  it('reads an empty file without inventing a length', async () => {
-    const file = path.join(directory, 'empty.wav');
-    await writeFile(file, Buffer.alloc(0));
+  it('reads a valid empty WAV without inventing a length', async () => {
+    const file = await wav(0, 0, 'empty.wav');
     expect(await measureSpeechExtent(file)).toEqual({
       durationSeconds: 0,
       lastSoundSeconds: 0,

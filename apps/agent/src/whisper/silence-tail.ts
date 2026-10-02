@@ -27,8 +27,6 @@ import { open } from 'node:fs/promises';
 /** 16-bit mono PCM at 16 kHz — what `runExtract` writes, and all this reads. */
 const BYTES_PER_SAMPLE = 2;
 const SAMPLE_RATE = 16_000;
-/** Where the samples start when the header cannot be parsed: a canonical 44-byte RIFF/WAVE. */
-const CANONICAL_HEADER_BYTES = 44;
 
 /**
  * Finds the PCM samples inside a RIFF/WAVE file.
@@ -51,7 +49,7 @@ async function locateDataChunk(
     header.toString('ascii', 0, 4) !== 'RIFF' ||
     header.toString('ascii', 8, 12) !== 'WAVE'
   ) {
-    return { offset: CANONICAL_HEADER_BYTES, bytes: Math.max(0, size - CANONICAL_HEADER_BYTES) };
+    throw new Error('Prepared audio is not a RIFF/WAVE file.');
   }
   const chunk = Buffer.alloc(8);
   let position = 12;
@@ -63,21 +61,23 @@ async function locateDataChunk(
     if (id === 'data') {
       // A streamed WAV may carry a placeholder length; the file's own size is the truth.
       const available = size - (position + 8);
-      return { offset: position + 8, bytes: Math.max(0, Math.min(length, available) || available) };
+      if (length !== 0xffff_ffff && (length > available || length % BYTES_PER_SAMPLE !== 0)) {
+        throw new Error('Prepared audio PCM data is truncated or misaligned.');
+      }
+      return { offset: position + 8, bytes: length === 0xffff_ffff ? available : length };
     }
     // Chunks are word-aligned: an odd length is followed by one pad byte.
     position += 8 + length + (length % 2);
   }
-  return { offset: CANONICAL_HEADER_BYTES, bytes: Math.max(0, size - CANONICAL_HEADER_BYTES) };
+  throw new Error('Prepared audio has no readable PCM data chunk.');
 }
 
 /**
- * Peak amplitude that still counts as silence, as a fraction of full scale.
- *
- * −50 dBFS. Generated silence is digital zero, and a quiet room floor sits well below this; a
- * spoken word, even a soft one, is far above it.
+ * Only exact digital silence is safe to trim without a speech detector.
+ * A fixed -50 dB cutoff can discard a quiet final sentence before normalization.
+ * Generated silent holds are zero; low-level room noise is retained deliberately.
  */
-const SILENCE_PEAK = 0.00316;
+const SILENCE_PEAK = 0;
 /** How much quiet must sit at the end before any of it is treated as a tail. */
 export const MIN_TAIL_SECONDS = 30;
 /** Kept after the last sound, so a fading word is not clipped. */
@@ -157,6 +157,34 @@ export async function measureSpeechExtent(wavPath: string): Promise<SpeechExtent
       audibleSeconds,
       trimmedSeconds: durationSeconds - audibleSeconds
     };
+  } finally {
+    await handle.close();
+  }
+}
+
+/** Only exact digital zero can justify suppressing text without speech evidence. */
+export async function isDigitalSilence(
+  wavPath: string,
+  startSeconds: number,
+  durationSeconds: number
+): Promise<boolean> {
+  const handle = await open(wavPath, 'r');
+  try {
+    const data = await locateDataChunk(handle, (await handle.stat()).size);
+    let position = Math.floor(startSeconds * SAMPLE_RATE) * BYTES_PER_SAMPLE;
+    const end = Math.min(
+      data.bytes,
+      Math.ceil((startSeconds + durationSeconds) * SAMPLE_RATE) * BYTES_PER_SAMPLE
+    );
+    const buffer = Buffer.alloc(BLOCK_SAMPLES * BYTES_PER_SAMPLE);
+    while (position < end) {
+      const count = Math.min(buffer.length, end - position);
+      const read = await handle.read(buffer, 0, count, data.offset + position);
+      if (read.bytesRead === 0) throw new Error('Audio ended before its reported PCM range.');
+      if (buffer.subarray(0, read.bytesRead).some(byte => byte !== 0)) return false;
+      position += read.bytesRead;
+    }
+    return true;
   } finally {
     await handle.close();
   }

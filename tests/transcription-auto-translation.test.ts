@@ -38,6 +38,10 @@ vi.mock('../apps/agent/src/whisper/transcriber.js', () => ({
 }));
 
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
+import {
+  buildTranscriptionDocument,
+  TranscriptionDocumentStore
+} from '../apps/agent/src/transcription/document-store.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
@@ -138,7 +142,49 @@ describe('automatic post-transcription translation', () => {
     // plain recursive remove fails with ENOTEMPTY on a directory that was empty
     // when the walk started. Retried rather than raced.
     await removeTemporaryDirectory(dir);
+    vi.restoreAllMocks();
   });
+
+  it.each([false, true])(
+    'cannot resurrect a job cancelled during save (previous result: %s)',
+    async hasPrevious => {
+      const originalSave = TranscriptionDocumentStore.prototype.save;
+      let saving = false;
+      let resume!: () => void;
+      const blocked = new Promise<void>(resolve => {
+        resume = resolve;
+      });
+      const media = path.join(dir, 'cancel-save.mp3');
+      await writeFile(media, 'media');
+      await queue.add([media]);
+      const id = queue.state().jobs[0].id;
+      const store = new TranscriptionDocumentStore(path.join(dir, 'docs'));
+      const previous = buildTranscriptionDocument(
+        { ...queue.state().jobs[0], text: 'Previous valid result.' },
+        'test',
+        []
+      );
+      if (hasPrevious) await store.save(previous);
+      vi.spyOn(TranscriptionDocumentStore.prototype, 'save').mockImplementation(async function (
+        this: TranscriptionDocumentStore,
+        document
+      ) {
+        saving = true;
+        await blocked;
+        // Intentionally commit despite cancellation to exercise the rename race.
+        await originalSave.call(this, document);
+      });
+      await queue.start([id]);
+      await waitFor(() => saving);
+      expect(queue.state().jobs[0].progress).toBeLessThan(100);
+      expect(queue.cancel(id)).toBe(true);
+      resume();
+      await waitFor(() => !queue.state().running);
+      expect(queue.state().jobs[0].status).toBe('cancelled');
+      expect(queue.state().jobs[0].progress).not.toBe(100);
+      expect(await store.load(id)).toEqual(hasPrevious ? previous : null);
+    }
+  );
 
   it('waits for the whole transcription batch before translating and reuses cached work', async () => {
     const mediaPaths = [path.join(dir, 'first.mp3'), path.join(dir, 'second.mp3')];

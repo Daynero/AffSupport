@@ -38,6 +38,8 @@
     "apps/agent/src/translation/segmentation.ts": 95,
     "apps/agent/src/translation/tools.ts": 66,
     "apps/agent/src/translation/translator.ts": 16,
+    "apps/agent/src/whisper/chunks.ts": 95,
+    "apps/agent/src/whisper/coverage.ts": 95,
     "apps/agent/src/whisper/downloader.ts": 80,
     "apps/agent/src/whisper/language-probe.ts": 50,
     "apps/agent/src/whisper/progress-smoother.ts": 80,

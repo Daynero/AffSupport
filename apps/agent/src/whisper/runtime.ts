@@ -2,7 +2,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { readdir, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { defaultInferenceThreads, scaled } from '../power/spawn.js';
+import { activeGovernorOrNull, defaultInferenceThreads, scaled } from '../power/spawn.js';
 
 /**
  * What every whisper/ffmpeg child in this folder shares: the stall watchdog, the thread
@@ -43,8 +43,9 @@ export function attachInactivityWatchdog(
         arm();
         return;
       }
+      activeGovernorOrNull()?.resumeForTermination(child);
       child.kill('SIGTERM');
-      const force = setTimeout(() => child.kill('SIGKILL'), 10_000);
+      const force = setTimeout(() => child.kill('SIGKILL'), scaled(10_000));
       force.unref();
       child.once('close', () => clearTimeout(force));
       // Read on every arm, not once: whisper is a managed child, so at a

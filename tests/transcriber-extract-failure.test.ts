@@ -61,6 +61,23 @@ describeRequiring(ffmpegBinaries, 'a running Whisper pass', () => {
 });
 
 describe('transcription extract failures', () => {
+  it('rejects exit-zero preparation that wrote invalid audio rather than calling it silence', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'soty-invalid-audio-'));
+    vi.stubEnv(
+      'FFMPEG_PATH',
+      await writeStubTool(directory, 'invalid-ffmpeg', { writeOutput: true })
+    );
+    vi.resetModules();
+    const { transcribe } = await import('../apps/agent/src/whisper/transcriber.js');
+    const result = await transcribe({
+      inputPath: path.join(directory, 'source.mp4'),
+      language: 'en',
+      durationSeconds: 2,
+      onProgress: () => {}
+    }).done;
+    expect(result).toMatchObject({ code: 1, failedStage: 'extract', text: '' });
+    expect(result.stderr).toContain('AUDIO_OUTPUT_INVALID');
+  });
   it('reports an FFmpeg exit as an extract failure and releases a pre-start pause', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'soty-extract-failure-'));
     const marker = path.join(directory, 'spawned');

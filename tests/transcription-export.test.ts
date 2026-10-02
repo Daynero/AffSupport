@@ -102,6 +102,16 @@ describe('transcript export', () => {
   it('knows when a document carries no usable timings', () => {
     expect(hasTimings(segments)).toBe(true);
     expect(hasTimings([segment('a', 'x', 0, 0)])).toBe(false);
+    const approximate = { ...segment('a', 'x', 1000, 8000), timingSource: 'window' as const };
+    expect(hasTimings([approximate])).toBe(false);
+    expect(() =>
+      buildTranscriptExport({
+        fileName: 'a.mp4',
+        segments: [approximate],
+        content: 'transcript',
+        format: 'srt'
+      })
+    ).toThrow('TIMINGS_REQUIRED');
   });
 
   it('pairs both languages inside one subtitle cue', () => {

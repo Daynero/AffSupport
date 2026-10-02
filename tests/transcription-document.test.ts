@@ -12,7 +12,8 @@ import {
   segmentsFromText,
   segmentsFromTextWithWords,
   sourceContentHash,
-  TranscriptionDocumentStore
+  TranscriptionDocumentStore,
+  validDocument
 } from '../apps/agent/src/transcription/document-store.js';
 import {
   MAX_TRANSLATION_SEGMENT_UNITS,
@@ -21,6 +22,22 @@ import {
 import type { WhisperWord } from '../apps/agent/src/whisper/words.js';
 import { isValidTargetLanguage } from '../apps/agent/src/queue/transcription-queue.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+
+it('round-trips decoder uncertainty without treating the saved transcript as corrupted', () => {
+  const document = buildTextTranscriptionDocument(
+    { id: 'decode-warning', detectedLanguage: 'es', text: 'Spoken text.' } as TranscriptionJob,
+    'large-v3'
+  );
+  document.reliability = {
+    windows: 1,
+    retries: 2,
+    recoveredWindows: 0,
+    timedWords: 0,
+    totalWords: 2,
+    warnings: [{ code: 'DECODE_UNCERTAIN', startMs: 0, endMs: 8000 }]
+  };
+  expect(validDocument(document)?.reliability?.warnings[0].code).toBe('DECODE_UNCERTAIN');
+});
 
 describe('media range + mime helpers', () => {
   it('treats a missing or multi-range header as a full response', () => {
@@ -72,6 +89,52 @@ describe('media range + mime helpers', () => {
 });
 
 describe('structured document building', () => {
+  it('uses a clearly approximate window interval for untimed speech navigation', () => {
+    const document = buildTranscriptionDocument(
+      {
+        id: 'untimed',
+        text: 'A phrase without word timestamps.',
+        requestedLanguage: 'en'
+      } as TranscriptionJob,
+      'model',
+      [],
+      '',
+      [],
+      {
+        windows: 1,
+        retries: 0,
+        recoveredWindows: 0,
+        warnings: [],
+        timedWords: 0,
+        totalWords: 5,
+        ranges: [{ canonicalStart: 0, canonicalEnd: 33, startMs: 6000, endMs: 14000 }]
+      }
+    );
+    expect(document.segments[0]).toMatchObject({
+      startMs: 6000,
+      endMs: 14000,
+      timingSource: 'window',
+      words: []
+    });
+  });
+  it('does not let a missing common word consume timings for later phrases', () => {
+    const text =
+      'देती हैं प्रजनन वाले सांडों को देखो प्रजनन के लिए केवल सबसे ताकतवर और स्वस्थ नर चुने जाते हैं कमजोर सांडों को पास तक नहीं आने दिया जाता';
+    const tokens = text.split(' ').filter((_, index) => index !== 1);
+    const words = tokens.map((token, index) => ({
+      text: token,
+      leadingSpace: true,
+      startMs: index * 200,
+      endMs: (index + 1) * 200,
+      confidence: null
+    }));
+    const aligned = segmentsFromTextWithWords('missing-common-word', text, words).flatMap(
+      segment => segment.words
+    );
+    expect(aligned.map(word => word.text)).toEqual(tokens);
+    expect(aligned.at(-1)?.endMs).toBe(words.at(-1)?.endMs);
+  });
+
   it('keeps ordinary transcript lines as individual segments', () => {
     const segments = segmentsFromText('job1', 'First sentence.\n\n  Second sentence.  \n');
     expect(segments).toEqual([
@@ -239,6 +302,26 @@ describe('structured document building', () => {
       'sukat.'
     ]);
     expect(document.segments.flatMap(segment => segment.words)).toHaveLength(18);
+  });
+
+  it('does not consume later sentences when a missing timing word recurs far in the future', () => {
+    const candidates: WhisperWord[] = [
+      'Start',
+      'Then',
+      'continue.',
+      ...Array.from({ length: 60 }, (_, index) => `filler${index}`),
+      'missing'
+    ].map((text, index) => ({
+      text,
+      leadingSpace: true,
+      startMs: index * 200,
+      endMs: index * 200 + 180,
+      confidence: 0.9
+    }));
+    const segments = segmentsFromTextWithWords('local', 'Start missing Then continue.', candidates);
+    expect(segments[0].sourceText).toBe('Start missing Then continue.');
+    expect(segments[0].words.map(word => word.text)).toEqual(['Start', 'Then', 'continue.']);
+    expect(segments[0].endMs).toBe(580);
   });
 
   it('stores a complete speech-derived translation source when supplied', () => {

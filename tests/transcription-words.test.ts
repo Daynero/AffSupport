@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  alignWhisperWords,
   buildSegmentsFromWords,
   mergeChunkWords,
   parseWhisperFullJson,
@@ -101,6 +102,42 @@ describe('parseWhisperFullJson', () => {
 function w(text: string, startMs: number, endMs: number, leadingSpace = true): WhisperWord {
   return { text, startMs, endMs, leadingSpace, confidence: null };
 }
+
+describe('canonical window timing alignment', () => {
+  it('keeps the complete decode instead of letting a discarded common word steal a later match', () => {
+    const words = [
+      w('we', 0, 50),
+      w('stop', 50, 100),
+      w('now', 100, 200),
+      w('we', 200, 250),
+      w('will', 250, 300),
+      w('stop', 300, 400),
+      w('now.', 400, 500)
+    ];
+    expect(alignWhisperWords('we will stop now.', words)).toEqual([
+      words[0],
+      words[4],
+      words[5],
+      words[6]
+    ]);
+  });
+
+  it('retains repeated speech and handles empty or unmatched timing streams', () => {
+    const words = [w('yes', 0, 100), w('yes', 100, 200), w('indeed', 200, 300)];
+    expect(alignWhisperWords('yes yes indeed', words)).toEqual(words);
+    expect(alignWhisperWords('yes', [])).toEqual([]);
+    expect(alignWhisperWords('', words)).toEqual([]);
+    expect(alignWhisperWords('something else yes', words).map(word => word.text)).toEqual(['yes']);
+    expect(alignWhisperWords('nothing matches', words)).toEqual([]);
+  });
+
+  it('preserves original word timing units for apostrophes and no-space scripts', () => {
+    const english = [w("don't", 0, 100), w('stop.', 100, 200)];
+    expect(alignWhisperWords("Don't stop!", english)).toEqual(english);
+    const japanese = [w('今日', 0, 100), w('晴れ。', 100, 200, false)];
+    expect(alignWhisperWords('今日晴れ。', japanese)).toEqual(japanese);
+  });
+});
 
 describe('mergeChunkWords', () => {
   it('dedups words repeated across the ~50% chunk overlap and stays monotonic', () => {

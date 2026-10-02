@@ -1287,9 +1287,14 @@ export class TranscriptionQueue {
         // Already probed when the file was added; it turns the extract's own position into a
         // share, so the first seconds of a run report something instead of nothing.
         durationSeconds: job.durationSeconds ?? null,
+        onPhase: phase => {
+          if (job.status !== 'processing') return;
+          job.phase = phase;
+          this.notify();
+        },
         onProgress: value => {
           if (job.status !== 'processing') return;
-          job.progress = value;
+          job.progress = value === null ? null : Math.min(99, value);
           // Coalesced in `notify`; the completed frame follows as a state event.
           this.notify('transcription:progress');
         },
@@ -1326,7 +1331,10 @@ export class TranscriptionQueue {
         job.text = result.text;
         job.characters = result.text.length;
         job.preview = transcriptPreview(result.text);
-        job.timed = result.words.some(word => word.endMs > word.startMs);
+        job.timed =
+          result.words.some(word => word.endMs > word.startMs) &&
+          (!result.reliability ||
+            result.reliability.timedWords >= result.reliability.totalWords * 0.9);
         if (result.audibleSeconds !== null) job.audibleSeconds = result.audibleSeconds;
         // A person's correction is not overwritten by the run it drove.
         if (job.languageSource !== 'manual' && result.detectedLanguage) {
@@ -1334,31 +1342,35 @@ export class TranscriptionQueue {
           if (job.languageSource !== 'probe') job.languageSource = 'run';
         }
         job.finishedAt = Date.now();
+        job.phase = 'save';
+        this.notify();
         // The structured document (segments + word timestamps) is what the reader,
         // the export and the translation all read; the job is complete only once it
         // is on disk.
-        const saved = await this.withDocumentLock(job.id, () =>
-          this.documents.save(
+        const saved = await this.withDocumentLock(job.id, async () => {
+          const previous = await this.documents.load(job.id);
+          await this.documents.save(
             buildTranscriptionDocument(
               job,
               result.modelLabel,
               result.words,
               result.englishText,
-              result.englishWords
-            )
-          )
-        ).then(
+              result.englishWords,
+              result.reliability
+            ),
+            () => (job.status as string) === 'processing'
+          );
+          // Cancellation may arrive during the rename itself. Restore the
+          // previous valid result under the same lock before releasing it.
+          if (!transitionJob(job, 'completed')) {
+            if (previous) await this.documents.save(previous);
+            else await this.documents.remove(job.id);
+          }
+        }).then(
           () => null,
           async (error: unknown) => {
-            // On a re-run the stored document is the PREVIOUS transcript, and handing
-            // it to the reader beside the new job state would be worse than handing
-            // back nothing — so drop it rather than let the two disagree. And the job
-            // is a failure with a reason: a "completed" job with no document used to
-            // be silently dropped from the list at the next restart, which read as
-            // the file never having been transcribed at all.
-            await this.withDocumentLock(job.id, () => this.documents.remove(job.id)).catch(
-              () => {}
-            );
+            // Atomic save keeps the previous valid document on failure. The job
+            // is marked failed, so that old result cannot masquerade as this run.
             return error instanceof Error ? error.message : String(error);
           }
         );
@@ -1372,7 +1384,11 @@ export class TranscriptionQueue {
           }
           return;
         }
-        transitionJob(job, 'completed');
+        if ((job.status as string) !== 'completed') {
+          job.text = null;
+          job.progress = null;
+          return;
+        }
         job.progress = 100;
         // The sidecar is the transcript from here on; the copy in memory only served the
         // save, and kept for every finished file it was megabytes nothing read.
@@ -1409,6 +1425,7 @@ export class TranscriptionQueue {
         job.finishedAt = Date.now();
       }
     } finally {
+      delete job.phase;
       this.inFlight = false;
       this.notify();
       // Drain every queued Whisper job before allowing background translation.

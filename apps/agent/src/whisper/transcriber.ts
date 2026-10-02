@@ -3,7 +3,11 @@ import { activeGovernorOrNull, activeThreadBudget, scaled, spawnTracked } from '
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { TranscriptionQualityMode } from '@video-compressor/shared';
+import type {
+  TranscriptionQualityMode,
+  TranscriptionReliability,
+  TranscriptionJob
+} from '@video-compressor/shared';
 import { ffmpegPath, probeDuration } from '../ffmpeg/tools.js';
 import { currentPlatform } from '../platform/platform.js';
 import {
@@ -13,8 +17,22 @@ import {
   whisperVadModelPathOrNull
 } from './tools.js';
 import { ProgressSmoother } from './progress-smoother.js';
-import { measureSpeechExtent } from './silence-tail.js';
-import { mergeChunkWords, parseWhisperFullJson, type WhisperWord } from './words.js';
+import { lexicalUnitSpans } from '../translation/segmentation.js';
+import { isDigitalSilence, measureSpeechExtent } from './silence-tail.js';
+import { recoveryContextSeconds, stitchChunkResult, transcriptionChunks } from './chunks.js';
+import {
+  hasDecodeLoop,
+  missingSpeechMs,
+  speechIntervalFromLog,
+  transcriptIntervals,
+  type SpeechInterval
+} from './coverage.js';
+import {
+  canonicalChunkWords,
+  mergeChunkWords,
+  parseWhisperFullJson,
+  type WhisperWord
+} from './words.js';
 import {
   attachInactivityWatchdog,
   defaultWhisperThreads,
@@ -41,6 +59,7 @@ export interface TranscribeOptions {
    */
   createEnglishPivot?: boolean;
   onProgress: (value: number | null) => void;
+  onPhase?: (phase: NonNullable<TranscriptionJob['phase']>) => void;
   /**
    * Called the moment Whisper names the language, long before the transcript exists.
    *
@@ -74,6 +93,7 @@ export interface TranscribeResult {
   modelLabel: string;
   /** Seconds of the source that were listened to (its length minus a skipped silent tail). */
   audibleSeconds: number | null;
+  reliability?: TranscriptionReliability;
 }
 
 /**
@@ -111,11 +131,10 @@ const SOURCE_END = 97;
 const PIVOT_END = 99;
 
 /**
- * Extracts a normalized 16 kHz mono WAV, then transcribes it in a single
- * whisper.cpp long-form pass with Silero VAD enabled. VAD drops silence so the
- * decoder never hallucinates a subtitle credit on a trailing silent tail, and
- * whisper's own 30 s windowing keeps context across the whole recording — no
- * external chunking, so there are no chunk-boundary seams to repair. Returns a
+ * Extracts a normalized 16 kHz mono WAV, then transcribes it in
+ * bounded, overlapping whisper.cpp passes with Silero VAD enabled. Short
+ * windows prevent token-budget exhaustion from skipping speech; overlap keeps
+ * boundary words intact. Returns a
  * handle so the queue can cancel the active child at any point.
  */
 export function transcribe(options: TranscribeOptions): TranscribeHandle {
@@ -126,6 +145,9 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
   let cancelled = false;
   let paused = false;
   let releaseHold: (() => void) | null = null;
+  let reliability: TranscriptionReliability | undefined;
+  let rawAudioPath = '';
+  let decodingPhase: NonNullable<TranscriptionJob['phase']> = 'transcribe';
 
   /*
    * The governor is the only thing allowed to suspend a managed child, so a
@@ -145,6 +167,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
 
   const setPaused = (next: boolean): PauseOutcome => {
     paused = next;
+    smoother.setPaused(next);
     if (!next) {
       dropHold();
       return 'released';
@@ -209,12 +232,14 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
   const done = (async (): Promise<TranscribeResult> => {
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), TEMP_DIRECTORY_PREFIX));
     const rawWavPath = path.join(tmpDir, 'decoded.wav');
+    rawAudioPath = rawWavPath;
     const wavPath = path.join(tmpDir, 'audio.wav');
     // Awaited, with retries: Windows keeps the WAV busy for a moment after ffmpeg exits,
     // and a fire-and-forget removal left the scratch directory behind for the boot sweep.
     const cleanup = () =>
       rm(tmpDir, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 }).catch(() => {});
     try {
+      options.onPhase?.('extract');
       smoother.report(0);
       // Cancelled while the temp directory was being created: never start the
       // work at all.
@@ -253,7 +278,20 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
        * unless the quiet runs for half a minute at the very end of the file, so an ordinary
        * recording is handed over whole and this costs it only the scan.
        */
-      const extent = await measureSpeechExtent(rawWavPath);
+      let extent;
+      try {
+        extent = await measureSpeechExtent(rawWavPath);
+      } catch (error) {
+        return result(
+          1,
+          false,
+          '',
+          null,
+          `AUDIO_OUTPUT_INVALID: ${String(error)}`,
+          'extract',
+          null
+        );
+      }
       if (cancelled) return result(null, true, '', null, extract.stderr, null, null);
       /*
        * The second pass is the one whisper hears: rumble filter and dynamic loudness
@@ -290,17 +328,19 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           null
         );
       }
-      // The decode is not needed past this point, and for a long source it is the largest
-      // file in the directory.
-      await rm(rawWavPath, { force: true }).catch(() => {});
       // Recognition runs slower than real time on every machine this ships to; twice the
       // audio's length is a deliberately pessimistic first guess, replaced by the run's own
       // rate as soon as it reports one.
-      smoother.startPhase(EXTRACT_SHARE, SOURCE_END, extent.audibleSeconds * 2);
 
-      // Source transcription: one long-form pass over everything that has sound in it.
+      // Both source and pivot must cover the same bounded audio windows.
       const sourceBase = path.join(tmpDir, 'transcript');
-      const source = await runWhisper(
+      options.onPhase?.('transcribe');
+      const hasPivot =
+        options.createEnglishPivot === true &&
+        (language === 'auto' || shouldCreateEnglishPivot(language, true));
+      const sourceEnd = hasPivot ? 55 : SOURCE_END;
+      smoother.startPhase(EXTRACT_SHARE, sourceEnd, extent.audibleSeconds * 2);
+      const source = await runPass(
         {
           wavPath,
           outputBase: sourceBase,
@@ -311,12 +351,13 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         adopt,
         value => {
           if (value !== null) {
-            smoother.report(EXTRACT_SHARE + (value * (SOURCE_END - EXTRACT_SHARE)) / 100);
+            smoother.report(EXTRACT_SHARE + (value * (sourceEnd - EXTRACT_SHARE)) / 100);
           }
         },
         () => paused,
         options.onLanguage
       );
+      reliability = source.reliability;
       if (cancelled)
         return result(null, true, '', source.detectedLanguage, source.stderr, null, null);
       if (source.spawnErrorCode) {
@@ -326,7 +367,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           '',
           source.detectedLanguage,
           source.stderr,
-          'transcribe',
+          source.failedStage,
           source.spawnErrorCode
         );
       }
@@ -337,14 +378,14 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           '',
           source.detectedLanguage,
           source.stderr,
-          'transcribe',
+          source.failedStage,
           null
         );
       }
 
       const detectedLanguage = requestedOrDetectedLanguage(language, source.detectedLanguage);
-      const text = await readTranscript(`${sourceBase}.txt`);
-      const words = mergeChunkWords([await readWords(sourceBase, 0)]);
+      const text = source.text;
+      const words = source.words;
       let diagnostics = source.stderr;
 
       // Optional speech→English pivot for language families whose direct text
@@ -353,9 +394,11 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       let englishText = '';
       let englishWords: WhisperWord[] = [];
       if (shouldCreateEnglishPivot(detectedLanguage, options.createEnglishPivot === true)) {
-        smoother.startPhase(SOURCE_END, PIVOT_END, extent.audibleSeconds * 2);
+        decodingPhase = 'pivot';
+        options.onPhase?.('pivot');
+        smoother.startPhase(sourceEnd, PIVOT_END, extent.audibleSeconds * 2);
         const englishBase = path.join(tmpDir, 'english');
-        const pivot = await runWhisper(
+        const pivot = await runPass(
           {
             wavPath,
             outputBase: englishBase,
@@ -369,7 +412,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
           adopt,
           value => {
             if (value !== null) {
-              smoother.report(SOURCE_END + (value * (PIVOT_END - SOURCE_END)) / 100);
+              smoother.report(sourceEnd + (value * (PIVOT_END - sourceEnd)) / 100);
             }
           },
           () => paused
@@ -377,8 +420,14 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         diagnostics = appendDiagnostics(diagnostics, pivot.stderr);
         if (cancelled) return result(null, true, '', detectedLanguage, diagnostics, null, null);
         if (pivot.code === 0 && !pivot.spawnErrorCode) {
-          englishText = await readTranscript(`${englishBase}.txt`);
-          englishWords = mergeChunkWords([await readWords(englishBase, 0)]);
+          englishText = pivot.text;
+          englishWords = pivot.words;
+        } else {
+          reliability?.warnings.push({
+            code: 'PIVOT_UNAVAILABLE',
+            startMs: 0,
+            endMs: extent.audibleSeconds * 1000
+          });
         }
       }
 
@@ -405,6 +454,381 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
 
   return { cancel: kill, setPaused, done };
 
+  async function runPass(
+    params: Parameters<typeof runWhisper>[0] & { audibleSeconds: number },
+    onChild: Parameters<typeof runWhisper>[1],
+    report: Parameters<typeof runWhisper>[2],
+    isPaused: () => boolean,
+    onLanguage?: (language: string) => void
+  ) {
+    const chunks = transcriptionChunks(params.audibleSeconds);
+    // Preserve the existing single-pass behavior for empty/short sources.
+    if (!chunks.length) chunks.push({ startSeconds: 0, durationSeconds: 0 });
+    let text = '';
+    const canonicalWords: WhisperWord[] = [];
+    const passReliability: TranscriptionReliability = {
+      windows: chunks.length,
+      retries: 0,
+      recoveredWindows: 0,
+      warnings: [],
+      timedWords: 0,
+      totalWords: 0,
+      ranges: []
+    };
+    let diagnostics = '';
+    let detectedLanguage: string | null = params.language === 'auto' ? null : params.language;
+    for (const [index, chunk] of chunks.entries()) {
+      if (cancelled) break;
+      const silent = await isDigitalSilence(
+        rawAudioPath,
+        chunk.startSeconds,
+        chunk.durationSeconds
+      );
+      if (silent) {
+        report(((index + 1) / chunks.length) * 100);
+        continue;
+      }
+      const outputBase = `${params.outputBase}-${index}`;
+      const chunkPath = chunks.length === 1 ? params.wavPath : `${outputBase}.wav`;
+      if (chunks.length > 1) {
+        const extracted = await runFfmpeg(
+          [
+            '-hide_banner',
+            '-nostdin',
+            '-i',
+            params.wavPath,
+            '-ss',
+            String(chunk.startSeconds),
+            '-t',
+            String(chunk.durationSeconds),
+            '-c:a',
+            'pcm_s16le',
+            '-y',
+            chunkPath
+          ],
+          onChild,
+          { durationSeconds: null, onProgress: () => {}, isPaused }
+        );
+        if (extracted.code !== 0 || extracted.spawnErrorCode || cancelled) {
+          return {
+            ...extracted,
+            detectedLanguage,
+            text,
+            words: [],
+            reliability: passReliability,
+            failedStage: 'extract' as const
+          };
+        }
+      }
+      const decoded = await runWhisper(
+        {
+          ...params,
+          wavPath: chunkPath,
+          outputBase,
+          language: detectedLanguage ?? params.language,
+          audibleSeconds: chunk.durationSeconds
+        },
+        onChild,
+        value => report(value === null ? null : ((index + value / 100) / chunks.length) * 100),
+        isPaused,
+        onLanguage
+      );
+      diagnostics = appendDiagnostics(diagnostics, decoded.stderr);
+      detectedLanguage = decoded.detectedLanguage ?? detectedLanguage;
+      if (decoded.code !== 0 || decoded.spawnErrorCode || cancelled) {
+        return {
+          ...decoded,
+          stderr: diagnostics,
+          text,
+          words: [],
+          reliability: passReliability,
+          failedStage: 'transcribe' as const
+        };
+      }
+      let chunkText: string;
+      try {
+        chunkText = await readTranscript(`${outputBase}.txt`);
+      } catch (error) {
+        // A successful process without its output is not a successful chunk.
+        return {
+          code: 1,
+          spawnErrorCode: null,
+          stderr: appendDiagnostics(diagnostics, `WHISPER_OUTPUT_MISSING: ${String(error)}`),
+          detectedLanguage,
+          text,
+          words: [],
+          reliability: passReliability,
+          failedStage: 'transcribe' as const
+        };
+      }
+      const json = await readFile(`${outputBase}.json`, 'utf8').catch(() => '');
+      let chunkWords = canonicalChunkWords(
+        chunkText,
+        parseWhisperFullJson(json, chunk.startSeconds * 1000).filter(
+          word => word.endMs <= (chunk.startSeconds + chunk.durationSeconds) * 1000 + 100
+        )
+      );
+      let recognizedStart = chunk.startSeconds;
+      let recognizedDuration = chunk.durationSeconds;
+      const mergeText = (incoming: string, incomingWords: WhisperWord[]) =>
+        stitchChunkResult(text, incoming, {
+          left: canonicalWords,
+          right: incomingWords,
+          overlapStartMs: chunk.startSeconds * 1000,
+          overlapEndMs:
+            index > 0
+              ? (chunks[index - 1].startSeconds + chunks[index - 1].durationSeconds) * 1000
+              : 0
+        });
+      let merge = mergeText(chunkText, chunkWords);
+      const speech = decoded.speech;
+      const speechExpected =
+        decoded.speechDetected === true ||
+        speech.some(interval => interval.endMs - interval.startMs > 300);
+      let coverageIntervals = transcriptIntervals(json, chunk.durationSeconds * 1000);
+      let missing =
+        silent || (chunkText && !coverageIntervals.length)
+          ? 0
+          : missingSpeechMs(speech, coverageIntervals);
+      // Retry only when speech evidence contradicts the decode or both
+      // decodes have words inside a seam whose text cannot be reconciled.
+      const uncertainSeam =
+        merge.ambiguous &&
+        chunkWords.some(word => word.startMs < (chunk.startSeconds + 2) * 1000) &&
+        canonicalWords.slice(-64).some(word => word.endMs > chunk.startSeconds * 1000);
+      const needsCoverageRecovery = !silent && speechExpected && (!chunkText || missing > 1500);
+      let decodeLoop = hasDecodeLoop(chunkText, json);
+      // Normalized background can fool VAD after a long gap. Preserve a real
+      // delayed outro, but never label such an isolated tail as verified.
+      const previousEnd = canonicalWords.at(-1)?.endMs;
+      const isolatedTail = Boolean(
+        chunkText &&
+        previousEnd !== undefined &&
+        chunk.startSeconds * 1000 - previousEnd > 20_000 &&
+        chunk.startSeconds + chunk.durationSeconds >= params.audibleSeconds
+      );
+      if (needsCoverageRecovery || uncertainSeam || decodeLoop) {
+        options.onPhase?.('recover');
+        const recoveredBefore = passReliability.recoveredWindows;
+        for (let attempt = 1; attempt <= 2 && !cancelled; attempt++) {
+          passReliability.retries++;
+          const contextual = uncertainSeam || decodeLoop;
+          const contextSeconds = contextual ? recoveryContextSeconds(detectedLanguage) : 1;
+          const retryStart = Math.max(0, chunk.startSeconds - contextSeconds);
+          const retryDuration =
+            Math.min(
+              params.audibleSeconds,
+              chunk.startSeconds + chunk.durationSeconds + contextSeconds
+            ) - retryStart;
+          const retryPath = `${outputBase}-retry.wav`;
+          const retryBase = `${params.outputBase}-retry${attempt}-${index}`;
+          const extracted = await runFfmpeg(
+            [
+              '-hide_banner',
+              '-nostdin',
+              '-i',
+              params.wavPath,
+              '-ss',
+              String(retryStart),
+              '-t',
+              String(retryDuration),
+              '-c:a',
+              'pcm_s16le',
+              '-y',
+              retryPath
+            ],
+            onChild,
+            { durationSeconds: null, onProgress: () => {}, isPaused }
+          );
+          if (extracted.code !== 0 || extracted.spawnErrorCode || cancelled) {
+            diagnostics = appendDiagnostics(diagnostics, extracted.stderr);
+            break;
+          }
+          const retry = await runWhisper(
+            {
+              ...params,
+              wavPath: retryPath,
+              outputBase: retryBase,
+              language: detectedLanguage ?? params.language,
+              audibleSeconds: retryDuration,
+              disableVad: (!contextual || contextSeconds === 1) && attempt === 1,
+              vadThreshold: attempt === 2 ? 0.1 : undefined
+            },
+            onChild,
+            () => {},
+            isPaused,
+            onLanguage
+          );
+          await rm(retryPath, { force: true }).catch(() => {});
+          diagnostics = appendDiagnostics(diagnostics, retry.stderr);
+          if (retry.code !== 0 || retry.spawnErrorCode || cancelled) break;
+          let retryText: string;
+          try {
+            retryText = await readTranscript(`${retryBase}.txt`);
+          } catch (error) {
+            diagnostics = appendDiagnostics(
+              diagnostics,
+              `WHISPER_OUTPUT_MISSING retry=${attempt}: ${String(error)}`
+            );
+            break;
+          }
+          const retryJson = await readFile(`${retryBase}.json`, 'utf8').catch(() => '');
+          await Promise.all([
+            rm(`${retryBase}.txt`, { force: true }),
+            rm(`${retryBase}.json`, { force: true })
+          ]).catch(() => {});
+          const shiftMs = (chunk.startSeconds - retryStart) * 1000;
+          const retryIntervals = transcriptIntervals(retryJson, retryDuration * 1000);
+          const retryMissing = missingSpeechMs(
+            speech.map(interval => ({
+              startMs: interval.startMs + shiftMs,
+              endMs: interval.endMs + shiftMs
+            })),
+            retryIntervals
+          );
+          let retryWords = canonicalChunkWords(
+            retryText,
+            parseWhisperFullJson(retryJson, retryStart * 1000).filter(
+              word => word.endMs <= (retryStart + retryDuration) * 1000 + 100
+            )
+          );
+          // Context may fix the decode, but must not emit future chunks now.
+          // Clip by canonical TXT provenance, never regenerate text from words.
+          if (contextual) {
+            const firstWord = retryWords.find(word => word.endMs > chunk.startSeconds * 1000 - 250);
+            const startOffset = firstWord?.canonicalStart ?? 0;
+            const endWord = retryWords.find(
+              word => word.startMs >= (chunk.startSeconds + chunk.durationSeconds) * 1000
+            );
+            const endOffset = endWord?.canonicalStart ?? retryText.length;
+            retryText = retryText.slice(startOffset, endOffset).trimEnd();
+            retryWords = retryWords
+              .filter(
+                word =>
+                  (word.canonicalStart ?? -1) >= startOffset &&
+                  (word.canonicalEnd ?? Infinity) <= startOffset + retryText.length
+              )
+              .map(word => ({
+                ...word,
+                canonicalStart: word.canonicalStart! - startOffset,
+                canonicalEnd: word.canonicalEnd! - startOffset
+              }));
+          }
+          const retryLoop = hasDecodeLoop(retryText, retryJson);
+          const retryMerge = mergeText(retryText, retryWords);
+          if (
+            retryText &&
+            !retryLoop &&
+            ((needsCoverageRecovery &&
+              (retryMissing < missing || (!chunkText && retryIntervals.length > 0)) &&
+              retryMissing <= 1500) ||
+              (uncertainSeam && !retryMerge.ambiguous && retryMissing <= missing) ||
+              (decodeLoop && retryMissing <= 1500))
+          ) {
+            chunkText = retryText;
+            coverageIntervals = retryIntervals;
+            missing = retryMissing;
+            merge = retryMerge;
+            chunkWords = retryWords;
+            recognizedStart = retryStart;
+            recognizedDuration = retryDuration;
+            decodeLoop = false;
+            passReliability.recoveredWindows++;
+            break;
+          }
+        }
+        options.onPhase?.(decodingPhase);
+        diagnostics = appendDiagnostics(
+          diagnostics,
+          `TRANSCRIPTION_RECOVERY window=${index} recovered=${passReliability.recoveredWindows > recoveredBefore}`
+        );
+      }
+      if (!silent && speechExpected && (!chunkText || missing > 1500)) {
+        return {
+          code: 1,
+          spawnErrorCode: null,
+          stderr: appendDiagnostics(
+            diagnostics,
+            `SPEECH_NOT_TRANSCRIBED window=${index} start=${chunk.startSeconds} missingMs=${Math.round(missing)}`
+          ),
+          detectedLanguage,
+          text,
+          words: [],
+          reliability: passReliability,
+          failedStage: 'transcribe' as const
+        };
+      }
+      const range = {
+        startMs: chunk.startSeconds * 1000,
+        endMs: (chunk.startSeconds + chunk.durationSeconds) * 1000
+      };
+      if (merge.ambiguous && uncertainSeam)
+        passReliability.warnings.push({ code: 'SEAM_UNCERTAIN', ...range });
+      if (decodeLoop || isolatedTail)
+        passReliability.warnings.push({ code: 'DECODE_UNCERTAIN', ...range });
+      if (
+        !silent &&
+        (decoded.speechDetected === null ||
+          (speechExpected && !speech.length) ||
+          (chunkText && !coverageIntervals.length))
+      )
+        passReliability.warnings.push({ code: 'COVERAGE_UNVERIFIED', ...range });
+      if (chunkText && !chunkWords.length)
+        passReliability.warnings.push({ code: 'TIMINGS_PARTIAL', ...range });
+      // The decode which supplies the canonical text also owns its timestamps.
+      // Remove only timings for text replaced by the incoming suffix.
+      while (canonicalWords.length && (canonicalWords.at(-1)?.canonicalEnd ?? 0) > merge.leftEnd)
+        canonicalWords.pop();
+      for (const word of chunkWords) {
+        if ((word.canonicalStart ?? 0) < merge.rightStart) continue;
+        canonicalWords.push({
+          ...word,
+          canonicalStart: (word.canonicalStart ?? 0) + merge.rightOffset,
+          canonicalEnd: (word.canonicalEnd ?? 0) + merge.rightOffset
+        });
+      }
+      text = merge.text;
+      const ranges = passReliability.ranges!;
+      while (ranges.length && ranges[ranges.length - 1].canonicalEnd > merge.leftEnd) {
+        const previous = ranges[ranges.length - 1];
+        if (previous.canonicalStart < merge.leftEnd) {
+          previous.canonicalEnd = merge.leftEnd;
+          break;
+        }
+        ranges.pop();
+      }
+      if (chunkText)
+        ranges.push({
+          canonicalStart: merge.rightStart + merge.rightOffset,
+          canonicalEnd: text.length,
+          startMs: recognizedStart * 1000,
+          endMs: (recognizedStart + recognizedDuration) * 1000
+        });
+      // Large full-JSON outputs are no longer needed once parsed.
+      await Promise.all([
+        rm(`${outputBase}.txt`, { force: true }),
+        rm(`${outputBase}.json`, { force: true }),
+        ...(chunks.length > 1
+          ? [rm(chunkPath, { force: true, maxRetries: 4, retryDelay: 100 })]
+          : [])
+      ]).catch(() => {});
+      report(((index + 1) / chunks.length) * 100);
+    }
+    const timedWords = mergeChunkWords([canonicalWords]).filter(word => word.endMs > word.startMs);
+    passReliability.timedWords = timedWords.length;
+    passReliability.totalWords = lexicalUnitSpans(text).length;
+    return {
+      code: 0,
+      spawnErrorCode: null,
+      stderr: diagnostics,
+      detectedLanguage,
+      text,
+      words: timedWords,
+      reliability: passReliability,
+      failedStage: null
+    };
+  }
+
   function result(
     code: number | null,
     wasCancelled: boolean,
@@ -430,7 +854,8 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       englishText,
       englishWords,
       modelLabel,
-      audibleSeconds
+      audibleSeconds,
+      reliability
     };
   }
 }
@@ -595,6 +1020,8 @@ function runWhisper(
     quality?: TranscriptionQualityMode;
     translateToEnglish?: boolean;
     audibleSeconds?: number | null;
+    disableVad?: boolean;
+    vadThreshold?: number;
   },
   onChild: (child: ChildProcessWithoutNullStreams) => void,
   onProgress: (value: number | null) => void,
@@ -607,6 +1034,8 @@ function runWhisper(
   stderr: string;
   detectedLanguage: string | null;
   spawnErrorCode: string | null;
+  speech: SpeechInterval[];
+  speechDetected: boolean | null;
 }> {
   const args = buildWhisperArgs(params);
   return new Promise(resolve => {
@@ -619,27 +1048,43 @@ function runWhisper(
     let detectedLanguage: string | null =
       params.language && params.language !== 'auto' ? params.language : null;
     let spawnErrorCode: string | null = null;
-    const consume = (chunk: Buffer) => {
-      watchdog.reset();
-      const value = chunk.toString();
-      stderr = (stderr + value).slice(-12_000);
-      const progress = /progress\s*=\s*(\d+)\s*%/.exec(value);
+    const speech: SpeechInterval[] = [];
+    let speechDetected: boolean | null = null;
+    const pending = { stdout: '', stderr: '' };
+    const consumeLine = (line: string) => {
+      const interval = speechIntervalFromLog(line);
+      if (interval) speech.push(interval);
+      const vadCount = /detected (\d+) speech segments/u.exec(line);
+      if (vadCount) speechDetected = Number(vadCount[1]) > 0;
+      const progress = /progress\s*=\s*(\d+)\s*%/u.exec(line);
       if (progress) onProgress(Math.min(99, Number(progress[1])));
-      const detected = /auto-detected language:\s*([a-z]{2,3})/i.exec(value);
+      const detected = /auto-detected language:\s*([a-z]{2,3})/iu.exec(line);
       if (detected) {
         detectedLanguage = detected[1].toLowerCase();
         onLanguage?.(detectedLanguage);
       }
     };
+    const consume = (chunk: Buffer, stream: 'stdout' | 'stderr') => {
+      watchdog.reset();
+      const value = chunk.toString();
+      const lines = (pending[stream] + value).split(/\r?\n/u);
+      pending[stream] = (lines.pop() ?? '').slice(-2000);
+      for (const line of lines) consumeLine(line);
+      stderr = (stderr + value).slice(-12_000);
+    };
     // whisper.cpp prints progress and the detected language on stderr, the
     // transcript on stdout — watch both.
-    child.stderr.on('data', consume);
-    child.stdout.on('data', consume);
+    child.stderr.on('data', chunk => consume(chunk, 'stderr'));
+    child.stdout.on('data', chunk => consume(chunk, 'stdout'));
     child.once('error', error => {
       spawnErrorCode =
         'code' in error && typeof error.code === 'string' ? error.code : 'SPAWN_FAILED';
     });
-    child.once('close', code => resolve({ code, stderr, detectedLanguage, spawnErrorCode }));
+    child.once('close', code => {
+      consumeLine(pending.stderr);
+      consumeLine(pending.stdout);
+      resolve({ code, stderr, detectedLanguage, spawnErrorCode, speech, speechDetected });
+    });
   });
 }
 
@@ -653,6 +1098,8 @@ export function buildWhisperArgs(
     translateToEnglish?: boolean;
     /** Stop here instead of at the end of the file; see `silence-tail.ts`. */
     audibleSeconds?: number | null;
+    disableVad?: boolean;
+    vadThreshold?: number;
   },
   options: { threads?: number; vadModelPath?: string | null; platform?: NodeJS.Platform } = {}
 ): string[] {
@@ -713,8 +1160,18 @@ export function buildWhisperArgs(
     // low threshold + generous padding + a longer required silence gap keep VAD
     // from clipping quiet/soft speech while still trimming genuine silence.
     // Context is left intact so long-form segmentation stays coherent.
-    ...(vadModelPath
-      ? ['--vad', '-vm', vadModelPath, '-vt', '0.30', '-vp', '250', '-vsd', '400']
+    ...(vadModelPath && !params.disableVad
+      ? [
+          '--vad',
+          '-vm',
+          vadModelPath,
+          '-vt',
+          String(params.vadThreshold ?? '0.30'),
+          '-vp',
+          '250',
+          '-vsd',
+          '400'
+        ]
       : [])
   ];
   return args;
@@ -738,17 +1195,13 @@ export function shouldCreateEnglishPivot(language: string | null, requested: boo
  * artifacts, then drops trailing subtitle-credit hallucinations.
  */
 async function readTranscript(temporaryOutputPath: string): Promise<string> {
-  try {
-    const raw = await readFile(temporaryOutputPath, 'utf8');
-    const lines = raw
-      .split(/\r?\n/)
-      .map(line => stripNonSpeechArtifacts(line).trim())
-      .filter(Boolean);
-    const collapsed = collapseTranscriptArtifacts(lines).map(stripCreditSuffix).filter(Boolean);
-    return dropTrailingCredits(collapsed).join('\n').trim();
-  } catch {
-    return '';
-  }
+  const raw = await readFile(temporaryOutputPath, 'utf8');
+  const lines = raw
+    .split(/\r?\n/)
+    .map(line => stripNonSpeechArtifacts(line).trim())
+    .filter(Boolean);
+  const collapsed = collapseTranscriptArtifacts(lines).map(stripCreditSuffix).filter(Boolean);
+  return dropTrailingCredits(collapsed).join('\n').trim();
 }
 
 /**
@@ -756,14 +1209,6 @@ async function readTranscript(temporaryOutputPath: string): Promise<string> {
  * shifts them by `offsetMs`. A missing/unreadable JSON simply yields no words,
  * so the text transcript keeps working on older whisper builds.
  */
-async function readWords(outputBase: string, offsetMs: number): Promise<WhisperWord[]> {
-  try {
-    return parseWhisperFullJson(await readFile(`${outputBase}.json`, 'utf8'), offsetMs);
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Strips decoder hallucination markers that large-v3 emits on near-silent or
  * clipped windows: bracketed annotations (`[BLANK_AUDIO]`, `[Music]`),
@@ -775,8 +1220,8 @@ async function readWords(outputBase: string, offsetMs: number): Promise<WhisperW
  */
 export function stripNonSpeechArtifacts(text: string): string {
   return text
-    .replace(/\[[^\]\n]*\]/gu, ' ')
-    .replace(/\([^()\n]*\)/gu, ' ')
+    .replace(/\[(?:BLANK_AUDIO|NO_SPEECH|SILENCE|MUSIC|APPLAUSE|LAUGHTER)\]/giu, ' ')
+    .replace(/\((?:music|silence|applause|laughter)\)/giu, ' ')
     .replace(/[♪♫♬]+/gu, ' ')
     .replace(/(?<=^|[\s"'«„“([—–-])(?:\.{2,}|…+)(?=[\s"'»”)\]—–-]|$)/gu, ' ')
     .replace(/(?:\.{3,}|…+)\s*$/u, '')
@@ -824,9 +1269,8 @@ export function isCreditHallucination(line: string): boolean {
  * recognized credit, so real sentences are left untouched.
  */
 export function stripCreditSuffix(line: string): string {
-  const match = /^(.*[.!?…۔؟।॥。！？])\s*([^.!?…۔؟।॥。！？]+)$/u.exec(line);
-  if (!match) return line;
-  return isCreditHallucination(match[2]) ? match[1].trim() : line;
+  // A text pattern alone cannot distinguish a spoken outro from hallucination.
+  return line;
 }
 
 /**
@@ -835,9 +1279,7 @@ export function stripCreditSuffix(line: string): string {
  * assumed to be real speech and kept.
  */
 export function dropTrailingCredits(lines: string[]): string[] {
-  let end = lines.length;
-  while (end > 0 && isCreditHallucination(lines[end - 1])) end -= 1;
-  return end === lines.length ? lines : lines.slice(0, end);
+  return lines;
 }
 
 function requestedOrDetectedLanguage(requested: string, detected: string | null): string | null {
@@ -849,13 +1291,9 @@ function appendDiagnostics(left: string, right: string): string {
 }
 
 /**
- * Removes two decoder artifacts without rewriting normal speech:
- * - residual hallucination loops with the same set of words;
- * - a line cut in the middle of its final word immediately before Whisper
- *   emits the corrected, longer segment (for example `resul` / `result ...`).
- *
- * Requiring a strict continuation of the final word avoids collapsing real
- * sentences that merely begin with the same complete phrase.
+ * Remove artifact-only lines, never speech-like fragments. A speaker can
+ * restart even a clipped sentence; TXT alone cannot prove a decoder loop.
+ * Cross-window repairs instead require overlap evidence in chunks.ts.
  */
 export function collapseTranscriptArtifacts(lines: string[]): string[] {
   const out: string[] = [];
@@ -863,51 +1301,7 @@ export function collapseTranscriptArtifacts(lines: string[]): string[] {
     // A line with no letter or digit (bare ellipses, dashes, note symbols) is
     // always a decoder artifact, never speech.
     if (!/[\p{L}\p{N}]/u.test(line)) continue;
-    const previous = out.at(-1);
-    if (!previous) {
-      out.push(line);
-      continue;
-    }
-
-    const key = wordSetKey(line);
-    if (key && key === wordSetKey(previous)) continue;
-    if (isTruncatedPrefix(previous, line)) {
-      out[out.length - 1] = line;
-      continue;
-    }
-    if (isTruncatedPrefix(line, previous)) continue;
     out.push(line);
   }
   return out;
-}
-
-function wordSetKey(line: string): string {
-  return Array.from(new Set(words(line)))
-    .sort()
-    .join(' ');
-}
-
-function isTruncatedPrefix(shorter: string, longer: string): boolean {
-  if (/[.!?…।॥؟。！？]$/u.test(shorter.trim())) return false;
-  const shortWords = words(shorter);
-  const longWords = words(longer);
-  if (shortWords.length < 3 || longWords.length <= shortWords.length) return false;
-
-  const last = shortWords.length - 1;
-  for (let index = 0; index < last; index += 1) {
-    if (shortWords[index] !== longWords[index]) return false;
-  }
-
-  return (
-    longWords[last].length > shortWords[last].length && longWords[last].startsWith(shortWords[last])
-  );
-}
-
-function words(line: string): string[] {
-  return (
-    line
-      .normalize('NFKC')
-      .toLocaleLowerCase()
-      .match(/[\p{L}\p{M}\p{N}]+/gu) ?? []
-  );
 }

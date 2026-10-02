@@ -33,7 +33,12 @@ export function baseFileName(fileName: string): string {
  * zero, and a subtitle file whose every cue starts at 00:00:00 is worse than no file.
  */
 export function hasTimings(segments: readonly TranscriptSegment[]): boolean {
-  return segments.some(segment => segment.endMs > segment.startMs);
+  return (
+    segments.some(segment => segment.endMs > segment.startMs) &&
+    segments.every(
+      segment => segment.timingSource !== 'window' && (segment.startMs > 0 || segment.endMs > 0)
+    )
+  );
 }
 
 function pad(value: number, width: number): string {
@@ -92,6 +97,7 @@ function lines(
  * numbering is renumbered after the skip so it stays gap-free.
  */
 export function buildTranscriptExport(input: TranscriptExportInput): TranscriptExportFile {
+  if (input.format !== 'txt' && !hasTimings(input.segments)) throw new Error('TIMINGS_REQUIRED');
   const translatedById = new Map(
     (input.translation?.status === 'completed' ? input.translation.segments : []).map(
       segment => [segment.sourceSegmentId, segment.translatedText] as const

@@ -23,6 +23,24 @@ function smootherAt(clock: { ms: number }, decimals = 0) {
 }
 
 describe('a progress figure between reports', () => {
+  it('does not creep or include paused time after resuming', () => {
+    const clock = { ms: 0 };
+    const { smoother, seen } = smootherAt(clock, 1);
+    smoother.report(0);
+    clock.ms = 10_000;
+    smoother.report(20);
+    smoother.setPaused(true);
+    clock.ms = 100_000;
+    smoother.tick();
+    expect(seen.at(-1)).toBe(20);
+    smoother.setPaused(false);
+    smoother.tick();
+    expect(seen.at(-1)).toBe(20);
+    clock.ms += 1000;
+    smoother.tick();
+    expect(seen.at(-1)).toBeGreaterThan(20);
+    expect(seen.at(-1)).toBeLessThan(22);
+  });
   it('creeps towards the next report instead of sitting still', () => {
     const clock = { ms: 0 };
     // A decimal place, so the rule is read rather than the rounding.

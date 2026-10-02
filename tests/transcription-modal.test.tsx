@@ -248,6 +248,45 @@ describe('bilingual transcript modal integration', () => {
     });
   });
 
+  it('shows uncertainty, partial timing and pivot fallback without hiding source text', async () => {
+    api.transcriptionDocument.mockResolvedValue({
+      ...documentFixture,
+      reliability: {
+        windows: 1,
+        retries: 2,
+        recoveredWindows: 0,
+        timedWords: 1,
+        totalWords: 5,
+        warnings: [
+          { code: 'SEAM_UNCERTAIN', startMs: 0, endMs: 2000 },
+          { code: 'DECODE_UNCERTAIN', startMs: 0, endMs: 2000 },
+          { code: 'PIVOT_UNAVAILABLE', startMs: 0, endMs: 2000 }
+        ]
+      }
+    });
+    api.transcriptionTranslate.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
+    api.transcriptionTranslation.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
+    const view = render(
+      <TranscriptTextModal
+        job={job}
+        language="uk"
+        returnFocus={null}
+        translatorModel={installedModel}
+        onInstallTranslator={vi.fn()}
+        onCancelTranslator={vi.fn()}
+        onClose={vi.fn()}
+        t={t}
+      />
+    );
+    expect(await screen.findByText('transcriptionReviewNeeded')).not.toBeNull();
+    expect(screen.getByText('transcriptionTimingsPartial')).not.toBeNull();
+    expect(screen.getByText('transcriptionPivotUnavailable')).not.toBeNull();
+    expect(screen.getByRole('dialog').querySelector('[data-side="source"]')?.textContent).toContain(
+      'Hello world.'
+    );
+    view.unmount();
+  });
+
   it('is read by keyboard before playback: one stop per column, arrows between segments, Enter opens the player there', async () => {
     api.transcriptionTranslation.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
     api.transcriptionTranslate.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));

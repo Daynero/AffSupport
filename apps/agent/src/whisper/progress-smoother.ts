@@ -47,6 +47,7 @@ export class ProgressSmoother {
   /** What was last handed to `emit`; the figure never decreases below it. */
   #shown = 0;
   #started: number;
+  #paused = false;
 
   constructor(options: ProgressSmootherOptions) {
     this.#emit = options.emit;
@@ -96,6 +97,7 @@ export class ProgressSmoother {
 
   /** Called on a timer between reports; advances the estimate if there is reason to. */
   tick(): void {
+    if (this.#paused) return;
     if (this.#ratePerSecond < MIN_RATE_PER_SECOND) return;
     const elapsed = (this.#now() - this.#anchorAt) / 1_000;
     if (elapsed <= 0) return;
@@ -106,6 +108,13 @@ export class ProgressSmoother {
     // Two ceilings, and the lower wins: short of the next expected report, and inside the
     // phase this belongs to. Neither may be crossed by an estimate.
     this.#publish(Math.min(towardsNext, this.#ceiling, 99));
+  }
+
+  setPaused(paused: boolean): void {
+    if (this.#paused === paused) return;
+    this.#paused = paused;
+    // Time spent deliberately paused is not time spent decoding.
+    this.#anchorAt = this.#now();
   }
 
   /** The end of the run: the figure is whatever the caller says it is. */

@@ -1499,6 +1499,7 @@ export interface TranscriptionJob {
   status: TranscriptionJobStatus;
   /** 0–100 while transcribing, null when indeterminate. */
   progress: number | null;
+  phase?: 'extract' | 'transcribe' | 'recover' | 'pivot' | 'save';
   /** Language requested when the job started (`auto` or an ISO code). */
   requestedLanguage: string;
   /** Language Whisper actually used, once known. */
@@ -1736,6 +1737,8 @@ export interface TranscriptSegment {
   /** The segment text; word `sourceStart`/`sourceEnd` index into this. */
   sourceText: string;
   words: TranscriptWord[];
+  /** A window interval supports navigation but is not a measured subtitle cue. */
+  timingSource?: 'words' | 'window';
 }
 
 /** A source↔target character-span link inside one translated segment. */
@@ -1819,6 +1822,27 @@ export interface TranscriptionDocument {
   translationSource?: TranscriptionTranslationSource;
   /** Keyed by target-language code. */
   translations: Record<string, TranslationDocument>;
+  /** Local diagnostics; uncertainty is separate from text and timing availability. */
+  reliability?: TranscriptionReliability;
+}
+
+export interface TranscriptionReliability {
+  windows: number;
+  retries: number;
+  recoveredWindows: number;
+  warnings: Array<{
+    code:
+      | 'SEAM_UNCERTAIN'
+      | 'DECODE_UNCERTAIN'
+      | 'COVERAGE_UNVERIFIED'
+      | 'TIMINGS_PARTIAL'
+      | 'PIVOT_UNAVAILABLE';
+    startMs: number;
+    endMs: number;
+  }>;
+  timedWords: number;
+  totalWords: number;
+  ranges?: Array<{ canonicalStart: number; canonicalEnd: number; startMs: number; endMs: number }>;
 }
 
 export type TranscriptionMediaPreviewState = 'checking' | 'preparing' | 'ready' | 'failed';

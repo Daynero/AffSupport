@@ -79,17 +79,14 @@ describe('Whisper long-form transcription', () => {
     expect(shouldCreateEnglishPivot(null, true)).toBe(false);
   });
 
-  it('drops the trailing Arabic translator-credit hallucination', () => {
+  it('preserves a credit-shaped line without audio evidence', () => {
     const lines = [
       'الحجم الصغير وعدم استقرار الانتصاب ليس حكما نهائيا',
       'لا تفوتوا فرصتكم',
       'ترجمة نانسي قنقر'
     ];
 
-    expect(dropTrailingCredits(lines)).toEqual([
-      'الحجم الصغير وعدم استقرار الانتصاب ليس حكما نهائيا',
-      'لا تفوتوا فرصتكم'
-    ]);
+    expect(dropTrailingCredits(lines)).toEqual(lines);
   });
 
   it('recognizes common subtitle-credit hallucinations but keeps real speech', () => {
@@ -105,9 +102,13 @@ describe('Whisper long-form transcription', () => {
     expect(isCreditHallucination('This product improves your health today')).toBe(false);
   });
 
-  it('strips a credit clause appended after the final sentence', () => {
-    expect(stripCreditSuffix('لا تفوتوا فرصتكم. ترجمة نانسي قنقر')).toBe('لا تفوتوا فرصتكم.');
-    expect(stripCreditSuffix('Order now. Thanks for watching')).toBe('Order now.');
+  it('preserves credit-shaped clauses without audio evidence', () => {
+    expect(stripCreditSuffix('لا تفوتوا فرصتكم. ترجمة نانسي قنقر')).toBe(
+      'لا تفوتوا فرصتكم. ترجمة نانسي قنقر'
+    );
+    expect(stripCreditSuffix('Order now. Thanks for watching')).toBe(
+      'Order now. Thanks for watching'
+    );
     // A normal trailing clause is left untouched.
     expect(stripCreditSuffix('Order now. Do not miss your chance')).toBe(
       'Order now. Do not miss your chance'
@@ -121,7 +122,7 @@ describe('Whisper long-form transcription', () => {
     expect(dropTrailingCredits(lines)).toEqual(lines);
   });
 
-  it('replaces mid-word decoder fragments with their corrected segments', () => {
+  it('preserves restarted or clipped speech without independent audio evidence', () => {
     const fragments = [
       'यह नसल, लंबाई, जूते के आकार या किसी अन्य बे',
       'यह नसल, लंबाई, जूते के आकार या किसी अन्य बेकार चीज़ पर निर्भर नहीं करता',
@@ -135,13 +136,7 @@ describe('Whisper long-form transcription', () => {
       'अभी ओडर कीजिए और आप कल ही परिणाम महसूस करेंगे'
     ];
 
-    expect(collapseTranscriptArtifacts(fragments)).toEqual([
-      fragments[1],
-      fragments[3],
-      fragments[5],
-      fragments[7],
-      fragments[9]
-    ]);
+    expect(collapseTranscriptArtifacts(fragments)).toEqual(fragments);
   });
 
   it('keeps real sentences that share a complete opening phrase', () => {
@@ -150,6 +145,9 @@ describe('Whisper long-form transcription', () => {
   });
 
   it('strips hallucination markers and bare ellipses from a line', () => {
+    expect(stripNonSpeechArtifacts('Keep (these words) and [these too].')).toBe(
+      'Keep (these words) and [these too].'
+    );
     // The sanitizer blanks markers to whitespace; the caller trims per line.
     expect(stripNonSpeechArtifacts('[BLANK_AUDIO]').trim()).toBe('');
     expect(stripNonSpeechArtifacts('(music)').trim()).toBe('');

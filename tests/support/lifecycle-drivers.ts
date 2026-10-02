@@ -55,9 +55,26 @@ export type DriverMap = Partial<Record<EdgeKey, Driver>>;
  */
 const workspace = await mkdtemp(path.join(os.tmpdir(), 'lifecycle-drivers-'));
 const behaviourFile = path.join(workspace, 'behaviour.json');
+// An actual non-silent PCM range, so silence suppression does not bypass the
+// Whisper failure/stop edges this driver is meant to exercise.
+const wav = Buffer.alloc(44 + 32_000);
+wav.write('RIFF', 0);
+wav.writeUInt32LE(wav.length - 8, 4);
+wav.write('WAVEfmt ', 8);
+wav.writeUInt32LE(16, 16);
+wav.writeUInt16LE(1, 20);
+wav.writeUInt16LE(1, 22);
+wav.writeUInt32LE(16_000, 24);
+wav.writeUInt32LE(32_000, 28);
+wav.writeUInt16LE(2, 32);
+wav.writeUInt16LE(16, 34);
+wav.write('data', 36);
+wav.writeUInt32LE(32_000, 40);
+wav.writeInt16LE(1000, 44);
 process.env.FFMPEG_PATH = await writeStubTool(workspace, 'stub-ffmpeg', {
   behaviourFile,
   writeOutput: true,
+  wavOutputBase64: wav.toString('base64'),
   durationMs: 50
 });
 // `probeDuration` spawns FFprobe and reads a bare number. Without a stand-in every driver
@@ -84,6 +101,7 @@ interface Behaviour {
 const whisperBehaviour = path.join(workspace, 'whisper-behaviour.json');
 process.env.WHISPER_PATH = await writeStubTool(workspace, 'stub-whisper', {
   behaviourFile: whisperBehaviour,
+  whisperTranscripts: ['A complete spoken sentence.'],
   hang: true
 });
 // Transcription deliberately refuses to enter `processing` until its model is

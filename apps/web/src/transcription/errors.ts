@@ -24,6 +24,7 @@ const ERROR_MESSAGES: Record<string, TranslationKey> = {
   'The transcription engine failed.': 'transcriptionErrorEngine',
   'The audio track could not be prepared.': 'transcriptionErrorExtract',
   'The transcript could not be saved to disk.': 'transcriptionErrorSave',
+  'The saved transcript is missing or damaged.': 'transcriptionErrorDocument',
   'The transcription could not be completed.': 'transcriptionFailedTitle',
   'The speech model for this run is not installed.': 'transcriptionErrorModelMissing'
 };

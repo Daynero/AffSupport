@@ -411,7 +411,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
                 : job.paused
                   ? t('jobPaused')
                   : job.progress !== null
-                    ? `${Math.round(job.progress)}%`
+                    ? `${job.phase === 'extract' ? t('transcriptionPhaseExtract') : job.phase === 'recover' ? t('transcriptionPhaseRecover') : job.phase === 'pivot' ? t('transcriptionPhasePivot') : job.phase === 'save' ? t('transcriptionPhaseSave') : ''}${job.phase && job.phase !== 'transcribe' ? ' · ' : ''}${Math.round(job.progress)}%`
                     : t('transcriptionProcessing')}
             </span>
           </div>

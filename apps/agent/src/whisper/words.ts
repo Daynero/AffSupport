@@ -1,4 +1,5 @@
 import type { TranscriptSegment, TranscriptWord } from '@video-compressor/shared';
+import { lexicalUnitSpans } from '../translation/segmentation.js';
 
 /**
  * Word-level timestamps derived from whisper.cpp `--output-json-full`.
@@ -19,6 +20,79 @@ export interface WhisperWord {
   endMs: number;
   /** Mean token probability 0–1, or null when whisper gave none. */
   confidence: number | null;
+  /** Offsets into the authoritative stitched TXT, when provenance is available. */
+  canonicalStart?: number;
+  canonicalEnd?: number;
+}
+
+/** Attach exact TXT offsets before stitching, keeping timing provenance at seams. */
+export function canonicalChunkWords(text: string, words: WhisperWord[]): WhisperWord[] {
+  const spans = lexicalUnitSpans(text);
+  return alignWordMatches(text, words)
+    .map(match => {
+      const word = words[match.index];
+      const span = spans[match.sourceIndex];
+      return {
+        ...word,
+        text: text.slice(span.start, span.end),
+        startMs:
+          word.startMs +
+          Math.round(((word.endMs - word.startMs) * match.unitIndex) / match.unitCount),
+        endMs:
+          word.startMs +
+          Math.round(((word.endMs - word.startMs) * (match.unitIndex + 1)) / match.unitCount),
+        canonicalStart: span.start,
+        canonicalEnd: span.end
+      };
+    })
+    .filter(word => word.endMs > word.startMs);
+}
+
+/** Keep timing tokens aligned with a window's canonical TXT, not discarded decodes. */
+export function alignWhisperWords(text: string, words: WhisperWord[]): WhisperWord[] {
+  const indexes = new Set(alignWordMatches(text, words).map(match => match.index));
+  return words.filter((_, index) => indexes.has(index));
+}
+
+function alignWordMatches(text: string, words: WhisperWord[]) {
+  const units = (value: string) =>
+    lexicalUnitSpans(value).map(span =>
+      value.slice(span.start, span.end).normalize('NFKC').toLocaleLowerCase()
+    );
+  const source = units(text);
+  const candidates = words.flatMap((word, index) => {
+    const parts = units(word.text);
+    return parts.map((key, unitIndex) => ({ key, index, unitIndex, unitCount: parts.length }));
+  });
+  const width = candidates.length + 1;
+  // Windows are bounded to eight seconds: this table remains small even for
+  // scripts with several tokens per word. LCS prevents a common word from
+  // stealing the timestamp of its later occurrence after a discarded decode.
+  const table = new Uint16Array((source.length + 1) * width);
+  for (let i = source.length - 1; i >= 0; i -= 1) {
+    for (let j = candidates.length - 1; j >= 0; j -= 1) {
+      table[i * width + j] =
+        source[i] === candidates[j].key
+          ? 1 + table[(i + 1) * width + j + 1]
+          : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
+    }
+  }
+  const matches: { index: number; sourceIndex: number; unitIndex: number; unitCount: number }[] =
+    [];
+  let i = 0;
+  let j = 0;
+  while (i < source.length && j < candidates.length) {
+    if (source[i] === candidates[j].key) {
+      matches.push({ ...candidates[j], sourceIndex: i });
+      i += 1;
+      j += 1;
+    } else if (table[(i + 1) * width + j] > table[i * width + j + 1]) {
+      i += 1;
+    } else {
+      j += 1;
+    }
+  }
+  return matches;
 }
 
 interface WhisperToken {
@@ -53,12 +127,14 @@ export function parseWhisperFullJson(jsonText: string, offsetMs: number): Whispe
   } catch {
     return [];
   }
+  if (!parsed || typeof parsed !== 'object') return [];
   const segments = Array.isArray(parsed.transcription)
     ? (parsed.transcription as WhisperSegment[])
     : [];
 
   const words: WhisperWord[] = [];
   for (const segment of segments) {
+    if (!segment || typeof segment !== 'object') continue;
     const tokens = Array.isArray(segment.tokens) ? (segment.tokens as WhisperToken[]) : [];
     let current: WhisperWord | null = null;
     let probs: number[] = [];
@@ -74,11 +150,12 @@ export function parseWhisperFullJson(jsonText: string, offsetMs: number): Whispe
     };
 
     for (const token of tokens) {
+      if (!token || typeof token !== 'object') continue;
       const raw = typeof token.text === 'string' ? token.text : '';
       if (!raw || SPECIAL_TOKEN.test(raw)) continue;
       const from = num(token.offsets?.from);
       const to = num(token.offsets?.to);
-      if (from === null || to === null) continue;
+      if (from === null || to === null || from < 0 || to < from) continue;
 
       const startMs = offsetMs + from;
       const endMs = offsetMs + to;
@@ -105,7 +182,7 @@ export function parseWhisperFullJson(jsonText: string, offsetMs: number): Whispe
         current.endMs = Math.max(current.endMs, endMs);
       }
       const p = num(token.p);
-      if (p !== null) probs.push(p);
+      if (p !== null && p >= 0 && p <= 1) probs.push(p);
     }
     flush();
   }
@@ -191,6 +268,12 @@ function normalizeWord(text: string): string {
 }
 
 function isDuplicateWord(previous: WhisperWord, candidate: WhisperWord): boolean {
+  if (
+    previous.canonicalStart !== undefined &&
+    candidate.canonicalStart !== undefined &&
+    previous.canonicalStart !== candidate.canonicalStart
+  )
+    return false;
   if (normalizeWord(previous.text) !== normalizeWord(candidate.text)) return false;
   const overlap =
     Math.min(previous.endMs, candidate.endMs) - Math.max(previous.startMs, candidate.startMs);

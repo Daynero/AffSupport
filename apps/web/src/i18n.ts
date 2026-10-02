@@ -220,6 +220,18 @@ const en = {
   transcriptionErrorEngine: 'Speech recognition failed.',
   transcriptionErrorExtract: 'The audio track could not be prepared.',
   transcriptionErrorSave: 'The transcript could not be saved to disk.',
+  transcriptionErrorDocument:
+    'The saved transcript is missing or damaged. Transcribe this file again.',
+  transcriptionReviewNeeded:
+    'Some passages could not be verified. Check this transcript against the audio.',
+  transcriptionTimingsPartial:
+    'Some words have no reliable timestamps. Highlighting and subtitles may be incomplete.',
+  transcriptionPivotUnavailable:
+    'The English speech pass failed. Translation will use the original transcript.',
+  transcriptionPhaseExtract: 'Preparing audio',
+  transcriptionPhaseRecover: 'Checking a difficult passage',
+  transcriptionPhasePivot: 'Preparing translation',
+  transcriptionPhaseSave: 'Saving transcript',
   transcriptionErrorModelMissing: 'The speech model for this run is not installed.',
   transcriptionPlayerLoading: 'Loading…',
   transcriptionNoSpeech: 'No speech was found in this file.',
@@ -3206,6 +3218,17 @@ const uk: Record<keyof typeof en, string> = {
   transcriptionErrorEngine: 'Розпізнавання мовлення не вдалося.',
   transcriptionErrorExtract: 'Не вдалося підготувати аудіодоріжку.',
   transcriptionErrorSave: 'Не вдалося зберегти транскрипцію на диск.',
+  transcriptionErrorDocument:
+    'Збережена транскрипція відсутня або пошкоджена. Транскрибуйте файл повторно.',
+  transcriptionReviewNeeded: 'Деякі уривки не вдалося перевірити. Звірте транскрипцію з аудіо.',
+  transcriptionTimingsPartial:
+    'Деякі слова не мають надійних часових міток. Підсвічування та субтитри можуть бути неповними.',
+  transcriptionPivotUnavailable:
+    'Англійський прогін мовлення не вдався. Переклад використовуватиме оригінальну транскрипцію.',
+  transcriptionPhaseExtract: 'Готуємо аудіо',
+  transcriptionPhaseRecover: 'Перевіряємо складний уривок',
+  transcriptionPhasePivot: 'Готуємо переклад',
+  transcriptionPhaseSave: 'Зберігаємо транскрипцію',
   transcriptionErrorModelMissing: 'Модель мовлення для цього запуску не встановлена.',
   transcriptionPlayerLoading: 'Завантаження…',
   transcriptionNoSpeech: 'У цьому файлі не знайдено мовлення.',

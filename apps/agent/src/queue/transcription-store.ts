@@ -18,7 +18,8 @@ import { applicationSupportRoot } from '../files/support-dir.js';
 import { decideTransition } from './transitions.js';
 import {
   transcriptionDocumentFile,
-  transcriptionDocumentsRoot
+  transcriptionDocumentsRoot,
+  validDocument
 } from '../transcription/document-store.js';
 import { currentPlatform } from '../platform/platform.js';
 
@@ -105,8 +106,19 @@ export async function loadTranscriptionState(
               : job.inputPath;
           try {
             await access(pathToCheck);
+            if (job.status === 'completed') {
+              const document = validDocument(JSON.parse(await readFile(pathToCheck, 'utf8')));
+              if (!document || document.jobId !== job.id) throw new Error('DOCUMENT_CORRUPT');
+            }
             return job;
           } catch {
+            if (job.status === 'completed') {
+              job.status = 'failed';
+              job.progress = null;
+              job.error = 'The saved transcript is missing or damaged.';
+              job.errorDetails = 'DOCUMENT_UNAVAILABLE';
+              return job;
+            }
             return null;
           }
         })
@@ -188,7 +200,10 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
   // a run that was still `processing` when the agent stopped gets the new state.
   const status: TranscriptionJob['status'] = interrupted
     ? 'processing'
-    : legacyStatus === 'completed' || legacyStatus === 'failed' || legacyStatus === 'cancelled'
+    : legacyStatus === 'completed' ||
+        legacyStatus === 'failed' ||
+        legacyStatus === 'cancelled' ||
+        legacyStatus === 'interrupted'
       ? legacyStatus
       : 'ready';
   const numberOrNull = (input: unknown) => {

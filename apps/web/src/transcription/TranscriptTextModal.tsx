@@ -40,7 +40,14 @@ import { type KaraokeStore, useActiveWordInSegment } from './karaoke-store';
 import { useScrollSync } from './useScrollSync';
 import { useKaraoke } from './useKaraoke';
 import { hasTimings, type TranscriptExportContent, type TranscriptExportFormat } from './export';
-import { Button, EmptyState, ErrorState, IconButton, Progress } from '../components/ui/index';
+import {
+  Alert,
+  Button,
+  EmptyState,
+  ErrorState,
+  IconButton,
+  Progress
+} from '../components/ui/index';
 
 const TARGET_LANGUAGES = [...TRANSLATEGEMMA_LANGUAGE_CODES];
 
@@ -723,6 +730,19 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
               if (other) synchronizeScroll(event.currentTarget, other);
             }}
           >
+            {document_?.reliability?.warnings.some(
+              warning =>
+                warning.code === 'SEAM_UNCERTAIN' ||
+                warning.code === 'COVERAGE_UNVERIFIED' ||
+                warning.code === 'DECODE_UNCERTAIN'
+            ) && <Alert color="warning">{t('transcriptionReviewNeeded')}</Alert>}
+            {document_?.reliability?.warnings.some(
+              warning => warning.code === 'PIVOT_UNAVAILABLE'
+            ) && <Alert color="warning">{t('transcriptionPivotUnavailable')}</Alert>}
+            {document_?.reliability &&
+              document_.reliability.timedWords < document_.reliability.totalWords * 0.9 && (
+                <Alert color="warning">{t('transcriptionTimingsPartial')}</Alert>
+              )}
             {loading ? (
               <div className="transcript-modal-loading" role="status">
                 <span className="soty-spinner" aria-hidden="true" />

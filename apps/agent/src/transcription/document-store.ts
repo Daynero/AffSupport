@@ -7,7 +7,8 @@ import type {
   TranscriptionJob,
   TranscriptSegment,
   TranscriptWord,
-  TranslationDocument
+  TranslationDocument,
+  TranscriptionReliability
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { lexicalUnitSpans, splitTextForTranslation } from '../translation/segmentation.js';
@@ -29,10 +30,9 @@ export function transcriptionDocumentFile(dir: string, jobId: string): string {
   return path.join(dir, `${safe}.json`);
 }
 
-// Overlapping 20-second primary/recovery windows can put several alternative
-// decodings between two consecutive canonical words. Keep the search local so
-// a missing word cannot accidentally jump karaoke to a later repeated phrase.
-const WORD_ALIGNMENT_LOOKAHEAD = 512;
+// Match bounded phrases so a missing timing token cannot steal a later
+// occurrence of a common word and consume the rest of the alignment cursor.
+const WORD_ALIGNMENT_LOOKAHEAD = 32;
 
 interface LexicalUnit {
   normalized: string;
@@ -128,37 +128,121 @@ export function segmentsFromTextWithWords(
   if (!segments.length || !words.length) return segments;
 
   const candidates = timedLexicalUnits(words);
-  const candidateIndexes = new Map<string, number[]>();
-  for (let index = 0; index < candidates.length; index += 1) {
-    const indexes = candidateIndexes.get(candidates[index].normalized) ?? [];
-    indexes.push(index);
-    candidateIndexes.set(candidates[index].normalized, indexes);
-  }
-
-  let candidateCursor = 0;
-  for (const segment of segments) {
-    const aligned: TranscriptWord[] = [];
-    for (const source of lexicalUnits(segment.sourceText)) {
-      const indexes = candidateIndexes.get(source.normalized);
-      if (!indexes) continue;
-
-      // Find the first occurrence at or after the current timeline cursor.
-      let low = 0;
-      let high = indexes.length;
-      while (low < high) {
-        const middle = (low + high) >> 1;
-        if (indexes[middle] < candidateCursor) low = middle + 1;
-        else high = middle;
+  const unitsBySegment = segments.map(segment => lexicalUnits(segment.sourceText));
+  const sources = unitsBySegment.flat();
+  const matches = new Map<LexicalUnit, TimedLexicalUnit>();
+  const hasProvenance = words.every(
+    word => word.canonicalStart !== undefined && word.canonicalEnd !== undefined
+  );
+  if (hasProvenance) {
+    const anchored = new Map(words.map(word => [word.canonicalStart, word]));
+    let offset = 0;
+    for (const [index, segment] of segments.entries()) {
+      const start = text.indexOf(segment.sourceText, offset);
+      offset = start + segment.sourceText.length;
+      for (const unit of unitsBySegment[index]) {
+        const word = anchored.get(start + unit.start);
+        if (
+          word &&
+          word.canonicalEnd === start + unit.end &&
+          word.text.normalize('NFKC').toLocaleLowerCase() === unit.normalized
+        ) {
+          matches.set(unit, {
+            normalized: unit.normalized,
+            startMs: word.startMs,
+            endMs: word.endMs,
+            confidence: word.confidence
+          });
+        }
       }
-      const candidateIndex = indexes[low];
-      if (
-        candidateIndex === undefined ||
-        candidateIndex - candidateCursor > WORD_ALIGNMENT_LOOKAHEAD
+    }
+  }
+  const candidateIndexes = new Map<string, number[]>();
+  for (const [index, candidate] of candidates.entries()) {
+    const indexes = candidateIndexes.get(candidate.normalized) ?? [];
+    indexes.push(index);
+    candidateIndexes.set(candidate.normalized, indexes);
+  }
+  let sourceCursor = 0;
+  let candidateCursor = 0;
+  // Align phrases, rather than greedily binding a missing common word to its
+  // next occurrence. Bounded windows keep long recordings linear in length.
+  while (!hasProvenance && sourceCursor < sources.length && candidateCursor < candidates.length) {
+    const sourceCount = Math.min(WORD_ALIGNMENT_LOOKAHEAD, sources.length - sourceCursor);
+    const candidateCount = Math.min(
+      WORD_ALIGNMENT_LOOKAHEAD * 2,
+      candidates.length - candidateCursor
+    );
+    const width = candidateCount + 1;
+    const table = new Uint16Array((sourceCount + 1) * width);
+    for (let i = sourceCount - 1; i >= 0; i -= 1) {
+      for (let j = candidateCount - 1; j >= 0; j -= 1) {
+        table[i * width + j] =
+          sources[sourceCursor + i].normalized === candidates[candidateCursor + j].normalized
+            ? 1 + table[(i + 1) * width + j + 1]
+            : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
+      }
+    }
+    if (table[0] === 0) {
+      // A long discarded decode can exceed the local DP horizon. Re-enter at
+      // a consecutive phrase, not a single common word far down the timeline.
+      let anchor: { source: number; candidate: number } | null = null;
+      for (
+        let s = sourceCursor;
+        s < Math.min(sources.length - 2, sourceCursor + sourceCount);
+        s++
       ) {
+        const indexes = candidateIndexes.get(sources[s].normalized) ?? [];
+        let low = 0;
+        let high = indexes.length;
+        while (low < high) {
+          const mid = (low + high) >> 1;
+          if (indexes[mid] < candidateCursor) low = mid + 1;
+          else high = mid;
+        }
+        for (const c of indexes.slice(low, low + 128)) {
+          if (
+            c + 2 < candidates.length &&
+            sources[s + 1].normalized === candidates[c + 1].normalized &&
+            sources[s + 2].normalized === candidates[c + 2].normalized
+          ) {
+            if (!anchor || c < anchor.candidate) anchor = { source: s, candidate: c };
+            break;
+          }
+        }
+      }
+      if (anchor) {
+        sourceCursor = anchor.source;
+        candidateCursor = anchor.candidate;
         continue;
       }
+    }
+    let i = 0;
+    let j = 0;
+    while (i < sourceCount && j < candidateCount) {
+      const source = sources[sourceCursor + i];
+      const candidate = candidates[candidateCursor + j];
+      if (source.normalized === candidate.normalized) {
+        matches.set(source, candidate);
+        i += 1;
+        j += 1;
+      } else if (table[(i + 1) * width + j] >= table[i * width + j + 1]) {
+        i += 1;
+      } else {
+        j += 1;
+      }
+      // Refill before the horizon can bias the next phrase's alignment.
+      if (i >= WORD_ALIGNMENT_LOOKAHEAD / 2 || j >= WORD_ALIGNMENT_LOOKAHEAD) break;
+    }
+    sourceCursor += i;
+    candidateCursor += j;
+  }
 
-      const candidate = candidates[candidateIndex];
+  for (const [segmentIndex, segment] of segments.entries()) {
+    const aligned: TranscriptWord[] = [];
+    for (const source of unitsBySegment[segmentIndex]) {
+      const candidate = matches.get(source);
+      if (!candidate) continue;
       const sourceEnd = trailingPunctuationEnd(segment.sourceText, source.end);
       aligned.push({
         id: `${segment.id}-w${aligned.length}`,
@@ -169,7 +253,6 @@ export function segmentsFromTextWithWords(
         sourceStart: source.start,
         sourceEnd
       });
-      candidateCursor = candidateIndex + 1;
     }
     segment.words = aligned;
     if (aligned.length) {
@@ -201,7 +284,8 @@ export function buildTranscriptionDocument(
   modelVersion: string,
   words: WhisperWord[] = [],
   englishText = '',
-  englishWords: WhisperWord[] = []
+  englishWords: WhisperWord[] = [],
+  reliability?: TranscriptionReliability
 ): TranscriptionDocument {
   const text = job.text ?? '';
   const segments = text
@@ -209,6 +293,28 @@ export function buildTranscriptionDocument(
     : words.length
       ? buildSegmentsFromWords(job.id, words)
       : [];
+  // Missing word timing must not make a whole phrase seek to 00:00. The
+  // original audio window is a navigation fallback, explicitly approximate.
+  if (reliability?.ranges?.length) {
+    let textCursor = 0;
+    let rangeCursor = 0;
+    for (const segment of segments) {
+      const start = text.indexOf(segment.sourceText, textCursor);
+      textCursor = start + segment.sourceText.length;
+      while (
+        rangeCursor + 1 < reliability.ranges.length &&
+        reliability.ranges[rangeCursor].canonicalEnd <= start
+      )
+        rangeCursor++;
+      if (segment.words.length) continue;
+      const range = reliability.ranges[rangeCursor];
+      if (range.canonicalStart < textCursor && range.canonicalEnd > start) {
+        segment.startMs = range.startMs;
+        segment.endMs = range.endMs;
+        segment.timingSource = 'window';
+      }
+    }
+  }
   const translationSourceSegments = buildTranslationSourceSegments(
     segments,
     englishText,
@@ -221,6 +327,15 @@ export function buildTranscriptionDocument(
     // The merged text is the canonical transcript. Word JSON is an auxiliary
     // timing source and must never be allowed to reconstruct different text.
     segments,
+    ...(reliability
+      ? {
+          reliability: {
+            ...reliability,
+            warnings: [...reliability.warnings],
+            timedWords: segments.flatMap(segment => segment.words).length
+          }
+        }
+      : {}),
     ...(translationSourceSegments
       ? {
           translationSource: {
@@ -400,23 +515,29 @@ export class TranscriptionDocumentStore {
     return transcriptionDocumentFile(this.dir, jobId);
   }
 
-  async save(document: TranscriptionDocument): Promise<void> {
+  async save(
+    document: TranscriptionDocument,
+    shouldCommit: () => boolean = () => true
+  ): Promise<void> {
     await mkdir(this.dir, { recursive: true });
     const target = this.file(document.jobId);
     // A unique temp name per write so concurrent saves for the same document
     // never collide on one `.part` file; the rename then atomically replaces.
     const partial = `${target}.${randomBytes(6).toString('hex')}.part`;
-    await writeFile(partial, JSON.stringify(document), { encoding: 'utf8', mode: 0o600 });
-    await replaceFile(partial, target).catch(async error => {
+    try {
+      await writeFile(partial, JSON.stringify(document), { encoding: 'utf8', mode: 0o600 });
+      if (!shouldCommit()) return;
+      await replaceFile(partial, target);
+    } finally {
       await rm(partial, { force: true }).catch(() => {});
-      throw error;
-    });
+    }
   }
 
   async load(jobId: string): Promise<TranscriptionDocument | null> {
     try {
       const raw = await readFile(this.file(jobId), 'utf8');
-      return validDocument(JSON.parse(raw));
+      const document = validDocument(JSON.parse(raw));
+      return document?.jobId === jobId ? document : null;
     } catch {
       return null;
     }
@@ -440,14 +561,158 @@ export function validDocument(value: unknown): TranscriptionDocument | null {
   const raw = value as Record<string, unknown>;
   if (typeof raw.jobId !== 'string' || typeof raw.sourceLanguage !== 'string') return null;
   if (!Array.isArray(raw.segments)) return null;
+  if (raw.reliability !== undefined) {
+    if (!raw.reliability || typeof raw.reliability !== 'object') return null;
+    const reliability = raw.reliability as Record<string, unknown>;
+    if (
+      !['windows', 'retries', 'recoveredWindows', 'timedWords', 'totalWords'].every(
+        key =>
+          typeof reliability[key] === 'number' &&
+          Number.isSafeInteger(reliability[key]) &&
+          (reliability[key] as number) >= 0
+      ) ||
+      !Array.isArray(reliability.warnings)
+    )
+      return null;
+    if (
+      reliability.ranges !== undefined &&
+      (!Array.isArray(reliability.ranges) ||
+        !reliability.ranges.every(
+          range =>
+            range &&
+            typeof range === 'object' &&
+            ['canonicalStart', 'canonicalEnd', 'startMs', 'endMs'].every(
+              key =>
+                typeof range[key] === 'number' && Number.isFinite(range[key]) && range[key] >= 0
+            ) &&
+            Number.isInteger(range.canonicalStart) &&
+            Number.isInteger(range.canonicalEnd) &&
+            range.canonicalEnd >= range.canonicalStart &&
+            range.endMs >= range.startMs
+        ))
+    )
+      return null;
+    for (const warning of reliability.warnings as unknown[]) {
+      if (!warning || typeof warning !== 'object') return null;
+      const w = warning as Record<string, unknown>;
+      if (
+        ![
+          'SEAM_UNCERTAIN',
+          'DECODE_UNCERTAIN',
+          'COVERAGE_UNVERIFIED',
+          'TIMINGS_PARTIAL',
+          'PIVOT_UNAVAILABLE'
+        ].includes(String(w.code)) ||
+        typeof w.startMs !== 'number' ||
+        typeof w.endMs !== 'number' ||
+        !Number.isFinite(w.startMs) ||
+        !Number.isFinite(w.endMs) ||
+        w.startMs < 0 ||
+        w.endMs < w.startMs
+      )
+        return null;
+    }
+  }
+  if (raw.translationSource !== undefined) {
+    if (!raw.translationSource || typeof raw.translationSource !== 'object') return null;
+    const source = raw.translationSource as Record<string, unknown>;
+    if (
+      typeof source.language !== 'string' ||
+      typeof source.modelVersion !== 'string' ||
+      !Array.isArray(source.segments) ||
+      !source.segments.every(
+        segment =>
+          segment &&
+          typeof segment === 'object' &&
+          typeof segment.sourceSegmentId === 'string' &&
+          typeof segment.text === 'string'
+      )
+    )
+      return null;
+  }
   for (const segment of raw.segments as unknown[]) {
     if (!segment || typeof segment !== 'object') return null;
     const entry = segment as Record<string, unknown>;
     if (typeof entry.id !== 'string' || typeof entry.sourceText !== 'string') return null;
+    if (
+      entry.timingSource !== undefined &&
+      entry.timingSource !== 'words' &&
+      entry.timingSource !== 'window'
+    )
+      return null;
     if (!Array.isArray(entry.words)) return null;
+    const range = (from: unknown, to: unknown) =>
+      typeof from === 'number' &&
+      typeof to === 'number' &&
+      Number.isFinite(from) &&
+      Number.isFinite(to) &&
+      from >= 0 &&
+      to >= from;
+    if (!range(entry.startMs, entry.endMs)) return null;
+    for (const word of entry.words as unknown[]) {
+      if (!word || typeof word !== 'object') return null;
+      const w = word as Record<string, unknown>;
+      if (
+        typeof w.id !== 'string' ||
+        typeof w.text !== 'string' ||
+        !range(w.startMs, w.endMs) ||
+        !range(w.sourceStart, w.sourceEnd) ||
+        !Number.isInteger(w.sourceStart) ||
+        !Number.isInteger(w.sourceEnd) ||
+        (w.sourceEnd as number) > entry.sourceText.length ||
+        entry.sourceText.slice(w.sourceStart as number, w.sourceEnd as number) !== w.text ||
+        (w.confidence !== null &&
+          (typeof w.confidence !== 'number' ||
+            !Number.isFinite(w.confidence) ||
+            w.confidence < 0 ||
+            w.confidence > 1))
+      )
+        return null;
+    }
   }
+  if (raw.translations !== undefined && (!raw.translations || typeof raw.translations !== 'object'))
+    return null;
   const translations =
     raw.translations && typeof raw.translations === 'object' ? raw.translations : {};
+  if (Array.isArray(translations)) return null;
+  for (const translation of Object.values(translations)) {
+    if (!translation || typeof translation !== 'object') return null;
+    const t = translation as Record<string, unknown>;
+    if (
+      typeof t.targetLanguage !== 'string' ||
+      typeof t.modelVersion !== 'string' ||
+      !['queued', 'processing', 'completed', 'failed'].includes(String(t.status)) ||
+      !Array.isArray(t.segments)
+    )
+      return null;
+    for (const segment of t.segments as unknown[]) {
+      if (!segment || typeof segment !== 'object') return null;
+      const s = segment as Record<string, unknown>;
+      if (
+        typeof s.sourceSegmentId !== 'string' ||
+        typeof s.translatedText !== 'string' ||
+        !Array.isArray(s.alignments)
+      )
+        return null;
+      for (const link of s.alignments as unknown[]) {
+        if (!link || typeof link !== 'object') return null;
+        const a = link as Record<string, unknown>;
+        if (
+          !['sourceStart', 'sourceEnd', 'targetStart', 'targetEnd'].every(
+            key => typeof a[key] === 'number' && Number.isInteger(a[key]) && (a[key] as number) >= 0
+          ) ||
+          (a.targetEnd as number) > s.translatedText.length ||
+          (a.targetEnd as number) < (a.targetStart as number) ||
+          (a.sourceEnd as number) < (a.sourceStart as number) ||
+          typeof a.confidence !== 'number' ||
+          !Number.isFinite(a.confidence) ||
+          a.confidence < 0 ||
+          a.confidence > 1
+        )
+          return null;
+      }
+    }
+  }
   return {
     ...(raw as unknown as TranscriptionDocument),
     modelVersion: typeof raw.modelVersion === 'string' ? raw.modelVersion : '',

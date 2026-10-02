@@ -223,6 +223,10 @@ describe('persistent transcription state', () => {
     expect(job.error).toContain('interrupted');
     expect(job.finishedAt).toBeTypeOf('number');
 
+    // A second restart must preserve the interruption, too.
+    await saveTranscriptionState(restored, stateFile);
+    expect((await loadTranscriptionState(stateFile)).jobs[0].status).toBe('interrupted');
+
     // The web retry button posts /jobs/:id/retry — the restored job must accept it.
     queue = new TranscriptionQueue({ ffmpeg: false, whisper: false }, () => {}, restored.jobs);
     expect(await queue.retry('mid-run')).toBe(true);
@@ -302,8 +306,12 @@ describe('persistent transcription state', () => {
     );
 
     const restored = await loadTranscriptionState(stateFile);
-    expect(restored.jobs.map(job => job.id)).toEqual(['kept-completed']);
+    expect(restored.jobs.map(job => job.id)).toEqual(['kept-completed', 'gone-completed']);
     expect(restored.jobs[0].status).toBe('completed');
+    expect(restored.jobs[1]).toMatchObject({
+      status: 'failed',
+      errorDetails: 'DOCUMENT_UNAVAILABLE'
+    });
   });
 
   it('serves a restored completed job from the document cache', async () => {

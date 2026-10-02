@@ -122,6 +122,11 @@ export interface StubToolConfig {
   behaviourFile?: string;
   /** Create the file named by the last argument, so callers see the artefact they expect. */
   writeOutput?: boolean;
+  /** Valid PCM for audio consumers; other fake outputs keep their usual placeholder. */
+  wavOutputBase64?: string;
+  /** TXT results by window index for exercising the real transcription pipeline. */
+  whisperTranscripts?: readonly string[];
+  whisperAttempts?: readonly { text: string; json?: unknown; omitOutput?: boolean }[];
 }
 
 /**
@@ -169,6 +174,9 @@ function stubSource(config: StubToolConfig): string {
     burnFuseMs: config.burnFuseMs ?? 120_000,
     spawnMarker: config.spawnMarker ?? '',
     writeOutput: config.writeOutput ?? false,
+    wavOutputBase64: config.wavOutputBase64 ?? '',
+    whisperTranscripts: config.whisperTranscripts ?? null,
+    whisperAttempts: config.whisperAttempts ?? null,
     attempts: config.attempts ?? [],
     attemptCounter: config.attemptCounter ?? '',
     behaviourFile: config.behaviourFile ?? ''
@@ -245,11 +253,23 @@ if (CONFIG.writeOutput) {
     target.startsWith('pipe:') || target === '-' || target.startsWith('/dev/');
   if (output && !output.startsWith('-') && !pseudo) {
     try {
-      fs.writeFileSync(output, 'stub output');
+      fs.writeFileSync(output, target.endsWith('.wav') && CONFIG.wavOutputBase64 ? Buffer.from(CONFIG.wavOutputBase64, 'base64') : 'stub output');
     } catch {
       // A stub cannot know every caller's argument order; failing to guess it is not a
       // reason to fail the spawn the test is actually about.
     }
+  }
+}
+
+if ((CONFIG.whisperTranscripts || CONFIG.whisperAttempts) && exitCode === 0) {
+  const args = process.argv.slice(2);
+  const base = args[args.indexOf('-of') + 1];
+  const index = Number(base.split('-').pop());
+  const output = CONFIG.whisperAttempts && CONFIG.whisperAttempts[attempt];
+  const text = output ? output.text : (CONFIG.whisperTranscripts || [])[index] || '';
+  if (!output || !output.omitOutput) {
+    fs.writeFileSync(base + '.txt', text);
+    fs.writeFileSync(base + '.json', JSON.stringify(output && output.json || { transcription: [] }));
   }
 }
 
