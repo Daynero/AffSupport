@@ -14,6 +14,35 @@ afterEach(async () => {
 });
 
 describe('persistent agent state', () => {
+  it.each(['crf', 'bitrate'] as const)(
+    'preserves explicit %s control when a saved bitrate is present',
+    async rateControl => {
+      directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-state-quality-'));
+      const stateFile = path.join(directory, 'state.json');
+      const settings = {
+        ...optimalSettings,
+        mode: 'custom' as const,
+        rateControl,
+        videoBitrateKbps: 3200
+      };
+      await saveState({ settings, jobs: [], batch: null }, stateFile);
+      expect((await loadState(stateFile)).settings).toEqual(settings);
+    }
+  );
+
+  it('restores legacy bitrate settings that have no explicit rate control', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-state-legacy-quality-'));
+    const stateFile = path.join(directory, 'state.json');
+    await writeFile(
+      stateFile,
+      JSON.stringify({ settings: { mode: 'custom', videoBitrateKbps: 3200 }, jobs: [] })
+    );
+    expect((await loadState(stateFile)).settings).toMatchObject({
+      rateControl: 'bitrate',
+      videoBitrateKbps: 3200
+    });
+  });
+
   it('restores settings and marks an interrupted encode without treating it as active', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'compressor-state-'));
     const source = path.join(directory, 'source.mov');

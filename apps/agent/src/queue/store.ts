@@ -206,7 +206,9 @@ function migrateSettings(value: unknown): AgentSettings {
     (legacyKeepResolution !== undefined && legacyKeepResolution !== false)
       ? null
       : clampResolutionLimit(raw.resolutionLimit);
-  const hasLegacyBitrate = Number(raw.videoBitrateKbps) > 0;
+  // Modern settings retain a bitrate value even while CRF is selected.
+  // Infer the mode from that value only for records predating rateControl.
+  const hasLegacyBitrate = raw.rateControl === undefined && Number(raw.videoBitrateKbps) > 0;
   const rateControl = raw.rateControl === 'bitrate' || hasLegacyBitrate ? 'bitrate' : 'crf';
   return {
     mode,
