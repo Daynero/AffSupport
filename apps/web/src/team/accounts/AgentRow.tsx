@@ -45,6 +45,7 @@ import { useI18n, type Language, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
 import { Marked } from './Marked';
+import { AgentIdentity } from './AgentIdentity';
 import { AgentLabels } from './AgentLabels';
 import { AgentMoney } from './AgentMoney';
 import { AgentTasksPeek } from './AgentTasksPeek';
@@ -521,7 +522,12 @@ export function AgentRow({
         >
           <span className="team-task-agent-chip-dot" aria-hidden="true" />
           <span className="team-agent-tag-text">
-            <Marked text={revealed ? agent.agentId : tag} term={search} />
+            <AgentIdentity
+              accountName={accountName}
+              agentId={agent.agentId}
+              revealed={revealed}
+              search={search}
+            />
           </span>
         </span>
         <IconButton
@@ -906,7 +912,7 @@ export function AgentEditRow({
   /** Another editor was asked for while this one has unsaved typing. */
   hold?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
-  onSave: (value: { agentId: string; note: string | null }) => Promise<void>;
+  onSave: (value: { agentId: string; note: string | null; timezone?: string }) => Promise<void>;
   onCancel: () => void;
 }) {
   const { t } = useI18n();
@@ -947,7 +953,11 @@ export function AgentEditRow({
     }
     setSaving(true);
     try {
-      await onSave({ agentId: cleanId, note: cleanNote });
+      await onSave({
+        agentId: cleanId,
+        note: cleanNote,
+        ...(adding ? { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } : {})
+      });
     } catch (cause) {
       // Typed values survive a refusal; the message names what was refused.
       setError(agentErrorKey(cause));

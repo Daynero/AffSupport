@@ -606,11 +606,15 @@ describe('accounts and agents', () => {
     await user.type(idField, '2000000000777{Enter}');
     await waitFor(() =>
       expect(api.addAccountAgent).toHaveBeenCalledWith(
-        expect.objectContaining({ agentId: '2000000000777', note: null })
+        expect.objectContaining({
+          agentId: '2000000000777',
+          note: null,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        })
       )
     );
     const v40 = screen.getByRole('region', { name: 'v40' });
-    expect(within(v40).getByText('v40-777')).toBeTruthy();
+    expect(within(v40).getByLabelText('v40-777')).toBeTruthy();
     // The editor stays open, emptied, for the next agent; the toast is the receipt.
     expect((screen.getByRole('textbox', { name: 'Full agent ID' }) as HTMLInputElement).value).toBe(
       ''
@@ -922,12 +926,12 @@ describe('folding an account', () => {
     await user.click(within(v31).getByRole('heading', { name: 'v31' }));
     expect(within(v31).queryByText('v31-434')).toBeNull();
     await user.click(head);
-    expect(within(v31).getByText('v31-434')).toBeTruthy();
+    expect(within(v31).getByLabelText('v31-434')).toBeTruthy();
 
     // Its own buttons do their own work and leave the fold alone.
     await user.click(within(v31).getByRole('button', { name: 'Add agent' }));
     expect(await screen.findByRole('textbox', { name: 'Full agent ID' })).toBeTruthy();
-    expect(within(v31).getByText('v31-434')).toBeTruthy();
+    expect(within(v31).getByLabelText('v31-434')).toBeTruthy();
   });
 });
 

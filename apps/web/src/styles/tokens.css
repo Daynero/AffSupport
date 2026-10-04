@@ -257,6 +257,12 @@
   --measure: 70ch;
 
   /* ---- Space -------------------------------------------------------------- */
+  --finance-table-min-height: 240px;
+  --finance-date-column-width: 144px;
+  --finance-agent-column-width: 160px;
+  --finance-row-actions-width: 112px;
+  --team-agent-identity-width: 320px;
+  --team-agent-identity-compact-width: 256px;
   --space-0: 0;
   --space-px: 1px;
   --space-1: 4px;

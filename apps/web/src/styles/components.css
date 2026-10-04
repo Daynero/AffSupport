@@ -881,6 +881,14 @@
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
+.ui-search-field-group:hover:not(:focus-within),
+.ui-search-field-group[data-hovered='true']:not([data-focus-within='true']) {
+  background: var(--color-neutral-surface-subtle);
+}
+.ui-search-field-group:focus-within,
+.ui-search-field-group[data-focus-within='true'] {
+  background: var(--color-neutral-surface);
+}
 .ui-search-field[data-empty='true'] .ui-search-field-group button {
   visibility: hidden;
 }
@@ -2555,4 +2563,126 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+/* Dense financial matrices fill the remaining viewport. The opaque sticky
+   layers deliberately sit above the date rail, including its footer corner. */
+.finance-matrix-scroll {
+  height: max(
+    var(--finance-table-min-height),
+    calc(100dvh - var(--finance-table-top, 0px) - var(--space-6))
+  );
+  isolation: isolate;
+}
+.finance-matrix .ui-table-header {
+  z-index: 3;
+  background: var(--color-neutral-surface);
+}
+.finance-matrix {
+  min-width: calc(
+    var(--finance-date-column-width) + var(--finance-agent-column-width) *
+      var(--finance-agent-count, 1) + var(--space-px) * 2
+  );
+  border: var(--space-px) solid var(--color-neutral-border);
+}
+.finance-matrix .ui-table-header,
+.finance-matrix .ui-table-row {
+  gap: 0;
+  align-items: stretch;
+}
+.finance-matrix .ui-table-header {
+  padding: 0;
+  border-bottom: 0;
+}
+.finance-matrix .ui-table-header-cell,
+.finance-matrix .ui-table-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border-inline-end: var(--space-px) solid var(--color-neutral-border);
+}
+.finance-matrix .ui-table-header-cell {
+  padding-block: var(--space-2);
+}
+.finance-matrix .ui-table-header-cell:last-child,
+.finance-matrix .ui-table-cell:last-child {
+  border-inline-end: 0;
+}
+.finance-matrix-date {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-neutral-surface);
+}
+.finance-matrix-total {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--color-neutral-surface);
+  font-weight: var(--weight-label);
+  border-top: var(--space-px) solid var(--color-neutral-border);
+}
+.team-accounts-table.finance-daily-table {
+  --team-agent-columns: var(--team-agent-rail) var(--team-agent-id-width)
+    repeat(3, minmax(var(--finance-date-column-width), 1fr)) var(--finance-row-actions-width);
+}
+.finance-daily-table .team-agent-row.finance-daily-row {
+  display: grid;
+  grid-template-columns: var(--team-agent-columns);
+  grid-template-areas: none;
+  background: none;
+}
+.finance-daily-table .finance-daily-actions,
+.finance-daily-table .team-agent-copy {
+  opacity: 0;
+}
+.finance-daily-table .team-agent-row:hover .finance-daily-actions,
+.finance-daily-table .team-agent-row:focus-within .finance-daily-actions,
+.finance-daily-table .team-agent-row:hover .team-agent-copy,
+.finance-daily-table .team-agent-row:focus-within .team-agent-copy {
+  opacity: 1;
+}
+@media (hover: none) {
+  .finance-daily-table .finance-daily-actions,
+  .finance-daily-table .team-agent-copy {
+    opacity: 1;
+  }
+}
+.finance-daily-fields {
+  display: contents;
+}
+.finance-daily-table .ui-field-label {
+  display: none;
+}
+.finance-daily-table .team-agent-id,
+.finance-daily-table .finance-daily-actions {
+  grid-area: auto;
+}
+.team-agent-tail {
+  background: var(--team-tag-orange);
+  color: var(--color-primary-on-solid);
+}
+@media (max-width: 900px) {
+  .finance-daily-table .finance-daily-columns {
+    display: none;
+  }
+  .finance-daily-table .team-agent-row.finance-daily-row {
+    grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) auto;
+    grid-template-areas: 'rail id actions' 'rail fields fields';
+  }
+  .finance-daily-table .team-agent-id {
+    grid-area: id;
+  }
+  .finance-daily-table .finance-daily-actions {
+    grid-area: actions;
+  }
+  .finance-daily-fields {
+    grid-area: fields;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-2);
+  }
+  .finance-daily-table .ui-field-label {
+    display: flex;
+  }
 }

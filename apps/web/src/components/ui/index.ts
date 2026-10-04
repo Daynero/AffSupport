@@ -25,13 +25,14 @@ export type { CardProps, CardRole, SeparatorProps } from './Card';
 export { Alert } from './Alert';
 export type { AlertProps } from './Alert';
 
-export { FormField, Input, InputNumber, InputTags, Select, Textarea } from './Field';
+export { FormField, Input, InputNumber, InputTags, Select, SearchField, Textarea } from './Field';
 export type {
   FieldProps,
   InputNumberProps,
   InputProps,
   InputTagsProps,
   SelectProps,
+  SearchFieldProps,
   TextareaProps
 } from './Field';
 

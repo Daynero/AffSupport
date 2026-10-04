@@ -36,6 +36,7 @@ export interface AccountsClient {
     accountId: string;
     agentId: string;
     note?: string | null;
+    timezone?: string;
   }): Promise<TeamAccountAgentSummary>;
   updateAccountAgent(input: {
     teamId: string;
@@ -196,6 +197,7 @@ export function useAccounts({
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
+        window.dispatchEvent(new CustomEvent('soty:accounts-finance', { detail: teamId }));
         void refetchRef.current();
       }, 300);
     };
@@ -241,7 +243,29 @@ export function useAccounts({
         { event: '*', schema: 'public', table: 'team_labels', filter: `team_id=eq.${teamId}` },
         scheduleRefetch
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_agent_finance_values',
+          filter: `team_id=eq.${teamId}`
+        },
+        scheduleRefetch
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_agent_placements',
+          filter: `team_id=eq.${teamId}`
+        },
+        scheduleRefetch
+      )
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') scheduleRefetch();
+      });
 
     return () => {
       active = false;
@@ -296,8 +320,8 @@ export function useAccounts({
   );
 
   const addAgent = useCallback(
-    async (accountId: string, agentId: string, note: string | null) => {
-      const created = await client.addAccountAgent({ teamId, accountId, agentId, note });
+    async (accountId: string, agentId: string, note: string | null, timezone?: string) => {
+      const created = await client.addAccountAgent({ teamId, accountId, agentId, note, timezone });
       writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, accountId, account => ({

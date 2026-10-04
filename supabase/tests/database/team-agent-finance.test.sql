@@ -1,0 +1,16 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select plan(10);
+select ok(has_function_privilege('authenticated','public.get_team_agent_finance(uuid,date,date,text)','execute'),'members can read the dated snapshot');
+select ok(not has_function_privilege('anon','public.get_team_agent_finance(uuid,date,date,text)','execute'),'anonymous callers cannot read finances');
+select ok(not has_table_privilege('authenticated','public.team_agent_finance_values','INSERT'),'clients cannot bypass CAS with inserts');
+select ok(not has_table_privilege('authenticated','public.team_agent_finance_values','UPDATE'),'clients cannot bypass the journal with updates');
+select ok(not has_table_privilege('authenticated','public.team_agent_finance_events','DELETE'),'clients cannot delete audit history');
+select ok(not has_table_privilege('authenticated','public.team_agent_finance_requests','SELECT'),'idempotency receipts are private');
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.team_agent_finance_values'::regclass),'finance values force RLS');
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.team_agent_placements'::regclass),'placements force RLS');
+select ok(not has_function_privilege('authenticated','private.finance_create_agent(uuid,uuid,text,text)','execute'),'old private create helper is not callable');
+select ok(not has_function_privilege('authenticated','private.finance_delete_draft(uuid)','execute'),'draft protection cannot be bypassed');
+select * from finish();
+rollback;

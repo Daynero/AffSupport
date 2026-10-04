@@ -47,11 +47,28 @@ function staticPublicPagesPlugin(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss(), siteOriginPlugin(), staticPublicPagesPlugin()],
   envDir: '../..',
   define: { 'import.meta.env.VITE_WEB_REVISION': JSON.stringify(currentRevision()) },
-  server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:43117' } },
+  server: {
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      '/api': 'http://127.0.0.1:43117',
+      ...(mode === 'beta'
+        ? {
+            '/local-functions/team-finance-export': {
+              target:
+                process.env.SOTY_BETA_FINANCE_NATIVE === '1'
+                  ? 'http://127.0.0.1:54329'
+                  : 'http://127.0.0.1:54321',
+              rewrite: () => '/functions/v1/team-finance-export'
+            }
+          }
+        : {})
+    }
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {
@@ -86,4 +103,4 @@ export default defineConfig({
       }
     }
   }
-});
+}));

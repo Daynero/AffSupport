@@ -51,3 +51,6 @@ verify_jwt = false
 
 [functions.library-ops]
 verify_jwt = false
+
+[functions.team-finance-export]
+verify_jwt = false

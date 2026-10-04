@@ -69,7 +69,7 @@ const ACCOUNT_HUES = [265, 300, 210, 330, 190, 245, 285, 225] as const;
  * land on the same hue; saturation and lightness are the theme's job.
  */
 /** The agent tags on an account's agents, each with how many carry it. */
-function countAgentsByLabel(
+export function countAgentsByLabel(
   agents: readonly TeamAccountAgentSummary[]
 ): { label: TeamTaskLabelRef; count: number }[] {
   const byId = new Map<string, { label: TeamTaskLabelRef; count: number }>();
@@ -161,7 +161,7 @@ export function AccountGroup({
   onRename: (name: string) => Promise<void>;
   onSetTwoFactor?: (seed: string | null) => Promise<void>;
   onDelete: () => Promise<void>;
-  onAddAgent: (value: { agentId: string; note: string | null }) => Promise<void>;
+  onAddAgent: (value: { agentId: string; note: string | null; timezone?: string }) => Promise<void>;
   onUpdateAgent: (agent: TeamAccountAgentSummary, agentId: string) => Promise<void>;
   onDeleteAgent: (agent: TeamAccountAgentSummary) => Promise<void>;
   onAddRun: (agent: TeamAccountAgentSummary, note: string) => Promise<void>;

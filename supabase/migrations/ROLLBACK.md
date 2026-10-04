@@ -1196,3 +1196,23 @@ drop table if exists private.team_account_two_factor;
 No independent rollback: this migration only tightens permissions and RLS. Keep the
 hardening in place while either object exists; the objects themselves are removed
 by their originating migrations' rollback steps above.
+
+# Feature 027 — daily agent finance
+
+The 20261003100000–20261003103000 migrations preserve undated money in
+`team_agent_finance_legacy` and make old writes fail closed. After any daily
+entries exist, never drop the finance tables, restore old write RPCs, or copy
+daily values back to undated balance/topup. A UI rollback leaves finance editing
+unavailable until a forward fix. Export/read access and original legacy values
+remain preserved. Validate rollback against a disposable local snapshot first.
+
+# Finance delete compatibility (20261003106000)
+
+Forward-only clarification: transferred agents without financial journal or legacy data remain deletable. A former social account remains protected when its placement explains an agent with financial history. Do not restore the older guard functions: that would reintroduce the deferred-FK failure for transfer-only agents. All monetary archive protections remain enabled. No applied finance migration should be edited.
+
+### Agent finance calendar ranges (20261003107000)
+
+Forward-only widening of snapshot periods to 366 inclusive days. Existing money,
+placements, journals and authorization are unchanged. To temporarily hide ranges,
+roll back only the source UI; do not remove historical records or edit applied
+migrations. A narrower server policy requires a new forward migration.

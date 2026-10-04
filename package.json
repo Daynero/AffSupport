@@ -67,6 +67,7 @@
     "test:agent:e2e": "npm run build && node scripts/real-agent-check.mjs",
     "test:db": "npx supabase test db",
     "types:supabase": "npx supabase gen types typescript --linked --schema public",
+    "types:supabase:local": "node scripts/generate-local-db-types.mjs",
     "dev:soty-review": "npm run dev -w @video-compressor/soty-review",
     "build:soty-review": "npm run build -w @video-compressor/soty-review",
     "preview:soty-review": "npm run preview -w @video-compressor/soty-review",

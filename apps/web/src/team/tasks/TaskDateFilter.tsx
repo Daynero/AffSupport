@@ -1,5 +1,7 @@
 import { useContext, useMemo, useRef, useState } from 'react';
 import { RangeCalendarStateContext } from 'react-aria-components/RangeCalendar';
+import { CalendarDays, X } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type { TeamTaskStatus } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { TaskStatusIcon, taskStatusLabel } from './TaskStatusControl';
@@ -73,27 +75,7 @@ function RangeHint({ selectedLabel }: { selectedLabel: string }) {
 }
 
 function CalendarIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <rect
-        x="3.2"
-        y="4.5"
-        width="13.6"
-        height="12"
-        rx="2"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path
-        d="M6.5 2.9v3.3M13.5 2.9v3.3M3.5 8.3h13"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.6"
-      />
-    </svg>
-  );
+  return <CalendarDays size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />;
 }
 
 const statuses: readonly TaskStatusFilter[] = ['todo', 'in_progress', 'done', 'all'];
@@ -104,6 +86,9 @@ export function TaskDateFilterControl({
   status,
   onStatusChange,
   showStatus = true,
+  allowAll = true,
+  disabled = false,
+  calendarLabel,
   children
 }: {
   value: TaskDateFilter;
@@ -111,6 +96,9 @@ export function TaskDateFilterControl({
   status: TaskStatusFilter;
   onStatusChange: (value: TaskStatusFilter) => void;
   showStatus?: boolean;
+  allowAll?: boolean;
+  disabled?: boolean;
+  calendarLabel?: string;
   /** A further filter that shares the row — the account scope (017). */
   children?: React.ReactNode;
 }) {
@@ -157,21 +145,22 @@ export function TaskDateFilterControl({
         <button
           type="button"
           className="task-date-filter-trigger"
-          aria-label={t('teamTasksCalendarOpen')}
+          aria-label={calendarLabel ?? t('teamTasksCalendarOpen')}
+          disabled={disabled}
           aria-expanded={open}
           onClick={() => setOpen(current => !current)}
         >
           <CalendarIcon />
           {selectedLabel && <span>{selectedLabel}</span>}
         </button>
-        {value.kind !== 'all' && (
+        {allowAll && value.kind !== 'all' && (
           <button
             type="button"
             className="task-date-filter-clear"
             aria-label={t('teamTasksCalendarClear')}
             onClick={() => onChange({ kind: 'all' })}
           >
-            ×
+            <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </button>
         )}
         <Popover
@@ -217,24 +206,26 @@ export function TaskDateFilterControl({
                     FR-077). A board is filtered by "today" far more often than
                     by a range somebody picks out by hand. */}
                 <div className="task-quick-ranges">
-                  {quickRanges.map(option => (
-                    <button
-                      key={option.range}
-                      type="button"
-                      className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
-                      aria-pressed={quick === option.range}
-                      onClick={() => {
-                        setOpen(false);
-                        onChange(
-                          option.range === 'all'
-                            ? { kind: 'all' }
-                            : quickRangeValue(option.range, new Date())
-                        );
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                  {quickRanges
+                    .filter(option => allowAll || option.range !== 'all')
+                    .map(option => (
+                      <button
+                        key={option.range}
+                        type="button"
+                        className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
+                        aria-pressed={quick === option.range}
+                        onClick={() => {
+                          setOpen(false);
+                          onChange(
+                            option.range === 'all'
+                              ? { kind: 'all' }
+                              : quickRangeValue(option.range, new Date())
+                          );
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
                 </div>
                 <RangeHint selectedLabel={selectedLabel} />
               </>

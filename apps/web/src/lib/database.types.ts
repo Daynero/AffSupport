@@ -1,24 +1,17 @@
+import type { Database } from './database.compat';
+export type {
+  Database,
+  SupportGoalStatus,
+  SupportGoalRow,
+  Profile,
+  AnalyticsEventRow,
+  AdminUserRow,
+  MarketingExportRow
+} from './database.compat';
+
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type SupportGoalStatus = 'draft' | 'active' | 'archived';
-export type SupportGoalRow = Omit<
-  Database['public']['Tables']['support_goals']['Row'],
-  'status'
-> & { status: SupportGoalStatus };
-export type Profile = Omit<
-  Database['public']['Tables']['profiles']['Row'],
-  'language' | 'plan' | 'account_status'
-> & {
-  language: 'en' | 'uk';
-  plan: 'free' | 'pro' | 'team';
-  account_status: 'active' | 'blocked' | 'deleted';
-};
-export type AnalyticsEventRow = Database['public']['Tables']['analytics_events']['Row'];
-export type AdminUserRow = Database['public']['Functions']['admin_list_users']['Returns'][number];
-export type MarketingExportRow =
-  Database['public']['Functions']['admin_marketing_export']['Returns'][number];
-
-export type Database = {
+export type GeneratedDatabase = {
   public: {
     Tables: {
       admin_users: {
@@ -61,14 +54,14 @@ export type Database = {
           occurred_at: string;
           outcome: string | null;
           platform: string | null;
-          properties: Json;
+          properties: NonNullable<Json>;
           release_channel: string | null;
           run_id: string | null;
           screen: string | null;
           session_id: string | null;
           session_sequence: number | null;
           tool: string | null;
-          tool_contracts: Json;
+          tool_contracts: NonNullable<Json>;
           user_id: string | null;
           web_build_id: string | null;
         };
@@ -96,14 +89,14 @@ export type Database = {
           occurred_at?: string;
           outcome?: string | null;
           platform?: string | null;
-          properties?: Json;
+          properties?: NonNullable<Json>;
           release_channel?: string | null;
           run_id?: string | null;
           screen?: string | null;
           session_id?: string | null;
           session_sequence?: number | null;
           tool?: string | null;
-          tool_contracts?: Json;
+          tool_contracts?: NonNullable<Json>;
           user_id?: string | null;
           web_build_id?: string | null;
         };
@@ -131,14 +124,14 @@ export type Database = {
           occurred_at?: string;
           outcome?: string | null;
           platform?: string | null;
-          properties?: Json;
+          properties?: NonNullable<Json>;
           release_channel?: string | null;
           run_id?: string | null;
           screen?: string | null;
           session_id?: string | null;
           session_sequence?: number | null;
           tool?: string | null;
-          tool_contracts?: Json;
+          tool_contracts?: NonNullable<Json>;
           user_id?: string | null;
           web_build_id?: string | null;
         };
@@ -170,48 +163,54 @@ export type Database = {
       };
       profiles: {
         Row: {
-          account_status: 'active' | 'blocked' | 'deleted';
+          account_status: string;
           avatar_url: string | null;
           created_at: string;
           display_name: string | null;
           email: string | null;
           id: string;
-          language: 'en' | 'uk';
+          language: string;
           last_seen_at: string | null;
           marketing_consent: boolean;
           marketing_consent_at: string | null;
           onboarding_completed: boolean;
-          plan: 'free' | 'pro' | 'team';
+          plan: string;
+          task_progress_max_default: number | null;
+          transcript_delete_pref: string;
           updated_at: string;
         };
         Insert: {
-          account_status?: 'active' | 'blocked' | 'deleted';
+          account_status?: string;
           avatar_url?: string | null;
           created_at?: string;
           display_name?: string | null;
           email?: string | null;
           id: string;
-          language?: 'en' | 'uk';
+          language?: string;
           last_seen_at?: string | null;
           marketing_consent?: boolean;
           marketing_consent_at?: string | null;
           onboarding_completed?: boolean;
-          plan?: 'free' | 'pro' | 'team';
+          plan?: string;
+          task_progress_max_default?: number | null;
+          transcript_delete_pref?: string;
           updated_at?: string;
         };
         Update: {
-          account_status?: 'active' | 'blocked' | 'deleted';
+          account_status?: string;
           avatar_url?: string | null;
           created_at?: string;
           display_name?: string | null;
           email?: string | null;
           id?: string;
-          language?: 'en' | 'uk';
+          language?: string;
           last_seen_at?: string | null;
           marketing_consent?: boolean;
           marketing_consent_at?: string | null;
           onboarding_completed?: boolean;
-          plan?: 'free' | 'pro' | 'team';
+          plan?: string;
+          task_progress_max_default?: number | null;
+          transcript_delete_pref?: string;
           updated_at?: string;
         };
         Relationships: [];
@@ -258,7 +257,7 @@ export type Database = {
           id: string;
           raised_cents: number;
           slug: string;
-          status: SupportGoalStatus;
+          status: string;
           target_cents: number;
           title_en: string;
           title_uk: string;
@@ -272,7 +271,7 @@ export type Database = {
           id?: string;
           raised_cents?: number;
           slug: string;
-          status?: SupportGoalStatus;
+          status?: string;
           target_cents: number;
           title_en: string;
           title_uk: string;
@@ -286,7 +285,7 @@ export type Database = {
           id?: string;
           raised_cents?: number;
           slug?: string;
-          status?: SupportGoalStatus;
+          status?: string;
           target_cents?: number;
           title_en?: string;
           title_uk?: string;
@@ -297,31 +296,35 @@ export type Database = {
       team_account_agents: {
         Row: {
           account_id: string;
-          balance: number | null;
-          topup: number | null;
           agent_id: string;
+          balance: number | null;
           created_at: string;
           created_by: string;
           id: string;
           team_id: string;
+          topup: number | null;
           updated_at: string;
         };
         Insert: {
           account_id: string;
           agent_id: string;
+          balance?: number | null;
           created_at?: string;
           created_by: string;
           id?: string;
           team_id: string;
+          topup?: number | null;
           updated_at?: string;
         };
         Update: {
           account_id?: string;
           agent_id?: string;
+          balance?: number | null;
           created_at?: string;
           created_by?: string;
           id?: string;
           team_id?: string;
+          topup?: number | null;
           updated_at?: string;
         };
         Relationships: [
@@ -338,89 +341,6 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'teams';
             referencedColumns: ['id'];
-          }
-        ];
-      };
-      team_labels: {
-        Row: {
-          color: string;
-          scope: string;
-          created_at: string;
-          created_by: string;
-          id: string;
-          name: string;
-          team_id: string;
-          updated_at: string;
-        };
-        Insert: {
-          color?: string;
-          created_at?: string;
-          created_by: string;
-          id?: string;
-          name: string;
-          scope?: string;
-          team_id: string;
-          updated_at?: string;
-        };
-        Update: {
-          color?: string;
-          created_at?: string;
-          created_by?: string;
-          id?: string;
-          name?: string;
-          scope?: string;
-          team_id?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'team_labels_team_id_fkey';
-            columns: ['team_id'];
-            isOneToOne: false;
-            referencedRelation: 'teams';
-            referencedColumns: ['id'];
-          }
-        ];
-      };
-      team_task_label_links: {
-        Row: {
-          attached_at: string;
-          attached_by: string;
-          id: string;
-          label_id: string;
-          task_id: string;
-          team_id: string;
-        };
-        Insert: {
-          attached_at?: string;
-          attached_by: string;
-          id?: string;
-          label_id: string;
-          task_id: string;
-          team_id: string;
-        };
-        Update: {
-          attached_at?: string;
-          attached_by?: string;
-          id?: string;
-          label_id?: string;
-          task_id?: string;
-          team_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'team_task_label_links_label_id_team_id_fkey';
-            columns: ['label_id', 'team_id'];
-            isOneToOne: false;
-            referencedRelation: 'team_labels';
-            referencedColumns: ['id', 'team_id'];
-          },
-          {
-            foreignKeyName: 'team_task_label_links_task_id_team_id_fkey';
-            columns: ['task_id', 'team_id'];
-            isOneToOne: false;
-            referencedRelation: 'team_tasks';
-            referencedColumns: ['id', 'team_id'];
           }
         ];
       };
@@ -452,6 +372,357 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'team_accounts_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_agent_finance_events: {
+        Row: {
+          account_id: string;
+          actor_id: string | null;
+          agent_row_id: string;
+          entry_date: string;
+          id: string;
+          metric: string;
+          new_cents: number | null;
+          new_version: number;
+          occurred_at: string;
+          old_cents: number | null;
+          placement_id: string;
+          previous_version: number;
+          request_id: string;
+          team_id: string;
+        };
+        Insert: {
+          account_id: string;
+          actor_id?: string | null;
+          agent_row_id: string;
+          entry_date: string;
+          id?: string;
+          metric: string;
+          new_cents?: number | null;
+          new_version: number;
+          occurred_at?: string;
+          old_cents?: number | null;
+          placement_id: string;
+          previous_version: number;
+          request_id: string;
+          team_id: string;
+        };
+        Update: {
+          account_id?: string;
+          actor_id?: string | null;
+          agent_row_id?: string;
+          entry_date?: string;
+          id?: string;
+          metric?: string;
+          new_cents?: number | null;
+          new_version?: number;
+          occurred_at?: string;
+          old_cents?: number | null;
+          placement_id?: string;
+          previous_version?: number;
+          request_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_agent_finance_events_account_id_team_id_fkey';
+            columns: ['account_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_accounts';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_finance_events_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_finance_events_placement_id_team_id_agent_row_i_fkey';
+            columns: ['placement_id', 'team_id', 'agent_row_id', 'account_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_agent_placements';
+            referencedColumns: ['id', 'team_id', 'agent_row_id', 'account_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_finance_events_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_agent_finance_legacy: {
+        Row: {
+          account_id: string;
+          agent_row_id: string;
+          balance_imported_event_id: string | null;
+          balance_units: number | null;
+          captured_at: string;
+          id: string;
+          requested_topup_units: number | null;
+          team_id: string;
+          topup_imported_event_id: string | null;
+        };
+        Insert: {
+          account_id: string;
+          agent_row_id: string;
+          balance_imported_event_id?: string | null;
+          balance_units?: number | null;
+          captured_at?: string;
+          id?: string;
+          requested_topup_units?: number | null;
+          team_id: string;
+          topup_imported_event_id?: string | null;
+        };
+        Update: {
+          account_id?: string;
+          agent_row_id?: string;
+          balance_imported_event_id?: string | null;
+          balance_units?: number | null;
+          captured_at?: string;
+          id?: string;
+          requested_topup_units?: number | null;
+          team_id?: string;
+          topup_imported_event_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_agent_finance_legacy_account_id_team_id_fkey';
+            columns: ['account_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_accounts';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_finance_legacy_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_finance_legacy_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_agent_finance_requests: {
+        Row: {
+          actor_id: string;
+          created_at: string;
+          payload: NonNullable<Json>;
+          request_id: string;
+          result: NonNullable<Json>;
+          team_id: string;
+          undone_by_request_id: string | null;
+        };
+        Insert: {
+          actor_id: string;
+          created_at?: string;
+          payload: NonNullable<Json>;
+          request_id: string;
+          result: NonNullable<Json>;
+          team_id: string;
+          undone_by_request_id?: string | null;
+        };
+        Update: {
+          actor_id?: string;
+          created_at?: string;
+          payload?: NonNullable<Json>;
+          request_id?: string;
+          result?: NonNullable<Json>;
+          team_id?: string;
+          undone_by_request_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_agent_finance_requests_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_agent_finance_values: {
+        Row: {
+          account_id: string;
+          agent_row_id: string;
+          amount_cents: number | null;
+          currency: string;
+          entry_date: string;
+          id: string;
+          metric: string;
+          placement_id: string;
+          team_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          version: number;
+        };
+        Insert: {
+          account_id: string;
+          agent_row_id: string;
+          amount_cents?: number | null;
+          currency?: string;
+          entry_date: string;
+          id?: string;
+          metric: string;
+          placement_id: string;
+          team_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          version?: number;
+        };
+        Update: {
+          account_id?: string;
+          agent_row_id?: string;
+          amount_cents?: number | null;
+          currency?: string;
+          entry_date?: string;
+          id?: string;
+          metric?: string;
+          placement_id?: string;
+          team_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_agent_finance_values_account_id_team_id_fkey';
+            columns: ['account_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_accounts';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_finance_values_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_finance_values_placement_id_team_id_agent_row_i_fkey';
+            columns: ['placement_id', 'team_id', 'agent_row_id', 'account_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_agent_placements';
+            referencedColumns: ['id', 'team_id', 'agent_row_id', 'account_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_finance_values_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_agent_labels: {
+        Row: {
+          agent_row_id: string;
+          attached_at: string;
+          attached_by: string;
+          id: string;
+          label_id: string;
+          team_id: string;
+        };
+        Insert: {
+          agent_row_id: string;
+          attached_at?: string;
+          attached_by: string;
+          id?: string;
+          label_id: string;
+          team_id: string;
+        };
+        Update: {
+          agent_row_id?: string;
+          attached_at?: string;
+          attached_by?: string;
+          id?: string;
+          label_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_agent_labels_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_labels_label_id_team_id_fkey';
+            columns: ['label_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_labels';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_labels_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_agent_placements: {
+        Row: {
+          account_id: string;
+          agent_row_id: string;
+          ends_on: string | null;
+          id: string;
+          starts_on: string;
+          team_id: string;
+          version: number;
+        };
+        Insert: {
+          account_id: string;
+          agent_row_id: string;
+          ends_on?: string | null;
+          id?: string;
+          starts_on: string;
+          team_id: string;
+          version?: number;
+        };
+        Update: {
+          account_id?: string;
+          agent_row_id?: string;
+          ends_on?: string | null;
+          id?: string;
+          starts_on?: string;
+          team_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_agent_placements_account_id_team_id_fkey';
+            columns: ['account_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_accounts';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_placements_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_placements_team_id_fkey';
             columns: ['team_id'];
             isOneToOne: false;
             referencedRelation: 'teams';
@@ -507,38 +778,103 @@ export type Database = {
           }
         ];
       };
+      team_agent_transfer_events: {
+        Row: {
+          actor_id: string | null;
+          agent_row_id: string;
+          effective_on: string;
+          from_placement_id: string;
+          id: string;
+          occurred_at: string;
+          request_id: string;
+          team_id: string;
+          to_placement_id: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          agent_row_id: string;
+          effective_on: string;
+          from_placement_id: string;
+          id?: string;
+          occurred_at?: string;
+          request_id: string;
+          team_id: string;
+          to_placement_id: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          agent_row_id?: string;
+          effective_on?: string;
+          from_placement_id?: string;
+          id?: string;
+          occurred_at?: string;
+          request_id?: string;
+          team_id?: string;
+          to_placement_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_agent_transfer_events_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_transfer_events_from_placement_id_team_id_fkey';
+            columns: ['from_placement_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_agent_placements';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_agent_transfer_events_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_agent_transfer_events_to_placement_id_team_id_fkey';
+            columns: ['to_placement_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_agent_placements';
+            referencedColumns: ['id', 'team_id'];
+          }
+        ];
+      };
       team_audit_events: {
         Row: {
           action: string;
-          actor_id: string;
+          actor_id: string | null;
           actor_label_snapshot: string | null;
           error_code: string | null;
           id: string;
           occurred_at: string;
           result: string;
-          target: Json;
+          target: NonNullable<Json>;
           team_id: string;
         };
         Insert: {
           action: string;
-          actor_id: string;
+          actor_id?: string | null;
           actor_label_snapshot?: string | null;
           error_code?: string | null;
           id?: string;
           occurred_at?: string;
           result: string;
-          target?: Json;
+          target?: NonNullable<Json>;
           team_id: string;
         };
         Update: {
           action?: string;
-          actor_id?: string;
+          actor_id?: string | null;
           actor_label_snapshot?: string | null;
           error_code?: string | null;
           id?: string;
           occurred_at?: string;
           result?: string;
-          target?: Json;
+          target?: NonNullable<Json>;
           team_id?: string;
         };
         Relationships: [
@@ -586,18 +922,189 @@ export type Database = {
           }
         ];
       };
+      team_catalog_restitch_copies: {
+        Row: {
+          catalog_material_id: string;
+          created_at: string;
+          delete_attempts: number;
+          drive_file_id: string;
+          material_id: string;
+          next_delete_at: string | null;
+          operation_id: string | null;
+          retired_at: string | null;
+          role: string;
+          shared_link: string | null;
+          team_id: string;
+        };
+        Insert: {
+          catalog_material_id: string;
+          created_at?: string;
+          delete_attempts?: number;
+          drive_file_id: string;
+          material_id: string;
+          next_delete_at?: string | null;
+          operation_id?: string | null;
+          retired_at?: string | null;
+          role: string;
+          shared_link?: string | null;
+          team_id: string;
+        };
+        Update: {
+          catalog_material_id?: string;
+          created_at?: string;
+          delete_attempts?: number;
+          drive_file_id?: string;
+          material_id?: string;
+          next_delete_at?: string | null;
+          operation_id?: string | null;
+          retired_at?: string | null;
+          role?: string;
+          shared_link?: string | null;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_restitch_copies_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_product_catalogs';
+            referencedColumns: ['material_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_restitch_copies_material_id_fkey';
+            columns: ['material_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_restitch_copies_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_catalog_updater_items: {
+        Row: {
+          added_at: string;
+          attempts: number;
+          catalog_material_id: string;
+          lease_expires_at: string | null;
+          lease_owner: string | null;
+          next_attempt_at: string;
+          next_run_at: string | null;
+          round_due_at: string | null;
+          team_id: string;
+          update_interval: string | null;
+        };
+        Insert: {
+          added_at?: string;
+          attempts?: number;
+          catalog_material_id: string;
+          lease_expires_at?: string | null;
+          lease_owner?: string | null;
+          next_attempt_at?: string;
+          next_run_at?: string | null;
+          round_due_at?: string | null;
+          team_id: string;
+          update_interval?: string | null;
+        };
+        Update: {
+          added_at?: string;
+          attempts?: number;
+          catalog_material_id?: string;
+          lease_expires_at?: string | null;
+          lease_owner?: string | null;
+          next_attempt_at?: string;
+          next_run_at?: string | null;
+          round_due_at?: string | null;
+          team_id?: string;
+          update_interval?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_updater_items_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_product_catalogs';
+            referencedColumns: ['material_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_updater_items_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_catalog_updaters';
+            referencedColumns: ['team_id'];
+          }
+        ];
+      };
+      team_catalog_updaters: {
+        Row: {
+          grow_products: boolean;
+          next_run_at: string | null;
+          refresh_images: boolean;
+          refresh_texts: boolean;
+          restitch: boolean;
+          started_at: string | null;
+          started_by: string | null;
+          state: string;
+          team_id: string;
+          update_interval: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          grow_products?: boolean;
+          next_run_at?: string | null;
+          refresh_images?: boolean;
+          refresh_texts?: boolean;
+          restitch?: boolean;
+          started_at?: string | null;
+          started_by?: string | null;
+          state?: string;
+          team_id: string;
+          update_interval?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          grow_products?: boolean;
+          next_run_at?: string | null;
+          refresh_images?: boolean;
+          refresh_texts?: boolean;
+          restitch?: boolean;
+          started_at?: string | null;
+          started_by?: string | null;
+          state?: string;
+          team_id?: string;
+          update_interval?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_updaters_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_contract_settings: {
         Row: {
           key: string;
-          value: Json;
+          value: NonNullable<Json>;
         };
         Insert: {
           key: string;
-          value: Json;
+          value: NonNullable<Json>;
         };
         Update: {
           key?: string;
-          value?: Json;
+          value?: NonNullable<Json>;
         };
         Relationships: [];
       };
@@ -644,8 +1151,9 @@ export type Database = {
       };
       team_drive_connections: {
         Row: {
+          access_expires_at: string | null;
           capabilities_checked_at: string | null;
-          capability_snapshot: Json;
+          capability_snapshot: NonNullable<Json>;
           change_page_token: string | null;
           connected_at: string | null;
           created_at: string;
@@ -656,17 +1164,20 @@ export type Database = {
           id: string;
           initial_sync_state: string;
           last_error_code: string | null;
+          last_reconciled_at: string | null;
           last_synced_at: string | null;
           root_folder_id: string;
           root_folder_name: string;
           root_resource_key: string | null;
+          scope_set: string[];
           state: string;
           team_id: string;
           updated_at: string;
         };
         Insert: {
+          access_expires_at?: string | null;
           capabilities_checked_at?: string | null;
-          capability_snapshot?: Json;
+          capability_snapshot?: NonNullable<Json>;
           change_page_token?: string | null;
           connected_at?: string | null;
           created_at?: string;
@@ -677,17 +1188,20 @@ export type Database = {
           id?: string;
           initial_sync_state?: string;
           last_error_code?: string | null;
+          last_reconciled_at?: string | null;
           last_synced_at?: string | null;
           root_folder_id: string;
           root_folder_name: string;
           root_resource_key?: string | null;
+          scope_set?: string[];
           state?: string;
           team_id: string;
           updated_at?: string;
         };
         Update: {
+          access_expires_at?: string | null;
           capabilities_checked_at?: string | null;
-          capability_snapshot?: Json;
+          capability_snapshot?: NonNullable<Json>;
           change_page_token?: string | null;
           connected_at?: string | null;
           created_at?: string;
@@ -698,10 +1212,12 @@ export type Database = {
           id?: string;
           initial_sync_state?: string;
           last_error_code?: string | null;
+          last_reconciled_at?: string | null;
           last_synced_at?: string | null;
           root_folder_id?: string;
           root_folder_name?: string;
           root_resource_key?: string | null;
+          scope_set?: string[];
           state?: string;
           team_id?: string;
           updated_at?: string;
@@ -709,6 +1225,69 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'team_drive_connections_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_drive_selections: {
+        Row: {
+          connection_id: string;
+          created_at: string;
+          drive_folder_id: string;
+          id: string;
+          is_root: boolean;
+          name: string;
+          removed_at: string | null;
+          resource_key: string | null;
+          selected_at: string;
+          selected_by: string | null;
+          state: string;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          connection_id: string;
+          created_at?: string;
+          drive_folder_id: string;
+          id?: string;
+          is_root?: boolean;
+          name: string;
+          removed_at?: string | null;
+          resource_key?: string | null;
+          selected_at?: string;
+          selected_by?: string | null;
+          state?: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          connection_id?: string;
+          created_at?: string;
+          drive_folder_id?: string;
+          id?: string;
+          is_root?: boolean;
+          name?: string;
+          removed_at?: string | null;
+          resource_key?: string | null;
+          selected_at?: string;
+          selected_by?: string | null;
+          state?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_drive_selections_connection_id_fkey';
+            columns: ['connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_drive_connections';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_drive_selections_team_id_fkey';
             columns: ['team_id'];
             isOneToOne: false;
             referencedRelation: 'teams';
@@ -790,6 +1369,47 @@ export type Database = {
           },
           {
             foreignKeyName: 'team_invitations_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_labels: {
+        Row: {
+          color: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          scope: string;
+          team_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          color?: string;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          name: string;
+          scope?: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          color?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          name?: string;
+          scope?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_task_labels_team_id_fkey';
             columns: ['team_id'];
             isOneToOne: false;
             referencedRelation: 'teams';
@@ -1068,22 +1688,82 @@ export type Database = {
           }
         ];
       };
+      team_material_restitch_prep: {
+        Row: {
+          detected_end_seconds: number;
+          detected_start_seconds: number;
+          detector_version: number;
+          drive_version: string;
+          material_id: string;
+          prepared_at: string;
+          prepared_by: string | null;
+          source_profile: Json | null;
+          team_id: string;
+          unsupported_reason: string | null;
+        };
+        Insert: {
+          detected_end_seconds?: number;
+          detected_start_seconds?: number;
+          detector_version?: number;
+          drive_version: string;
+          material_id: string;
+          prepared_at?: string;
+          prepared_by?: string | null;
+          source_profile?: Json | null;
+          team_id: string;
+          unsupported_reason?: string | null;
+        };
+        Update: {
+          detected_end_seconds?: number;
+          detected_start_seconds?: number;
+          detector_version?: number;
+          drive_version?: string;
+          material_id?: string;
+          prepared_at?: string;
+          prepared_by?: string | null;
+          source_profile?: Json | null;
+          team_id?: string;
+          unsupported_reason?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_material_restitch_prep_material_id_fkey';
+            columns: ['material_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_material_restitch_prep_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_materials: {
         Row: {
+          audio_fingerprint: string | null;
           catalog_mutation_xid: number;
           category: string | null;
           checksum: string | null;
           classification_source: string;
           classification_version: number;
+          companion_kind: string | null;
+          companion_of: string | null;
           connection_id: string;
           created_at: string;
           drive_file_id: string;
           drive_id: string | null;
           drive_version: string | null;
           file_extension: string | null;
+          folder_indexed_at: string | null;
+          folder_trash_root: string | null;
           geo: string | null;
           id: string;
           kind: string;
+          landing_inspection_claimed_at: string | null;
           landing_validation_fingerprint: string | null;
           landing_validation_state: string | null;
           landing_validation_version: string | null;
@@ -1094,22 +1774,30 @@ export type Database = {
           lifecycle: string;
           mime_type: string | null;
           missing_at: string | null;
+          missing_reason: string | null;
           modified_at: string | null;
           name: string;
+          note: string | null;
           offer: string | null;
           parent_folder_id: string | null;
           placement_revision: number;
           placement_state: string;
           preview_error_code: string | null;
           preview_state: string;
+          provider_thumbnail_claimed_at: string | null;
+          provider_thumbnail_reason: string | null;
+          provider_thumbnail_state: string;
+          provider_thumbnail_version: string | null;
           resource_key: string | null;
           search_tsv: unknown;
+          selection_id: string | null;
           shortcut_target_id: string | null;
           shortcut_target_resource_key: string | null;
           size_bytes: number | null;
           structural_language: string | null;
           structural_offer: string | null;
           structural_type: string | null;
+          tag_color: string | null;
           tags: string[];
           team_id: string;
           thumbnail_source_version: string | null;
@@ -1117,7 +1805,6 @@ export type Database = {
           thumbnail_time_ms: number | null;
           transcript_error_code: string | null;
           transcript_indexed_bytes: number;
-          tag_color: string | null;
           transcript_ingest_state: string;
           transcript_ingested_at: string | null;
           transcript_source_checksum: string | null;
@@ -1128,20 +1815,26 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          audio_fingerprint?: string | null;
           catalog_mutation_xid?: number;
           category?: string | null;
           checksum?: string | null;
           classification_source?: string;
           classification_version?: number;
+          companion_kind?: string | null;
+          companion_of?: string | null;
           connection_id: string;
           created_at?: string;
           drive_file_id: string;
           drive_id?: string | null;
           drive_version?: string | null;
           file_extension?: string | null;
+          folder_indexed_at?: string | null;
+          folder_trash_root?: string | null;
           geo?: string | null;
           id?: string;
           kind: string;
+          landing_inspection_claimed_at?: string | null;
           landing_validation_fingerprint?: string | null;
           landing_validation_state?: string | null;
           landing_validation_version?: string | null;
@@ -1152,22 +1845,30 @@ export type Database = {
           lifecycle?: string;
           mime_type?: string | null;
           missing_at?: string | null;
+          missing_reason?: string | null;
           modified_at?: string | null;
           name: string;
+          note?: string | null;
           offer?: string | null;
           parent_folder_id?: string | null;
           placement_revision?: number;
           placement_state?: string;
           preview_error_code?: string | null;
           preview_state?: string;
+          provider_thumbnail_claimed_at?: string | null;
+          provider_thumbnail_reason?: string | null;
+          provider_thumbnail_state?: string;
+          provider_thumbnail_version?: string | null;
           resource_key?: string | null;
           search_tsv?: unknown;
+          selection_id?: string | null;
           shortcut_target_id?: string | null;
           shortcut_target_resource_key?: string | null;
           size_bytes?: number | null;
           structural_language?: string | null;
           structural_offer?: string | null;
           structural_type?: string | null;
+          tag_color?: string | null;
           tags?: string[];
           team_id: string;
           thumbnail_source_version?: string | null;
@@ -1175,7 +1876,6 @@ export type Database = {
           thumbnail_time_ms?: number | null;
           transcript_error_code?: string | null;
           transcript_indexed_bytes?: number;
-          tag_color?: string | null;
           transcript_ingest_state?: string;
           transcript_ingested_at?: string | null;
           transcript_source_checksum?: string | null;
@@ -1186,20 +1886,26 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          audio_fingerprint?: string | null;
           catalog_mutation_xid?: number;
           category?: string | null;
           checksum?: string | null;
           classification_source?: string;
           classification_version?: number;
+          companion_kind?: string | null;
+          companion_of?: string | null;
           connection_id?: string;
           created_at?: string;
           drive_file_id?: string;
           drive_id?: string | null;
           drive_version?: string | null;
           file_extension?: string | null;
+          folder_indexed_at?: string | null;
+          folder_trash_root?: string | null;
           geo?: string | null;
           id?: string;
           kind?: string;
+          landing_inspection_claimed_at?: string | null;
           landing_validation_fingerprint?: string | null;
           landing_validation_state?: string | null;
           landing_validation_version?: string | null;
@@ -1210,22 +1916,30 @@ export type Database = {
           lifecycle?: string;
           mime_type?: string | null;
           missing_at?: string | null;
+          missing_reason?: string | null;
           modified_at?: string | null;
           name?: string;
+          note?: string | null;
           offer?: string | null;
           parent_folder_id?: string | null;
           placement_revision?: number;
           placement_state?: string;
           preview_error_code?: string | null;
           preview_state?: string;
+          provider_thumbnail_claimed_at?: string | null;
+          provider_thumbnail_reason?: string | null;
+          provider_thumbnail_state?: string;
+          provider_thumbnail_version?: string | null;
           resource_key?: string | null;
           search_tsv?: unknown;
+          selection_id?: string | null;
           shortcut_target_id?: string | null;
           shortcut_target_resource_key?: string | null;
           size_bytes?: number | null;
           structural_language?: string | null;
           structural_offer?: string | null;
           structural_type?: string | null;
+          tag_color?: string | null;
           tags?: string[];
           team_id?: string;
           thumbnail_source_version?: string | null;
@@ -1233,7 +1947,6 @@ export type Database = {
           thumbnail_time_ms?: number | null;
           transcript_error_code?: string | null;
           transcript_indexed_bytes?: number;
-          tag_color?: string | null;
           transcript_ingest_state?: string;
           transcript_ingested_at?: string | null;
           transcript_source_checksum?: string | null;
@@ -1245,10 +1958,24 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'team_materials_companion_of_fk';
+            columns: ['companion_of'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'team_materials_connection_id_fkey';
             columns: ['connection_id'];
             isOneToOne: false;
             referencedRelation: 'team_drive_connections';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_materials_folder_trash_root_fkey';
+            columns: ['folder_trash_root'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
             referencedColumns: ['id'];
           },
           {
@@ -1266,7 +1993,76 @@ export type Database = {
             referencedColumns: ['code'];
           },
           {
+            foreignKeyName: 'team_materials_selection_id_fkey';
+            columns: ['selection_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_drive_selections';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'team_materials_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_member_restitch_preferences: {
+        Row: {
+          configured: boolean;
+          custom_final_duration_seconds: number;
+          custom_start_duration_ms: number;
+          end_enabled: boolean;
+          end_image_ids: string[];
+          final_duration_mode: string;
+          fit_mode: string;
+          operation: string;
+          start_duration_mode: string;
+          start_enabled: boolean;
+          start_image_ids: string[];
+          team_id: string;
+          updated_at: string;
+          use_owner: boolean;
+          user_id: string;
+        };
+        Insert: {
+          configured?: boolean;
+          custom_final_duration_seconds?: number;
+          custom_start_duration_ms?: number;
+          end_enabled?: boolean;
+          end_image_ids?: string[];
+          final_duration_mode?: string;
+          fit_mode?: string;
+          operation?: string;
+          start_duration_mode?: string;
+          start_enabled?: boolean;
+          start_image_ids?: string[];
+          team_id: string;
+          updated_at?: string;
+          use_owner?: boolean;
+          user_id: string;
+        };
+        Update: {
+          configured?: boolean;
+          custom_final_duration_seconds?: number;
+          custom_start_duration_ms?: number;
+          end_enabled?: boolean;
+          end_image_ids?: string[];
+          final_duration_mode?: string;
+          fit_mode?: string;
+          operation?: string;
+          start_duration_mode?: string;
+          start_enabled?: boolean;
+          start_image_ids?: string[];
+          team_id?: string;
+          updated_at?: string;
+          use_owner?: boolean;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_member_restitch_preferences_team_id_fkey';
             columns: ['team_id'];
             isOneToOne: false;
             referencedRelation: 'teams';
@@ -1280,7 +2076,7 @@ export type Database = {
           created_at: string;
           id: string;
           joined_at: string;
-          permission_overrides: Json;
+          permission_overrides: NonNullable<Json>;
           removed_at: string | null;
           status: string;
           team_id: string;
@@ -1292,7 +2088,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           joined_at?: string;
-          permission_overrides?: Json;
+          permission_overrides?: NonNullable<Json>;
           removed_at?: string | null;
           status?: string;
           team_id: string;
@@ -1304,7 +2100,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           joined_at?: string;
-          permission_overrides?: Json;
+          permission_overrides?: NonNullable<Json>;
           removed_at?: string | null;
           status?: string;
           team_id?: string;
@@ -1444,6 +2240,262 @@ export type Database = {
         };
         Relationships: [];
       };
+      team_product_catalog_image_sources: {
+        Row: {
+          created_at: string;
+          kind: string;
+          material_id: string;
+          team_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          kind: string;
+          material_id: string;
+          team_id: string;
+        };
+        Update: {
+          created_at?: string;
+          kind?: string;
+          material_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_product_catalog_image_sources_material_id_team_id_fkey';
+            columns: ['material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_product_catalog_image_sources_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_product_catalog_settings: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          image_link: string | null;
+          price: number;
+          price_max: number | null;
+          price_min: number | null;
+          team_id: string;
+          title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          image_link?: string | null;
+          price: number;
+          price_max?: number | null;
+          price_min?: number | null;
+          team_id: string;
+          title?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          image_link?: string | null;
+          price?: number;
+          price_max?: number | null;
+          price_min?: number | null;
+          team_id?: string;
+          title?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_product_catalog_settings_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_product_catalog_texts: {
+        Row: {
+          description: string;
+          id: string;
+          position: number;
+          team_id: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          description: string;
+          id?: string;
+          position: number;
+          team_id: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          description?: string;
+          id?: string;
+          position?: number;
+          team_id?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_product_catalog_texts_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_product_catalogs: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          current_video_link: string | null;
+          last_update_error: string | null;
+          last_updated_at: string | null;
+          material_id: string;
+          product_count: number;
+          settings_snapshot: NonNullable<Json>;
+          sheet_url: string;
+          source_link: string;
+          team_id: string;
+          update_count: number;
+          variant: number | null;
+          video_link: string;
+          video_material_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          current_video_link?: string | null;
+          last_update_error?: string | null;
+          last_updated_at?: string | null;
+          material_id: string;
+          product_count: number;
+          settings_snapshot: NonNullable<Json>;
+          sheet_url: string;
+          source_link: string;
+          team_id: string;
+          update_count?: number;
+          variant?: number | null;
+          video_link: string;
+          video_material_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          current_video_link?: string | null;
+          last_update_error?: string | null;
+          last_updated_at?: string | null;
+          material_id?: string;
+          product_count?: number;
+          settings_snapshot?: NonNullable<Json>;
+          sheet_url?: string;
+          source_link?: string;
+          team_id?: string;
+          update_count?: number;
+          variant?: number | null;
+          video_link?: string;
+          video_material_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_product_catalogs_material_id_fkey';
+            columns: ['material_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_product_catalogs_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_product_catalogs_video_material_id_fkey';
+            columns: ['video_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_restitch_defaults: {
+        Row: {
+          configured: boolean;
+          created_at: string;
+          custom_final_duration_seconds: number;
+          custom_start_duration_ms: number;
+          end_enabled: boolean;
+          end_image_ids: string[];
+          final_duration_mode: string;
+          fit_mode: string;
+          operation: string;
+          start_duration_mode: string;
+          start_enabled: boolean;
+          start_image_ids: string[];
+          team_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          configured?: boolean;
+          created_at?: string;
+          custom_final_duration_seconds?: number;
+          custom_start_duration_ms?: number;
+          end_enabled?: boolean;
+          end_image_ids?: string[];
+          final_duration_mode?: string;
+          fit_mode?: string;
+          operation?: string;
+          start_duration_mode?: string;
+          start_enabled?: boolean;
+          start_image_ids?: string[];
+          team_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          configured?: boolean;
+          created_at?: string;
+          custom_final_duration_seconds?: number;
+          custom_start_duration_ms?: number;
+          end_enabled?: boolean;
+          end_image_ids?: string[];
+          final_duration_mode?: string;
+          fit_mode?: string;
+          operation?: string;
+          start_duration_mode?: string;
+          start_enabled?: boolean;
+          start_image_ids?: string[];
+          team_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_restitch_defaults_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_roles: {
         Row: {
           is_base_role: boolean;
@@ -1518,17 +2570,17 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'team_task_agents_task_id_team_id_fkey';
-            columns: ['task_id', 'team_id'];
-            isOneToOne: false;
-            referencedRelation: 'team_tasks';
-            referencedColumns: ['id', 'team_id'];
-          },
-          {
             foreignKeyName: 'team_task_agents_agent_row_id_team_id_fkey';
             columns: ['agent_row_id', 'team_id'];
             isOneToOne: false;
             referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_task_agents_task_id_team_id_fkey';
+            columns: ['task_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_tasks';
             referencedColumns: ['id', 'team_id'];
           },
           {
@@ -1592,9 +2644,57 @@ export type Database = {
           }
         ];
       };
+      team_task_label_links: {
+        Row: {
+          attached_at: string;
+          attached_by: string;
+          id: string;
+          label_id: string;
+          task_id: string;
+          team_id: string;
+        };
+        Insert: {
+          attached_at?: string;
+          attached_by: string;
+          id?: string;
+          label_id: string;
+          task_id: string;
+          team_id: string;
+        };
+        Update: {
+          attached_at?: string;
+          attached_by?: string;
+          id?: string;
+          label_id?: string;
+          task_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_task_label_links_label_id_team_id_fkey';
+            columns: ['label_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_labels';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_task_label_links_task_id_team_id_fkey';
+            columns: ['task_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_tasks';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_task_label_links_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_tasks: {
         Row: {
-          task_date: string | null;
           assignee_id: string | null;
           assignee_label_snapshot: string | null;
           completed_at: string | null;
@@ -1606,12 +2706,12 @@ export type Database = {
           progress_max: number;
           progress_value: number;
           status: string;
+          task_date: string | null;
           team_id: string;
           title: string;
           updated_at: string;
         };
         Insert: {
-          task_date?: string | null;
           assignee_id?: string | null;
           assignee_label_snapshot?: string | null;
           completed_at?: string | null;
@@ -1623,12 +2723,12 @@ export type Database = {
           progress_max?: number;
           progress_value?: number;
           status?: string;
+          task_date?: string | null;
           team_id: string;
           title: string;
           updated_at?: string;
         };
         Update: {
-          task_date?: string | null;
           assignee_id?: string | null;
           assignee_label_snapshot?: string | null;
           completed_at?: string | null;
@@ -1640,6 +2740,7 @@ export type Database = {
           progress_max?: number;
           progress_value?: number;
           status?: string;
+          task_date?: string | null;
           team_id?: string;
           title?: string;
           updated_at?: string;
@@ -1816,6 +2917,38 @@ export type Database = {
           }
         ];
       };
+      team_workspace_folders: {
+        Row: {
+          created_at: string;
+          drive_folder_id: string;
+          marker: string;
+          team_id: string;
+          verified_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          drive_folder_id: string;
+          marker: string;
+          team_id: string;
+          verified_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          drive_folder_id?: string;
+          marker?: string;
+          team_id?: string;
+          verified_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_workspace_folders_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_workspace_waitlist: {
         Row: {
           created_at: string;
@@ -1856,6 +2989,7 @@ export type Database = {
           name: string;
           owner_id: string;
           status: string;
+          task_progress_max_default: number | null;
           updated_at: string;
         };
         Insert: {
@@ -1864,6 +2998,7 @@ export type Database = {
           name: string;
           owner_id: string;
           status?: string;
+          task_progress_max_default?: number | null;
           updated_at?: string;
         };
         Update: {
@@ -1872,6 +3007,7 @@ export type Database = {
           name?: string;
           owner_id?: string;
           status?: string;
+          task_progress_max_default?: number | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -1942,199 +3078,6 @@ export type Database = {
       };
     };
     Functions: {
-      list_team_account_two_factor_seeds: {
-        Args: { p_team: string };
-        Returns: { account_id: string; secret: string }[];
-      };
-      set_team_account_two_factor_seed: {
-        Args: { p_team: string; p_account: string; p_secret: string | null };
-        Returns: boolean;
-      };
-      /* 016 — the 2FA notebook. Added by hand for the same reason 015 was: the
-         committed types predate several unrelated columns in the local schema, and a
-         wholesale regeneration would drag that drift into this feature's diff.
-
-         `secret` is the vault's word for the value; the client entity calls it `seed`.
-         `mapEntry` in api/two-factor.ts is where the rename happens. */
-      list_two_factor_entries: {
-        Args: Record<string, never>;
-        Returns: {
-          id: string;
-          name: string;
-          secret: string;
-          created_at: string;
-          updated_at: string;
-        }[];
-      };
-      create_two_factor_entry: {
-        Args: { p_name: string; p_secret: string };
-        Returns: {
-          id: string;
-          name: string;
-          secret: string;
-          created_at: string;
-          updated_at: string;
-        }[];
-      };
-      update_two_factor_entry: {
-        /* `p_secret: null` renames without touching the stored seed. */
-        Args: { p_entry: string; p_name: string; p_secret: string | null };
-        Returns: {
-          id: string;
-          name: string;
-          secret: string;
-          created_at: string;
-          updated_at: string;
-        }[];
-      };
-      delete_two_factor_entry: {
-        Args: { p_entry: string };
-        Returns: undefined;
-      };
-      /* 015 — the space's re-stitching defaults and what a run already knows about a
-         material. Added by hand rather than by regenerating the whole file: the committed
-         types predate several unrelated columns in the local schema, and a wholesale
-         regeneration would drag that drift into this feature's diff. */
-      get_restitch_defaults: {
-        Args: { p_team: string };
-        Returns: {
-          team_id: string;
-          operation: string;
-          start_image_ids: string[];
-          end_image_ids: string[];
-          fit_mode: string;
-          final_duration_mode: string;
-          custom_final_duration_seconds: number;
-          configured: boolean;
-          updated_by: string | null;
-          created_at: string;
-          updated_at: string;
-        } | null;
-      };
-      get_effective_restitch_defaults: {
-        Args: { p_team: string };
-        Returns: Json | null;
-      };
-      get_member_restitch_preference: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
-      set_member_restitch_use_owner: {
-        Args: { p_team: string; p_use_owner: boolean };
-        Returns: Json;
-      };
-      set_member_restitch_defaults: {
-        Args: { p_team: string; p_defaults: Json };
-        Returns: Json;
-      };
-      set_restitch_defaults: {
-        Args: { p_team: string; p_defaults: Json };
-        Returns: {
-          team_id: string;
-          operation: string;
-          start_image_ids: string[];
-          end_image_ids: string[];
-          fit_mode: string;
-          final_duration_mode: string;
-          custom_final_duration_seconds: number;
-          configured: boolean;
-          updated_by: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-      };
-      // 022 — a space's product catalog values, and a video's catalog sheet.
-      get_team_product_catalog_settings: {
-        Args: { p_team: string };
-        Returns: {
-          team_id: string;
-          title: string;
-          description: string;
-          price: number;
-          image_link: string;
-          updated_by: string | null;
-          created_at: string;
-          updated_at: string;
-        }[];
-      };
-      set_team_product_catalog_settings: {
-        Args: { p_team: string; p_settings: Json };
-        Returns: {
-          team_id: string;
-          title: string;
-          description: string;
-          price: number;
-          image_link: string;
-          updated_by: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-      };
-      // 023 — the catalog registry and the space's catalog updater.
-      list_team_product_catalogs: {
-        Args: { p_team: string };
-        Returns: {
-          catalog_id: string;
-          name: string;
-          sheet_url: string;
-          video_id: string;
-          video_name: string;
-          folder_name: string | null;
-          product_count: number;
-          created_at: string;
-          last_updated_at: string | null;
-          update_count: number;
-          in_updater: boolean;
-          last_update_error: string | null;
-          update_interval: string | null;
-          next_run_at: string | null;
-          update_pending: boolean;
-          folder_drive_id: string | null;
-          update_stage: string | null;
-        }[];
-      };
-      get_team_catalog_updater: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
-      save_team_catalog_updater: {
-        Args: { p_team: string; p_catalogs: string[]; p_interval: string; p_restitch: boolean };
-        Returns: Json;
-      };
-      stop_team_catalog_updater: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
-      get_material_product_catalog: {
-        Args: { p_team: string; p_video: string };
-        Returns: {
-          id: string;
-          name: string;
-          drive_file_id: string;
-          sheet_url: string;
-          source_link: string;
-          product_count: number;
-          created_at: string;
-        }[];
-      };
-      get_material_restitch_prep: {
-        Args: { p_team: string; p_materials: string[] };
-        Returns: {
-          material_id: string;
-          team_id: string;
-          drive_version: string;
-          detected_start_seconds: number;
-          detected_end_seconds: number;
-          source_profile: Json;
-          unsupported_reason: string | null;
-          prepared_at: string;
-          prepared_by: string | null;
-        }[];
-      };
-      set_material_restitch_prep: {
-        Args: { p_material: string; p_drive_version: string; p_prep: Json };
-        Returns: boolean;
-      };
       accept_invitation: {
         Args: { p_invitation: string; p_plain_token?: string };
         Returns: {
@@ -2145,8 +3088,37 @@ export type Database = {
           role: string;
         }[];
       };
+      add_team_account_agent: {
+        Args: {
+          p_account: string;
+          p_agent_id: string;
+          p_note?: string;
+          p_team: string;
+          p_timezone?: string;
+        };
+        Returns: Json;
+      };
+      add_team_agent_run: {
+        Args: { p_agent: string; p_note: string; p_team: string };
+        Returns: Json;
+      };
+      add_team_drive_selection: {
+        Args: {
+          p_drive_folder_id: string;
+          p_name?: string;
+          p_resource_key?: string;
+          p_team: string;
+        };
+        Returns: {
+          drive_folder_id: string;
+          id: string;
+          is_root: boolean;
+          name: string;
+          state: string;
+        }[];
+      };
       admin_active_support_goal: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           created_at: string;
           currency: string;
@@ -2184,7 +3156,7 @@ export type Database = {
         }[];
       };
       admin_list_team_workspace_waitlist: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           created_at: string;
           email: string;
@@ -2214,7 +3186,7 @@ export type Database = {
         }[];
       };
       admin_list_windows_app_waitlist: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           created_at: string;
           email: string;
@@ -2222,7 +3194,7 @@ export type Database = {
         }[];
       };
       admin_marketing_export: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           display_name: string;
           email: string;
@@ -2230,10 +3202,7 @@ export type Database = {
           marketing_consent_at: string;
         }[];
       };
-      admin_overview: {
-        Args: { p_end_date: string; p_start_date: string };
-        Returns: Json;
-      };
+      admin_overview: { Args: { p_end_date: string; p_start_date: string }; Returns: Json };
       admin_set_account_status: {
         Args: { p_account_status: string; p_user_id: string };
         Returns: boolean;
@@ -2269,177 +3238,26 @@ export type Database = {
           isSetofReturn: false;
         };
       };
-      analytics_properties_are_safe: {
-        Args: { payload: Json };
-        Returns: boolean;
-      };
-      analytics_properties_are_safe_v2: {
-        Args: { payload: Json };
-        Returns: boolean;
-      };
-      add_team_account_agent: {
-        Args: { p_account: string; p_agent_id: string; p_note?: string; p_team: string };
-        Returns: Json;
-      };
-      add_team_agent_run: {
-        Args: { p_agent: string; p_note: string; p_team: string };
-        Returns: Json;
-      };
-      clear_team_agent_run_markers: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
-      clear_team_agent_runs: {
-        Args: { p_agent: string; p_team: string };
-        Returns: Json;
-      };
-      delete_team_agent_run: {
-        Args: { p_run: string; p_team: string };
-        Returns: Json;
-      };
-      set_team_material_tag: {
-        Args: { p_color: string | null; p_material: string; p_team: string };
-        Returns: Json;
-      };
-      set_team_agent_run_marker: {
-        Args: { p_marker: string | null; p_run: string; p_team: string };
-        Returns: Json;
-      };
-      update_team_agent_run: {
-        Args: { p_note: string; p_run: string; p_team: string };
-        Returns: Json;
-      };
-      create_team_account: {
-        Args: { p_name: string; p_team: string };
-        Returns: {
-          created_at: string;
-          created_by: string;
-          id: string;
-          name: string;
-          team_id: string;
-          updated_at: string;
-        };
-      };
-      delete_team_account: {
-        Args: { p_account: string; p_team: string };
-        Returns: {
-          ok: boolean;
-        }[];
-      };
-      delete_team_account_agent: {
-        Args: { p_agent: string; p_team: string };
-        Returns: {
-          ok: boolean;
-        }[];
-      };
-      list_team_accounts: {
-        Args: { p_team: string };
-        Returns: {
-          agents: Json;
-          created_at: string;
-          id: string;
-          name: string;
-          team_id: string;
-          updated_at: string;
-        }[];
-      };
-      rename_team_account: {
-        Args: { p_account: string; p_name: string; p_team: string };
-        Returns: {
-          created_at: string;
-          created_by: string;
-          id: string;
-          name: string;
-          team_id: string;
-          updated_at: string;
-        };
-      };
-      update_team_account_agent: {
-        Args: { p_agent: string; p_agent_id: string; p_team: string };
-        Returns: Json;
-      };
-      list_team_labels: {
-        Args: { p_scope?: string; p_team: string };
-        Returns: {
-          color: string;
-          created_at: string;
-          id: string;
-          name: string;
-          scope: string;
-          team_id: string;
-          updated_at: string;
-          usage_count: number;
-        }[];
-      };
+      analytics_properties_are_safe: { Args: { payload: Json }; Returns: boolean };
+      analytics_properties_are_safe_v2: { Args: { payload: Json }; Returns: boolean };
+      assert_team_member: { Args: { p_team: string }; Returns: boolean };
       attach_team_agent_label: {
         Args: { p_agent: string; p_label: string; p_team: string };
-        Returns: Json;
-      };
-      detach_team_agent_label: {
-        Args: { p_agent: string; p_label: string; p_team: string };
-        Returns: Json;
-      };
-      set_team_agent_money: {
-        Args: { p_agent: string; p_balance: number | null; p_team: string; p_topup: number | null };
-        Returns: Json;
-      };
-      clear_team_agent_topups: {
-        Args: { p_team: string };
-        Returns: { agent_row_id: string; topup: number }[];
-      };
-      clear_team_agent_balances: {
-        Args: { p_team: string };
-        Returns: { agent_row_id: string; balance: number }[];
-      };
-      create_team_label: {
-        Args: { p_color?: string; p_name: string; p_scope?: string; p_team: string };
-        Returns: {
-          color: string;
-          created_at: string;
-          created_by: string;
-          id: string;
-          name: string;
-          team_id: string;
-          updated_at: string;
-        };
-      };
-      update_team_label: {
-        Args: { p_color: string; p_label: string; p_name: string; p_team: string };
-        Returns: {
-          color: string;
-          created_at: string;
-          created_by: string;
-          id: string;
-          name: string;
-          team_id: string;
-          updated_at: string;
-        };
-      };
-      delete_team_label: {
-        Args: { p_label: string; p_team: string };
-        Returns: { ok: boolean }[];
-      };
-      attach_team_task_label: {
-        Args: { p_label: string; p_task: string; p_team: string };
-        Returns: Json;
-      };
-      detach_team_task_label: {
-        Args: { p_label: string; p_task: string; p_team: string };
         Returns: Json;
       };
       attach_team_task_agent: {
         Args: { p_agent: string; p_task: string; p_team: string };
         Returns: Json;
       };
-      detach_team_task_agent: {
-        Args: { p_agent: string; p_task: string; p_team: string };
+      attach_team_task_label: {
+        Args: { p_label: string; p_task: string; p_team: string };
         Returns: Json;
       };
       attach_team_task_materials: {
         Args: { p_materials: string[]; p_task: string; p_team: string };
         Returns: Json;
       };
-      can_access_team_workspace: { Args: never; Returns: boolean };
+      can_access_team_workspace: { Args: Record<PropertyKey, never>; Returns: boolean };
       cancel_library_job: {
         Args: {
           p_agent_instance: string;
@@ -2476,6 +3294,33 @@ export type Database = {
         };
         Returns: Json;
       };
+      clear_team_agent_balances: {
+        Args: { p_team: string };
+        Returns: {
+          agent_row_id: string;
+          balance: number;
+        }[];
+      };
+      clear_team_agent_finance_values: {
+        Args: {
+          p_date: string;
+          p_fields: Json;
+          p_metric: string;
+          p_request_id: string;
+          p_team: string;
+          p_timezone: string;
+        };
+        Returns: Json;
+      };
+      clear_team_agent_run_markers: { Args: { p_team: string }; Returns: Json };
+      clear_team_agent_runs: { Args: { p_agent: string; p_team: string }; Returns: Json };
+      clear_team_agent_topups: {
+        Args: { p_team: string };
+        Returns: {
+          agent_row_id: string;
+          topup: number;
+        }[];
+      };
       consume_team_transfer_grant: {
         Args: { p_purpose: string; p_token_hash: string };
         Returns: {
@@ -2490,12 +3335,7 @@ export type Database = {
         }[];
       };
       create_invitation: {
-        Args: {
-          p_email: string;
-          p_initial_role: string;
-          p_team: string;
-          p_token_hash: string;
-        };
+        Args: { p_email: string; p_initial_role: string; p_team: string; p_token_hash: string };
         Returns: {
           delivery_error_code: string;
           delivery_state: string;
@@ -2509,10 +3349,6 @@ export type Database = {
           team_name: string;
         }[];
       };
-      rename_team: {
-        Args: { p_name: string; p_team: string };
-        Returns: string;
-      };
       create_team: {
         Args: { p_name: string };
         Returns: {
@@ -2522,6 +3358,42 @@ export type Database = {
           permissions: Json;
           role: string;
         }[];
+      };
+      create_team_account: {
+        Args: { p_name: string; p_team: string };
+        Returns: {
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_accounts';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_team_label: {
+        Args: { p_color?: string; p_name: string; p_scope?: string; p_team: string };
+        Returns: {
+          color: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          scope: string;
+          team_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_labels';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       create_team_task: {
         Args: {
@@ -2543,6 +3415,7 @@ export type Database = {
           progress_max: number;
           progress_value: number;
           status: string;
+          task_date: string | null;
           team_id: string;
           title: string;
           updated_at: string;
@@ -2553,6 +3426,16 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      create_two_factor_entry: {
+        Args: { p_name: string; p_secret: string };
+        Returns: {
+          created_at: string;
+          id: string;
+          name: string;
+          secret: string;
+          updated_at: string;
+        }[];
       };
       create_upload_batch: {
         Args: {
@@ -2577,17 +3460,49 @@ export type Database = {
           ok: boolean;
         }[];
       };
+      delete_team_account: {
+        Args: { p_account: string; p_team: string };
+        Returns: {
+          ok: boolean;
+        }[];
+      };
+      delete_team_account_agent: {
+        Args: { p_agent: string; p_team: string };
+        Returns: {
+          ok: boolean;
+        }[];
+      };
+      delete_team_agent_run: { Args: { p_run: string; p_team: string }; Returns: Json };
+      delete_team_label: {
+        Args: { p_label: string; p_team: string };
+        Returns: {
+          ok: boolean;
+        }[];
+      };
       delete_team_task: {
         Args: { p_task: string; p_team: string };
         Returns: {
           ok: boolean;
         }[];
       };
+      delete_two_factor_entry: { Args: { p_entry: string }; Returns: undefined };
+      detach_team_agent_label: {
+        Args: { p_agent: string; p_label: string; p_team: string };
+        Returns: Json;
+      };
+      detach_team_task_agent: {
+        Args: { p_agent: string; p_task: string; p_team: string };
+        Returns: Json;
+      };
+      detach_team_task_label: {
+        Args: { p_label: string; p_task: string; p_team: string };
+        Returns: Json;
+      };
       detach_team_task_material: {
         Args: { p_material: string; p_task: string; p_team: string };
         Returns: boolean;
       };
-      expire_team_invitations: { Args: never; Returns: number };
+      expire_team_invitations: { Args: Record<PropertyKey, never>; Returns: number };
       fail_library_job: {
         Args: {
           p_agent_instance: string;
@@ -2613,82 +3528,8 @@ export type Database = {
           state: string;
         }[];
       };
-      list_task_attachment_folders: {
-        Args: { p_task: string; p_team: string };
-        Returns: { material_id: string; parent_folder_id: string }[];
-      };
-      next_product_catalog_variant: {
-        Args: { p_team: string; p_video: string };
-        Returns: number;
-      };
-      list_material_tasks: {
-        Args: { p_material: string; p_team: string };
-        Returns: { id: string; status: string; title: string }[];
-      };
-      list_team_product_catalog_image_sources: {
-        Args: { p_team: string };
-        Returns: {
-          image_count: number;
-          kind: string;
-          material_id: string;
-          name: string;
-          pool_size: number;
-        }[];
-      };
-      set_team_product_catalog_image_sources: {
-        Args: { p_items: Json; p_team: string };
-        Returns: number;
-      };
-      list_team_product_catalog_texts: {
-        Args: { p_team: string };
-        Returns: { description: string; id: string; sort_order: number; title: string }[];
-      };
-      replace_team_product_catalog_texts: {
-        Args: { p_items: Json; p_team: string };
-        Returns: number;
-      };
-      update_team_product_catalog_text: {
-        Args: { p_description: string; p_id: string; p_team: string; p_title: string };
-        Returns: Json;
-      };
-      get_team_catalog_updater_refresh_images: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
-      set_team_catalog_updater_refresh_images: {
-        Args: { p_refresh: boolean; p_team: string };
-        Returns: boolean;
-      };
-      list_team_product_catalog_pool_names: {
-        Args: { p_limit?: number; p_team: string };
-        Returns: { name: string }[];
-      };
-      get_team_catalog_updater_grow: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
-      set_team_catalog_updater_grow: {
-        Args: { p_grow: boolean; p_team: string };
-        Returns: boolean;
-      };
-      get_team_catalog_updater_refresh_texts: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
-      set_team_catalog_updater_refresh_texts: {
-        Args: { p_refresh: boolean; p_team: string };
-        Returns: boolean;
-      };
-      get_team_landing_source_status: {
-        Args: { p_team: string };
-        Returns: {
-          has_detached_landing_candidates: boolean;
-        }[];
-      };
-      get_library_processing_context: {
-        Args: { p_source: string; p_team: string };
-        Returns: Json;
-      };
+      get_effective_restitch_defaults: { Args: { p_team: string }; Returns: Json };
+      get_library_processing_context: { Args: { p_source: string; p_team: string }; Returns: Json };
       get_material_preview: {
         Args: { p_material: string; p_team: string };
         Returns: {
@@ -2714,6 +3555,18 @@ export type Database = {
           transcript_truncated: boolean;
         }[];
       };
+      get_material_product_catalog: {
+        Args: { p_team: string; p_video: string };
+        Returns: {
+          created_at: string;
+          drive_file_id: string;
+          id: string;
+          name: string;
+          product_count: number;
+          sheet_url: string;
+          source_link: string;
+        }[];
+      };
       get_material_provenance: {
         Args: { p_material: string; p_team: string };
         Returns: {
@@ -2731,6 +3584,38 @@ export type Database = {
           tool_id: string;
         }[];
       };
+      get_material_restitch_prep: {
+        Args: { p_materials: string[]; p_team: string };
+        Returns: {
+          detected_end_seconds: number;
+          detected_start_seconds: number;
+          detector_version: number;
+          drive_version: string;
+          material_id: string;
+          prepared_at: string;
+          prepared_by: string | null;
+          source_profile: Json | null;
+          team_id: string;
+          unsupported_reason: string | null;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'team_material_restitch_prep';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      get_material_transcript_companion: {
+        Args: { p_material: string; p_team: string };
+        Returns: {
+          drive_file_id: string;
+          has_text: boolean;
+          id: string;
+          ingest_state: string;
+          name: string;
+        }[];
+      };
+      get_member_restitch_preference: { Args: { p_team: string }; Returns: Json };
       get_operation: {
         Args: { p_operation: string; p_team: string };
         Returns: {
@@ -2748,7 +3633,79 @@ export type Database = {
           updated_at: string;
         }[];
       };
+      get_restitch_defaults: {
+        Args: { p_team: string };
+        Returns: {
+          configured: boolean;
+          created_at: string;
+          custom_final_duration_seconds: number;
+          custom_start_duration_ms: number;
+          end_enabled: boolean;
+          end_image_ids: string[];
+          final_duration_mode: string;
+          fit_mode: string;
+          operation: string;
+          start_duration_mode: string;
+          start_enabled: boolean;
+          start_image_ids: string[];
+          team_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_restitch_defaults';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       get_share_preference: { Args: { p_team: string }; Returns: Json };
+      get_task_progress_max_default: { Args: Record<PropertyKey, never>; Returns: number };
+      get_team_agent_finance: {
+        Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
+        Returns: Json;
+      };
+      get_team_catalog_updater: { Args: { p_team: string }; Returns: Json };
+      get_team_catalog_updater_grow: { Args: { p_team: string }; Returns: boolean };
+      get_team_catalog_updater_refresh_images: { Args: { p_team: string }; Returns: boolean };
+      get_team_catalog_updater_refresh_texts: { Args: { p_team: string }; Returns: boolean };
+      get_team_folder_resync_status: {
+        Args: { p_job: string; p_team: string };
+        Returns: {
+          status: string;
+        }[];
+      };
+      get_team_folder_sync_status: { Args: { p_job: string; p_team: string }; Returns: Json };
+      get_team_landing_source_status: {
+        Args: { p_team: string };
+        Returns: {
+          has_detached_landing_candidates: boolean;
+        }[];
+      };
+      get_team_material_note: { Args: { p_material: string; p_team: string }; Returns: string };
+      get_team_product_catalog_settings: {
+        Args: { p_team: string };
+        Returns: {
+          created_at: string;
+          description: string | null;
+          image_link: string | null;
+          price: number;
+          price_max: number | null;
+          price_min: number | null;
+          team_id: string;
+          title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'team_product_catalog_settings';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      get_team_storage_health: { Args: { p_team: string }; Returns: Json };
+      get_team_storage_health_v2: { Args: { p_team: string }; Returns: Json };
       get_team_task: {
         Args: {
           p_attachment_cursor?: number;
@@ -2758,15 +3715,10 @@ export type Database = {
         };
         Returns: Json;
       };
-      get_team_material_note: {
-        Args: { p_material: string; p_team: string };
-        Returns: string;
-      };
+      get_team_task_progress_max_default: { Args: { p_team: string }; Returns: number };
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
-      get_upload_batch: {
-        Args: { p_batch: string; p_team: string };
-        Returns: Json;
-      };
+      get_transcript_delete_pref: { Args: Record<PropertyKey, never>; Returns: string };
+      get_upload_batch: { Args: { p_batch: string; p_team: string }; Returns: Json };
       heartbeat_library_job: {
         Args: {
           p_agent_instance: string;
@@ -2778,6 +3730,19 @@ export type Database = {
         };
         Returns: Json;
       };
+      import_team_agent_finance_legacy: {
+        Args: {
+          p_currency: string;
+          p_date: string;
+          p_legacy: string;
+          p_metric: string;
+          p_request_id: string;
+          p_team: string;
+          p_timezone: string;
+          p_value: string;
+        };
+        Returns: Json;
+      };
       ingest_analytics_events: {
         Args: { p_events: Json };
         Returns: {
@@ -2786,7 +3751,7 @@ export type Database = {
           reason: string;
         }[];
       };
-      is_admin: { Args: never; Returns: boolean };
+      is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       issue_team_transfer_grant: {
         Args: {
           p_actor: string;
@@ -2803,14 +3768,18 @@ export type Database = {
         };
         Returns: string;
       };
-      join_team_workspace_waitlist: { Args: never; Returns: boolean };
-      join_windows_app_waitlist: { Args: never; Returns: boolean };
+      join_team_workspace_waitlist: { Args: Record<PropertyKey, never>; Returns: boolean };
+      join_windows_app_waitlist: { Args: Record<PropertyKey, never>; Returns: boolean };
       leave_team: {
         Args: { p_team: string };
         Returns: {
           ok: boolean;
           warning_code: string;
         }[];
+      };
+      link_transcript_companion: {
+        Args: { p_companion: string; p_team: string; p_video: string };
+        Returns: Json;
       };
       list_landing_renders: {
         Args: { p_material_ids: string[]; p_preset: string; p_team: string };
@@ -2836,12 +3805,7 @@ export type Database = {
         }[];
       };
       list_library_materials: {
-        Args: {
-          p_cursor?: string;
-          p_page_size?: number;
-          p_stage: string;
-          p_team: string;
-        };
+        Args: { p_cursor?: string; p_page_size?: number; p_stage: string; p_team: string };
         Returns: {
           category: string;
           created_at: string;
@@ -2863,8 +3827,29 @@ export type Database = {
           type: string;
         }[];
       };
+      list_material_product_catalogs: {
+        Args: { p_team: string; p_video: string };
+        Returns: {
+          created_at: string;
+          drive_file_id: string;
+          id: string;
+          name: string;
+          product_count: number;
+          sheet_url: string;
+          source_link: string;
+          variant: number;
+        }[];
+      };
+      list_material_tasks: {
+        Args: { p_material: string; p_team: string };
+        Returns: {
+          id: string;
+          status: string;
+          title: string;
+        }[];
+      };
       list_my_invitations: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           created_at: string;
           delivery_error_code: string;
@@ -2880,7 +3865,7 @@ export type Database = {
         }[];
       };
       list_my_teams: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           connection_state: string;
           id: string;
@@ -2889,57 +3874,49 @@ export type Database = {
           role: string;
         }[];
       };
+      list_task_attachment_folders: {
+        Args: { p_task: string; p_team: string };
+        Returns: {
+          material_id: string;
+          parent_folder_id: string;
+        }[];
+      };
+      list_team_account_two_factor_seeds: {
+        Args: { p_team: string };
+        Returns: {
+          account_id: string;
+          secret: string;
+        }[];
+      };
+      list_team_accounts: {
+        Args: { p_team: string };
+        Returns: {
+          agents: Json;
+          created_at: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        }[];
+      };
+      list_team_agent_finance_history: {
+        Args: { p_agent: string; p_cursor?: Json; p_limit?: number; p_team: string };
+        Returns: Json;
+      };
+      list_team_agent_finance_legacy: { Args: { p_agent?: string; p_team: string }; Returns: Json };
       list_team_audit_events: {
         Args: { p_before?: string; p_limit?: number; p_team: string };
         Returns: {
           action: string;
+          actor_id: string;
           actor_label: string;
           error_code: string;
           id: string;
           occurred_at: string;
           result: string;
-          target: Json;
           subject_label: string;
-          actor_id: string;
+          target: Json;
         }[];
-      };
-      list_team_invitations: {
-        Args: { p_team: string };
-        Returns: {
-          created_at: string;
-          delivery_error_code: string;
-          delivery_state: string;
-          expires_at: string;
-          id: string;
-          initial_role: string;
-          last_sent_at: string;
-          state: string;
-          target_email: string;
-          target_user_id: string;
-        }[];
-      };
-      add_team_drive_selection: {
-        Args: {
-          p_drive_folder_id: string;
-          p_name?: string;
-          p_resource_key?: string;
-          p_team: string;
-        };
-        Returns: {
-          drive_folder_id: string;
-          id: string;
-          is_root: boolean;
-          name: string;
-          state: string;
-        }[];
-      };
-      get_team_storage_health: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
-      get_team_storage_health_v2: {
-        Args: { p_team: string };
-        Returns: Json;
       };
       list_team_drive_selections: {
         Args: { p_team: string };
@@ -2973,16 +3950,40 @@ export type Database = {
           child_folder_count: number;
           drive_file_id: string;
           id: string;
-          indexed_at: string | null;
+          indexed_at: string;
           name: string;
-          parent_folder_id: string | null;
-          selection_id: string | null;
+          parent_folder_id: string;
+          selection_id: string;
           thumbnail_ready_count: number;
         }[];
       };
-      remove_team_drive_selection: {
-        Args: { p_selection: string; p_team: string };
-        Returns: undefined;
+      list_team_invitations: {
+        Args: { p_team: string };
+        Returns: {
+          created_at: string;
+          delivery_error_code: string;
+          delivery_state: string;
+          expires_at: string;
+          id: string;
+          initial_role: string;
+          last_sent_at: string;
+          state: string;
+          target_email: string;
+          target_user_id: string;
+        }[];
+      };
+      list_team_labels: {
+        Args: { p_scope?: string; p_team: string };
+        Returns: {
+          color: string;
+          created_at: string;
+          id: string;
+          name: string;
+          scope: string;
+          team_id: string;
+          updated_at: string;
+          usage_count: number;
+        }[];
       };
       list_team_materials: {
         Args: { p_parent_folder_id?: string; p_team: string };
@@ -3015,16 +4016,65 @@ export type Database = {
           user_id: string;
         }[];
       };
+      list_team_product_catalog_image_sources: {
+        Args: { p_team: string };
+        Returns: {
+          image_count: number;
+          kind: string;
+          material_id: string;
+          name: string;
+          pool_size: number;
+        }[];
+      };
+      list_team_product_catalog_pool_names: {
+        Args: { p_limit?: number; p_team: string };
+        Returns: {
+          name: string;
+        }[];
+      };
+      list_team_product_catalog_texts: {
+        Args: { p_team: string };
+        Returns: {
+          description: string;
+          id: string;
+          sort_order: number;
+          title: string;
+        }[];
+      };
+      list_team_product_catalogs: {
+        Args: { p_team: string };
+        Returns: {
+          catalog_id: string;
+          created_at: string;
+          folder_drive_id: string;
+          folder_name: string;
+          in_updater: boolean;
+          last_update_error: string;
+          last_updated_at: string;
+          name: string;
+          next_run_at: string;
+          product_count: number;
+          restitch_progress: number;
+          restitch_stage: string;
+          sheet_url: string;
+          update_count: number;
+          update_interval: string;
+          update_pending: boolean;
+          update_stage: string;
+          video_id: string;
+          video_name: string;
+        }[];
+      };
       list_team_tasks: {
         Args: {
           p_account?: string;
           p_agent?: string;
+          p_assignee?: string;
           p_created_from?: string;
           p_created_to?: string;
           p_cursor?: string;
           p_day_from?: string;
           p_day_to?: string;
-          p_assignee?: string;
           p_labels?: string[];
           p_page_size?: number;
           p_sort?: string;
@@ -3034,8 +4084,6 @@ export type Database = {
         };
         Returns: {
           agents: Json;
-          labels: Json;
-          task_date: string | null;
           assignee_id: string;
           assignee_label_snapshot: string;
           attachment_count: number;
@@ -3043,11 +4091,13 @@ export type Database = {
           created_at: string;
           created_by: string;
           id: string;
+          labels: Json;
           note: string;
           progress_manually_set: boolean;
           progress_max: number;
           progress_value: number;
           status: string;
+          task_date: string;
           team_id: string;
           title: string;
           updated_at: string;
@@ -3063,10 +4113,17 @@ export type Database = {
           trashed_at: string;
         }[];
       };
-      list_video_text_variants: {
-        Args: { p_team: string; p_video: string };
-        Returns: Json;
+      list_two_factor_entries: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          created_at: string;
+          id: string;
+          name: string;
+          secret: string;
+          updated_at: string;
+        }[];
       };
+      list_video_text_variants: { Args: { p_team: string; p_video: string }; Returns: Json };
       lookup_invitable_account: {
         Args: { p_email: string; p_team: string };
         Returns: {
@@ -3075,6 +4132,20 @@ export type Database = {
           user_id: string;
         }[];
       };
+      move_team_account_agent: {
+        Args: {
+          p_agent: string;
+          p_effective_on: string;
+          p_expected_placement_id: string;
+          p_expected_placement_version: string;
+          p_request_id: string;
+          p_target_account: string;
+          p_team: string;
+          p_timezone: string;
+        };
+        Returns: Json;
+      };
+      next_product_catalog_variant: { Args: { p_team: string; p_video: string }; Returns: number };
       owned_team_count: { Args: { p_user: string }; Returns: number };
       read_google_drive_credential: {
         Args: { p_credential: string };
@@ -3102,72 +4173,42 @@ export type Database = {
         };
         Returns: string;
       };
-      get_transcript_delete_pref: {
-        Args: Record<string, never>;
-        Returns: string;
-      };
-      set_transcript_delete_pref: {
-        Args: { p_pref: string };
-        Returns: string;
-      };
-      get_task_progress_max_default: {
-        Args: Record<string, never>;
-        Returns: number;
-      };
-      set_task_progress_max_default: {
-        Args: { p_value: number };
-        Returns: undefined;
-      };
-      set_team_catalog_update_interval: {
-        Args: { p_team: string; p_catalogs: string[]; p_interval: string | null };
-        Returns: Json;
-      };
-      run_team_catalog_update_now: {
-        Args: { p_team: string; p_catalogs: string[] };
-        Returns: number;
-      };
-      set_team_catalog_updater_restitch: {
-        Args: { p_team: string; p_restitch: boolean };
-        Returns: Json;
-      };
-      list_material_product_catalogs: {
-        Args: { p_team: string; p_video: string };
+      remove_member: {
+        Args: { p_member: string; p_team: string };
         Returns: {
-          id: string;
-          name: string;
-          drive_file_id: string;
-          sheet_url: string;
-          source_link: string;
-          product_count: number;
-          variant: number;
-          created_at: string;
+          ok: boolean;
+          warning_code: string;
         }[];
       };
-      get_team_task_progress_max_default: {
-        Args: { p_team: string };
-        Returns: number;
+      remove_team_drive_selection: {
+        Args: { p_selection: string; p_team: string };
+        Returns: undefined;
       };
-      set_team_task_progress_max_default: {
-        Args: { p_team: string; p_value: number };
+      rename_team: { Args: { p_name: string; p_team: string }; Returns: string };
+      rename_team_account: {
+        Args: { p_account: string; p_name: string; p_team: string };
+        Returns: {
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          team_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_accounts';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      replace_team_product_catalog_texts: {
+        Args: { p_items: Json; p_team: string };
         Returns: number;
       };
       request_landing_render_refresh: {
-        Args: { p_team: string; p_material: string };
+        Args: { p_material: string; p_team: string };
         Returns: number;
-      };
-      link_transcript_companion: {
-        Args: { p_team: string; p_video: string; p_companion: string };
-        Returns: Json;
-      };
-      get_material_transcript_companion: {
-        Args: { p_team: string; p_material: string };
-        Returns: {
-          id: string;
-          name: string;
-          ingest_state: string;
-          has_text: boolean;
-          drive_file_id: string;
-        }[];
       };
       request_team_catalog_resync: {
         Args: { p_team: string };
@@ -3177,22 +4218,10 @@ export type Database = {
         }[];
       };
       request_team_folder_resync: {
-        Args: { p_team: string; p_folder: string };
-        Returns: { initial_sync_state: string; sync_job_id: string }[];
-      };
-      get_team_folder_resync_status: {
-        Args: { p_team: string; p_job: string };
-        Returns: { status: string }[];
-      };
-      get_team_folder_sync_status: {
-        Args: { p_team: string; p_job: string };
-        Returns: Json;
-      };
-      remove_member: {
-        Args: { p_member: string; p_team: string };
+        Args: { p_folder: string; p_team: string };
         Returns: {
-          ok: boolean;
-          warning_code: string;
+          initial_sync_state: string;
+          sync_job_id: string;
         }[];
       };
       resend_invitation: {
@@ -3215,6 +4244,14 @@ export type Database = {
         Returns: number;
       };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
+      run_team_catalog_update_now: {
+        Args: { p_catalogs: string[]; p_team: string };
+        Returns: number;
+      };
+      save_team_catalog_updater: {
+        Args: { p_catalogs: string[]; p_interval: string; p_restitch: boolean; p_team: string };
+        Returns: Json;
+      };
       scan_library_requirements: {
         Args: {
           p_commit?: boolean;
@@ -3281,6 +4318,10 @@ export type Database = {
         Args: { p_actor: string; p_credential: string; p_team: string };
         Returns: boolean;
       };
+      service_bind_restitch_job_operation: {
+        Args: { p_job: string; p_lease_token_hash: string; p_operation: string };
+        Returns: boolean;
+      };
       service_bind_team_operation_source: {
         Args: {
           p_actor: string;
@@ -3292,21 +4333,11 @@ export type Database = {
         Returns: boolean;
       };
       service_bootstrap_catalog_sync: {
-        Args: {
-          p_epoch: number;
-          p_job: string;
-          p_token: string;
-          p_worker: string;
-        };
+        Args: { p_epoch: number; p_job: string; p_token: string; p_worker: string };
         Returns: boolean;
       };
       service_catalog_missing_candidates: {
-        Args: {
-          p_epoch: number;
-          p_generation: string;
-          p_job: string;
-          p_worker: string;
-        };
+        Args: { p_epoch: number; p_generation: string; p_job: string; p_worker: string };
         Returns: {
           expected_revision: number;
           file_id: string;
@@ -3333,13 +4364,25 @@ export type Database = {
         Returns: boolean;
       };
       service_checkpoint_initial_sync: {
-        Args: {
-          p_folder_queue: Json;
-          p_job: string;
-          p_page_token: string;
-          p_worker: string;
-        };
+        Args: { p_folder_queue: Json; p_job: string; p_page_token: string; p_worker: string };
         Returns: boolean;
+      };
+      service_checkpoint_material_group_intent: {
+        Args: { p_intent: string; p_material: string };
+        Returns: boolean;
+      };
+      service_claim_archive_inspections: {
+        Args: { p_limit?: number };
+        Returns: {
+          checksum: string;
+          credential_id: string;
+          drive_file_id: string;
+          drive_version: string;
+          material_id: string;
+          resource_key: string;
+          size_bytes: number;
+          team_id: string;
+        }[];
       };
       service_claim_catalog_sync_jobs: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
@@ -3377,6 +4420,90 @@ export type Database = {
           root_resource_key: string;
           team_id: string;
         }[];
+      };
+      service_claim_catalog_updater_items: {
+        Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
+        Returns: {
+          attempts: number;
+          catalog_material_id: string;
+          credential_id: string;
+          current_video_link: string;
+          drive_file_id: string;
+          grow_products: boolean;
+          price_max: number;
+          price_min: number;
+          product_count: number;
+          refresh_images: boolean;
+          refresh_texts: boolean;
+          resource_key: string;
+          settings_snapshot: Json;
+          source_link: string;
+          spare_link: string;
+          spare_material_id: string;
+          team_id: string;
+          update_count: number;
+          video_link: string;
+        }[];
+      };
+      service_claim_orphan_cleanups: {
+        Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
+        Returns: {
+          companion_kind: string;
+          credential_id: string;
+          drive_file_id: string;
+          material_id: string;
+          name: string;
+          resource_key: string;
+          team_id: string;
+        }[];
+      };
+      service_claim_preview_warm: {
+        Args: { p_limit?: number };
+        Returns: {
+          connection_id: string;
+          credential_id: string;
+          drive_file_id: string;
+          drive_version: string;
+          material_id: string;
+          mime_type: string;
+          resource_key: string;
+          team_id: string;
+        }[];
+      };
+      service_claim_restitch_job: {
+        Args: {
+          p_actor: string;
+          p_lease_seconds?: number;
+          p_lease_token_hash: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_claim_retired_restitch_copies: {
+        Args: { p_limit?: number };
+        Returns: {
+          credential_id: string;
+          drive_file_id: string;
+          material_id: string;
+          team_id: string;
+        }[];
+      };
+      service_claim_upload_folder: {
+        Args: { p_actor: string; p_key: string; p_name: string; p_parent: string; p_team: string };
+        Returns: {
+          claimed: boolean;
+          operation_id: string;
+          result_material_id: string;
+          state: string;
+        }[];
+      };
+      service_clone_material_extras: {
+        Args: { p_copy: string; p_source: string; p_team: string };
+        Returns: Json;
+      };
+      service_commit_archive_inspection: {
+        Args: { p_fingerprint?: string; p_material: string; p_outcome: string; p_version: string };
+        Returns: boolean;
       };
       service_commit_catalog_scan_page: {
         Args: {
@@ -3444,6 +4571,19 @@ export type Database = {
           value: string;
         }[];
       };
+      service_commit_task_drop_folder: {
+        Args: {
+          p_connection: string;
+          p_drive_folder_id: string;
+          p_name: string;
+          p_parent_folder_id: string;
+          p_resource_key: string;
+          p_team: string;
+        };
+        Returns: {
+          material_id: string;
+        }[];
+      };
       service_commit_team_material_mutation: {
         Args: { p_actor: string; p_drive: Json; p_operation: string };
         Returns: Json;
@@ -3460,6 +4600,14 @@ export type Database = {
           p_text: string;
         };
         Returns: Json;
+      };
+      service_commit_thumbnail: {
+        Args: { p_material: string; p_reason?: string; p_state: string; p_version?: string };
+        Returns: string;
+      };
+      service_commit_workspace_folder: {
+        Args: { p_drive_folder_id: string; p_marker: string; p_team: string };
+        Returns: boolean;
       };
       service_complete_catalog_sync_job:
         | {
@@ -3481,6 +4629,32 @@ export type Database = {
             };
             Returns: boolean;
           };
+      service_complete_catalog_update: {
+        Args: {
+          p_item: string;
+          p_product_count?: number;
+          p_settings_snapshot?: Json;
+          p_swapped_copy?: string;
+          p_update_count: number;
+          p_worker: string;
+        };
+        Returns: boolean;
+      };
+      service_complete_material_group_intent: { Args: { p_intent: string }; Returns: Json };
+      service_complete_orphan_cleanup: {
+        Args: { p_material: string; p_trashed: boolean; p_worker: string };
+        Returns: boolean;
+      };
+      service_complete_restitch_job: {
+        Args: {
+          p_actor: string;
+          p_error: string;
+          p_job: string;
+          p_lease_token_hash: string;
+          p_outcome: string;
+        };
+        Returns: boolean;
+      };
       service_confirm_drive_connection: {
         Args: {
           p_actor: string;
@@ -3520,10 +4694,69 @@ export type Database = {
         };
         Returns: boolean;
       };
-      service_delete_google_drive_credential: {
-        Args: { p_credential: string };
-        Returns: boolean;
+      service_create_folder_lifecycle_intent: {
+        Args: {
+          p_action: string;
+          p_actor: string;
+          p_destination_parent_id?: string;
+          p_material: string;
+          p_operation: string;
+          p_team: string;
+        };
+        Returns: {
+          action: string;
+          applied_member_ids: string[];
+          intent_id: string;
+          members: Json;
+          operation_id: string;
+          source_material_id: string;
+          team_id: string;
+        }[];
       };
+      service_create_material_group_intent: {
+        Args: {
+          p_actor: string;
+          p_destination_material: string;
+          p_destination_parent_id: string;
+          p_expected_revision: number;
+          p_language: string;
+          p_material: string;
+          p_offer: string;
+          p_operation: string;
+          p_stage: string;
+          p_team: string;
+          p_type: string;
+        };
+        Returns: {
+          action: string;
+          applied_member_ids: string[];
+          intent_id: string;
+          members: Json;
+          operation_id: string;
+          source_material_id: string;
+          team_id: string;
+        }[];
+      };
+      service_create_material_lifecycle_intent: {
+        Args: {
+          p_action: string;
+          p_actor: string;
+          p_destination_parent_id?: string;
+          p_material: string;
+          p_operation: string;
+          p_team: string;
+        };
+        Returns: {
+          action: string;
+          applied_member_ids: string[];
+          intent_id: string;
+          members: Json;
+          operation_id: string;
+          source_material_id: string;
+          team_id: string;
+        }[];
+      };
+      service_delete_google_drive_credential: { Args: { p_credential: string }; Returns: boolean };
       service_detach_drive_connection: {
         Args: { p_actor: string; p_connection: string; p_team: string };
         Returns: {
@@ -3533,12 +4766,7 @@ export type Database = {
         }[];
       };
       service_direct_add_registered_member: {
-        Args: {
-          p_actor: string;
-          p_base_role: string;
-          p_email: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_base_role: string; p_email: string; p_team: string };
         Returns: {
           base_role: string;
           display_name: string;
@@ -3551,16 +4779,29 @@ export type Database = {
           user_id: string;
         }[];
       };
-      service_enqueue_catalog_reconciliation: {
-        Args: { p_connection: string };
-        Returns: string;
+      service_draw_product_catalog_images: {
+        Args: { p_count: number; p_team: string };
+        Returns: {
+          drive_file_id: string;
+          material_id: string;
+          name: string;
+          resource_key: string;
+        }[];
       };
+      service_draw_product_catalog_texts: {
+        Args: { p_count: number; p_team: string };
+        Returns: {
+          description: string;
+          title: string;
+        }[];
+      };
+      service_enqueue_catalog_reconciliation: { Args: { p_connection: string }; Returns: string };
       service_enqueue_discovered_catalog_subtree: {
         Args: {
           p_epoch: number;
           p_folder: string;
           p_job: string;
-          p_parent: string | null;
+          p_parent: string;
           p_worker: string;
         };
         Returns: boolean;
@@ -3589,7 +4830,6 @@ export type Database = {
           p_batch: string;
           p_client_item_key: string;
           p_material: string;
-          p_source_version: string;
           p_team: string;
         };
         Returns: Json;
@@ -3611,13 +4851,33 @@ export type Database = {
           name: string;
         }[];
       };
-      service_finish_catalog_folder: {
+      service_find_team_name_conflicts_in_folder: {
         Args: {
-          p_epoch: number;
-          p_generation: string;
-          p_job: string;
-          p_worker: string;
+          p_actor: string;
+          p_drive_folder_id: string;
+          p_reserved_name_key: string;
+          p_team: string;
         };
+        Returns: {
+          drive_file_id: string;
+          material_id: string;
+          name: string;
+        }[];
+      };
+      service_find_transcript_by_fingerprint: {
+        Args: { p_fingerprint: string; p_team: string };
+        Returns: {
+          source_checksum: string;
+          source_version: string;
+          transcript_text: string;
+        }[];
+      };
+      service_finish_catalog_folder: {
+        Args: { p_epoch: number; p_generation: string; p_job: string; p_worker: string };
+        Returns: boolean;
+      };
+      service_forget_restitch_copy: {
+        Args: { p_deleted: boolean; p_material: string };
         Returns: boolean;
       };
       service_get_drive_connection_credential: {
@@ -3639,6 +4899,10 @@ export type Database = {
           credential_id: string;
           google_account_email: string;
         }[];
+      };
+      service_get_effective_restitch_defaults: {
+        Args: { p_actor: string; p_team: string };
+        Returns: Json;
       };
       service_get_landing_render_artifact: {
         Args: { p_material: string; p_preset: string; p_team: string };
@@ -3670,6 +4934,17 @@ export type Database = {
           rendered_by: string;
           source_checksum: string;
           source_version: string;
+        }[];
+      };
+      service_get_library_asset_placement: {
+        Args: { p_actor: string; p_material: string; p_team: string };
+        Returns: {
+          language: string;
+          material_id: string;
+          offer: string;
+          placement_revision: number;
+          stage: string;
+          type: string;
         }[];
       };
       service_get_library_connection_context: {
@@ -3737,6 +5012,18 @@ export type Database = {
           team_id: string;
         }[];
       };
+      service_get_root_operation_context: {
+        Args: { p_actor: string; p_permission: string; p_team: string };
+        Returns: {
+          actor_id: string;
+          connection_id: string;
+          credential_id: string;
+          drive_id: string;
+          root_folder_id: string;
+          root_resource_key: string;
+          team_id: string;
+        }[];
+      };
       service_get_team_operation: {
         Args: { p_actor: string; p_operation: string };
         Returns: {
@@ -3769,12 +5056,88 @@ export type Database = {
           drive_version: string;
         }[];
       };
+      service_get_team_product_catalog_settings: {
+        Args: { p_team: string };
+        Returns: {
+          created_at: string;
+          description: string | null;
+          image_link: string | null;
+          price: number;
+          price_max: number | null;
+          price_min: number | null;
+          team_id: string;
+          title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'team_product_catalog_settings';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      service_get_workspace_folder: {
+        Args: { p_team: string };
+        Returns: {
+          drive_folder_id: string;
+          marker: string;
+        }[];
+      };
+      service_heartbeat_restitch_job: {
+        Args: {
+          p_actor: string;
+          p_job: string;
+          p_lease_seconds?: number;
+          p_lease_token_hash: string;
+        };
+        Returns: boolean;
+      };
       service_invalidate_landing_renders: {
         Args: { p_connection: string; p_drive_file_ids: string[] };
         Returns: {
           artifact_root: string;
           material_id: string;
           team_id: string;
+        }[];
+      };
+      service_link_product_catalog_companion: {
+        Args: {
+          p_companion: string;
+          p_record: Json;
+          p_replaces: string;
+          p_team: string;
+          p_video: string;
+        };
+        Returns: Json;
+      };
+      service_link_restitched_product_catalog_companion: {
+        Args: {
+          p_companion: string;
+          p_record: Json;
+          p_replaces: string;
+          p_team: string;
+          p_video: string;
+        };
+        Returns: Json;
+      };
+      service_link_transcript_companion: {
+        Args: {
+          p_companion: string;
+          p_fingerprint: string;
+          p_team: string;
+          p_text: string;
+          p_video: string;
+        };
+        Returns: Json;
+      };
+      service_list_connection_selections: {
+        Args: { p_connection: string };
+        Returns: {
+          drive_folder_id: string;
+          id: string;
+          is_root: boolean;
+          resource_key: string;
         }[];
       };
       service_list_pending_catalog_transcripts: {
@@ -3789,14 +5152,28 @@ export type Database = {
           resource_key: string;
         }[];
       };
-      service_mark_drive_needs_reauth: {
-        Args: { p_credential: string };
+      service_mark_drive_needs_reauth: { Args: { p_credential: string }; Returns: number };
+      service_mark_folder_indexed: {
+        Args: { p_connection: string; p_drive_folder_id: string };
         Returns: number;
       };
       service_mark_landing_renders_stale: {
         Args: { p_material: string; p_team: string };
         Returns: number;
       };
+      service_mark_material_group_reconciling: {
+        Args: { p_error_code: string; p_intent: string };
+        Returns: boolean;
+      };
+      service_mark_root_state: {
+        Args: { p_connection: string; p_root_name?: string; p_state: string };
+        Returns: undefined;
+      };
+      service_next_product_catalog_variant: {
+        Args: { p_team: string; p_video: string };
+        Returns: number;
+      };
+      service_open_catalog_updater_rounds: { Args: Record<PropertyKey, never>; Returns: number };
       service_peek_drive_oauth_transaction: {
         Args: { p_state_hash: string };
         Returns: {
@@ -3806,16 +5183,32 @@ export type Database = {
           team_id: string;
         }[];
       };
-      service_release_catalog_sync_job:
-        | { Args: { p_job: string; p_worker: string }; Returns: boolean }
-        | {
-            Args: { p_epoch: number; p_job: string; p_worker: string };
-            Returns: boolean;
-          };
-      service_release_team_name_reservation: {
-        Args: { p_operation: string };
+      service_record_access_expiry: {
+        Args: { p_credential: string; p_expires_at: string; p_scope_set?: string[] };
+        Returns: number;
+      };
+      service_record_restitch_output: {
+        Args: {
+          p_drive_file_id: string;
+          p_material: string;
+          p_operation: string;
+          p_shared_link: string;
+        };
+        Returns: string;
+      };
+      service_refresh_material_revision: {
+        Args: {
+          p_checksum: string;
+          p_drive_file_id: string;
+          p_drive_version: string;
+          p_material: string;
+        };
         Returns: boolean;
       };
+      service_release_catalog_sync_job:
+        | { Args: { p_job: string; p_worker: string }; Returns: boolean }
+        | { Args: { p_epoch: number; p_job: string; p_worker: string }; Returns: boolean };
+      service_release_team_name_reservation: { Args: { p_operation: string }; Returns: boolean };
       service_replace_drive_connection: {
         Args: {
           p_actor: string;
@@ -3833,6 +5226,20 @@ export type Database = {
           state: string;
           sync_job_id: string;
         }[];
+      };
+      service_report_restitch_job_progress: {
+        Args: {
+          p_actor: string;
+          p_job: string;
+          p_lease_token_hash: string;
+          p_progress: number;
+          p_stage: string;
+        };
+        Returns: boolean;
+      };
+      service_request_catalog_rescan: {
+        Args: { p_actor: string; p_team: string };
+        Returns: string;
       };
       service_requeue_catalog_transcripts: {
         Args: { p_connection: string; p_files: Json };
@@ -3869,12 +5276,7 @@ export type Database = {
         Returns: boolean;
       };
       service_resolve_team_folder: {
-        Args: {
-          p_actor: string;
-          p_drive_folder_id: string;
-          p_permission: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_drive_folder_id: string; p_permission: string; p_team: string };
         Returns: {
           drive_file_id: string;
           material_id: string;
@@ -3903,10 +5305,11 @@ export type Database = {
             };
             Returns: boolean;
           };
-      service_revoke_user_team_grants: {
-        Args: { p_user: string };
-        Returns: number;
+      service_retry_catalog_update: {
+        Args: { p_error: string; p_item: string; p_next_attempt_at: string; p_worker: string };
+        Returns: boolean;
       };
+      service_revoke_user_team_grants: { Args: { p_user: string }; Returns: number };
       service_save_catalog_sync_progress:
         | {
             Args: {
@@ -3933,6 +5336,10 @@ export type Database = {
             };
             Returns: boolean;
           };
+      service_set_catalog_update_progress: {
+        Args: { p_item: string; p_stage: string; p_worker: string };
+        Returns: boolean;
+      };
       service_set_team_operation_intent: {
         Args: {
           p_actor: string;
@@ -3992,6 +5399,7 @@ export type Database = {
         Args: { p_connection: string; p_items: Json };
         Returns: number;
       };
+      service_touch_catalog_reconciled: { Args: { p_connection: string }; Returns: undefined };
       service_transition_team_operation: {
         Args: {
           p_error_code: string;
@@ -4005,26 +5413,135 @@ export type Database = {
         Returns: boolean;
       };
       service_upsert_catalog_page: {
-        Args: {
-          p_connection: string;
-          p_files: Json;
-          p_parent_folder_id: string;
-        };
+        Args: { p_connection: string; p_files: Json; p_parent_folder_id: string };
         Returns: number;
       };
       set_invitation_delivery_state: {
-        Args: {
-          p_delivery_state: string;
-          p_error_code?: string;
-          p_invitation: string;
+        Args: { p_delivery_state: string; p_error_code?: string; p_invitation: string };
+        Returns: boolean;
+      };
+      set_material_restitch_prep: {
+        Args: { p_drive_version: string; p_material: string; p_prep: Json };
+        Returns: boolean;
+      };
+      set_member_restitch_defaults: { Args: { p_defaults: Json; p_team: string }; Returns: Json };
+      set_member_restitch_use_owner: {
+        Args: { p_team: string; p_use_owner: boolean };
+        Returns: Json;
+      };
+      set_restitch_defaults: {
+        Args: { p_defaults: Json; p_team: string };
+        Returns: {
+          configured: boolean;
+          created_at: string;
+          custom_final_duration_seconds: number;
+          custom_start_duration_ms: number;
+          end_enabled: boolean;
+          end_image_ids: string[];
+          final_duration_mode: string;
+          fit_mode: string;
+          operation: string;
+          start_duration_mode: string;
+          start_enabled: boolean;
+          start_image_ids: string[];
+          team_id: string;
+          updated_at: string;
+          updated_by: string | null;
         };
+        SetofOptions: {
+          from: '*';
+          to: 'team_restitch_defaults';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_share_preference: { Args: { p_allow: boolean; p_team: string }; Returns: boolean };
+      set_task_progress_max_default: { Args: { p_value: number }; Returns: undefined };
+      set_team_account_two_factor_seed: {
+        Args: { p_account: string; p_secret: string; p_team: string };
         Returns: boolean;
       };
-      set_share_preference: {
-        Args: { p_allow: boolean; p_team: string };
+      set_team_agent_finance_value: {
+        Args: {
+          p_agent: string;
+          p_date: string;
+          p_expected_version: string;
+          p_metric: string;
+          p_request_id: string;
+          p_team: string;
+          p_timezone: string;
+          p_value: string;
+        };
+        Returns: Json;
+      };
+      set_team_agent_money: {
+        Args: { p_agent: string; p_balance: number; p_team: string; p_topup: number };
+        Returns: Json;
+      };
+      set_team_agent_run_marker: {
+        Args: { p_marker: string; p_run: string; p_team: string };
+        Returns: Json;
+      };
+      set_team_catalog_update_interval: {
+        Args: { p_catalogs: string[]; p_interval: string; p_team: string };
+        Returns: Json;
+      };
+      set_team_catalog_updater_grow: {
+        Args: { p_grow: boolean; p_team: string };
         Returns: boolean;
       };
-      touch_last_seen: { Args: never; Returns: string };
+      set_team_catalog_updater_refresh_images: {
+        Args: { p_refresh: boolean; p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_refresh_texts: {
+        Args: { p_refresh: boolean; p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_restitch: {
+        Args: { p_restitch: boolean; p_team: string };
+        Returns: Json;
+      };
+      set_team_material_tag: {
+        Args: { p_color: string; p_material: string; p_team: string };
+        Returns: Json;
+      };
+      set_team_product_catalog_image_sources: {
+        Args: { p_items: Json; p_team: string };
+        Returns: number;
+      };
+      set_team_product_catalog_settings: {
+        Args: { p_settings: Json; p_team: string };
+        Returns: {
+          created_at: string;
+          description: string | null;
+          image_link: string | null;
+          price: number;
+          price_max: number | null;
+          price_min: number | null;
+          team_id: string;
+          title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_product_catalog_settings';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      set_team_task_progress_max_default: {
+        Args: { p_team: string; p_value: number };
+        Returns: number;
+      };
+      set_transcript_delete_pref: { Args: { p_pref: string }; Returns: string };
+      stop_team_catalog_updater: { Args: { p_team: string }; Returns: Json };
+      team_material_kind: {
+        Args: { p_category: string; p_kind: string; p_mime_type: string };
+        Returns: string;
+      };
+      touch_last_seen: { Args: Record<PropertyKey, never>; Returns: string };
       transfer_ownership: {
         Args: { p_demote_to: string; p_team: string; p_to_user: string };
         Returns: {
@@ -4035,17 +5552,16 @@ export type Database = {
           role: string;
         }[];
       };
+      undo_team_agent_finance_clear: {
+        Args: { p_original_request_id: string; p_request_id: string; p_team: string };
+        Returns: Json;
+      };
       update_material_metadata: {
         Args: { p_material: string; p_patch: Json; p_team: string };
         Returns: Json;
       };
       update_membership: {
-        Args: {
-          p_base_role?: string;
-          p_member: string;
-          p_overrides?: Json;
-          p_team: string;
-        };
+        Args: { p_base_role?: string; p_member: string; p_overrides?: Json; p_team: string };
         Returns: {
           base_role: string;
           display_name: string;
@@ -4057,6 +5573,50 @@ export type Database = {
           role: string;
           user_id: string;
         }[];
+      };
+      update_team_account_agent: {
+        Args: { p_agent: string; p_agent_id: string; p_team: string };
+        Returns: Json;
+      };
+      update_team_agent_run: {
+        Args: { p_note: string; p_run: string; p_team: string };
+        Returns: Json;
+      };
+      update_team_label: {
+        Args: { p_color: string; p_label: string; p_name: string; p_team: string };
+        Returns: {
+          color: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          scope: string;
+          team_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_labels';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_team_product_catalog_text: {
+        Args: { p_description: string; p_id: string; p_team: string; p_title: string };
+        Returns: {
+          description: string;
+          id: string;
+          position: number;
+          team_id: string;
+          title: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_product_catalog_texts';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       update_team_task: {
         Args: { p_patch: Json; p_task: string; p_team: string };
@@ -4072,6 +5632,7 @@ export type Database = {
           progress_max: number;
           progress_value: number;
           status: string;
+          task_date: string | null;
           team_id: string;
           title: string;
           updated_at: string;
@@ -4082,6 +5643,16 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      update_two_factor_entry: {
+        Args: { p_entry: string; p_name: string; p_secret: string };
+        Returns: {
+          created_at: string;
+          id: string;
+          name: string;
+          secret: string;
+          updated_at: string;
+        }[];
       };
     };
     Enums: {
@@ -4107,9 +5678,7 @@ export type Tables<
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
     : never) = never
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
       Row: infer R;
@@ -4132,9 +5701,7 @@ export type TablesInsert<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never) = never
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Insert: infer I;
     }
@@ -4156,9 +5723,7 @@ export type TablesUpdate<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never) = never
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Update: infer U;
     }
@@ -4180,9 +5745,7 @@ export type Enums<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
     : never) = never
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
     ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
@@ -4196,9 +5759,7 @@ export type CompositeTypes<
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
     : never) = never
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes'][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema['CompositeTypes']
     ? DefaultSchema['CompositeTypes'][PublicCompositeTypeNameOrOptions]

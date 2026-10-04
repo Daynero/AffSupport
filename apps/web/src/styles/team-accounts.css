@@ -19,7 +19,7 @@
   --team-agent-row-height: 56px;
   /* The name plus, once an agent is tagged, a chip or two under it (019).
      Wide enough for `v31-434` and a short tag on one line. */
-  --team-agent-id-width: 232px;
+  --team-agent-id-width: var(--team-agent-identity-width);
   --team-agent-status-width: 104px;
   /* "+ Run" (88) + "Make free" (107) + the "…" (36) and the gaps between
      them. At 132 — back when the cell held only the last two — the button
@@ -801,7 +801,9 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 2px;
+  align-content: center;
+  padding-block: var(--space-2);
+  gap: var(--space-1) var(--space-2);
 }
 
 /* The copy is the small mark beside the name, not the name itself: it is the
@@ -1609,7 +1611,7 @@
  */
 @media (max-width: 1200px) {
   .team-account-space {
-    --team-agent-id-width: 128px;
+    --team-agent-id-width: var(--team-agent-identity-compact-width);
     --team-agent-status-width: 96px;
     /*
      * The buttons keep the width they actually need. At 148 they did not fit
@@ -2573,6 +2575,12 @@ button.team-task-agent-chip.is-selected {
   min-height: 22px;
   padding: 0 4px 0 6px;
   font-size: var(--text-micro);
+}
+
+/* A tag already has its own border and dot. The text-counter separator
+   otherwise becomes an extra flex child inside it and leaves a blank slot. */
+.team-account-meta > .team-task-label-chip.is-count::before {
+  content: none;
 }
 
 .team-account-meta .team-task-label-chip.is-count b {

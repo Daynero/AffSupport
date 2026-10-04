@@ -11,7 +11,15 @@
  * `CompressionStream` does it without a dependency; an entry that would not shrink stays stored.
  */
 
-export type XlsxCell = { t: 'string'; v: string } | { t: 'number'; v: number };
+export type XlsxCell =
+  { t: 'string'; v: string } | { t: 'number'; v: number } | { t: 'decimal'; v: string };
+export interface XlsxSheet {
+  sheetName: string;
+  rows: readonly (readonly XlsxCell[])[];
+  merges?: readonly string[];
+  freezeRows?: number;
+  freezeColumns?: number;
+}
 
 const encoder = new TextEncoder();
 
@@ -60,16 +68,37 @@ export function columnName(index: number): string {
   return name;
 }
 
-function worksheetXml(rows: readonly (readonly XlsxCell[])[], strings: Map<string, number>) {
+function worksheetXml(
+  rows: readonly (readonly XlsxCell[])[],
+  strings: Map<string, number>,
+  options?: XlsxSheet
+) {
   const parts: string[] = [
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
-    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
   ];
+  if (options?.freezeRows || options?.freezeColumns) {
+    const x = options.freezeColumns ?? 0;
+    const y = options.freezeRows ?? 0;
+    parts.push(
+      `<sheetViews><sheetView workbookViewId="0"><pane xSplit="${x}" ySplit="${y}" topLeftCell="${columnName(x)}${y + 1}" state="frozen"/></sheetView></sheetViews>`
+    );
+  }
+  parts.push('<sheetData>');
   rows.forEach((row, rowIndex) => {
     const rowNumber = rowIndex + 1;
     parts.push(`<row r="${rowNumber}">`);
     row.forEach((cell, columnIndex) => {
       const ref = `${columnName(columnIndex)}${rowNumber}`;
+      if (cell.t === 'decimal') {
+        if (
+          !/^\d+\.\d{2}$/u.test(cell.v) ||
+          cell.v.replace(/[.]/gu, '').replace(/^0+/u, '').length > 15
+        )
+          throw new RangeError('FINANCE_EXPORT_PRECISION');
+        parts.push(`<c r="${ref}" s="${cell.v.endsWith('.00') ? '0' : '1'}"><v>${cell.v}</v></c>`);
+        return;
+      }
       if (cell.t === 'number') {
         if (!Number.isFinite(cell.v)) throw new RangeError(`cell ${ref} is not a finite number`);
         parts.push(`<c r="${ref}"><v>${cell.v}</v></c>`);
@@ -85,7 +114,15 @@ function worksheetXml(rows: readonly (readonly XlsxCell[])[], strings: Map<strin
     });
     parts.push('</row>');
   });
-  parts.push('</sheetData></worksheet>');
+  parts.push('</sheetData>');
+  if (options?.merges?.length) {
+    if (!options.merges.every(ref => /^[A-Z]+[1-9]\d*:[A-Z]+[1-9]\d*$/u.test(ref)))
+      throw new RangeError('INVALID_INPUT');
+    parts.push(
+      `<mergeCells count="${options.merges.length}">${options.merges.map(ref => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`
+    );
+  }
+  parts.push('</worksheet>');
   return parts.join('');
 }
 
@@ -205,11 +242,23 @@ export async function buildXlsx(input: {
   sheetName: string;
   rows: readonly (readonly XlsxCell[])[];
 }): Promise<Uint8Array<ArrayBuffer>> {
-  if (!/^[^\\/?*[\]:]{1,31}$/u.test(input.sheetName)) {
+  return buildWorkbook([input]);
+}
+
+export async function buildWorkbook(
+  sheets: readonly XlsxSheet[]
+): Promise<Uint8Array<ArrayBuffer>> {
+  if (
+    !sheets.length ||
+    new Set(sheets.map(s => s.sheetName)).size !== sheets.length ||
+    sheets.some(s => s.rows.length > 1048576 || s.rows.some(r => r.length > 16384))
+  )
+    throw new RangeError('FINANCE_EXPORT_SIZE');
+  if (sheets.some(input => !/^[^\\/?*[\]:]{1,31}$/u.test(input.sheetName))) {
     throw new RangeError('sheet name is not a valid worksheet name');
   }
   const strings = new Map<string, number>();
-  const sheet = worksheetXml(input.rows, strings);
+  const sheetXml = sheets.map(input => worksheetXml(input.rows, strings, input));
   const files = [
     {
       name: '[Content_Types].xml',
@@ -219,7 +268,12 @@ export async function buildXlsx(input: {
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
         '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
-        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        sheets
+          .map(
+            (_, i) =>
+              `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+          )
+          .join('') +
         '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>' +
         '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
         '</Types>'
@@ -237,7 +291,7 @@ export async function buildXlsx(input: {
       xml:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        `<sheets><sheet name="${xmlText(input.sheetName)}" sheetId="1" r:id="rId1"/></sheets>` +
+        `<sheets>${sheets.map((s, i) => `<sheet name="${xmlText(s.sheetName)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>` +
         '</workbook>'
     },
     {
@@ -245,13 +299,24 @@ export async function buildXlsx(input: {
       xml:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
-        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>' +
-        '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+        sheets
+          .map(
+            (_, i) =>
+              `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`
+          )
+          .join('') +
+        `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>` +
+        `<Relationship Id="rId${sheets.length + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
         '</Relationships>'
     },
-    { name: 'xl/worksheets/sheet1.xml', xml: sheet },
-    { name: 'xl/sharedStrings.xml', xml: sharedStringsXml(strings, stringUses(input.rows)) },
+    ...sheetXml.map((xml, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, xml })),
+    {
+      name: 'xl/sharedStrings.xml',
+      xml: sharedStringsXml(
+        strings,
+        sheets.reduce((n, s) => n + stringUses(s.rows), 0)
+      )
+    },
     {
       name: 'xl/styles.xml',
       xml:
@@ -261,7 +326,7 @@ export async function buildXlsx(input: {
         '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
         '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
         '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-        '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>' +
+        '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>' +
         '</styleSheet>'
     }
   ];

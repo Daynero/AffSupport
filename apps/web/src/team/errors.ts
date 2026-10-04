@@ -12,6 +12,20 @@ import type { UnavailableReason } from './materials/actions';
  * it a sentence is a type error rather than a silent fallback in production.
  */
 const COPY: Record<TeamErrorCode, TranslationKey> = {
+  FINANCE_CLIENT_UPGRADE_REQUIRED: 'financeError',
+  FINANCE_HISTORY_PROTECTED: 'financeProtected',
+  FINANCE_AMOUNT_INVALID: 'financeInvalid',
+  FINANCE_CONFLICT: 'financeConflict',
+  FINANCE_UNDO_ALREADY_APPLIED: 'financeError',
+  FINANCE_EXPORT_FAILED: 'financeError',
+  REQUEST_REUSE_CONFLICT: 'financeError',
+  LEGACY_ALREADY_IMPORTED: 'financeError',
+  LEGACY_TARGET_OCCUPIED: 'financeConflict',
+  PLACEMENT_CONFLICT: 'financeConflict',
+  TRANSFER_DATE_INVALID: 'financeTransferDateInvalid',
+  AGENT_ID_CONFLICT: 'teamErrorNameConflict',
+  FUTURE_FINANCE_DATE: 'financeFutureDate',
+  DATE_BEFORE_AGENT: 'financeBeforeAgent',
   AUTH_REQUIRED: 'teamErrorAuthRequired',
   PERMISSION_DENIED: 'teamErrorPermissionDenied',
   NOT_A_MEMBER: 'teamErrorNotAMember',

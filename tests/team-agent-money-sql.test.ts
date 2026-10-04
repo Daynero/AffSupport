@@ -17,7 +17,9 @@ const VIEWER = '19000000-0000-4000-8000-000000000002';
 let harness: TeamTestDb;
 
 beforeAll(async () => {
-  harness = await createTeamTestDb();
+  // Historical 019 contract: 027 explicitly rejects these undated writes.
+  // The replacement behavior is covered by team-agent-finance-schema.test.ts.
+  harness = await createTeamTestDb({ throughMigration: '20261003000000' });
   await createUser(harness, { id: OWNER, email: 'owner@money.test', displayName: 'Owner' });
   await createUser(harness, { id: VIEWER, email: 'viewer@money.test', displayName: 'Viewer' });
   await harness.root(`insert into public.admin_users (user_id) values ($1)`, [OWNER]);

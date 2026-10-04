@@ -55,6 +55,7 @@ import { MarkerFilter } from './MarkerFilter';
 import { copyText } from '../../two-factor/clipboard';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
+import { FinanceWorkspace } from './finance/FinanceWorkspace';
 
 export type AccountSpaceClient = AccountsClient & TaskLabelsClient;
 
@@ -122,6 +123,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   const { push } = useToasts();
   const { can, revision } = useTeam();
   const canEdit = can('edit');
+  const [view, setView] = useState<'accounts' | 'finance'>('accounts');
   const accounts = useAccounts({ teamId, revision, client });
   /**
    * The agent half of the space's tag dictionary (019). Read here, beside the
@@ -496,7 +498,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         </div>
         {/* While the list is empty the empty state carries this same invitation;
             two primaries for one act is one too many (024, FR-092). */}
-        {canEdit && !listEmpty && (
+        {canEdit && !listEmpty && (client || view === 'accounts') && (
           <Button type="button" variant="primary" data-account-create="true" onClick={startCreate}>
             <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('teamAccountsCreate')}
@@ -504,342 +506,400 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         )}
       </div>
 
-      {/* The search and the occupancy filter share one row, as the task filters
+      {!client && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t('financeView')}>
+          <Button
+            size="sm"
+            variant="soft"
+            aria-pressed={view === 'accounts'}
+            color={view === 'accounts' ? 'secondary' : 'neutral'}
+            onClick={() => setView('accounts')}
+          >
+            {t('financeAccountsView')}
+          </Button>
+          <Button
+            size="sm"
+            variant="soft"
+            aria-pressed={view === 'finance'}
+            color={view === 'finance' ? 'secondary' : 'neutral'}
+            onClick={() => setView('finance')}
+          >
+            {t('financeTitle')}
+          </Button>
+        </div>
+      )}
+      {!client && (
+        <div className={view === 'finance' ? 'contents' : 'hidden'}>
+          <FinanceWorkspace
+            key={teamId}
+            teamId={teamId}
+            canEdit={canEdit}
+            revision={revision}
+            agents={accounts.accounts.flatMap(account => account.agents)}
+            labels={agentLabels.labels}
+            onToggleLabel={(agent, labelId, next) =>
+              (next
+                ? accounts.attachLabel(agent, labelId)
+                : accounts.detachLabel(agent, labelId)
+              ).then(() => undefined)
+            }
+          />
+        </div>
+      )}
+      <div className={!client && view === 'finance' ? 'hidden' : 'contents'}>
+        {/* The search and the occupancy filter share one row, as the task filters
           do. The pills are the task filter's pills — same class, so the two
           toolbars cannot drift — with a count on each. */}
-      {/* Nothing to search or filter yet: no toolbar of zeros over the invitation. */}
-      {!listEmpty && (
-        <div className="team-accounts-toolbar">
-          <label className="team-accounts-search">
-            <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            <input
-              type="search"
-              value={search}
-              aria-label={t('teamAccountsSearchLabel')}
-              placeholder={t('teamAccountsSearchPlaceholder')}
-              onChange={event => setSearch(event.target.value)}
-            />
-            {search !== '' && (
-              <IconButton
-                label={t('teamAccountsClearField')}
-                tabIndex={-1}
-                onClick={() => setSearch('')}
-              >
-                <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </IconButton>
-            )}
-          </label>
-          {/* The chips have always counted agents, never accounts; now they say
-            so out loud rather than only to a screen reader. */}
-          <div className="team-accounts-toolbar-end">
-            <div
-              className="team-accounts-occupancy"
-              role="group"
-              aria-label={t('teamAccountsFilterLabel')}
-            >
-              {OCCUPANCY.map(value => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
-                  aria-pressed={occupancy === value}
-                  onClick={() => setOccupancy(value)}
+        {/* Nothing to search or filter yet: no toolbar of zeros over the invitation. */}
+        {!listEmpty && (
+          <div className="team-accounts-toolbar">
+            <label className="team-accounts-search">
+              <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              <input
+                type="search"
+                value={search}
+                aria-label={t('teamAccountsSearchLabel')}
+                placeholder={t('teamAccountsSearchPlaceholder')}
+                onChange={event => setSearch(event.target.value)}
+              />
+              {search !== '' && (
+                <IconButton
+                  label={t('teamAccountsClearField')}
+                  tabIndex={-1}
+                  onClick={() => setSearch('')}
                 >
-                  {value !== 'all' && (
-                    <span className="team-accounts-occupancy-dot" aria-hidden="true" />
-                  )}
-                  <span>{occupancyLabel(value)}</span>
-                  <b>{occupancyCount(value)}</b>
-                </button>
-              ))}
-            </div>
-            {/* The colours, behind one control: they are the filter reached for
+                  <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </IconButton>
+              )}
+            </label>
+            {/* The chips have always counted agents, never accounts; now they say
+            so out loud rather than only to a screen reader. */}
+            <div className="team-accounts-toolbar-end">
+              <div
+                className="team-accounts-occupancy"
+                role="group"
+                aria-label={t('teamAccountsFilterLabel')}
+              >
+                {OCCUPANCY.map(value => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
+                    aria-pressed={occupancy === value}
+                    onClick={() => setOccupancy(value)}
+                  >
+                    {value !== 'all' && (
+                      <span className="team-accounts-occupancy-dot" aria-hidden="true" />
+                    )}
+                    <span>{occupancyLabel(value)}</span>
+                    <b>{occupancyCount(value)}</b>
+                  </button>
+                ))}
+              </div>
+              {/* The colours, behind one control: they are the filter reached for
             least, and four more chips in this row pushed the fold onto a line
             of its own. Clearing every marker in the space lives in the same
             menu — it is the only other thing on this screen about markers.
             Absent while no run carries a marker (024, FR-092): "Markers 0" was
             a filter with nothing to filter, read as one more thing to learn. */}
-            {(markedRuns > 0 || marker !== 'all') && (
-              <MarkerFilter
-                value={marker}
-                counts={counts.markers}
-                total={counts.agents}
-                marked={markedRuns}
-                canEdit={canEdit}
-                onChange={setMarker}
-                onClearAll={() => void clearMarkers()}
-              />
-            )}
-            {/* The fold, for the whole list: with four accounts open the fourth
+              {(markedRuns > 0 || marker !== 'all') && (
+                <MarkerFilter
+                  value={marker}
+                  counts={counts.markers}
+                  total={counts.agents}
+                  marked={markedRuns}
+                  canEdit={canEdit}
+                  onChange={setMarker}
+                  onClearAll={() => void clearMarkers()}
+                />
+              )}
+              {/* The fold, for the whole list: with four accounts open the fourth
             one's rows are a screen away, and folding them one at a time is
             four presses to see what is on the page. */}
-            {/* Only with two accounts or more (024): with one, folding everything is the
+              {/* Only with two accounts or more (024): with one, folding everything is the
                 same press as folding its own head. */}
-            {visible.length > 1 && (
-              <button
-                type="button"
-                className="team-accounts-fold-all"
-                aria-expanded={!allCollapsed}
-                onClick={() =>
-                  toggleAll(
-                    visible.map(account => account.id),
-                    !allCollapsed
-                  )
-                }
-              >
-                {allCollapsed ? (
-                  <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                ) : (
-                  <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                )}
-                <span>{t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}</span>
-              </button>
-            )}
+              {visible.length > 1 && (
+                <button
+                  type="button"
+                  className="team-accounts-fold-all"
+                  aria-expanded={!allCollapsed}
+                  onClick={() =>
+                    toggleAll(
+                      visible.map(account => account.id),
+                      !allCollapsed
+                    )
+                  }
+                >
+                  {allCollapsed ? (
+                    <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  ) : (
+                    <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  )}
+                  <span>
+                    {t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {accounts.loading && accounts.accounts.length === 0 && (
-        <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
-      )}
-      {accounts.error && (
-        <ErrorState
-          message={t('teamAccountsLoadFailed')}
-          onRetry={() => void accounts.refetch()}
-          retryLabel={t('retry')}
-        />
-      )}
+        {accounts.loading && accounts.accounts.length === 0 && (
+          <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
+        )}
+        {accounts.error && (
+          <ErrorState
+            message={t('teamAccountsLoadFailed')}
+            onRetry={() => void accounts.refetch()}
+            retryLabel={t('retry')}
+          />
+        )}
 
-      {(creating || accounts.accounts.length > 0) && (
-        <div className={`team-accounts-table${moneyFolded ? ' is-money-folded' : ''}`}>
-          {/* Printed once, above every account, and left where it is while the
+        {(creating || accounts.accounts.length > 0) && (
+          <div className={`team-accounts-table${!client || moneyFolded ? ' is-money-folded' : ''}`}>
+            {/* Printed once, above every account, and left where it is while the
               list scrolls under it. Not hidden from a screen reader either:
               read once at the top it is orientation, which is what it was
               never able to be when every account repeated it. */}
-          <div className="team-accounts-columns">
-            <span />
-            <span>{t('teamAccountColumnAgent')}</span>
-            <span>{t('teamAccountColumnStatus')}</span>
-            <span>{t('teamAccountColumnRun')}</span>
-            {/* The money caption is the control for its own column: a space that
+            <div className="team-accounts-columns">
+              <span />
+              <span>{t('teamAccountColumnAgent')}</span>
+              <span>{t('teamAccountColumnStatus')}</span>
+              <span>{t('teamAccountColumnRun')}</span>
+              {/* The money caption is the control for its own column: a space that
                 does not pay for traffic folds the two fields away and gets the
                 width back for the runs. Folded, the caption's word goes and its
                 icon stays — the way back has to sit where the column was. */}
-            <button
-              type="button"
-              className="team-accounts-money-fold"
-              aria-expanded={!moneyFolded}
-              aria-controls="team-accounts-list"
-              data-open={moneyFolded ? undefined : 'true'}
-              title={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
-              aria-label={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
-              onClick={() => {
-                const next = !moneyFolded;
-                setMoneyFolded(next);
-                writeMoneyFolded(teamId, next);
-              }}
-            >
-              {/* A wallet, not arrows (024): "<>" read as code. Pressed while the column
+              {client ? (
+                <button
+                  type="button"
+                  className="team-accounts-money-fold"
+                  aria-expanded={Boolean(client) && !moneyFolded}
+                  aria-controls="team-accounts-list"
+                  data-open={moneyFolded ? undefined : 'true'}
+                  title={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
+                  aria-label={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
+                  onClick={() => {
+                    if (!client) return;
+                    const next = !moneyFolded;
+                    setMoneyFolded(next);
+                    writeMoneyFolded(teamId, next);
+                  }}
+                >
+                  {/* A wallet, not arrows (024): "<>" read as code. Pressed while the column
                   is open; the tooltip says which way the press goes. */}
-              <Wallet size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              <span>{t('teamAccountColumnMoney')}</span>
-            </button>
-            {/* Named for a screen reader only; the row's buttons speak for
+                  <Wallet size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  <span>{t('teamAccountColumnMoney')}</span>
+                </button>
+              ) : (
+                <span />
+              )}
+              {/* Named for a screen reader only; the row's buttons speak for
                 themselves, as they do in Airtable and Linear lists. */}
-            <span>
-              <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
-            </span>
-          </div>
-          <div className="team-accounts-list" id="team-accounts-list">
-            {creating && (
-              <section className="team-account is-new" aria-label={t('teamAccountsCreate')}>
-                <AccountNameRow
-                  hold={hold}
+              <span>
+                <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
+              </span>
+            </div>
+            <div className="team-accounts-list" id="team-accounts-list">
+              {creating && (
+                <section className="team-account is-new" aria-label={t('teamAccountsCreate')}>
+                  <AccountNameRow
+                    hold={hold}
+                    onDirtyChange={onDirtyChange}
+                    onCancel={cancelCreate}
+                    onSave={async name => {
+                      const created = await accounts.createAccount(name);
+                      // The next thing after naming an account is putting an agent
+                      // in it, so the agent editor opens without another press.
+                      setEditor({ kind: 'account', accountId: created.id, state: { kind: 'add' } });
+                      setAccountCollapsed(created.id, false);
+                    }}
+                  />
+                </section>
+              )}
+              {visible.map(account => (
+                <AccountGroup
+                  key={account.id}
+                  teamId={teamId}
+                  account={accounts.accounts.find(item => item.id === account.id) ?? account}
+                  visibleAgents={account.agents}
+                  canEdit={canEdit}
+                  collapsed={collapsed.has(account.id)}
+                  onCollapsedChange={value => setAccountCollapsed(account.id, value)}
+                  editing={
+                    editingAccountId === account.id && editor?.kind === 'account'
+                      ? editor.state
+                      : null
+                  }
+                  hold={hold && editingAccountId === account.id}
+                  pendingAgentIds={pendingAgentIds}
+                  search={search}
                   onDirtyChange={onDirtyChange}
-                  onCancel={cancelCreate}
-                  onSave={async name => {
-                    const created = await accounts.createAccount(name);
-                    // The next thing after naming an account is putting an agent
-                    // in it, so the agent editor opens without another press.
-                    setEditor({ kind: 'account', accountId: created.id, state: { kind: 'add' } });
-                    setAccountCollapsed(created.id, false);
+                  onEditingChange={state =>
+                    requestEditor(state ? { kind: 'account', accountId: account.id, state } : null)
+                  }
+                  onRename={name => accounts.renameAccount(account.id, name).then(() => undefined)}
+                  onSetTwoFactor={seed => accounts.setAccountTwoFactor(account.id, seed)}
+                  onDelete={async () => {
+                    await accounts.deleteAccount(account.id);
+                    // The section is gone with its buttons; the dialog has nowhere
+                    // to return focus to, so it goes to the one control that is
+                    // always there.
+                    window.requestAnimationFrame(() =>
+                      panel.current?.querySelector<HTMLElement>('[data-account-create]')?.focus()
+                    );
+                  }}
+                  onAddAgent={async value => {
+                    const created = await accounts.addAgent(
+                      account.id,
+                      value.agentId,
+                      value.note,
+                      value.timezone
+                    );
+                    push({
+                      tone: 'success',
+                      text: t('teamAccountsToastAgentAdded', {
+                        tag: teamAgentLabel(account.name, created.agentId)
+                      })
+                    });
+                  }}
+                  onUpdateAgent={(agent, agentId) =>
+                    accounts.updateAgent(agent, agentId).then(() => undefined)
+                  }
+                  onAddRun={(agent, note) => accounts.addRun(agent, note).then(() => undefined)}
+                  onUpdateRun={(_agent, runId, note) =>
+                    accounts.updateRun(runId, note).then(() => undefined)
+                  }
+                  onDeleteRun={deleteRun}
+                  onSetRunMarker={(_agent, item, value) =>
+                    accounts.setRunMarker(item.id, value).then(() => undefined)
+                  }
+                  agentLabels={agentLabels.labels}
+                  onSetMoney={(agent, balance, topup) =>
+                    accounts.setMoney(agent, balance, topup).then(() => undefined)
+                  }
+                  onToggleLabel={(agent, labelId, next) =>
+                    (next
+                      ? accounts.attachLabel(agent, labelId)
+                      : accounts.detachLabel(agent, labelId)
+                    ).then(() => undefined)
+                  }
+                  onRelease={release}
+                  onDeleteAgent={async agent => {
+                    await accounts.deleteAgent(agent);
+                    push({ tone: 'success', text: t('teamAccountsToastAgentDeleted') });
+                    /*
+                     * The row is gone and the dialog went with it, so the dialog's own
+                     * focus return points at a button that has left the document —
+                     * and `focus()` on a detached element is nothing at all. The focus
+                     * is handed on here instead, the way deleting an account hands it
+                     * back: to the account the agent was in, which is still on screen.
+                     */
+                    window.requestAnimationFrame(() => {
+                      const inGroup = panel.current?.querySelector<HTMLElement>(
+                        `[data-account-id="${agent.accountId}"] .team-account-add-agent`
+                      );
+                      (
+                        inGroup ??
+                        panel.current?.querySelector<HTMLElement>('[data-account-create]')
+                      )?.focus();
+                    });
                   }}
                 />
-              </section>
-            )}
-            {visible.map(account => (
-              <AccountGroup
-                key={account.id}
-                teamId={teamId}
-                account={accounts.accounts.find(item => item.id === account.id) ?? account}
-                visibleAgents={account.agents}
-                canEdit={canEdit}
-                collapsed={collapsed.has(account.id)}
-                onCollapsedChange={value => setAccountCollapsed(account.id, value)}
-                editing={
-                  editingAccountId === account.id && editor?.kind === 'account'
-                    ? editor.state
-                    : null
-                }
-                hold={hold && editingAccountId === account.id}
-                pendingAgentIds={pendingAgentIds}
-                search={search}
-                onDirtyChange={onDirtyChange}
-                onEditingChange={state =>
-                  requestEditor(state ? { kind: 'account', accountId: account.id, state } : null)
-                }
-                onRename={name => accounts.renameAccount(account.id, name).then(() => undefined)}
-                onSetTwoFactor={seed => accounts.setAccountTwoFactor(account.id, seed)}
-                onDelete={async () => {
-                  await accounts.deleteAccount(account.id);
-                  // The section is gone with its buttons; the dialog has nowhere
-                  // to return focus to, so it goes to the one control that is
-                  // always there.
-                  window.requestAnimationFrame(() =>
-                    panel.current?.querySelector<HTMLElement>('[data-account-create]')?.focus()
-                  );
-                }}
-                onAddAgent={async value => {
-                  const created = await accounts.addAgent(account.id, value.agentId, value.note);
-                  push({
-                    tone: 'success',
-                    text: t('teamAccountsToastAgentAdded', {
-                      tag: teamAgentLabel(account.name, created.agentId)
-                    })
-                  });
-                }}
-                onUpdateAgent={(agent, agentId) =>
-                  accounts.updateAgent(agent, agentId).then(() => undefined)
-                }
-                onAddRun={(agent, note) => accounts.addRun(agent, note).then(() => undefined)}
-                onUpdateRun={(_agent, runId, note) =>
-                  accounts.updateRun(runId, note).then(() => undefined)
-                }
-                onDeleteRun={deleteRun}
-                onSetRunMarker={(_agent, item, value) =>
-                  accounts.setRunMarker(item.id, value).then(() => undefined)
-                }
-                agentLabels={agentLabels.labels}
-                onSetMoney={(agent, balance, topup) =>
-                  accounts.setMoney(agent, balance, topup).then(() => undefined)
-                }
-                onToggleLabel={(agent, labelId, next) =>
-                  (next
-                    ? accounts.attachLabel(agent, labelId)
-                    : accounts.detachLabel(agent, labelId)
-                  ).then(() => undefined)
-                }
-                onRelease={release}
-                onDeleteAgent={async agent => {
-                  await accounts.deleteAgent(agent);
-                  push({ tone: 'success', text: t('teamAccountsToastAgentDeleted') });
-                  /*
-                   * The row is gone and the dialog went with it, so the dialog's own
-                   * focus return points at a button that has left the document —
-                   * and `focus()` on a detached element is nothing at all. The focus
-                   * is handed on here instead, the way deleting an account hands it
-                   * back: to the account the agent was in, which is still on screen.
-                   */
-                  window.requestAnimationFrame(() => {
-                    const inGroup = panel.current?.querySelector<HTMLElement>(
-                      `[data-account-id="${agent.accountId}"] .team-account-add-agent`
-                    );
-                    (
-                      inGroup ?? panel.current?.querySelector<HTMLElement>('[data-account-create]')
-                    )?.focus();
-                  });
-                }}
-              />
-            ))}
-            {/* Three distinguishable answers: nothing matches the search, nothing
+              ))}
+              {/* Three distinguishable answers: nothing matches the search, nothing
               is free, nothing is running. Each names the filter in force. */}
-            {!creating && visible.length === 0 && accounts.accounts.length > 0 && (
-              <p className="team-accounts-notice">
-                {search.trim() !== ''
-                  ? t('teamAccountsEmptySearch', { query: search.trim() })
-                  : occupancy === 'free'
-                    ? t('teamAccountsEmptyFree')
-                    : t('teamAccountsEmptyBusy')}
-              </p>
-            )}
-          </div>
-          {/* Under the list, where a person arrives having filled the figures
+              {!creating && visible.length === 0 && accounts.accounts.length > 0 && (
+                <p className="team-accounts-notice">
+                  {search.trim() !== ''
+                    ? t('teamAccountsEmptySearch', { query: search.trim() })
+                    : occupancy === 'free'
+                      ? t('teamAccountsEmptyFree')
+                      : t('teamAccountsEmptyBusy')}
+                </p>
+              )}
+            </div>
+            {/* Under the list, where a person arrives having filled the figures
               in: the two ways to copy the day's top-ups out, and the way to
               clear them once they are paid. Quiet until there is anything to
               copy — the count on the buttons is the whole state of the thing. */}
-          {/* Only once there is something to copy or clear (024, benchmarked on
+            {/* Only once there is something to copy or clear (024, benchmarked on
               Airtable's selection bar): four disabled buttons over "nothing to
               top up" were a toolbar for a job nobody had started. */}
-          {canEdit && accounts.accounts.length > 0 && (topupCount > 0 || balanceCount > 0) && (
-            <div className="team-accounts-footer">
-              <span className="team-accounts-footer-count">
-                {topupCount > 0
-                  ? t('teamAccountsTopupCount', { count: topupCount })
-                  : t('teamAccountsTopupNone')}
-              </span>
-              <button
-                type="button"
-                className="team-accounts-footer-action"
-                disabled={topupCount === 0}
-                onClick={() => copyList('names')}
-              >
-                <Copy size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <span>{t('teamAccountsCopyNames')}</span>
-              </button>
-              <button
-                type="button"
-                className="team-accounts-footer-action"
-                disabled={topupCount === 0}
-                onClick={() => copyList('ids')}
-              >
-                <Copy size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <span>{t('teamAccountsCopyIds')}</span>
-              </button>
-              <button
-                type="button"
-                className="team-accounts-footer-action is-danger"
-                disabled={topupCount === 0}
-                onClick={() => clearFigures('topups')}
-              >
-                <Eraser size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <span>{t('teamAccountsClearTopups')}</span>
-              </button>
-              {/* The other figure, cleared for its own reason: a round ends and
+            {client &&
+              canEdit &&
+              accounts.accounts.length > 0 &&
+              (topupCount > 0 || balanceCount > 0) && (
+                <div className="team-accounts-footer">
+                  <span className="team-accounts-footer-count">
+                    {topupCount > 0
+                      ? t('teamAccountsTopupCount', { count: topupCount })
+                      : t('teamAccountsTopupNone')}
+                  </span>
+                  <button
+                    type="button"
+                    className="team-accounts-footer-action"
+                    disabled={topupCount === 0}
+                    onClick={() => copyList('names')}
+                  >
+                    <Copy size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    <span>{t('teamAccountsCopyNames')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="team-accounts-footer-action"
+                    disabled={topupCount === 0}
+                    onClick={() => copyList('ids')}
+                  >
+                    <Copy size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    <span>{t('teamAccountsCopyIds')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="team-accounts-footer-action is-danger"
+                    disabled={topupCount === 0}
+                    onClick={() => clearFigures('topups')}
+                  >
+                    <Eraser size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    <span>{t('teamAccountsClearTopups')}</span>
+                  </button>
+                  {/* The other figure, cleared for its own reason: a round ends and
                   what each agent had is last round's number. */}
-              <button
-                type="button"
-                className="team-accounts-footer-action is-danger"
-                disabled={balanceCount === 0}
-                onClick={() => clearFigures('balances')}
-              >
-                <Eraser size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <span>{t('teamAccountsClearBalances')}</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+                  <button
+                    type="button"
+                    className="team-accounts-footer-action is-danger"
+                    disabled={balanceCount === 0}
+                    onClick={() => clearFigures('balances')}
+                  >
+                    <Eraser size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    <span>{t('teamAccountsClearBalances')}</span>
+                  </button>
+                </div>
+              )}
+          </div>
+        )}
 
-      {listEmpty && !creating && (
-        <Empty
-          className="team-accounts-empty"
-          icon={<UserRound size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-          title={t('teamAccountsEmpty')}
-          description={t('teamAccountsEmptyBody')}
-          action={
-            canEdit && (
-              <Button
-                type="button"
-                color="primary"
-                leading={<Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-                onClick={startCreate}
-              >
-                {t('teamAccountsCreate')}
-              </Button>
-            )
-          }
-        />
-      )}
+        {listEmpty && !creating && (
+          <Empty
+            className="team-accounts-empty"
+            icon={<UserRound size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+            title={t('teamAccountsEmpty')}
+            description={t('teamAccountsEmptyBody')}
+            action={
+              canEdit && (
+                <Button
+                  type="button"
+                  color="primary"
+                  leading={<Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+                  onClick={startCreate}
+                >
+                  {t('teamAccountsCreate')}
+                </Button>
+              )
+            }
+          />
+        )}
+      </div>
     </section>
   );
 }

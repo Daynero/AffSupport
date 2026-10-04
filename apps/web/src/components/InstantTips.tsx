@@ -30,6 +30,12 @@ export function InstantTips() {
   }, [tip]);
 
   useEffect(() => {
+    let activeHost: HTMLElement | null = null;
+    const allowed = (host: HTMLElement) => {
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      const top = dialogs[dialogs.length - 1];
+      return host.isConnected && (!top || top.contains(host));
+    };
     const place = (host: HTMLElement, text: string) => {
       const rect = host.getBoundingClientRect();
       // Matches the CSS cap, so a long name is centred against the control
@@ -49,6 +55,10 @@ export function InstantTips() {
     };
     const onOver = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
+      if (!(target instanceof HTMLElement) || !allowed(target)) {
+        clear();
+        return;
+      }
       // A native `title` waits about a second for the OS and then draws a tiny
       // system bubble. Anything carrying one is adopted here on first hover:
       // the attribute moves to data-tip (keeping its text as the accessible
@@ -66,22 +76,44 @@ export function InstantTips() {
         native.removeAttribute('title');
       }
       const host = target?.closest?.('[data-tip]');
-      if (!(host instanceof HTMLElement)) return;
+      if (!(host instanceof HTMLElement)) {
+        clear();
+        return;
+      }
       const text = host.getAttribute('data-tip');
-      if (!text) return;
+      if (!text) {
+        clear();
+        return;
+      }
+      activeHost = host;
       place(host, text);
     };
     const onOut = (event: MouseEvent) => {
       const host = (event.target as HTMLElement | null)?.closest?.('[data-tip]');
-      if (host) setTip(null);
+      if (host) clear();
     };
-    const clear = () => setTip(null);
+    const clear = () => {
+      activeHost = null;
+      setTip(null);
+    };
+    // Opening a modal via keyboard can leave the pointer and its old tip
+    // stationary. Clear it as soon as that anchor becomes background content.
+    const observer = new MutationObserver(() => {
+      if (activeHost && !allowed(activeHost)) clear();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['aria-modal']
+    });
     document.addEventListener('mouseover', onOver);
     document.addEventListener('mouseout', onOut);
     document.addEventListener('pointerdown', clear);
     window.addEventListener('scroll', clear, true);
     window.addEventListener('resize', clear);
     return () => {
+      observer.disconnect();
       document.removeEventListener('mouseover', onOver);
       document.removeEventListener('mouseout', onOut);
       document.removeEventListener('pointerdown', clear);

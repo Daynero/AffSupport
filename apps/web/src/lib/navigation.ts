@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 
 const NAVIGATION_EVENT = 'wishly-navigation';
+export const BEFORE_NAVIGATION_EVENT = 'wishly-before-navigation';
 
 /**
  * While a route view transition runs, this class on <html> gives the page
@@ -113,6 +114,15 @@ export function crossesTeamBoundary(from: string, to: string): boolean {
  */
 export function navigateTo(path: string, replace = false, animate = true) {
   if (path === currentRoute()) return;
+  if (
+    !window.dispatchEvent(
+      new CustomEvent(BEFORE_NAVIGATION_EVENT, {
+        cancelable: true,
+        detail: { path, replace, animate }
+      })
+    )
+  )
+    return;
   if (replace) history.replaceState(null, '', path);
   else history.pushState(null, '', path);
   window.dispatchEvent(new CustomEvent(NAVIGATION_EVENT, { detail: { animate } }));

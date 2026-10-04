@@ -116,6 +116,20 @@ insert into public.role_permissions (role, permission, allowed) values
   ('viewer', 'manage_metadata', false);
 
 insert into public.team_error_codes (code) values
+  ('FINANCE_CLIENT_UPGRADE_REQUIRED'),
+  ('FINANCE_HISTORY_PROTECTED'),
+  ('FINANCE_AMOUNT_INVALID'),
+  ('FINANCE_CONFLICT'),
+  ('FINANCE_UNDO_ALREADY_APPLIED'),
+  ('FINANCE_EXPORT_FAILED'),
+  ('REQUEST_REUSE_CONFLICT'),
+  ('LEGACY_ALREADY_IMPORTED'),
+  ('LEGACY_TARGET_OCCUPIED'),
+  ('PLACEMENT_CONFLICT'),
+  ('TRANSFER_DATE_INVALID'),
+  ('AGENT_ID_CONFLICT'),
+  ('FUTURE_FINANCE_DATE'),
+  ('DATE_BEFORE_AGENT'),
   ('AUTH_REQUIRED'),
   ('PERMISSION_DENIED'),
   ('NOT_A_MEMBER'),

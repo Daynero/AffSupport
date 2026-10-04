@@ -54,6 +54,7 @@ import {
   type TeamTaskSort,
   normalizeTeamAccountName,
   normalizeTeamAgentId,
+  validFinanceTimezone,
   normalizeTeamAgentNote,
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
@@ -4141,17 +4142,21 @@ export const teamApi = {
     accountId: string;
     agentId: string;
     note?: string | null;
+    timezone?: string;
   }): Promise<TeamAccountAgentSummary> {
     const agentId = normalizeTeamAgentId(input.agentId);
     const note = normalizeTeamAgentNote(input.note);
-    if (!agentId || note === undefined) throw new TeamApiError('INVALID_INPUT', false);
+    const timezone = input.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!agentId || note === undefined || !validFinanceTimezone(timezone))
+      throw new TeamApiError('INVALID_INPUT', false);
     const { data, error } = await withFreshSession(() => {
       const supabase = requireSupabaseClient();
       return supabase.rpc('add_team_account_agent', {
         p_team: input.teamId,
         p_account: input.accountId,
         p_agent_id: agentId,
-        p_note: note ?? undefined
+        p_note: note ?? undefined,
+        p_timezone: timezone
       });
     });
     throwRpc(error);

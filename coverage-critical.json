@@ -1,6 +1,8 @@
 {
   "note": "Derived, not typed. tests/run-state-coverage.test.ts walks the import graph from the run-state entry points and fails if a module it reaches is missing here. Floors are absolute: checked before, and independently of, the global ratchet, so a rising average can never excuse an uncovered state module.",
   "modules": {
+    "packages/shared/src/team/agent-finance.ts": 90,
+    "packages/shared/src/team/agent-finance-report.ts": 90,
     "apps/agent/src/ffmpeg/encoder.ts": 95,
     "apps/agent/src/ffmpeg/presets.ts": 99,
     "apps/agent/src/ffmpeg/stitch-presets.ts": 50,

@@ -1,4 +1,6 @@
 export * from './accounts.js';
+export * from './agent-finance.js';
+export * from './agent-finance-report.js';
 export * from './analytics.js';
 export * from './catalog-search.js';
 export * from './contract.js';
