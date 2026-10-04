@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskSummary } from '@video-compressor/shared';
@@ -75,7 +75,7 @@ function client(over: Record<string, unknown> = {}) {
   };
 }
 
-function open(api: ReturnType<typeof client>, onClose = vi.fn()) {
+function open(api: ReturnType<typeof client>, onClose = vi.fn(), initialTask = task()) {
   localStorage.setItem('wishly.active-team.v1', TEAM_ID);
   render(
     <ToastProvider>
@@ -93,7 +93,7 @@ function open(api: ReturnType<typeof client>, onClose = vi.fn()) {
       >
         <TaskEditor
           teamId={TEAM_ID}
-          task={task()}
+          task={initialTask}
           members={[]}
           canEdit
           client={api as never}
@@ -114,6 +114,107 @@ afterEach(() => {
 });
 
 describe('the task editor saves itself', () => {
+  const taggedTask = () =>
+    task({
+      agents: [
+        {
+          id: 'link',
+          agentRowId: 'agent',
+          accountId: 'account',
+          accountName: 'g10',
+          agentId: '542',
+          runs: []
+        }
+      ],
+      labels: [{ id: 'label', name: 'Feed', color: 'teal' }]
+    });
+
+  it.each(['title', 'status', 'progress'] as const)(
+    'keeps accounts and tags visible after saving %s',
+    async field => {
+      const initial = taggedTask();
+      const api = client({ getTask: vi.fn(async () => ({ task: initial, attachments: [] })) });
+      open(api, vi.fn(), initial);
+      await screen.findByText('Feed');
+      await waitFor(() => expect(api.getTask).toHaveBeenCalledOnce());
+      if (field === 'title') {
+        fireEvent.change(document.querySelector('#team-task-title')!, {
+          target: { value: 'Named' }
+        });
+        fireEvent.blur(document.querySelector('#team-task-title')!);
+        await screen.findByText('Saved');
+      } else if (field === 'status') {
+        fireEvent.click(screen.getByRole('button', { name: 'In progress' }));
+      } else {
+        fireEvent.keyDown(screen.getByRole('slider'), { key: 'ArrowRight' });
+      }
+      await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
+      await waitFor(() => {
+        expect(screen.getByText('Feed')).toBeTruthy();
+        expect(screen.getByText('g10-542')).toBeTruthy();
+      });
+    }
+  );
+
+  it('does not restore a removed tag when an older opening read arrives', async () => {
+    const initial = taggedTask();
+    let finish!: (value: { task: TeamTaskSummary; attachments: [] }) => void;
+    const api = client({
+      getTask: vi.fn(
+        () =>
+          new Promise(resolve => {
+            finish = resolve;
+          })
+      ),
+      detachTaskLabel: vi.fn(async () => [])
+    });
+    open(api, vi.fn(), initial);
+    fireEvent.click(await screen.findByRole('button', { name: 'Take «Feed» off this task' }));
+    await waitFor(() => expect(screen.queryByText('Feed')).toBeNull());
+    await act(async () => finish({ task: initial, attachments: [] }));
+    expect(screen.queryByText('Feed')).toBeNull();
+  });
+
+  it.each(['title', 'status'] as const)(
+    'keeps newer account and tag changes while saving %s',
+    async field => {
+      const initial = taggedTask();
+      let finish!: (value: TeamTaskSummary) => void;
+      const api = client({
+        getTask: vi.fn(async () => ({ task: initial, attachments: [] })),
+        updateTask: vi.fn(
+          () =>
+            new Promise<TeamTaskSummary>(resolve => {
+              finish = resolve;
+            })
+        ),
+        detachTaskLabel: vi.fn(async () => []),
+        detachTaskAgent: vi.fn(async () => [])
+      });
+      open(api, vi.fn(), initial);
+      await act(async () => {});
+      if (field === 'title') {
+        fireEvent.change(document.querySelector('#team-task-title')!, {
+          target: { value: 'Named' }
+        });
+        fireEvent.blur(document.querySelector('#team-task-title')!);
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'In progress' }));
+      }
+      await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
+      fireEvent.click(screen.getByRole('button', { name: 'Take «Feed» off this task' }));
+      fireEvent.click(screen.getByRole('button', { name: /^g10-542/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove from the task' }));
+      await waitFor(() => {
+        expect(screen.queryByText('Feed')).toBeNull();
+        expect(screen.queryByText('g10-542')).toBeNull();
+      });
+      await act(async () => finish(task({ title: 'Named', status: 'in_progress' })));
+      expect(screen.queryByText('Feed')).toBeNull();
+      expect(screen.queryByText('g10-542')).toBeNull();
+    }
+  );
+
   it('has no Save button, and no prompt standing in the doorway', async () => {
     const api = client();
     const { onClose } = open(api);

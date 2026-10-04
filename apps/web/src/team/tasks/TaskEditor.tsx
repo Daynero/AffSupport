@@ -311,6 +311,12 @@ export function TaskEditor({
       });
   };
   const [task, setTask] = useState(initialTask);
+  const taskRef = useRef(task);
+  taskRef.current = task;
+  // Relation writes commit separately from the task row. A read already in
+  // flight must not replace an account/tag change made after it started.
+  const relationRevision = useRef({ agents: 0, labels: 0 });
+  const readRevision = useRef(0);
   const [title, setTitle] = useState(initialTask.title);
   const [note, setNote] = useState(initialTask.note ?? '');
   const [status, setStatus] = useState(initialTask.status);
@@ -391,7 +397,6 @@ export function TaskEditor({
    * anything edited in the meantime stays.
    */
   const hydrateTask = (next: TeamTaskSummary) => {
-    setTask(next);
     setTitle(current => (current === initialTask.title ? next.title : current));
     setNote(current => (current === (initialTask.note ?? '') ? (next.note ?? '') : current));
     setStatus(current => (current === initialTask.status ? next.status : current));
@@ -419,10 +424,23 @@ export function TaskEditor({
       // dialog somebody is typing in would be worse than the stale word it is
       // replacing.
       if (!quiet) setLoading(true);
+      const request = ++readRevision.current;
+      const relations = { ...relationRevision.current };
       try {
         const value = await client.getTask({ teamId, taskId: task.id, attachmentPageSize: 50 });
+        if (request !== readRevision.current) return;
+        setTask(current => ({
+          ...value.task,
+          agents:
+            relations.agents === relationRevision.current.agents
+              ? value.task.agents
+              : current.agents,
+          labels:
+            relations.labels === relationRevision.current.labels
+              ? value.task.labels
+              : current.labels
+        }));
         if (hydrate) hydrateTask(value.task);
-        else setTask(value.task);
         if (resetAttachmentDraft) {
           setPersistedAttachments(value.attachments);
         } else {
@@ -430,7 +448,7 @@ export function TaskEditor({
         }
         setError(null);
       } catch {
-        setError('read');
+        if (request === readRevision.current) setError('read');
       } finally {
         if (!quiet) setLoading(false);
       }
@@ -861,9 +879,15 @@ export function TaskEditor({
         ...patch,
         expectedUpdatedAt: versionRef.current
       });
-      // The update RPC returns the physical row, while attachmentCount is
-      // derived by the read RPC. Keep the known count while this editor stays open.
-      return { ...response, attachmentCount: task.attachmentCount, agents: task.agents };
+      // The update RPC returns only the physical row. Keep derived relations
+      // from the latest state, including changes made while this write awaited.
+      const current = taskRef.current;
+      return {
+        ...response,
+        attachmentCount: current.attachmentCount,
+        agents: current.agents,
+        labels: current.labels
+      };
     },
     read: async () => {
       const value = await client.getTask({ teamId, taskId: task.id });
@@ -887,9 +911,15 @@ export function TaskEditor({
       setTask(current => ({
         ...response,
         attachmentCount: current.attachmentCount,
-        agents: current.agents
+        agents: current.agents,
+        labels: current.labels
       }));
-      onChanged({ ...response, attachmentCount, agents: task.agents });
+      onChanged({
+        ...response,
+        attachmentCount,
+        agents: taskRef.current.agents,
+        labels: taskRef.current.labels
+      });
     },
     onError: () => setError('write')
   });
@@ -908,8 +938,9 @@ export function TaskEditor({
       });
       const updated = {
         ...response,
-        attachmentCount: previousTask.attachmentCount,
-        agents: previousTask.agents
+        attachmentCount: taskRef.current.attachmentCount,
+        agents: taskRef.current.agents,
+        labels: taskRef.current.labels
       };
       setTask(updated);
       // Preserve a locally edited scale; otherwise reflect automatic completion progress.
@@ -1127,6 +1158,7 @@ export function TaskEditor({
                   canEdit={canEdit}
                   client={client}
                   onTagsChange={agents => {
+                    relationRevision.current.agents += 1;
                     setTask(current => ({ ...current, agents }));
                     onTagsChange?.(agents);
                   }}
@@ -1145,6 +1177,7 @@ export function TaskEditor({
                   canEdit={canEdit}
                   client={client}
                   onLabelsChange={next => {
+                    relationRevision.current.labels += 1;
                     setTask(current => ({ ...current, labels: next }));
                     onLabelsChange?.(next);
                   }}
