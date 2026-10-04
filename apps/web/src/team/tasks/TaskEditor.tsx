@@ -350,7 +350,11 @@ export function TaskEditor({
    * dialog opens *over* the task, the task keeps its state, and nobody has to
    * go to the explorer and come back.
    */
-  const [catalogFor, setCatalogFor] = useState<{ id: string; name: string } | null>(null);
+  const [catalogFor, setCatalogFor] = useState<{
+    id: string;
+    name: string;
+    parentFolderId?: string | null;
+  } | null>(null);
   /*
    * The rest of "Make", from the task (024, FR-076). Each opens over the editor
    * and hands its run to the space's queue carrying this task, so what comes
@@ -1376,10 +1380,13 @@ export function TaskEditor({
                       onProductCatalog={
                         attachment.category === 'video' && !attachment.id.startsWith('draft:')
                           ? () =>
-                              setCatalogFor({
-                                id: attachment.materialId,
-                                name: attachment.name
-                              })
+                              void findParentFolder(attachment).then(parentFolderId =>
+                                setCatalogFor({
+                                  id: attachment.materialId,
+                                  name: attachment.name,
+                                  parentFolderId
+                                })
+                              )
                           : undefined
                       }
                       onTranscribe={

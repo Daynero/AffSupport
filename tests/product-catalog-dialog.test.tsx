@@ -116,14 +116,18 @@ function dialogClient(overrides: Partial<DialogClient> = {}): DialogClient {
 
 function renderDialog(
   client: DialogClient,
-  props: { replaces?: ProductCatalogSummary | null; team?: TeamContextSnapshot } = {}
+  props: {
+    replaces?: ProductCatalogSummary | null;
+    team?: TeamContextSnapshot;
+    video?: typeof VIDEO & { parentFolderId?: string | null };
+  } = {}
 ) {
   const onClose = vi.fn();
   render(
     wrap(
       <CreateProductCatalogDialog
         teamId={TEAM_ID}
-        video={VIDEO}
+        video={props.video ?? VIDEO}
         replaces={props.replaces}
         client={client}
         onClose={onClose}
@@ -156,7 +160,7 @@ describe('creating a catalog', () => {
         reused: false
       })
     });
-    renderDialog(client);
+    renderDialog(client, { video: { ...VIDEO, parentFolderId: 'source-drive-folder' } });
     const user = userEvent.setup();
     const checkbox = screen.getByRole('checkbox', { name: 'Re-stitch video' }) as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
@@ -168,6 +172,9 @@ describe('creating a catalog', () => {
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(await screen.findByText('The catalog is ready')).toBeTruthy();
+    expect(client.startProcess).toHaveBeenCalledWith(
+      expect.objectContaining({ destinationFolderId: 'source-drive-folder' })
+    );
     expect(client.runAgentProcess).toHaveBeenCalledWith(
       expect.objectContaining({
         toolId: 'restitch',
