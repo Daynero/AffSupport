@@ -310,6 +310,18 @@ describe('011 — storage analytics and the background-render contract', () => {
 });
 
 describe("an operation's grants outlive the work they authorize", () => {
+  it('accepts the space root as a process output destination while binding it to the operation', () => {
+    const source = readFileSync('supabase/functions/drive-ops/index.ts', 'utf8');
+    const handler = source.slice(
+      source.indexOf('async function handleProcessOutputStart'),
+      source.indexOf('async function handleProcessOutputStart') + 2200
+    );
+    expect(handler).not.toContain('!grant.destinationFolderId');
+    expect(handler).toContain('grant.operationId !== operationId');
+    expect(handler).toContain('operation.destinationFolderId !== grant.destinationFolderId');
+    expect(handler).toContain('destinationFolderId: grant.destinationFolderId');
+    expect(handler).toContain("permission: 'process'");
+  });
   it('keeps a running operation usable for as long as the agent may take', () => {
     // A three-minute video took eight minutes to transcribe on the beta; a
     // forty-minute one on a throttled machine takes an hour. The transfer TTL
