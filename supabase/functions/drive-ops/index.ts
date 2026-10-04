@@ -2043,7 +2043,10 @@ async function handleProcessOutputStart(
   const sizeBytes = safeInteger(body.sizeBytes);
   if (sizeBytes === null) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   const grant = await consumeOperationGrant(service, body.ticket, 'finalize');
-  if (grant.operationId !== operationId || !grant.destinationFolderId || !grant.toolId) {
+  // A null destination is the connected space root, not a missing permission.
+  // The operation below binds the grant to that destination, and resolving it
+  // rechecks the actor's process permission and the live Drive capabilities.
+  if (grant.operationId !== operationId || !grant.toolId) {
     throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
   }
   const operation = await getOperation(service, operationId, grant.actorId);
