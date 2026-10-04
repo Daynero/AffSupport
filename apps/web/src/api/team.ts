@@ -2234,6 +2234,27 @@ export const teamApi = {
     return data !== false;
   },
 
+  async getCatalogUpdaterRandomLinkVariation(teamId: string): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater_random_link_variation', {
+        p_team: teamId
+      })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
+  async setCatalogUpdaterRandomLinkVariation(teamId: string, enabled: boolean): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_catalog_updater_random_link_variation', {
+        p_team: teamId,
+        p_enabled: enabled
+      })
+    );
+    throwRpc(error);
+    return data !== false;
+  },
+
   async getCatalogUpdaterGrow(teamId: string): Promise<boolean> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('get_team_catalog_updater_grow', { p_team: teamId })
@@ -2258,6 +2279,7 @@ export const teamApi = {
     videoMaterialId: string;
     sourceLink: string;
     productCount: number;
+    randomLinkVariation?: boolean;
     replacesMaterialId: string | null;
     restitchOperationId?: string | null;
     idempotencyKey: string;

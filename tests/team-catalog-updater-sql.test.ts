@@ -196,6 +196,21 @@ afterAll(async () => {
 });
 
 describe('the registry', () => {
+  it('defaults link variation on, saves the choice, and rejects viewer writes', async () => {
+    const get = 'select public.get_team_catalog_updater_random_link_variation($1) as enabled';
+    const set = 'select public.set_team_catalog_updater_random_link_variation($1, $2) as enabled';
+    expect((await harness.asUser<{ enabled: boolean }>(OWNER, get, [teamId]))[0]!.enabled).toBe(
+      true
+    );
+    expect(
+      (await harness.asUser<{ enabled: boolean }>(OWNER, set, [teamId, false]))[0]!.enabled
+    ).toBe(false);
+    expect((await harness.asUser<{ enabled: boolean }>(VIEWER, get, [teamId]))[0]!.enabled).toBe(
+      false
+    );
+    await expect(harness.asUser(VIEWER, set, [teamId, true])).rejects.toThrow('PERMISSION_DENIED');
+    await harness.asUser(OWNER, set, [teamId, true]);
+  });
   it('lists live catalogs with their folder and counters, and hides a catalog whose video is gone', async () => {
     const kept = await catalog('kept');
     const lost = await catalog('lost');

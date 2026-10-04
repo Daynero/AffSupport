@@ -38,6 +38,7 @@ export function updaterIntervalSeconds(interval: UpdaterInterval): number {
 }
 
 export interface CatalogRecord {
+  randomLinkVariation?: boolean;
   settings: ProductCatalogSettingsValues;
   /** Each row's own values, for a catalog made from pools (024). */
   rows?: readonly ProductCatalogRowValues[];
@@ -70,6 +71,7 @@ export function rebuildCatalogRows(input: {
     sourceLink: input.record.sourceLink,
     videoLink: input.videoLinkOverride ?? input.record.videoLink,
     count: input.record.productCount,
+    randomLinkVariation: input.record.randomLinkVariation,
     rows: input.record.rows,
     newId: input.newId
   });

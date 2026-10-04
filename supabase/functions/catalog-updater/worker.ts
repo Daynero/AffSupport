@@ -57,6 +57,7 @@ export type UpdaterDrive = Pick<
 >;
 
 export interface ClaimedCatalog {
+  randomLinkVariation?: boolean;
   catalogId: string;
   attempts: number;
   updateCount: number;
@@ -211,6 +212,10 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     teamId: text(row.team_id),
     refreshImages: row.refresh_images !== false,
     refreshTexts: row.refresh_texts !== false,
+    randomLinkVariation:
+      row.random_link_variation === undefined
+        ? settings.randomLinkVariation !== false
+        : row.random_link_variation !== false,
     priceRange: priceRangeOf(row),
     growProducts: row.grow_products === true,
     driveFileId,
@@ -515,6 +520,7 @@ async function updateOne(
           sourceLink: item.sourceLink,
           videoLink: item.videoLink,
           productCount: count,
+          randomLinkVariation: item.randomLinkVariation,
           rows
         },
         videoLinkOverride: item.spare?.link ?? item.currentVideoLink
@@ -538,10 +544,14 @@ async function updateOne(
             description: first.description,
             price: first.price,
             imageLink: first.imageLink,
+            randomLinkVariation: item.randomLinkVariation !== false,
             rows
           }
         }
-      : { productCount: count, snapshot: { ...item.settings } };
+      : {
+          productCount: count,
+          snapshot: { ...item.settings, randomLinkVariation: item.randomLinkVariation !== false }
+        };
     if (await deps.complete(item.catalogId, nextCount, item.spare?.materialId ?? null, became)) {
       summary.updated += 1;
     } else {

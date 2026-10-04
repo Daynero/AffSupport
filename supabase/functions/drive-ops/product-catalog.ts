@@ -38,6 +38,7 @@ const BODY_KEYS = new Set([
   'videoMaterialId',
   'sourceLink',
   'productCount',
+  'randomLinkVariation',
   'replacesMaterialId',
   'restitchOperationId',
   'idempotencyKey'
@@ -167,6 +168,7 @@ export interface CreateProductCatalogRequest {
   videoMaterialId: string;
   sourceLink: string;
   productCount: number;
+  randomLinkVariation?: boolean;
   replacesMaterialId: string | null;
   restitchOperationId: string | null;
   idempotencyKey: string;
@@ -214,11 +216,14 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
   if (typeof body.productCount !== 'number') invalid('count');
   const count = parseProductCount(body.productCount);
   if (!count.ok) invalid('count');
+  if (body.randomLinkVariation !== undefined && typeof body.randomLinkVariation !== 'boolean')
+    invalid();
   return {
     teamId,
     videoMaterialId,
     sourceLink: link.value,
     productCount: count.value,
+    randomLinkVariation: body.randomLinkVariation !== false,
     replacesMaterialId: typeof replacesMaterialId === 'string' ? replacesMaterialId : null,
     restitchOperationId: typeof restitchOperationId === 'string' ? restitchOperationId : null,
     idempotencyKey
@@ -355,6 +360,7 @@ export async function createProductCatalog(
     description: first.description,
     price: first.price,
     imageLink: first.imageLink,
+    randomLinkVariation: request.randomLinkVariation !== false,
     rows: planned
   };
 
@@ -397,6 +403,7 @@ export async function createProductCatalog(
         sourceLink: request.sourceLink,
         videoLink,
         count: request.productCount,
+        randomLinkVariation: request.randomLinkVariation,
         rows: planned
       })
     });

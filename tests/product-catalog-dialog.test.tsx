@@ -141,6 +141,24 @@ function renderDialog(
 const confirm = () => screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement;
 
 describe('creating a catalog', () => {
+  it('defaults link variation on and sends an explicit opt-out', async () => {
+    const client = dialogClient();
+    renderDialog(client);
+    const user = userEvent.setup();
+    const checkbox = screen.getByRole('checkbox', {
+      name: 'Random link variation'
+    }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    await user.click(checkbox);
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    await waitFor(() =>
+      expect(client.createProductCatalog).toHaveBeenCalledWith(
+        expect.objectContaining({ randomLinkVariation: false })
+      )
+    );
+  });
   it('re-stitches with the chosen duration before sending the catalog creation request', async () => {
     const sourceGrant = { ticket: 'source' } as never;
     const finalizeGrant = { ticket: 'finalize' } as never;

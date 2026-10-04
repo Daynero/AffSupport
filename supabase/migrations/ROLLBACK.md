@@ -1216,3 +1216,12 @@ Forward-only widening of snapshot periods to 366 inclusive days. Existing money,
 placements, journals and authorization are unchanged. To temporarily hide ranges,
 roll back only the source UI; do not remove historical records or edit applied
 migrations. A narrower server policy requires a new forward migration.
+
+### Catalog link variation (20261004100000)
+
+Drop `get_team_catalog_updater_random_link_variation(uuid)` and
+`set_team_catalog_updater_random_link_variation(uuid, boolean)`. Drop
+`service_claim_catalog_updater_items(text, integer, integer)` and restore its
+definition and grants from `20260918120000_catalog_updater_grow.sql`. Then drop
+`team_catalog_updaters.random_link_variation`. Catalog snapshots can retain the
+`randomLinkVariation` key; older workers ignore it.

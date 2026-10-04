@@ -53,6 +53,22 @@ describe('the ID rule', () => {
 });
 
 describe('the rebuilt sheet', () => {
+  it('keeps the original links when variation is disabled, including re-stitched links', () => {
+    const original = buildProductCatalogRows({ ...record, count: 2, randomLinkVariation: false });
+    expect(original.slice(2).map(row => row[CATALOG_UPDATER_COLUMNS.video]!.v)).toEqual([
+      record.videoLink,
+      record.videoLink
+    ]);
+    const copy = 'https://drive.google.com/file/d/copy/view?usp=sharing&resourcekey=key';
+    const updated = rebuildCatalogRows({
+      record: { ...record, randomLinkVariation: false },
+      videoLinkOverride: copy
+    });
+    expect(updated.slice(2).every(row => row[CATALOG_UPDATER_COLUMNS.video]!.v === copy)).toBe(
+      true
+    );
+    expect(updated.slice(2).every(row => row[6]!.v === record.sourceLink)).toBe(true);
+  });
   it('changes only the ID column', () => {
     const original = buildProductCatalogRows({
       settings: record.settings,

@@ -206,6 +206,15 @@ async function refusal(promise: Promise<unknown>) {
 }
 
 describe('reading the request', () => {
+  it('defaults link variation on and accepts an explicit opt-out', () => {
+    expect(parseCreateProductCatalogRequest(body()).randomLinkVariation).toBe(true);
+    expect(
+      parseCreateProductCatalogRequest(body({ randomLinkVariation: false })).randomLinkVariation
+    ).toBe(false);
+    expect(() =>
+      parseCreateProductCatalogRequest(body({ randomLinkVariation: 'false' }))
+    ).toThrow();
+  });
   it.each([
     [{ sourceLink: '   ' }, 'link'],
     [{ productCount: 0 }, 'count'],

@@ -133,6 +133,20 @@ function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
 }
 
 describe('what an update refreshes (024: US20, US21)', () => {
+  it('loads and saves the link variation choice', async () => {
+    const save = vi.fn().mockResolvedValue(false);
+    renderDialog(
+      client([], stopped, {
+        getCatalogUpdaterRandomLinkVariation: vi.fn().mockResolvedValue(true),
+        setCatalogUpdaterRandomLinkVariation: save
+      })
+    );
+    const checkbox = (await screen.findByLabelText('Random link variation')) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    await userEvent.click(checkbox);
+    await waitFor(() => expect(save).toHaveBeenCalledWith(TEAM_ID, false));
+    expect(checkbox.checked).toBe(false);
+  });
   it('collapses the settings so the catalog list can use the dialog height', async () => {
     renderDialog(client([row('1', 'polo.mp4')], stopped));
     const summary = await screen.findByText('What an update changes');

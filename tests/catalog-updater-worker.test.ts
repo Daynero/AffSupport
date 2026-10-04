@@ -115,6 +115,30 @@ function setup(
 }
 
 describe('a tick', () => {
+  it('writes original video links and retains the opt-out for later updates', async () => {
+    const { deps, written } = setup({
+      batches: [[claimedRow('a', { random_link_variation: false })]]
+    });
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    const strings = await zipEntry(written[0]!.bytes, 'xl/sharedStrings.xml');
+    expect(strings).toContain('https://drive.google.com/file/d/video/view?usp=sharing');
+    expect(strings).not.toContain('?v=');
+    expect(deps.complete).toHaveBeenCalledWith(
+      'a',
+      1,
+      null,
+      expect.objectContaining({ snapshot: expect.objectContaining({ randomLinkVariation: false }) })
+    );
+    const snapshot = { ...claimedRow('b').settings_snapshot, randomLinkVariation: false };
+    expect(
+      parseClaimedCatalog(claimedRow('b', { settings_snapshot: snapshot }))?.randomLinkVariation
+    ).toBe(false);
+    expect(
+      parseClaimedCatalog(
+        claimedRow('b', { settings_snapshot: snapshot, random_link_variation: true })
+      )?.randomLinkVariation
+    ).toBe(true);
+  });
   it('writes each claimed sheet once with its IDs one update on', async () => {
     const { deps, written } = setup({
       batches: [[claimedRow('a'), claimedRow('b', { update_count: 2 })]]

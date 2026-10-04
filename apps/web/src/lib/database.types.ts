@@ -1042,6 +1042,7 @@ export type GeneratedDatabase = {
       };
       team_catalog_updaters: {
         Row: {
+          random_link_variation: boolean | null;
           grow_products: boolean;
           next_run_at: string | null;
           refresh_images: boolean;
@@ -1056,6 +1057,7 @@ export type GeneratedDatabase = {
           updated_by: string | null;
         };
         Insert: {
+          random_link_variation?: boolean | null;
           grow_products?: boolean;
           next_run_at?: string | null;
           refresh_images?: boolean;
@@ -1070,6 +1072,7 @@ export type GeneratedDatabase = {
           updated_by?: string | null;
         };
         Update: {
+          random_link_variation?: boolean | null;
           grow_products?: boolean;
           next_run_at?: string | null;
           refresh_images?: boolean;
@@ -3669,6 +3672,14 @@ export type GeneratedDatabase = {
       get_team_catalog_updater_grow: { Args: { p_team: string }; Returns: boolean };
       get_team_catalog_updater_refresh_images: { Args: { p_team: string }; Returns: boolean };
       get_team_catalog_updater_refresh_texts: { Args: { p_team: string }; Returns: boolean };
+      get_team_catalog_updater_random_link_variation: {
+        Args: { p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_random_link_variation: {
+        Args: { p_team: string; p_enabled: boolean };
+        Returns: boolean;
+      };
       get_team_folder_resync_status: {
         Args: { p_job: string; p_team: string };
         Returns: {
@@ -4424,6 +4435,7 @@ export type GeneratedDatabase = {
       service_claim_catalog_updater_items: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
         Returns: {
+          random_link_variation: boolean;
           attempts: number;
           catalog_material_id: string;
           credential_id: string;

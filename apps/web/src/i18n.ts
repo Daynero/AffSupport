@@ -1747,6 +1747,7 @@ const en = {
   catalogUpdaterRefreshImagesHint:
     'Each update draws new pictures for the rows from the space’s pictures, none repeated until all have been used.',
   catalogUpdaterRefreshTexts: 'Names, texts and prices',
+  catalogRandomLinkVariation: 'Random link variation',
   catalogUpdaterRefreshTextsHint:
     'Each update draws a new name and text from the space’s pool and a new price from its range, so a catalog is never the same twice.',
   catalogUpdaterGrow: '1–5 new products',
@@ -4804,6 +4805,7 @@ const uk: Record<keyof typeof en, string> = {
   catalogUpdaterRefreshImagesHint:
     'Кожне оновлення бере для рядків нові картинки з картинок простору, без повторів, доки не використаються всі.',
   catalogUpdaterRefreshTexts: 'Назви, описи й ціни',
+  catalogRandomLinkVariation: 'Випадкова варіація посилання',
   catalogUpdaterRefreshTextsHint:
     'Кожне оновлення бере для рядків нову назву й опис із пулу простору та нову ціну з діапазону, тож каталог ніколи не повторюється.',
   catalogUpdaterGrow: '1–5 нових товарів',

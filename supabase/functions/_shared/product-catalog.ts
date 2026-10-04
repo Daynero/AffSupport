@@ -538,6 +538,8 @@ export function buildProductCatalogRows(input: {
   sourceLink: string;
   videoLink: string;
   count: number;
+  /** Append a per-row video variation; enabled for older callers by default. */
+  randomLinkVariation?: boolean;
   /** Per-row values (024); a row without one repeats the settings. */
   rows?: readonly ProductCatalogRowValues[];
   /** A fresh content ID; injectable so a test can hold it still. */
@@ -585,7 +587,9 @@ export function buildProductCatalogRows(input: {
           break;
         case 'videoLink': {
           const mark = input.rows?.[index - 1]?.videoParam ?? String(index).padStart(3, '0');
-          cell = text(`${input.videoLink}?v=${mark}`);
+          cell = text(
+            input.randomLinkVariation === false ? input.videoLink : `${input.videoLink}?v=${mark}`
+          );
           break;
         }
         case 'rowDetail':

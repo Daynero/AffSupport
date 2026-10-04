@@ -39,6 +39,8 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
   getCatalogUpdaterRefreshImages?: (teamId: string) => Promise<boolean>;
   setCatalogUpdaterRefreshImages?: (teamId: string, refresh: boolean) => Promise<boolean>;
   getCatalogUpdaterRefreshTexts?: (teamId: string) => Promise<boolean>;
+  getCatalogUpdaterRandomLinkVariation?: (teamId: string) => Promise<boolean>;
+  setCatalogUpdaterRandomLinkVariation?: (teamId: string, enabled: boolean) => Promise<boolean>;
   setCatalogUpdaterRefreshTexts?: (teamId: string, refresh: boolean) => Promise<boolean>;
   getCatalogUpdaterGrow?: (teamId: string) => Promise<boolean>;
   setCatalogUpdaterGrow?: (teamId: string, grow: boolean) => Promise<boolean>;
@@ -233,6 +235,38 @@ export function CatalogUpdaterDialog({
    * the same hundred products under the same hundred names, at the same price, week after week.
    */
   const [refreshTexts, setRefreshTexts] = useState<boolean | null>(null);
+  const [randomLinkVariation, setRandomLinkVariation] = useState<boolean | null>(null);
+  const [randomLinkSaving, setRandomLinkSaving] = useState(false);
+  useEffect(() => {
+    if (!client.getCatalogUpdaterRandomLinkVariation) return;
+    let active = true;
+    setRandomLinkVariation(null);
+    void client
+      .getCatalogUpdaterRandomLinkVariation(teamId)
+      .then(value => {
+        if (active) setRandomLinkVariation(value);
+      })
+      .catch(error => {
+        if (active) push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, teamId, push, t]);
+  const changeRandomLinkVariation = async (next: boolean) => {
+    if (!client.setCatalogUpdaterRandomLinkVariation || randomLinkSaving) return;
+    const previous = randomLinkVariation;
+    setRandomLinkVariation(next);
+    setRandomLinkSaving(true);
+    try {
+      setRandomLinkVariation(await client.setCatalogUpdaterRandomLinkVariation(teamId, next));
+    } catch (error) {
+      setRandomLinkVariation(previous);
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setRandomLinkSaving(false);
+    }
+  };
   useEffect(() => {
     if (!client.getCatalogUpdaterRefreshTexts) return;
     let active = true;
@@ -604,6 +638,16 @@ export function CatalogUpdaterDialog({
             {t('catalogUpdaterChangesTitle')}
           </summary>
           <fieldset className="team-updater-choices" aria-label={t('catalogUpdaterChangesTitle')}>
+            {randomLinkVariation !== null && (
+              <div className="team-updater-restitch">
+                <Checkbox
+                  checked={randomLinkVariation}
+                  disabled={!mayRun || randomLinkSaving}
+                  onChange={event => void changeRandomLinkVariation(event.target.checked)}
+                  label={t('catalogRandomLinkVariation')}
+                />
+              </div>
+            )}
             {refreshImages !== null && (
               <div className="team-updater-restitch">
                 <Checkbox
