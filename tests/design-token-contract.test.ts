@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,17 +22,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STYLESHEET = path.join(root, 'apps/web/src/styles.css');
 /*
- * The layers the browser loads before the screen stylesheet, in that order: the
- * token layer and the inventory's own sheet, which is where the `--ui-*`
- * properties a colour role sets are declared. The checker's default run reads
- * all of them; a copy made for a probe has to be the same files, or every token
- * in it reads as undefined — which is what happened the first time a screen
- * rule asked a migrated button for its border colour.
+ * Match every CSS layer read by the checker's default run. Components can
+ * reference properties defined in a feature sheet as well as the token and
+ * inventory sheets; a probe must include those definitions too.
  */
-const LAYERS = [
-  path.join(root, 'apps/web/src/styles/tokens.css'),
-  path.join(root, 'apps/web/src/styles/components.css')
-];
+const LAYERS = readdirSync(path.join(root, 'apps/web/src/styles'))
+  .filter(file => file.endsWith('.css'))
+  .sort()
+  .map(file => path.join(root, 'apps/web/src/styles', file));
 const CHECKER = path.join(root, 'scripts/verify-styles.mjs');
 
 /** Runs the checker against a stylesheet of our own, never the committed one. */

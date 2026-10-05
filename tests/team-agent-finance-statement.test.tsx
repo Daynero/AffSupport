@@ -48,9 +48,9 @@ it('shows dated actual top-ups, including explicit zero, and opens their day wit
     });
   const onDay = vi.fn();
   render(<FinanceTopupStatement report={buildFinanceReport(s)} onDay={onDay} />);
-  expect(screen.getByText(/150\.00 USD/u)).toBeTruthy();
-  expect(screen.getByText(/· 0\.00 USD$/u)).toBeTruthy();
-  expect(screen.queryByText(/30.00 USD/u)).toBeNull();
+  expect(screen.getByText(/150 USD/u)).toBeTruthy();
+  expect(screen.getByText(/· 0 USD$/u)).toBeTruthy();
+  expect(screen.queryByText(/30 USD/u)).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: '2026-09-11' }));
   expect(onDay).toHaveBeenCalledWith('2026-09-11');
 });
