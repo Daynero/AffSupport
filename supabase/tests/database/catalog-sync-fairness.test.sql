@@ -8,6 +8,10 @@ select ok(not has_function_privilege('authenticated',
   'private.claim_catalog_sync_jobs(text,integer,integer)', 'execute'),
   'browser roles cannot claim private jobs');
 
+-- A running local beta may already have advanced the scheduler. Establish the
+-- cycle inside this rolled-back transaction and hold the row lock until done.
+update private.catalog_sync_scheduler_state set claim_sequence = 0 where singleton;
+
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data)
 values ('b0310000-0000-4000-8000-000000000001','authenticated','authenticated',
   'fairness-pgtap@example.test','{}','{}');
