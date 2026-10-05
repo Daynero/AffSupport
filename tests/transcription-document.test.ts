@@ -89,6 +89,70 @@ describe('media range + mime helpers', () => {
 });
 
 describe('structured document building', () => {
+  it('round-trips timing provenance, speech-derived translation and aligned translated words', () => {
+    const document = {
+      jobId: 'roundtrip',
+      sourceLanguage: 'uk',
+      modelVersion: 'large-v3',
+      reliability: {
+        windows: 1,
+        retries: 0,
+        recoveredWindows: 0,
+        timedWords: 1,
+        totalWords: 1,
+        ranges: [{ canonicalStart: 0, canonicalEnd: 5, startMs: 100, endMs: 400 }],
+        warnings: []
+      },
+      translationSource: {
+        language: 'en',
+        modelVersion: 'large-v3',
+        segments: [{ sourceSegmentId: 's', text: 'Hello' }]
+      },
+      segments: [
+        {
+          id: 's',
+          sourceText: 'Привіт',
+          startMs: 100,
+          endMs: 400,
+          timingSource: 'words',
+          words: [
+            {
+              id: 'w',
+              text: 'Привіт',
+              startMs: 100,
+              endMs: 400,
+              sourceStart: 0,
+              sourceEnd: 6,
+              confidence: 0.9
+            }
+          ]
+        }
+      ],
+      translations: {
+        en: {
+          targetLanguage: 'en',
+          modelVersion: 'translator',
+          status: 'completed',
+          segments: [
+            {
+              sourceSegmentId: 's',
+              translatedText: 'Hello',
+              alignments: [
+                { sourceStart: 0, sourceEnd: 6, targetStart: 0, targetEnd: 5, confidence: 0.8 }
+              ]
+            }
+          ]
+        }
+      }
+    };
+    expect(validDocument(JSON.parse(JSON.stringify(document)))).toEqual(document);
+    const corrupt = structuredClone(document);
+    corrupt.reliability.ranges[0].endMs = 50;
+    expect(validDocument(corrupt)).toBeNull();
+    const corruptTranslation = structuredClone(document);
+    corruptTranslation.translations.en.segments[0].alignments[0].targetEnd = 99;
+    expect(validDocument(corruptTranslation)).toBeNull();
+  });
   it('uses a clearly approximate window interval for untimed speech navigation', () => {
     const document = buildTranscriptionDocument(
       {
