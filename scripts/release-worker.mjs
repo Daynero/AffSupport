@@ -363,6 +363,7 @@ if (invokedDirectly) {
         runId,
         profile,
         probe: await installedProbeFrom(),
+        volumePath: worktree?.directory ?? process.cwd(),
         onWait: () => {}
       });
       try {

@@ -62,6 +62,7 @@ export function assertExactPendingSet(plan, pending) {
  *   binding: {bindingId: string},
  *   plan: {changes: readonly object[]},
  *   sourceSha: string,
+ *   previousReceipts?: readonly {state: string, targetId: string, version: string, digest: string, sourceSha?: string}[],
  *   adapter: {
  *     pendingMigrations: () => Promise<string[]>,
  *     digestOf: (change: object) => Promise<string>,
@@ -72,12 +73,32 @@ export function assertExactPendingSet(plan, pending) {
  *   journal: {flush: (receipt: {state: string, targetId: string, version: string, digest: string}) => Promise<void>}
  * }} options
  */
-export async function applyBackendPlan({ binding, plan, sourceSha, adapter, journal }) {
+export async function applyBackendPlan({ binding, plan, sourceSha, adapter, journal, previousReceipts = [] }) {
   if (!plan?.changes?.length) return Object.freeze({ ok: true, applied: [], writes: 0 });
   assertTarget(binding, plan);
-  assertExactPendingSet(plan, await adapter.pendingMigrations());
+  const pending = await adapter.pendingMigrations();
+  const migrations = plan.changes.filter(change => change.kind === 'migration');
+  const first = migrations[0];
+  // Supabase db push applies the entire validated pending batch. A durable
+  // first receipt proves this run crossed that boundary before interruption.
+  const resumingBatch = first && previousReceipts.some(receipt =>
+    receipt.state === 'prepared' && receipt.sourceSha === sourceSha &&
+    receipt.targetId === binding.bindingId && receipt.version === first.id && receipt.digest === first.digest);
+  const alreadyApplied = new Set();
+  if (resumingBatch) {
+    assertExactPendingSet({ changes: migrations.filter(change => pending.includes(change.id)) }, pending);
+    for (const change of migrations.filter(change => !pending.includes(change.id))) {
+      const observed = await adapter.observe(change);
+      if (!observed.historyPresent || !observed.postconditionsPass || observed.targetId !== binding.bindingId)
+        throw new BackendError('BACKEND_PENDING_SET_MISMATCH', `${change.id} has no confirmed applied history`);
+      alreadyApplied.add(change.id);
+    }
+  } else {
+    assertExactPendingSet(plan, pending);
+  }
 
   const applied = [];
+  // Validate the whole batch before db push can apply any member of it.
   for (const change of plan.changes) {
     const digest = await adapter.digestOf(change);
     if (digest !== change.digest)
@@ -91,6 +112,13 @@ export async function applyBackendPlan({ binding, plan, sourceSha, adapter, jour
         `${change.id} is not compatible with the currently released client`
       );
 
+  }
+  let writes = 0;
+  for (const change of plan.changes) {
+    if (alreadyApplied.has(change.id)) {
+      applied.push({ id: change.id, state: 'already-applied' });
+      continue;
+    }
     const receipt = preparedReceipt({
       targetId: change.targetId,
       version: change.id,
@@ -102,6 +130,7 @@ export async function applyBackendPlan({ binding, plan, sourceSha, adapter, jour
     await journal.flush(receipt);
 
     const result = await adapter.apply(change);
+    writes += 1;
     const observation = await adapter.observe(change);
     const reconciled = reconcileReceipt({ ...receipt, transaction: result.transaction ?? receipt.transaction }, observation);
     if (!reconciled.ok) {
@@ -111,5 +140,5 @@ export async function applyBackendPlan({ binding, plan, sourceSha, adapter, jour
     }
     applied.push({ id: change.id, state: reconciled.state });
   }
-  return Object.freeze({ ok: true, applied, writes: applied.length });
+  return Object.freeze({ ok: true, applied, writes });
 }

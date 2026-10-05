@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveBackendPlan } from '../scripts/lib/release/backend-plan.mjs';
 import { preflight } from '../scripts/lib/release/preflight.mjs';
 import { sandboxIntent } from './support/release-runner/fixtures';
@@ -128,6 +128,37 @@ describe('applying a declared backend plan', () => {
     });
     expect(order).toEqual(['flush:prepared', 'apply']);
     expect(result).toMatchObject({ ok: true, writes: 1 });
+  });
+
+  it('reconciles a completed migration batch only with this run source and matching prepared receipt', async () => {
+    const apply = vi.fn(async () => ({ ok: true, transaction: 'transactional' }));
+    const options = {
+      binding,
+      plan,
+      sourceSha: 'b'.repeat(40),
+      adapter: backend({ pendingMigrations: async () => [], apply }),
+      journal: { flush: async () => {} },
+      previousReceipts: [
+        {
+          state: 'prepared',
+          sourceSha: 'b'.repeat(40),
+          targetId: binding.bindingId,
+          version: change.id,
+          digest: change.digest
+        }
+      ]
+    };
+    expect(await applyBackendPlan(options)).toMatchObject({ ok: true, writes: 0 });
+    expect(apply).not.toHaveBeenCalled();
+    await expect(applyBackendPlan({ ...options, previousReceipts: [] })).rejects.toMatchObject({
+      code: 'BACKEND_PENDING_SET_MISMATCH'
+    });
+    await expect(
+      applyBackendPlan({
+        ...options,
+        previousReceipts: [{ ...options.previousReceipts[0], sourceSha: 'c'.repeat(40) }]
+      })
+    ).rejects.toMatchObject({ code: 'BACKEND_PENDING_SET_MISMATCH' });
   });
 
   it('refuses an extra pending migration that this release never declared', async () => {

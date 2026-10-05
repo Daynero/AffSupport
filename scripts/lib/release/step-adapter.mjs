@@ -9,6 +9,7 @@ import { rehearseBackendBeta } from './adapters/backend-beta.mjs';
 import { createSupabaseBackendAdapter } from './adapters/supabase-backend.mjs';
 import { commitKnownFiles, promoteBeta, remoteBetaSha } from './adapters/git.mjs';
 import { retryDelay } from './retry.mjs';
+import { readJournal } from './journal.mjs';
 
 const exec = promisify(execFile);
 
@@ -301,7 +302,7 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
  *   binding: {bindingId: string, kind: string},
  *   backendPlan?: {changes: readonly object[]} | null,
  *   backendAdapter?: object | null,
- *   journal?: {append: (type: string, payload: unknown) => Promise<unknown>} | null,
+ *   journal?: {journalPath?: string, append: (type: string, payload: unknown) => Promise<unknown>} | null,
  *   admission?: object | null,
  *   allowRemote?: boolean
  * }} options
@@ -406,7 +407,9 @@ export async function createStepAdapter({
 
     beta_package: () => run('beta_package', npm('beta:package'), { cwd, env: childEnv, admission }),
 
-    beta_verify: () => run('beta_verify', npm('beta:verify'), { cwd, env: childEnv, admission }),
+    // LaunchServices cannot redirect a GUI launch into removable-volume temp
+    // files reliably. Keep only the small runtime journey on the local volume.
+    beta_verify: () => run('beta_verify', npm('beta:verify'), { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission }),
 
     backend_beta: async () => {
       if (!backendPlan?.changes?.length) return { ok: true, skipped: true };
@@ -545,7 +548,7 @@ export async function createStepAdapter({
     manifest_beta_verify: async () => {
       const packaged = await run('manifest_beta_verify', npm('beta:package'), { cwd, env: childEnv, admission });
       if (!packaged.ok) return packaged;
-      return run('manifest_beta_verify', npm('beta:verify'), { cwd, env: childEnv, admission });
+      return run('manifest_beta_verify', npm('beta:verify'), { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission });
     },
 
     backend_apply: async () => {
@@ -557,6 +560,8 @@ export async function createStepAdapter({
           binding,
           plan: backendPlan,
           sourceSha,
+          previousReceipts: (journal.journalPath ? await readJournal(journal.journalPath, runId) : [])
+            .filter(event => event.type === 'backend_receipt').map(event => event.payload),
           adapter: resolvedBackendAdapter,
           /**
            * The receipt sink `applyBackendPlan` has always asked for.

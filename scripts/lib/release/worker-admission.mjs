@@ -42,6 +42,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms).unref?.());
  * @param {{
  *   runId: string,
  *   profile: object,
+ *   volumePath?: string,
  *   probe?: {executable: string, digest: string} | null,
  *   reservationsDirectory?: string,
  *   onWait?: (event: {stepId: string, reason: string, code?: string | null, detail?: string | null, waitedMs: number, nextCheckAt: number}) => void | Promise<void>
@@ -51,6 +52,7 @@ export async function createWorkerAdmission({
   runId,
   profile,
   probe,
+  volumePath = '/',
   reservationsDirectory = 'release/automation',
   onWait = () => {}
 }) {
@@ -66,7 +68,7 @@ export async function createWorkerAdmission({
       stop() {}
     };
   }
-  const inspected = await inspectInstalledProbe(probe);
+  const inspected = await inspectInstalledProbe({ ...probe, volumePath });
   if (!inspected.ok) {
     return {
       setWaitReporter(reporter) {
@@ -79,7 +81,7 @@ export async function createWorkerAdmission({
     };
   }
 
-  const sampler = createProbeSampler({ executable: probe.executable });
+  const sampler = createProbeSampler({ executable: probe.executable, volumePath });
   const scheduler = createResourceAdmission(profile, createLeaseBook(), {
     standingReservation: () => standing
   });
