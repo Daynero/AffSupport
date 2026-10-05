@@ -29,10 +29,13 @@ import {
  * printed, or sent anywhere.
  *
  * Usage:
- *   node scripts/verify-production-config.mjs [--expect-pending=<id>,<id>] [--json]
+ *   node scripts/verify-production-config.mjs [--expect-pending=<id>,<id>]
+ *     [--expect-functions=<slug>,<slug>] [--json]
  *
  * `--expect-pending` is how a release that declares migrations says so. Without
  * it, a migration that exists here and not there is drift and blocks.
+ * --expect-functions similarly names new functions in the validated backend
+ * plan. Without it, missing functions block; inactive functions always block.
  */
 
 export const SUPABASE_CLI = 'supabase@2.117.0';
