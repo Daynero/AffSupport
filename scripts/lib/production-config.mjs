@@ -30,13 +30,16 @@ export function undeclaredSecrets(declared, present) {
 /**
  * @param {readonly string[]} declared function directories in this repository
  * @param {readonly {slug: string, status?: string, version?: number}[]} deployed
+ * @param {readonly string[]} [expectedPending] functions the release will deploy
  */
-export function functionParity(declared, deployed) {
+export function functionParity(declared, deployed, expectedPending = []) {
   const live = new Map(deployed.map(entry => [entry.slug, entry]));
+  const expected = new Set(expectedPending);
   return {
     // A function in the repository that the project has never seen. Every
     // feature behind it answers 404 to a client that expects it to exist.
-    missing: declared.filter(slug => !live.has(slug)).sort(),
+    missing: declared.filter(slug => !live.has(slug) && !expected.has(slug)).sort(),
+    planned: declared.filter(slug => !live.has(slug) && expected.has(slug)).sort(),
     // Deployed but not ACTIVE: it will not serve, and nothing local says so.
     inactive: declared
       .filter(slug => {

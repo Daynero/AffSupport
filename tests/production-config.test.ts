@@ -42,6 +42,19 @@ describe('live project comparisons', () => {
     expect(parity.undeclared).toEqual(['legacy-sync']);
   });
 
+  it('allows a new function only during its planned deployment and still rejects inactive functions', () => {
+    const declared = ['team-finance-export', 'drive-connect', 'unplanned'];
+    const deployed = [{ slug: 'drive-connect', status: 'REMOVED' }];
+    const preflight = functionParity(declared, deployed, ['team-finance-export', 'drive-connect']);
+    expect(preflight.planned).toEqual(['team-finance-export']);
+    expect(preflight.missing).toEqual(['unplanned']);
+    expect(preflight.inactive).toEqual(['drive-connect']);
+    expect(functionParity(declared, deployed).missing).toEqual([
+      'team-finance-export',
+      'unplanned'
+    ]);
+  });
+
   it('calls an undeclared local migration drift and a declared one the plan', () => {
     const entries = [
       { local: '20260907140000', remote: '20260907140000' },

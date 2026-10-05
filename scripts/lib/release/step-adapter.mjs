@@ -385,12 +385,16 @@ export async function createStepAdapter({
       const pending = (backendPlan?.changes ?? [])
         .filter(change => change.kind === 'migration')
         .map(change => change.id);
+      const functions = (backendPlan?.changes ?? [])
+        .filter(change => change.kind === 'function')
+        .map(change => change.id);
       return run(
         'preflight',
         [
           process.execPath,
           'scripts/verify-production-config.mjs',
-          ...(pending.length ? [`--expect-pending=${pending.join(',')}`] : [])
+          ...(pending.length ? [`--expect-pending=${pending.join(',')}`] : []),
+          ...(functions.length ? [`--expect-functions=${functions.join(',')}`] : [])
         ],
         { cwd, env: childEnv, admission: null }
       );

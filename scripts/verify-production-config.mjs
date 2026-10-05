@@ -47,6 +47,11 @@ const expectPending = (args.find(arg => arg.startsWith('--expect-pending=')) ?? 
   .split(',')
   .map(entry => entry.trim())
   .filter(Boolean);
+const expectFunctions = (args.find(arg => arg.startsWith('--expect-functions=')) ?? '')
+  .slice('--expect-functions='.length)
+  .split(',')
+  .map(entry => entry.trim())
+  .filter(Boolean);
 
 const failures = [];
 const notes = [];
@@ -157,7 +162,9 @@ if (deployed) {
   const localFunctions = readdirSync(path.join(root, 'supabase/functions'), { withFileTypes: true })
     .filter(entry => entry.isDirectory() && entry.name !== '_shared')
     .map(entry => entry.name);
-  const parity = functionParity(localFunctions, deployed);
+  const parity = functionParity(localFunctions, deployed, expectFunctions);
+  if (parity.planned.length)
+    notes.push(`functions this release declares: ${parity.planned.join(', ')}`);
   for (const slug of parity.missing)
     failures.push(
       `function ${slug} exists here but is not deployed to ${projectRef} — it answers 404`
