@@ -141,6 +141,12 @@ actually need to verify Drive-dependent flows.
 
 Production must stay on `DRIVE_OAUTH_MODE=verified`; the release gate enforces that independently.
 
+For full folder-tree indexing in beta, opt in with `DRIVE_RESTRICTED_SCOPE_APPROVED=true`
+in the local function environment and reconnect Google to renew consent. `drive.file`
+does not grant recursive access to an existing folder's contents. With this opt-in, beta
+uses the app's folder browser over the Drive API, avoiding Google's embedded Picker and
+its third-party-cookie dependence in Safari. Production scope policy remains unchanged.
+
 ## Stop
 
 ```bash

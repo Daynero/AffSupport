@@ -16,6 +16,7 @@ import { BetaStorageNotice, externalStorageUnavailableInBeta } from './BetaStora
 import { openFolderPicker, pickerConfig, type PickFolders } from '../storage/loadPicker';
 import { SelectionList, selectionModeEnabled } from '../storage/SelectionList';
 import { rememberDriveAuthorization } from './authorizationReturn';
+import { useBetaFolderPicker, type BetaFolderClient } from './BetaFolderPicker';
 import { SettingsSection } from '../workspace/SettingsSection';
 import { Badge } from '../../components/ui/index';
 import { DriveDataUseNotice } from './DriveDataUseNotice';
@@ -29,7 +30,7 @@ type SafeConnectionStatus = Partial<DriveConnectionStatus> & {
  * folder is always picked in Google's own chooser; there is no server-side
  * browse any more because `drive.file` cannot list an account's folders.
  */
-export interface DrivePanelClient {
+export interface DrivePanelClient extends BetaFolderClient {
   getConnectionStatus: (teamId: string) => Promise<SafeConnectionStatus>;
   startDriveOAuth?: (teamId: string) => Promise<{ authorizationUrl: string; expiresAt: string }>;
   pickerToken: (teamId: string) => Promise<{ accessToken: string; expiresAt: string }>;
@@ -74,7 +75,8 @@ export function DriveConnectionPanel({
   onConnected?: () => void;
   config?: ReturnType<typeof pickerConfig>;
 }) {
-  const pickFolders = client.pickFolders ?? openFolderPicker;
+  const beta = useBetaFolderPicker(teamId, client);
+  const pickFolders = client.pickFolders ?? (beta.enabled ? beta.pickFolders : openFolderPicker);
   const { t } = useI18n();
   const { push } = useToasts();
   const [status, setStatus] = useState<SafeConnectionStatus>({ state: 'none' });
@@ -156,7 +158,7 @@ export function DriveConnectionPanel({
    * with the credential the connection holds, so nothing is left to confirm.
    */
   const pick = async (mode: 'connect' | 'replace') => {
-    if (!config && !client.pickFolders) {
+    if (!config && !client.pickFolders && !beta.enabled) {
       setError(t('teamConnectChooserUnavailable'));
       return;
     }
@@ -172,7 +174,7 @@ export function DriveConnectionPanel({
       const folder = picked?.[0];
       if (!folder) return;
       const result =
-        mode === 'replace' && client.replaceDriveRoot
+        (mode === 'replace' || status.rootFolderId) && client.replaceDriveRoot
           ? await client.replaceDriveRoot({
               teamId,
               folderId: folder.id,
@@ -360,6 +362,11 @@ export function DriveConnectionPanel({
 
       {connected && (
         <div className="team-inline-actions">
+          {beta.enabled && client.startDriveOAuth && (
+            <Button type="button" variant="secondary" loading={busy} onClick={() => void connect()}>
+              {t('teamDriveReauth')}
+            </Button>
+          )}
           {client.resyncDrive && (
             <Button type="button" variant="secondary" loading={busy} onClick={() => void resync()}>
               {t('teamDriveResync')}
@@ -449,6 +456,7 @@ export function DriveConnectionPanel({
           </div>
         </Modal>
       )}
+      {beta.dialog}
     </SettingsSection>
   );
 }

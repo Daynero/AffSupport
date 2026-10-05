@@ -72,10 +72,17 @@ export function FinanceWorkspace({
   const [clearing, setClearing] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const saveActions = useRef(new Map<string, () => Promise<boolean>>());
-  const onRegisterSave = useCallback((key: string, action: (() => Promise<boolean>) | null) => {
-    if (action) saveActions.current.set(key, action);
-    else saveActions.current.delete(key);
-  }, []);
+  const clearDrafts = useRef(new Set<string>());
+  const [confirmSave, setConfirmSave] = useState<null | { continueNavigation: boolean }>(null);
+  const onRegisterSave = useCallback(
+    (key: string, action: (() => Promise<boolean>) | null, clears = false) => {
+      if (action) saveActions.current.set(key, action);
+      else saveActions.current.delete(key);
+      if (action && clears) clearDrafts.current.add(key);
+      else clearDrafts.current.delete(key);
+    },
+    []
+  );
   const dirty = Object.keys(drafts).length > 0;
   const pending = Object.values(drafts).includes('pending') || clearing || savingAll;
   const { date, setDate, today, timezone } = useFinancePeriod(dirty || clear !== null);
@@ -177,6 +184,23 @@ export function FinanceWorkspace({
       navigateTo(routeNavigation.path, routeNavigation.replace, routeNavigation.animate);
     }
   };
+  const saveAll = async (continueNavigation = false) => {
+    if (pending) return;
+    const actions = Object.keys(drafts).map(key => saveActions.current.get(key));
+    if (actions.some(action => !action)) return;
+    setSavingAll(true);
+    try {
+      const results = await Promise.all(actions.map(action => action!()));
+      if (results.every(Boolean) && continueNavigation) finishNavigation();
+    } finally {
+      setSavingAll(false);
+    }
+  };
+  const requestSave = (continueNavigation = false) => {
+    if (pending) return;
+    if (clearDrafts.current.size) setConfirmSave({ continueNavigation });
+    else void saveAll(continueNavigation);
+  };
   return (
     <section className="flex flex-col gap-4" aria-label={t('financeTitle')}>
       <h3>{t('financeTitle')}</h3>
@@ -225,7 +249,32 @@ export function FinanceWorkspace({
           disabled={dirty}
         />
       )}
-      {dirty && <p className="text-label text-ink-muted">{t('financeDraftHelp')}</p>}
+      {dirty && !monthly && canEdit && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-end gap-2 bg-neutral-soft p-2 rounded-lg">
+          <span className="mr-auto text-label text-warning-text">
+            {t('financeUnsaved')} · {Object.keys(drafts).length}
+          </span>
+          <Button
+            size="sm"
+            disabled={pending}
+            onClick={() => {
+              setDrafts({});
+              setDraftEpoch(e => e + 1);
+            }}
+          >
+            {t('financeCancel')}
+          </Button>
+          <Button
+            size="sm"
+            color="success"
+            loading={savingAll}
+            disabled={pending}
+            onClick={() => requestSave()}
+          >
+            {t('financeSave')}
+          </Button>
+        </div>
+      )}
       {!monthly && finance.snapshot && (
         <div className="flex flex-wrap gap-2">
           {canEdit && (
@@ -391,6 +440,7 @@ export function FinanceWorkspace({
                                 key={metric}
                                 metric={metric}
                                 compact
+                                disabled={pending}
                                 canEdit={canEdit && date <= today}
                                 field={finance.snapshot!.fields.find(
                                   f =>
@@ -579,16 +629,7 @@ export function FinanceWorkspace({
                 color="success"
                 loading={savingAll}
                 disabled={pending}
-                onClick={() => {
-                  const actions = Object.keys(drafts).map(key => saveActions.current.get(key));
-                  if (actions.some(action => !action)) return;
-                  setSavingAll(true);
-                  void Promise.all(actions.map(action => action!()))
-                    .then(results => {
-                      if (results.every(Boolean)) finishNavigation();
-                    })
-                    .finally(() => setSavingAll(false));
-                }}
+                onClick={() => requestSave(true)}
               >
                 {t('financeSaveAll')}
               </Button>
@@ -597,6 +638,21 @@ export function FinanceWorkspace({
         >
           <p>{t('financeDraftNavigation')}</p>
         </Modal>
+      )}
+      {confirmSave && (
+        <ConfirmDialog
+          title={t('financeSave')}
+          body={t('financeClearBody')}
+          confirmLabel={t('financeSave')}
+          cancelLabel={t('financeCancel')}
+          busy={pending}
+          onCancel={() => setConfirmSave(null)}
+          onConfirm={() => {
+            const next = confirmSave.continueNavigation;
+            setConfirmSave(null);
+            void saveAll(next);
+          }}
+        />
       )}
     </section>
   );

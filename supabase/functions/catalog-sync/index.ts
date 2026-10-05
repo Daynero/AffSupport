@@ -21,6 +21,8 @@ import {
   TeamFunctionError
 } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
+import { evaluateDriveOAuthGate } from '../_shared/auth.ts';
+import { driveScopeReconsentRequired } from '../drive-connect/readiness.ts';
 import {
   CatalogLeaseLostError,
   catalogRetryDelayMs,
@@ -587,6 +589,17 @@ Deno.serve(async request => {
           })
         ).map(selection => requiredString(selection, 'drive_folder_id'));
         const credential = await readDriveCredential(service, credentialId);
+        if (
+          driveScopeReconsentRequired(
+            { DRIVE_RESTRICTED_SCOPE_APPROVED: Deno.env.get('DRIVE_RESTRICTED_SCOPE_APPROVED') },
+            evaluateDriveOAuthGate(Deno.env.get('DRIVE_OAUTH_MODE'), {
+              siteUrl: Deno.env.get('WISHLY_SITE_URL')
+            }).production,
+            credential.scope
+          )
+        ) {
+          throw new TeamFunctionError('NEEDS_REAUTH', { retryable: false });
+        }
         const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
         const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
         if (!clientId || !clientSecret) {

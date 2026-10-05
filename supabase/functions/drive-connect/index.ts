@@ -37,6 +37,7 @@ import {
   evaluateTeamProviderReadiness,
   resolveDriveScopesForDeployment
 } from './readiness.ts';
+import { driveScopeReconsentRequired } from './readiness.ts';
 import { driveRedirectUri, type GoogleRedirectEnvironment } from '../_shared/google-redirect.ts';
 import { evaluateDriveOAuthGate } from '../_shared/auth.ts';
 
@@ -199,6 +200,15 @@ async function accessContext(
   if (!reference) throw new TeamFunctionError('NEEDS_REAUTH', { retryable: false });
   const credentialId = requiredString(reference, 'credential_id');
   const credential = await readDriveCredential(service, credentialId);
+  if (
+    driveScopeReconsentRequired(
+      { DRIVE_RESTRICTED_SCOPE_APPROVED: Deno.env.get('DRIVE_RESTRICTED_SCOPE_APPROVED') },
+      evaluateDriveOAuthGate(Deno.env.get('DRIVE_OAUTH_MODE'), signals).production,
+      credential.scope
+    )
+  ) {
+    throw new TeamFunctionError('NEEDS_REAUTH', { retryable: false });
+  }
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
   if (!clientId || !clientSecret) {

@@ -5,6 +5,7 @@ import { trackTeamStorageConnected } from '../../analytics/service';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from '../drive/BetaStorageNotice';
 import { openFolderPicker, pickerConfig, type PickFolders } from './loadPicker';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
+import { useBetaFolderPicker, type BetaFolderClient } from '../drive/BetaFolderPicker';
 import { DriveDataUseNotice } from '../drive/DriveDataUseNotice';
 import { Button, Card, ErrorState, uiClasses } from '../../components/ui/index';
 
@@ -14,7 +15,7 @@ import { Button, Card, ErrorState, uiClasses } from '../../components/ui/index';
  * the chooser ran with the very credential the connection holds, so the space
  * opens the moment a folder is picked.
  */
-export interface ConnectStorageClient {
+export interface ConnectStorageClient extends BetaFolderClient {
   startDriveOAuth?: (teamId: string) => Promise<{ authorizationUrl: string; expiresAt: string }>;
   pickerToken: (teamId: string) => Promise<{ accessToken: string; expiresAt: string }>;
   chooseRoot: (input: {
@@ -42,7 +43,8 @@ export function ConnectStorageFlow({
   onCancel: () => void;
   config?: ReturnType<typeof pickerConfig>;
 }) {
-  const pickFolders = client.pickFolders ?? openFolderPicker;
+  const beta = useBetaFolderPicker(teamId, client);
+  const pickFolders = client.pickFolders ?? (beta.enabled ? beta.pickFolders : openFolderPicker);
   const { t } = useI18n();
   const [authorized, setAuthorized] = useState(false);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export function ConnectStorageFlow({
   };
 
   const choose = async () => {
-    if (!config && !client.pickFolders) {
+    if (!config && !client.pickFolders && !beta.enabled) {
       setError(t('teamConnectChooserUnavailable'));
       return;
     }
@@ -189,6 +191,7 @@ export function ConnectStorageFlow({
           {t('teamCancel')}
         </Button>
       </div>
+      {beta.dialog}
     </Card>
   );
 }

@@ -6,6 +6,63 @@ import { DailyFinanceField } from '../apps/web/src/team/accounts/finance/DailyFi
 import type { FinanceField } from '@video-compressor/shared';
 
 afterEach(cleanup);
+it('shows compact errors beside the control without adding an error row below the input', async () => {
+  let action: (() => Promise<boolean>) | null = null;
+  render(
+    <DailyFinanceField
+      metric="spend"
+      field={field}
+      canEdit
+      compact
+      save={vi.fn()}
+      draftKey="a/spend"
+      onRegisterSave={(_key, next) => {
+        action = next;
+      }}
+    />
+  );
+  const input = screen.getByRole('textbox');
+  fireEvent.change(input, { target: { value: 'text' } });
+  await act(async () => {
+    await action!();
+  });
+  const message = screen.getByRole('alert');
+  expect(message.textContent).toBe('Invalid amount');
+  expect(message.classList.contains('finance-cell-message')).toBe(true);
+  expect(message.parentElement).toBe(input.closest('.finance-cell'));
+  expect(input.closest('.ui-field')?.contains(message)).toBe(false);
+  expect(input.getAttribute('aria-describedby')).toBe(message.id);
+  expect(message.title).toContain('at most two decimal places');
+});
+it('keeps table edits unsaved on Enter and Tab until the shared save action runs', async () => {
+  const save = vi.fn().mockResolvedValue(undefined);
+  let action: (() => Promise<boolean>) | null = null;
+  render(
+    <DailyFinanceField
+      metric="spend"
+      field={field}
+      canEdit
+      save={save}
+      draftKey="a/spend"
+      onRegisterSave={(_key, next) => {
+        action = next;
+      }}
+    />
+  );
+  const input = screen.getByRole('textbox');
+  expect(input.closest('[data-finance-state]')?.getAttribute('data-finance-state')).toBe('saved');
+  fireEvent.change(input, { target: { value: '45' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+  expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(true);
+  expect(save).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+  expect(input.closest('[data-finance-state]')?.getAttribute('data-finance-state')).toBe('dirty');
+  await act(async () => {
+    await action!();
+  });
+  expect(save).toHaveBeenCalledWith('45.00', '1', expect.any(String));
+  expect(input.closest('[data-finance-state]')?.getAttribute('data-finance-state')).toBe('saved');
+});
 it('shows saved feedback as a side icon inside the field control, not a line under the row', async () => {
   render(
     <DailyFinanceField
@@ -18,7 +75,8 @@ it('shows saved feedback as a side icon inside the field control, not a line und
   const input = screen.getByRole('textbox');
   fireEvent.change(input, { target: { value: '45' } });
   fireEvent.keyDown(input, { key: 'Enter' });
-  const status = await screen.findByRole('status');
+  await waitFor(() => expect(screen.getByRole('status').title).toBe('Saved'));
+  const status = screen.getByRole('status');
   expect(status.tagName).toBe('SPAN');
   expect(status.title).toBe('Saved');
   expect(status.querySelector('svg')).toBeTruthy();

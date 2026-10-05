@@ -5,13 +5,14 @@ import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { openFolderPicker, pickerConfig, type PickFolders } from './loadPicker';
+import { useBetaFolderPicker, type BetaFolderClient } from '../drive/BetaFolderPicker';
 
 /**
  * The picked folders of a space (011, research R1 outcome B). Under outcome A
  * the root is the only selection and this list is not shown at all; the switch
  * is `VITE_TEAM_SELECTION_MODE=multi`, removed or documented by T086.
  */
-export interface SelectionListClient {
+export interface SelectionListClient extends BetaFolderClient {
   listDriveSelections: (teamId: string) => Promise<TeamDriveSelection[]>;
   addDriveSelection: (
     teamId: string,
@@ -42,7 +43,8 @@ export function SelectionList({
   revision?: number;
   config?: ReturnType<typeof pickerConfig>;
 }) {
-  const pickFolders = client.pickFolders ?? openFolderPicker;
+  const beta = useBetaFolderPicker(teamId, client);
+  const pickFolders = client.pickFolders ?? (beta.enabled ? beta.pickFolders : openFolderPicker);
   const { t } = useI18n();
   const { push } = useToasts();
   const [selections, setSelections] = useState<TeamDriveSelection[]>([]);
@@ -62,7 +64,7 @@ export function SelectionList({
   }, [client, revision, teamId]);
 
   const add = async () => {
-    if (!config && !client.pickFolders) return;
+    if (!config && !client.pickFolders && !beta.enabled) return;
     setBusy(true);
     try {
       const token = await client.pickerToken(teamId);
@@ -124,6 +126,7 @@ export function SelectionList({
           {t('teamSelectionsAdd')}
         </Button>
       )}
+      {beta.dialog}
     </Card>
   );
 }

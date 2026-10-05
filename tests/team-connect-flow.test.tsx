@@ -73,6 +73,41 @@ function renderFlow(
 
 let navigation: ReturnType<typeof interceptCrossOriginNavigation>;
 
+it('recovers an existing root after OAuth instead of creating a second connection', async () => {
+  window.history.replaceState(null, '', '/team?drive=connected');
+  const replaceDriveRoot = vi
+    .fn()
+    .mockResolvedValue({ state: 'connected', folder: { id: 'existing-root', name: 'Creo' } });
+  const client = {
+    getConnectionStatus: vi
+      .fn()
+      .mockResolvedValue({
+        state: 'needs_reauth',
+        rootFolderId: 'existing-root',
+        rootFolderName: 'Creo'
+      }),
+    pickerToken: vi.fn().mockResolvedValue({ accessToken: 'token', expiresAt: 'later' }),
+    chooseRoot: vi.fn(),
+    replaceDriveRoot,
+    pickFolders: picks([{ id: 'existing-root', name: 'Creo' }])
+  };
+  render(
+    <ToastProvider>
+      <DriveConnectionPanel teamId={TEAM} client={client} config={CONFIG} />
+    </ToastProvider>
+  );
+  await screen.findByText('Creo');
+  await userEvent
+    .setup()
+    .click(screen.getByRole('button', { name: 'Choose folder in Google Drive' }));
+  await waitFor(() =>
+    expect(replaceDriveRoot).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'existing-root', teamId: TEAM })
+    )
+  );
+  expect(client.chooseRoot).not.toHaveBeenCalled();
+});
+
 beforeEach(() => {
   navigation = interceptCrossOriginNavigation();
 });

@@ -10,6 +10,19 @@ import { DRIVE_CALLBACK_PATH, driveRedirectUri } from '../_shared/google-redirec
 
 export type TeamProviderEnvironment = Readonly<Record<string, string | undefined>>;
 
+/** Deployment policy changed, but a token refresh cannot widen an old grant. */
+export function driveScopeReconsentRequired(
+  environment: TeamProviderEnvironment,
+  production: boolean,
+  grantedScope: string
+): boolean {
+  return (
+    !production &&
+    resolveDriveScopesForDeployment(environment, production).includes(DRIVE_RESTRICTED_SCOPE) &&
+    !grantedScope.split(/\s+/).includes(DRIVE_RESTRICTED_SCOPE)
+  );
+}
+
 export function resolveDriveScopesForDeployment(
   environment: TeamProviderEnvironment,
   production: boolean

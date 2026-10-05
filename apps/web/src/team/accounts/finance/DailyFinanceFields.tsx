@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Check } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
+import { Check, CircleDot } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../../components/icons';
 import {
   financeMoney,
@@ -21,7 +21,8 @@ export function DailyFinanceField({
   contextLabel,
   onStateChange,
   onRegisterSave,
-  compact = false
+  compact = false,
+  disabled = false
 }: {
   metric: FinanceMetric;
   field: FinanceField | undefined;
@@ -30,10 +31,12 @@ export function DailyFinanceField({
   draftKey?: string;
   contextLabel?: string;
   compact?: boolean;
+  disabled?: boolean;
   onStateChange?: (key: string, state: 'clean' | 'dirty' | 'pending') => void;
-  onRegisterSave?: (key: string, save: (() => Promise<boolean>) | null) => void;
+  onRegisterSave?: (key: string, save: (() => Promise<boolean>) | null, clears?: boolean) => void;
 }) {
   const { t } = useI18n();
+  const errorId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const [version, setVersion] = useState('0');
   const [request, setRequest] = useState('');
@@ -89,72 +92,115 @@ export function DailyFinanceField({
   };
   useEffect(() => {
     if (!draftKey || !onRegisterSave) return;
-    onRegisterSave(draftKey, commit);
+    onRegisterSave(
+      draftKey,
+      commit,
+      draft !== null && parseFinanceMoney(draft) === null && field?.value != null
+    );
     return () => onRegisterSave(draftKey, null);
   });
   const submit = () => {
     if (parseFinanceMoney(draft) === null && field?.value != null) setConfirmClear(true);
     else void commit();
   };
+  const isSaved = draft === null && (saved || field?.value != null);
+  const statusLabel =
+    draft !== null ? t('financeUnsaved') : isSaved ? t('financeSaved') : undefined;
+  const currentValue =
+    conflicted && draft !== null
+      ? t('financeCurrentValue', { value: formatFinanceAmount(field?.value) })
+      : null;
+  const shortError = error
+    ? t(
+        error === t('financeInvalid')
+          ? 'financeInvalidShort'
+          : conflicted
+            ? 'financeConflictShort'
+            : 'financeErrorShort'
+      )
+    : null;
   return (
-    <div className="w-36 max-w-full">
-      <FormField
-        label={<span className={compact ? 'finance-field-label' : undefined}>{label} · USD</span>}
-        error={error}
-      >
-        <div className="flex items-center gap-1">
-          <div className="min-w-0 flex-1">
-            <Input
-              aria-label={`${contextLabel ? `${contextLabel} · ` : ''}${label} · USD`}
-              inputMode="decimal"
-              value={draft ?? formatFinanceAmount(field?.value, '')}
-              readOnly={!canEdit}
-              disabled={busy}
-              invalid={Boolean(error)}
-              width="full"
-              onChange={event => {
-                if (!canEdit) return;
-                if (draft === null) {
-                  setVersion(field?.version ?? '0');
-                  setConflicted(false);
-                }
-                setRequest(crypto.randomUUID());
-                setDraft(event.target.value);
-                setError(null);
-                setSaved(false);
-              }}
-              onKeyDown={event => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  submit();
-                } else if (event.key === 'Tab' && draft !== null && !busy && canEdit) {
-                  if (parseFinanceMoney(draft) === undefined) event.preventDefault();
-                  submit();
-                } else if (event.key === 'Escape' && !busy) {
-                  setDraft(null);
+    <div
+      className={compact ? 'finance-cell' : 'w-36 max-w-full'}
+      data-finance-state={draft !== null ? 'dirty' : isSaved ? 'saved' : 'empty'}
+    >
+      <div className={compact ? 'w-36 max-w-full shrink-0' : undefined}>
+        <FormField
+          label={<span className={compact ? 'finance-field-label' : undefined}>{label} · USD</span>}
+          error={compact ? undefined : error}
+        >
+          <div className="flex items-center gap-1">
+            <div className="min-w-0 flex-1">
+              <Input
+                aria-label={`${contextLabel ? `${contextLabel} · ` : ''}${label} · USD`}
+                aria-describedby={compact && (error || currentValue) ? errorId : undefined}
+                inputMode="decimal"
+                value={draft ?? formatFinanceAmount(field?.value, '')}
+                readOnly={!canEdit}
+                disabled={busy || disabled}
+                invalid={Boolean(error)}
+                width="full"
+                onChange={event => {
+                  if (!canEdit) return;
+                  if (draft === null) {
+                    setVersion(field?.version ?? '0');
+                    setConflicted(false);
+                  }
+                  setRequest(crypto.randomUUID());
+                  setDraft(event.target.value);
                   setError(null);
-                }
-              }}
-            />
+                  setSaved(false);
+                }}
+                onKeyDown={event => {
+                  if (onRegisterSave && (event.key === 'Enter' || event.key === 'Tab')) {
+                    if (event.key === 'Enter') event.preventDefault();
+                    return;
+                  }
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    submit();
+                  } else if (event.key === 'Tab' && draft !== null && !busy && canEdit) {
+                    if (parseFinanceMoney(draft) === undefined) event.preventDefault();
+                    submit();
+                  } else if (event.key === 'Escape' && !busy) {
+                    setDraft(null);
+                    setError(null);
+                  }
+                }}
+              />
+            </div>
+            <span
+              className={`flex w-5 shrink-0 items-center justify-center ${draft !== null ? 'text-warning-text' : 'text-success-text'}`}
+              role={statusLabel ? 'status' : undefined}
+              title={statusLabel}
+            >
+              {statusLabel && (
+                <>
+                  {draft !== null ? (
+                    <CircleDot size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  ) : (
+                    <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  )}
+                  <span className="visually-hidden">{statusLabel}</span>
+                </>
+              )}
+            </span>
           </div>
-          <span
-            className="flex w-5 shrink-0 items-center justify-center text-success-text"
-            role={saved && draft === null ? 'status' : undefined}
-            title={saved && draft === null ? t('financeSaved') : undefined}
-          >
-            {saved && draft === null && (
-              <>
-                <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <span className="visually-hidden">{t('financeSaved')}</span>
-              </>
-            )}
-          </span>
-        </div>
-      </FormField>
-      {conflicted && draft !== null && (
-        <p>{t('financeCurrentValue', { value: formatFinanceAmount(field?.value) })}</p>
+        </FormField>
+      </div>
+      {compact && (error || currentValue) && (
+        <span
+          id={errorId}
+          role="alert"
+          className="finance-cell-message text-label text-error-text"
+          title={[error, currentValue].filter(Boolean).join(' ')}
+        >
+          {shortError}
+          {currentValue && ` · ${formatFinanceAmount(field?.value)} USD`}
+        </span>
       )}
-      {draft !== null && canEdit && (
+      {!compact && currentValue && <p>{currentValue}</p>}
+      {draft !== null && canEdit && !onRegisterSave && (
         <div className="flex gap-2">
           <Button size="sm" color="success" loading={busy} onClick={submit}>
             {t('financeSave')}
