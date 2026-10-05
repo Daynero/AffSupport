@@ -79,13 +79,11 @@ it('recovers an existing root after OAuth instead of creating a second connectio
     .fn()
     .mockResolvedValue({ state: 'connected', folder: { id: 'existing-root', name: 'Creo' } });
   const client = {
-    getConnectionStatus: vi
-      .fn()
-      .mockResolvedValue({
-        state: 'needs_reauth',
-        rootFolderId: 'existing-root',
-        rootFolderName: 'Creo'
-      }),
+    getConnectionStatus: vi.fn().mockResolvedValue({
+      state: 'needs_reauth',
+      rootFolderId: 'existing-root',
+      rootFolderName: 'Creo'
+    }),
     pickerToken: vi.fn().mockResolvedValue({ accessToken: 'token', expiresAt: 'later' }),
     chooseRoot: vi.fn(),
     replaceDriveRoot,
