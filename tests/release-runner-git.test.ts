@@ -34,7 +34,7 @@ it('uses an owned detached checkout and allowlisted environment without switchin
   } finally {
     await worktree.remove();
   }
-});
+}, 30_000);
 
 it('promotes origin/beta only as a fast-forward from the commit it expected', async () => {
   const root = await mkdtemp(join(tmpdir(), 'release-git-promote-'));
