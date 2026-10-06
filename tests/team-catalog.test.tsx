@@ -241,8 +241,12 @@ describe('team catalog search UI', () => {
     const api = client();
     vi.mocked(api.searchCatalog)
       .mockResolvedValueOnce(result({ items: [], total: 0 }))
-      .mockRejectedValueOnce(new Error('INVALID_RESPONSE'));
-    const user = userEvent.setup();
+      // A debounced intermediate query can run while userEvent is still typing.
+      // Keep the failure for every later search, rather than letting an early
+      // keystroke consume it and make the final query succeed.
+      .mockRejectedValue(new Error('INVALID_RESPONSE'));
+    // Exercise intermediate searches as well as the final query.
+    const user = userEvent.setup({ delay: 250 });
     render(
       <TeamProvider initialTeams={[team]} realtime={false}>
         <ToastProvider>
@@ -255,5 +259,5 @@ describe('team catalog search UI', () => {
     await user.type(screen.getByLabelText('Search files'), 'hidden exact name');
     expect(await screen.findByText('Could not load catalog results.')).toBeTruthy();
     expect(screen.queryByText('Secret competitor creative')).toBeNull();
-  });
+  }, 20_000);
 });
