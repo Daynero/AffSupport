@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FolderPage, TeamMaterialRow, TeamMaterialTagColor } from '@video-compressor/shared';
 import { ExplorerProvider } from '../apps/web/src/team/explorer/ExplorerProvider';
 import { ContentList } from '../apps/web/src/team/explorer/ContentList';
-import { useFolderPage } from '../apps/web/src/team/explorer/useFolderPage';
+import { useFolderPage, type FolderPageClient } from '../apps/web/src/team/explorer/useFolderPage';
 import { useExplorer } from '../apps/web/src/team/explorer/ExplorerProvider';
 import { sortRows } from '../apps/web/src/team/explorer/sort';
 
@@ -92,7 +92,7 @@ function PreviewingList({
   client,
   onPreview
 }: {
-  client: { listFolderPage: ReturnType<typeof vi.fn> };
+  client: FolderPageClient;
   onPreview: (material: { name: string }) => void;
 }) {
   const { currentFolderId } = useExplorer();

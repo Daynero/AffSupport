@@ -2,7 +2,7 @@
 import React from 'react';
 import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { CatalogSearchFilters } from '@video-compressor/shared';
 import { CatalogFilters } from '../apps/web/src/team/catalog/CatalogFilters';
 
@@ -42,7 +42,9 @@ function renderPanel(
     filters?: Partial<CatalogSearchFilters>;
     facets?: Record<string, { value: string; count: number }[]>;
   } = {},
-  handlers: { onSet?: ReturnType<typeof vi.fn> } = {}
+  handlers: {
+    onSet?: Mock<(key: keyof CatalogSearchFilters, value: string | null) => void>;
+  } = {}
 ) {
   const onSet = handlers.onSet ?? vi.fn();
   render(

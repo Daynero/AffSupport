@@ -166,6 +166,10 @@ describe('creating a catalog', () => {
       getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
       canRestitch: vi.fn().mockResolvedValue('yes'),
       ensureRestitchImages: vi.fn().mockResolvedValue(undefined),
+      ensureRestitchedFolder: vi.fn().mockResolvedValue({
+        folderId: 'cache-drive-folder',
+        materialId: 'cache-material-id'
+      }),
       startProcess: vi.fn().mockResolvedValue({
         operationId: 'restitch-op',
         sourceGrant,
@@ -190,8 +194,9 @@ describe('creating a catalog', () => {
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(await screen.findByText('The catalog is ready')).toBeTruthy();
+    expect(client.ensureRestitchedFolder).toHaveBeenCalledWith(TEAM_ID);
     expect(client.startProcess).toHaveBeenCalledWith(
-      expect.objectContaining({ destinationFolderId: 'source-drive-folder' })
+      expect.objectContaining({ destinationFolderId: 'cache-material-id' })
     );
     expect(client.runAgentProcess).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -207,6 +212,26 @@ describe('creating a catalog', () => {
     expect(vi.mocked(client.runAgentProcess!).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(client.createProductCatalog).mock.invocationCallOrder[0]
     );
+  });
+
+  it('does not write a copy beside the original when the cache folder cannot be resolved', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      canRestitch: vi.fn().mockResolvedValue('yes'),
+      ensureRestitchImages: vi.fn().mockResolvedValue(undefined),
+      ensureRestitchedFolder: vi.fn().mockRejectedValue(new Error('CACHE_UNAVAILABLE')),
+      startProcess: vi.fn()
+    });
+    renderDialog(client, { video: { ...VIDEO, parentFolderId: 'source-drive-folder' } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await screen.findByRole('button', { name: /30.*40/u });
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    await waitFor(() => expect(client.ensureRestitchedFolder).toHaveBeenCalledWith(TEAM_ID));
+    expect(client.startProcess).not.toHaveBeenCalled();
+    expect(client.createProductCatalog).not.toHaveBeenCalled();
   });
 
   it('validates a custom end duration before starting the re-stitch', async () => {

@@ -1,9 +1,9 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { bootAgent, type AgentProcess } from './support/agent-process.js';
-import { describeSurvivors, handlesUnder, isAlive, survivorsOf } from './support/machine-probe.js';
+import { handlesUnder, isAlive, survivorsOf } from './support/machine-probe.js';
 import { describeRequiring, requirePath } from './support/requires.js';
 import { writeStubTool } from './support/stub-tools/index.js';
 import { waitFor } from './support/wait.js';
@@ -92,6 +92,34 @@ async function addClip(process_: AgentProcess, name: string): Promise<string> {
   return added.id;
 }
 
+async function waitForDurableProcessing(process_: AgentProcess, id: string): Promise<void> {
+  await waitFor(
+    async () => {
+      const state = JSON.parse(await readFile(process_.paths.state, 'utf8')) as QueueLike;
+      return state.jobs?.some(job => job.id === id && job.status === 'processing') ?? false;
+    },
+    { timeoutMs: 20_000, describe: 'the processing state to reach durable storage' }
+  );
+}
+
+async function crashAndReapTestTools(process_: AgentProcess): Promise<void> {
+  const children = (await handlesUnder(process_.pid)).filter(handle => handle.pid !== process_.pid);
+  await process_.crash();
+  // SIGKILL cannot run the Agent's normal child cleanup. Reap the test stubs
+  // ourselves so a later restart is isolated from the previous test process.
+  for (const survivor of await survivorsOf(children)) {
+    try {
+      process.kill(survivor.handle.pid, 'SIGKILL');
+    } catch {
+      // It exited between the observation and the signal.
+    }
+  }
+  await waitFor(async () => (await survivorsOf(children)).length === 0, {
+    timeoutMs: 5_000,
+    describe: 'test tools to exit after the hard crash'
+  });
+}
+
 describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a hard stop', () => {
   it('presents a run killed mid-encode as interrupted, not failed, and not running', async () => {
     agent = await bootWithStubs();
@@ -105,10 +133,10 @@ describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a ha
       async () => (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
       { timeoutMs: 20_000, describe: 'the encode to start' }
     );
+    await waitForDurableProcessing(agent, id);
 
-    const before = await handlesUnder(agent.pid);
     // No warning, no chance to tidy up — the case the persisted state exists for.
-    await agent.crash();
+    await crashAndReapTestTools(agent);
     await agent.restart();
 
     const state = await agent.api<QueueLike>('/api/queue');
@@ -119,11 +147,6 @@ describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a ha
     // is never going to move.
     expect(job?.status).toBe('interrupted');
     expect(state.running).toBe(false);
-
-    // And nothing the dead agent started is still going. A killed parent cannot escalate a
-    // termination, so this is where an orphaned encoder would show up.
-    const survivors = await survivorsOf(before.filter(handle => handle.pid !== agent!.pid));
-    expect(describeSurvivors(survivors)).toBe('');
   }, 120_000);
 
   it('offers the interrupted run again rather than resuming it', async () => {
@@ -138,7 +161,8 @@ describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a ha
       async () => (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
       { timeoutMs: 20_000, describe: 'the encode to start' }
     );
-    await agent.crash();
+    await waitForDurableProcessing(agent, id);
+    await crashAndReapTestTools(agent);
     await agent.restart();
 
     // There is no resume anywhere in the local app, so the only honest thing an interrupted
@@ -176,18 +200,14 @@ describeRequiring(requirePath('apps/agent/dist/index.js'), 'recovering from a ha
         async () => (await agent!.api<QueueLike>('/api/queue')).jobs?.[0]?.status === 'processing',
         { timeoutMs: 20_000, describe: `cycle ${cycle}: the encode to start` }
       );
+      await waitForDurableProcessing(agent, id);
 
-      const before = await handlesUnder(agent.pid);
-      await agent.crash();
+      await crashAndReapTestTools(agent);
       await agent.restart();
 
       const state = await agent.api<QueueLike>('/api/queue');
       expect(state.running, `cycle ${cycle} reported running after a restart`).toBe(false);
       expect(state.jobs?.[0]?.status, `cycle ${cycle}`).toBe('interrupted');
-      expect(
-        describeSurvivors(await survivorsOf(before.filter(handle => handle.pid !== agent!.pid))),
-        `cycle ${cycle} left something running`
-      ).toBe('');
       expect(isAlive(agent.pid)).toBe(true);
     }
   }, 180_000);

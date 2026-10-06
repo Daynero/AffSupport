@@ -43,10 +43,6 @@ export default defineConfig({
      * both. They are confined to a single fork with a longer deadline; everything else
      * keeps the default parallel pool, which is what holds the whole suite near 30s.
      */
-    poolOptions: {
-      forks: { singleFork: false }
-    },
-
     /**
      * Coverage is measured, never enforced here.
      *
@@ -94,7 +90,7 @@ export default defineConfig({
         test: {
           name: 'e2e',
           include: ['tests/**/*-e2e.test.ts'],
-          poolOptions: { forks: { singleFork: true } },
+          maxWorkers: 1,
           testTimeout: 120_000,
           hookTimeout: 120_000
         }

@@ -2,6 +2,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useFolderResync } from '../apps/web/src/team/explorer/useFolderResync';
+import { TeamApiError } from '../apps/web/src/api/team';
 
 afterEach(() => {
   cleanup();
@@ -70,6 +71,23 @@ describe('manual folder sync without Realtime', () => {
     expect(test.onOutcome).toHaveBeenCalledWith('failed');
     expect(test.onComplete).not.toHaveBeenCalled();
     expect(test.result.current.running).toBe(false);
+  });
+
+  it('forgets a retained job that no longer exists so the next click starts a new scan', async () => {
+    const test = setup();
+    window.sessionStorage.setItem('soty:folder-resync:team-1:doctors', 'expired-job');
+    test.client.getFolderResyncStatus
+      .mockRejectedValueOnce(new TeamApiError('INVALID_RESPONSE', false))
+      .mockResolvedValue('succeeded');
+    await act(async () => {
+      await test.result.current.start();
+    });
+    expect(window.sessionStorage.getItem('soty:folder-resync:team-1:doctors')).toBeNull();
+    await act(async () => {
+      await test.result.current.start();
+    });
+    expect(test.client.resyncFolder).toHaveBeenCalledTimes(1);
+    expect(test.onOutcome).toHaveBeenCalledWith('succeeded');
   });
 
   it('reports a refresh failure instead of a successful sync toast', async () => {

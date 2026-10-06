@@ -108,6 +108,22 @@ afterEach(() => {
 });
 
 describe('folder intake in Explorer', () => {
+  it('waits for a full Drive resync and refreshes the root after completion', async () => {
+    testClient = client();
+    testClient.resyncDrive = vi.fn().mockResolvedValue({
+      syncJobId: 'full-job',
+      initialSyncState: 'scanning'
+    });
+    const status = vi.fn().mockResolvedValue('succeeded');
+    testClient.getFolderResyncStatus = status;
+    render(shell(null));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }));
+    expect(testClient.resyncDrive).toHaveBeenCalledWith(team.id);
+    await waitFor(() => expect(testClient.listFolderPage).toHaveBeenCalledTimes(2));
+    expect(status).toHaveBeenLastCalledWith(team.id, 'full-job');
+    expect(screen.getByRole('button', { name: 'Sync now' })).toBeTruthy();
+  });
+
   it.each(['list', 'grid'] as const)(
     'does not call a new, unindexed folder empty in %s view',
     async view => {

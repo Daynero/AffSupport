@@ -43,6 +43,7 @@ export interface CreateProductCatalogClient {
   runAgentProcess?: typeof startTeamAgentProcess;
   canRestitch?: typeof agentCanRestitch;
   ensureRestitchImages?: typeof ensureRestitchImages;
+  ensureRestitchedFolder?: typeof teamApi.ensureRestitchedFolder;
   cancelOperation?: typeof teamApi.cancelOperation;
   createProductCatalog: (input: {
     teamId: string;
@@ -255,13 +256,16 @@ export function CreateProductCatalogDialog({
           const available = await (client.canRestitch ?? agentCanRestitch)();
           if (available !== 'yes') throw new Error('AGENT_UPDATE_REQUIRED');
           await (client.ensureRestitchImages ?? ensureRestitchImages)(teamId, defaults);
+          const destination = await (
+            client.ensureRestitchedFolder ?? teamApi.ensureRestitchedFolder
+          )(teamId);
           const stem = video.name.replace(/\.[^.]+$/u, '') || video.name;
           const started = await (client.startProcess ?? teamApi.startProcess)({
             teamId,
             materialId: video.id,
             toolId: 'restitch',
             optionsSummary: { finalDurationMode: durationMode },
-            destinationFolderId: (video.parentFolderId ?? null) as unknown as string,
+            destinationFolderId: destination.materialId,
             outputName: `${stem} restitched.mp4`,
             conflictMode: 'keep_both',
             idempotencyKey: crypto.randomUUID(),

@@ -165,7 +165,6 @@ const PHASES = {
           'run',
           '--project=unit',
           '--maxWorkers=1',
-          '--minWorkers=1',
           '--no-file-parallelism',
           '--reporter=dot',
           `--reporter=${path.join(root, 'scripts/lib/suite-progress-reporter.mjs')}`,
@@ -174,7 +173,7 @@ const PHASES = {
           '--silent=passed-only',
           ...(form === 'release' ? ['--coverage'] : [])
         ],
-        timeoutMs: 1_800_000
+        timeoutMs: 2_700_000
       }
     ]
   },

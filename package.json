@@ -1,7 +1,7 @@
 {
   "name": "local-video-compressor",
   "private": true,
-  "version": "1.2.4",
+  "version": "1.2.5",
   "engines": {
     "node": ">=22.12 <25"
   },
@@ -80,8 +80,8 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/pg": "^8.20.0",
-    "@vitest/coverage-v8": "^3.2.7",
-    "concurrently": "^9.2.1",
+    "@vitest/coverage-v8": "5.0.3",
+    "concurrently": "9.2.1",
     "eslint": "^10.7.0",
     "globals": "^17.7.0",
     "jsdom": "^29.1.1",
@@ -89,9 +89,12 @@
     "tsx": "^4.23.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.64.0",
-    "vitest": "^3.2.4"
+    "vitest": "5.0.3"
   },
   "dependencies": {
     "pg": "^8.22.0"
+  },
+  "overrides": {
+    "shell-quote": "1.12.0"
   }
 }

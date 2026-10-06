@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { DriveCatalogResyncResult } from '../../api/team';
+import { TeamApiError, type DriveCatalogResyncResult } from '../../api/team';
 
 function pendingKey(teamId: string, folderId: string): string {
   return `soty:folder-resync:${teamId}:${folderId}`;
@@ -111,7 +111,13 @@ export function useFolderResync(input: {
           controller.signal.addEventListener('abort', done, { once: true });
         });
       }
-    } catch {
+    } catch (error) {
+      // The server retains completed jobs for a bounded period. An old tab can
+      // still remember a deleted job; discard that id so the next click queues
+      // a fresh scan instead of polling the missing job forever.
+      if (error instanceof TeamApiError && error.code === 'INVALID_RESPONSE') {
+        writePending(key, null);
+      }
       if (!controller.signal.aborted) latest.current.onOutcome('failed');
     } finally {
       controller.abort();

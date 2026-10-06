@@ -2337,6 +2337,44 @@ async function handleEnsureTaskDropFolder(
   };
 }
 
+/** Give catalog creation the same cache destination as the automatic updater. */
+async function handleEnsureRestitchedFolder(
+  request: Request,
+  body: Record<string, unknown>,
+  service: RpcClient,
+  actorId: string
+) {
+  const teamId = requireUuid(body.teamId);
+  const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
+  const drive = await driveClient(service, root.credentialId, request);
+  const cacheId = await ensureDriveCacheRoot(drive, teamId, root.rootFolderId);
+  const resolved = await resolveRestitchedFolder({
+    teamId,
+    rootFolderId: cacheId,
+    legacyRootFolderId: root.rootFolderId,
+    drive
+  });
+  const folder = await moveGeneratedFolderToCache(
+    drive,
+    resolved.folder,
+    root.rootFolderId,
+    cacheId
+  );
+  const committed = firstRecord(
+    await rpcValue(service, 'service_commit_task_drop_folder', {
+      p_team: teamId,
+      p_connection: root.connectionId,
+      p_parent_folder_id: cacheId,
+      p_drive_folder_id: folder.id,
+      p_resource_key: folder.resourceKey,
+      p_name: folder.name
+    })
+  );
+  const materialId = committed ? stringValue(committed, 'material_id') : null;
+  if (!materialId) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  return { folderId: folder.id, materialId, name: folder.name, created: resolved.created };
+}
+
 async function handleEnsureUploadFolder(
   request: Request,
   body: Record<string, unknown>,
@@ -2764,6 +2802,7 @@ function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterResti
       const resolved = await resolveRestitchedFolder({
         teamId,
         rootFolderId: cacheId,
+        legacyRootFolderId: root.rootFolderId,
         drive
       });
       await moveGeneratedFolderToCache(drive, resolved.folder, root.rootFolderId, cacheId);
@@ -2871,6 +2910,8 @@ Deno.serve(async request => {
       value = await handleEnsureWorkspaceFolder(request, body, configured.service, userId);
     } else if (path === '/ensure-task-drop-folder') {
       value = await handleEnsureTaskDropFolder(request, body, configured.service, userId);
+    } else if (path === '/ensure-restitched-folder') {
+      value = await handleEnsureRestitchedFolder(request, body, configured.service, userId);
     } else if (path === '/ensure-upload-folder') {
       value = await handleEnsureUploadFolder(request, body, configured.service, userId);
     } else if (path === '/product-catalog/create') {

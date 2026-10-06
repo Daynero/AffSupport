@@ -1225,3 +1225,12 @@ Drop `get_team_catalog_updater_random_link_variation(uuid)` and
 definition and grants from `20260918120000_catalog_updater_grow.sql`. Then drop
 `team_catalog_updaters.random_link_variation`. Catalog snapshots can retain the
 `randomLinkVariation` key; older workers ignore it.
+
+### Manual full Drive resync (20261006120000)
+
+Forward fix preferred. To roll back only this migration, restore
+`public.request_team_catalog_resync(uuid)` from
+`20260927010000_catalog_resync_role_guard.sql` and
+`public.get_team_folder_resync_status(uuid, uuid)` from
+`20260924100000_catalog_sync_ownership.sql`. No data or jobs are removed by
+this migration; already queued full scans remain valid.

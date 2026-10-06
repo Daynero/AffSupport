@@ -15,7 +15,12 @@ import type {
   TeamMaterialTagColor,
   TeamPermissions
 } from '@video-compressor/shared';
-import { teamApi, TeamApiError, type TeamMaterialSummary } from '../../api/team';
+import {
+  teamApi,
+  TeamApiError,
+  type DriveCatalogResyncResult,
+  type TeamMaterialSummary
+} from '../../api/team';
 import { downloadTeamFileWithAgent, selectNativeDirectory } from '../../api/client';
 import {
   Download,
@@ -116,7 +121,7 @@ export type ExplorerShellClient = ExplorerClient &
   FolderPickerClient &
   FolderSubtreeClient & {
     getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
-    resyncDrive?: (teamId: string) => Promise<unknown>;
+    resyncDrive?: (teamId: string) => Promise<DriveCatalogResyncResult>;
     /** Only the space's owner may call this; the database is what enforces it. */
     setMaterialTag?: (input: {
       teamId: string;
@@ -295,7 +300,6 @@ function ExplorerBody({
 }) {
   const { t } = useI18n();
   const { push, update, dismiss } = useToasts();
-  const [resyncing, setResyncing] = useState(false);
   /* 015 — one running re-stitched delivery per material, held here rather than in the row:
      a delivery outlives the menu that started it and the row that scrolled past. */
   const restitch = useRestitchDelivery(teamId);
@@ -354,18 +358,6 @@ function ExplorerBody({
     pathTo,
     nodeOf
   } = explorer;
-  const resyncDrive = useCallback(async () => {
-    if ((!client.resyncDrive && !client.resyncFolder) || resyncing) return;
-    setResyncing(true);
-    try {
-      if (client.resyncDrive) await client.resyncDrive(teamId);
-      push({ tone: 'success', text: t('teamToastResyncQueued') });
-    } catch {
-      push({ tone: 'error', text: t('teamDriveResyncFailed') });
-    } finally {
-      setResyncing(false);
-    }
-  }, [client, currentFolderId, push, resyncing, t, teamId]);
   const [treeOpen, setTreeOpen] = useState(false);
   const [processing, setProcessing] = useState<{ row: TeamMaterialRow } | null>(null);
   const [catalogFor, setCatalogFor] = useState<TeamMaterialRow | null>(null);
@@ -429,9 +421,13 @@ function ExplorerBody({
     activeFolderIds.push(currentFolderId);
   const folderResync = useFolderResync({
     teamId,
-    folderId: currentFolderId,
-    scopeFolderIds: activeFolderIds,
-    client,
+    folderId: currentFolderId ?? '__root__',
+    scopeFolderIds: currentFolderId ? activeFolderIds : ['__root__'],
+    client: {
+      resyncFolder: (id, folder) =>
+        folder === '__root__' ? client.resyncDrive!(id) : client.resyncFolder!(id, folder),
+      getFolderResyncStatus: client.getFolderResyncStatus
+    },
     onComplete: async () => {
       await Promise.all([page.reloadStrict(), explorer.refreshStrict()]);
     },
@@ -1634,26 +1630,25 @@ function ExplorerBody({
                   }
                 ]}
               />
-              {(currentFolderId
-                ? client.resyncFolder && client.getFolderResyncStatus
-                : client.resyncDrive) && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={resyncing || folderResync.running || uploadingThisFolder}
-                  aria-busy={resyncing || folderResync.running || uploadingThisFolder || undefined}
-                  onClick={() => void (currentFolderId ? folderResync.start() : resyncDrive())}
-                >
-                  {(resyncing || folderResync.running || uploadingThisFolder) && (
-                    <span className="ui-spinner" aria-hidden="true" />
-                  )}
-                  {resyncing || folderResync.running || uploadingThisFolder
-                    ? t('teamFolderResyncRunning')
-                    : currentFolderId
-                      ? t('teamDriveResyncFolder')
-                      : t('teamDriveResync')}
-                </Button>
-              )}
+              {client.getFolderResyncStatus &&
+                (currentFolderId ? client.resyncFolder : client.resyncDrive) && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={folderResync.running || uploadingThisFolder}
+                    aria-busy={folderResync.running || uploadingThisFolder || undefined}
+                    onClick={() => void folderResync.start()}
+                  >
+                    {(folderResync.running || uploadingThisFolder) && (
+                      <span className="ui-spinner" aria-hidden="true" />
+                    )}
+                    {folderResync.running || uploadingThisFolder
+                      ? t('teamFolderResyncRunning')
+                      : currentFolderId
+                        ? t('teamDriveResyncFolder')
+                        : t('teamDriveResync')}
+                  </Button>
+                )}
             </>
           )}
           {/*

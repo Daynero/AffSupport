@@ -3211,6 +3211,19 @@ export const teamApi = {
     return value;
   },
 
+  async ensureRestitchedFolder(teamId: string): Promise<{ folderId: string; materialId: string }> {
+    return invokeTeamFunction(
+      'drive-ops/ensure-restitched-folder',
+      { teamId },
+      (candidate): candidate is { folderId: string; materialId: string } => {
+        const row = asRecord(candidate);
+        return Boolean(
+          row && typeof row.folderId === 'string' && typeof row.materialId === 'string'
+        );
+      }
+    );
+  },
+
   async ensureUploadFolder(
     teamId: string,
     input: { name: string; parentMaterialId?: string | null; idempotencyKey?: string }

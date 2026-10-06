@@ -6,8 +6,9 @@
  * blinking in and out of Drive every hour — on the phone, in the sync client, in "Recent". They
  * go here instead, and the folder that holds the buyer's own work stays the buyer's own.
  *
- * Found by the mark this application writes into `appProperties`, as the workspace and task-drop
- * folders are: the name is never the identity, so renaming or moving it in Drive loses nothing.
+ * Found by the mark this application writes into `appProperties`, scoped to the connected cache
+ * or its legacy root. The name is never the identity, so renaming the folder is safe; scoping
+ * prevents a second Drive root in the same space from adopting the first root's output folder.
  */
 
 import type { DriveFileMetadata, GoogleDriveClient } from '../_shared/drive.ts';
@@ -34,14 +35,24 @@ export function restitchedFolderMarker(teamId: string): string {
 export async function resolveRestitchedFolder(input: {
   teamId: string;
   rootFolderId: string;
+  legacyRootFolderId?: string;
   drive: RestitchedFolderDrive;
 }): Promise<RestitchedFolderResolution> {
   const marker = restitchedFolderMarker(input.teamId);
-  const found = await input.drive.findFolderByAppProperty({
+  const inCache = await input.drive.findFolderByAppProperty({
     key: RESTITCHED_FOLDER_MARK,
     value: marker,
-    driveId: null
+    parentId: input.rootFolderId
   });
+  const found =
+    inCache ??
+    (input.legacyRootFolderId
+      ? await input.drive.findFolderByAppProperty({
+          key: RESTITCHED_FOLDER_MARK,
+          value: marker,
+          parentId: input.legacyRootFolderId
+        })
+      : null);
   if (found && !found.trashed) return { folder: found, created: false, marker };
 
   const created = await input.drive.createFolder({
