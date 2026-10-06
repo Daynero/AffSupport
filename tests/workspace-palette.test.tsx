@@ -62,15 +62,39 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function palette() {
+function palette(onClose: () => void = vi.fn(), onShortcuts: () => void = vi.fn()) {
   return render(
     <ToastProvider>
-      <PaletteHost teamId={TEAM_ID} onClose={vi.fn()} onShortcuts={vi.fn()} />
+      <PaletteHost teamId={TEAM_ID} onClose={onClose} onShortcuts={onShortcuts} />
     </ToastProvider>
   );
 }
 
 describe('the workspace palette', () => {
+  it.each([
+    ['file', /creative\.mp4/, `/team/${TEAM_ID}?folder=drive-f1&item=m1`],
+    ['folder', /^Creatives$/, `/team/${TEAM_ID}?folder=drive-f1`],
+    ['task', /Creative for TR/, `/team/${TEAM_ID}/tasks?task=t1`],
+    ['account', /Creative Team/, `/team/${TEAM_ID}/accounts`]
+  ])('opens the selected %s after closing the palette', async (_kind, name, destination) => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', `/team/${TEAM_ID}/tasks?palette=1`);
+    const onClose = vi.fn(() => window.history.replaceState(null, '', `/team/${TEAM_ID}/tasks`));
+    palette(onClose);
+    await user.type(screen.getByRole('combobox'), 'creative');
+    await user.click(await screen.findByRole('option', { name }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(window.location.pathname + window.location.search).toBe(destination);
+  });
+
+  it('opens the shortcut sheet from the palette footer', async () => {
+    const onShortcuts = vi.fn();
+    palette(vi.fn(), onShortcuts);
+    await userEvent.setup().click(screen.getByRole('button', { name: /Keyboard shortcuts/ }));
+    expect(onShortcuts).toHaveBeenCalledOnce();
+  });
+
   it('says which folder a file is in, and offers what was opened lately on an empty field', async () => {
     const user = userEvent.setup();
     const { unmount } = palette();
