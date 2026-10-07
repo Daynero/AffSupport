@@ -8,8 +8,8 @@
   "minimumSupportedVersion": "0.4.0",
   "publishedAt": "2026-10-06T00:00:00.000Z",
   "summary": {
-    "en": "Fixes in workspace development.",
-    "uk": "Виправлення в розробці простору"
+    "en": "Fixed some bugs and improved performance.",
+    "uk": "Виправлені деякі баги, покращена продуктивність"
   },
   "artifacts": {
     "macos-arm64": {
@@ -43,5 +43,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "WcePmeMRkigge94d6wprgutblIhA5Z3i-TfStpgv3FHpAjpBCrvtXSRcp9DS83HGP1IWaajGyVdqquHvTEsmCQ"
+  "signature": "2pC0Jc-V2f2pm_4byw1YJWRBHk9vhI7hCXvAI5LVlUu8K9z_HD6mt1VWgDCLa8u2tHXIDIvs-YOdjb9WHmumvw"
 }
