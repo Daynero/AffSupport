@@ -2003,6 +2003,24 @@ const en = {
   teamRestitchToastAskManager: 'A space manager can set it up.',
   teamRestitchAgentMissing: 'This needs the Soty app running on this computer.',
   teamRestitchAgentTooOld: 'The Soty app on this computer is too old to re-stitch.',
+  teamRestitchAgentTooOldForSources:
+    'The Soty app on this computer is too old to take pictures from the space. Update it to re-stitch with these settings.',
+  teamRestitchPoolEmpty:
+    'No pictures are available for re-stitching: every source of the pool is unavailable or empty. Open the space settings to check them.',
+  teamRestitchSourceForbidden:
+    'You can process in this space but not download its files, and the re-stitch pictures live there. Ask the owner for download access.',
+  teamRestitchSourcesInvalid:
+    'One of the chosen sources is not an image or a folder of this space.',
+  teamRestitchSourcesTooMany: 'A pool can hold at most 500 sources.',
+  teamRestitchClientOutdated:
+    'This page is too old for the space’s re-stitch settings. Reload it to continue.',
+  teamRestitchScreenUnavailable:
+    'The Soty app has no copy of the chosen picture and no way to fetch it.',
+  teamRestitchScreenFetchFailed:
+    'The chosen picture could not be fetched from the space. Check the connection and free space, then try again.',
+  teamRestitchScreenUnsupported:
+    'The chosen picture is animated or cannot be decoded, so it was skipped.',
+  teamRestitchSourceDisconnected: 'The space is not connected to Google Drive.',
   teamRestitchFolder: 'Where downloads go',
   teamRestitchFolderChange: 'Change',
   teamRestitchPrepare: 'Prepare the space’s videos',
@@ -5140,6 +5158,23 @@ const uk: Record<keyof typeof en, string> = {
   teamRestitchToastAskManager: 'Налаштувати може керівник простору.',
   teamRestitchAgentMissing: 'Для цього потрібен застосунок Soty на цьому компʼютері.',
   teamRestitchAgentTooOld: 'Застосунок Soty на цьому компʼютері застарий для перезашивки.',
+  teamRestitchAgentTooOldForSources:
+    'Застосунок Soty на цьому компʼютері застарий, щоб брати картинки з простору. Оновіть його, щоб перезашивати з цими налаштуваннями.',
+  teamRestitchPoolEmpty:
+    'Немає картинок для перезашивки: усі джерела пулу недоступні або порожні. Відкрийте налаштування простору й перевірте їх.',
+  teamRestitchSourceForbidden:
+    'Ви можете обробляти в цьому просторі, але не завантажувати його файли, а картинки для перезашивки лежать саме там. Попросіть у власника право на завантаження.',
+  teamRestitchSourcesInvalid: 'Одне з обраних джерел не є зображенням або папкою цього простору.',
+  teamRestitchSourcesTooMany: 'Пул може містити щонайбільше 500 джерел.',
+  teamRestitchClientOutdated:
+    'Ця сторінка застара для налаштувань перезашивки простору. Перезавантажте її, щоб продовжити.',
+  teamRestitchScreenUnavailable:
+    'У застосунку Soty немає копії обраної картинки й немає як її забрати.',
+  teamRestitchScreenFetchFailed:
+    'Не вдалося забрати обрану картинку з простору. Перевірте зʼєднання і вільне місце, потім спробуйте знову.',
+  teamRestitchScreenUnsupported:
+    'Обрана картинка анімована або її не вдалося розкодувати, тому її пропущено.',
+  teamRestitchSourceDisconnected: 'Простір не підключено до Google Drive.',
   teamRestitchFolder: 'Куди зберігати',
   teamRestitchFolderChange: 'Змінити',
   teamRestitchPrepare: 'Підготувати відео простору',

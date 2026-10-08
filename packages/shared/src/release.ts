@@ -99,6 +99,12 @@ export const AGENT_TOOL_CONTRACTS = {
   // Same shape of capability: without it the tile keeps the kind glyph, which
   // is exactly where it was before.
   teamPosterFrame: 1,
+  // Re-stitch screens drawn from the space's Drive pools (030): the agent accepts
+  // `screens` with download grants on a re-stitch job and keeps them in its own
+  // cache, not in the compressor's library. A capability, not a tool page, for the
+  // same reason as the three above: an older agent is told it is too old for Drive
+  // pools by the interface, and keeps serving the legacy id lists.
+  teamRestitchSources: 1,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power
@@ -228,6 +234,14 @@ export function teamProcessPauseSupported(contracts: ToolContracts | null): bool
  */
 export function teamPosterFrameSupported(contracts: ToolContracts | null): boolean {
   return (contracts?.teamPosterFrame ?? 0) >= AGENT_TOOL_CONTRACTS.teamPosterFrame;
+}
+
+/**
+ * Whether this agent can take re-stitch screens from the space's Drive pools (030).
+ * Read from the contract directly, like the capabilities above.
+ */
+export function restitchSourcesSupported(contracts: ToolContracts | null): boolean {
+  return (contracts?.teamRestitchSources ?? 0) >= AGENT_TOOL_CONTRACTS.teamRestitchSources;
 }
 
 export function toolContractCompatible(

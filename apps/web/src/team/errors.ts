@@ -69,7 +69,12 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   RESTRICTED_SCOPE_NOT_APPROVED: 'teamErrorRestrictedScopeNotApproved',
   RESTITCH_FORBIDDEN: 'teamRestitchForbidden',
   RESTITCH_NO_SCREENS: 'teamRestitchNoScreens',
-  RESTITCH_INVALID: 'teamRestitchInvalid'
+  RESTITCH_INVALID: 'teamRestitchInvalid',
+  RESTITCH_POOL_EMPTY: 'teamRestitchPoolEmpty',
+  RESTITCH_SOURCE_FORBIDDEN: 'teamRestitchSourceForbidden',
+  RESTITCH_SOURCES_INVALID: 'teamRestitchSourcesInvalid',
+  RESTITCH_SOURCES_TOO_MANY: 'teamRestitchSourcesTooMany',
+  RESTITCH_CLIENT_OUTDATED: 'teamRestitchClientOutdated'
 };
 
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);
@@ -79,6 +84,10 @@ const SYNC_COPY: Record<string, TranslationKey> = {
   RESTITCH_AGENT_UNAVAILABLE: 'teamRestitchImageAgentUnavailable',
   RESTITCH_LOCAL_IMAGE_MISSING: 'teamRestitchLocalImageMissing',
   RESTITCH_IMAGE_UPLOAD_FAILED: 'teamRestitchImageUploadFailed',
+  // 030 — what the agent says about a picture drawn from the space.
+  RESTITCH_SCREEN_UNAVAILABLE: 'teamRestitchScreenUnavailable',
+  RESTITCH_SCREEN_FETCH_FAILED: 'teamRestitchScreenFetchFailed',
+  RESTITCH_SCREEN_UNSUPPORTED: 'teamRestitchScreenUnsupported',
   INCOMPLETE_SCAN: 'teamErrorInvalidResponse',
   INCOMPLETE_LISTING: 'teamErrorInvalidResponse',
   RETRY_EXHAUSTED: 'teamErrorDriveUnavailable',

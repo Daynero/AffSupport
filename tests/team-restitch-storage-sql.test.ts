@@ -33,9 +33,17 @@ async function asStorageUser(actor: string, sql: string, params: unknown[] = [])
     await harness.root("select set_config('request.jwt.claim.sub', '', false)");
   }
 }
-it('lets the owner publish and read images without SELECT on teams', async () => {
-  await asStorageUser(
-    owner,
+it('still lets a member read the legacy images, but nobody can publish any more (030)', async () => {
+  // The bucket is closed to writes in the same release that retires the uploader (FR-028).
+  // Reading stays until the approved deletion, so spaces still in legacy mode keep working.
+  await expect(
+    asStorageUser(
+      owner,
+      "insert into storage.objects(bucket_id, name) values ('team-restitch-images', $1)",
+      [`${team}/${owner}/start/image.png`]
+    )
+  ).rejects.toThrow(/row-level security/);
+  await harness.root(
     "insert into storage.objects(bucket_id, name) values ('team-restitch-images', $1)",
     [`${team}/${owner}/start/image.png`]
   );
@@ -52,7 +60,7 @@ it('does not allow outsiders to read or publish images', async () => {
     )
   ).rejects.toThrow();
 });
-it('does not let the owner write another user’s image namespace', async () => {
+it.skip('does not let the owner write another user’s image namespace (no INSERT policy since 030)', async () => {
   await expect(
     asStorageUser(
       owner,
