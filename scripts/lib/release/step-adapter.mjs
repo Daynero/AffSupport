@@ -216,7 +216,8 @@ async function findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, d
   return candidates[0] ?? null;
 }
 
-async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releaseId, publish }) {
+/** @param {string} stepId @param {{cwd: any, env: any, admission: any, sourceSha: any, releaseId: any, publish: any, journal?: {append: (type: string, payload: unknown) => Promise<unknown>} | null}} options */
+async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releaseId, publish, journal = null }) {
   const workflow = 'release-windows.yml';
   const dispatchedAt = Date.now();
 
@@ -241,12 +242,14 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
     publish,
     dispatchedAt: 0
   });
-  if (started && !['failure', 'cancelled', 'timed_out'].includes(started.conclusion ?? ''))
+  if (started && !['failure', 'cancelled', 'timed_out'].includes(started.conclusion ?? '')) {
+    await journal?.append('remote_progress', { stepId, runId: started.databaseId, url: started.url ?? null, adopted: true });
     return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(started.databaseId)], {
       cwd,
       env,
       admission
     });
+  }
 
   try {
     await exec(
@@ -283,6 +286,7 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
   }
   if (!found)
     return fail('EFFECT_AMBIGUOUS', `dispatched ${workflow} for ${sourceSha} but no run was found`);
+  await journal?.append('remote_progress', { stepId, runId: found.databaseId, url: found.url ?? null, adopted: false });
   return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(found.databaseId)], {
     cwd,
     env,
@@ -444,7 +448,7 @@ export async function createStepAdapter({
     },
 
     windows_smoke: () =>
-      dispatchAndWatch('windows_smoke', { cwd, env: childEnv, admission, sourceSha, releaseId, publish: false }),
+      dispatchAndWatch('windows_smoke', { cwd, env: childEnv, admission, sourceSha, releaseId, publish: false, journal }),
 
     publish: async () => {
       if (!existsSync(path.join(cwd, dmg))) return fail('GATE_FAILED', `${dmg} was not built`);
@@ -474,7 +478,7 @@ export async function createStepAdapter({
         cwd,
         shell: false
       }).catch(() => {});
-      return dispatchAndWatch('publish', { cwd, env: childEnv, admission, sourceSha, releaseId, publish: true });
+      return dispatchAndWatch('publish', { cwd, env: childEnv, admission, sourceSha, releaseId, publish: true, journal });
     },
 
     manifest: async () => {

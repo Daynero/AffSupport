@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "providerVersion": "0.161.0",
+  "maxAttemptsPerCause": 3,
+  "maxAttemptsPerTask": 6,
+  "maxTokensPerAttempt": 80000,
+  "maxTokensPerTask": 300000,
+  "maxActiveMsPerAttempt": 1200000,
+  "maxActiveMsPerTask": 5400000,
+  "heartbeatMs": 10000,
+  "staleAfterMs": 30000,
+  "panelPort": 43150,
+  "networkEnabled": false,
+  "allowPaidFallback": false
+}

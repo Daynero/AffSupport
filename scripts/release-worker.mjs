@@ -11,6 +11,7 @@ import { stepDefinition } from './lib/release/steps.mjs';
 import { startLeaseServer, leaseSocketPath } from './lib/release/lease-server.mjs';
 import { boundedDiagnostic, diagnosticFingerprint } from './lib/release/diagnostics.mjs';
 import { enqueueHandoff } from './lib/release/handoff.mjs';
+import { processIdentity } from './lib/release/target-ownership.mjs';
 import { loadSnapshot, runDirectory, saveSnapshot } from './lib/release/store.mjs';
 import { activeBinding } from './lib/release/bindings.mjs';
 import { createWorkerAdmission, installedProbeFrom } from './lib/release/worker-admission.mjs';
@@ -86,6 +87,12 @@ async function performStep({ stepId, run, journal, adapter, snapshot }) {
   if ((await loadSnapshot(run.runId).catch(() => null))?.state === 'cancelled')
     return { ok: false, error: { code: 'RELEASE_CANCELLED', subject: 'the run was cancelled' } };
   await journal.append('step_started', { stepId, resourceClass: step.resourceClass });
+  const active = await persist(
+    startStep({ ...snapshot.current, waitReason: null, nextCheckAt: null }, stepId)
+  );
+  snapshot.current = active.run;
+  if (active.cancelled)
+    return { ok: false, error: { code: 'RELEASE_CANCELLED', subject: 'the run was cancelled' } };
   const started = Date.now();
   let result;
   try {
@@ -137,6 +144,7 @@ async function handOffFailure({ directory, runId, sourceSha, failedStep, error, 
     jobId: `${runId}:${fingerprint.slice(0, 16)}`,
     fingerprint,
     runId,
+    ...(process.env.SOTY_RELEASE_HANDOFF_OWNER === 'controller' ? { owner: 'controller' } : {}),
     payload: diagnostic
   });
   await journal.append('handoff_enqueued', { jobId: job.jobId, fingerprint });
@@ -179,7 +187,32 @@ export async function runWorker({
     generation: recovered.generation ?? 1,
     children: new Map()
   });
-  await journal.append('worker_started', { pid: process.pid, socketPath: lease.socketPath });
+  await journal.append('worker_started', {
+    pid: process.pid,
+    socketPath: lease.socketPath,
+    executionMode: process.env.SOTY_RELEASE_DRY_RUN === '1' ? 'dry' : 'live',
+    adapterOverride: Boolean(process.env.SOTY_RELEASE_STEP_ADAPTER)
+  });
+  const identity = await processIdentity().catch(() => null);
+  const heartbeatFile = path.join(directory, 'worker-heartbeat.json');
+  const heartbeat = async () => {
+    const temporary = `${heartbeatFile}.${process.pid}.tmp`;
+    await writeFile(
+      temporary,
+      JSON.stringify({
+        runId,
+        identity,
+        observedAt: new Date().toISOString(),
+        generation: snapshot.current.generation,
+        currentStep: snapshot.current.currentStep
+      }),
+      { mode: 0o600 }
+    );
+    await rename(temporary, heartbeatFile);
+  };
+  await heartbeat();
+  const heartbeatTimer = setInterval(() => heartbeat().catch(() => {}), 10000);
+  heartbeatTimer.unref();
 
   // Waiting for the machine is ordinary progress, so it belongs in the journal
   // and in the snapshot `status` reads — not in a log nobody is watching.
@@ -187,6 +220,8 @@ export async function runWorker({
     await journal.append('resource_wait', event);
     const waiting = {
       ...snapshot.current,
+      state: 'waiting_resource',
+      currentStep: event.stepId,
       waitReason: event.reason,
       nextCheckAt: new Date(event.nextCheckAt).toISOString()
     };
@@ -238,6 +273,7 @@ export async function runWorker({
     await journal.snapshot(snapshot.current);
     return { ok: true, state: snapshot.current.state, completed: result.completed };
   } finally {
+    clearInterval(heartbeatTimer);
     // The socket is this worker's, and it does not outlive it: a stale socket
     // would let the next run's children believe they had been admitted.
     await lease.close();

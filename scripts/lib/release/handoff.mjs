@@ -99,7 +99,7 @@ export async function listHandoffs(directory) {
 export async function dueHandoffs(directory, now = Date.now()) {
   return (await listHandoffs(directory)).filter(
     record =>
-      record.state === 'delivery_pending' && Date.parse(record.nextAttemptAt ?? 0) <= now
+      record.owner !== 'controller' && ['delivery_pending', 'acknowledged'].includes(record.state) && Date.parse(record.nextAttemptAt ?? 0) <= now
   );
 }
 
@@ -136,6 +136,9 @@ export async function recordAttempt(directory, record, patch, now = Date.now()) 
  * repair as verified would be a way to publish unverified code.
  */
 export async function recordResult(directory, fingerprint, { status, repairReference = null }, now = Date.now()) {
+  status = status === 'refused' || status === 'cannot_repair' ? 'cannotRepair'
+    : status === 'needs_owner' ? 'needsExternalDecision' : status;
+  if (!['repaired', 'cannotRepair', 'needsExternalDecision'].includes(status)) throw new Error('BRIDGE_RESULT_INVALID');
   const record = await readHandoff(directory, fingerprint);
   if (!record) return null;
   const state =

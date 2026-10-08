@@ -11,6 +11,8 @@ import { loadSnapshot, runDirectory, saveSnapshot } from './lib/release/store.mj
 import { releaseMetrics } from './lib/release/metrics.mjs';
 import { STEP_IDS, stepDefinition } from './lib/release/steps.mjs';
 import { startSupervisedWorker, waitForWorkerReady } from './lib/release/supervisor.mjs';
+import { readJournal } from './lib/release/journal.mjs';
+import { processIdentity } from './lib/release/target-ownership.mjs';
 
 /**
  * The whole command surface of the release runner.
@@ -114,6 +116,8 @@ function parseArguments(argv) {
 
 async function main(argv) {
   const { command, positional, flag } = parseArguments(argv);
+  /** @type {(() => Promise<void>) | null} */
+  let releaseOwnership = null;
   try {
     if (command === 'status' || command === 'report') {
       const runId = positional[0];
@@ -122,7 +126,19 @@ async function main(argv) {
       const projection = statusProjection(snapshot);
       const data =
         command === 'report'
-          ? { ...snapshot, ...projection, metrics: releaseMetrics(snapshot.events ?? []) }
+          ? {
+              ...snapshot,
+              ...projection,
+              metrics: releaseMetrics(
+                await readJournal(path.join(runDirectory(runId), 'journal.ndjson'), runId).catch(
+                  error => {
+                    if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+                      return [];
+                    throw error;
+                  }
+                )
+              )
+            }
           : { ...snapshot, ...projection };
       printEnvelope(envelope({ ok: true, command, runId, state: snapshot.state, data }));
       // Status answers "is this readable"; report answers "is this done".
@@ -201,8 +217,62 @@ async function main(argv) {
       return;
     }
 
-    const queued = transition(transition(initialRun(intent), 'preflight'), 'queued');
+    releaseOwnership = ownership.release ?? null;
+    let previous;
+    try {
+      previous = await loadSnapshot(intent.runId);
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+    if (
+      previous &&
+      (previous.sourceSha !== intent.sourceSha ||
+        previous.version !== ('version' in intent ? intent.version : null) ||
+        previous.targetId !== intent.targetId)
+    )
+      throw new Error('RUN_IDENTITY_CONFLICT');
+    if (previous && previous.state !== 'completed') {
+      const heartbeat = JSON.parse(
+        await readFile(path.join(directory, 'worker-heartbeat.json'), 'utf8')
+      );
+      if (!heartbeat.identity) throw new Error('WORKER_OWNERSHIP_AMBIGUOUS');
+      const actual = await processIdentity(heartbeat.identity.pid);
+      if (
+        actual &&
+        actual.bootId === heartbeat.identity.bootId &&
+        actual.startMarker === heartbeat.identity.startMarker
+      ) {
+        await releaseOwnership?.();
+        releaseOwnership = null;
+        printEnvelope(
+          envelope({
+            ok: true,
+            command,
+            runId: intent.runId,
+            state: previous.state,
+            data: { adopted: true }
+          })
+        );
+        return;
+      }
+    }
+    if (previous?.state === 'completed') {
+      await releaseOwnership?.();
+      releaseOwnership = null;
+      printEnvelope(
+        envelope({ ok: true, command, runId: intent.runId, state: 'completed', data: previous })
+      );
+      return;
+    }
+    const queued = previous
+      ? ['blocked', 'cancelled'].includes(previous.state)
+        ? resumeRun(previous)
+        : { ...previous, state: 'reconciling' }
+      : transition(transition(initialRun(intent), 'preflight'), 'queued');
     await saveSnapshot(queued);
+    await import('./lib/release/task-store.mjs').then(({ atomicRecord }) =>
+      atomicRecord(path.join(directory, 'worker-ready.json'), { runId: intent.runId, ready: false })
+    );
     const worker = startSupervisedWorker({
       workerPath: path.resolve('scripts/release-worker.mjs'),
       cwd: process.cwd(),
@@ -220,6 +290,7 @@ async function main(argv) {
     const ready = await waitForWorkerReady(path.join(directory, 'worker-ready.json'), intent.runId);
     if (!ownership.release) throw new Error('Ownership release handle is unavailable');
     await ownership.release();
+    releaseOwnership = null;
     printEnvelope(
       envelope({
         ok: true,
@@ -246,6 +317,8 @@ async function main(argv) {
       })
     );
     process.exitCode = EXIT.INVALID;
+  } finally {
+    await releaseOwnership?.();
   }
 }
 
