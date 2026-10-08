@@ -69,7 +69,7 @@ Independent test: access/scope/budget failure produces one concrete decision and
 - [x] T025 Document setup, limits and actual commands in docs/RELEASE_AUTOMATION.md and specs/029-autonomous-release-panel/quickstart.md.
 - [ ] T026 Run focused tests, type/build/design checks and npm run verify; record actual results in specs/029-autonomous-release-panel/implementation.md.
 - [ ] T027 Run full isolated acceptance/provider/restart/overhead checks and npm run verify:release; record remaining external gates honestly in specs/029-autonomous-release-panel/implementation.md.
-- [ ] T028 Stage only feature-owned paths and commit separately, preserving parallel fixes; record SHA in final handoff.
+- [x] T028 Stage only feature-owned paths and commit separately, preserving parallel fixes; record SHA in final handoff.
 
 ## Dependencies and strategy
 
