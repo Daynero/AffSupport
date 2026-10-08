@@ -82,9 +82,9 @@ describe('preparing the screens', () => {
 
   it('draws, grants each picture to the app, and carries the grants', async () => {
     const d = deps();
-    const result = await prepareRestitchScreens(TEAM, defaults('drive'), d);
-    expect(result.kind).toBe('ready');
-    if (result.kind !== 'ready') return;
+    const outcome = await prepareRestitchScreens(TEAM, defaults('drive'), d);
+    expect(outcome.kind).toBe('ready');
+    const result = outcome as Extract<typeof outcome, { kind: 'ready' }>;
     expect(d.grant).toHaveBeenCalledWith(TEAM, 'm1', 'agent');
     expect(d.grant).toHaveBeenCalledWith(TEAM, 'm2', 'agent');
     expect(

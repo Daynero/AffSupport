@@ -2827,6 +2827,45 @@ function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterResti
       }).catch(() => undefined);
       await releaseNameReservation(service, operationId);
     },
+    screenGrant: async (teamId, actorId, materialId) => {
+      // The claimer's own download right, checked in SQL; then the same grant a video travels on.
+      const rows = await rpcValue(service, 'service_restitch_screen_context', {
+        p_team: teamId,
+        p_actor: actorId,
+        p_material: materialId
+      });
+      const context = Array.isArray(rows) && isRecord(rows[0]) ? rows[0] : null;
+      const size = typeof context?.size_bytes === 'number' ? context.size_bytes : null;
+      if (!context || size === null || size <= 0) {
+        throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+      }
+      const ticket = randomTicket();
+      const expiresAt = new Date(Date.now() + 20 * 60 * 1000).toISOString();
+      const maxUses = Math.min(Math.max(Math.ceil(size / RANGE_REQUEST_MAX_BYTES) + 4, 1), 10_000);
+      await rpcValue(service, 'issue_team_transfer_grant', {
+        p_token_hash: byteaHex(await sha256(ticket)),
+        p_operation: null,
+        p_team: teamId,
+        p_actor: actorId,
+        p_purpose: 'download_range',
+        p_material: materialId,
+        p_destination: null,
+        p_tool: 'download:agent',
+        p_max_range_bytes: RANGE_REQUEST_MAX_BYTES,
+        p_expires_at: expiresAt,
+        p_max_uses: maxUses
+      });
+      return {
+        transferUrl: rangeEndpoint(request),
+        grant: {
+          ticket,
+          purpose: 'download_range',
+          expiresAt,
+          maxRangeBytes: RANGE_REQUEST_MAX_BYTES,
+          maxUses
+        }
+      };
+    },
     hashHex: async value => byteaHex(await sha256(value)),
     randomToken: () => {
       const bytes = crypto.getRandomValues(new Uint8Array(32));

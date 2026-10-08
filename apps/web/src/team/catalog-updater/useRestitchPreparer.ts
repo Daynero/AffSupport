@@ -115,13 +115,19 @@ export async function runRestitchClaim(
   let outcome: 'finalized' | 'failed' = 'failed';
   let code: string | null = null;
   try {
-    if (client.ensureImages && teamId) {
+    // A job that carries the space's drawn pictures (030) needs nothing from any library.
+    const drawn = Array.isArray(claim.options.screens) ? claim.options.screens : null;
+    if (!drawn && client.ensureImages && teamId) {
       await client.ensureImages(teamId, claim.options.defaults as TeamRestitchDefaults);
     }
     const result = await client.startProcess({
       operationId: claim.operationId,
       toolId: claim.toolId,
-      options: { defaults: claim.options.defaults, prepared: preparedFor(claim) },
+      options: {
+        defaults: claim.options.defaults,
+        prepared: preparedFor(claim),
+        ...(drawn ? { screens: drawn, teamId: claim.options.teamId ?? teamId } : {})
+      },
       sourceGrant: claim.sourceGrant,
       finalizeGrant: claim.finalizeGrant
     });
@@ -149,8 +155,12 @@ export function useRestitchPreparer(input: {
   /** Updater running with re-stitching on, the member may process, and the app is connected. */
   enabled: boolean;
   client?: RestitchPreparerClient;
+  /** Told once when the server says this page is too old to claim (030); claiming then stops. */
+  onOutdated?: () => void;
 }): { preparing: boolean } {
   const { teamId, enabled } = input;
+  const outdatedRef = useRef(input.onOutdated);
+  outdatedRef.current = input.onOutdated;
   const clientRef = useRef(input.client ?? defaultClient);
   clientRef.current = input.client ?? defaultClient;
   const [preparing, setPreparing] = useState(false);
@@ -200,7 +210,14 @@ export function useRestitchPreparer(input: {
       try {
         claim = await clientRef.current.claimRestitchJob(teamId);
         failures = 0;
-      } catch {
+      } catch (error) {
+        // This page predates the space's settings (030): nothing it claims could be run, so it
+        // stops asking until it is reloaded, and says so once.
+        if (errorCode(error) === 'RESTITCH_CLIENT_OUTDATED') {
+          stopped = true;
+          outdatedRef.current?.();
+          return;
+        }
         failures += 1;
         schedule(Math.min(MAX_BACKOFF_MS, POLL_MS * 2 ** Math.min(failures - 1, 4)));
         return;

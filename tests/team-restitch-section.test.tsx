@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -21,6 +21,8 @@ const track = vi.hoisted(() => vi.fn());
 vi.mock('../apps/web/src/analytics/service', () => ({ analytics: { track } }));
 
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
+const { CatalogFreshness, CatalogFreshnessContext } =
+  await import('../apps/web/src/team/catalog/CatalogFreshness');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
 const { AgentContextOverride } = await import('../apps/web/src/AgentContext');
 const { RestitchDefaultsSection } =
@@ -285,5 +287,30 @@ describe('a space’s re-stitching settings', () => {
       await screen.findByText('This needs the Soty app running on this computer.')
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(false);
+  });
+});
+
+describe('the pools follow the catalog (030)', () => {
+  it('re-reads the pools when the catalog says it moved, through the one realtime seam', async () => {
+    const value = client();
+    const freshness = new CatalogFreshness();
+    render(
+      <AgentContextOverride value={agentContextStub({ capabilities: ['stitcher'] })}>
+        <TeamProvider initialTeams={[owned]} realtime={false}>
+          <CatalogFreshnessContext.Provider value={freshness}>
+            <ToastProvider>
+              <RestitchDefaultsSection teamId={TEAM_ID} client={value} />
+            </ToastProvider>
+          </CatalogFreshnessContext.Provider>
+        </TeamProvider>
+      </AgentContextOverride>
+    );
+    expect(await screen.findByText('Openers')).toBeTruthy();
+    await waitFor(() => expect(freshness.isFresh(TEAM_ID)).toBe(true));
+    expect(value.listRestitchSources).toHaveBeenCalledTimes(1);
+    // A folder renamed, a picture binned: the explorer invalidates, and the panel re-reads.
+    act(() => freshness.invalidate(TEAM_ID));
+    await waitFor(() => expect(value.listRestitchSources).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(freshness.isFresh(TEAM_ID)).toBe(true));
   });
 });

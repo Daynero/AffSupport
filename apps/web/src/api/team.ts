@@ -116,6 +116,7 @@ import {
   parseMaterialRestitchPrep,
   parseRestitchDrawResult,
   parseRestitchSourcesListing,
+  RESTITCH_CONTRACT_VERSION,
   parseTeamRestitchDefaults,
   type MaterialRestitchPrep,
   type TeamRestitchDefaults
@@ -281,7 +282,7 @@ export interface RestitchClaim {
   toolId: 'restitch';
   videoMaterialId: string;
   videoDriveVersion: string | null;
-  options: { defaults: unknown; prepared: unknown };
+  options: { defaults: unknown; prepared: unknown; screens?: unknown; teamId?: unknown };
   sourceGrant: TeamTransferGrant;
   finalizeGrant: TeamTransferGrant;
 }
@@ -323,6 +324,8 @@ export interface CatalogUpdaterState {
   catalogCount: number;
   failingCount: number;
   spareReadyCount: number | null;
+  /** Why the spare copies stand still, when a job was given back for a reason a person can fix (030). */
+  restitchBlockedCode: TeamErrorCode | null;
   serverNow: string;
 }
 
@@ -350,6 +353,11 @@ function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
     catalogCount: row.catalogCount,
     failingCount: row.failingCount,
     spareReadyCount: typeof row.spareReadyCount === 'number' ? row.spareReadyCount : null,
+    restitchBlockedCode:
+      typeof row.restitchBlockedCode === 'string' &&
+      (TEAM_ERROR_CODES as readonly string[]).includes(row.restitchBlockedCode)
+        ? (row.restitchBlockedCode as TeamErrorCode)
+        : null,
     serverNow: row.serverNow
   };
 }
@@ -2047,7 +2055,8 @@ export const teamApi = {
   async claimRestitchJob(teamId: string): Promise<RestitchClaim | null> {
     const value = await invokeTeamFunction(
       'drive-ops/updater/claim',
-      { teamId },
+      // Says which claim this tab speaks (030): a space on Drive pools refuses an older one.
+      { teamId, restitchContractVersion: RESTITCH_CONTRACT_VERSION },
       restitchClaimGuard
     );
     return value.job;

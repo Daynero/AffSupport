@@ -697,6 +697,48 @@ revoke all on function public.service_draw_restitch_screens(uuid, uuid, uuid[])
 grant execute on function public.service_draw_restitch_screens(uuid, uuid, uuid[]) to service_role;
 
 -- ---------------------------------------------------------------------------------------------
+-- 7b. What the catalog updater's claim needs from the server side: the space's settings as the
+--     owner sees them (background copies never use the claimer's), and the facts a download
+--     grant on a drawn picture is issued from, behind the claimer's own download right.
+-- ---------------------------------------------------------------------------------------------
+
+create or replace function public.service_get_space_restitch_defaults(p_team uuid)
+returns jsonb language plpgsql security definer set search_path = '' stable as $$
+declare
+  v_owner uuid;
+begin
+  select owner_id into v_owner from public.teams where id = p_team;
+  if v_owner is null then return null; end if;
+  return private.effective_restitch_defaults_json(p_team, v_owner);
+end;
+$$;
+revoke all on function public.service_get_space_restitch_defaults(uuid)
+  from public, anon, authenticated, service_role;
+grant execute on function public.service_get_space_restitch_defaults(uuid) to service_role;
+
+create or replace function public.service_restitch_screen_context(
+  p_team uuid, p_actor uuid, p_material uuid
+)
+returns table (material_id uuid, drive_file_id text, size_bytes bigint, checksum text, mime_type text)
+language plpgsql security definer set search_path = '' stable as $$
+begin
+  if p_actor is null or not private.can(p_team, 'download', p_actor) then
+    raise exception 'RESTITCH_SOURCE_FORBIDDEN' using errcode = '42501';
+  end if;
+  return query
+  select material.id, material.drive_file_id, material.size_bytes, material.checksum, material.mime_type
+  from public.team_materials as material
+  join public.team_drive_connections as connection
+    on connection.id = material.connection_id and connection.state = 'connected'
+  where material.id = p_material and material.team_id = p_team
+    and material.lifecycle = 'active' and material.kind = 'file' and material.category = 'image';
+end;
+$$;
+revoke all on function public.service_restitch_screen_context(uuid, uuid, uuid)
+  from public, anon, authenticated, service_role;
+grant execute on function public.service_restitch_screen_context(uuid, uuid, uuid) to service_role;
+
+-- ---------------------------------------------------------------------------------------------
 -- 8. Deferring a catalog job whose pool is empty: queued again after the given interval, the
 --    attempt the claim counted given back, the reason recorded. Not a failure, not a retry loop.
 -- ---------------------------------------------------------------------------------------------
@@ -732,6 +774,61 @@ $$;
 revoke all on function public.service_defer_restitch_job(uuid, bytea, text, interval)
   from public, anon, authenticated, service_role;
 grant execute on function public.service_defer_restitch_job(uuid, bytea, text, interval) to service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- 8b. The updater's state tells the chip why its spare copies stand still: a job deferred for
+--     an empty pool, or failed because the claimer may not download, is the one reason a
+--     person can act on, and it was invisible.
+-- ---------------------------------------------------------------------------------------------
+
+create or replace function private.catalog_updater_state(p_team uuid)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+stable
+as $$
+  select jsonb_build_object(
+    'state', coalesce(updater.state, 'stopped'),
+    'interval', coalesce(updater.update_interval, '1h'),
+    'restitch', coalesce(updater.restitch, false),
+    'nextRunAt', updater.next_run_at,
+    'startedAt', updater.started_at,
+    'catalogCount', (
+      select count(*) from public.team_catalog_updater_items as item
+      where item.team_id = p_team and item.update_interval is not null
+    ),
+    'failingCount', (
+      select count(*)
+      from public.team_catalog_updater_items as item
+      join public.team_product_catalogs as record
+        on record.material_id = item.catalog_material_id
+      where item.team_id = p_team
+        and item.attempts >= 3
+        and record.last_update_error is not null
+    ),
+    'spareReadyCount', case when coalesce(updater.restitch, false) then (
+      select count(*)
+      from public.team_catalog_updater_items as item
+      join public.team_catalog_restitch_copies as copy
+        on copy.catalog_material_id = item.catalog_material_id and copy.role = 'spare'
+      where item.team_id = p_team and item.update_interval is not null
+    ) end,
+    'restitchBlockedCode', case when coalesce(updater.restitch, false) then (
+      select job.last_error_code
+      from private.catalog_restitch_jobs as job
+      where job.team_id = p_team and job.state = 'queued'
+        and job.last_error_code in ('RESTITCH_POOL_EMPTY', 'RESTITCH_SOURCE_FORBIDDEN', 'RESTITCH_INVALID')
+        and job.next_attempt_at > clock_timestamp()
+      order by job.next_attempt_at desc
+      limit 1
+    ) end,
+    'device', null,
+    'serverNow', clock_timestamp()
+  )
+  from (select 1) as anchor
+  left join public.team_catalog_updaters as updater on updater.team_id = p_team;
+$$;
 
 -- ---------------------------------------------------------------------------------------------
 -- 9. The codes the contract seed must know, and the bucket closed to writes (FR-028). Reading

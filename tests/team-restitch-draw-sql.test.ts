@@ -212,3 +212,47 @@ describe('whose pool', () => {
     expect(elapsed).toBeLessThan(5_000);
   });
 });
+
+describe('what the updater’s claim reads (030)', () => {
+  it('gets the space’s settings as the owner sees them, whoever asks', async () => {
+    await harness.asUser(
+      RESTITCH_VIEWER,
+      'select public.set_member_restitch_use_owner($1, false)',
+      [space.teamId]
+    );
+    const rows = await harness.root<{ settings: { sourceMode: string; updatedBy: string } }>(
+      'select public.service_get_space_restitch_defaults($1) as settings',
+      [space.teamId]
+    );
+    expect(rows[0]!.settings).toMatchObject({ sourceMode: 'drive', updatedBy: RESTITCH_OWNER });
+  });
+
+  it('hands out a picture’s facts for a grant only to a member who may download', async () => {
+    const facts = await harness.root<{ material_id: string; size_bytes: number; checksum: string }>(
+      'select material_id, size_bytes, checksum from public.service_restitch_screen_context($1, $2, $3)',
+      [space.teamId, RESTITCH_VIEWER, space.images.loose]
+    );
+    expect(facts[0]).toMatchObject({ material_id: space.images.loose, size_bytes: 100000 });
+    await expect(
+      harness.root('select * from public.service_restitch_screen_context($1, $2, $3)', [
+        space.teamId,
+        RESTITCH_PROCESSOR,
+        space.images.loose
+      ])
+    ).rejects.toThrow(/RESTITCH_SOURCE_FORBIDDEN/);
+    expect(
+      await harness.root('select * from public.service_restitch_screen_context($1, $2, $3)', [
+        space.teamId,
+        RESTITCH_VIEWER,
+        space.video
+      ])
+    ).toEqual([]);
+    await expect(
+      harness.root('select * from public.service_restitch_screen_context($1, $2, $3)', [
+        space.teamId,
+        RESTITCH_STRANGER,
+        space.images.loose
+      ])
+    ).rejects.toThrow(/RESTITCH_SOURCE_FORBIDDEN/);
+  });
+});

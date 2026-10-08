@@ -3,6 +3,7 @@ import { catalogCountKey, useI18n } from '../../i18n';
 import type { CatalogUpdaterState } from '../../api/team';
 import { UpdaterCountdown } from './UpdaterCountdown';
 import { WorkspaceChip } from '../workspace/WorkspaceChip';
+import { teamErrorMessageFor } from '../errors';
 
 /**
  * The catalog updater beside the space settings (023, US3).
@@ -60,6 +61,11 @@ export function CatalogUpdaterChip({
             count: state.catalogCount
           })}
         </span>
+      )}
+      {/* The one reason a person can act on when the spares stand still (030): the pool the
+          copies draw pictures from is empty, or the claimer may not download them. */}
+      {!oneOff && state.restitch && state.restitchBlockedCode && (
+        <span>{teamErrorMessageFor(new Error(state.restitchBlockedCode), t)}</span>
       )}
       {attention && <span>{t('catalogUpdaterChipAttention')}</span>}
     </WorkspaceChip>
