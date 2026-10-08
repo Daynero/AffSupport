@@ -123,3 +123,36 @@ real preparation, and a timed re-stitched download.
 - **A material is always "not prepared".** It is probably a refusal: read
   `unsupported_reason` on its row. `video-codec` means the fast path cannot copy that body, and
   no amount of preparing will change it.
+
+## Pictures from the space (030)
+
+Since feature 030 a space's start and end pictures are not copies of anyone's library. The
+owner picks **sources** — image files and folders of the connected Drive — into two pools, one
+per slot, with the same pickers the tasks and the catalog use. The server resolves a pool into
+its effective set at read time (PNG, JPEG, WebP; up to 50 MB; one entry per distinct md5; the
+first 500 in name order) and reports every source's availability: in the bin, deleted, outside
+the connected folder, unsupported, waiting for the catalog, or disconnected. Saving needs no
+running app, and no byte of any picture passes through a server.
+
+For a job the server **draws** one picture per enabled slot (`draw_restitch_screens`, uniform
+over distinct bytes) and the browser takes an ordinary download grant on each; the agent
+receives the screens with the job and keeps them in its own cache, `TeamScreens/<materialId>-<md5>`,
+never in the compressor's library. A picture it already has with the same md5 is not fetched
+again; a picture replaced in Drive gets a new key; copies no pool wants age out after thirty
+days or past five hundred per space. When the fetch fails but the copy is there, the copy wins.
+Phone photographs stand upright: the EXIF orientation is read from the bytes and applied as a
+filter with FFmpeg's autorotation off and the display matrix cleared, so the result is the same
+on every FFmpeg build.
+
+Background copies for the catalog updater always draw the **space's** pool with the owner's
+settings, whoever's tab claims the job; a member's personal pool applies only to their own
+interactive downloads. A claim from a page that predates Drive pools is refused before any job
+is taken (`RESTITCH_CLIENT_OUTDATED`); an app that predates them is told so by the page. A pool
+with nothing to give defers the job for an hour without spending an attempt, and the updater
+chip says why.
+
+Spaces saved before 030 keep working the old way (their settings say `legacy`) and see a banner
+asking the owner to pick from the space or to move the old pictures into it. Moving reads them
+from the bucket, uploads them into `Re-stitch images/<slot>` through the ordinary relay, and adds
+that folder to the slot's pool. The bucket's INSERT policy is gone; its objects wait for the
+approved list in `supabase/migrations/20261105100000_restitch_bucket_retirement.sql`.

@@ -19,22 +19,22 @@ corrected when the background path is decided (see R6).
 Updated 2026-10-08 after commit 30d4d506 and an independent code audit of HEAD
 dcb83eb1. "Persistent" means bytes stay on Soty infrastructure after the request.
 
-| Path                                      | Current destination                                                                                                        | Persistent on Soty | Required change                                                                |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------ |
-| Local stitcher image library              | Local agent `Images` directory                                                                                             | no                 | Keep local                                                                     |
-| Space re-stitching settings               | Supabase `team-restitch-images` (`apps/web/src/team/restitch/images.ts`)                                                   | **yes**            | Replace publication with Drive material references (below)                     |
-| Provider image/video thumbnails           | Drive `Soty Cache/Thumbnails` via `drive-transfer` and `preview-warm` (since 30d4d506)                                     | no                 | Fix the cache defects listed under "Drive cache defects"                       |
-| Locally generated video poster            | Agent → `drive-transfer poster_frame` (base64 in JSON) → Drive cache                                                       | no                 | Keep; add a write-capability check before storing                              |
-| Thumbnail copy after Drive operations     | `drive-ops copyCachedThumbnail`, Drive → Drive                                                                             | no                 | Add legacy-bucket fallback until the bucket is gone                            |
-| Legacy thumbnail objects                  | Supabase `team-thumbnail-cache`, read-only, copied to Drive on access                                                      | **yes** (7,904)    | Block writes at the policy level; inventory; delete after verification         |
-| Processed video output                    | Agent → validated Google resumable upload session, direct to Google                                                        | no                 | Keep                                                                           |
-| Browser uploads and task attachment drops | `drive-ops /uploads/:id/relay`, edge function → Drive                                                                      | no (transient)     | Keep; document as an allowed transient relay                                   |
-| Preview, download, agent process input    | `drive-transfer GET /range`, edge function streams Drive bytes with `no-store`                                             | no (transient)     | Keep; document as an allowed transient relay                                   |
-| Landing render segments                   | Agent/browser → `drive-transfer /landing-artifacts` → Drive `Soty Cache/Landing previews`; served back via `/render-range` | no (transient)     | Keep; fix the first-page-only folder lookup (D5)                               |
-| Catalog and finance xlsx                  | Built in edge-function memory; catalog goes to Drive beside the video, finance is returned `no-store`                      | no (transient)     | Keep                                                                           |
-| ZIP archive inspection in `preview-warm`  | Byte ranges read into memory; only outcome and fingerprint persisted                                                       | no (transient)     | Keep                                                                           |
-| Transcript and text file contents         | `team_materials.transcript_text`, up to 1 MB per material                                                                  | **yes (text)**     | Explicitly allowed: derived text for search, not media. State it in the policy |
-| Catalog pool images and `share_copy`      | Drive files made "anyone with the link" readers for Meta and recipients                                                    | no                 | Not server storage, but a public exposure; name it in the policy               |
+| Path                                      | Current destination                                                                                                                | Persistent on Soty | Required change                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------- |
+| Local stitcher image library              | Local agent `Images` directory                                                                                                     | no                 | Keep local                                                                                   |
+| Space re-stitching settings               | Drive material references in `team_restitch_sources` (030, release B); the bucket is read-only for `legacy` spaces until release C | no (new writes)    | Done in feature 030; legacy reader and the 98 objects go with the gated retirement migration |
+| Provider image/video thumbnails           | Drive `Soty Cache/Thumbnails` via `drive-transfer` and `preview-warm` (since 30d4d506)                                             | no                 | Fix the cache defects listed under "Drive cache defects"                                     |
+| Locally generated video poster            | Agent → `drive-transfer poster_frame` (base64 in JSON) → Drive cache                                                               | no                 | Keep; add a write-capability check before storing                                            |
+| Thumbnail copy after Drive operations     | `drive-ops copyCachedThumbnail`, Drive → Drive                                                                                     | no                 | Add legacy-bucket fallback until the bucket is gone                                          |
+| Legacy thumbnail objects                  | Supabase `team-thumbnail-cache`, read-only, copied to Drive on access                                                              | **yes** (7,904)    | Block writes at the policy level; inventory; delete after verification                       |
+| Processed video output                    | Agent → validated Google resumable upload session, direct to Google                                                                | no                 | Keep                                                                                         |
+| Browser uploads and task attachment drops | `drive-ops /uploads/:id/relay`, edge function → Drive                                                                              | no (transient)     | Keep; document as an allowed transient relay                                                 |
+| Preview, download, agent process input    | `drive-transfer GET /range`, edge function streams Drive bytes with `no-store`                                                     | no (transient)     | Keep; document as an allowed transient relay                                                 |
+| Landing render segments                   | Agent/browser → `drive-transfer /landing-artifacts` → Drive `Soty Cache/Landing previews`; served back via `/render-range`         | no (transient)     | Keep; fix the first-page-only folder lookup (D5)                                             |
+| Catalog and finance xlsx                  | Built in edge-function memory; catalog goes to Drive beside the video, finance is returned `no-store`                              | no (transient)     | Keep                                                                                         |
+| ZIP archive inspection in `preview-warm`  | Byte ranges read into memory; only outcome and fingerprint persisted                                                               | no (transient)     | Keep                                                                                         |
+| Transcript and text file contents         | `team_materials.transcript_text`, up to 1 MB per material                                                                          | **yes (text)**     | Explicitly allowed: derived text for search, not media. State it in the policy               |
+| Catalog pool images and `share_copy`      | Drive files made "anyone with the link" readers for Meta and recipients                                                            | no                 | Not server storage, but a public exposure; name it in the policy                             |
 
 The analytics CLI reports lifecycle counters, not storage bytes. Live storage
 inventory previously found 98 re-stitch images and 7,904 thumbnail cache objects.
@@ -64,6 +64,20 @@ llama.cpp). Only two Storage buckets exist in migrations.
    must not require a running agent; running local processing still does.
 
 ### Requirements added by the 2026-10-08 audit
+
+**Status 2026-10-08:** R1–R11 are implemented by feature 030
+(`specs/030-restitch-drive-images/`, branch `030-restitch-drive-images`): own
+form state (R1), the agent's `TeamScreens` cache apart from the library (R2),
+server-side draw before any transfer with one retry on a refused grant (R3),
+material id + md5 identity with eviction (R4), selection-time format and size
+filters plus EXIF orientation applied with `-noautorotate -display_rotation 0`
+(R5), owner pool for background copies and the claimer's download right for the
+grant (R6), new columns plus `restitchContractVersion` and the
+`teamRestitchSources` agent capability (R7), legacy rows kept with a banner and a
+transfer into `Re-stitch images/<slot>` (R8), `partial`/`empty`/`disconnected`
+states with a deferred catalog job (R9), cache-first with a fallback to the local
+copy (R10), and the bucket's INSERT policy dropped in the same migration (R11).
+Open: the approved deletion of the legacy objects (T051/T052 of the feature).
 
 - **R1 Own form state.** Today the space panel _is_ the local compressor library:
   `RestitchDefaultsSection.tsx` mounts `ImageEmbeddingSection` on the agent and
