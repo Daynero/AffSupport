@@ -64,7 +64,7 @@
    fixed topbar, never over it, the same offset the compressor's intake uses. */
 .team-accounts-columns {
   position: sticky;
-  z-index: var(--layer-raised);
+  z-index: var(--layer-sticky);
   top: var(--topbar-h, 62px);
   display: grid;
   grid-template-columns: var(--team-agent-columns);

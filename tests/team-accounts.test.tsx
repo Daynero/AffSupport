@@ -277,9 +277,9 @@ describe('reading the list', () => {
   it('counts agents on the filter chips', async () => {
     render(client());
     await waitForGroups();
-    expect(chip('Show agents', /^All/).textContent).toBe('All3');
-    expect(chip('Show agents', /^Free/).textContent).toBe('Free1');
-    expect(chip('Show agents', /^Running/).textContent).toBe('Running2');
+    expect(chip('Show ad accounts', /^All/).textContent).toBe('All3');
+    expect(chip('Show ad accounts', /^Free/).textContent).toBe('Free1');
+    expect(chip('Show ad accounts', /^Running/).textContent).toBe('Running2');
   });
 
   it('says so when there are no accounts, and offers to add one', async () => {
@@ -322,14 +322,14 @@ describe('handing an id over', () => {
 });
 
 /** The occupancy chips share their names with the marker menu; this says which. */
-function chip(group: 'Show agents', name: RegExp) {
+function chip(group: 'Show ad accounts', name: RegExp) {
   return within(screen.getByRole('group', { name: group })).getByRole('button', { name });
 }
 
 /** The marker filter is a menu behind one trigger; this opens it. */
 async function openMarkers(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /^Markers/ }));
-  return within(screen.getByRole('dialog', { name: 'Filter agents by run marker' }));
+  return within(screen.getByRole('dialog', { name: 'Filter ad accounts by run marker' }));
 }
 
 describe('filtering', () => {
@@ -337,7 +337,7 @@ describe('filtering', () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
-    await user.click(chip('Show agents', /^Free/));
+    await user.click(chip('Show ad accounts', /^Free/));
     // v12 has no agents at all, which is as free as it gets; v3 is fully busy.
     expect(groupNames()).toEqual(['v12', 'v31']);
     expect(rows()).toHaveLength(1);
@@ -348,7 +348,7 @@ describe('filtering', () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
-    await user.click(chip('Show agents', /^Running/));
+    await user.click(chip('Show ad accounts', /^Running/));
     expect(groupNames()).toEqual(['v3', 'v31']);
     expect(rows().every(row => row.getAttribute('data-free') === 'false')).toBe(true);
   });
@@ -361,8 +361,8 @@ describe('filtering', () => {
     await user.type(search, 'slim');
     expect(groupNames()).toEqual(['v3']);
     // The chips count what the search left, not the whole space.
-    expect(chip('Show agents', /^All/).textContent).toBe('All1');
-    expect(chip('Show agents', /^Running/).textContent).toBe('Running1');
+    expect(chip('Show ad accounts', /^All/).textContent).toBe('All1');
+    expect(chip('Show ad accounts', /^Running/).textContent).toBe('Running1');
     await user.clear(search);
     await user.type(search, '765401');
     expect(rows()).toHaveLength(1);
@@ -465,7 +465,7 @@ describe('writing a run', () => {
     const field = screen.getByRole('textbox', { name: /^Run,/ });
     expect(document.activeElement).toBe(field);
     // The id is not editable on this path: the quick path is the run alone.
-    expect(screen.queryByRole('textbox', { name: 'Full agent ID' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Full ad account ID' })).toBeNull();
     await user.type(field, 'Keto | PL 05/09{Enter}');
 
     await waitFor(() =>
@@ -559,7 +559,7 @@ describe('writing a run', () => {
     await user.type(screen.getByRole('textbox', { name: /^Run,/ }), 'half a thou');
     const busyRow = rows().find(row => row.textContent?.includes('Slim Fit'))!;
     await openAgentMenu(user, busyRow);
-    await user.click(screen.getByRole('menuitem', { name: /^Edit agent/ }));
+    await user.click(screen.getByRole('menuitem', { name: /^Edit ad account/ }));
     // Still one editor, still holding the typing, now with the reason.
     expect(screen.getAllByRole('textbox', { name: /^Run,/ })).toHaveLength(1);
     expect((screen.getByRole('textbox', { name: /^Run,/ }) as HTMLInputElement).value).toBe(
@@ -569,8 +569,8 @@ describe('writing a run', () => {
     // Letting go (Escape in the field, or its cancel mark) frees the way.
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await openAgentMenu(user, busyRow);
-    await user.click(screen.getByRole('menuitem', { name: /^Edit agent/ }));
-    expect(screen.getByRole('textbox', { name: 'Full agent ID' })).toBeTruthy();
+    await user.click(screen.getByRole('menuitem', { name: /^Edit ad account/ }));
+    expect(screen.getByRole('textbox', { name: 'Full ad account ID' })).toBeTruthy();
   });
 
   it('abandons the run field on Escape without saving', async () => {
@@ -601,7 +601,7 @@ describe('accounts and agents', () => {
       expect(api.createAccount).toHaveBeenCalledWith({ teamId: TEAM_ID, name: 'v40' })
     );
     // The agent editor is already open inside the new account.
-    const idField = await screen.findByRole('textbox', { name: 'Full agent ID' });
+    const idField = await screen.findByRole('textbox', { name: 'Full ad account ID' });
     expect(document.activeElement).toBe(idField);
     await user.type(idField, '2000000000777{Enter}');
     await waitFor(() =>
@@ -616,9 +616,9 @@ describe('accounts and agents', () => {
     const v40 = screen.getByRole('region', { name: 'v40' });
     expect(within(v40).getByLabelText('v40-777')).toBeTruthy();
     // The editor stays open, emptied, for the next agent; the toast is the receipt.
-    expect((screen.getByRole('textbox', { name: 'Full agent ID' }) as HTMLInputElement).value).toBe(
-      ''
-    );
+    expect(
+      (screen.getByRole('textbox', { name: 'Full ad account ID' }) as HTMLInputElement).value
+    ).toBe('');
     expect(screen.getByText('v40-777 added')).toBeTruthy();
   });
 
@@ -630,8 +630,8 @@ describe('accounts and agents', () => {
     await user.click(screen.getByRole('button', { name: /^Running/ }));
     await user.click(screen.getByRole('button', { name: 'Add account' }));
     await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v40{Enter}');
-    // No agents yet, so the filter alone would drop it — but its editor is open.
-    expect(await screen.findByRole('textbox', { name: 'Full agent ID' })).toBeTruthy();
+    // No ad accounts yet, so the filter alone would drop it — but its editor is open.
+    expect(await screen.findByRole('textbox', { name: 'Full ad account ID' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'v40' })).toBeTruthy();
   });
 
@@ -662,8 +662,8 @@ describe('accounts and agents', () => {
     render(api);
     await waitForGroups();
     const v12 = screen.getByRole('region', { name: 'v12' });
-    await user.click(within(v12).getByRole('button', { name: 'Add agent' }));
-    await user.type(screen.getByRole('textbox', { name: 'Full agent ID' }), '10 00{Enter}');
+    await user.click(within(v12).getByRole('button', { name: 'Add ad account' }));
+    await user.type(screen.getByRole('textbox', { name: 'Full ad account ID' }), '10 00{Enter}');
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'An ID is 1–64 characters without spaces.'
@@ -680,7 +680,7 @@ describe('accounts and agents', () => {
     await user.click(within(v31).getByRole('button', { name: 'Delete account: v31' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Delete v31?')).toBeTruthy();
-    expect(within(dialog).getByText('Its 2 agents and their runs go with it.')).toBeTruthy();
+    expect(within(dialog).getByText('Its 2 ad accounts and their runs go with it.')).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Delete the account' }));
     await waitFor(() =>
       expect(api.deleteAccount).toHaveBeenCalledWith({ teamId: TEAM_ID, accountId: V31 })
@@ -752,8 +752,8 @@ describe('the row menu', () => {
 
     await user.click(trigger);
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    const edit = screen.getByRole('menuitem', { name: /^Edit agent/ });
-    const remove = screen.getByRole('menuitem', { name: /^Delete agent/ });
+    const edit = screen.getByRole('menuitem', { name: /^Edit ad account/ });
+    const remove = screen.getByRole('menuitem', { name: /^Delete ad account/ });
     expect(document.activeElement).toBe(edit);
 
     await user.keyboard('{ArrowDown}');
@@ -801,7 +801,7 @@ describe('the row menu', () => {
     const row = rows().find(item => item.textContent?.includes('Pro Caps'))!;
     const trigger = within(row).getByRole('button', { name: /^More actions for/ });
     await user.click(trigger);
-    await user.click(screen.getByRole('menuitem', { name: /^Delete agent/ }));
+    await user.click(screen.getByRole('menuitem', { name: /^Delete ad account/ }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(document.activeElement).toBe(trigger));
@@ -817,17 +817,17 @@ describe('deleting an agent', () => {
     const row = rows().find(item => item.textContent?.includes('Pro Caps'))!;
     const rowId = row.getAttribute('data-agent-row-id');
     await user.click(within(row).getByRole('button', { name: /^More actions for/ }));
-    await user.click(screen.getByRole('menuitem', { name: /^Delete agent/ }));
+    await user.click(screen.getByRole('menuitem', { name: /^Delete ad account/ }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Delete v31-434?')).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Delete agent' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete ad account' }));
 
     await waitFor(() =>
       expect(api.deleteAccountAgent).toHaveBeenCalledWith(
         expect.objectContaining({ agentRowId: rowId })
       )
     );
-    await waitFor(() => expect(screen.getByText('Agent deleted')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Ad account deleted')).toBeTruthy());
     // The row and its dialog went together, so the focus must be handed on
     // rather than left on the body with the whole list to tab through again.
     await waitFor(() => {
@@ -871,8 +871,8 @@ describe('an editor a filter would close over', () => {
 
     const row = rows().find(item => item.textContent?.includes('v31-434'))!;
     await user.click(within(row).getByRole('button', { name: /^More actions for/ }));
-    await user.click(screen.getByRole('menuitem', { name: /^Edit agent/ }));
-    expect(screen.getByRole('textbox', { name: 'Full agent ID' })).toBeTruthy();
+    await user.click(screen.getByRole('menuitem', { name: /^Edit ad account/ }));
+    expect(screen.getByRole('textbox', { name: 'Full ad account ID' })).toBeTruthy();
 
     // Narrowing the search under an open editor drops the account it is in.
     // It is held back on screen — but only with the row under the caret, in
@@ -880,7 +880,7 @@ describe('an editor a filter would close over', () => {
     await user.clear(search);
     await user.type(search, 'zzz');
     const v31 = screen.getByRole('region', { name: 'v31' });
-    expect(within(v31).getByRole('textbox', { name: 'Full agent ID' })).toBeTruthy();
+    expect(within(v31).getByRole('textbox', { name: 'Full ad account ID' })).toBeTruthy();
     expect(v31.textContent).not.toContain('v31-401');
   });
 });
@@ -909,7 +909,7 @@ describe('searching', () => {
     await waitForGroups();
     await user.type(screen.getByRole('searchbox', { name: 'Search accounts' }), '765434');
     const v31 = screen.getByRole('region', { name: 'v31' });
-    expect(within(v31).getByText('1 of 2 agents')).toBeTruthy();
+    expect(within(v31).getByText('1 of 2 ad accounts')).toBeTruthy();
   });
 });
 
@@ -929,8 +929,8 @@ describe('folding an account', () => {
     expect(within(v31).getByLabelText('v31-434')).toBeTruthy();
 
     // Its own buttons do their own work and leave the fold alone.
-    await user.click(within(v31).getByRole('button', { name: 'Add agent' }));
-    expect(await screen.findByRole('textbox', { name: 'Full agent ID' })).toBeTruthy();
+    await user.click(within(v31).getByRole('button', { name: 'Add ad account' }));
+    expect(await screen.findByRole('textbox', { name: 'Full ad account ID' })).toBeTruthy();
     expect(within(v31).getByLabelText('v31-434')).toBeTruthy();
   });
 });
@@ -963,7 +963,7 @@ describe('a viewer', () => {
     render(client(), 'viewer');
     await waitForGroups();
     expect(screen.queryByRole('button', { name: 'Add account' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Add agent' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add ad account' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Add a run to/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Assign a run to/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Make free/ })).toBeNull();
@@ -1101,13 +1101,15 @@ describe('the money on an agent', () => {
     render(api);
     await waitForGroups();
 
-    await user.click(screen.getByRole('button', { name: 'Tag the agent v31-434' }));
-    const menu = await screen.findByRole('listbox', { name: 'Agent tags' });
+    await user.click(screen.getByRole('button', { name: 'Tag the ad account v31-434' }));
+    const menu = await screen.findByRole('listbox', { name: 'Ad account tags' });
     await user.click(within(menu).getByRole('option', { name: /#2/ }));
 
     await waitFor(() => expect(api.attachAgentLabel).toHaveBeenCalled());
     // No second press into empty space: choosing the tag put the list away.
-    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Agent tags' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('listbox', { name: 'Ad account tags' })).toBeNull()
+    );
   });
 
   it('says how many of an account’s agents carry each tag', async () => {
@@ -1125,9 +1127,9 @@ describe('the money on an agent', () => {
     const head = groups()
       .map(group => group.querySelector('.team-account-meta') as HTMLElement)
       .find(meta => meta.textContent?.includes('#2'))!;
-    expect(within(head).getByTitle('2 agents tagged #2').textContent).toContain('#2');
-    expect(within(head).getByTitle('2 agents tagged #2').textContent).toContain('2');
-    expect(within(head).getByTitle('1 agents tagged #5').textContent).toContain('#5');
+    expect(within(head).getByTitle('2 ad accounts tagged #2').textContent).toContain('#2');
+    expect(within(head).getByTitle('2 ad accounts tagged #2').textContent).toContain('2');
+    expect(within(head).getByTitle('1 ad accounts tagged #5').textContent).toContain('#5');
   });
 
   it('clears the balances on their own, and leaves the top-ups alone', async () => {

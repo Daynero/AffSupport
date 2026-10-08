@@ -304,6 +304,7 @@ function CatalogRow({
         {mayChange && (
           <>
             <IconButton
+              title=""
               ref={trigger}
               size="sm"
               variant="ghost"

@@ -3629,6 +3629,20 @@ export const teamApi = {
     );
   },
 
+  async copyTasks(input: { teamId: string; taskIds: string[] }): Promise<string[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('copy_team_tasks', {
+        p_team: input.teamId,
+        p_tasks: input.taskIds
+      })
+    );
+    throwRpc(error);
+    if (!Array.isArray(data) || data.some(id => typeof id !== 'string')) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return data;
+  },
+
   async createTask(input: {
     teamId: string;
     title: string;

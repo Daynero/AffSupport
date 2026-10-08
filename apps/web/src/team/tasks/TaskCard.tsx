@@ -242,6 +242,7 @@ export function TaskCard({
         {actions && menuItems.length > 0 && (
           <>
             <IconButton
+              title=""
               ref={menuAnchor}
               size="xs"
               variant="ghost"

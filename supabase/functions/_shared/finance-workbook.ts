@@ -31,7 +31,7 @@ export function financeWorkbookSheets(snapshot: FinanceSnapshot): XlsxSheet[] {
       [text('Період · USD'), text(`${snapshot.from} — ${snapshot.to}`)],
       [text('Створено'), text(snapshot.generatedAt)],
       [text('Дата · USD'), ...report.columns.map(c => text(c.accountName))],
-      [text('Агент'), ...report.columns.map(c => text(c.agentId))],
+      [text('РК'), ...report.columns.map(c => text(c.agentId))],
       ...report.dates.map(date => [
         text(date),
         ...report.columns.map(c => amount(report.cell(c.accountId, c.agentRowId, date, metric)))
@@ -49,7 +49,7 @@ export function financeWorkbookSheets(snapshot: FinanceSnapshot): XlsxSheet[] {
       sheetName: 'Виписка поповнень',
       freezeRows: 1,
       rows: [
-        [text('Дата'), text('Соц'), text('Агент'), text('Сума · USD')],
+        [text('Дата'), text('Соц'), text('РК'), text('Сума · USD')],
         ...report.topups.map(r => [
           text(r.date),
           text(r.accountName),
@@ -77,7 +77,7 @@ export function financeWorkbookSheets(snapshot: FinanceSnapshot): XlsxSheet[] {
           amount(a.totals.topup)
         ]),
         ...report.agents.map(a => [
-          text('Агент'),
+          text('РК'),
           text(a.agentId),
           amount(a.totals.spend),
           amount(a.totals.topup)

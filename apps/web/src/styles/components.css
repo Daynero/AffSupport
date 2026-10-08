@@ -816,6 +816,10 @@
   pointer-events: none;
 }
 .ui-select-popover {
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - var(--space-4));
+  overflow: hidden;
   z-index: var(--layer-anchored);
   padding: var(--space-1);
   border: 1px solid var(--color-neutral-border);
@@ -824,6 +828,7 @@
   box-shadow: var(--shadow-menu);
 }
 .ui-select-list {
+  min-height: 0;
   display: grid;
   gap: var(--space-px);
   max-height: 44vh;
@@ -1502,6 +1507,10 @@
   box-shadow: var(--shadow-menu);
   transform-origin: top left;
   animation: ui-surface-in var(--motion-fast) var(--ease-out-curve);
+  overflow: auto;
+  overscroll-behavior: contain;
+  grid-auto-rows: max-content;
+  align-content: start;
 }
 .ui-popover--bottom-end,
 .ui-popover--top-end {
@@ -1516,6 +1525,21 @@
 /* Opened dozens of times an hour: no animation at all. */
 .ui-popover.is-frequent {
   animation: none;
+}
+
+/* React Aria owns the menu's coordinates and available height. Scroll the
+   menu itself: its default overflow-clip otherwise hides the last actions. */
+.ui-menu-popover {
+  display: flex;
+  flex-direction: column;
+  min-width: min(200px, calc(100vw - var(--space-6)));
+  max-width: min(340px, calc(100vw - var(--space-4)));
+  overflow: hidden;
+}
+.ui-menu-popover > .ui-menu {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .ui-menu {
@@ -2642,6 +2666,15 @@
 .team-accounts-table.finance-daily-table {
   --team-agent-columns: var(--team-agent-rail) var(--team-agent-id-width)
     repeat(3, minmax(var(--finance-date-column-width), 1fr)) var(--finance-row-actions-width);
+}
+.finance-daily-header {
+  position: sticky;
+  top: var(--topbar-h, 62px);
+  z-index: var(--layer-sticky);
+  background: var(--color-surface);
+}
+.finance-daily-header .finance-daily-columns {
+  position: static;
 }
 .finance-daily-table .team-agent-row.finance-daily-row {
   display: grid;

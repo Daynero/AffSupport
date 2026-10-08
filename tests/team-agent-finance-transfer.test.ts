@@ -27,6 +27,14 @@ it('allows deleting a transferred agent with no financial history', async () => 
   expect(
     await f.db.root('select account_id from public.team_account_agents where id=$1', [f.agent])
   ).toEqual([{ account_id: f.accounts[1] }]);
+  expect(
+    (
+      await f.db.root<{ tags: { account_name: string }[] }>(
+        'select private.team_task_agent_tags($1) as tags',
+        [f.task]
+      )
+    )[0]!.tags[0]!.account_name
+  ).toBe('X');
   await f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account_agent($1,$2)', [
     f.team,
     f.agent
@@ -54,7 +62,7 @@ it('protects a former social account when the agent gained financial history aft
   );
   await f.db.asUser(
     FINANCE_OWNER,
-    'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8)',
+    'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
     [f.team, f.agent, '2026-09-16', 'spend', '40.00', '0', 'UTC', randomUUID()]
   );
   await expect(
@@ -86,7 +94,7 @@ it('rejects invalid targets, ID collisions and dates with cleared entries; retri
     ]);
   await expect(call(f.accounts[0]!, '2026-09-25')).rejects.toThrow(/TRANSFER_DATE_INVALID/);
   await expect(call(f.otherAccount, '2026-09-25')).rejects.toThrow(/NOT_FOUND/);
-  await expect(call(f.accounts[1]!, '2026-01-01')).rejects.toThrow(/TRANSFER_DATE_INVALID/);
+  await expect(call(f.accounts[1]!, '2025-12-31')).rejects.toThrow(/TRANSFER_DATE_INVALID/);
   const duplicate = (
     await f.db.asUser<{ id: string }>(
       FINANCE_OWNER,
@@ -105,7 +113,7 @@ it('rejects invalid targets, ID collisions and dates with cleared entries; retri
   ] as const)
     await f.db.asUser(
       FINANCE_OWNER,
-      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8)',
+      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
       [f.team, f.agent, '2026-09-25', 'spend', value, version, 'UTC', randomUUID()]
     );
   await expect(call(f.accounts[1]!, '2026-09-25')).rejects.toThrow(/TRANSFER_DATE_INVALID/);
@@ -139,7 +147,7 @@ it('preserves the same agent through X → Y → X and attributes backdated mone
   await move(f.accounts[0]!, '2026-09-20');
   await f.db.asUser(
     FINANCE_OWNER,
-    'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8)',
+    'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
     [f.team, f.agent, '2026-09-16', 'spend', '40.00', '0', 'UTC', randomUUID()]
   );
   const value = await f.db.root<{ account_id: string }>(
@@ -179,4 +187,132 @@ it('preserves the same agent through X → Y → X and attributes backdated mone
     cursor = page.nextCursor;
   }
   expect(new Set(seen).size).toBe(3);
+});
+
+it('rejects a stale empty draft after a transfer and retains historical task tags', async () => {
+  const p = (
+    await f.db.root<{ id: string; version: string }>(
+      'select id,version::text from public.team_agent_placements where agent_row_id=$1 and ends_on is null',
+      [f.agent]
+    )
+  )[0]!;
+  const request = randomUUID();
+  const args = [f.team, f.agent, f.accounts[1], '2026-09-15', p.id, p.version, 'UTC', request];
+  const first = await f.db.asUser(
+    FINANCE_OWNER,
+    'select public.move_team_account_agent($1,$2,$3,$4,$5,$6,$7,$8)',
+    args
+  );
+  expect(
+    await f.db.asUser(
+      FINANCE_OWNER,
+      'select public.move_team_account_agent($1,$2,$3,$4,$5,$6,$7,$8)',
+      args
+    )
+  ).toEqual(first);
+  await expect(
+    f.db.asUser(
+      FINANCE_OWNER,
+      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [f.team, f.agent, '2026-09-15', 'topup', '250', '0', 'UTC', randomUUID(), p.id]
+    )
+  ).rejects.toThrow(/PLACEMENT_CONFLICT/);
+  expect(
+    await f.db.root('select id from public.team_agent_finance_values where agent_row_id=$1', [
+      f.agent
+    ])
+  ).toHaveLength(0);
+  const tags = (
+    await f.db.root<{ tags: { account_id: string; account_name: string }[] }>(
+      'select private.team_task_agent_tags($1) as tags',
+      [f.task]
+    )
+  )[0]!.tags;
+  expect(tags[0]).toMatchObject({ account_id: f.accounts[0], account_name: 'X' });
+  const summaries = await f.db.asUser<{
+    id: string;
+    task_count: number;
+    agents: { task_count: number; account_task_count: number }[];
+  }>(FINANCE_OWNER, 'select * from public.list_team_accounts($1)', [f.team]);
+  expect(summaries.find(account => account.id === f.accounts[0])!.task_count).toBe(1);
+  const destination = summaries.find(account => account.id === f.accounts[1])!;
+  expect(destination.task_count).toBe(0);
+  expect(destination.agents[0]).toMatchObject({ task_count: 1, account_task_count: 0 });
+  const oldTasks = await f.db.asUser(
+    FINANCE_OWNER,
+    'select id from public.list_team_tasks(p_team:=$1,p_account:=$2)',
+    [f.team, f.accounts[0]]
+  );
+  expect(oldTasks).toEqual([{ id: f.task }]);
+  expect(
+    await f.db.asUser(
+      FINANCE_OWNER,
+      'select id from public.list_team_tasks(p_team:=$1,p_account:=$2)',
+      [f.team, f.accounts[1]]
+    )
+  ).toHaveLength(0);
+  // The old setter is not an authenticated escape hatch around the CAS.
+  expect(
+    (
+      await f.db.root<{ allowed: boolean }>(
+        "select has_function_privilege('authenticated','public.set_team_agent_finance_value(uuid,uuid,date,text,text,text,text,uuid)','execute') as allowed"
+      )
+    )[0]!.allowed
+  ).toBe(false);
+});
+it('records repeated same-day transfers without duplicate report columns', async () => {
+  for (const target of [f.accounts[1], f.accounts[0], f.accounts[1]]) {
+    const p = (
+      await f.db.root<{ id: string; version: string }>(
+        'select id,version::text from public.team_agent_placements where agent_row_id=$1 and ends_on is null',
+        [f.agent]
+      )
+    )[0]!;
+    await f.db.asUser(
+      FINANCE_OWNER,
+      'select public.move_team_account_agent($1,$2,$3,$4,$5,$6,$7,$8)',
+      [f.team, f.agent, target, '2026-01-01', p.id, p.version, 'UTC', randomUUID()]
+    );
+  }
+  const result = (
+    await f.db.asUser<{ result: { placements: { accountId: string }[] } }>(
+      FINANCE_OWNER,
+      'select public.get_team_agent_finance($1,$2,$3,$4) as result',
+      [f.team, '2026-01-01', '2026-01-31', 'UTC']
+    )
+  )[0]!.result;
+  expect(result.placements).toHaveLength(1);
+  expect(result.placements[0]!.accountId).toBe(f.accounts[1]);
+  expect(
+    await f.db.root('select id from public.team_agent_transfer_events where agent_row_id=$1', [
+      f.agent
+    ])
+  ).toHaveLength(3);
+});
+it('explains zero and cleared blockers outside the viewed period', async () => {
+  for (const [metric, value, version] of [
+    ['topup', '0', '0'],
+    ['spend', '15', '0'],
+    ['spend', null, '1']
+  ] as const) {
+    await f.db.asUser(
+      FINANCE_OWNER,
+      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
+      [f.team, f.agent, '2026-09-25', metric, value, version, 'UTC', randomUUID()]
+    );
+  }
+  const result = (
+    await f.db.asUser<{ result: { minDate: string; blockers: unknown[] } }>(
+      FINANCE_OWNER,
+      'select public.get_team_agent_transfer_eligibility($1,$2,$3) as result',
+      [f.team, f.agent, 'UTC']
+    )
+  )[0]!.result;
+  expect(result.minDate).toBe('2026-09-26');
+  expect(result.blockers).toEqual(
+    expect.arrayContaining([
+      { date: '2026-09-25', metric: 'topup', value: '0.00' },
+      { date: '2026-09-25', metric: 'spend', value: null }
+    ])
+  );
 });

@@ -18,7 +18,7 @@ async function set(metric: string, value: string | null, version: string, reques
       };
     }>(
       FINANCE_OWNER,
-      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8) as result',
+      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on))) as result',
       [f.team, f.agent, '2026-09-10', metric, value, version, 'UTC', request]
     )
   )[0]!.result;
@@ -82,7 +82,7 @@ describe('daily finance writes', () => {
     await expect(
       f.db.asUser(
         FINANCE_VIEWER,
-        'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8)',
+        'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
         [f.team, f.agent, '2026-09-10', 'spend', '1.00', '2', 'UTC', randomUUID()]
       )
     ).rejects.toThrow(/PERMISSION_DENIED/);
@@ -100,7 +100,7 @@ describe('daily finance writes', () => {
           result: { undoReference: string | null; requestId: string; fields: unknown[] };
         }>(
           FINANCE_OWNER,
-          'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8) as result',
+          'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on))) as result',
           [f.team, f.agent, '2026-09-11', metric, value, version, 'UTC', randomUUID()]
         );
       expect((await write(null, '0'))[0]!.result.fields).toEqual([]);

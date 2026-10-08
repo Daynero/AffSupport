@@ -268,6 +268,7 @@ export function MemberRowMenu({
   return (
     <>
       <IconButton
+        title=""
         ref={trigger}
         size="sm"
         variant="ghost"

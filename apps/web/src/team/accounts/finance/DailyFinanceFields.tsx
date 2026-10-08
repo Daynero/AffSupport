@@ -15,6 +15,7 @@ import { formatFinanceAmount } from './formatFinanceAmount';
 export function DailyFinanceField({
   metric,
   field,
+  placementId,
   canEdit,
   save,
   draftKey,
@@ -26,8 +27,14 @@ export function DailyFinanceField({
 }: {
   metric: FinanceMetric;
   field: FinanceField | undefined;
+  placementId?: string;
   canEdit: boolean;
-  save: (value: string | null, version: string, request: string) => Promise<void>;
+  save: (
+    value: string | null,
+    version: string,
+    request: string,
+    placementId?: string
+  ) => Promise<void>;
   draftKey?: string;
   contextLabel?: string;
   compact?: boolean;
@@ -38,6 +45,8 @@ export function DailyFinanceField({
   const { t } = useI18n();
   const errorId = useId();
   const [draft, setDraft] = useState<string | null>(null);
+  const [draftPlacement, setDraftPlacement] = useState<string | undefined>();
+  const [placementConflict, setPlacementConflict] = useState(false);
   const [version, setVersion] = useState('0');
   const [request, setRequest] = useState('');
   const [busy, setBusy] = useState(false);
@@ -59,7 +68,7 @@ export function DailyFinanceField({
   );
   const commit = async () => {
     if (draft === null) return true;
-    if (busy || !canEdit) return false;
+    if (busy || !canEdit || placementConflict) return false;
     const cents = parseFinanceMoney(draft);
     if (cents === undefined) {
       setError(t('financeInvalid'));
@@ -70,7 +79,8 @@ export function DailyFinanceField({
       await save(
         cents === null ? null : financeMoney(cents),
         conflicted ? (field?.version ?? '0') : version,
-        request
+        request,
+        draftPlacement
       );
       setDraft(null);
       setError(null);
@@ -78,7 +88,11 @@ export function DailyFinanceField({
       return true;
     } catch (cause) {
       const conflict = cause instanceof Error && cause.message.includes('FINANCE_CONFLICT');
-      setError(t(conflict ? 'financeConflict' : 'financeError'));
+      const moved = cause instanceof Error && cause.message.includes('PLACEMENT_CONFLICT');
+      setPlacementConflict(moved);
+      setError(
+        t(moved ? 'financePlacementConflict' : conflict ? 'financeConflict' : 'financeError')
+      );
       // A failed CAS has no effects. Review the refreshed authoritative row,
       // then a new request can be submitted; transport failures keep the ID.
       if (conflict) {
@@ -143,12 +157,16 @@ export function DailyFinanceField({
                 onChange={event => {
                   if (!canEdit) return;
                   if (draft === null) {
+                    setDraftPlacement(placementId ?? field?.placementId);
+                    setPlacementConflict(false);
                     setVersion(field?.version ?? '0');
                     setConflicted(false);
                   }
                   setRequest(crypto.randomUUID());
                   setDraft(event.target.value);
-                  setError(null);
+                  setError(
+                    draft !== null && placementConflict ? t('financePlacementConflict') : null
+                  );
                   setSaved(false);
                 }}
                 onKeyDown={event => {
@@ -195,7 +213,7 @@ export function DailyFinanceField({
           className="finance-cell-message text-label text-error-text"
           title={[error, currentValue].filter(Boolean).join(' ')}
         >
-          {shortError}
+          {placementConflict ? error : shortError}
           {currentValue && ` · ${formatFinanceAmount(field?.value)} USD`}
         </span>
       )}

@@ -99,7 +99,7 @@ export function LandingFullView({
               {material.name}
             </h2>
           </div>
-          <IconButton label={t('teamPreviewClose')} variant="ghost" onClick={onClose}>
+          <IconButton title="" label={t('teamPreviewClose')} variant="ghost" onClick={onClose}>
             <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </IconButton>
         </header>

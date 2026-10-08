@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -421,6 +422,31 @@ function ExplorerBody({
   const canTag = !readOnly && activeTeam?.role === 'owner' && Boolean(client.setMaterialTag);
   const searching = query.q.length > 0 || query.scope === 'space';
   const contentRef = useRef<HTMLDivElement>(null);
+  const explorerSurfaceRef = useRef<HTMLDivElement>(null);
+  const explorerHeaderRef = useRef<HTMLDivElement>(null);
+  const explorerListHeaderRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const surface = explorerSurfaceRef.current;
+    const header = explorerHeaderRef.current;
+    const listHeader = explorerListHeaderRef.current;
+    if (!surface || !header || !listHeader) return;
+    const measure = () => {
+      surface.style.setProperty(
+        '--explorer-header-height',
+        `${header.getBoundingClientRect().height}px`
+      );
+      surface.style.setProperty(
+        '--explorer-list-header-height',
+        `${listHeader.getBoundingClientRect().height}px`
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    observer.observe(listHeader);
+    return () => observer.disconnect();
+  }, []);
   const captureAnchorRef = useRef<() => void>(() => {});
   const activeFolderIds = currentFolderId
     ? pathTo(currentFolderId).map(node => node.driveFileId)
@@ -1549,6 +1575,7 @@ function ExplorerBody({
        pressed Search, because that view brought its own. One card now, and the
        views inside it no longer carry their own. */
     <div
+      ref={explorerSurfaceRef}
       /*
        * The selected-file pane belongs to a folder listing. In a search or the
        * trash nothing feeds it, so it stood there saying "Оберіть файл, щоб
@@ -1568,199 +1595,201 @@ function ExplorerBody({
         onDropMaterials={dropMaterials}
         onReset={onReset}
       />
-      <div className="team-explorer-toolbar">
-        <Button
-          type="button"
-          variant="ghost"
-          className="team-explorer-folders-toggle"
-          aria-pressed={treeOpen}
-          onClick={() => setTreeOpen(open => !open)}
-        >
-          {t('teamExplorerFoldersToggle')}
-        </Button>
-        {trash ? (
-          <Button type="button" variant="ghost" onClick={() => onQueryChange({ trash: false })}>
-            ← {trashReturnLabel ?? t('teamExplorerBackToFiles')}
+      <div ref={explorerHeaderRef} className="team-explorer-header">
+        <div className="team-explorer-toolbar">
+          <Button
+            type="button"
+            variant="ghost"
+            className="team-explorer-folders-toggle"
+            aria-pressed={treeOpen}
+            onClick={() => setTreeOpen(open => !open)}
+          >
+            {t('teamExplorerFoldersToggle')}
           </Button>
-        ) : (
-          <>
-            {/* The task that sent you here, one press away (024, FR-080). */}
-            {query.back && (
-              <a
-                className="team-explorer-back-to-task"
-                href={buildTeamRoute({
-                  spaceId: teamId,
-                  section: 'tasks',
-                  query: { taskId: query.back }
-                })}
-                onClick={event =>
-                  internalLink(
-                    event,
-                    buildTeamRoute({
-                      spaceId: teamId,
-                      section: 'tasks',
-                      query: { taskId: query.back }
-                    })
-                  )
-                }
-              >
-                ← {t('teamExplorerBackToTask')}
-              </a>
-            )}
-            <Breadcrumb />
-          </>
-        )}
-        <div className="team-explorer-toolbar-actions">
-          {!trash && (
-            <Button
-              type="button"
-              variant="secondary"
-              aria-pressed={searching}
-              /* The key that does the same thing, on the control that does it
-                 (024, FR-054): a shortcut nobody is told about is a shortcut
-                 only the person who wrote it uses. */
-              title={
-                searching
-                  ? undefined
-                  : `${t('teamExplorerSearchOpen')} · ${formatShortcut(shortcutOf('search')!.keys)}`
-              }
-              onClick={() =>
-                searching
-                  ? onQueryChange({ q: '', scope: 'folder', filters: undefined })
-                  : onQueryChange({ scope: 'space' })
-              }
-            >
-              {searching ? t('teamExplorerSearchClose') : t('teamExplorerSearchOpen')}
+          {trash ? (
+            <Button type="button" variant="ghost" onClick={() => onQueryChange({ trash: false })}>
+              ← {trashReturnLabel ?? t('teamExplorerBackToFiles')}
             </Button>
-          )}
-          {permissions?.upload && !trash && (
+          ) : (
             <>
-              <input
-                ref={fileInput}
-                type="file"
-                multiple
-                hidden
-                onChange={event => {
-                  if (event.target.files)
-                    void uploadDrop(
-                      Array.from(event.target.files, file => ({ kind: 'file', file }))
-                    );
-                  event.target.value = '';
-                }}
-              />
-              <Button type="button" variant="secondary" onClick={() => setCreatingFolder(true)}>
-                {t('teamExplorerCreateFolder')}
-              </Button>
+              {/* The task that sent you here, one press away (024, FR-080). */}
+              {query.back && (
+                <a
+                  className="team-explorer-back-to-task"
+                  href={buildTeamRoute({
+                    spaceId: teamId,
+                    section: 'tasks',
+                    query: { taskId: query.back }
+                  })}
+                  onClick={event =>
+                    internalLink(
+                      event,
+                      buildTeamRoute({
+                        spaceId: teamId,
+                        section: 'tasks',
+                        query: { taskId: query.back }
+                      })
+                    )
+                  }
+                >
+                  ← {t('teamExplorerBackToTask')}
+                </a>
+              )}
+              <Breadcrumb />
+            </>
+          )}
+          <div className="team-explorer-toolbar-actions">
+            {!trash && (
               <Button
                 type="button"
-                variant="primary"
-                onClick={event => {
-                  addMenuAnchor.current = event.currentTarget;
-                  setAddMenuOpen(true);
-                }}
+                variant="secondary"
+                aria-pressed={searching}
+                /* The key that does the same thing, on the control that does it
+                 (024, FR-054): a shortcut nobody is told about is a shortcut
+                 only the person who wrote it uses. */
+                title={
+                  searching
+                    ? undefined
+                    : `${t('teamExplorerSearchOpen')} · ${formatShortcut(shortcutOf('search')!.keys)}`
+                }
+                onClick={() =>
+                  searching
+                    ? onQueryChange({ q: '', scope: 'folder', filters: undefined })
+                    : onQueryChange({ scope: 'space' })
+                }
               >
-                {t('teamExplorerAddFiles')}
+                {searching ? t('teamExplorerSearchClose') : t('teamExplorerSearchOpen')}
               </Button>
-              <DropdownMenu
-                open={addMenuOpen}
-                onClose={() => setAddMenuOpen(false)}
-                anchor={addMenuAnchor}
-                label={t('teamExplorerAddFiles')}
-                items={[
+            )}
+            {permissions?.upload && !trash && (
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  multiple
+                  hidden
+                  onChange={event => {
+                    if (event.target.files)
+                      void uploadDrop(
+                        Array.from(event.target.files, file => ({ kind: 'file', file }))
+                      );
+                    event.target.value = '';
+                  }}
+                />
+                <Button type="button" variant="secondary" onClick={() => setCreatingFolder(true)}>
+                  {t('teamExplorerCreateFolder')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={event => {
+                    addMenuAnchor.current = event.currentTarget;
+                    setAddMenuOpen(true);
+                  }}
+                >
+                  {t('teamExplorerAddFiles')}
+                </Button>
+                <DropdownMenu
+                  open={addMenuOpen}
+                  onClose={() => setAddMenuOpen(false)}
+                  anchor={addMenuAnchor}
+                  label={t('teamExplorerAddFiles')}
+                  items={[
+                    {
+                      id: 'files',
+                      label: t('teamExplorerAddFiles'),
+                      onSelect: () => fileInput.current?.click()
+                    },
+                    {
+                      id: 'folder',
+                      label: t('teamExplorerAddFolder'),
+                      onSelect: () => void pickFolder()
+                    }
+                  ]}
+                />
+                {canResync &&
+                  client.getFolderSyncStatus &&
+                  (currentFolderId ? client.resyncFolder : client.resyncDrive) && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={folderResync.running || uploadingThisFolder}
+                      aria-busy={folderResync.running || uploadingThisFolder || undefined}
+                      onClick={() => void folderResync.start()}
+                    >
+                      {(folderResync.running || uploadingThisFolder) && (
+                        <span className="ui-spinner" aria-hidden="true" />
+                      )}
+                      {folderResync.running || uploadingThisFolder
+                        ? t('teamFolderResyncRunning')
+                        : currentFolderId
+                          ? t('teamDriveResyncFolder')
+                          : t('teamDriveResync')}
+                    </Button>
+                  )}
+              </>
+            )}
+            {/*
+             * Processing a whole folder or a whole space was reachable only
+             * through an unlabelled ▶ that appeared after something was selected
+             * — and that button then ignored the selection anyway. It is a door
+             * in the toolbar now, open before anything is chosen, and it names
+             * the two scopes that actually exist.
+             */}
+            {permissions?.process && !trash && !searching && (
+              <ProcessMenu
+                folder={currentFolderId ? explorer.nodeOf(currentFolderId) : null}
+                onFolder={folder => setFolderScope({ folder, intent: 'process' })}
+                onCompressFolder={
+                  permissions?.upload
+                    ? folder => setFolderScope({ folder, intent: 'compress' })
+                    : undefined
+                }
+                onSpace={onProcessLibrary}
+              />
+            )}
+            {!trash && (
+              /* A choice of two, told as one: it was a pair of `aria-pressed`
+               toggles, which says "this button is down" twice rather than
+               "this is the one of two that is chosen" (021, T088). */
+              <SegmentedControl<'list' | 'grid'>
+                className="team-explorer-view-toggle"
+                label={t('teamExplorerViewLabel')}
+                value={view}
+                onChange={setView}
+                options={[
                   {
-                    id: 'files',
-                    label: t('teamExplorerAddFiles'),
-                    onSelect: () => fileInput.current?.click()
+                    value: 'list',
+                    label: <ListViewIcon />,
+                    title: t('teamExplorerViewList')
                   },
                   {
-                    id: 'folder',
-                    label: t('teamExplorerAddFolder'),
-                    onSelect: () => void pickFolder()
+                    value: 'grid',
+                    label: <GridViewIcon />,
+                    title: t('teamExplorerViewGrid')
                   }
                 ]}
               />
-              {canResync &&
-                client.getFolderSyncStatus &&
-                (currentFolderId ? client.resyncFolder : client.resyncDrive) && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={folderResync.running || uploadingThisFolder}
-                    aria-busy={folderResync.running || uploadingThisFolder || undefined}
-                    onClick={() => void folderResync.start()}
-                  >
-                    {(folderResync.running || uploadingThisFolder) && (
-                      <span className="ui-spinner" aria-hidden="true" />
-                    )}
-                    {folderResync.running || uploadingThisFolder
-                      ? t('teamFolderResyncRunning')
-                      : currentFolderId
-                        ? t('teamDriveResyncFolder')
-                        : t('teamDriveResync')}
-                  </Button>
-                )}
-            </>
-          )}
-          {/*
-           * Processing a whole folder or a whole space was reachable only
-           * through an unlabelled ▶ that appeared after something was selected
-           * — and that button then ignored the selection anyway. It is a door
-           * in the toolbar now, open before anything is chosen, and it names
-           * the two scopes that actually exist.
-           */}
-          {permissions?.process && !trash && !searching && (
-            <ProcessMenu
-              folder={currentFolderId ? explorer.nodeOf(currentFolderId) : null}
-              onFolder={folder => setFolderScope({ folder, intent: 'process' })}
-              onCompressFolder={
-                permissions?.upload
-                  ? folder => setFolderScope({ folder, intent: 'compress' })
-                  : undefined
-              }
-              onSpace={onProcessLibrary}
-            />
-          )}
-          {!trash && (
-            /* A choice of two, told as one: it was a pair of `aria-pressed`
-               toggles, which says "this button is down" twice rather than
-               "this is the one of two that is chosen" (021, T088). */
-            <SegmentedControl<'list' | 'grid'>
-              className="team-explorer-view-toggle"
-              label={t('teamExplorerViewLabel')}
-              value={view}
-              onChange={setView}
-              options={[
-                {
-                  value: 'list',
-                  label: <ListViewIcon />,
-                  title: t('teamExplorerViewList')
-                },
-                {
-                  value: 'grid',
-                  label: <GridViewIcon />,
-                  title: t('teamExplorerViewGrid')
-                }
-              ]}
-            />
-          )}
+            )}
+          </div>
         </div>
+        {folderResync.status && (
+          <SyncStatusPanel
+            status={folderResync.status}
+            scopeName={syncScopeName}
+            onCancel={canResync ? () => void folderResync.cancel() : undefined}
+            onRetry={canResync ? () => void folderResync.start() : undefined}
+          />
+        )}
+        {retryGroupId && (
+          <div role="status">
+            {t('teamWorkspaceReselect')}{' '}
+            <Button type="button" variant="secondary" onClick={onRetryComplete}>
+              {t('teamOperationClose')}
+            </Button>
+          </div>
+        )}
       </div>
-      {folderResync.status && (
-        <SyncStatusPanel
-          status={folderResync.status}
-          scopeName={syncScopeName}
-          onCancel={canResync ? () => void folderResync.cancel() : undefined}
-          onRetry={canResync ? () => void folderResync.start() : undefined}
-        />
-      )}
-      {retryGroupId && (
-        <div role="status">
-          {t('teamWorkspaceReselect')}{' '}
-          <Button type="button" variant="secondary" onClick={onRetryComplete}>
-            {t('teamOperationClose')}
-          </Button>
-        </div>
-      )}
       <div
         className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}${
           uploading > 0 ? ' is-uploading' : ''
@@ -1785,197 +1814,203 @@ function ExplorerBody({
           else void filesFromDrop(event.dataTransfer).then(files => upload(files));
         }}
       >
-        {readOnly && (
-          <p className="team-explorer-readonly" role="status">
-            {t('teamStorageReadOnly')}
-          </p>
-        )}
-        {!trash && !searching && (
-          <div className="team-explorer-list-controls">
-            <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
-            <SortMenu sort={sort} onChange={setSort} />
-          </div>
-        )}
-        {selectedRows.length > 0 && !trash && (
-          /*
-           * What to do with a selection, in the compressor's idiom.
-           *
-           * It was five full-width buttons of prose that wrapped onto three lines above the
-           * files and pushed them down the page — the bar meant to help was the widest thing
-           * on the screen. Each action is now the icon it already has elsewhere in this
-           * workspace, named on hover and to a screen reader; the count leads, and the way out
-           * sits at the far end where a dismissal belongs.
-           */
-          <div
-            className="team-explorer-selection-bar"
-            role="region"
-            /* A static name: it used to be the same string as the count beside
+        <div ref={explorerListHeaderRef} className="team-explorer-list-header">
+          {readOnly && (
+            <p className="team-explorer-readonly" role="status">
+              {t('teamStorageReadOnly')}
+            </p>
+          )}
+          {!trash && !searching && (
+            <div className="team-explorer-list-controls">
+              <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
+              <SortMenu sort={sort} onChange={setSort} />
+            </div>
+          )}
+          {selectedRows.length > 0 && !trash && (
+            /*
+             * What to do with a selection, in the compressor's idiom.
+             *
+             * It was five full-width buttons of prose that wrapped onto three lines above the
+             * files and pushed them down the page — the bar meant to help was the widest thing
+             * on the screen. Each action is now the icon it already has elsewhere in this
+             * workspace, named on hover and to a screen reader; the count leads, and the way out
+             * sits at the far end where a dismissal belongs.
+             */
+            <div
+              className="team-explorer-selection-bar"
+              role="region"
+              /* A static name: it used to be the same string as the count beside
                it, so a screen reader said "Обрано: 3" twice on entry. */
-            aria-label={t('teamExplorerSelectionRegion')}
-          >
-            {/* The way out leads, as a bare cross, the way Drive and Gmail draw
+              aria-label={t('teamExplorerSelectionRegion')}
+            >
+              {/* The way out leads, as a bare cross, the way Drive and Gmail draw
                 it: at the far end, in words, it repeated the count beside it and
                 took the room the bin's own label needed, which then scrolled
                 out of sight. Its name still carries the count for a reader. */}
-            <SelectionAction
-              iconOnly
-              label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
-              onClick={clearSelection}
-            >
-              <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </SelectionAction>
-            <span className="team-explorer-selection-count">
-              {t('teamExplorerSelectedCount', { count: selectedRows.length })}
-              {/* The selection survives walking into another folder, which is
+              <SelectionAction
+                iconOnly
+                label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
+                onClick={clearSelection}
+              >
+                <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </SelectionAction>
+              <span className="team-explorer-selection-count">
+                {t('teamExplorerSelectedCount', { count: selectedRows.length })}
+                {/* The selection survives walking into another folder, which is
                   what makes it useful and what makes the bin a surprise: three
                   of the five being acted on can be two folders back. */}
-              {elsewhere > 0 && (
-                <span className="team-explorer-selection-elsewhere">
-                  {t('teamExplorerSelectedElsewhere', { count: elsewhere })}
-                </span>
-              )}
-            </span>
-            {sortedRows.some(row => !selectedRowsMap.has(row.id)) && (
-              <SelectionAction
-                label={t('selectAll')}
-                onClick={() => explorer.selectRows(sortedRows)}
-              >
-                <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </SelectionAction>
-            )}
-            <div className="team-explorer-selection-actions">
-              {onCreateTaskFromSelection && (
+                {elsewhere > 0 && (
+                  <span className="team-explorer-selection-elsewhere">
+                    {t('teamExplorerSelectedElsewhere', { count: elsewhere })}
+                  </span>
+                )}
+              </span>
+              {sortedRows.some(row => !selectedRowsMap.has(row.id)) && (
                 <SelectionAction
-                  label={t('teamExplorerCreateTaskFromSelection')}
-                  onClick={() =>
-                    onCreateTaskFromSelection(
-                      selectedRows.map(row => ({ id: row.id, name: row.name }))
-                    )
-                  }
+                  label={t('selectAll')}
+                  onClick={() => explorer.selectRows(sortedRows)}
                 >
-                  <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </SelectionAction>
               )}
-              {/*
-               * The selection, whatever its size. This used to say "Process…"
-               * over four files and quietly start work on the entire space —
-               * the selection was never passed anywhere — so it was cut back
-               * to one file. Now the ids travel with the press, and the count
-               * in the label is the count of files the batch can take.
-               */}
-              {onProcessSelection && permissions?.process && processableRows.length > 0 && (
-                <SelectionAction
-                  primary
-                  label={
-                    processableRows.length === 1
-                      ? t('teamExplorerProcessSelection')
-                      : t('teamExplorerProcessSelectionMany', { count: processableRows.length })
-                  }
-                  onClick={() => {
-                    /* The same bound the folder path already respects: the
+              <div className="team-explorer-selection-actions">
+                {onCreateTaskFromSelection && (
+                  <SelectionAction
+                    label={t('teamExplorerCreateTaskFromSelection')}
+                    onClick={() =>
+                      onCreateTaskFromSelection(
+                        selectedRows.map(row => ({ id: row.id, name: row.name }))
+                      )
+                    }
+                  >
+                    <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </SelectionAction>
+                )}
+                {/*
+                 * The selection, whatever its size. This used to say "Process…"
+                 * over four files and quietly start work on the entire space —
+                 * the selection was never passed anywhere — so it was cut back
+                 * to one file. Now the ids travel with the press, and the count
+                 * in the label is the count of files the batch can take.
+                 */}
+                {onProcessSelection && permissions?.process && processableRows.length > 0 && (
+                  <SelectionAction
+                    primary
+                    label={
+                      processableRows.length === 1
+                        ? t('teamExplorerProcessSelection')
+                        : t('teamExplorerProcessSelectionMany', { count: processableRows.length })
+                    }
+                    onClick={() => {
+                      /* The same bound the folder path already respects: the
                        scan and the claim refuse a scope over five hundred, and
                        the selection survives folder changes, so it can get
                        there. Refused here, it is a sentence; refused by the
                        RPC, it is "Частина даних некоректна" in a window with
                        no fields. */
-                    if (processableRows.length > BATCH_SCOPE_LIMIT) {
-                      push({
-                        tone: 'error',
-                        text: t('teamBatchFolderTooMany', {
-                          count: processableRows.length,
-                          limit: BATCH_SCOPE_LIMIT
-                        })
-                      });
-                      return;
-                    }
-                    onProcessSelection(
-                      processableRows.map(row => row.id),
-                      {
-                        kind: 'selection',
-                        count: processableRows.length,
-                        ...(processableRows.length < selectedRows.length
-                          ? { picked: selectedRows.length }
-                          : {})
+                      if (processableRows.length > BATCH_SCOPE_LIMIT) {
+                        push({
+                          tone: 'error',
+                          text: t('teamBatchFolderTooMany', {
+                            count: processableRows.length,
+                            limit: BATCH_SCOPE_LIMIT
+                          })
+                        });
+                        return;
                       }
-                    );
-                  }}
-                >
-                  <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </SelectionAction>
-              )}
-              {permissions?.delete && (
-                <SelectionAction
-                  label={t('teamFileTrash')}
-                  destructive
-                  onClick={() => void trashRows(selectedRows)}
-                >
-                  <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </SelectionAction>
-              )}
-              {/* Three acts in words, the rest under "…" — Linear's and
+                      onProcessSelection(
+                        processableRows.map(row => row.id),
+                        {
+                          kind: 'selection',
+                          count: processableRows.length,
+                          ...(processableRows.length < selectedRows.length
+                            ? { picked: selectedRows.length }
+                            : {})
+                        }
+                      );
+                    }}
+                  >
+                    <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </SelectionAction>
+                )}
+                {permissions?.delete && (
+                  <SelectionAction
+                    label={t('teamFileTrash')}
+                    destructive
+                    onClick={() => void trashRows(selectedRows)}
+                  >
+                    <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </SelectionAction>
+                )}
+                {/* Three acts in words, the rest under "…" — Linear's and
                   Airtable's bulk bars. With a video in the selection the bar
                   held six worded acts, the last cut mid-word and the rest a
                   sideways scroll nobody knew to try. */}
-              <SelectionMore
-                label={t('teamTaskCardMore')}
-                items={[
-                  ...(addToTask
-                    ? [
-                        {
-                          id: 'add-to-task',
-                          label: t('materialActionAddToTask'),
-                          icon: (
-                            <ListChecks
-                              size={ICON_SIZE}
-                              strokeWidth={ICON_STROKE}
-                              aria-hidden="true"
-                            />
-                          ),
-                          onSelect: () =>
-                            addToTask(selectedRows.map(row => ({ id: row.id, name: row.name })))
-                        }
-                      ]
-                    : []),
-                  ...(permissions?.process && selectedVideos.length > 0
-                    ? [
-                        {
-                          id: 'compress',
-                          label: t('teamCompressSelected'),
-                          icon: (
-                            <Shrink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                          ),
-                          onSelect: () =>
-                            setCompressing(
-                              selectedVideos.map(row => ({
-                                id: row.id,
-                                name: row.name,
-                                folderId: row.parentFolderId ?? currentFolderId ?? null
-                              }))
-                            )
-                        }
-                      ]
-                    : []),
-                  ...(permissions?.download && selectedVideos.length > 0
-                    ? [
-                        {
-                          id: 'download-restitched',
-                          label: t('teamRestitchDownloadRestitched'),
-                          icon: (
-                            <Download
-                              size={ICON_SIZE}
-                              strokeWidth={ICON_STROKE}
-                              aria-hidden="true"
-                            />
-                          ),
-                          onSelect: () => void deliverRestitched(selectedVideos)
-                        }
-                      ]
-                    : [])
-                ]}
-              />
+                <SelectionMore
+                  label={t('teamTaskCardMore')}
+                  items={[
+                    ...(addToTask
+                      ? [
+                          {
+                            id: 'add-to-task',
+                            label: t('materialActionAddToTask'),
+                            icon: (
+                              <ListChecks
+                                size={ICON_SIZE}
+                                strokeWidth={ICON_STROKE}
+                                aria-hidden="true"
+                              />
+                            ),
+                            onSelect: () =>
+                              addToTask(selectedRows.map(row => ({ id: row.id, name: row.name })))
+                          }
+                        ]
+                      : []),
+                    ...(permissions?.process && selectedVideos.length > 0
+                      ? [
+                          {
+                            id: 'compress',
+                            label: t('teamCompressSelected'),
+                            icon: (
+                              <Shrink
+                                size={ICON_SIZE}
+                                strokeWidth={ICON_STROKE}
+                                aria-hidden="true"
+                              />
+                            ),
+                            onSelect: () =>
+                              setCompressing(
+                                selectedVideos.map(row => ({
+                                  id: row.id,
+                                  name: row.name,
+                                  folderId: row.parentFolderId ?? currentFolderId ?? null
+                                }))
+                              )
+                          }
+                        ]
+                      : []),
+                    ...(permissions?.download && selectedVideos.length > 0
+                      ? [
+                          {
+                            id: 'download-restitched',
+                            label: t('teamRestitchDownloadRestitched'),
+                            icon: (
+                              <Download
+                                size={ICON_SIZE}
+                                strokeWidth={ICON_STROKE}
+                                aria-hidden="true"
+                              />
+                            ),
+                            onSelect: () => void deliverRestitched(selectedVideos)
+                          }
+                        ]
+                      : [])
+                  ]}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
         {trash ? (
           <TrashView key={`trash:${teamId}`} teamId={teamId} />
         ) : searching ? (

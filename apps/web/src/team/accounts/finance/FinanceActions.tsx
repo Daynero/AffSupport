@@ -17,6 +17,7 @@ export function FinanceActions({
   return (
     <>
       <IconButton
+        title=""
         ref={anchor}
         label={label}
         aria-expanded={open}

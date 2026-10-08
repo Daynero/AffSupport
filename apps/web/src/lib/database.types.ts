@@ -2548,6 +2548,8 @@ export type GeneratedDatabase = {
       };
       team_task_agents: {
         Row: {
+          account_id: string;
+          account_name_snapshot: string;
           agent_row_id: string;
           attached_at: string;
           attached_by: string;
@@ -2556,6 +2558,8 @@ export type GeneratedDatabase = {
           team_id: string;
         };
         Insert: {
+          account_id?: string;
+          account_name_snapshot?: string;
           agent_row_id: string;
           attached_at?: string;
           attached_by: string;
@@ -2564,6 +2568,8 @@ export type GeneratedDatabase = {
           team_id: string;
         };
         Update: {
+          account_id?: string;
+          account_name_snapshot?: string;
           agent_row_id?: string;
           attached_at?: string;
           attached_by?: string;
@@ -3398,6 +3404,10 @@ export type GeneratedDatabase = {
           isSetofReturn: false;
         };
       };
+      copy_team_tasks: {
+        Args: { p_team: string; p_tasks: string[] };
+        Returns: string[];
+      };
       create_team_task: {
         Args: {
           p_assignee?: string;
@@ -3929,6 +3939,7 @@ export type GeneratedDatabase = {
           created_at: string;
           id: string;
           name: string;
+          task_count: number;
           team_id: string;
           updated_at: string;
         }[];
@@ -4165,6 +4176,10 @@ export type GeneratedDatabase = {
           display_name: string;
           user_id: string;
         }[];
+      };
+      get_team_agent_transfer_eligibility: {
+        Args: { p_team: string; p_agent: string; p_timezone: string };
+        Returns: Json;
       };
       move_team_account_agent: {
         Args: {
@@ -5530,6 +5545,7 @@ export type GeneratedDatabase = {
         Args: {
           p_agent: string;
           p_date: string;
+          p_expected_placement_id: string;
           p_expected_version: string;
           p_metric: string;
           p_request_id: string;

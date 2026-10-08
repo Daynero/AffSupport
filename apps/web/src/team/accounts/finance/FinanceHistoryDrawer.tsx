@@ -144,6 +144,12 @@ export function FinanceHistoryDrawer({
                 {formatDate(r.occurred_at, true)}
               </time>
             </div>
+            <p className="m-0 text-label text-ink-muted">
+              {Boolean(r.metric) && `${String(r.account_name ?? '')} · `}
+              <time dateTime={String(r.entry_date ?? r.effective_on ?? '')}>
+                {formatDate(r.entry_date ?? r.effective_on)}
+              </time>
+            </p>
             <div
               className="flex items-center gap-2 tabular-nums"
               title={formatDate(r.entry_date ?? r.effective_on)}

@@ -11909,7 +11909,7 @@ button.team-landing-tile:hover {
 /* Placed by the component (021). */
 .team-space-switcher-menu {
   z-index: var(--layer-popover);
-  width: max(240px, 100%);
+  width: 240px;
   max-height: 60vh;
   padding: var(--space-2);
   overflow-y: auto;
@@ -14296,11 +14296,92 @@ button.team-landing-tile:hover {
 .team-storage-chip.ui-chip-busy .ui-chip-spinner {
   color: var(--color-accent-active);
 }
-/* The state is a line of the report, not its heading: at 600 beside an h3 it
-   was the boldest thing in the panel and the title read as a caption. */
-.team-storage-detail-state {
+/* Storage details: status first, context second, local controls in their own row. */
+.team-storage-detail {
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+.team-storage-detail .team-storage-detail-heading {
+  margin: 0;
+  padding-right: var(--space-6);
   color: var(--color-text-muted);
-  font-weight: 500;
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.team-storage-detail-summary .ui-alert-title {
+  font-size: var(--text-section);
+  font-weight: var(--weight-emphasis);
+  line-height: var(--leading-heading);
+}
+.team-storage-detail-summary .ui-alert-text {
+  margin-top: var(--space-1);
+  color: var(--color-text);
+  font-size: var(--text-label);
+  line-height: var(--leading-body);
+}
+.team-storage-detail-info {
+  display: grid;
+  gap: var(--space-3);
+}
+.team-storage-detail-next {
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: var(--leading-body);
+}
+.team-storage-detail-meta {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+.team-storage-detail-meta svg,
+.team-storage-detail-previews > svg {
+  flex-shrink: 0;
+}
+.team-storage-detail-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+.team-storage-detail-previews {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.team-storage-detail-previews > svg {
+  color: var(--color-text-muted);
+}
+.team-storage-detail-preview-copy {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.team-storage-detail-preview-copy .team-storage-detail-note {
+  font-weight: var(--weight-body);
+}
+.team-storage-detail-footer,
+.team-storage-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.team-storage-detail-actions {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+.team-storage-detail-footer .ui-button {
+  white-space: normal;
 }
 .team-explorer-readonly {
   margin: 0;
@@ -17009,7 +17090,8 @@ input[type='number'] {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   grid-template-columns: minmax(0, 1fr);
   width: min(100%, var(--dialog-wide));
-  height: min(92vh, 1000px);
+  height: min(92dvh, 1000px);
+  max-height: calc(100dvh - var(--space-5) * 2);
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -17221,6 +17303,10 @@ input[type='number'] {
 }
 .team-updater-footer {
   justify-content: space-between;
+  min-height: 0;
+  max-height: 40dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-top: 1px solid var(--color-border);
 }
 .team-updater-options {
@@ -17289,6 +17375,7 @@ input[type='number'] {
   .team-updater-dialog {
     width: 100%;
     height: 100%;
+    max-height: 100dvh;
     border-radius: 0;
   }
   .team-updater-header,
@@ -18241,7 +18328,43 @@ a.history-subject {
 }
 
 /* 028 — what one manual sync is doing, under the explorer toolbar. */
+/* A single measured header keeps every sticky surface below the previous one,
+   including when the toolbar wraps or sync details open. */
+.team-explorer > .team-explorer-header {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  position: sticky;
+  top: var(--topbar-h, 62px);
+  z-index: calc(var(--layer-header) + 2);
+  display: grid;
+  gap: var(--space-4);
+  padding-bottom: var(--space-4);
+  margin-bottom: calc(-1 * var(--space-4));
+  background: var(--color-surface);
+}
+.team-explorer-list-header {
+  position: sticky;
+  top: calc(var(--topbar-h, 62px) + var(--explorer-header-height, 0px));
+  z-index: calc(var(--layer-header) + 1);
+  display: grid;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  margin-bottom: calc(-1 * var(--space-3));
+  background: var(--color-surface);
+}
+.team-explorer-list-header > .team-explorer-selection-bar {
+  position: static;
+}
+.team-explorer .team-explorer-rows .ui-table-header {
+  top: calc(
+    var(--topbar-h, 62px) + var(--explorer-header-height, 0px) +
+      var(--explorer-list-header-height, 0px)
+  );
+  z-index: var(--layer-header);
+  background: var(--color-surface);
+}
 .team-sync-panel {
+  min-width: 0;
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
@@ -18258,6 +18381,8 @@ a.history-subject {
   gap: var(--space-2);
 }
 .team-sync-panel-scope {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 600;
 }
 .team-sync-panel-phase,
@@ -18267,6 +18392,7 @@ a.history-subject {
 }
 .team-sync-panel-actions {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-left: auto;
 }
@@ -18275,7 +18401,7 @@ a.history-subject {
 }
 .team-sync-panel-details {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
   gap: var(--space-1) var(--space-4);
   margin: 0;
 }
@@ -18284,4 +18410,15 @@ a.history-subject {
 }
 .team-sync-panel-details dd {
   margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1023px) {
+  .team-explorer > .team-explorer-header {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .team-sync-panel-actions {
+    width: 100%;
+    margin-left: 0;
+  }
 }

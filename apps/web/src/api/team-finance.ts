@@ -40,7 +40,8 @@ export const teamFinanceApi = {
     value: string | null,
     version: string,
     timezone: string,
-    requestId: string
+    requestId: string,
+    placementId: string
   ) {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('set_team_agent_finance_value', {
@@ -51,7 +52,8 @@ export const teamFinanceApi = {
         p_value: value,
         p_expected_version: version,
         p_timezone: timezone,
-        p_request_id: requestId
+        p_request_id: requestId,
+        p_expected_placement_id: placementId
       })
     );
     check(error);
@@ -71,6 +73,46 @@ export const teamFinanceApi = {
     const result = parseFinanceMutation(data);
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
     return result;
+  },
+  async transferEligibility(team: string, agent: string, timezone: string) {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_agent_transfer_eligibility', {
+        p_team: team,
+        p_agent: agent,
+        p_timezone: timezone
+      })
+    );
+    check(error);
+    if (
+      !financeRecord(data) ||
+      typeof data.placementId !== 'string' ||
+      typeof data.placementVersion !== 'string' ||
+      typeof data.accountId !== 'string' ||
+      typeof data.minDate !== 'string' ||
+      !Array.isArray(data.blockers)
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    const blockers = data.blockers.map(row => {
+      if (
+        !financeRecord(row) ||
+        typeof row.date !== 'string' ||
+        !['balance', 'topup', 'spend'].includes(String(row.metric)) ||
+        (row.value !== null && typeof row.value !== 'string')
+      )
+        throw new TeamApiError('INVALID_RESPONSE', false);
+      return {
+        date: row.date,
+        metric: row.metric as FinanceMetric,
+        value: row.value as string | null
+      };
+    });
+    return {
+      placementId: data.placementId,
+      placementVersion: data.placementVersion,
+      accountId: data.accountId,
+      minDate: data.minDate,
+      blockers
+    };
   },
   async move(
     team: string,

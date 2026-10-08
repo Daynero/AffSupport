@@ -19,7 +19,7 @@ it('rolls back every row on a stale batch member and refuses an Undo after a new
     const set = (agent: string, value: string, version: string) =>
       f.db.asUser(
         FINANCE_OWNER,
-        'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8)',
+        'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
         [f.team, agent, '2026-09-10', 'topup', value, version, 'UTC', randomUUID()]
       );
     await set(f.agent, '100.25', '0');
@@ -78,7 +78,7 @@ it('clears a batch atomically and restores it exactly once', async () => {
   try {
     await f.db.asUser(
       FINANCE_OWNER,
-      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8)',
+      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
       [f.team, f.agent, '2026-09-10', 'balance', '12.34', '0', 'UTC', randomUUID()]
     );
     await expect(
@@ -144,7 +144,7 @@ it('imports legacy metrics independently, retains the originals and rejects occu
     await expect(call('balance', '2026-09-11', '70.00')).rejects.toThrow(/LEGACY_ALREADY_IMPORTED/);
     await f.db.asUser(
       FINANCE_OWNER,
-      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8)',
+      'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
       [f.team, f.agent, '2026-09-10', 'topup', '0.00', '0', 'UTC', randomUUID()]
     );
     await expect(call('topup', '2026-09-10', '200.00')).rejects.toThrow(/LEGACY_TARGET_OCCUPIED/);

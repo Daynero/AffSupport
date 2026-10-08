@@ -118,20 +118,15 @@ export function buildFinanceTopupCopy(
   }
   const total = sum(rows.map(row => row.value));
   const text = rows.length
-    ? [
-        date
-          .split('-')
-          .reverse()
-          .map((part, index) => (index === 2 ? part.slice(-2) : String(Number(part))))
-          .join('.'),
-        ...Array.from(groups)
-          .sort(([a], [b]) => natural.compare(a, b))
-          .flatMap(([heading, items]) => [
-            '',
+    ? Array.from(groups)
+        .sort(([a], [b]) => natural.compare(a, b))
+        .map(([heading, items]) =>
+          [
             heading.replace(/№\s*/gu, '#'),
             ...items.map(row => `${row.agentId} - $${row.value.replace(/\.00$/u, '')}`)
-          ])
-      ].join('\n')
+          ].join('\n')
+        )
+        .join('\n\n')
     : '';
   return { text, count: rows.length, total };
 }

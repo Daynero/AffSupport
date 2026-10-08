@@ -867,6 +867,7 @@ export function RunField({
       />
       <span className="team-agent-run-actions is-editing">
         <IconButton
+          title=""
           label={t('teamAccountsSave')}
           className="team-agent-action is-small is-confirm"
           disabled={saving}
@@ -875,6 +876,7 @@ export function RunField({
           <Check size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>
         <IconButton
+          title=""
           label={t('teamCancel')}
           className="team-agent-action is-small is-reject"
           onClick={onCancel}
@@ -1019,6 +1021,7 @@ export function AgentEditRow({
       </div>
       <div className="team-agent-actions">
         <IconButton
+          title=""
           label={t('teamAccountsSave')}
           className="team-agent-action is-confirm"
           disabled={saving}
@@ -1027,6 +1030,7 @@ export function AgentEditRow({
           <Check size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>
         <IconButton
+          title=""
           label={t('teamCancel')}
           className="team-agent-action is-reject"
           onClick={onCancel}
@@ -1070,7 +1074,12 @@ export function EditField({
       {/* Out of the tab order: Tab from the id should land in the note, not
           on the clear mark beside it. The mouse still reaches it. */}
       {value !== '' && (
-        <IconButton label={t('teamAccountsClearField')} tabIndex={-1} onClick={() => onChange('')}>
+        <IconButton
+          title=""
+          label={t('teamAccountsClearField')}
+          tabIndex={-1}
+          onClick={() => onChange('')}
+        >
           <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>
       )}

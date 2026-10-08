@@ -60,7 +60,7 @@ it('keeps table edits unsaved on Enter and Tab until the shared save action runs
   await act(async () => {
     await action!();
   });
-  expect(save).toHaveBeenCalledWith('45.00', '1', expect.any(String));
+  expect(save).toHaveBeenCalledWith('45.00', '1', expect.any(String), 'p');
   expect(input.closest('[data-finance-state]')?.getAttribute('data-finance-state')).toBe('saved');
 });
 it('shows saved feedback as a side icon inside the field control, not a line under the row', async () => {
@@ -145,7 +145,7 @@ it('retains a draft across authoritative rereads and submits exact cents with or
   );
   expect((input as HTMLInputElement).value).toBe('125,50');
   fireEvent.keyDown(input, { key: 'Enter' });
-  await waitFor(() => expect(save).toHaveBeenCalledWith('125.50', '1', expect.any(String)));
+  await waitFor(() => expect(save).toHaveBeenCalledWith('125.50', '1', expect.any(String), 'p'));
 });
 it('does not submit invalid amounts and does not allow viewer edits', async () => {
   const save = vi.fn();
@@ -177,7 +177,7 @@ it('saves a valid draft on Tab without swallowing native navigation', async () =
   const input = screen.getByRole('textbox');
   fireEvent.change(input, { target: { value: '0' } });
   expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(true);
-  await waitFor(() => expect(save).toHaveBeenCalledWith('0.00', '1', expect.any(String)));
+  await waitFor(() => expect(save).toHaveBeenCalledWith('0.00', '1', expect.any(String), 'p'));
 });
 it('keeps focus on an invalid Tab and exposes the agent/date context', () => {
   const save = vi.fn();
@@ -196,4 +196,21 @@ it('keeps focus on an invalid Tab and exposes the agent/date context', () => {
   expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(false);
   expect(document.activeElement).toBe(input);
   expect(save).not.toHaveBeenCalled();
+});
+it('keeps the original placement and blocks resubmission after an external transfer', async () => {
+  const save = vi.fn().mockRejectedValue(new Error('PLACEMENT_CONFLICT'));
+  const view = render(
+    <DailyFinanceField metric="spend" field={undefined} placementId="old" canEdit save={save} />
+  );
+  const input = screen.getByRole('textbox');
+  fireEvent.change(input, { target: { value: '250' } });
+  view.rerender(
+    <DailyFinanceField metric="spend" field={undefined} placementId="new" canEdit save={save} />
+  );
+  fireEvent.keyDown(input, { key: 'Enter' });
+  await screen.findByText(/The ad account moved to another account/);
+  expect(save).toHaveBeenCalledWith('250.00', '0', expect.any(String), 'old');
+  expect((input as HTMLInputElement).value).toBe('250');
+  fireEvent.keyDown(input, { key: 'Enter' });
+  expect(save).toHaveBeenCalledTimes(1);
 });

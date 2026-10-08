@@ -18,11 +18,14 @@ export function HoverPeek({
   trigger,
   label,
   className,
+  onIntent,
   children
 }: {
   trigger: ReactNode;
   label: string;
   className?: string;
+  /** Warm on demand during the hover delay, without fetching every card. */
+  onIntent?: () => void;
   children: (close: () => void) => ReactNode;
 }) {
   const anchor = useRef<HTMLSpanElement>(null);
@@ -48,12 +51,18 @@ export function HoverPeek({
       ref={anchor}
       className="team-hover-peek"
       onPointerEnter={event => {
-        if (event.pointerType === 'mouse') later(true, OPEN_DELAY_MS);
+        if (event.pointerType === 'mouse') {
+          onIntent?.();
+          later(true, OPEN_DELAY_MS);
+        }
       }}
       onPointerLeave={event => {
         if (event.pointerType === 'mouse') later(false, CLOSE_DELAY_MS);
       }}
-      onFocus={() => later(true, 0)}
+      onFocus={() => {
+        onIntent?.();
+        later(true, 0);
+      }}
       onBlur={event => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           later(false, CLOSE_DELAY_MS);

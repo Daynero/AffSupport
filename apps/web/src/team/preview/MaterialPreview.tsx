@@ -232,7 +232,7 @@ export function MaterialPreview({
           </h2>
           <small>{t(CATEGORY_LABEL[material.category ?? 'other'])}</small>
         </div>
-        <IconButton label={t('teamPreviewClose')} variant="ghost" onClick={close}>
+        <IconButton title="" label={t('teamPreviewClose')} variant="ghost" onClick={close}>
           <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>
       </header>

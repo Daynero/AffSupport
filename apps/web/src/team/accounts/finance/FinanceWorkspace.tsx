@@ -143,7 +143,66 @@ export function FinanceWorkspace({
   const [history, setHistory] = useState<string | null>(null);
   const [legacy, setLegacy] = useState<string | null>(null);
   const [from, to] = monthly ? (selectedRange ?? financeMonthRange(date)) : [date, date];
-  const finance = useAgentFinance(teamId, from, to, timezone, revision);
+  const liveFinance = useAgentFinance(teamId, from, to, timezone, revision);
+  const topology = useRef(liveFinance.snapshot);
+  // Moving a row between account groups unmounts its local editors. Preserve
+  // the grouping until drafts are saved/discarded, while values still refresh.
+  if (!dirty) topology.current = liveFinance.snapshot;
+  const retained = topology.current;
+  const draftAgents = new Set(Object.keys(drafts).map(key => key.split('/')[0]));
+  const retainedPlacements = retained?.placements.filter(p => draftAgents.has(p.agentRowId)) ?? [];
+  const placements = [
+    ...(liveFinance.snapshot?.placements.filter(p => !draftAgents.has(p.agentRowId)) ?? []),
+    ...retainedPlacements
+  ];
+  const finance = {
+    ...liveFinance,
+    snapshot:
+      dirty &&
+      liveFinance.snapshot &&
+      retained &&
+      retained.teamId === teamId &&
+      retained.from === from &&
+      retained.to === to
+        ? {
+            ...liveFinance.snapshot,
+            accounts: [
+              ...liveFinance.snapshot.accounts,
+              ...retained.accounts.filter(
+                account =>
+                  retainedPlacements.some(p => p.accountId === account.id) &&
+                  !liveFinance.snapshot!.accounts.some(a => a.id === account.id)
+              )
+            ],
+            agents: [
+              ...liveFinance.snapshot.agents,
+              ...retained.agents.filter(
+                agent =>
+                  draftAgents.has(agent.id) &&
+                  !liveFinance.snapshot!.agents.some(a => a.id === agent.id)
+              )
+            ],
+            placements,
+            fields: liveFinance.snapshot.fields.filter(field =>
+              placements.some(placement => placement.id === field.placementId)
+            )
+          }
+        : liveFinance.snapshot
+  };
+  const movedDraft =
+    dirty &&
+    retained &&
+    liveFinance.snapshot &&
+    Object.keys(drafts).some(key => {
+      const agent = key.split('/')[0];
+      const old = retained.placements.find(
+        p => p.agentRowId === agent && p.startsOn <= date && (p.endsOn === null || date < p.endsOn)
+      );
+      const current = liveFinance.snapshot!.placements.find(
+        p => p.agentRowId === agent && p.startsOn <= date && (p.endsOn === null || date < p.endsOn)
+      );
+      return old?.id !== current?.id;
+    });
   const report = useMemo(
     () => (finance.snapshot ? buildFinanceReport(finance.snapshot) : null),
     [finance.snapshot]
@@ -249,32 +308,6 @@ export function FinanceWorkspace({
           disabled={dirty}
         />
       )}
-      {dirty && !monthly && canEdit && (
-        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-end gap-2 bg-neutral-soft p-2 rounded-lg">
-          <span className="mr-auto text-label text-warning-text">
-            {t('financeUnsaved')} · {Object.keys(drafts).length}
-          </span>
-          <Button
-            size="sm"
-            disabled={pending}
-            onClick={() => {
-              setDrafts({});
-              setDraftEpoch(e => e + 1);
-            }}
-          >
-            {t('financeCancel')}
-          </Button>
-          <Button
-            size="sm"
-            color="success"
-            loading={savingAll}
-            disabled={pending}
-            onClick={() => requestSave()}
-          >
-            {t('financeSave')}
-          </Button>
-        </div>
-      )}
       {!monthly && finance.snapshot && (
         <div className="flex flex-wrap gap-2">
           {canEdit && (
@@ -297,8 +330,10 @@ export function FinanceWorkspace({
               ]}
             />
           )}
-          <IconButton
-            label={t('financeCopy')}
+          <Button
+            size="sm"
+            variant="soft"
+            trailing={<Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
             onClick={() => {
               if (!finance.snapshot) return;
               const contents = buildFinanceTopupCopy(
@@ -326,8 +361,8 @@ export function FinanceWorkspace({
                 .catch(fail);
             }}
           >
-            <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-          </IconButton>
+            {t('financeCopy')}
+          </Button>
         </div>
       )}
       {finance.loading && <LoadingState label={t('financeTitle')} />}
@@ -340,11 +375,34 @@ export function FinanceWorkspace({
       )}
       {report && finance.snapshot && (
         <>
-          <p className="text-label">
-            {t('financeWholeSpace')} · {t('financeSpend')}:{' '}
-            {formatFinanceAmount(report.totals.spend)} USD · {t('financeTopup')}:{' '}
-            {formatFinanceAmount(report.totals.topup)} USD
-          </p>
+          <div className="flex flex-wrap items-center gap-2 text-label">
+            <span>{from === to ? from : `${from} — ${to}`}</span>
+            {(['spend', 'topup'] as const).map(metric => (
+              <span key={metric} className="inline-flex items-center gap-1">
+                <span aria-hidden="true">·</span>
+                <span>
+                  {t(metric === 'spend' ? 'financeSpend' : 'financeTopup')}:{' '}
+                  {formatFinanceAmount(report.totals[metric])} USD
+                </span>
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  label={`${t('financeCopyAmount')}: ${t(metric === 'spend' ? 'financeSpend' : 'financeTopup')}`}
+                  disabled={report.totals[metric] === null}
+                  onClick={() => {
+                    void copyText(formatFinanceAmount(report.totals[metric]))
+                      .then(ok => {
+                        if (ok) push({ tone: 'success', text: t('financeAmountCopied') });
+                        else fail();
+                      })
+                      .catch(fail);
+                  }}
+                >
+                  <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </IconButton>
+              </span>
+            ))}
+          </div>
           {monthly ? (
             <MonthlyFinanceSummary
               report={report}
@@ -361,13 +419,46 @@ export function FinanceWorkspace({
             />
           ) : (
             <div className="team-accounts-table finance-daily-table">
-              <div className="team-accounts-columns finance-daily-columns" aria-hidden="true">
-                <span />
-                <span>{t('teamAccountColumnAgent')}</span>
-                <span>{t('financeBalance')} · USD</span>
-                <span>{t('financeTopup')} · USD</span>
-                <span>{t('financeSpend')} · USD</span>
-                <span />
+              <div className="finance-daily-header">
+                {dirty && !monthly && canEdit && (
+                  <div className="flex flex-wrap items-center justify-end gap-2 bg-neutral-soft p-2 rounded-lg">
+                    <span className="mr-auto text-label text-warning-text">
+                      {t('financeUnsaved')} · {Object.keys(drafts).length}
+                    </span>
+                    <Button
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => {
+                        setDrafts({});
+                        setDraftEpoch(e => e + 1);
+                      }}
+                    >
+                      {t('financeCancel')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      color="success"
+                      loading={savingAll}
+                      disabled={pending}
+                      onClick={() => requestSave()}
+                    >
+                      {t('financeSave')}
+                    </Button>
+                  </div>
+                )}
+                {movedDraft && (
+                  <p role="status" className="m-0 p-2 text-label text-warning-text">
+                    {t('financePlacementChangedDrafts')}
+                  </p>
+                )}
+                <div className="team-accounts-columns finance-daily-columns" aria-hidden="true">
+                  <span />
+                  <span>{t('teamAccountColumnAgent')}</span>
+                  <span>{t('financeBalance')} · USD</span>
+                  <span>{t('financeTopup')} · USD</span>
+                  <span>{t('financeSpend')} · USD</span>
+                  <span />
+                </div>
               </div>
               <div className="team-accounts-list">
                 {report.accounts.map(account => {
@@ -433,6 +524,15 @@ export function FinanceWorkspace({
                           <div className="finance-daily-fields">
                             {FINANCE_METRICS.map(metric => (
                               <DailyFinanceField
+                                placementId={
+                                  finance.snapshot!.placements.find(
+                                    p =>
+                                      p.agentRowId === c.agentRowId &&
+                                      p.accountId === c.accountId &&
+                                      p.startsOn <= date &&
+                                      (p.endsOn === null || date < p.endsOn)
+                                  )?.id
+                                }
                                 draftKey={`${c.agentRowId}/${metric}`}
                                 contextLabel={`${c.agentId} · ${date}`}
                                 onStateChange={onStateChange}
@@ -448,7 +548,7 @@ export function FinanceWorkspace({
                                     f.date === date &&
                                     f.metric === metric
                                 )}
-                                save={async (value, version, request) => {
+                                save={async (value, version, request, placement) => {
                                   try {
                                     const result = await teamFinanceApi.set(
                                       teamId,
@@ -458,7 +558,8 @@ export function FinanceWorkspace({
                                       value,
                                       version,
                                       timezone,
-                                      request
+                                      request,
+                                      placement!
                                     );
                                     const undoRequest = crypto.randomUUID();
                                     if (result.undoReference)

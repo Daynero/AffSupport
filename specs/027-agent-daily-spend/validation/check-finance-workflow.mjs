@@ -61,16 +61,10 @@ try {
       team
     ]);
     const set = (agent, date, metric, value) =>
-      db.query('select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8)', [
-        team,
-        agent,
-        date,
-        metric,
-        value,
-        '0',
-        'UTC',
-        randomUUID()
-      ]);
+      db.query(
+        'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
+        [team, agent, date, metric, value, '0', 'UTC', randomUUID()]
+      );
     await set(agents[0], priorDay, 'spend', '100.10');
     await set(agents[1], priorDay, 'spend', '40.20');
     await set(agents[0], today, 'balance', '70.00');

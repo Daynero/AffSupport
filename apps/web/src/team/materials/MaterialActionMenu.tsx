@@ -118,6 +118,7 @@ export function MaterialActionMenu({
         />
       )}
       <IconButton
+        title=""
         ref={trigger}
         label={label}
         size={size}

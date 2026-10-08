@@ -32,6 +32,9 @@ export function FinanceToolbar({
   onExport: () => void;
 }) {
   const { t } = useI18n();
+  const previousDay = new Date(`${today}T00:00:00Z`);
+  previousDay.setUTCDate(previousDay.getUTCDate() - 1);
+  const yesterday = previousDay.toISOString().slice(0, 10);
   const monthEnd = new Date(`${from.slice(0, 7)}-01T00:00:00Z`);
   monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1, 0);
   const customRange =
@@ -62,6 +65,7 @@ export function FinanceToolbar({
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <IconButton
+            title=""
             label={t('financePreviousPeriod')}
             disabled={pending}
             onClick={() => shiftPeriod(-1)}
@@ -84,6 +88,7 @@ export function FinanceToolbar({
             }}
           />
           <IconButton
+            title=""
             label={t('financeNextPeriod')}
             disabled={
               pending ||
@@ -96,6 +101,16 @@ export function FinanceToolbar({
             <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} />
           </IconButton>
         </div>
+        <Button
+          size="sm"
+          variant="soft"
+          aria-pressed={!monthly && date === yesterday}
+          color={!monthly && date === yesterday ? 'secondary' : 'neutral'}
+          disabled={pending}
+          onClick={() => navigate(yesterday, false)}
+        >
+          {t('financeYesterday')}
+        </Button>
         <Button
           size="sm"
           variant="soft"

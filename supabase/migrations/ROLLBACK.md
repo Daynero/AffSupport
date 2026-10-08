@@ -1348,3 +1348,30 @@ Reserved for the approved deletion of the legacy `team-restitch-images` objects
 (feature 030, release C). Not written yet; it will carry an explicit object list
 and no bucket-wide delete. Deleted objects cannot be restored, which is why the
 list is approved first.
+
+## 20261008120000_team_agent_transfer_safety.sql
+
+Forward-fix only after use. Retain same-day audit placements, task account
+snapshots, transfer events and finance receipts. Do not restore strict
+`ends_on > starts_on` over audit-only zero intervals, and do not grant the
+unguarded eight-argument finance setter to authenticated clients. A reverted
+web build must leave financial editing unavailable until a placement-aware
+client is restored. Preserve task tags and their historical account filter;
+removing the snapshot columns would rewrite history on the next transfer.
+Deploy the new migration and the placement-aware web client together.
+
+## 20261009100000_team_agent_finance_backdating.sql
+
+Forward-fix only after historical entries have been written. The initial
+placement starts at `0001-01-01` as a technical lower bound, not an asserted
+account creation date. Do not restore registration-date boundaries over
+backdated finance values or alter transfer boundaries. Preserve placement IDs,
+versions, finance receipts, amounts and audit events. Rolling back the UI alone
+does not remove historical data or require deleting it.
+
+## 20261009110000_team_task_copy.sql
+
+Disable clipboard pasting in the web client before dropping
+`public.copy_team_tasks(uuid, uuid[])`. Preserve already-created task copies,
+their labels, attachments and audit records. The RPC copies attachment
+references, never Drive files, and its batch is atomic.

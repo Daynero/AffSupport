@@ -238,7 +238,7 @@ describe('a card', () => {
         onUpdate={vi.fn()}
       />
     );
-    const row = screen.getByLabelText('Accounts');
+    const row = screen.getByLabelText('Ad accounts');
     expect(row.querySelectorAll('.team-task-agent-chip:not(.is-more)')).toHaveLength(2);
     expect(row.querySelector('.is-more')?.textContent).toBe('+1');
     expect(row.querySelector('.is-more')?.getAttribute('aria-label')).toBe('v31-434');
@@ -249,7 +249,7 @@ describe('a card', () => {
     const { unmount } = wrap(
       <TaskCard task={tagged} canEdit onOpen={() => {}} onUpdate={vi.fn()} />
     );
-    const row = screen.getByLabelText('Accounts');
+    const row = screen.getByLabelText('Ad accounts');
     expect(row.textContent).toBe('v31-401v31-434');
     // Natural order: …401 before …434; the free one is marked, the busy one names its run.
     const chips = row.querySelectorAll('.team-task-agent-chip');
@@ -262,7 +262,7 @@ describe('a card', () => {
     unmount();
 
     wrap(<TaskCard task={task()} canEdit onOpen={() => {}} onUpdate={vi.fn()} />);
-    expect(screen.queryByLabelText('Accounts')).toBeNull();
+    expect(screen.queryByLabelText('Ad accounts')).toBeNull();
   });
 });
 
@@ -290,14 +290,14 @@ describe('the editor', () => {
     const onTagsChange = openEditor(api);
     // Nothing is written when nothing is chosen: the button beside the empty
     // row says both that it is empty and what to do about it.
-    expect(screen.queryByText('No account yet')).toBeNull();
+    expect(screen.queryByText('No ad account chosen yet')).toBeNull();
 
-    await user.click(screen.getByRole('button', { name: 'Account' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Account' });
+    await user.click(screen.getByRole('button', { name: 'Ad account' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ad account' });
     // Step one: the accounts with what is inside them.
     // By the name element, not a text prefix: "v3" + "1 agent" also reads "v31…".
     const v31Row = within(dialog).getByText('v31', { selector: 'strong' }).closest('button')!;
-    expect(v31Row.textContent).toContain('2 agents');
+    expect(v31Row.textContent).toContain('2 ad accounts');
     expect(v31Row.textContent).toContain('1 free');
     await user.click(v31Row);
 
@@ -325,8 +325,8 @@ describe('the editor', () => {
     const user = userEvent.setup();
     openEditor(api);
 
-    await user.click(screen.getByRole('button', { name: 'Account' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Account' });
+    await user.click(screen.getByRole('button', { name: 'Ad account' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ad account' });
     await user.click(within(dialog).getByText('v31', { selector: 'strong' }).closest('button')!);
     await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
     // The old way out is still there for an edit or a re-cut, which launched nothing.
@@ -356,9 +356,9 @@ describe('the editor', () => {
     openEditor(api, [tagFor(A401)]);
 
     await user.click(screen.getByRole('button', { name: /^v31-401/ }));
-    expect(screen.getByText('This agent is free.')).toBeTruthy();
+    expect(screen.getByText('This ad account is free.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Add a run' }));
-    const field = screen.getByRole('textbox', { name: 'Run to write onto the agent' });
+    const field = screen.getByRole('textbox', { name: 'Run to write onto the ad account' });
     // Prefilled with the task's title: that is usually what launched.
     expect((field as HTMLInputElement).value).toBe('Pro Caps | TR 05/09');
     expect(document.activeElement).toBe(field);
@@ -392,7 +392,7 @@ describe('the editor', () => {
     expect(within(panel).getByText('Pro Caps | TR 02/09')).toBeTruthy();
 
     await user.click(within(panel).getByRole('button', { name: 'Add a run' }));
-    const field = screen.getByRole('textbox', { name: 'Run to write onto the agent' });
+    const field = screen.getByRole('textbox', { name: 'Run to write onto the ad account' });
     await user.clear(field);
     await user.type(field, 'Keto | PL 06/09{Enter}');
     await waitFor(() => expect(within(panel).getByText('Keto | PL 06/09')).toBeTruthy());
@@ -401,7 +401,7 @@ describe('the editor', () => {
     await user.click(
       within(panel).getByRole('button', { name: 'Edit the run: Pro Caps | TR 02/09' })
     );
-    const edit = screen.getByRole('textbox', { name: 'Run to write onto the agent' });
+    const edit = screen.getByRole('textbox', { name: 'Run to write onto the ad account' });
     expect((edit as HTMLInputElement).value).toBe('Pro Caps | TR 02/09');
     await user.clear(edit);
     await user.type(edit, 'Pro Caps | TR 03/09{Enter}');
@@ -449,7 +449,7 @@ describe('the editor', () => {
     await user.click(screen.getByRole('button', { name: /^v31-401/ }));
     await user.click(screen.getByRole('button', { name: 'Add a run' }));
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('textbox', { name: 'Run to write onto the agent' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Run to write onto the ad account' })).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Task details' })).toBeTruthy();
     expect(api.addAgentRun).not.toHaveBeenCalled();
     // Focus goes back to the button that opened the field.
@@ -488,15 +488,15 @@ describe('the editor', () => {
     await user.click(screen.getByRole('button', { name: /^v31-401/ }));
     const panel = screen.getByRole('region', { name: 'v31-401' });
     expect(within(panel).getByText('v31-401')).toBeTruthy();
-    expect(within(panel).getByText('This agent is free.')).toBeTruthy();
+    expect(within(panel).getByText('This ad account is free.')).toBeTruthy();
   });
 
   it('offers the Free switch before an account is opened and drops fully busy accounts', async () => {
     const api = client();
     const user = userEvent.setup();
     openEditor(api);
-    await user.click(screen.getByRole('button', { name: 'Account' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Account' });
+    await user.click(screen.getByRole('button', { name: 'Ad account' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ad account' });
     await user.click(within(dialog).getByRole('button', { name: 'Free' }));
     // v31 has a free agent, v3 has one too — both stay; a fully busy one would go.
     expect(within(dialog).getByText('v31', { selector: 'strong' })).toBeTruthy();
@@ -518,7 +518,7 @@ describe('the editor', () => {
       'viewer'
     );
     expect(screen.getByText('v31-434')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Account' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ad account' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^v31-434/ })).toBeNull();
   });
 });
@@ -539,7 +539,7 @@ describe('the list', () => {
     await screen.findByText('v31-434');
     await openMoreFilters(user);
     await user.click(
-      await screen.findByRole('button', { name: 'Only tasks of an account or agent' })
+      await screen.findByRole('button', { name: 'Only tasks of a social account or ad account' })
     );
     const list = screen.getByRole('listbox');
     expect(within(list).getByRole('option', { name: 'v31' })).toBeTruthy();

@@ -23,9 +23,11 @@ import {
 } from '../../components/ui/index';
 import { buildTeamRoute } from '../routes';
 import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
+import { useTaskClipboard, type TaskCopyClient } from './useTaskClipboard';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
-export type TaskSpaceClient = TasksClient &
+export type TaskSpaceClient = TaskCopyClient &
+  TasksClient &
   TaskEditorClient &
   TaskLabelsClient & {
     listMembers(teamId: string): Promise<TeamMemberSummary[]>;
@@ -346,6 +348,22 @@ export function TaskSpace({
     () => tasks.tasks.filter(task => selectedIds.has(task.id)),
     [selectedIds, tasks.tasks]
   );
+
+  useTaskClipboard({
+    teamId,
+    selected,
+    canEdit: can('edit') && !effectiveOpenId,
+    client,
+    onPasted: async ids => {
+      // Copies have today's date, todo status and no ad accounts. Reveal them
+      // even when the source was selected under a historical/workflow filter.
+      tasks.setFilter({ kind: 'all' });
+      tasks.setStatusFilter('all');
+      setScope({ kind: 'all' });
+      setSelectedIds(new Set(ids));
+      await tasks.refetch();
+    }
+  });
 
   /**
    * The same actions a card offers, applied to the whole set (024, FR-075).

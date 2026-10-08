@@ -246,7 +246,13 @@ export function AccountGroup({
    * search that left one agent of three, the head used to offer a link to
    * three accounts' worth of tasks — tasks of agents the filter had removed.
    */
-  const taskCount = visibleAgents.reduce((total, agent) => total + agent.taskCount, 0);
+  const taskCount =
+    !filteredOut && account.taskCount !== undefined
+      ? account.taskCount
+      : visibleAgents.reduce(
+          (total, agent) => total + (agent.accountTaskCount ?? agent.taskCount),
+          0
+        );
   const accountTasksHref = buildTeamRoute({
     spaceId: teamId,
     section: 'tasks',
@@ -476,7 +482,6 @@ export function AccountGroup({
                 <button
                   type="button"
                   className="team-account-add-agent"
-                  title={t('teamAgentAdd')}
                   aria-label={t('teamAgentAdd')}
                   onClick={() => onEditingChange({ kind: 'add' })}
                 >
@@ -749,6 +754,7 @@ export function AccountNameRow({
       </div>
       <div className="team-account-actions">
         <IconButton
+          title=""
           label={t('teamAccountsSave')}
           className="team-agent-action is-confirm"
           disabled={saving}
@@ -757,6 +763,7 @@ export function AccountNameRow({
           <Check size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>
         <IconButton
+          title=""
           label={t('teamCancel')}
           className="team-agent-action is-reject"
           onClick={onCancel}

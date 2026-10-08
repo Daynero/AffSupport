@@ -1,4 +1,14 @@
 import { useId, useRef, useState } from 'react';
+import {
+  CircleAlert,
+  CircleCheck,
+  Clock3,
+  FolderSync,
+  Image,
+  RefreshCw,
+  Settings2
+} from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type {
   CatalogCoverageState,
   CatalogNextAction,
@@ -14,7 +24,14 @@ import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvide
 import type { DriveRootResult } from '../../api/team';
 import { rememberDriveAuthorization } from '../drive/authorizationReturn';
 import { WorkspaceChip, type ChipTone } from '../workspace/WorkspaceChip';
-import { Button, PermissionState, uiClasses } from '../../components/ui/index';
+import {
+  Alert,
+  Button,
+  PermissionState,
+  Separator,
+  Switch,
+  uiClasses
+} from '../../components/ui/index';
 
 /**
  * One chip, one state, on every team screen (011, FR-031). Click for the
@@ -175,7 +192,8 @@ export function StorageChip({
     stale ||
     health.kind === 'attention' ||
     health.syncHealth === 'delayed' ||
-    health.coverage === 'partial'
+    health.coverage === 'partial' ||
+    health.coverage === 'permission_limited'
       ? 'warn'
       : health.kind === 'indexing' ||
           health.kind === 'preparing' ||
@@ -266,153 +284,191 @@ export function StorageChip({
         <Modal
           labelledBy={titleId}
           size="sm"
+          className="team-storage-detail"
           onClose={() => setOpen(false)}
           closeLabel={t('teamClose')}
         >
-          <h3 id={titleId}>{t('teamStorageDetailTitle')}</h3>
-          <p className="team-storage-detail-state">{chipCopy(health, t, render?.paused)}</p>
-          {stale && (
-            <p className="team-storage-detail-note" role="status">
-              {t('teamStorageBodyStale', { count: staleMinutes ?? 0 })}
-            </p>
-          )}
-          {health.coverage && <p>{t(COVERAGE_COPY[health.coverage])}</p>}
-          {health.lastConfirmedAt !== undefined && (
-            <p>
-              {health.lastConfirmedAt
-                ? t('teamStorageLastConfirmed', { ago: ago(health.lastConfirmedAt, t) })
-                : t('teamStorageNeverConfirmed')}
-            </p>
-          )}
-          {health.nextAction && health.nextAction !== 'none' && (
-            <p>{t(NEXT_ACTION_COPY[health.nextAction])}</p>
-          )}
-          {health.kind === 'attention' && <p>{t(ATTENTION_BODY[health.reason])}</p>}
-          {health.kind === 'waiting_provider' && <p>{t('teamStorageBodyWaiting')}</p>}
-          {health.kind === 'indexing' && (
-            <>
-              <p>{t('teamStorageBodyIndexing')}</p>
-              {/* Where it runs and how long it has run: the panel's own buttons cannot stop it,
-                  and a reader owed that before they start looking for a way to. */}
-              <p className="team-storage-detail-note">
-                {indexingMinutes > 0
-                  ? t('teamStorageIndexingElapsed', { count: indexingMinutes })
-                  : t('teamStorageIndexingServerSide')}
+          <h3 id={titleId} className="team-storage-detail-heading">
+            {t('teamStorageDetailTitle')}
+          </h3>
+          <Alert
+            className="team-storage-detail-summary"
+            color={tone === 'warn' ? 'warning' : tone === 'busy' ? 'info' : 'success'}
+            variant="subtle"
+            live="none"
+            icon={
+              tone === 'warn' ? (
+                <CircleAlert size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+              ) : tone === 'busy' ? (
+                <FolderSync size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+              ) : (
+                <CircleCheck size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+              )
+            }
+            title={chipCopy(health, t, render?.paused)}
+          >
+            {health.kind === 'attention'
+              ? t(ATTENTION_BODY[health.reason])
+              : health.kind === 'waiting_provider'
+                ? t('teamStorageBodyWaiting')
+                : health.kind === 'indexing'
+                  ? t('teamStorageBodyIndexing')
+                  : health.kind === 'preparing'
+                    ? t(render?.paused ? 'teamStorageBodyRenderPaused' : 'teamStorageBodyPreparing')
+                    : health.coverage
+                      ? t(COVERAGE_COPY[health.coverage])
+                      : null}
+          </Alert>
+          <div className="team-storage-detail-info">
+            {stale && (
+              <p className="team-storage-detail-note" role="status">
+                {t('teamStorageBodyStale', { count: staleMinutes ?? 0 })}
               </p>
-              {/* The question the spinner raises (024): a first read cannot be stopped halfway —
-                  the folders it never reached would sit in the space looking empty. The way out
-                  exists and is named rather than hidden. */}
-              <p className="team-storage-detail-note">{t('teamStorageIndexingCannotStop')}</p>
-            </>
-          )}
-          {health.kind === 'preparing' && (
-            <p>{t(render?.paused ? 'teamStorageBodyRenderPaused' : 'teamStorageBodyPreparing')}</p>
-          )}
+            )}
+            {health.kind !== 'connected' && health.coverage && (
+              <p className="team-storage-detail-note">{t(COVERAGE_COPY[health.coverage])}</p>
+            )}
+            {health.nextAction && health.nextAction !== 'none' && (
+              <p className="team-storage-detail-next">{t(NEXT_ACTION_COPY[health.nextAction])}</p>
+            )}
+            {health.lastConfirmedAt !== undefined && (
+              <p className="team-storage-detail-meta">
+                <Clock3 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                <span>
+                  {health.lastConfirmedAt
+                    ? t('teamStorageLastConfirmed', { ago: ago(health.lastConfirmedAt, t) })
+                    : t('teamStorageNeverConfirmed')}
+                </span>
+              </p>
+            )}
+            {health.kind === 'indexing' && (
+              <>
+                <p className="team-storage-detail-note">
+                  {indexingMinutes > 0
+                    ? t('teamStorageIndexingElapsed', { count: indexingMinutes })
+                    : t('teamStorageIndexingServerSide')}
+                </p>
+                <p className="team-storage-detail-note">{t('teamStorageIndexingCannotStop')}</p>
+              </>
+            )}
+          </div>
           {/* Not a failure — a boundary. Whoever is reading this cannot fix
               the storage, and saying so in red reads as something they did
               wrong (FR-004). */}
           {fixerCopy && <PermissionState message={fixerCopy} />}
-          {confirmingResync && (
-            <p className="team-storage-detail-note" role="status">
-              {t('teamStorageResyncConfirm')}
-            </p>
+          {render?.available && (
+            <div className="team-storage-detail-previews">
+              <Image size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              <div className="team-storage-detail-preview-copy">
+                <span id={`${titleId}-previews`}>{t('teamStorageLocalPreviews')}</span>
+                <p id={`${titleId}-preview-note`} className="team-storage-detail-note">
+                  {t('teamStorageLocalPreviewsHint')}
+                </p>
+              </div>
+              <Switch
+                checked={!render.paused}
+                onChange={enabled => render.setPaused(!enabled)}
+                aria-labelledby={`${titleId}-previews`}
+                aria-describedby={`${titleId}-preview-note`}
+              />
+            </div>
           )}
-          <div className="team-dialog-actions">
-            {health.kind === 'attention' &&
-              health.reason === 'needs_reauth' &&
-              isOwner &&
-              !authorizationUrl &&
-              client.startDriveOAuth && (
-                <Button
-                  color="primary"
-                  variant="solid"
-                  loading={busy}
-                  onClick={() => void reconnect()}
-                >
-                  {t('teamStorageReconnect')}
-                </Button>
-              )}
-            {authorizationUrl && (
-              <a
-                className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
-                href={authorizationUrl}
-                rel="noreferrer"
-              >
-                {t('teamDriveAuthorize')}
-              </a>
-            )}
-            {health.kind === 'attention' &&
-              health.reason === 'root_missing' &&
-              isOwner &&
-              client.restoreRoot && (
-                <Button
-                  color="primary"
-                  variant="solid"
-                  loading={busy}
-                  onClick={() =>
-                    void run(() => client.restoreRoot!(teamId), 'teamDriveRootRestored')
-                  }
-                >
-                  {t('teamDriveRestoreRoot')}
-                </Button>
-              )}
-            {(health.kind === 'connected' ||
-              health.kind === 'preparing' ||
-              (health.kind === 'attention' && health.reason === 'sync_failed')) &&
-              canManage &&
-              client.resyncDrive && (
-                <Button
-                  color="neutral"
-                  variant="outline"
-                  loading={busy}
-                  onClick={() => {
-                    // After a failed sync the re-read is the fix, so it stays one press.
-                    if (health.kind !== 'attention' && !confirmingResync) {
-                      setConfirmingResync(true);
-                      return;
-                    }
-                    setConfirmingResync(false);
-                    void run(() => client.resyncDrive!(teamId), 'teamToastResyncQueued');
-                  }}
-                >
-                  {t(confirmingResync ? 'teamStorageResyncYes' : 'teamStorageCheckNow')}
-                </Button>
-              )}
-            {/* Quiet: this one changes how this computer behaves, and it was
-                the only bordered control in a panel that is otherwise a
-                report — the loudest thing on screen was the one thing nobody
-                opened the panel to do. */}
-            {render?.available && (
-              <Button
-                color="neutral"
-                variant="ghost"
-                onClick={() => render.setPaused(!render.paused)}
-              >
-                {render.paused ? t('teamStorageResumeRender') : t('teamStoragePauseRender')}
-              </Button>
-            )}
+          {confirmingResync && (
+            <Alert color="warning" variant="subtle" live="status">
+              {t('teamStorageResyncConfirm')}
+            </Alert>
+          )}
+          <Separator />
+          <div className="team-storage-detail-footer">
             {isOwner && (
               <a
-                className={uiClasses('button', { color: 'neutral', variant: 'ghost', size: 'md' })}
+                className={uiClasses('button', {
+                  color: 'neutral',
+                  variant: 'outline',
+                  size: 'sm'
+                })}
                 href={settingsHref}
                 onClick={event => {
                   setOpen(false);
                   internalLink(event, settingsHref);
                 }}
               >
+                <Settings2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 {t('teamStorageOpenSettings')}
               </a>
             )}
-            {/*
-             * "Close", not "Cancel". Nothing here is a change waiting to be
-             * confirmed — the indexing runs on the server whatever this panel
-             * does — and "Cancel" beside a progress line reads as "stop the
-             * indexing", which is the one thing it must not be mistaken for.
-             * It is also the calm default, so it is the bordered one.
-             */}
-            <Button color="neutral" variant="outline" onClick={() => setOpen(false)}>
-              {t('teamClose')}
-            </Button>
+            <div className="team-storage-detail-actions">
+              <Button color="neutral" variant="outline" size="sm" onClick={() => setOpen(false)}>
+                {t('teamClose')}
+              </Button>
+
+              {health.kind === 'attention' &&
+                health.reason === 'needs_reauth' &&
+                isOwner &&
+                !authorizationUrl &&
+                client.startDriveOAuth && (
+                  <Button
+                    color="primary"
+                    variant="solid"
+                    loading={busy}
+                    onClick={() => void reconnect()}
+                  >
+                    {t('teamStorageReconnect')}
+                  </Button>
+                )}
+              {authorizationUrl && (
+                <a
+                  className={uiClasses('button', {
+                    color: 'primary',
+                    variant: 'solid',
+                    size: 'md'
+                  })}
+                  href={authorizationUrl}
+                  rel="noreferrer"
+                >
+                  {t('teamDriveAuthorize')}
+                </a>
+              )}
+              {health.kind === 'attention' &&
+                health.reason === 'root_missing' &&
+                isOwner &&
+                client.restoreRoot && (
+                  <Button
+                    color="primary"
+                    variant="solid"
+                    loading={busy}
+                    onClick={() =>
+                      void run(() => client.restoreRoot!(teamId), 'teamDriveRootRestored')
+                    }
+                  >
+                    {t('teamDriveRestoreRoot')}
+                  </Button>
+                )}
+              {(health.kind === 'connected' ||
+                health.kind === 'preparing' ||
+                (health.kind === 'attention' && health.reason === 'sync_failed')) &&
+                canManage &&
+                client.resyncDrive && (
+                  <Button
+                    color="primary"
+                    variant="solid"
+                    size="sm"
+                    loading={busy}
+                    onClick={() => {
+                      // After a failed sync the re-read is the fix, so it stays one press.
+                      if (health.kind !== 'attention' && !confirmingResync) {
+                        setConfirmingResync(true);
+                        return;
+                      }
+                      setConfirmingResync(false);
+                      void run(() => client.resyncDrive!(teamId), 'teamToastResyncQueued');
+                    }}
+                  >
+                    <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    {t(confirmingResync ? 'teamStorageResyncYes' : 'teamStorageCheckNow')}
+                  </Button>
+                )}
+            </div>
           </div>
         </Modal>
       )}

@@ -33,7 +33,7 @@ beforeAll(async () => {
     );
   }
   const schema = await root.query(
-    "select to_regprocedure('public.set_team_agent_finance_value(uuid,uuid,date,text,text,text,text,uuid)') as rpc"
+    "select to_regprocedure('public.set_team_agent_finance_value(uuid,uuid,date,text,text,text,text,uuid,uuid)') as rpc"
   );
   if (!schema.rows[0]?.rpc) throw new Error('FINANCE_LOCAL_MIGRATIONS_REQUIRED');
   await root.query('begin');
@@ -99,10 +99,16 @@ async function agent() {
   );
   return id as string;
 }
-function write(client: pg.Client, id: string, metric: string, value: string, version = '0') {
+async function write(client: pg.Client, id: string, metric: string, value: string, version = '0') {
+  const placement = (
+    await root.query(
+      'select id from public.team_agent_placements where agent_row_id=$1 and ends_on is null',
+      [id]
+    )
+  ).rows[0].id;
   return client.query(
-    'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8) as result',
-    [team, id, '2026-09-10', metric, value, version, 'UTC', randomUUID()]
+    'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,$9) as result',
+    [team, id, '2026-09-10', metric, value, version, 'UTC', randomUUID(), placement]
   );
 }
 async function blocked() {

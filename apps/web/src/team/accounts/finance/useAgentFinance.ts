@@ -14,6 +14,7 @@ export function useAgentFinance(
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(true);
   const trigger = useRef<() => void>(() => {});
+  const lastRevision = useRef(revision);
   const refresh = useCallback(() => trigger.current(), []);
   useEffect(() => {
     let active = true;
@@ -92,6 +93,13 @@ export function useAgentFinance(
       window.removeEventListener('focus', foreground);
       document.removeEventListener('visibilitychange', foreground);
     };
-  }, [teamId, from, to, timezone, revision]);
+  }, [teamId, from, to, timezone]);
+  // A space revision invalidates the data, not the period or its editors.
+  // Resetting snapshot here unmounted every field and silently lost drafts.
+  useEffect(() => {
+    if (lastRevision.current === revision) return;
+    lastRevision.current = revision;
+    refresh();
+  }, [revision, refresh]);
   return { snapshot, error, loading, refresh };
 }

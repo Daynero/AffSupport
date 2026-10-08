@@ -217,10 +217,18 @@ describe('batch copy menu', () => {
 });
 
 describe('anchored layer', () => {
-  function Host({ open, align }: { open: boolean; align?: 'start' | 'end' }) {
+  function Host({
+    open,
+    align,
+    side
+  }: {
+    open: boolean;
+    align?: 'start' | 'end';
+    side?: 'top' | 'bottom';
+  }) {
     const anchor = useRef<HTMLDivElement>(null);
     const layer = useRef<HTMLDivElement>(null);
-    const style = useAnchoredLayer(anchor, layer, open, { align, gap: 6 });
+    const style = useAnchoredLayer(anchor, layer, open, { align, side, gap: 6 });
     return (
       <>
         <div ref={anchor} data-testid="anchor" />
@@ -267,5 +275,55 @@ describe('anchored layer', () => {
 
     act(() => view.rerender(<Host open={false} />));
     expect(layer.getAttribute('style')).toBeFalsy();
+  });
+
+  it('contains oversized content on a narrow, very short viewport without a minimum-height floor', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 150 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 180 });
+    const view = render(<Host open={false} />);
+    const anchor = screen.getByTestId('anchor');
+    const layer = screen.getByTestId('layer');
+    rect(anchor, { top: 90, bottom: 120, left: 160, right: 180 });
+    Object.defineProperty(layer, 'offsetHeight', { configurable: true, value: 800 });
+    Object.defineProperty(layer, 'scrollHeight', { configurable: true, value: 800 });
+    Object.defineProperty(layer, 'offsetWidth', { configurable: true, value: 400 });
+    act(() => view.rerender(<Host open />));
+    const height = Number.parseFloat(layer.style.maxHeight);
+    expect(height).toBeLessThan(120);
+    expect(Number.parseFloat(layer.style.top) + height).toBeLessThanOrEqual(142);
+    expect(
+      Number.parseFloat(layer.style.left) + Number.parseFloat(layer.style.maxWidth)
+    ).toBeLessThanOrEqual(172);
+    expect(layer.style.right).toBe('auto');
+    expect(layer.style.bottom).toBe('auto');
+  });
+
+  it('keeps a long menu above its trigger after it has been constrained and resized', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 });
+    const view = render(<Host open={false} />);
+    const anchor = screen.getByTestId('anchor');
+    const layer = screen.getByTestId('layer');
+    rect(anchor, { top: 350, bottom: 380, left: 100, right: 200 });
+    Object.defineProperty(layer, 'offsetHeight', { configurable: true, value: 800 });
+    Object.defineProperty(layer, 'scrollHeight', { configurable: true, value: 800 });
+    act(() => view.rerender(<Host open />));
+    Object.defineProperty(layer, 'offsetHeight', { configurable: true, value: 180 });
+    act(() => window.dispatchEvent(new Event('resize')));
+    expect(Number.parseFloat(layer.style.top)).toBeLessThan(350);
+    expect(
+      Number.parseFloat(layer.style.top) + Number.parseFloat(layer.style.maxHeight)
+    ).toBeLessThanOrEqual(344);
+  });
+
+  it('honours a preferred top placement when both sides have room', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+    const view = render(<Host open={false} />);
+    const anchor = screen.getByTestId('anchor');
+    const layer = screen.getByTestId('layer');
+    rect(anchor, { top: 350, bottom: 380 });
+    Object.defineProperty(layer, 'offsetHeight', { configurable: true, value: 100 });
+    act(() => view.rerender(<Host open side="top" />));
+    expect(layer.style.top).toBe('244px');
   });
 });

@@ -6,7 +6,7 @@
 
 | Таблиця                     | Поля й ключі                                                                                                                                           | Обмеження                                                                                                   |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| team_agent_placements       | id, team_id, agent_row_id, account_id, starts_on date, ends_on date/null, version, created_by, created_at                                              | [start,end), start < end, один відкритий період на агента, без перекриттів                                  |
+| team_agent_placements       | id, team_id, agent_row_id, account_id, starts_on date, ends_on date/null, version, created_by, created_at                                              | [start,end), start ≤ end (нульовий період — лише аудит), один відкритий період на агента, без перекриттів   |
 | team_agent_finance_values   | id, team_id, agent_row_id, placement_id, entry_date, metric, amount_cents bigint/null, currency, version bigint, updated_by, updated_at                | unique(team,agent,date,metric), metric = balance/topup/spend, 0..99999999999 cents або null, currency = USD |
 | team_agent_finance_events   | id, team_id, agent_row_id, placement_id, entry_date, metric, old_cents, new_cents, previous_version, new_version, actor_id, occurred_at, request_id    | append-only; містить і очищення, і Undo                                                                     |
 | team_agent_transfer_events  | id, team_id, agent_row_id, from_placement_id, to_placement_id, effective_on, actor_id, occurred_at, request_id                                         | append-only, одна подія на успішне перенесення                                                              |
@@ -25,7 +25,7 @@
 
 entry_date і starts_on — date, не timestamp. Клієнт передає IANA timezone; сервер обчислює today з власного часу в цьому timezone, не довіряє client today. ISO-дата не конвертується при читанні.
 
-Для старих агентів початкова дата розміщення — UTC calendar date їхнього created_at, зафіксована міграцією та позначена як imported baseline; продукт не має збереженого історичного timezone. Це правило лише задає найранішу відому дату існування, не приписує старим грошам дату. Нові агенти отримують дату створення у timezone створювача; чинний add_team_account_agent розширюється optional p_timezone з default UTC, клієнт передає валідний IANA timezone. Замінити стару сигнатуру міграцією, не залишати неоднозначних overloads; зберегти старі параметри/return shape і права. Сервер обчислює starts_on з власного created_at в p_timezone, не приймає довільну дату народження; наявні старі виклики створення без timezone використовують UTC. UI повідомляє найранішу допустиму дату, якщо користувач намагається внести давніший запис.
+Початкове розміщення має starts_on = 0001-01-01 як технічну нижню межу підтримуваних дат, а не дату створення реального рекламного акаунта. Дата реєстрації в Soty залишається в created_at і не обмежує історичний фінансовий ввід. Міграція розширює лише початкове розміщення (не створене перенесенням), збільшуючи version; усі межі перенесень і збережені суми незмінні. add_team_account_agent зберігає optional p_timezone (default UTC) та перевіряє його перед створенням. До першого перенесення записи належать початковому соцу.
 
 ## Транзакції
 
@@ -45,7 +45,7 @@ entry_date і starts_on — date, не timestamp. Клієнт передає IA
 
 ### Перенесення
 
-Lock source/target accounts у порядку UUID, потім agent. Delete account використовує той самий порядок locks. Перевірити expected placement/version, target tenant, колізію ID, дату > start і > усіх дат values/events поточного placement. End старого placement = effective_on, start нового = effective_on; update account_id + transfer event + receipt атомарні. Внесення заднім числом бере відповідний старий placement; move не переприв'язує жодних сум.
+Lock source/target accounts у порядку UUID, потім agent. Delete account використовує той самий порядок locks. Перевірити expected placement/version, target tenant, колізію ID, дату ≥ start і > усіх дат values/events поточного placement. End старого placement = effective_on, start нового = effective_on; update account_id + transfer event + receipt атомарні. Внесення заднім числом бере відповідний старий placement; move не переприв'язує жодних сум.
 
 ### Legacy import
 

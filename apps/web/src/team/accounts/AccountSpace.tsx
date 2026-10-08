@@ -564,6 +564,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               />
               {search !== '' && (
                 <IconButton
+                  title=""
                   label={t('teamAccountsClearField')}
                   tabIndex={-1}
                   onClick={() => setSearch('')}

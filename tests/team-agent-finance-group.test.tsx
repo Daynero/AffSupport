@@ -18,7 +18,7 @@ it('uses the operational account shell and keeps financial drafts mounted when f
     String(teamAccountHue('account-x'))
   );
   expect(group.querySelector('.team-account-head .team-account-mark')).toBeTruthy();
-  expect(group.querySelector('.team-account-meta')?.textContent).toBe('2 agents');
+  expect(group.querySelector('.team-account-meta')?.textContent).toBe('2 ad accounts');
   const draft = screen.getByRole('textbox', { name: 'Draft' });
   fireEvent.click(screen.getByRole('button', { name: 'Collapse X' }));
   expect(group.querySelector('.hidden input')).toBe(draft);

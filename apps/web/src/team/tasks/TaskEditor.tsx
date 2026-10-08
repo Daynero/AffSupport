@@ -1056,6 +1056,7 @@ export function TaskEditor({
                   {canEdit && onDelete && (
                     <>
                       <IconButton
+                        title=""
                         ref={editorMenuTrigger}
                         className="team-task-editor-menu"
                         size="sm"

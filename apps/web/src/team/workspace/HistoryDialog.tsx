@@ -264,6 +264,7 @@ export function HistoryDialog({
             {t('historyMine')}
           </Button>
           <IconButton
+            title=""
             className="history-close"
             variant="ghost"
             label={t('teamClose')}

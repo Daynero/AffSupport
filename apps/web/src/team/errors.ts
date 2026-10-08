@@ -21,7 +21,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   REQUEST_REUSE_CONFLICT: 'financeError',
   LEGACY_ALREADY_IMPORTED: 'financeError',
   LEGACY_TARGET_OCCUPIED: 'financeConflict',
-  PLACEMENT_CONFLICT: 'financeConflict',
+  PLACEMENT_CONFLICT: 'financePlacementConflict',
   TRANSFER_DATE_INVALID: 'financeTransferDateInvalid',
   AGENT_ID_CONFLICT: 'teamErrorNameConflict',
   FUTURE_FINANCE_DATE: 'financeFutureDate',

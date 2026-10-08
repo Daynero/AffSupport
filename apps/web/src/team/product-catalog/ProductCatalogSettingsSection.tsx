@@ -306,6 +306,7 @@ function CatalogImagesSection({
               )}
               {editable && (
                 <IconButton
+                  title=""
                   size="xs"
                   variant="ghost"
                   label={t('productCatalogImagesRemove', { name: source.name })}

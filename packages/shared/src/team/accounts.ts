@@ -216,6 +216,8 @@ export interface TeamAccountAgentSummary {
   topup: number | null;
   /** How many tasks carry this agent's tag. */
   taskCount: number;
+  /** Open tasks attached under the current social account. */
+  accountTaskCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -289,6 +291,8 @@ export function teamTaskAgentTagLabel(tag: Pick<TeamTaskAgentTag, 'accountName' 
 }
 
 export interface TeamAccountSummary {
+  /** Distinct open tasks historically attached under this social account. */
+  taskCount?: number;
   id: string;
   teamId: string;
   name: string;
@@ -323,6 +327,8 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
     balance === undefined ||
     topup === undefined ||
     (task_count !== undefined && (typeof task_count !== 'number' || task_count < 0)) ||
+    (value.account_task_count !== undefined &&
+      (typeof value.account_task_count !== 'number' || value.account_task_count < 0)) ||
     typeof created_at !== 'string' ||
     typeof updated_at !== 'string'
   ) {
@@ -339,6 +345,9 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
     topup,
     // A bare row (from a write RPC) carries no count; the list does.
     taskCount: typeof task_count === 'number' ? task_count : 0,
+    ...(typeof value.account_task_count === 'number'
+      ? { accountTaskCount: value.account_task_count }
+      : {}),
     createdAt: created_at,
     updatedAt: updated_at
   };
@@ -356,6 +365,8 @@ export function parseTeamAccount(value: unknown): TeamAccountSummary | null {
     typeof team_id !== 'string' ||
     typeof name !== 'string' ||
     typeof created_at !== 'string' ||
+    (value.task_count !== undefined &&
+      (typeof value.task_count !== 'number' || value.task_count < 0)) ||
     typeof updated_at !== 'string'
   ) {
     return null;
@@ -374,6 +385,7 @@ export function parseTeamAccount(value: unknown): TeamAccountSummary | null {
     name,
     createdAt: created_at,
     updatedAt: updated_at,
+    ...(typeof value.task_count === 'number' ? { taskCount: value.task_count } : {}),
     agents: parsed
   };
 }

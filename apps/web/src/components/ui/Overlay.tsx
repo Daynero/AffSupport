@@ -390,6 +390,7 @@ export function Popover({
   useDialogBehaviour({ surface, active: open, onClose: close, modal: false });
   const placed = useAnchoredLayer(anchor ?? emptyAnchor, surface, open && Boolean(anchor), {
     align: placement.endsWith('end') ? 'end' : 'start',
+    side: placement.startsWith('top') ? 'top' : 'bottom',
     matchWidth,
     minWidth,
     maxHeight
@@ -409,10 +410,8 @@ export function Popover({
        * before the dialog's own click handler ran: the row menu's folder
        * picker used to cancel the move it had just been asked for.
        */
-      if (
-        target instanceof Element &&
-        target.closest('[role="dialog"], .modal-backdrop, .ui-overlay')
-      ) {
+      const dialog = target instanceof Element ? target.closest('[role="dialog"]') : null;
+      if (dialog && !dialog.contains(anchor?.current ?? null)) {
         return;
       }
       close();
@@ -583,16 +582,22 @@ export function DropdownMenu({
          class name. */
       placement={placement.replace('-', ' ') as 'bottom end'}
       shouldFlip
-      className={['ui-popover', 'is-frequent', `ui-popover--${placement}`, 'ui-menu', className]
+      maxHeight={maxHeight}
+      className={['ui-popover', 'is-frequent', 'ui-menu-popover', className]
         .filter(Boolean)
         .join(' ')}
       style={{
-        minWidth: matchWidth ? undefined : minWidth,
-        maxHeight,
+        minWidth: matchWidth
+          ? undefined
+          : minWidth === undefined
+            ? undefined
+            : `min(${minWidth}px, calc(100vw - var(--space-4)))`,
+        width: matchWidth ? 'var(--trigger-width)' : undefined,
         ['--trigger-width' as string]: matchWidth ? 'var(--trigger-width)' : undefined
       }}
     >
       <HeroMenu
+        className="ui-menu"
         aria-label={label}
         /*
          * Selection belongs to a section, not to the menu (024).

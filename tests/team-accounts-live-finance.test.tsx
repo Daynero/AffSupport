@@ -78,7 +78,7 @@ it('keeps a finance draft while switching views and updates its agent tags', asy
   );
   fireEvent.click(screen.getByRole('button', { name: 'Detach finance tag' }));
   await waitFor(() => expect(detach).toHaveBeenCalled());
-  fireEvent.click(screen.getByRole('button', { name: 'Agents and runs' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Ad accounts and runs' }));
   fireEvent.click(screen.getByRole('button', { name: 'Daily finances' }));
   expect((screen.getByRole('textbox', { name: 'Finance draft' }) as HTMLInputElement).value).toBe(
     'unsaved'

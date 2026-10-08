@@ -39,9 +39,10 @@ it('separates history details and formats the edit timestamp in Kyiv time', asyn
   expect(screen.getByRole('listitem').textContent).toContain('Beta Tester');
   expect(screen.getByText('125.50').className).toContain('text-ink-muted');
   const timestamps = [...document.querySelectorAll('time')];
-  expect(timestamps).toHaveLength(1);
+  expect(timestamps).toHaveLength(2);
+  expect(screen.getByRole('listitem').textContent).toContain('g1 · 04/10/2026');
   expect(timestamps[0].textContent).toContain('01:11:09');
-  expect(screen.getByRole('listitem').children).toHaveLength(2);
+  expect(screen.getByRole('listitem').children).toHaveLength(3);
   expect(screen.getByRole('heading').textContent).toContain('History');
   expect(screen.getByLabelText('g1-234')).toBeTruthy();
   expect(screen.queryByText(/442701/)).toBeNull();

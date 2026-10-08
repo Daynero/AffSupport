@@ -62,7 +62,6 @@ export function Breadcrumb() {
           type="button"
           className="team-explorer-history-button"
           aria-label={t('teamExplorerHistoryBack')}
-          title={t('teamExplorerHistoryBack')}
           disabled={history.index === 0}
           onClick={() => moveHistory(-1)}
         >
@@ -72,7 +71,6 @@ export function Breadcrumb() {
           type="button"
           className="team-explorer-history-button"
           aria-label={t('teamExplorerHistoryForward')}
-          title={t('teamExplorerHistoryForward')}
           disabled={history.index === history.entries.length - 1}
           onClick={() => moveHistory(1)}
         >

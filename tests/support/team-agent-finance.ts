@@ -2,8 +2,10 @@ import { createTeamTestDb, createUser } from './team-db';
 
 export const FINANCE_OWNER = '27000000-0000-4000-8000-000000000001';
 export const FINANCE_VIEWER = '27000000-0000-4000-8000-000000000002';
-export async function financeFixture(options: { legacy?: boolean } = {}) {
-  const db = await createTeamTestDb();
+export async function financeFixture(
+  options: { legacy?: boolean; throughMigration?: string } = {}
+) {
+  const db = await createTeamTestDb({ throughMigration: options.throughMigration });
   await createUser(db, { id: FINANCE_OWNER, email: 'editor@finance.test' });
   await createUser(db, { id: FINANCE_VIEWER, email: 'viewer@finance.test' });
   await db.root('insert into public.admin_users(user_id) values ($1)', [FINANCE_OWNER]);

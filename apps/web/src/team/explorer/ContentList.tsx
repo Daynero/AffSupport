@@ -131,6 +131,7 @@ export function ContentList({
       )}
       {rows.length > 0 && (
         <Table
+          stickyHeader
           size="sm"
           className="team-explorer-rows"
           aria-labelledby="team-explorer-content-title"
