@@ -241,16 +241,20 @@ export interface ImageInfo {
 
 export async function probeImage(
   inputPath: string,
-  command = ffprobePath
+  command = ffprobePath,
+  options: { countFrames?: boolean } = {}
 ): Promise<ImageInfo | null> {
+  // `nb_frames` is a container's claim and animated WebP makes none; counting decodes the
+  // file, which is what a 50 MB ceiling makes affordable when the caller asks for it (030).
   const data = await probeJson(
     [
       '-v',
       'error',
+      ...(options.countFrames ? ['-count_frames'] : []),
       '-select_streams',
       'v:0',
       '-show_entries',
-      'stream=width,height,codec_name,nb_frames:stream_tags=rotate:stream_side_data=rotation',
+      `stream=width,height,codec_name,nb_frames${options.countFrames ? ',nb_read_frames' : ''}:stream_tags=rotate:stream_side_data=rotation`,
       '-of',
       'json',
       inputPath
@@ -261,7 +265,7 @@ export async function probeImage(
   const width = positiveNumber(stream?.width);
   const height = positiveNumber(stream?.height);
   const codec = nonEmptyString(stream?.codec_name);
-  const frames = positiveNumber(stream?.nb_frames);
+  const frames = positiveNumber(stream?.nb_read_frames) ?? positiveNumber(stream?.nb_frames);
   const rotation = normalizedRotation(
     stream?.side_data_list?.find((entry: Record<string, unknown>) => entry.rotation !== undefined)
       ?.rotation ?? stream?.tags?.rotate

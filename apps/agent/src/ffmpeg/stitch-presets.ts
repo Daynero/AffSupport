@@ -8,6 +8,7 @@
  * a single sample disappears at the join.
  */
 
+import { orientationFilter, type ExifOrientation } from '../stitcher/exif.js';
 import {
   STITCH_MIN_SCREEN_FRAMES,
   type ImageFitMode,
@@ -83,6 +84,11 @@ export interface ScreenVideoOptions {
   screen: StitchScreenSegmentPlan;
   fitMode: ImageFitMode;
   threads?: number | null;
+  /**
+   * The picture's EXIF orientation (030). Applied here as an explicit filter with FFmpeg's
+   * own autorotation switched off, so a phone photo stands the same way up on every build.
+   */
+  orientation?: ExifOrientation;
 }
 
 /**
@@ -106,9 +112,15 @@ export function buildScreenVideoArgs(options: ScreenVideoOptions): string[] {
     'flags=lanczos',
     'flags=lanczos:in_range=full:out_range=tv'
   );
+  const upright = orientationFilter(options.orientation ?? 1);
   return [
     ...BASE,
     ...threadArgs(options.threads ?? null),
+    // The turn is read from the bytes and applied below; FFmpeg must neither apply it a second
+    // time nor carry the picture's display matrix into the segment, where every player would.
+    '-noautorotate',
+    '-display_rotation',
+    '0',
     '-loop',
     '1',
     '-framerate',
@@ -118,7 +130,7 @@ export function buildScreenVideoArgs(options: ScreenVideoOptions): string[] {
     '-t',
     decimal(screen.durationSeconds, 9),
     '-vf',
-    fit,
+    upright ? `${upright},${fit}` : fit,
     '-c:v',
     'libx264',
     '-preset',

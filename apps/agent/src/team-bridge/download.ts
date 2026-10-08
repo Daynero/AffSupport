@@ -19,7 +19,16 @@ const MAX_NAME_ATTEMPTS = 1_000;
  */
 export type TeamAgentDownloadProcess =
   | { tool: 'compressor'; embed: boolean; suffix: string }
-  | { tool: 'restitch'; defaults: unknown; prepared?: unknown; suffix?: string };
+  | {
+      tool: 'restitch';
+      defaults: unknown;
+      prepared?: unknown;
+      /** The pictures the server drew from the space's pools, with their grants (030). */
+      screens?: unknown;
+      /** The space, so the screen cache knows whose pictures these are (030). */
+      teamId?: string;
+      suffix?: string;
+    };
 
 export interface TeamAgentDownloadRequest {
   operationId: string;
@@ -272,7 +281,12 @@ function normalizeProcess(request: TeamAgentDownloadRequest): NormalizedProcess 
   if (step?.tool === 'restitch') {
     return {
       delegate: 'restitch',
-      options: { defaults: step.defaults, prepared: step.prepared ?? null },
+      options: {
+        defaults: step.defaults,
+        prepared: step.prepared ?? null,
+        screens: step.screens ?? null,
+        teamId: step.teamId ?? null
+      },
       suffix: step.suffix ?? '',
       fallbackSuffix: '_restitched'
     };

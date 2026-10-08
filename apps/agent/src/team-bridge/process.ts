@@ -46,6 +46,8 @@ export interface TeamProcessRequest extends TeamAgentProcessRequest {
 
 export interface TeamProcessDelegateInput {
   operationId: string;
+  /** The space the job belongs to, when the caller knows it (030: the screen cache's scope). */
+  teamId?: string | null;
   workspace: string;
   sourceFile: string;
   sourceSizeBytes: number;
