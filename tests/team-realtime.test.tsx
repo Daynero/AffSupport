@@ -256,3 +256,71 @@ describe('team Realtime invalidation', () => {
     expect(result.current.activeTeam).toBeNull();
   });
 });
+
+describe('delivery does not wait for membership (028, release C)', () => {
+  it('a realtime refetch bumps the materials revision before awaiting membership, and a failed membership read still delivers it', async () => {
+    const team: TeamContextSnapshot = {
+      id: '21000000-0000-4000-8000-000000000002',
+      name: 'Team',
+      role: 'owner',
+      permissions: DEFAULT_ROLE_PERMISSIONS.owner,
+      connectionState: 'connected'
+    };
+    window.history.replaceState(null, '', `/team/${team.id}`);
+    localStorage.setItem('wishly.active-team.v1', team.id);
+    let releaseTeams!: () => void;
+    const client = {
+      listTeams: vi
+        .fn()
+        .mockResolvedValueOnce([team])
+        .mockImplementationOnce(
+          () =>
+            new Promise<TeamContextSnapshot[]>(resolve => {
+              releaseTeams = () => resolve([team]);
+            })
+        )
+        .mockRejectedValueOnce(new Error('membership offline')),
+      listFolderPage: vi.fn().mockResolvedValue({ rows: [], total: 0, next: null })
+    };
+    const view = renderHook(() => useTeam(), {
+      wrapper: ({ children }) => (
+        <TeamProvider client={client as never} initialTeams={[team]}>
+          {children}
+        </TeamProvider>
+      )
+    });
+    await act(async () => {
+      status('SUBSCRIBED');
+      await vi.advanceTimersByTimeAsync(1_100);
+    });
+    // The membership read is still pending; the revision has already moved.
+    const after = view.result.current.revision;
+    expect(after).toBeGreaterThan(0);
+    await act(async () => {
+      releaseTeams();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      events.get('team_catalog_events')?.();
+      await vi.advanceTimersByTimeAsync(1_100);
+    });
+    expect(view.result.current.revision).toBeGreaterThan(after);
+  });
+
+  it('an unsubscribed channel of the previous team never invalidates the new team', async () => {
+    const onRefetch = vi.fn();
+    const view = renderHook(({ teamId }) => useTeamRealtime({ teamId, onRefetch }), {
+      initialProps: { teamId: 'team-a' }
+    });
+    const oldStatus = status;
+    const oldEvent = events.get('team_catalog_events')!;
+    view.rerender({ teamId: 'team-b' });
+    expect(removeChannel).toHaveBeenCalledTimes(1);
+    oldStatus('SUBSCRIBED');
+    oldEvent();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_100);
+    });
+    expect(onRefetch).not.toHaveBeenCalled();
+  });
+});

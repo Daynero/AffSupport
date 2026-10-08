@@ -1234,3 +1234,74 @@ Forward fix preferred. To roll back only this migration, restore
 `public.get_team_folder_resync_status(uuid, uuid)` from
 `20260924100000_catalog_sync_ownership.sql`. No data or jobs are removed by
 this migration; already queued full scans remain valid.
+
+## 20261008100000_sync_orphan_recovery.sql
+
+Forward fix preferred: the data repair at the end of this file is idempotent
+and nothing it does needs undoing. To revert the behaviour only, restore
+`private.claim_catalog_sync_jobs(text,integer,integer)` from
+`20260924160000_catalog_sync_fairness.sql`,
+`public.service_retry_catalog_sync_job(uuid,text,text,timestamptz,boolean)` and
+`public.service_complete_catalog_sync_job(uuid,text,text,text)` from
+`20260924100000_catalog_sync_ownership.sql`,
+`public.request_team_folder_resync(uuid,text)` from
+`20260924140000_catalog_discovered_subtrees.sql`,
+`public.request_team_catalog_resync(uuid)` and
+`public.get_team_folder_sync_status(uuid,uuid)` from
+`20261006120000_manual_root_resync_status.sql` and
+`20260924110000_catalog_scan_generations.sql`, and
+`private.invoke_catalog_sync_worker()` from
+`20260916100000_catalog_sync_outage_guards.sql`. Reschedule
+`wishly-catalog-sync-retention` to `select private.cleanup_catalog_sync_retention()`
+and drop `private.run_catalog_sync_maintenance()`, `private.sweep_catalog_sync_orphans(integer,interval)`,
+`private.recover_catalog_sync_feed(uuid,interval)`, `private.nudge_catalog_sync_feed(uuid)`
+and `public.find_team_folder_sync_request(uuid,text)`. Keep the new columns
+(`error_detail`, `scan_completed_at`, `lease_lost_count`, `recovery_count`,
+`last_recovery_at`): they carry defaults and older functions ignore them.
+Jobs the sweep retired as `REPLAY_TIMEOUT`, `CANONICAL_FAILED` or
+`CONNECTION_DETACHED` stay terminal; a new manual request creates a fresh scan.
+Cursor provenance is never touched by this migration or its rollback.
+
+## 20261008110000_sync_diagnostics_view.sql
+
+`drop view public.analytics_catalog_sync_jobs;` — the grant to
+`wishly_analytics_ro` goes with it. No data is written or removed by this
+migration; the `analytics -- sync` command simply stops working until the
+view is restored.
+
+## 20261015100000_sync_requests_and_cancel.sql
+
+Stop the web from calling the keyed request RPCs first (the older two-argument
+forms keep working). Then drop `public.cancel_team_folder_sync(uuid,uuid)`,
+`public.find_team_folder_sync_request_by_key(uuid,text)`,
+`public.request_team_folder_resync(uuid,text,text)`,
+`public.request_team_catalog_resync(uuid,text)`,
+`private.record_catalog_sync_request(...)`, and the fenced overloads
+`public.service_upsert_catalog_page(uuid,text,bigint,uuid,text,jsonb)` and
+`public.service_tombstone_catalog_files(uuid,text,bigint,uuid,jsonb)` (the
+worker must be rolled back to call the unfenced forms). Restore
+`public.request_team_folder_resync(uuid,text)`, `public.request_team_catalog_resync(uuid)`,
+`private.claim_catalog_sync_jobs`, `public.get_team_folder_sync_status(uuid,uuid)` from
+`20261008100000_sync_orphan_recovery.sql`; `private.lock_catalog_sync_lease` from
+`20260924100000_catalog_sync_ownership.sql`; `private.join_catalog_subtree` from
+`20260924140000_catalog_discovered_subtrees.sql`; `service_commit_catalog_scan_page`,
+`service_resolve_catalog_candidate`, `service_finish_catalog_folder` from
+`20260924110000_catalog_scan_generations.sql`; the diagnostics view from
+`20261008110000_sync_diagnostics_view.sql`. Keep `private.catalog_sync_requests` and the
+new job columns: they hold history and defaults, and nothing older reads them.
+No catalog rows or cursors change in either direction.
+
+## 20261022100000_sync_replay_fencing.sql
+
+Roll the `catalog-sync` function back first: the worker built for this
+migration calls the fenced overloads. Then drop
+`public.service_catalog_sync_lease_live(uuid,text,bigint)` and the fenced
+overloads of `service_invalidate_landing_renders`, `service_mark_folder_indexed`,
+`service_mark_root_state`, `service_touch_catalog_reconciled` and
+`service_enqueue_catalog_reconciliation` (the ones whose first three arguments
+are `uuid, text, bigint`); the unfenced originals are untouched. Restore
+`public.service_begin_catalog_folder` from `20260924110000_catalog_scan_generations.sql`,
+`public.service_finish_catalog_folder`, `private.claim_catalog_sync_jobs` and the
+diagnostics view from `20261015100000_sync_requests_and_cancel.sql`. Keep
+`catalog_sync_jobs.no_progress_runs`. Jobs retired as `NO_PROGRESS` stay failed;
+a new request starts a fresh scan.

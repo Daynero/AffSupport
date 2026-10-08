@@ -468,6 +468,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await import('../team/explorer/workspaceOperationJournal');
       await new WorkspaceOperationJournal({ actorId }).purgeActor();
     }
+    // Remembered sync jobs belong to the account that started them.
+    const { clearFolderResyncMemory } = await import('../team/explorer/useFolderResync');
+    clearFolderResyncMemory();
     analytics.setUser(null);
     sessionStorage.removeItem('wishly.auth.analytics-user.v1');
     // Otherwise the next automatic ask would find the website's session still

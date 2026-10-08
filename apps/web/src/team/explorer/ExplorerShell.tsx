@@ -99,6 +99,7 @@ import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
 import { useVisibleRowAnchor } from './useVisibleRowAnchor';
 import { useFolderResync, type FolderResyncClient } from './useFolderResync';
+import { SyncStatusPanel } from './SyncStatusPanel';
 import { usePosterFrames } from './usePosterFrames';
 import {
   buildLocalManifest,
@@ -114,6 +115,9 @@ import {
 } from './WorkspaceOperationsProvider';
 import { confirmWorkspaceCatalog, findFolderConflicts } from './catalogPostcondition';
 
+/** A progress tick refreshes the visible folder at most this often (028). */
+const PROGRESS_REFRESH_MIN_MS = 5_000;
+
 export type ExplorerShellClient = ExplorerClient &
   FolderResyncClient &
   ContentGridClient &
@@ -121,7 +125,10 @@ export type ExplorerShellClient = ExplorerClient &
   FolderPickerClient &
   FolderSubtreeClient & {
     getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
-    resyncDrive?: (teamId: string) => Promise<DriveCatalogResyncResult>;
+    resyncDrive?: (
+      teamId: string,
+      options?: { signal?: AbortSignal }
+    ) => Promise<DriveCatalogResyncResult>;
     /** Only the space's owner may call this; the database is what enforces it. */
     setMaterialTag?: (input: {
       teamId: string;
@@ -344,7 +351,8 @@ function ExplorerBody({
     if (settingsWasOpen.current && !settingsOpen && restitch.pending) void restitch.resume();
     settingsWasOpen.current = settingsOpen;
   }, [settingsOpen, restitch]);
-  const { permissions: loadedPermissions, activeTeam } = useTeam();
+  const { permissions: loadedPermissions, activeTeam, notifyStateChanged } = useTeam();
+  const lastProgressRefresh = useRef(0);
   // Every write goes dark while storage needs a person (FR-033); nothing is lost.
   const permissions = readOnly ? null : loadedPermissions;
   const explorer = useExplorer();
@@ -419,30 +427,71 @@ function ExplorerBody({
     : [];
   if (currentFolderId && !activeFolderIds.includes(currentFolderId))
     activeFolderIds.push(currentFolderId);
+  /*
+   * The request RPCs admit the space's owner and admins only; the button
+   * says the same, so nobody sees a control the server will refuse (028).
+   */
+  const canResync = !readOnly && (activeTeam?.role === 'owner' || activeTeam?.role === 'admin');
   const folderResync = useFolderResync({
     teamId,
     folderId: currentFolderId ?? '__root__',
-    scopeFolderIds: currentFolderId ? activeFolderIds : ['__root__'],
+    // The whole-space scan is an ancestor of every folder: inside a child it
+    // shows as running, and no second request is started under it.
+    scopeFolderIds: currentFolderId ? ['__root__', ...activeFolderIds] : ['__root__'],
     client: {
-      resyncFolder: (id, folder) =>
-        folder === '__root__' ? client.resyncDrive!(id) : client.resyncFolder!(id, folder),
-      getFolderResyncStatus: client.getFolderResyncStatus
+      resyncFolder: (id, folder, options) =>
+        folder === '__root__'
+          ? client.resyncDrive!(id, options)
+          : client.resyncFolder!(id, folder, options),
+      getFolderSyncStatus: client.getFolderSyncStatus,
+      findFolderSyncRequest: client.findFolderSyncRequest,
+      findFolderSyncRequestByKey: client.findFolderSyncRequestByKey,
+      cancelFolderSync: client.cancelFolderSync
     },
     onComplete: async () => {
       await Promise.all([page.reloadStrict(), explorer.refreshStrict()]);
     },
+    /*
+     * Files land in the catalog page by page while the scan runs. Realtime
+     * normally says so; when it is down, the status the person is already
+     * polling says so instead — at most once every five seconds, and only
+     * while the person is watching this scan (028, release C).
+     */
+    onProgress: () => {
+      const now = Date.now();
+      if (now - lastProgressRefresh.current < PROGRESS_REFRESH_MIN_MS) return;
+      lastProgressRefresh.current = now;
+      notifyStateChanged();
+    },
     onOutcome: outcome =>
       push({
-        tone: outcome === 'succeeded' ? 'success' : 'error',
+        tone: outcome === 'succeeded' ? 'success' : outcome === 'failed' ? 'error' : 'info',
         text: t(
           outcome === 'succeeded'
             ? 'teamFolderResyncDone'
-            : outcome === 'timeout'
-              ? 'teamFolderResyncTimeout'
-              : 'teamFolderResyncFailed'
+            : outcome === 'unreachable'
+              ? 'teamFolderResyncUnreachable'
+              : outcome === 'disconnected'
+                ? 'teamFolderResyncDisconnected'
+                : outcome === 'stalled'
+                  ? 'teamFolderResyncStalled'
+                  : outcome === 'blocked'
+                    ? 'teamFolderResyncBlocked'
+                    : outcome === 'canceled'
+                      ? 'teamFolderResyncCanceled'
+                      : outcome === 'detached'
+                        ? 'teamFolderResyncDetached'
+                        : 'teamFolderResyncFailed'
         )
       })
   });
+  // The panel names the job's own scope: inside a child of a syncing folder
+  // it says the folder, inside any folder of a syncing space it says the space.
+  const syncScopeId = folderResync.status?.scopeFolderId ?? currentFolderId ?? '__root__';
+  const syncScopeName =
+    syncScopeId === '__root__'
+      ? t('teamSyncScopeSpace')
+      : (explorer.nodeOf(syncScopeId)?.name ?? syncScopeId);
   const uploadingThisFolder = Boolean(
     currentFolderId &&
     workspaceOperations?.groups.some(
@@ -1630,7 +1679,8 @@ function ExplorerBody({
                   }
                 ]}
               />
-              {client.getFolderResyncStatus &&
+              {canResync &&
+                client.getFolderSyncStatus &&
                 (currentFolderId ? client.resyncFolder : client.resyncDrive) && (
                   <Button
                     type="button"
@@ -1695,6 +1745,14 @@ function ExplorerBody({
           )}
         </div>
       </div>
+      {folderResync.status && (
+        <SyncStatusPanel
+          status={folderResync.status}
+          scopeName={syncScopeName}
+          onCancel={canResync ? () => void folderResync.cancel() : undefined}
+          onRetry={canResync ? () => void folderResync.start() : undefined}
+        />
+      )}
       {retryGroupId && (
         <div role="status">
           {t('teamWorkspaceReselect')}{' '}

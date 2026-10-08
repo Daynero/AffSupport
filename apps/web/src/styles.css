@@ -18239,3 +18239,49 @@ a.history-subject {
 .team-explorer-row-name.is-nested {
   padding-left: var(--space-5);
 }
+
+/* 028 — what one manual sync is doing, under the explorer toolbar. */
+.team-sync-panel {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
+  font-size: var(--text-caption);
+}
+.team-sync-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.team-sync-panel-scope {
+  font-weight: 600;
+}
+.team-sync-panel-phase,
+.team-sync-panel-line {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+.team-sync-panel-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+.team-sync-panel-reason {
+  margin: 0;
+}
+.team-sync-panel-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+.team-sync-panel-details dt {
+  color: var(--color-text-muted);
+}
+.team-sync-panel-details dd {
+  margin: 0;
+}

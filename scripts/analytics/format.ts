@@ -16,7 +16,9 @@ import type {
   TopListItem,
   TopUsersData,
   UserDetailData,
-  UsersData
+  UsersData,
+  SyncData,
+  SyncJobRow
 } from './types.js';
 
 export function formatBytes(bytes: number): string {
@@ -372,4 +374,56 @@ export function formatTeamWorkspace(data: TeamWorkspaceData, period: ResolvedPer
         ]
       : [])
   ].join('\n');
+}
+
+function age(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return '—';
+  const seconds = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  if (seconds < 90) return `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 90) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
+}
+
+function waitsFor(row: SyncJobRow): string {
+  if (row.replay_after === null) return '—';
+  const feed = row.canonical_state
+    ? `${row.canonical_state}${row.canonical_error_code ? '/' + row.canonical_error_code : ''}`
+    : 'no feed';
+  return `seq ${row.replay_after} (feed ${feed}; confirmed ${row.confirmed_sequence ?? 0})`;
+}
+
+export function formatSyncJobs(data: SyncData, period: ResolvedPeriod, now = Date.now()): string {
+  const sections = data.connections.map(connection => {
+    const feed = connection.canonical
+      ? `${connection.canonical.state}${connection.canonical.error_code ? ' / ' + connection.canonical.error_code : ''}` +
+        ` · next ${age(connection.canonical.next_attempt_at, now)} · confirmed seq ${num(connection.canonical.confirmed_sequence)}` +
+        ` · recoveries ${num(connection.canonical.recovery_count)}`
+      : 'none';
+    const body = connection.jobs.map(row => [
+      row.job_id.slice(0, 8),
+      row.job_kind,
+      row.phase,
+      row.state,
+      age(row.created_at, now),
+      `${age(row.last_progress_at, now)} ago · ${num(row.folders_done)} folders`,
+      `${num(row.attempts)}/${num(row.lease_lost_count)}`,
+      waitsFor(row),
+      row.last_error_code
+        ? `${row.last_error_code}${row.error_detail ? ' (' + row.error_detail + ')' : ''}`
+        : '—'
+    ]);
+    return [
+      `\nConnection ${connection.connection_id.slice(0, 8)} · ${connection.connection_state} · feed: ${feed}`,
+      body.length
+        ? table(
+            ['Job', 'Kind', 'Phase', 'State', 'Age', 'Progress', 'Att/Lost', 'Waits for', 'Error'],
+            body
+          )
+        : '  —'
+    ].join('\n');
+  });
+  return [header(`Sync jobs · team ${data.team_id.slice(0, 8)}`, period), ...sections].join('\n');
 }

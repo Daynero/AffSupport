@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { settleRead, type ReadResult } from './readSettle';
 import { isHousekeepingFile } from '../catalog/housekeeping';
 import { useCatalogRead } from '../catalog/CatalogFreshness';
 import type {
@@ -93,6 +94,7 @@ export function useFolderPage(input: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const generation = useRef(0);
+  const latestRefresh = useRef<Promise<ReadResult> | null>(null);
   const loadedPages = useRef(1);
   const beforeRowsReplaceRef = useRef(beforeRowsReplace);
   beforeRowsReplaceRef.current = beforeRowsReplace;
@@ -153,75 +155,78 @@ export function useFolderPage(input: {
       const token = ++generation.current;
       const targetPages = loadedPages.current;
       setLoading(true);
-      try {
-        // A transient catalog read must not replace a previously loaded
-        // window with an empty first page. Retry the whole window, not only the
-        // failed page, so every committed render comes from one fresh walk.
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          try {
-            let cursor: FolderPageCursor | null = null;
-            let totalRows = 0;
-            let hidden = 0;
-            let pagesRead = 0;
-            const visible: TeamMaterialRow[] = [];
-            for (let index = 0; index < targetPages; index += 1) {
-              const page: FolderPage = await withTimeout(
-                client.listFolderPage(teamId, {
-                  parentFolderId,
-                  ...(kinds && kinds.length > 0 ? { kinds } : {}),
-                  after: cursor,
-                  limit: PAGE_SIZE
-                }),
-                FOLDER_PAGE_TIMEOUT_MS
-              );
-              if (token !== generation.current) {
-                if (reportFailure) throw new Error('CATALOG_REFRESH_SUPERSEDED');
-                return;
+      const attemptRead = (async (): Promise<ReadResult> => {
+        try {
+          // A transient catalog read must not replace a previously loaded
+          // window with an empty first page. Retry the whole window, not only the
+          // failed page, so every committed render comes from one fresh walk.
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+              let cursor: FolderPageCursor | null = null;
+              let totalRows = 0;
+              let hidden = 0;
+              let pagesRead = 0;
+              const visible: TeamMaterialRow[] = [];
+              for (let index = 0; index < targetPages; index += 1) {
+                const page: FolderPage = await withTimeout(
+                  client.listFolderPage(teamId, {
+                    parentFolderId,
+                    ...(kinds && kinds.length > 0 ? { kinds } : {}),
+                    after: cursor,
+                    limit: PAGE_SIZE
+                  }),
+                  FOLDER_PAGE_TIMEOUT_MS
+                );
+                if (token !== generation.current) return 'superseded';
+                const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
+                visible.push(...kept);
+                hidden += page.rows.length - kept.length;
+                totalRows = page.total;
+                cursor = page.next;
+                pagesRead += 1;
+                if (!cursor) break;
               }
-              const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
-              visible.push(...kept);
-              hidden += page.rows.length - kept.length;
-              totalRows = page.total;
-              cursor = page.next;
-              pagesRead += 1;
-              if (!cursor) break;
-            }
-            // A folder being discovered can briefly answer with zero rows
-            // between catalog commits. Keep its last visible window until a
-            // completed/strict read confirms the true empty result.
-            if (!(
-              preserveOnEmptyRef.current &&
-              !reportFailure &&
-              visible.length === 0 &&
-              dataScopeRef.current === scopeKey &&
-              rowsRef.current.length > 0
-            )) {
-              hiddenSoFar.current = hidden;
-              loadedPages.current = pagesRead;
-              beforeRowsReplaceRef.current?.();
-              setRows(visible);
-              setTotal(Math.max(0, totalRows - hidden));
-              setNext(cursor);
-            }
-            setDataScope(scopeKey);
-            setError(false);
-            read.succeed();
-            return;
-          } catch {
-            if (token !== generation.current) {
-              if (reportFailure) throw new Error('CATALOG_REFRESH_SUPERSEDED');
-              return;
-            }
-            if (attempt === 2) {
-              read.fail();
-              setError(true);
-              if (reportFailure) throw new Error('FOLDER_PAGE_REFRESH_FAILED');
+              // A folder being discovered can briefly answer with zero rows
+              // between catalog commits. Keep its last visible window until a
+              // completed/strict read confirms the true empty result.
+              if (!(
+                preserveOnEmptyRef.current &&
+                !reportFailure &&
+                visible.length === 0 &&
+                dataScopeRef.current === scopeKey &&
+                rowsRef.current.length > 0
+              )) {
+                hiddenSoFar.current = hidden;
+                loadedPages.current = pagesRead;
+                beforeRowsReplaceRef.current?.();
+                setRows(visible);
+                setTotal(Math.max(0, totalRows - hidden));
+                setNext(cursor);
+              }
+              setDataScope(scopeKey);
+              setError(false);
+              read.succeed();
+              return 'ok';
+            } catch {
+              if (token !== generation.current) return 'superseded';
+              if (attempt === 2) {
+                read.fail();
+                setError(true);
+                return 'failed';
+              }
             }
           }
+          return 'failed';
+        } finally {
+          if (token === generation.current) setLoading(false);
         }
-      } finally {
-        if (token === generation.current) setLoading(false);
-      }
+      })();
+      latestRefresh.current = attemptRead;
+      const result = await settleRead(attemptRead, latestRefresh);
+      if (!reportFailure) return;
+      // The read that painted the folder answers for the one it replaced (028).
+      if (result === 'failed') throw new Error('FOLDER_PAGE_REFRESH_FAILED');
+      if (result === 'superseded') throw new Error('CATALOG_REFRESH_SUPERSEDED');
     },
     [client, teamId, parentFolderId, kindsKey, scopeKey, beginRead]
   );

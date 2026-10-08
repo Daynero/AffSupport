@@ -14,6 +14,7 @@ import {
 } from '../_shared/credentials.ts';
 import { GoogleDriveClient, proveLiveAncestry, type DriveFileMetadata } from '../_shared/drive.ts';
 import { isHiddenPreviewCache } from '../_shared/drive-cache.ts';
+import { rpcErrorRecord } from './logging.ts';
 import {
   errorResponse,
   mapUnknownError,
@@ -58,7 +59,16 @@ async function rpcValue(
   parameters: Record<string, unknown>
 ): Promise<unknown> {
   const { data, error } = await client.rpc(name, parameters);
-  if (error) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+  if (error) {
+    // The database's own verdict (INCOMPLETE_SCAN, INVALID_SCOPE, a lock
+    // timeout) used to vanish behind the retryable 503 below. Keep the retry,
+    // but say what happened; parameters stay out of the log.
+    console.error('catalog_sync_rpc_error', rpcErrorRecord(name, error));
+    if (typeof error.message === 'string' && error.message.includes('LEASE_LOST')) {
+      throw new CatalogLeaseLostError();
+    }
+    throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+  }
   return data;
 }
 
@@ -130,6 +140,8 @@ async function ingestPendingTranscripts(input: {
   connectionId: string;
   files: DriveFileMetadata[];
   countProviderCall: () => void;
+  /** Asked before each commit (028): a stale worker must not write a transcript. */
+  leaseLive?: () => Promise<boolean>;
 }): Promise<void> {
   if (input.files.length === 0) return;
   await rpcValue(input.service, 'service_requeue_catalog_transcripts', {
@@ -179,6 +191,7 @@ async function ingestPendingTranscripts(input: {
       state = 'unavailable';
       errorCode = deferredError.code;
     }
+    if (input.leaseLive && !(await input.leaseLive())) throw new CatalogLeaseLostError();
     await rpcValue(input.service, 'service_commit_catalog_transcript', {
       p_material: materialId,
       p_expected_version: optionalString(target.drive_version),
@@ -295,6 +308,13 @@ function dependencies(input: {
 }): CatalogSyncDependencies {
   const { service, drive, worker, job, countProviderCall } = input;
   const reader = memoizedReader(drive, countProviderCall);
+  /** Is this worker still the one allowed to act for the job? Read-only; asked before side effects. */
+  const leaseLive = async (): Promise<boolean> =>
+    (await rpcValue(service, 'service_catalog_sync_lease_live', {
+      p_job: job.jobId,
+      p_worker: worker,
+      p_epoch: job.leaseEpoch
+    })) === true;
   return {
     durableScan: {
       beginFolder: async (folderId, restart) => {
@@ -409,7 +429,10 @@ function dependencies(input: {
             client: reader,
             fileId: file.id,
             rootFolderId,
-            resourceKey: file.resourceKey
+            resourceKey: file.resourceKey,
+            // A shortcut is a catalog item of its own kind (028); it is placed
+            // where it sits, and the feed does not die on it.
+            allowShortcutTarget: true
           });
           return true;
         } catch (cause) {
@@ -442,6 +465,9 @@ function dependencies(input: {
       if (request.fileIds.length === 0) return;
       const invalidated = rows(
         await rpcValue(service, 'service_invalidate_landing_renders', {
+          p_job: request.jobId,
+          p_worker: worker,
+          p_epoch: job.leaseEpoch,
           p_connection: request.connectionId,
           p_drive_file_ids: request.fileIds
         })
@@ -454,12 +480,19 @@ function dependencies(input: {
         )
       ];
       for (const artifactRoot of artifactRoots) {
+        // A Drive write cannot be fenced in SQL: ask first (028).
+        if (!(await leaseLive())) throw new CatalogLeaseLostError();
         countProviderCall();
         await drive.updateFileMetadata({ fileId: artifactRoot, trashed: true });
       }
     },
+    // Replay writes go through the lease fence and count on the job (028):
+    // a worker whose lease ended, or whose job was stopped, writes nothing.
     upsertFiles: request =>
       rpcValue(service, 'service_upsert_catalog_page', {
+        p_job: request.jobId,
+        p_worker: worker,
+        p_epoch: job.leaseEpoch,
         p_connection: request.connectionId,
         p_parent_folder_id: request.parentId,
         p_files: request.files.map(catalogRow)
@@ -474,6 +507,9 @@ function dependencies(input: {
       }),
     tombstoneFiles: request =>
       rpcValue(service, 'service_tombstone_catalog_files', {
+        p_job: request.jobId,
+        p_worker: worker,
+        p_epoch: job.leaseEpoch,
         p_connection: request.connectionId,
         p_items: request.items.map(item => ({
           file_id: item.fileId,
@@ -487,7 +523,8 @@ function dependencies(input: {
         drive,
         connectionId: request.connectionId,
         files: request.files,
-        countProviderCall
+        countProviderCall,
+        leaseLive
       }),
     checkpoint: request =>
       rpcValue(service, 'service_save_catalog_sync_progress', {
@@ -513,21 +550,33 @@ function dependencies(input: {
     },
     reconcile: request =>
       rpcValue(service, 'service_enqueue_catalog_reconciliation', {
+        p_job: request.jobId,
+        p_worker: worker,
+        p_epoch: job.leaseEpoch,
         p_connection: request.connectionId
       }),
     markFolderIndexed: request =>
       rpcValue(service, 'service_mark_folder_indexed', {
+        p_job: request.jobId,
+        p_worker: worker,
+        p_epoch: job.leaseEpoch,
         p_connection: request.connectionId,
         p_drive_folder_id: request.folderId
       }),
     markRootState: request =>
       rpcValue(service, 'service_mark_root_state', {
+        p_job: request.jobId,
+        p_worker: worker,
+        p_epoch: job.leaseEpoch,
         p_connection: request.connectionId,
         p_state: request.state,
         p_root_name: request.rootName
       }),
     touchReconciled: request =>
       rpcValue(service, 'service_touch_catalog_reconciled', {
+        p_job: request.jobId,
+        p_worker: worker,
+        p_epoch: job.leaseEpoch,
         p_connection: request.connectionId
       })
   };
@@ -535,7 +584,7 @@ function dependencies(input: {
 
 /**
  * How long one scheduler invocation keeps walking the same job. Well inside
- * the 60 s lease and the local edge runtime's wall clock (it has ended
+ * the 180 s lease and the local edge runtime's wall clock (it has ended
  * isolates at about 19 s); overridable for a slower provider or a stricter
  * runtime.
  */
@@ -646,6 +695,10 @@ Deno.serve(async request => {
         console.info('catalog_sync_job_result', {
           jobId: job.jobId,
           jobKind: job.jobKind,
+          teamId: optionalString(row.team_id),
+          connectionId: job.connectionId,
+          workerId: worker,
+          leaseEpoch: job.leaseEpoch,
           phase: result.phase,
           processed: result.processed,
           slices: result.slices,
@@ -662,6 +715,10 @@ Deno.serve(async request => {
           console.warn('catalog_sync_job_result', {
             jobId: job.jobId,
             jobKind: job.jobKind,
+            teamId: optionalString(row.team_id),
+            connectionId: job.connectionId,
+            workerId: worker,
+            leaseEpoch: job.leaseEpoch,
             queueFolders,
             runtimeMs: Math.round(performance.now() - startedAt),
             providerCalls,
@@ -690,6 +747,10 @@ Deno.serve(async request => {
         console.warn('catalog_sync_job_result', {
           jobId: job.jobId,
           jobKind: job.jobKind,
+          teamId: optionalString(row.team_id),
+          connectionId: job.connectionId,
+          workerId: worker,
+          leaseEpoch: job.leaseEpoch,
           queueFolders,
           runtimeMs: Math.round(performance.now() - startedAt),
           providerCalls,

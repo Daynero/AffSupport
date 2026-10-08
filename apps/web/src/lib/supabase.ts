@@ -61,10 +61,13 @@ export function isRejectedApiToken(error: unknown): boolean {
 }
 
 export async function withFreshSession<T extends { error: unknown }>(
-  run: () => PromiseLike<T>
+  run: () => PromiseLike<T>,
+  options: { signal?: AbortSignal } = {}
 ): Promise<T> {
   const first = await run();
   if (!isRejectedApiToken(first.error)) return first;
+  // An aborted call is the caller's decision, never a reason to refresh.
+  if (options.signal?.aborted) return first;
   const supabase = getSupabaseClient();
   const refreshed = await supabase?.auth.refreshSession();
   if (!refreshed || refreshed.error || !refreshed.data.session) return first;

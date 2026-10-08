@@ -21,10 +21,13 @@ export function useStorageHealth(input: {
   teamId: string;
   client: StorageHealthClient;
   enabled?: boolean;
-}): { health: StorageHealth | null; refresh: () => Promise<void> } {
+}): { health: StorageHealth | null; refresh: () => Promise<void>; staleSince: number | null } {
   const { teamId, client, enabled = true } = input;
   const { revision } = useTeam();
   const [snapshot, setSnapshot] = useState<{ teamId: string; health: StorageHealth } | null>(null);
+  /** When the last successful read happened, once a later read has failed (028). */
+  const [staleSince, setStaleSince] = useState<number | null>(null);
+  const lastSuccess = useRef<number | null>(null);
   const activeRef = useRef(true);
   const requestId = useRef(0);
   const previous = useRef<StorageHealth | null>(null);
@@ -68,9 +71,14 @@ export function useStorageHealth(input: {
       if (!activeRef.current || currentRequest !== requestId.current) return;
       observe(next);
       setSnapshot({ teamId, health: next });
+      lastSuccess.current = Date.now();
+      setStaleSince(null);
     } catch {
       // A failed read is not proof that the last confirmed state vanished.
-      // Keep that snapshot while a later authoritative read retries.
+      // Keep that snapshot while a later authoritative read retries — and say
+      // how old it is, so a stale chip is not read as the present (028).
+      if (!activeRef.current || currentRequest !== requestId.current) return;
+      setStaleSince(value => value ?? lastSuccess.current ?? Date.now());
     }
   }, [client, observe, teamId]);
 
@@ -95,5 +103,9 @@ export function useStorageHealth(input: {
     return () => window.clearTimeout(timer);
   }, [enabled, refresh, revision]);
 
-  return { health: snapshot?.teamId === teamId ? snapshot.health : null, refresh };
+  return {
+    health: snapshot?.teamId === teamId ? snapshot.health : null,
+    refresh,
+    staleSince: snapshot?.teamId === teamId ? staleSince : null
+  };
 }

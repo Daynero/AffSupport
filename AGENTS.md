@@ -43,6 +43,7 @@ npm run analytics -- diagnose <error-fingerprint> [--json]
 npm run analytics -- cohorts [--cohort-by local-app-version|platform|web-build] [--json]
 npm run analytics -- retention  [--period ...] [--json]
 npm run analytics -- team-workspace [--period ...] [--json]
+npm run analytics -- sync <team-id|owner-email> [--limit N] [--json]
 ```
 
 Default period is `7d`. `--days N` gives a rolling N-day window and overrides

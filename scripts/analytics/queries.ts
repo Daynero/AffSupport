@@ -20,7 +20,10 @@ import type {
   RetentionMetric,
   TeamWorkspaceData,
   TeamFindCueMetric,
-  TeamActivationWindow
+  TeamActivationWindow,
+  SyncConnection,
+  SyncData,
+  SyncJobRow
 } from './types.js';
 
 /** Range params are always $1 = start (nullable), $2 = end. */
@@ -855,4 +858,61 @@ function activationWindow(row: {
     rate: ratio,
     status: ratio === null ? 'insufficient' : ratio >= 0.7 ? 'pass' : 'fail'
   };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const SYNC_COLUMNS = `job_id::text, connection_id::text, connection_state, job_kind, phase, state,
+  scope_hash, requested_by::text, request_id::text, request_outcome,
+  created_at::text, updated_at::text, completed_at::text, scan_completed_at::text,
+  last_progress_at::text, lease_expires_at::text, lease_epoch, run_count, attempts, lease_lost_count,
+  no_progress_runs, next_attempt_at::text, replay_after, confirmed_sequence, confirmed_at::text,
+  recovery_count, last_recovery_at::text, canonical_job_id::text, canonical_state,
+  canonical_error_code, canonical_next_attempt_at::text, last_error_code, error_detail,
+  cancel_requested_at::text, files_listed, files_added, files_updated, files_removed,
+  items_unavailable, folders_done`;
+
+/**
+ * 028 — every sync job of one space, newest first, grouped by connection with
+ * the connection's canonical feed job beside them. `teamOrEmail` is a team id
+ * or the owner's email; the owner's email itself is never returned.
+ */
+export async function getSyncJobs(teamOrEmail: string, limit = 50): Promise<SyncData | null> {
+  const bounded = Math.min(Math.max(Math.trunc(limit), 1), 500);
+  const byTeam = UUID.test(teamOrEmail);
+  const rows = await query<SyncJobRow & { team_id: string }>(
+    `select team_id::text, ${SYNC_COLUMNS}
+     from public.analytics_catalog_sync_jobs
+     where ${byTeam ? 'team_id = $1::uuid' : 'owner_email_normalized = lower($1)'}
+     order by updated_at desc, created_at desc
+     limit $2`,
+    [teamOrEmail, bounded]
+  );
+  if (rows.length === 0) return null;
+  const connections = new Map<string, SyncConnection>();
+  let teamId = '';
+  for (const { team_id, ...row } of rows) {
+    teamId = team_id;
+    let connection = connections.get(row.connection_id);
+    if (!connection) {
+      connection = {
+        connection_id: row.connection_id,
+        connection_state: row.connection_state,
+        canonical: row.canonical_job_id
+          ? {
+              job_id: row.canonical_job_id,
+              state: row.canonical_state ?? 'unknown',
+              error_code: row.canonical_error_code,
+              next_attempt_at: row.canonical_next_attempt_at,
+              confirmed_sequence: row.confirmed_sequence,
+              recovery_count: row.recovery_count
+            }
+          : null,
+        jobs: []
+      };
+      connections.set(row.connection_id, connection);
+    }
+    connection.jobs.push(row);
+  }
+  return { team_id: teamId, connections: [...connections.values()] };
 }

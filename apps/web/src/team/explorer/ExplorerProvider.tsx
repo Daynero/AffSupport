@@ -12,6 +12,7 @@ import type { TeamFolderNode, TeamMaterialRow } from '@video-compressor/shared';
 import { trackTeamIndexCompleted } from '../../analytics/service';
 import { compareNames } from './sort';
 import { useCatalogRead } from '../catalog/CatalogFreshness';
+import { settleRead, type ReadResult } from './readSettle';
 
 /**
  * The explorer's shared state (011): the one-call folder tree, the open
@@ -88,6 +89,8 @@ export function ExplorerProvider({
   );
   const activeRef = useRef(true);
   const readSequence = useRef(0);
+  /** The newest read in flight; a superseded strict read defers to it. */
+  const latestRead = useRef<Promise<ReadResult> | null>(null);
   const indexingSince = useRef<number | null>(null);
 
   const read = useCallback(
@@ -95,37 +98,45 @@ export function ExplorerProvider({
       const status = beginRead();
       const sequence = ++readSequence.current;
       setLoading(true);
-      try {
-        const value = await client.listFolderTree(teamId);
-        if (!activeRef.current || sequence !== readSequence.current) {
-          if (reportFailure) throw new Error('CATALOG_REFRESH_SUPERSEDED');
-          return;
+      const attempt = (async (): Promise<ReadResult> => {
+        try {
+          const value = await client.listFolderTree(teamId);
+          if (!activeRef.current || sequence !== readSequence.current) return 'superseded';
+          // The server orders by byte, the list beside the tree by the reader's language: in
+          // Ukrainian "Вставки" came first in the list and last in the tree.
+          setNodes([...value].sort((a, b) => compareNames(a.name, b.name)));
+          setError(false);
+          status.succeed();
+          // FR-035: the moment every folder is listed, once per indexing run.
+          const unindexed = value.filter(node => node.indexedAt === null).length;
+          if (unindexed > 0 && indexingSince.current === null) indexingSince.current = Date.now();
+          if (unindexed === 0 && indexingSince.current !== null) {
+            trackTeamIndexCompleted({
+              folderCount: value.length,
+              fileCount: value.reduce((sum, node) => sum + node.childFileCount, 0),
+              durationMs: Date.now() - indexingSince.current
+            });
+            indexingSince.current = null;
+          }
+          return 'ok';
+        } catch {
+          status.fail();
+          if (activeRef.current && sequence === readSequence.current) {
+            setError(true);
+          }
+          return 'failed';
+        } finally {
+          if (activeRef.current && sequence === readSequence.current) setLoading(false);
         }
-        // The server orders by byte, the list beside the tree by the reader's language: in
-        // Ukrainian "Вставки" came first in the list and last in the tree.
-        setNodes([...value].sort((a, b) => compareNames(a.name, b.name)));
-        setError(false);
-        status.succeed();
-        // FR-035: the moment every folder is listed, once per indexing run.
-        const unindexed = value.filter(node => node.indexedAt === null).length;
-        if (unindexed > 0 && indexingSince.current === null) indexingSince.current = Date.now();
-        if (unindexed === 0 && indexingSince.current !== null) {
-          trackTeamIndexCompleted({
-            folderCount: value.length,
-            fileCount: value.reduce((sum, node) => sum + node.childFileCount, 0),
-            durationMs: Date.now() - indexingSince.current
-          });
-          indexingSince.current = null;
-        }
-      } catch {
-        status.fail();
-        if (activeRef.current && sequence === readSequence.current) {
-          setError(true);
-        }
-        if (reportFailure) throw new Error('FOLDER_TREE_REFRESH_FAILED');
-      } finally {
-        if (activeRef.current && sequence === readSequence.current) setLoading(false);
-      }
+      })();
+      latestRead.current = attempt;
+      const result = await settleRead(attempt, latestRead);
+      if (!reportFailure) return;
+      // A sync that finished behind a Realtime refresh used to be reported as
+      // a failure because this read lost the race to the one the event
+      // started (028). The newer read answers for both.
+      if (result === 'failed') throw new Error('FOLDER_TREE_REFRESH_FAILED');
+      if (result === 'superseded') throw new Error('CATALOG_REFRESH_SUPERSEDED');
     },
     [client, teamId, beginRead]
   );

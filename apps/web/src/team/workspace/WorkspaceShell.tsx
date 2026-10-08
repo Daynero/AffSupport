@@ -204,7 +204,11 @@ export function WorkspaceShell({
   // One storage state for the whole space (011, FR-031): the chip in the header
   // replaces the old sync banner, and an attention state makes the explorer
   // read-only rather than letting writes fail one by one.
-  const { health, refresh: refreshHealth } = useStorageHealth({
+  const {
+    health,
+    refresh: refreshHealth,
+    staleSince: healthStaleSince
+  } = useStorageHealth({
     teamId,
     client,
     enabled:
@@ -676,6 +680,7 @@ export function WorkspaceShell({
                           canManage={activeTeam.role === 'owner' || activeTeam.role === 'admin'}
                           settingsHref={explorerRoute({ settings: true })}
                           onRefresh={refreshHealth}
+                          staleSince={healthStaleSince}
                           open={Boolean(query?.storage)}
                           onOpenChange={next => navigateTo(hereRoute({ storage: next }), !next)}
                         />

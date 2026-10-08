@@ -99,6 +99,25 @@ function shell(folderId: string | null, coordinated = false, view: 'list' | 'gri
   );
 }
 
+function syncStatus(
+  jobId: string,
+  state: 'queued' | 'running' | 'succeeded' | 'failed',
+  scopeFolderId: string
+) {
+  return {
+    jobId,
+    scopeFolderId,
+    state,
+    phase: state === 'succeeded' || state === 'failed' ? ('done' as const) : ('listing' as const),
+    discoveredFiles: 0,
+    completedFolders: 0,
+    pendingFolders: null,
+    lastProgressAt: null,
+    completedAt: null,
+    errorCode: null
+  };
+}
+
 let testClient: ExplorerShellClient;
 beforeEach(() => localStorage.setItem('wishly.active-team.v1', team.id));
 afterEach(() => {
@@ -114,13 +133,13 @@ describe('folder intake in Explorer', () => {
       syncJobId: 'full-job',
       initialSyncState: 'scanning'
     });
-    const status = vi.fn().mockResolvedValue('succeeded');
-    testClient.getFolderResyncStatus = status;
+    const status = vi.fn().mockResolvedValue(syncStatus('full-job', 'succeeded', '__root__'));
+    testClient.getFolderSyncStatus = status;
     render(shell(null));
     fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }));
-    expect(testClient.resyncDrive).toHaveBeenCalledWith(team.id);
+    expect(testClient.resyncDrive).toHaveBeenCalledWith(team.id, expect.anything());
     await waitFor(() => expect(testClient.listFolderPage).toHaveBeenCalledTimes(2));
-    expect(status).toHaveBeenLastCalledWith(team.id, 'full-job');
+    expect(status).toHaveBeenLastCalledWith(team.id, 'full-job', expect.anything());
     expect(screen.getByRole('button', { name: 'Sync now' })).toBeTruthy();
   });
 
@@ -143,7 +162,9 @@ describe('folder intake in Explorer', () => {
       .fn()
       .mockResolvedValue([folders[0], { ...folders[1], parentFolderId: 'drive-a' }]);
     testClient.resyncFolder = vi.fn().mockResolvedValue({ syncJobId: 'job-parent' });
-    testClient.getFolderResyncStatus = vi.fn().mockResolvedValue('running');
+    testClient.getFolderSyncStatus = vi
+      .fn()
+      .mockResolvedValue(syncStatus('job-parent', 'running', 'drive-a'));
     const view = render(shell('drive-a'));
     fireEvent.click(await screen.findByRole('button', { name: 'Sync this folder' }));
     expect(await screen.findByRole('button', { name: 'Syncing…' })).toHaveProperty(
@@ -160,7 +181,7 @@ describe('folder intake in Explorer', () => {
   it('marks a folder created by an active upload as incomplete without hiding its files', async () => {
     testClient = client();
     testClient.resyncFolder = vi.fn();
-    testClient.getFolderResyncStatus = vi.fn();
+    testClient.getFolderSyncStatus = vi.fn();
     const value: WorkspaceOperationsValue = {
       groups: [
         {
@@ -436,5 +457,55 @@ describe('folder intake in Explorer', () => {
     fireEvent.change(input, { target: { files: [new File(['newer'], 'same.txt')] } });
     fireEvent.click(await screen.findByRole('button', { name: 'Keep both' }));
     await waitFor(() => expect(uploadTeamFile).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('who may sync, and where the space scan shows (028)', () => {
+  it('the sync button is shown only to owner and admin', async () => {
+    testClient = client();
+    testClient.resyncDrive = vi.fn();
+    testClient.getFolderSyncStatus = vi.fn();
+    // An editor with every admin permission still does not get the button: the RPC checks the role.
+    const member = makeTeam({ permissions: DEFAULT_ROLE_PERMISSIONS.admin, role: 'editor' });
+    localStorage.setItem('wishly.active-team.v1', member.id);
+    render(
+      <ToastProvider>
+        <TeamProvider realtime={false} initialTeams={[member]}>
+          <ExplorerShell
+            teamId={member.id}
+            client={testClient}
+            query={{ ...emptyTeamRouteQuery(), folderId: null, view: 'list' }}
+            onQueryChange={vi.fn()}
+            onFolderChange={vi.fn()}
+            onSearched={vi.fn()}
+            onPreview={vi.fn()}
+          />
+        </TeamProvider>
+      </ToastProvider>
+    );
+    expect(await screen.findByRole('button', { name: 'Add files' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Sync now' })).toBeNull();
+  });
+
+  it('a running space scan is visible inside a child folder and blocks a second request', async () => {
+    testClient = client();
+    testClient.resyncFolder = vi.fn();
+    testClient.resyncDrive = vi.fn();
+    testClient.getFolderSyncStatus = vi
+      .fn()
+      .mockResolvedValue(syncStatus('job-root', 'running', '__root__'));
+    localStorage.setItem(`soty:folder-resync:${team.id}:__root__`, 'job-root');
+    render(shell('drive-a'));
+    expect(await screen.findByRole('button', { name: 'Syncing…' })).toHaveProperty(
+      'disabled',
+      true
+    );
+    expect(testClient.getFolderSyncStatus).toHaveBeenCalledWith(
+      team.id,
+      'job-root',
+      expect.anything()
+    );
+    expect(testClient.resyncFolder).not.toHaveBeenCalled();
+    expect(testClient.resyncDrive).not.toHaveBeenCalled();
   });
 });

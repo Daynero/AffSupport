@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { SyncStatusPanel } from '../team/explorer/SyncStatusPanel';
+import type { FolderSyncStatus } from '../team/syncStatus';
 import { Button as HeroButton } from '@heroui/react/button';
 import { Input as HeroInput } from '@heroui/react/input';
 import { Switch as HeroSwitch } from '@heroui/react/switch';
@@ -72,6 +74,48 @@ function Row({ title, children }: { title: string; children: React.ReactNode }) 
       <div className="ds-row-body">{children}</div>
     </div>
   );
+}
+
+const SYNC_STATES = [
+  'queued',
+  'running',
+  'retry_wait',
+  'blocked',
+  'canceling',
+  'canceled',
+  'succeeded',
+  'failed'
+] as const;
+
+function syncStatusSample(state: (typeof SYNC_STATES)[number]): FolderSyncStatus {
+  const terminal = state === 'succeeded' || state === 'failed' || state === 'canceled';
+  return {
+    jobId: 'c0ffee00-0000-4000-8000-000000000001',
+    requestId: 'req',
+    scopeFolderId: 'doctors',
+    state,
+    phase: terminal ? 'done' : state === 'blocked' ? 'replaying_changes' : 'listing',
+    blockedReason: state === 'blocked' ? 'canonical_failed' : null,
+    errorCode:
+      state === 'failed' ? 'CANONICAL_FAILED' : state === 'retry_wait' ? 'RATE_LIMITED' : null,
+    errorDetail: state === 'failed' ? 'NEEDS_REAUTH' : null,
+    nextAttemptAt: state === 'retry_wait' ? '2026-10-07T10:33:00Z' : null,
+    startedAt: '2026-10-07T10:12:00Z',
+    lastProgressAt: '2026-10-07T10:28:00Z',
+    scanCompletedAt: null,
+    completedAt: terminal ? '2026-10-07T10:29:00Z' : null,
+    filesListed: 184,
+    filesAdded: 7,
+    filesUpdated: 2,
+    filesRemoved: 1,
+    itemsUnavailable: state === 'succeeded' ? 0 : 1,
+    foldersDone: 12,
+    pendingFolders: state === 'queued' ? null : 5,
+    coverage: terminal ? 'complete' : 'unknown',
+    progressRevision: 10,
+    cancelable: !terminal && state !== 'blocked',
+    sharedWith: state === 'running' ? 1 : 0
+  };
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -384,6 +428,21 @@ export default function DesignSystemPage() {
         </>
       )}
 
+      {tab === 'data' && (
+        <Section title="Sync status (028)">
+          {SYNC_STATES.map(state => (
+            <Row key={state} title={state}>
+              <SyncStatusPanel
+                status={syncStatusSample(state)}
+                scopeName="Doctors"
+                onCancel={() => {}}
+                onRetry={() => {}}
+                now={Date.parse('2026-10-07T10:30:00Z')}
+              />
+            </Row>
+          ))}
+        </Section>
+      )}
       {tab === 'data' && (
         <Section title="Data surfaces">
           <Row title="table">

@@ -41,11 +41,13 @@ import {
   formatOverview,
   formatTools,
   formatTopUsers,
+  formatSyncJobs,
   formatTeamWorkspace,
   formatUserDetail,
   formatUsers
 } from './format.js';
 import { resolvePeriod } from './periods.js';
+import { syncOutputIsPrivate } from './types.js';
 import {
   getCompressor,
   getEvents,
@@ -58,6 +60,7 @@ import {
   getOnboarding,
   getRetention,
   getRun,
+  getSyncJobs,
   getUpdates,
   diagnoseFingerprint,
   getOverview,
@@ -110,6 +113,7 @@ Commands:
   cohorts             Compare versions/platforms/builds
   retention           Return activity after registration
   team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
+  sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
 
 Options:
   --period <t>   today | 7d | 30d | 90d | all  (default 7d)
@@ -302,6 +306,17 @@ async function run(args: ParsedArgs): Promise<void> {
     case 'retention': {
       const data = await getRetention(period);
       emit(args, command, period, data, formatRetention(data, period));
+      break;
+    }
+    case 'sync': {
+      const target = args.positional[0];
+      if (!target) fail(args, command, 'Missing target. Usage: sync <team-id | owner-email>');
+      const data = await getSyncJobs(target, args.limit ?? 50);
+      if (!data) fail(args, command, `No sync jobs found for "${target}".`);
+      if (!syncOutputIsPrivate(data)) {
+        fail(args, command, 'Sync diagnostics failed their privacy guard.');
+      }
+      emit(args, command, period, data, formatSyncJobs(data, period));
       break;
     }
     case 'team-workspace': {

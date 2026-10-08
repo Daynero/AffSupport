@@ -10,8 +10,6 @@ import {
   normalizeCatalogSearchRequest,
   normalizeMaterialMetadataPatch,
   parseTeamEdgeResult,
-  parseFolderSyncStatus,
-  type FolderSyncStatus,
   parseTeamDownloadGrantResult,
   parseTeamFileOperationResult,
   parseTeamPreviewResult,
@@ -120,6 +118,7 @@ import {
   type MaterialRestitchPrep,
   type TeamRestitchDefaults
 } from '@video-compressor/shared';
+import { parseFolderSyncStatus, type FolderSyncStatus } from '../team/syncStatus';
 import { parseUpdaterInterval, type UpdaterInterval } from '../team/catalog-updater/limits';
 import type { Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
@@ -622,6 +621,9 @@ export interface DriveConnectionStatus {
 export interface DriveCatalogResyncResult {
   syncJobId: string;
   initialSyncState: 'scanning';
+  /** Present when the request was made with a key (028, release B). */
+  requestId?: string;
+  outcome?: string;
 }
 
 function catalogResyncAcceptance(value: unknown): DriveCatalogResyncResult {
@@ -634,7 +636,12 @@ function catalogResyncAcceptance(value: unknown): DriveCatalogResyncResult {
   ) {
     throw new TeamApiError('INVALID_RESPONSE', false);
   }
-  return { syncJobId: row.sync_job_id, initialSyncState: 'scanning' };
+  return {
+    syncJobId: row.sync_job_id,
+    initialSyncState: 'scanning',
+    ...(typeof row.request_id === 'string' ? { requestId: row.request_id } : {}),
+    ...(typeof row.outcome === 'string' ? { outcome: row.outcome } : {})
+  };
 }
 
 export interface DriveFolderSummary {
@@ -1136,8 +1143,39 @@ function driveSelection(value: unknown): unknown {
   };
 }
 
+/**
+ * A call the caller cut short with an `AbortSignal`. supabase-js reports the
+ * abort as an ordinary `{ error }` whose message starts with the DOM name, so
+ * it would otherwise surface as `INVALID_RESPONSE` and be mistaken for a bad
+ * server answer. The shared error-code set is not widened for this: nobody
+ * but the aborting caller ever sees it.
+ */
+export class RequestAbortedError extends Error {
+  constructor() {
+    super('AbortError');
+    this.name = 'AbortError';
+  }
+}
+
+export function isRequestAborted(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  );
+}
+
+/** Attaches the caller's signal to a PostgREST builder when there is one. */
+function abortable<T extends { abortSignal: (signal: AbortSignal) => T }>(
+  builder: T,
+  options: { signal?: AbortSignal }
+): T {
+  return options.signal ? builder.abortSignal(options.signal) : builder;
+}
+
 function throwRpc(error: { message: string; code?: string } | null): void {
   if (!error) return;
+  if (/^AbortError\b/.test(error.message)) throw new RequestAbortedError();
   // A unique index that fired before the function's own check could — two
   // people naming the same account in the same second — arrives as bare
   // SQLSTATE 23505 with no uppercase token in it. It means the same thing.
@@ -2301,30 +2339,155 @@ export const teamApi = {
     throwRpc(error);
   },
 
-  async resyncDrive(teamId: string): Promise<DriveCatalogResyncResult> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('request_team_catalog_resync', {
-        p_team: teamId
-      })
+  async resyncDrive(
+    teamId: string,
+    options: { signal?: AbortSignal; requestKey?: string } = {}
+  ): Promise<DriveCatalogResyncResult> {
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          options.requestKey
+            ? requireSupabaseClient().rpc('request_team_catalog_resync', {
+                p_team: teamId,
+                p_request_key: options.requestKey
+              })
+            : requireSupabaseClient().rpc('request_team_catalog_resync', { p_team: teamId }),
+          options
+        ),
+      options
     );
     throwRpc(error);
     return catalogResyncAcceptance(data);
   },
 
-  async resyncFolder(teamId: string, folderId: string): Promise<DriveCatalogResyncResult> {
+  async resyncFolder(
+    teamId: string,
+    folderId: string,
+    options: { signal?: AbortSignal; requestKey?: string } = {}
+  ): Promise<DriveCatalogResyncResult> {
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          options.requestKey
+            ? requireSupabaseClient().rpc('request_team_folder_resync', {
+                p_team: teamId,
+                p_folder: folderId,
+                p_request_key: options.requestKey
+              })
+            : requireSupabaseClient().rpc('request_team_folder_resync', {
+                p_team: teamId,
+                p_folder: folderId
+              }),
+          options
+        ),
+      options
+    );
+    throwRpc(error);
+    return catalogResyncAcceptance(data);
+  },
+
+  /** The job and request behind a key this browser generated (028, release B). */
+  async findFolderSyncRequestByKey(
+    teamId: string,
+    requestKey: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<{ syncJobId: string; requestId: string; state: string } | null> {
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('find_team_folder_sync_request_by_key', {
+            p_team: teamId,
+            p_request_key: requestKey
+          }),
+          options
+        ),
+      options
+    );
+    throwRpc(error);
+    const row = Array.isArray(data) && data.length === 1 ? asRecord(data[0]) : null;
+    if (!row) return null;
+    if (
+      typeof row.sync_job_id !== 'string' ||
+      typeof row.request_id !== 'string' ||
+      typeof row.state !== 'string'
+    ) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { syncJobId: row.sync_job_id, requestId: row.request_id, state: row.state };
+  },
+
+  /**
+   * Stops this person's request. A job other requests share, or the space's
+   * canonical feed, is only left; the server says which it did.
+   */
+  async cancelFolderSync(
+    teamId: string,
+    requestId: string
+  ): Promise<{ jobState: string; requestOutcome: string }> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('request_team_folder_resync', {
+      requireSupabaseClient().rpc('cancel_team_folder_sync', {
         p_team: teamId,
-        p_folder: folderId
+        p_request: requestId
       })
     );
     throwRpc(error);
-    return catalogResyncAcceptance(data);
+    const row = Array.isArray(data) && data.length === 1 ? asRecord(data[0]) : null;
+    if (!row || typeof row.job_state !== 'string' || typeof row.request_outcome !== 'string') {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { jobState: row.job_state, requestOutcome: row.request_outcome };
   },
 
-  async getFolderSyncStatus(teamId: string, jobId: string): Promise<FolderSyncStatus> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_folder_sync_status', { p_team: teamId, p_job: jobId })
+  /**
+   * The job a lost accept answer may have created (028). `folderId` null
+   * asks about the whole space. Null when nothing was accepted in the last
+   * half hour.
+   */
+  async findFolderSyncRequest(
+    teamId: string,
+    folderId: string | null,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<{ syncJobId: string; state: string; createdAt: string } | null> {
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('find_team_folder_sync_request', {
+            p_team: teamId,
+            p_folder: folderId
+          }),
+          options
+        ),
+      options
+    );
+    throwRpc(error);
+    const row = Array.isArray(data) && data.length === 1 ? asRecord(data[0]) : null;
+    if (!row) return null;
+    if (
+      typeof row.sync_job_id !== 'string' ||
+      !row.sync_job_id ||
+      typeof row.state !== 'string' ||
+      typeof row.created_at !== 'string'
+    ) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return { syncJobId: row.sync_job_id, state: row.state, createdAt: row.created_at };
+  },
+
+  async getFolderSyncStatus(
+    teamId: string,
+    jobId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<FolderSyncStatus> {
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('get_team_folder_sync_status', {
+            p_team: teamId,
+            p_job: jobId
+          }),
+          options
+        ),
+      options
     );
     throwRpc(error);
     const status = parseFolderSyncStatus(data);
@@ -2336,10 +2499,19 @@ export const teamApi = {
 
   async getFolderResyncStatus(
     teamId: string,
-    jobId: string
+    jobId: string,
+    options: { signal?: AbortSignal } = {}
   ): Promise<'running' | 'succeeded' | 'failed'> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_folder_resync_status', { p_team: teamId, p_job: jobId })
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('get_team_folder_resync_status', {
+            p_team: teamId,
+            p_job: jobId
+          }),
+          options
+        ),
+      options
     );
     throwRpc(error);
     const status = data?.[0]?.status;

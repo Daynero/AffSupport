@@ -304,3 +304,94 @@ export interface RetentionMetric {
   active_after_7d: number;
   active_after_30d: number;
 }
+
+/* ---------------------------------------------------------------------------
+ * 028 — manual sync diagnostics (`sync` command). One row per catalog sync job,
+ * from the read-only view `public.analytics_catalog_sync_jobs`. No cursors,
+ * tokens, lease owners or Drive names ever appear here; `scope_hash` is a
+ * 12-character digest that matches a worker log line and nothing else.
+ * ------------------------------------------------------------------------- */
+
+export interface SyncJobRow {
+  job_id: string;
+  connection_id: string;
+  connection_state: string;
+  job_kind: string;
+  phase: string;
+  state: string;
+  scope_hash: string | null;
+  requested_by: string | null;
+  request_id: string | null;
+  request_outcome: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  scan_completed_at: string | null;
+  last_progress_at: string | null;
+  lease_expires_at: string | null;
+  lease_epoch: number;
+  run_count: number;
+  attempts: number;
+  lease_lost_count: number;
+  no_progress_runs: number | null;
+  next_attempt_at: string;
+  replay_after: number | null;
+  confirmed_sequence: number | null;
+  confirmed_at: string | null;
+  recovery_count: number | null;
+  last_recovery_at: string | null;
+  canonical_job_id: string | null;
+  canonical_state: string | null;
+  canonical_error_code: string | null;
+  canonical_next_attempt_at: string | null;
+  last_error_code: string | null;
+  error_detail: string | null;
+  cancel_requested_at: string | null;
+  files_listed: number;
+  files_added: number;
+  files_updated: number;
+  files_removed: number;
+  items_unavailable: number;
+  folders_done: number;
+}
+
+export interface SyncConnection {
+  connection_id: string;
+  connection_state: string;
+  canonical: {
+    job_id: string;
+    state: string;
+    error_code: string | null;
+    next_attempt_at: string | null;
+    confirmed_sequence: number | null;
+    recovery_count: number | null;
+  } | null;
+  jobs: SyncJobRow[];
+}
+
+export interface SyncData {
+  team_id: string;
+  connections: SyncConnection[];
+}
+
+/** Keys that must never reach the terminal or the JSON envelope. */
+export const SYNC_OUTPUT_FORBIDDEN_KEYS = new Set([
+  'cursor',
+  'folder_queue',
+  'confirmed_cursor',
+  'page_token',
+  'change_page_token',
+  'lease_owner',
+  'requested_folder_id',
+  'owner_email_normalized',
+  'name',
+  'root_folder_name'
+]);
+
+export function syncOutputIsPrivate(value: unknown): boolean {
+  if (Array.isArray(value)) return value.every(syncOutputIsPrivate);
+  if (typeof value !== 'object' || value === null) return true;
+  return Object.entries(value).every(
+    ([key, nested]) => !SYNC_OUTPUT_FORBIDDEN_KEYS.has(key) && syncOutputIsPrivate(nested)
+  );
+}

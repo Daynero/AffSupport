@@ -179,8 +179,12 @@ export function TeamProvider({
   const handleRealtimeRefetch = useCallback(async () => {
     const selected = activeTeamIdRef.current;
     if (selected) catalogFreshness.invalidate(selected);
-    await refreshTeams(true);
+    // The catalog moves first (028): a membership read that hangs or fails
+    // must not hold back files that are already written. Losing the
+    // membership still surfaces through refreshTeams; it is just not the
+    // gate the list waits behind.
     setRevision(value => value + 1);
+    await refreshTeams(true);
   }, [refreshTeams, catalogFreshness]);
   const acknowledgeMembershipLoss = useCallback(() => setMembershipLostTeamId(null), []);
 

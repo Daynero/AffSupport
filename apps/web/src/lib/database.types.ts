@@ -3516,6 +3516,29 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
+      cancel_team_folder_sync: {
+        Args: { p_request: string; p_team: string };
+        Returns: {
+          job_state: string;
+          request_outcome: string;
+        }[];
+      };
+      find_team_folder_sync_request_by_key: {
+        Args: { p_request_key: string; p_team: string };
+        Returns: {
+          request_id: string;
+          state: string;
+          sync_job_id: string;
+        }[];
+      };
+      find_team_folder_sync_request: {
+        Args: { p_folder?: string | null; p_team: string };
+        Returns: {
+          created_at: string;
+          state: string;
+          sync_job_id: string;
+        }[];
+      };
       get_drive_connection_status: {
         Args: { p_team: string };
         Returns: {
@@ -4221,20 +4244,40 @@ export type GeneratedDatabase = {
         Args: { p_material: string; p_team: string };
         Returns: number;
       };
-      request_team_catalog_resync: {
-        Args: { p_team: string };
-        Returns: {
-          initial_sync_state: string;
-          sync_job_id: string;
-        }[];
-      };
-      request_team_folder_resync: {
-        Args: { p_folder: string; p_team: string };
-        Returns: {
-          initial_sync_state: string;
-          sync_job_id: string;
-        }[];
-      };
+      request_team_catalog_resync:
+        | {
+            Args: { p_team: string };
+            Returns: {
+              initial_sync_state: string;
+              sync_job_id: string;
+            }[];
+          }
+        | {
+            Args: { p_request_key: string; p_team: string };
+            Returns: {
+              initial_sync_state: string;
+              outcome: string;
+              request_id: string;
+              sync_job_id: string;
+            }[];
+          };
+      request_team_folder_resync:
+        | {
+            Args: { p_folder: string; p_team: string };
+            Returns: {
+              initial_sync_state: string;
+              sync_job_id: string;
+            }[];
+          }
+        | {
+            Args: { p_folder: string; p_request_key: string; p_team: string };
+            Returns: {
+              initial_sync_state: string;
+              outcome: string;
+              request_id: string;
+              sync_job_id: string;
+            }[];
+          };
       resend_invitation: {
         Args: { p_invitation: string; p_token_hash: string };
         Returns: {

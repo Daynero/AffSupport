@@ -118,10 +118,13 @@ export function StorageChip({
   settingsHref,
   onRefresh,
   open: openProp,
-  onOpenChange
+  onOpenChange,
+  staleSince = null
 }: {
   teamId: string;
   health: StorageHealth | null;
+  /** The last successful health read, when a later one failed (028). */
+  staleSince?: number | null;
   client: StorageChipClient;
   isOwner: boolean;
   canManage: boolean;
@@ -162,11 +165,17 @@ export function StorageChip({
   const indexingMinutes =
     indexingSince.current === null ? 0 : Math.floor((Date.now() - indexingSince.current) / 60_000);
   if (!health) return null;
+  const staleMinutes =
+    staleSince === null ? null : Math.max(0, Math.floor((Date.now() - staleSince) / 60_000));
+  const stale = staleMinutes !== null && staleMinutes >= 2;
 
   /* The chip's colour is the state's role, so storage needing attention is the
      same amber as anything else that needs attention (021, T084). */
   const tone: ChipTone =
-    health.kind === 'attention' || health.syncHealth === 'delayed' || health.coverage === 'partial'
+    stale ||
+    health.kind === 'attention' ||
+    health.syncHealth === 'delayed' ||
+    health.coverage === 'partial'
       ? 'warn'
       : health.kind === 'indexing' ||
           health.kind === 'preparing' ||
@@ -231,19 +240,26 @@ export function StorageChip({
           up to date · 64 hours ago" was the header's permanent first word. The
           chip speaks when there is something to know; the detail stays one
           address away (`storage=1`) and in the settings. */}
-      {(health.kind !== 'connected' ||
+      {(stale ||
+        health.kind !== 'connected' ||
         health.syncHealth === 'delayed' ||
         health.coverage === 'partial' ||
         health.coverage === 'permission_limited') && (
         <WorkspaceChip
           tone={tone}
-          busy={busyState}
+          busy={busyState && !stale}
           className="team-storage-chip"
-          label={chipCopy(health, t, render?.paused)}
+          label={
+            stale
+              ? t('teamStorageChipStale', { count: staleMinutes ?? 0 })
+              : chipCopy(health, t, render?.paused)
+          }
           opensDialog
           onPress={() => setOpen(true)}
         >
-          {chipCopy(health, t, render?.paused)}
+          {stale
+            ? t('teamStorageChipStale', { count: staleMinutes ?? 0 })
+            : chipCopy(health, t, render?.paused)}
         </WorkspaceChip>
       )}
       {open && (
@@ -255,6 +271,11 @@ export function StorageChip({
         >
           <h3 id={titleId}>{t('teamStorageDetailTitle')}</h3>
           <p className="team-storage-detail-state">{chipCopy(health, t, render?.paused)}</p>
+          {stale && (
+            <p className="team-storage-detail-note" role="status">
+              {t('teamStorageBodyStale', { count: staleMinutes ?? 0 })}
+            </p>
+          )}
           {health.coverage && <p>{t(COVERAGE_COPY[health.coverage])}</p>}
           {health.lastConfirmedAt !== undefined && (
             <p>

@@ -200,6 +200,37 @@ function redirectTarget(location: string, from: URL): URL | null {
   return target;
 }
 
+/** Drive's 403 reasons that mean throttling rather than a lost permission. */
+const RATE_LIMIT_REASONS: ReadonlySet<string> = new Set([
+  'rateLimitExceeded',
+  'userRateLimitExceeded',
+  'dailyLimitExceeded',
+  'sharingRateLimitExceeded'
+]);
+
+/**
+ * The first `errors[]` entry of a Drive error body, or empty strings when the
+ * body is not the JSON Drive documents. Never throws: the status decides.
+ */
+async function driveErrorReason(response: Response): Promise<{ reason: string; location: string }> {
+  try {
+    const body: unknown = await response.clone().json();
+    const errors =
+      typeof body === 'object' && body !== null && 'error' in body
+        ? (body as { error?: { errors?: unknown } }).error?.errors
+        : undefined;
+    const first = Array.isArray(errors) ? errors[0] : undefined;
+    if (typeof first !== 'object' || first === null) return { reason: '', location: '' };
+    const { reason, location } = first as { reason?: unknown; location?: unknown };
+    return {
+      reason: typeof reason === 'string' ? reason : '',
+      location: typeof location === 'string' ? location : ''
+    };
+  } catch {
+    return { reason: '', location: '' };
+  }
+}
+
 export class GoogleDriveClient {
   readonly #accessToken: string;
   readonly #fetch: typeof fetch;
@@ -986,10 +1017,24 @@ export class GoogleDriveClient {
     }
     if (response.ok) return response;
     if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
+    const reason = await driveErrorReason(response);
     if (response.status === 403 || response.status === 404) {
+      // Drive spells "slow down" with the same status as "you may not": only
+      // the reason tells them apart, and the first must never retire a job.
+      if (RATE_LIMIT_REASONS.has(reason.reason)) {
+        throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+      }
       throw new TeamFunctionError('PERMISSION_DENIED');
     }
     if (response.status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+    if (response.status === 400 && reason.location === 'pageToken') {
+      // An expired listing or changes page token restarts that page with a
+      // fresh generation (028); it says nothing about the connection.
+      throw new TeamFunctionError('INVALID_INPUT', {
+        retryable: true,
+        details: { reason: 'PAGE_TOKEN_REJECTED' }
+      });
+    }
     throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: response.status >= 500 });
   }
 }
@@ -1012,12 +1057,20 @@ export async function proveLiveAncestry(input: {
   resourceKey?: string | null;
   maximumDepth?: number;
   allowTrashedTarget?: boolean;
+  /**
+   * The catalog places a shortcut by its own parents, like any other listed
+   * item. An authorization proof keeps refusing it: a shortcut must never
+   * grant what its target would not.
+   */
+  allowShortcutTarget?: boolean;
 }): Promise<DriveFileMetadata> {
   const maximumDepth = Math.min(Math.max(input.maximumDepth ?? 100, 1), 100);
   const target = await input.client.getFile(input.fileId, input.resourceKey);
   if (target.trashed && !input.allowTrashedTarget) throw new TeamFunctionError('NOT_FOUND');
   if (target.id === input.rootFolderId) return target;
-  if (target.shortcutTargetId) throw new TeamFunctionError('UNSUPPORTED_MEDIA');
+  if (target.shortcutTargetId && !input.allowShortcutTarget) {
+    throw new TeamFunctionError('UNSUPPORTED_MEDIA');
+  }
 
   let frontier = [...target.parents];
   const visited = new Set<string>();

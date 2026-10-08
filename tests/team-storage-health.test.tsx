@@ -131,3 +131,43 @@ describe('storage health under incomplete provider access', () => {
     expect(screen.getByText(/Last confirmed sync:/)).toBeTruthy();
   });
 });
+
+describe('a stale health snapshot says so (028, release C)', () => {
+  it('a failed health read exposes staleSince while keeping the last snapshot', async () => {
+    const current: StorageHealth = { kind: 'connected', lastReconciledAt: '2026-09-24T10:00:00Z' };
+    const getStorageHealth = vi
+      .fn()
+      .mockResolvedValueOnce(current)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(current);
+    const client = { getStorageHealth };
+    const { result } = renderHook(() => useStorageHealth({ teamId: 'team-1', client }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.staleSince).toBeNull();
+    await act(async () => result.current.refresh());
+    expect(result.current.health).toEqual(current);
+    expect(typeof result.current.staleSince).toBe('number');
+    await act(async () => result.current.refresh());
+    expect(result.current.staleSince).toBeNull();
+  });
+
+  it('the chip shows the age of a stale snapshot instead of calling it current', () => {
+    const health: StorageHealth = { kind: 'connected', lastReconciledAt: '2026-09-24T10:00:00Z' };
+    render(
+      <ToastProvider>
+        <StorageChip
+          teamId="team-1"
+          health={health}
+          client={{}}
+          isOwner
+          canManage
+          settingsHref="/team/explorer?settings=1"
+          staleSince={Date.now() - 7 * 60_000}
+        />
+      </ToastProvider>
+    );
+    expect(screen.getByRole('button', { name: /Storage status is 7 min old/ })).toBeTruthy();
+  });
+});

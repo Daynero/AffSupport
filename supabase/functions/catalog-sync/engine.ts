@@ -193,9 +193,10 @@ async function persistActiveFiles(
   job: CatalogSyncJob,
   dependencies: CatalogSyncDependencies,
   files: DriveFileMetadata[],
-  parentId: string | null
-): Promise<void> {
-  if (files.length === 0) return;
+  parentId: string | null,
+  options: { deferTranscripts?: boolean } = {}
+): Promise<DriveFileMetadata[]> {
+  if (files.length === 0) return [];
   assertLease(
     await dependencies.upsertFiles({
       jobId: job.jobId,
@@ -205,13 +206,28 @@ async function persistActiveFiles(
     })
   );
   const transcripts = transcriptFiles(files);
-  if (transcripts.length > 0) {
+  if (transcripts.length > 0 && !options.deferTranscripts) {
     await dependencies.requeueTranscripts({
       jobId: job.jobId,
       connectionId: job.connectionId,
       files: transcripts
     });
   }
+  return transcripts;
+}
+
+/** Transcript downloads after the page's own checkpoint: a slow file can no longer restart the page. */
+async function ingestDeferredTranscripts(
+  job: CatalogSyncJob,
+  dependencies: CatalogSyncDependencies,
+  transcripts: DriveFileMetadata[]
+): Promise<void> {
+  if (transcripts.length === 0) return;
+  await dependencies.requeueTranscripts({
+    jobId: job.jobId,
+    connectionId: job.connectionId,
+    files: transcripts
+  });
 }
 
 async function runInitialScan(
@@ -411,7 +427,12 @@ async function runChanges(
       })
     );
   }
-  await persistActiveFiles(job, dependencies, active, null);
+  // The page's catalog writes are checkpointed before any transcript is
+  // downloaded (028): ingestion is its own bounded unit, and a slow Drive
+  // file cannot make the whole page start over.
+  const transcripts = await persistActiveFiles(job, dependencies, active, null, {
+    deferTranscripts: true
+  });
 
   if (page.nextPageToken) {
     await dependencies.checkpoint({
@@ -423,6 +444,7 @@ async function runChanges(
       pageToken: page.nextPageToken,
       changeToken: job.changeToken
     });
+    await ingestDeferredTranscripts(job, dependencies, transcripts);
     return { phase: job.phase, processed: page.changes.length };
   }
 
@@ -434,6 +456,7 @@ async function runChanges(
     changeToken: committedToken,
     nextPhase: 'incremental'
   });
+  await ingestDeferredTranscripts(job, dependencies, transcripts);
   return { phase: 'incremental', processed: page.changes.length };
 }
 
@@ -562,18 +585,28 @@ async function runDurableScanJob(
       const candidates = await scan.missingCandidates(folder.generation);
       let unavailable = false;
       let incompleteListing = false;
+      let resolved = 0;
       for (const candidate of candidates) {
+        // Each candidate is one or more provider reads (028): the budget is
+        // checked between them, and a partly reconciled generation resumes
+        // from the candidates it has not resolved yet.
+        if (resolved > 0 && now() - started >= options.budgetMs) {
+          return { phase: 'initial_scan', processed, slices, yielded: true };
+        }
         let file: DriveFileMetadata | null = null;
         let outcome: 'present' | 'trashed' | 'out_of_root' | 'unavailable' = 'unavailable';
         try {
           file = await dependencies.getFile(candidate.fileId);
           if (file.trashed) outcome = 'trashed';
+          // The listing never shows a hidden cache item, so one still in the
+          // catalog is not proof the listing was incomplete (028): it is out
+          // of the visible tree, and the generation is not restarted for it.
+          else if (await dependencies.isHiddenSystemFile(file, job.rootFolderId))
+            outcome = 'out_of_root';
           else if (file.parents.includes(next.folderId)) {
             outcome = 'unavailable';
             incompleteListing = true;
-          } else if (await dependencies.isHiddenSystemFile(file, job.rootFolderId))
-            outcome = 'out_of_root';
-          else if (await dependencies.isWithinRoot(file, job.rootFolderId)) outcome = 'present';
+          } else if (await dependencies.isWithinRoot(file, job.rootFolderId)) outcome = 'present';
           else outcome = 'out_of_root';
         } catch (cause) {
           if (
@@ -592,6 +625,7 @@ async function runDurableScanJob(
             file
           })
         );
+        resolved += 1;
       }
       processed += candidates.length;
       if (unavailable) {
