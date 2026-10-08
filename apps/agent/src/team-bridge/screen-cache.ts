@@ -255,7 +255,7 @@ export class TeamScreenCache {
   async #remove(key: string, index: ScreenIndex) {
     delete index.entries[key];
     this.#paths.delete(key);
-    let names: string[] = [];
+    let names: string[];
     try {
       names = await readdir(this.#root);
     } catch {

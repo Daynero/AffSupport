@@ -35,6 +35,8 @@ import {
   normalizeToolContracts,
   parseTeamAgentPreviewResult,
   parseTeamFileOperationResult,
+  restitchSourcesSupported,
+  type RestitchScreen,
   teamPosterFrameSupported,
   teamProcessPauseSupported,
   toolContractCompatible
@@ -536,6 +538,10 @@ export async function downloadTeamFileWithAgent(input: {
         tool: 'restitch';
         defaults: TeamRestitchDefaults;
         prepared?: MaterialRestitchPrep | null;
+        /** The pictures the server drew from the space's pools, with their grants (030). */
+        screens?: RestitchScreen[];
+        /** Whose pictures they are; the agent keeps each space's cache apart. */
+        teamId?: string;
         suffix?: string;
       };
 }): Promise<{
@@ -726,6 +732,24 @@ export async function cancelTeamRestitchPreparation(operationId: string): Promis
  * told the app needs to be running is a door.
  */
 export type RestitchCapability = 'yes' | 'too-old' | 'unreachable';
+
+/**
+ * Whether the app on this computer can take its re-stitch pictures from the space's Drive
+ * pools (030) — a capability read from the contract, like the poster frame.
+ */
+export async function agentCanRestitchFromSpace(): Promise<RestitchCapability> {
+  try {
+    const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+    const contracts = health.toolContracts ?? {};
+    return toolContractCompatible('teamWorkspace', contracts) &&
+      toolContractCompatible('stitcher', contracts) &&
+      restitchSourcesSupported(contracts)
+      ? 'yes'
+      : 'too-old';
+  } catch {
+    return 'unreachable';
+  }
+}
 
 export async function agentCanRestitch(): Promise<RestitchCapability> {
   try {

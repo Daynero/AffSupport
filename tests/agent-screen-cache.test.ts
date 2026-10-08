@@ -23,7 +23,6 @@ const TEAM = '30000000-0000-4000-8000-0000000000cc';
 const MATERIAL = '31000000-0000-4000-8000-000000000001';
 
 let directory: string;
-let library: string;
 let clock = 1_700_000_000_000;
 
 function screen(
@@ -113,7 +112,6 @@ function cache(transfer: ReturnType<typeof transferOf>) {
 
 beforeEach(async () => {
   directory = await mkdtemp(path.join(os.tmpdir(), 'screen-cache-'));
-  library = path.join(directory, 'Images');
   await writeFile(path.join(directory, 'library.png'), 'not touched');
   fixtureByMaterial.clear();
   fixtureByMaterial.set(MATERIAL, 'plain.png');

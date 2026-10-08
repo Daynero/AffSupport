@@ -601,3 +601,79 @@ describe('a video’s catalogs (024, US15)', () => {
   });
 });
 // @ts-nocheck — dialog fixture keeps the historical minimal settings shape.
+
+describe('a catalog re-stitched with pictures from the space (030)', () => {
+  it('carries the drawn screens to the app and speaks contract 2', async () => {
+    const screens = [
+      {
+        slot: 'start',
+        materialId: 'pic-1',
+        checksum: 'a'.repeat(32),
+        mimeType: 'image/png',
+        fileName: 'a.png',
+        sizeBytes: 10,
+        transfer: { transferUrl: 'https://edge.test/range', grant: { ticket: 't' } }
+      }
+    ];
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue({ ...restitchDefaults, sourceMode: 'drive' }),
+      canRestitch: vi.fn().mockResolvedValue('yes'),
+      ensureRestitchImages: vi.fn().mockResolvedValue(undefined),
+      prepareRestitchScreens: vi.fn().mockResolvedValue({ kind: 'ready', screens }),
+      ensureRestitchedFolder: vi.fn().mockResolvedValue({
+        folderId: 'cache-drive-folder',
+        materialId: 'cache-material-id'
+      }),
+      startProcess: vi.fn().mockResolvedValue({
+        operationId: 'restitch-op',
+        sourceGrant: { ticket: 'source' },
+        finalizeGrant: { ticket: 'finalize' }
+      }),
+      runAgentProcess: vi.fn().mockResolvedValue({
+        operationId: 'restitch-op',
+        state: 'succeeded',
+        materialId: 'copy-id',
+        reused: false
+      })
+    });
+    renderDialog(client, { video: { ...VIDEO, parentFolderId: 'source-drive-folder' } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await user.click(await screen.findByRole('button', { name: /30.*40/u }));
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    expect(await screen.findByText('The catalog is ready')).toBeTruthy();
+    expect(client.prepareRestitchScreens).toHaveBeenCalledWith(
+      TEAM_ID,
+      expect.objectContaining({ sourceMode: 'drive' })
+    );
+    // The published library is never read for a space that draws from Drive.
+    expect(client.ensureRestitchImages).not.toHaveBeenCalled();
+    expect(client.startProcess).toHaveBeenCalledWith(
+      expect.objectContaining({ toolContractVersion: 2 })
+    );
+    expect(client.runAgentProcess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({ screens, teamId: TEAM_ID })
+      })
+    );
+  });
+
+  it('tells a member whose app predates Drive pools to update it', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue({ ...restitchDefaults, sourceMode: 'drive' }),
+      canRestitch: vi.fn().mockResolvedValue('yes'),
+      prepareRestitchScreens: vi.fn().mockResolvedValue({ kind: 'too-old' }),
+      runAgentProcess: vi.fn()
+    });
+    renderDialog(client, { video: { ...VIDEO, parentFolderId: 'source-drive-folder' } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    await waitFor(() => expect(screen.queryByText('The catalog is ready')).toBeNull());
+    expect(client.runAgentProcess).not.toHaveBeenCalled();
+  });
+});

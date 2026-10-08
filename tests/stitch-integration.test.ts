@@ -891,7 +891,6 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
         }
       ];
 
-      const probed = unwrap(await probeSource(legacy));
       const workDir = await mkdtemp(path.join(directory, 'delivery-030-'));
       const delegate = createRestitchDelegate({
         embedding: () => {

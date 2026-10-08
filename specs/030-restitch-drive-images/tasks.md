@@ -1,7 +1,7 @@
 # Tasks: Картинки ре-стітчу з простору замість сервера
 
 **Feature**: `030-restitch-drive-images` | **Input**: [plan.md](plan.md), [spec.md](spec.md), [research.md](research.md), [data-model.md](data-model.md), [contracts/](contracts/), [quickstart.md](quickstart.md)
-**Status**: In progress — Phase 1–3 and the agent half of Phase 4 (release A) done (2026-10-08); SQL for US1/US2/US4 landed with the one migration; T002 helper lives in tests/support/restitch-space.ts.
+**Status**: In progress — Phase 1–4 done (2026-10-08); the web delivery hook has no unit test of its own, its logic lives in tests/team-restitch-screens.test.ts; SQL for US1/US2/US4 landed with the one migration; T002 helper lives in tests/support/restitch-space.ts.
 
 ## Чинні обмеження
 
@@ -73,10 +73,10 @@
 
 - [x] T028 [P] [US2] Написати `tests/team-restitch-draw-sql.test.ts`: `draw_restitch_screens` вимагає `view`; повертає по одному на увімкнений слот з полями контракту; рівномірність по унікальних `checksum` (1000 викликів, кожен з 3 унікальних ≥ 25 %); два файли з однаковим `checksum` не подвоюють вагу; `unstitch` → `screens: []`; порожні увімкнені слоти → `RESTITCH_POOL_EMPTY`; `legacy` → `sourceMode:'legacy', screens:[]`; `service_draw_restitch_screens` завжди пул простору й налаштування власника; обидві функції приймають `p_exclude uuid[] default '{}'` і не повертають виключені матеріали; `list`/`draw` на пулі з 500 зображень укладаються в 300 мс на PGlite (м'який поріг, лог часу).
 - [x] T029 [US2] У `20261029100000_restitch_sources.sql` додати `public.draw_restitch_screens(p_team)` і `public.service_draw_restitch_screens(p_team, p_actor)` за контрактом; гранти; інваріанти `team-restitch.test.sql` зелені.
-- [ ] T030 [P] [US2] Написати `tests/team-restitch-screens.test.ts` для `apps/web/src/team/restitch/screens.ts`: `prepareRestitchScreens(teamId, known)` → для `legacy` повертає `null` (старий шлях); перевіряє `restitchSourcesSupported` з `/api/health` → `'too-old'`; викликає `drawRestitchScreens`, потім `requestDownload(…, 'agent')` на кожен; `PERMISSION_DENIED` → `RESTITCH_SOURCE_FORBIDDEN`; повертає `RestitchScreen[]` з `transfer`.
-- [ ] T031 [US2] Створити `apps/web/src/team/restitch/screens.ts` і додати `teamApi.drawRestitchScreens(teamId)` у `apps/web/src/api/team.ts`; у `apps/web/src/api/client.ts` додати `agentCanRestitchFromSpace()` (health + `restitchSourcesSupported`); текст `teamRestitchAgentTooOldForSources` обома мовами в `i18n.ts`.
-- [ ] T032 [US2] Оновити `tests/team-restitch-delivery.test.ts`: для `sourceMode:'drive'` `deliver` викликає `prepareRestitchScreens` замість `ensureRestitchImages`, передає `process.screens`; `RESTITCH_POOL_EMPTY` → стан `{ kind:'failed', message: teamRestitchPoolEmpty }`; `legacy` → як раніше. Потім правка `apps/web/src/team/restitch/useRestitchDelivery.ts`.
-- [ ] T033 [P] [US2] Оновити `tests/product-catalog-dialog.test.tsx` і `apps/web/src/team/catalog/CreateProductCatalogDialog.tsx`: той самий `prepareRestitchScreens`; `toolContractVersion` брати з `RESTITCH_CONTRACT_VERSION` у shared замість літерала `1`.
+- [x] T030 [P] [US2] Написати `tests/team-restitch-screens.test.ts` для `apps/web/src/team/restitch/screens.ts`: `prepareRestitchScreens(teamId, known)` → для `legacy` повертає `null` (старий шлях); перевіряє `restitchSourcesSupported` з `/api/health` → `'too-old'`; викликає `drawRestitchScreens`, потім `requestDownload(…, 'agent')` на кожен; `PERMISSION_DENIED` → `RESTITCH_SOURCE_FORBIDDEN`; повертає `RestitchScreen[]` з `transfer`.
+- [x] T031 [US2] Створити `apps/web/src/team/restitch/screens.ts` і додати `teamApi.drawRestitchScreens(teamId)` у `apps/web/src/api/team.ts`; у `apps/web/src/api/client.ts` додати `agentCanRestitchFromSpace()` (health + `restitchSourcesSupported`); текст `teamRestitchAgentTooOldForSources` обома мовами в `i18n.ts`.
+- [x] T032 [US2] Оновити `tests/team-restitch-delivery.test.ts`: для `sourceMode:'drive'` `deliver` викликає `prepareRestitchScreens` замість `ensureRestitchImages`, передає `process.screens`; `RESTITCH_POOL_EMPTY` → стан `{ kind:'failed', message: teamRestitchPoolEmpty }`; `legacy` → як раніше. Потім правка `apps/web/src/team/restitch/useRestitchDelivery.ts`.
+- [x] T033 [P] [US2] Оновити `tests/product-catalog-dialog.test.tsx` і `apps/web/src/team/catalog/CreateProductCatalogDialog.tsx`: той самий `prepareRestitchScreens`; `toolContractVersion` брати з `RESTITCH_CONTRACT_VERSION` у shared замість літерала `1`.
 
 **Checkpoint**: учасник на чистій машині отримує екрани з пулів власника; `Images/` не змінюється; повтор без переносів; md5-зміна тягне нове.
 

@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Dices, Timer } from 'lucide-react';
 import {
+  RESTITCH_CONTRACT_VERSION,
   restitchDefaultsSaveable,
   type FinalImageDurationMode,
   type TeamRestitchDefaults
@@ -34,6 +35,7 @@ import {
 import { ProductCatalogProgress } from './ProductCatalogProgress';
 import { PRICE_RANGE_DEFAULT } from './ProductCatalogSettingsSection';
 import { ensureRestitchImages } from '../restitch/images';
+import { prepareRestitchScreens } from '../restitch/screens';
 
 export interface CreateProductCatalogClient {
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
@@ -43,6 +45,8 @@ export interface CreateProductCatalogClient {
   runAgentProcess?: typeof startTeamAgentProcess;
   canRestitch?: typeof agentCanRestitch;
   ensureRestitchImages?: typeof ensureRestitchImages;
+  /** 030: the pictures drawn from the space, in place of the published library. */
+  prepareRestitchScreens?: typeof prepareRestitchScreens;
   ensureRestitchedFolder?: typeof teamApi.ensureRestitchedFolder;
   cancelOperation?: typeof teamApi.cancelOperation;
   createProductCatalog: (input: {
@@ -255,7 +259,15 @@ export function CreateProductCatalogDialog({
         } else {
           const available = await (client.canRestitch ?? agentCanRestitch)();
           if (available !== 'yes') throw new Error('AGENT_UPDATE_REQUIRED');
-          await (client.ensureRestitchImages ?? ensureRestitchImages)(teamId, defaults);
+          // Drive pools (030) or the owner's published library (legacy): the settings say which.
+          const drawn = await (client.prepareRestitchScreens ?? prepareRestitchScreens)(
+            teamId,
+            defaults
+          );
+          if (drawn.kind === 'too-old') throw new Error('AGENT_UPDATE_REQUIRED');
+          if (drawn.kind === 'legacy') {
+            await (client.ensureRestitchImages ?? ensureRestitchImages)(teamId, defaults);
+          }
           const destination = await (
             client.ensureRestitchedFolder ?? teamApi.ensureRestitchedFolder
           )(teamId);
@@ -270,7 +282,7 @@ export function CreateProductCatalogDialog({
             conflictMode: 'keep_both',
             idempotencyKey: crypto.randomUUID(),
             agentContractVersion: 1,
-            toolContractVersion: 1
+            toolContractVersion: RESTITCH_CONTRACT_VERSION
           });
           try {
             const finished = await (client.runAgentProcess ?? startTeamAgentProcess)({
@@ -284,7 +296,8 @@ export function CreateProductCatalogDialog({
                   customFinalDurationSeconds:
                     durationMode === 'custom' ? customSeconds! : defaults.customFinalDurationSeconds
                 },
-                prepared: null
+                prepared: null,
+                ...(drawn.kind === 'ready' ? { screens: drawn.screens, teamId } : {})
               },
               sourceGrant: started.sourceGrant,
               finalizeGrant: started.finalizeGrant
