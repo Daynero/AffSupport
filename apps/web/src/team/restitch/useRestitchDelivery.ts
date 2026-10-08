@@ -28,6 +28,7 @@ import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { ensureRestitchImages } from './images';
+import { prepareRestitchScreens } from './screens';
 
 export type RestitchDeliveryPhase =
   /** Waiting for the person to say where it goes — asked once per space, then remembered. */
@@ -275,14 +276,30 @@ export function useRestitchDelivery(teamId: string) {
         const grant = await teamApi.requestDownload(teamId, target.materialId, 'agent');
         if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
 
-        await ensureRestitchImages(teamId, known);
+        // Drive pools (030) or the owner's published library (legacy): the settings say which.
+        const drawn = await prepareRestitchScreens(teamId, known);
+        if (drawn.kind === 'too-old') {
+          setWatching(null);
+          set(target.materialId, {
+            kind: 'failed',
+            message: t('teamRestitchAgentTooOldForSources')
+          });
+          if (flow) completeTeamWorkflow(flow, { outcome: 'failure', retryable: false });
+          return;
+        }
+        if (drawn.kind === 'legacy') await ensureRestitchImages(teamId, known);
         const saved = await downloadTeamFileWithAgent({
           operationId,
           transferUrl: grant.transferUrl,
           transferGrant: grant.grant,
           fileName: target.fileName,
           destination: folder,
-          process: { tool: 'restitch', defaults: known, prepared }
+          process: {
+            tool: 'restitch',
+            defaults: known,
+            prepared,
+            ...(drawn.kind === 'ready' ? { screens: drawn.screens, teamId } : {})
+          }
         });
 
         // What the run had to work out is worth more than this delivery: stored, the next

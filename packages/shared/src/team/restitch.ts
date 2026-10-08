@@ -48,6 +48,11 @@ export interface TeamRestitchDefaults {
   customStartDurationMs?: number;
   /** Whether this set could actually produce a file; see `restitchDefaultsSaveable`. */
   configured: boolean;
+  /**
+   * Where the pictures come from (030). `legacy` rows keep drawing from the id lists above;
+   * `drive` rows draw from the space's source pools and leave those lists empty.
+   */
+  sourceMode: RestitchSourceMode;
   updatedAt: string;
   updatedBy: string | null;
 }
@@ -125,9 +130,12 @@ export function restitchDefaultsSaveable(
   defaults: Pick<
     TeamRestitchDefaults,
     'operation' | 'startImageIds' | 'endImageIds' | 'startEnabled' | 'endEnabled'
-  >
+  > & { sourceMode?: RestitchSourceMode }
 ): boolean {
   if (defaults.operation === 'unstitch') return true;
+  // Drive pools are resolved by the server at read time; the id lists say nothing about them.
+  if (defaults.sourceMode === 'drive')
+    return defaults.startEnabled !== false || defaults.endEnabled !== false;
   return (
     (defaults.startEnabled !== false && defaults.startImageIds.length > 0) ||
     (defaults.endEnabled !== false && defaults.endImageIds.length > 0)
@@ -164,6 +172,7 @@ export function parseTeamRestitchDefaults(value: unknown): RestitchParse<TeamRes
   const operation = oneOf(value.operation, RESTITCH_OPERATIONS, 'restitch');
   const startImageIds = stringList(value.startImageIds);
   const endImageIds = stringList(value.endImageIds);
+  const sourceMode = parseRestitchSourceMode(value.sourceMode);
   const custom = finite(value.customFinalDurationSeconds);
   return {
     ok: true,
@@ -171,6 +180,7 @@ export function parseTeamRestitchDefaults(value: unknown): RestitchParse<TeamRes
       operation,
       startImageIds,
       endImageIds,
+      sourceMode,
       fitMode: oneOf(value.fitMode, RESTITCH_FIT_MODES, 'cover'),
       finalDurationMode: oneOf(value.finalDurationMode, RESTITCH_DURATION_MODES, 'random-40-50'),
       customFinalDurationSeconds: clampStitchEndDuration(
@@ -192,6 +202,7 @@ export function parseTeamRestitchDefaults(value: unknown): RestitchParse<TeamRes
           operation,
           startImageIds,
           endImageIds,
+          sourceMode,
           startEnabled: value.startEnabled !== false,
           endEnabled: value.endEnabled !== false
         }),
@@ -286,4 +297,299 @@ export function usablePrep(
   // The file is the same; the reading of it may not be. A record from an older detector is
   // treated as no record — the run inspects for itself and stores the newer answer.
   return prep.detectorVersion === RESTITCH_DETECTOR_VERSION ? prep : null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Feature 030 — the pictures come from the space, not from a server bucket.
+//
+// A space no longer publishes its owner's local library; it records *sources* (image files
+// and folders of the connected Drive), the server resolves them into an effective set and
+// draws one picture per slot for each job, and the member's agent fetches only that picture
+// through the same download grants a video travels on. Everything below is the wire shape of
+// that, with a guard for each side of each boundary.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Which way a space's settings point: at ids in the owner's local library (`legacy`, the
+ * bucket era) or at materials of the connected Drive (`drive`). A row written before this
+ * field existed is `legacy` — that is exactly the row the migration banner is for.
+ */
+export type RestitchSourceMode = 'legacy' | 'drive';
+
+/** The claim/process contract version the web speaks. Old tabs send nothing, which reads as 1. */
+export const RESTITCH_CONTRACT_VERSION = 2;
+/** The most pictures one slot's effective set may hold. The same bound the catalog pools use. */
+export const RESTITCH_POOL_LIMIT = 500;
+/** The agent's own ceiling for one picture; the server filters on it at selection time. */
+export const RESTITCH_SCREEN_MAX_BYTES = 50 * 1024 * 1024;
+export const RESTITCH_SCREEN_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+export type RestitchScreenMimeType = (typeof RESTITCH_SCREEN_MIME_TYPES)[number];
+
+export const RESTITCH_SLOTS = ['start', 'end'] as const;
+export type RestitchSlot = (typeof RESTITCH_SLOTS)[number];
+export type RestitchSourceKind = 'file' | 'folder';
+export const RESTITCH_SOURCE_AVAILABILITY = [
+  'available',
+  'trashed',
+  'missing',
+  'out_of_root',
+  'unsupported',
+  'pending',
+  'disconnected'
+] as const;
+export type RestitchSourceAvailability = (typeof RESTITCH_SOURCE_AVAILABILITY)[number];
+export const RESTITCH_POOL_STATES = ['ready', 'partial', 'empty'] as const;
+export type RestitchPoolState = (typeof RESTITCH_POOL_STATES)[number];
+
+/** One thing a pool points at, with what the catalog currently knows about it. */
+export interface RestitchSource {
+  materialId: string | null;
+  /** Set while the folder has been chosen but the catalog has not indexed it yet. */
+  driveFileId: string | null;
+  kind: RestitchSourceKind;
+  name: string;
+  availability: RestitchSourceAvailability;
+  /** Eligible pictures this source contributes (1 for a usable file, a count for a folder). */
+  imageCount: number;
+  skipped: { format: number; size: number; animated: number };
+}
+
+export interface RestitchPoolSummary {
+  state: RestitchPoolState;
+  overLimit: boolean;
+  eligibleCount: number;
+  sources: RestitchSource[];
+}
+
+export interface RestitchSourcesListing {
+  sourceMode: RestitchSourceMode;
+  /** How many ids the legacy columns still hold — the number on the "re-pick" banner. */
+  legacyImageCount: number;
+  pools: Record<RestitchSlot, RestitchPoolSummary>;
+}
+
+/** What the browser hands `set_restitch_sources`. */
+export type RestitchSourceInput = { materialId: string } | { driveFileId: string; kind: 'folder' };
+
+/** One picture the server drew for one job, and how the agent may fetch it. */
+export interface RestitchScreen {
+  slot: RestitchSlot;
+  materialId: string;
+  /** The catalog's md5 of the bytes — the agent's cache key together with the material id. */
+  checksum: string;
+  mimeType: RestitchScreenMimeType;
+  fileName: string;
+  sizeBytes: number;
+  /** Absent means "only what the agent already has"; present means a download grant. */
+  transfer: { transferUrl: string; grant: RestitchTransferGrant } | null;
+}
+
+/**
+ * The grant as the agent already understands it (`TeamTransferGrant` in transport.ts),
+ * restated structurally so this file keeps no import into the transport module.
+ */
+export interface RestitchTransferGrant {
+  ticket: string;
+  purpose: string;
+  expiresAt: string;
+  maxRangeBytes: number;
+  maxUses: number;
+}
+
+export interface RestitchDrawResult {
+  sourceMode: RestitchSourceMode;
+  pool: Record<RestitchSlot, RestitchPoolState>;
+  screens: Array<Omit<RestitchScreen, 'transfer'> & { driveVersion: string | null }>;
+}
+
+function nonNegativeInt(value: unknown): number {
+  const parsed = finite(value);
+  return parsed === null ? 0 : Math.max(0, Math.trunc(parsed));
+}
+
+function slotOf(value: unknown): RestitchSlot | null {
+  return value === 'start' || value === 'end' ? value : null;
+}
+
+function screenMime(value: unknown): RestitchScreenMimeType | null {
+  return (RESTITCH_SCREEN_MIME_TYPES as readonly string[]).includes(value as string)
+    ? (value as RestitchScreenMimeType)
+    : null;
+}
+
+export function parseRestitchSourceMode(value: unknown): RestitchSourceMode {
+  return value === 'drive' ? 'drive' : 'legacy';
+}
+
+function parseRestitchSource(value: unknown): RestitchSource | null {
+  if (!isRecord(value)) return null;
+  const kind = value.kind === 'file' || value.kind === 'folder' ? value.kind : null;
+  const materialId =
+    typeof value.materialId === 'string' && value.materialId ? value.materialId : null;
+  const driveFileId =
+    typeof value.driveFileId === 'string' && value.driveFileId ? value.driveFileId : null;
+  if (!kind || (!materialId && !driveFileId)) return null;
+  const availability = (RESTITCH_SOURCE_AVAILABILITY as readonly string[]).includes(
+    value.availability as string
+  )
+    ? (value.availability as RestitchSourceAvailability)
+    : null;
+  if (!availability) return null;
+  const skipped = isRecord(value.skipped) ? value.skipped : {};
+  return {
+    materialId,
+    driveFileId,
+    kind,
+    name: typeof value.name === 'string' ? value.name : '',
+    availability,
+    imageCount: nonNegativeInt(value.imageCount),
+    skipped: {
+      format: nonNegativeInt(skipped.format),
+      size: nonNegativeInt(skipped.size),
+      animated: nonNegativeInt(skipped.animated)
+    }
+  };
+}
+
+function parseRestitchPool(value: unknown): RestitchPoolSummary | null {
+  if (!isRecord(value)) return null;
+  const state = (RESTITCH_POOL_STATES as readonly string[]).includes(value.state as string)
+    ? (value.state as RestitchPoolState)
+    : null;
+  if (!state || !Array.isArray(value.sources)) return null;
+  const sources: RestitchSource[] = [];
+  for (const entry of value.sources) {
+    const source = parseRestitchSource(entry);
+    // One unreadable source is a listing nobody can act on: the pool it belongs to is unknown.
+    if (!source) return null;
+    sources.push(source);
+  }
+  return {
+    state,
+    overLimit: value.overLimit === true,
+    eligibleCount: nonNegativeInt(value.eligibleCount),
+    sources
+  };
+}
+
+/** `list_restitch_sources`, off the wire. Strict: a pool that cannot be read is no listing. */
+export function parseRestitchSourcesListing(value: unknown): RestitchParse<RestitchSourcesListing> {
+  if (!isRecord(value) || !isRecord(value.pools)) {
+    return { ok: false, error: 'RESTITCH_SOURCES_INVALID' };
+  }
+  const start = parseRestitchPool(value.pools.start);
+  const end = parseRestitchPool(value.pools.end);
+  if (!start || !end) return { ok: false, error: 'RESTITCH_SOURCES_INVALID' };
+  return {
+    ok: true,
+    value: {
+      sourceMode: parseRestitchSourceMode(value.sourceMode),
+      legacyImageCount: nonNegativeInt(value.legacyImageCount),
+      pools: { start, end }
+    }
+  };
+}
+
+function parseDrawnScreen(value: unknown): RestitchDrawResult['screens'][number] | null {
+  if (!isRecord(value)) return null;
+  const slot = slotOf(value.slot);
+  const mimeType = screenMime(value.mimeType);
+  const materialId = typeof value.materialId === 'string' ? value.materialId : '';
+  const checksum = typeof value.checksum === 'string' ? value.checksum : '';
+  const sizeBytes = finite(value.sizeBytes);
+  if (!slot || !mimeType || !materialId || !checksum || sizeBytes === null || sizeBytes <= 0) {
+    return null;
+  }
+  return {
+    slot,
+    materialId,
+    checksum,
+    mimeType,
+    fileName: typeof value.fileName === 'string' && value.fileName ? value.fileName : materialId,
+    sizeBytes,
+    driveVersion: typeof value.driveVersion === 'string' ? value.driveVersion : null
+  };
+}
+
+/** `draw_restitch_screens`, off the wire. Strict: one bad screen refuses the draw. */
+export function parseRestitchDrawResult(value: unknown): RestitchParse<RestitchDrawResult> {
+  if (!isRecord(value) || !Array.isArray(value.screens)) {
+    return { ok: false, error: 'RESTITCH_DRAW_INVALID' };
+  }
+  const pool = isRecord(value.pool) ? value.pool : {};
+  const poolState = (entry: unknown): RestitchPoolState =>
+    (RESTITCH_POOL_STATES as readonly string[]).includes(entry as string)
+      ? (entry as RestitchPoolState)
+      : 'empty';
+  const screens: RestitchDrawResult['screens'] = [];
+  for (const entry of value.screens) {
+    const screen = parseDrawnScreen(entry);
+    if (!screen) return { ok: false, error: 'RESTITCH_DRAW_INVALID' };
+    screens.push(screen);
+  }
+  return {
+    ok: true,
+    value: {
+      sourceMode: parseRestitchSourceMode(value.sourceMode),
+      pool: { start: poolState(pool.start), end: poolState(pool.end) },
+      screens
+    }
+  };
+}
+
+function parseTransfer(value: unknown): RestitchScreen['transfer'] | undefined {
+  if (value === null || value === undefined) return null;
+  if (!isRecord(value) || typeof value.transferUrl !== 'string' || !isRecord(value.grant)) {
+    return undefined;
+  }
+  const grant = value.grant;
+  const maxRangeBytes = finite(grant.maxRangeBytes);
+  const maxUses = finite(grant.maxUses);
+  if (
+    typeof grant.ticket !== 'string' ||
+    typeof grant.purpose !== 'string' ||
+    typeof grant.expiresAt !== 'string' ||
+    maxRangeBytes === null ||
+    maxUses === null
+  ) {
+    return undefined;
+  }
+  return {
+    transferUrl: value.transferUrl,
+    grant: {
+      ticket: grant.ticket,
+      purpose: grant.purpose,
+      expiresAt: grant.expiresAt,
+      maxRangeBytes,
+      maxUses
+    }
+  };
+}
+
+/**
+ * The screens a job carries into the agent, off the wire.
+ *
+ * Strict, and all-or-nothing: a job with one unreadable screen would otherwise be cut with
+ * the other one and look finished. `undefined` and `null` both mean "no screens were sent",
+ * which is the legacy path and not an error.
+ */
+export function parseRestitchScreens(value: unknown): RestitchParse<RestitchScreen[] | null> {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (!Array.isArray(value)) return { ok: false, error: 'RESTITCH_SCREENS_INVALID' };
+  const screens: RestitchScreen[] = [];
+  for (const entry of value) {
+    const drawn = parseDrawnScreen(entry);
+    const transfer = isRecord(entry) ? parseTransfer(entry.transfer) : undefined;
+    if (!drawn || transfer === undefined) return { ok: false, error: 'RESTITCH_SCREENS_INVALID' };
+    screens.push({
+      slot: drawn.slot,
+      materialId: drawn.materialId,
+      checksum: drawn.checksum,
+      mimeType: drawn.mimeType,
+      fileName: drawn.fileName,
+      sizeBytes: drawn.sizeBytes,
+      transfer
+    });
+  }
+  return { ok: true, value: screens };
 }

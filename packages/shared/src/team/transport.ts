@@ -82,6 +82,12 @@ export const TEAM_ERROR_CODES = [
   'RESTITCH_FORBIDDEN',
   'RESTITCH_NO_SCREENS',
   'RESTITCH_INVALID',
+  // 030 — pictures drawn from the space's Drive pools instead of a server bucket.
+  'RESTITCH_POOL_EMPTY',
+  'RESTITCH_SOURCE_FORBIDDEN',
+  'RESTITCH_SOURCES_INVALID',
+  'RESTITCH_SOURCES_TOO_MANY',
+  'RESTITCH_CLIENT_OUTDATED',
   // The storage refused to open a resumable upload for a file the browser was
   // about to send. Raised in the browser, not by the boundary, which is why it
   // must be a code and not a bare `Error`: thrown as one it reached the reader

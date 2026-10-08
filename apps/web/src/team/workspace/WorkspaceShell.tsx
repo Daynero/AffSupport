@@ -360,7 +360,9 @@ export function WorkspaceShell({
       catalogUpdater.state?.state === 'running' &&
       catalogUpdater.state.restitch &&
       can('process') &&
-      agent?.teamWorkspaceAvailable === true
+      agent?.teamWorkspaceAvailable === true,
+    // A page older than the space's re-stitch settings is told so once and stops claiming (030).
+    onOutdated: () => push({ tone: 'error', text: t('teamRestitchClientOutdated') })
   });
 
   /** An explorer address that keeps the current folder and view. */

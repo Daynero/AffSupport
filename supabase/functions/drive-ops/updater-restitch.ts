@@ -3,6 +3,7 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
 import { videoShareLink } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
+import { RESTITCH_CONTRACT_VERSION as SHARED_RESTITCH_CONTRACT_VERSION } from '../../../packages/shared/dist/team/restitch.js';
 
 /**
  * The catalog updater's spare copies, prepared by a member's open tab (feature 023).
@@ -17,7 +18,13 @@ import { isRecord } from '../_shared/validation.ts';
  */
 
 export const RESTITCH_TOOL_ID = 'restitch';
-export const RESTITCH_CONTRACT_VERSION = 1;
+/**
+ * What the claim speaks (030). A tab that sends no version is a tab from before Drive pools;
+ * it is refused before any job is taken when the space draws from them.
+ */
+export const RESTITCH_CONTRACT_VERSION: number = SHARED_RESTITCH_CONTRACT_VERSION;
+/** How long a job whose pool is empty waits before it is looked at again. */
+export const POOL_EMPTY_DEFER_INTERVAL = '1 hour';
 const LEASE_SECONDS = 120;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const LEASE_TOKEN = /^[A-Za-z0-9_-]{43}$/u;
@@ -44,6 +51,15 @@ export interface UpdaterRestitchDeps {
    * cannot be resolved — the copy then lands beside its video, as it did before.
    */
   restitchedFolder?(teamId: string, actorId: string): Promise<string | null>;
+  /**
+   * A download grant for one drawn picture, issued to the claiming member's app (030). Refuses
+   * with `RESTITCH_SOURCE_FORBIDDEN` when that member may not download the space's files.
+   */
+  screenGrant?(
+    teamId: string,
+    actorId: string,
+    materialId: string
+  ): Promise<{ transferUrl: string; grant: unknown }>;
   log(message: string, detail: string): void;
 }
 
@@ -143,12 +159,100 @@ async function fail(
     .catch(() => undefined);
 }
 
+function errorCode(error: unknown): string {
+  return error instanceof TeamFunctionError ? error.code : 'UNKNOWN';
+}
+
+/**
+ * One picture per enabled slot from the space's pools, each with a grant the claimer's app can
+ * fetch it on. An empty pool defers the job for an hour without spending an attempt; a refused
+ * grant earns one more draw without that picture, then fails the job by the refusal's name.
+ * Returns null when the job was given back.
+ */
+async function drawScreens(
+  deps: UpdaterRestitchDeps,
+  actorId: string,
+  jobId: string,
+  leaseHash: string,
+  teamId: string
+): Promise<unknown[] | null> {
+  if (!deps.screenGrant) {
+    await fail(deps, actorId, jobId, leaseHash, 'RESTITCH_SOURCE_FORBIDDEN');
+    return null;
+  }
+  const excluded: string[] = [];
+  for (let round = 0; round < 2; round += 1) {
+    let drawn: unknown;
+    try {
+      drawn = await deps.rpc('service_draw_restitch_screens', {
+        p_team: teamId,
+        p_actor: actorId,
+        // A copy: the list grows between rounds, and a recorded call must say what it was told.
+        p_exclude: [...excluded]
+      });
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === 'RESTITCH_POOL_EMPTY') {
+        await deps
+          .rpc('service_defer_restitch_job', {
+            p_job: jobId,
+            p_lease_token_hash: leaseHash,
+            p_code: code,
+            p_interval: POOL_EMPTY_DEFER_INTERVAL
+          })
+          .catch(() => undefined);
+        deps.log('[updater-restitch] pool empty, job deferred', jobId);
+        return null;
+      }
+      await fail(deps, actorId, jobId, leaseHash, code);
+      return null;
+    }
+    const picked = isRecord(drawn) && Array.isArray(drawn.screens) ? drawn.screens : [];
+    const screens: unknown[] = [];
+    let refused: { materialId: string; code: string } | null = null;
+    for (const entry of picked) {
+      if (!isRecord(entry) || typeof entry.materialId !== 'string') continue;
+      try {
+        const granted = await deps.screenGrant(teamId, actorId, entry.materialId);
+        screens.push({ ...entry, transfer: granted });
+      } catch (error) {
+        refused = { materialId: entry.materialId, code: errorCode(error) };
+        break;
+      }
+    }
+    if (!refused) return screens;
+    excluded.push(refused.materialId);
+    if (round === 1 || refused.code === 'RESTITCH_SOURCE_FORBIDDEN') {
+      await fail(deps, actorId, jobId, leaseHash, 'RESTITCH_SOURCE_FORBIDDEN');
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function claimRestitchJob(
   deps: UpdaterRestitchDeps,
   actorId: string,
   body: Record<string, unknown>
 ) {
   const teamId = uuid(body.teamId);
+  const version =
+    typeof body.restitchContractVersion === 'number' &&
+    Number.isSafeInteger(body.restitchContractVersion)
+      ? body.restitchContractVersion
+      : 1;
+  /*
+   * Background copies always carry the space's own settings and pictures, whoever's computer
+   * makes them (030, R6): a shared catalog's copies would otherwise depend on whose tab won the
+   * claim. Read before the claim, so an old tab is refused without a job being taken from the
+   * queue and handed back failed.
+   */
+  const space = await deps.rpc('service_get_space_restitch_defaults', { p_team: teamId });
+  const defaults = isRecord(space) ? space : null;
+  const driveMode = defaults?.sourceMode === 'drive';
+  if (driveMode && version < RESTITCH_CONTRACT_VERSION) {
+    throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED', { retryable: false });
+  }
   const lease = deps.randomToken();
   const leaseHash = await deps.hashHex(lease);
   const claimed = await deps.rpc('service_claim_restitch_job', {
@@ -160,16 +264,20 @@ export async function claimRestitchJob(
   if (claimed === null || claimed === undefined) return { job: null };
   const job = parseClaimedRestitchJob(claimed);
   if (!job) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
-  const effective = await deps.rpc('service_get_effective_restitch_defaults', {
-    p_team: job.teamId,
-    p_actor: actorId
-  });
-  job.defaults = isRecord(effective) ? effective : null;
+  job.defaults = defaults;
 
   // Nothing a run could make without the space's re-stitch settings: fail the job, not the round.
   if (!job.defaults || job.defaults.configured !== true) {
     await fail(deps, actorId, job.jobId, leaseHash, 'RESTITCH_INVALID');
     return { job: null };
+  }
+
+  // The pictures, drawn by the server from the space's pools and granted to this member's app.
+  let screens: unknown[] | null = null;
+  if (driveMode) {
+    const drawn = await drawScreens(deps, actorId, job.jobId, leaseHash, teamId);
+    if (drawn === null) return { job: null };
+    screens = drawn;
   }
 
   for (const operationId of job.openOperationIds) {
@@ -219,7 +327,11 @@ export async function claimRestitchJob(
       toolId: RESTITCH_TOOL_ID,
       videoMaterialId: job.videoMaterialId,
       videoDriveVersion: job.videoDriveVersion,
-      options: { defaults: job.defaults, prepared: job.prepared },
+      options: {
+        defaults: job.defaults,
+        prepared: job.prepared,
+        ...(screens ? { screens, teamId: job.teamId } : {})
+      },
       sourceGrant: grants.sourceGrant,
       finalizeGrant: grants.finalizeGrant
     }

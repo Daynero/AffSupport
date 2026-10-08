@@ -54,6 +54,7 @@ import { TeamDownloadBridge } from './team-bridge/download.js';
 import { TeamLandingRenderBridge } from './team-bridge/landing-gallery.js';
 import { createTeamProcessDelegates, TeamProcessBridge } from './team-bridge/process.js';
 import { createRestitchDelegate } from './team-bridge/restitch.js';
+import { TeamScreenCache } from './team-bridge/screen-cache.js';
 import { TeamPosterBridge } from './team-bridge/poster.js';
 import { CreativeLibraryProcessBridge } from './team-bridge/library.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
@@ -448,9 +449,23 @@ const teamTransfer = new TeamTransferClient();
  * space stores ids, not pictures) and a way to hand back what it had to discover, so the
  * caller can store it and nobody pays for the same inspection twice.
  */
+/* 030 — the space's own pictures, drawn by the server from its Drive pools, live in a cache
+   of their own beside the library, never in it. */
+const teamScreenCache = new TeamScreenCache({
+  transfer: teamTransfer,
+  // The server is built further down; the cache only speaks after a delivery, long after.
+  log: message => {
+    try {
+      app.log.info(message);
+    } catch {
+      /* before the server exists there is nobody to tell */
+    }
+  }
+});
 const restitchDelegate = createRestitchDelegate({
   embedding: () => queue.state().settings.imageEmbedding,
   imagePathFor: screenImagePath,
+  screenCache: teamScreenCache,
   threads: () => activeThreadBudget()
 });
 const teamDelegates = {

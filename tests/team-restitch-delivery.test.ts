@@ -88,6 +88,7 @@ const library: ImageEmbeddingSettings = {
 };
 
 const defaults: TeamRestitchDefaults = {
+  sourceMode: 'legacy',
   operation: 'restitch',
   startImageIds: ['start-a'],
   endImageIds: ['end-a'],

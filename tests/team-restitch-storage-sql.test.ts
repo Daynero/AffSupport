@@ -33,9 +33,17 @@ async function asStorageUser(actor: string, sql: string, params: unknown[] = [])
     await harness.root("select set_config('request.jwt.claim.sub', '', false)");
   }
 }
-it('lets the owner publish and read images without SELECT on teams', async () => {
-  await asStorageUser(
-    owner,
+it('still lets a member read the legacy images, but nobody can publish any more (030)', async () => {
+  // The bucket is closed to writes in the same release that retires the uploader (FR-028).
+  // Reading stays until the approved deletion, so spaces still in legacy mode keep working.
+  await expect(
+    asStorageUser(
+      owner,
+      "insert into storage.objects(bucket_id, name) values ('team-restitch-images', $1)",
+      [`${team}/${owner}/start/image.png`]
+    )
+  ).rejects.toThrow(/row-level security/);
+  await harness.root(
     "insert into storage.objects(bucket_id, name) values ('team-restitch-images', $1)",
     [`${team}/${owner}/start/image.png`]
   );
@@ -52,7 +60,7 @@ it('does not allow outsiders to read or publish images', async () => {
     )
   ).rejects.toThrow();
 });
-it('does not let the owner write another user’s image namespace', async () => {
+it('rejects writes to another user’s namespace after the bucket closes', async () => {
   await expect(
     asStorageUser(
       owner,
@@ -92,4 +100,16 @@ it('reads saved owner settings through the same RPC after a page reload', async 
   );
   expect(rows[0]!.settings.configured).toBe(true);
   expect(rows[0]!.settings.startImageIds).toEqual([owner]);
+});
+
+it('lists what one member left in the bucket, for account deletion (030)', async () => {
+  await harness.root(
+    "insert into storage.objects(bucket_id, name) values ('team-restitch-images', $1), ('team-restitch-images', $2)",
+    [`${team}/${stranger}/end/a.png`, `${team}/${owner}/end/b.png`]
+  );
+  const rows = await harness.root<{ names: string[] }>(
+    'select public.service_list_user_restitch_objects($1) as names',
+    [stranger]
+  );
+  expect(rows[0]!.names).toEqual([`${team}/${stranger}/end/a.png`]);
 });

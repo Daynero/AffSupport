@@ -78,6 +78,22 @@ describe('screen segments carry the body’s own parameters (D5)', () => {
     expect(filter).toContain('format=yuv420p');
   });
 
+  it('turns the picture upright itself and tells FFmpeg not to (030)', () => {
+    // Autorotation is off on every screen, so a phone photo stands the same way on every build.
+    expect(args).toContain('-noautorotate');
+    expect(valueAfter(args, '-display_rotation')).toBe('0');
+    expect(valueAfter(args, '-vf')?.startsWith('scale=')).toBe(true);
+    const turned = buildScreenVideoArgs({
+      imagePath: '/photos/phone.jpg',
+      output: '/tmp/screen.mp4',
+      profile,
+      screen: endScreen,
+      fitMode: 'cover',
+      orientation: 6
+    });
+    expect(valueAfter(turned, '-vf')?.startsWith('transpose=1,scale=')).toBe(true);
+  });
+
   it('converts the photo out of JPEG full range, in the filter and on the encoder', () => {
     expect(valueAfter(args, '-vf')).toContain('in_range=full:out_range=tv');
     expect(valueAfter(args, '-color_range')).toBe('tv');

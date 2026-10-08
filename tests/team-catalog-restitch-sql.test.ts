@@ -486,6 +486,39 @@ describe('spares', () => {
     expect(Date.parse(job!.next_attempt_at) - Date.now()).toBeGreaterThan(50_000);
     await stop();
   }, 60_000);
+
+  it('defers a job whose pool is empty without spending an attempt (030)', async () => {
+    const { sheet } = await catalog('deferred');
+    const device = enroll();
+    await save([sheet], true);
+    const lease = token();
+    await claimJob(device, lease);
+    const [leased] = await jobs(sheet);
+    expect(leased).toMatchObject({ state: 'leased', attempts: 1 });
+    const defer = (hash: Buffer) =>
+      harness.root<{ ok: boolean }>(
+        "select public.service_defer_restitch_job($1, $2, 'RESTITCH_POOL_EMPTY', interval '1 hour') as ok",
+        [sheet, hash]
+      );
+    expect((await defer(token()))[0]!.ok).toBe(false); // not this lease
+    expect((await defer(lease))[0]!.ok).toBe(true);
+    const [job] = await jobs(sheet);
+    expect(job).toMatchObject({
+      state: 'queued',
+      attempts: 0,
+      last_error_code: 'RESTITCH_POOL_EMPTY'
+    });
+    expect(Date.parse(job!.next_attempt_at) - Date.now()).toBeGreaterThan(55 * 60_000);
+    // Not claimable until the hour is up; the updater's state says why.
+    expect(await claimJob(device, token())).toBeNull();
+    const state = await harness.asUser<{ state: { restitchBlockedCode: string | null } }>(
+      OWNER,
+      'select public.get_team_catalog_updater($1) as state',
+      [teamId]
+    );
+    expect(state[0]!.state.restitchBlockedCode).toBe('RESTITCH_POOL_EMPTY');
+    await stop();
+  }, 60_000);
 });
 
 describe('rounds', () => {

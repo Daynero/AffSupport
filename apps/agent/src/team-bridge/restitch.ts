@@ -22,16 +22,19 @@
 import { stat } from 'node:fs/promises';
 import {
   parseMaterialRestitchPrep,
+  parseRestitchScreens,
   parseTeamRestitchDefaults,
   planStitch,
   type ImageEmbeddingSettings,
   type MaterialRestitchPrep,
+  type RestitchScreen,
   type SourceProfile,
   type StitchScreens,
   type StitchUnsupportedReason,
   type TeamRestitchDefaults,
   RESTITCH_DETECTOR_VERSION
 } from '@video-compressor/shared';
+import { ScreenCacheError, type ResolvedScreen, type TeamScreenCache } from './screen-cache.js';
 import { runStitchPipeline, type StitchPipeline } from '../stitcher/pipeline.js';
 import { detectStitching, screensFromEmbedding } from '../stitcher/plan.js';
 import { probeSource } from '../stitcher/probe.js';
@@ -43,12 +46,21 @@ export interface RestitchDelegateOptions {
   defaults: TeamRestitchDefaults;
   /** What a previous inspection found, when there was one. */
   prepared: MaterialRestitchPrep | null;
+  /**
+   * The pictures the server drew for this job from the space's Drive pools (030), with the
+   * grants to fetch them. Null is the legacy path: ids of the compressor's library.
+   */
+  screens: RestitchScreen[] | null;
+  /** Whose pictures the screens are; the cache keeps each space's apart. */
+  teamId: string | null;
 }
 
 export interface RestitchDelegateDeps {
   /** The compressor's image library, read live — the space stores ids, not pictures. */
   embedding: () => ImageEmbeddingSettings;
   imagePathFor: (id: string) => Promise<string | null>;
+  /** Where the space's own pictures live on this computer (030). */
+  screenCache?: TeamScreenCache;
   bodies?: PreparedBodyCache;
   pipeline?: StitchPipeline;
   threads?: () => number | null;
@@ -78,11 +90,17 @@ export function parseRestitchOptions(value: unknown): RestitchDelegateOptions | 
     record.prepared === undefined || record.prepared === null
       ? null
       : parseMaterialRestitchPrep(record.prepared);
+  // Unlike the record, a bad screen refuses the job: a video cut with one screen of two
+  // would look finished and not be.
+  const screens = parseRestitchScreens(record.screens);
+  if (!screens.ok) return null;
   return {
     defaults: defaults.value,
     // An unreadable record is treated as absent: the run then looks for itself, which is
     // slower and always correct.
-    prepared: prepared && prepared.ok ? prepared.value : null
+    prepared: prepared && prepared.ok ? prepared.value : null,
+    screens: defaults.value.operation === 'unstitch' ? null : screens.value,
+    teamId: typeof record.teamId === 'string' && record.teamId ? record.teamId : null
   };
 }
 
@@ -112,6 +130,50 @@ export function spaceScreens(
       disabledImageIds: [],
       startEnabled: wantsScreens && defaults.startEnabled !== false,
       endEnabled: wantsScreens && defaults.endEnabled !== false,
+      fitMode: defaults.fitMode,
+      startDurationMode: defaults.startDurationMode ?? 'one-frame',
+      customStartDurationMs: defaults.customStartDurationMs ?? 100,
+      finalDurationMode: defaults.finalDurationMode,
+      customFinalDurationSeconds: defaults.customFinalDurationSeconds
+    },
+    {},
+    random
+  );
+}
+
+/**
+ * The screens this space draws when the server already drew them (030).
+ *
+ * The pictures are not in any library: they are the job's own, resolved to paths by the
+ * screen cache, so the stitcher's ids are the cache's ids and the fit, hold and switches are
+ * the space's settings exactly as the legacy path reads them.
+ */
+export function screensFromResolved(
+  resolved: readonly ResolvedScreen[],
+  defaults: TeamRestitchDefaults,
+  random: () => number = Math.random
+): StitchScreens {
+  const wantsScreens = defaults.operation !== 'unstitch';
+  const start = resolved.find(screen => screen.slot === 'start') ?? null;
+  const end = resolved.find(screen => screen.slot === 'end') ?? null;
+  const asset = (screen: ResolvedScreen) => ({
+    id: screen.id,
+    fileName: screen.id,
+    width: 0,
+    height: 0,
+    size: 0,
+    mimeType: 'image/png' as const,
+    extension: '.png' as const
+  });
+  return screensFromEmbedding(
+    {
+      enabled: true,
+      replaceExisting: true,
+      startImages: start ? [asset(start)] : [],
+      endImages: end ? [asset(end)] : [],
+      disabledImageIds: [],
+      startEnabled: wantsScreens && defaults.startEnabled !== false && start !== null,
+      endEnabled: wantsScreens && defaults.endEnabled !== false && end !== null,
       fitMode: defaults.fitMode,
       startDurationMode: defaults.startDurationMode ?? 'one-frame',
       customStartDurationMs: defaults.customStartDurationMs ?? 100,
@@ -175,7 +237,26 @@ export function createRestitchDelegate(
     }
     input.onProgress(40);
 
-    const screens = spaceScreens(deps.embedding(), options.defaults);
+    // Drive pools (030) or the compressor's library (legacy): one of the two, never both.
+    let resolved: ResolvedScreen[] | null = null;
+    if (options.screens && options.screens.length > 0) {
+      if (!deps.screenCache) throw new Error('RESTITCH_SCREEN_UNAVAILABLE');
+      try {
+        resolved = await deps.screenCache.resolve(
+          options.teamId ?? input.teamId ?? 'unknown',
+          options.screens,
+          input.signal
+        );
+      } catch (error) {
+        throw new Error(
+          error instanceof ScreenCacheError ? error.code : 'RESTITCH_SCREEN_FETCH_FAILED',
+          { cause: error }
+        );
+      }
+    }
+    const screens = resolved
+      ? screensFromResolved(resolved, options.defaults)
+      : spaceScreens(deps.embedding(), options.defaults);
     const planned = planStitch(
       looked.profile,
       looked.detected,
@@ -222,7 +303,7 @@ export function createRestitchDelegate(
       onStage: stage =>
         input.onProgress(stage === 'verifying' ? 92 : stage === 'joining' ? 45 : 42),
       onJoinProgress: fraction => input.onProgress(45 + Math.round(fraction * 45)),
-      imagePathFor: deps.imagePathFor,
+      imagePathFor: async id => deps.screenCache?.pathFor(id) ?? (await deps.imagePathFor(id)),
       bodies
     });
     if (!produced.ok) {
@@ -232,6 +313,16 @@ export function createRestitchDelegate(
     }
     const output = await stat(produced.stagedPath);
     if (!output.isFile() || output.size < 1) throw new Error('INVALID_RESPONSE');
+    // A delivery is the moment the cache knows what the space still draws from.
+    const owner = options.teamId ?? input.teamId;
+    if (resolved && deps.screenCache && owner) {
+      await deps.screenCache
+        .evict(
+          owner,
+          resolved.map(screen => screen.id)
+        )
+        .catch(() => undefined);
+    }
     input.onProgress(100);
     return {
       file: produced.stagedPath,

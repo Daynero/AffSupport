@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { planStitch, type StitchScreens } from '../packages/shared/src/stitcher.js';
 import { createRestitchDelegate } from '../apps/agent/src/team-bridge/restitch.js';
 import { PreparedBodyCache } from '../apps/agent/src/stitcher/body-cache.js';
@@ -765,25 +765,191 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
       error: 'video-codec'
     });
   }, 120_000);
-});
 
-/** Every encoded video frame's hash, so "the same frames" means bit-for-bit. */
-async function frameHashes(file: string): Promise<string[]> {
-  const result = await runTool('ffmpeg', [
-    '-v',
-    'error',
-    '-i',
-    file,
-    '-map',
-    '0:v',
-    '-c',
-    'copy',
-    '-f',
-    'framemd5',
-    '-'
-  ]);
-  return result.stdout
-    .split('\n')
-    .filter(line => line && !line.startsWith('#'))
-    .map(line => line.trim().split(/\s+/).pop() ?? '');
-}
+  /** Every encoded video frame's hash, so "the same frames" means bit-for-bit. */
+  async function frameHashes(file: string): Promise<string[]> {
+    const result = await runTool('ffmpeg', [
+      '-v',
+      'error',
+      '-i',
+      file,
+      '-map',
+      '0:v',
+      '-c',
+      'copy',
+      '-f',
+      'framemd5',
+      '-'
+    ]);
+    return result.stdout
+      .split('\n')
+      .filter(line => line && !line.startsWith('#'))
+      .map(line => line.trim().split(/\s+/).pop() ?? '');
+  }
+
+  /**
+   * 030 — a delivery whose pictures the server drew from the space's Drive pools.
+   *
+   * The screens arrive with the job and are resolved by the screen cache, never by the
+   * compressor's library; and a phone photograph stored sideways comes out upright, because
+   * the turn is read from its bytes and applied with FFmpeg's own autorotation switched off.
+   */
+  describe('a delivery with the space’s own pictures (030)', () => {
+    const TEAM = '30000000-0000-4000-8000-0000000000f0';
+    const materialOf = (n: number) => `32000000-0000-4000-8000-00000000000${n}`;
+
+    /**
+     * The first frame of a file, shrunk to 2×2 and read as RGB: four corners, twelve bytes.
+     * Converted to RGB *before* the shrink: in 4:2:0 a 2×2 frame has one chroma sample, and
+     * red and blue would average to purple.
+     */
+    async function corners(file: string, seekSeconds = 0): Promise<number[]> {
+      const out = path.join(directory, `corners-${Date.now()}-${Math.random()}.rgb`);
+      const result = await runTool('ffmpeg', [
+        '-v',
+        'error',
+        '-ss',
+        String(seekSeconds),
+        '-i',
+        file,
+        '-frames:v',
+        '1',
+        '-vf',
+        'format=rgb24,scale=2:2:flags=area',
+        '-f',
+        'rawvideo',
+        '-pix_fmt',
+        'rgb24',
+        '-y',
+        out
+      ]);
+      if (result.code !== 0) throw new Error(result.stderr);
+      return [...(await readFile(out))];
+    }
+    const red = (px: number[]) => px[0]! > 150 && px[2]! < 100;
+    const blue = (px: number[]) => px[2]! > 150 && px[0]! < 100;
+
+    it('cuts with the drawn pictures from the cache, and stands a sideways photo upright', async () => {
+      const { RESTITCH_FIXTURES, restitchFixturePath } =
+        await import('./fixtures/restitch-images/index.js');
+      const { TeamScreenCache, screenAssetId } =
+        await import('../apps/agent/src/team-bridge/screen-cache.js');
+      const { createHash: md5 } = await import('node:crypto');
+
+      // A transfer that hands back the fixture the material names, as the edge function would.
+      const byMaterial = new Map([
+        [materialOf(1), 'exif-6.jpg' as const],
+        [materialOf(2), 'plain.png' as const]
+      ]);
+      const cache = new TeamScreenCache(
+        {
+          transfer: {
+            downloadSource: async request => {
+              const name = byMaterial.get(request.operationId.slice('screen:'.length))!;
+              const workspace = await mkdtemp(path.join(directory, 'screen-transfer-'));
+              const file = path.join(workspace, 'source.bin');
+              const bytes = await readFile(restitchFixturePath(name));
+              await (await import('node:fs/promises')).writeFile(file, bytes);
+              return {
+                workspace,
+                file,
+                sizeBytes: bytes.length,
+                sourceVersion: '1',
+                sourceChecksum: md5('md5').update(bytes).digest('hex'),
+                cleanup: async () => {}
+              };
+            }
+          }
+        },
+        path.join(directory, 'TeamScreens')
+      );
+      const grant = {
+        ticket: 't',
+        purpose: 'download_range',
+        expiresAt: '2099-01-01T00:00:00Z',
+        maxRangeBytes: 1 << 20,
+        maxUses: 10
+      };
+      const screens = [
+        {
+          slot: 'start' as const,
+          materialId: materialOf(1),
+          checksum: RESTITCH_FIXTURES['exif-6.jpg'].md5,
+          mimeType: 'image/jpeg' as const,
+          fileName: 'exif-6.jpg',
+          sizeBytes: RESTITCH_FIXTURES['exif-6.jpg'].bytes,
+          transfer: { transferUrl: 'https://edge.test/range', grant }
+        },
+        {
+          slot: 'end' as const,
+          materialId: materialOf(2),
+          checksum: RESTITCH_FIXTURES['plain.png'].md5,
+          mimeType: 'image/png' as const,
+          fileName: 'plain.png',
+          sizeBytes: RESTITCH_FIXTURES['plain.png'].bytes,
+          transfer: { transferUrl: 'https://edge.test/range', grant }
+        }
+      ];
+
+      const workDir = await mkdtemp(path.join(directory, 'delivery-030-'));
+      const delegate = createRestitchDelegate({
+        embedding: () => {
+          throw new Error('the library must not be read for a job that carries screens');
+        },
+        imagePathFor: async () => null,
+        screenCache: cache,
+        bodies: new PreparedBodyCache({ root: directory })
+      });
+      const delivered = await delegate({
+        operationId: 'delivery-030',
+        teamId: TEAM,
+        workspace: workDir,
+        sourceFile: legacy,
+        sourceSizeBytes: (await stat(legacy)).size,
+        sourceVersion: '7',
+        sourceChecksum: null,
+        options: {
+          defaults: {
+            ...spaceDefaults,
+            sourceMode: 'drive',
+            fitMode: 'cover',
+            // Two whole seconds of opening screen, so the sample below lands inside it.
+            startDurationMode: 'custom',
+            customStartDurationMs: 2000
+          },
+          prepared: null,
+          screens,
+          teamId: TEAM
+        },
+        signal: new AbortController().signal,
+        onProgress: () => {},
+        pausable: () => {}
+      });
+      expect(delivered.sizeBytes).toBeGreaterThan(0);
+      // Both pictures live in the cache now, under the material and its bytes.
+      expect(cache.pathFor(screenAssetId(screens[0]!))).toContain(
+        RESTITCH_FIXTURES['exif-6.jpg'].md5
+      );
+      expect(cache.pathFor(screenAssetId(screens[1]!))).toContain(
+        RESTITCH_FIXTURES['plain.png'].md5
+      );
+
+      // The opening screen is the sideways photo: stored red-left/blue-right with "turn 90° CW"
+      // in EXIF, so upright it is red on top and blue below, and the cover crop keeps that.
+      const opening = await corners(delivered.file, 0.5);
+      const [tl, tr, bl, br] = [
+        opening.slice(0, 3),
+        opening.slice(3, 6),
+        opening.slice(6, 9),
+        opening.slice(9, 12)
+      ];
+      expect([red(tl), red(tr), blue(bl), blue(br)]).toEqual([true, true, true, true]);
+
+      // The closing screen is the plain picture: red left, blue right, as stored. Sampled in the
+      // middle of its six seconds: at one frame a second the last half-second may hold no frame.
+      const probedOut = unwrap(await probeSource(delivered.file));
+      const tail = await corners(delivered.file, Math.max(0, probedOut.durationSeconds - 3));
+      expect([red(tail.slice(0, 3)), blue(tail.slice(3, 6))]).toEqual([true, true]);
+    }, 180_000);
+  });
+});

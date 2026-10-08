@@ -20,6 +20,7 @@ import {
   buildSilenceSliceArgs,
   isStitchArgumentError
 } from '../ffmpeg/stitch-presets.js';
+import { imageOrientation } from './exif.js';
 import { runTool, toolSucceeded } from './run.js';
 
 export interface ScreenSegmentOptions {
@@ -52,7 +53,8 @@ export async function buildScreenSegment(options: ScreenSegmentOptions): Promise
       profile: options.profile,
       screen: options.screen,
       fitMode: options.fitMode,
-      threads: options.threads
+      threads: options.threads,
+      orientation: await imageOrientation(options.imagePath)
     });
   } catch (error) {
     // A screen the builders refuse is a planning mistake, not a media failure; it must never

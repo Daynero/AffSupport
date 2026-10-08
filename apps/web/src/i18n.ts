@@ -2003,6 +2003,52 @@ const en = {
   teamRestitchToastAskManager: 'A space manager can set it up.',
   teamRestitchAgentMissing: 'This needs the Soty app running on this computer.',
   teamRestitchAgentTooOld: 'The Soty app on this computer is too old to re-stitch.',
+  teamRestitchAgentTooOldForSources:
+    'The Soty app on this computer is too old to take pictures from the space. Update it to re-stitch with these settings.',
+  teamRestitchPoolEmpty:
+    'No pictures are available for re-stitching: every source of the pool is unavailable or empty. Open the space settings to check them.',
+  teamRestitchSourceForbidden:
+    'You can process in this space but not download its files, and the re-stitch pictures live there. Ask the owner for download access.',
+  teamRestitchSourcesInvalid:
+    'One of the chosen sources is not an image or a folder of this space.',
+  teamRestitchSourcesTooMany: 'A pool can hold at most 500 sources.',
+  teamRestitchClientOutdated:
+    'This page is too old for the space’s re-stitch settings. Reload it to continue.',
+  teamRestitchScreenUnavailable:
+    'The Soty app has no copy of the chosen picture and no way to fetch it.',
+  teamRestitchScreenFetchFailed:
+    'The chosen picture could not be fetched from the space. Check the connection and free space, then try again.',
+  teamRestitchScreenUnsupported:
+    'The chosen picture is animated or cannot be decoded, so it was skipped.',
+  teamRestitchSourceDisconnected: 'The space is not connected to Google Drive.',
+  teamRestitchSourceTrashed: 'In the bin',
+  teamRestitchSourceMissing: 'Deleted',
+  teamRestitchSourceOutOfRoot: 'Outside the connected folder',
+  teamRestitchSourceUnsupported: 'Not a picture the app can stitch',
+  teamRestitchSourcePending: 'Waiting for the catalog',
+  teamRestitchSourceSkipped: 'skipped: {format} by format, {size} by size, {animated} animated',
+  teamRestitchPoolNone: 'No sources yet: this slot is off until you add pictures from the space.',
+  teamRestitchPoolEligible: '{count} pictures ready to draw from',
+  teamRestitchPoolPartial: '{count} sources are unavailable.',
+  teamRestitchPoolSkipped: '{count} files skipped.',
+  teamRestitchPoolOverlap: 'Overlapping sources count once.',
+  teamRestitchPoolOverLimit: 'Only the first 500 pictures are used.',
+  teamRestitchPickTitle: 'Pictures from the space',
+  teamRestitchPickFolder: 'A folder of pictures',
+  teamRestitchAddFiles: 'Add pictures',
+  teamRestitchAddFolder: 'Add a folder',
+  teamRestitchSourcesExplain:
+    'Pictures come from the connected Google Drive. Pick files or whole folders; nothing is copied to a server.',
+  teamRestitchOwnerPoolsNote:
+    'These are the owner’s pools. Untick the box above to choose your own.',
+  teamRestitchLegacyBanner:
+    'This space still points at {count} pictures from a computer’s library. Pick sources from the space to keep re-stitching.',
+  teamRestitchLegacyRepick: 'Pick from the space',
+  teamRestitchLegacyNames: 'On this computer they are: {names}.',
+  teamRestitchLegacyTransfer: 'Move the old pictures into the space',
+  teamRestitchLegacyTransferring: 'Moving {done} of {total}…',
+  teamRestitchLegacyTransferred:
+    'Moved {moved} pictures into “Re-stitch images”; {missing} were no longer on the server.',
   teamRestitchFolder: 'Where downloads go',
   teamRestitchFolderChange: 'Change',
   teamRestitchPrepare: 'Prepare the space’s videos',
@@ -5140,6 +5186,51 @@ const uk: Record<keyof typeof en, string> = {
   teamRestitchToastAskManager: 'Налаштувати може керівник простору.',
   teamRestitchAgentMissing: 'Для цього потрібен застосунок Soty на цьому компʼютері.',
   teamRestitchAgentTooOld: 'Застосунок Soty на цьому компʼютері застарий для перезашивки.',
+  teamRestitchAgentTooOldForSources:
+    'Застосунок Soty на цьому компʼютері застарий, щоб брати картинки з простору. Оновіть його, щоб перезашивати з цими налаштуваннями.',
+  teamRestitchPoolEmpty:
+    'Немає картинок для перезашивки: усі джерела пулу недоступні або порожні. Відкрийте налаштування простору й перевірте їх.',
+  teamRestitchSourceForbidden:
+    'Ви можете обробляти в цьому просторі, але не завантажувати його файли, а картинки для перезашивки лежать саме там. Попросіть у власника право на завантаження.',
+  teamRestitchSourcesInvalid: 'Одне з обраних джерел не є зображенням або папкою цього простору.',
+  teamRestitchSourcesTooMany: 'Пул може містити щонайбільше 500 джерел.',
+  teamRestitchClientOutdated:
+    'Ця сторінка застара для налаштувань перезашивки простору. Перезавантажте її, щоб продовжити.',
+  teamRestitchScreenUnavailable:
+    'У застосунку Soty немає копії обраної картинки й немає як її забрати.',
+  teamRestitchScreenFetchFailed:
+    'Не вдалося забрати обрану картинку з простору. Перевірте зʼєднання і вільне місце, потім спробуйте знову.',
+  teamRestitchScreenUnsupported:
+    'Обрана картинка анімована або її не вдалося розкодувати, тому її пропущено.',
+  teamRestitchSourceDisconnected: 'Простір не підключено до Google Drive.',
+  teamRestitchSourceTrashed: 'У кошику',
+  teamRestitchSourceMissing: 'Видалено',
+  teamRestitchSourceOutOfRoot: 'Поза підключеною папкою',
+  teamRestitchSourceUnsupported: 'Не картинка, яку застосунок може зашити',
+  teamRestitchSourcePending: 'Чекає на каталог',
+  teamRestitchSourceSkipped:
+    'пропущено: {format} за форматом, {size} за розміром, {animated} анімованих',
+  teamRestitchPoolNone: 'Джерел ще немає: слот вимкнений, доки ви не додасте картинки з простору.',
+  teamRestitchPoolEligible: 'Придатних картинок: {count}',
+  teamRestitchPoolPartial: 'Недоступних джерел: {count}.',
+  teamRestitchPoolSkipped: 'Пропущено файлів: {count}.',
+  teamRestitchPoolOverlap: 'Джерела, що перекриваються, рахуються один раз.',
+  teamRestitchPoolOverLimit: 'Використовуються лише перші 500 картинок.',
+  teamRestitchPickTitle: 'Картинки з простору',
+  teamRestitchPickFolder: 'Папка з картинками',
+  teamRestitchAddFiles: 'Додати картинки',
+  teamRestitchAddFolder: 'Додати папку',
+  teamRestitchSourcesExplain:
+    'Картинки беруться з підключеного Google Drive. Оберіть файли або цілі папки; на сервер нічого не копіюється.',
+  teamRestitchOwnerPoolsNote: 'Це пули власника. Зніміть позначку вище, щоб обрати свої.',
+  teamRestitchLegacyBanner:
+    'Цей простір досі посилається на {count} картинок з бібліотеки одного компʼютера. Оберіть джерела з простору, щоб далі перезашивати.',
+  teamRestitchLegacyRepick: 'Обрати з простору',
+  teamRestitchLegacyNames: 'На цьому компʼютері це: {names}.',
+  teamRestitchLegacyTransfer: 'Перенести старі картинки в простір',
+  teamRestitchLegacyTransferring: 'Переношу {done} з {total}…',
+  teamRestitchLegacyTransferred:
+    'Перенесено картинок у «Re-stitch images»: {moved}; на сервері вже не було: {missing}.',
   teamRestitchFolder: 'Куди зберігати',
   teamRestitchFolderChange: 'Змінити',
   teamRestitchPrepare: 'Підготувати відео простору',

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   RESTITCH_DETECTOR_VERSION,
   parseMaterialRestitchPrep,
+  parseRestitchDrawResult,
+  parseRestitchScreens,
+  parseRestitchSourcesListing,
   parseTeamRestitchDefaults,
   parseTeamRestitchPrepareProgress,
   restitchDefaultsSaveable,
@@ -201,5 +204,137 @@ describe('a preparation run’s progress', () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.ok && parsed.value.prep).toBeNull();
     expect(parsed.ok && parsed.value.done).toBe(2);
+  });
+});
+
+describe('where a space’s pictures come from (030)', () => {
+  const base = {
+    operation: 'restitch',
+    startImageIds: [],
+    endImageIds: [],
+    fitMode: 'cover',
+    finalDurationMode: 'random-40-50',
+    customFinalDurationSeconds: 2700,
+    configured: true
+  };
+
+  it('reads a row written before the field existed as legacy', () => {
+    const parsed = parseTeamRestitchDefaults({ ...base, startImageIds: ['a'] });
+    expect(parsed.ok && parsed.value.sourceMode).toBe('legacy');
+    expect(parseTeamRestitchDefaults({ ...base, sourceMode: 'drive' }).ok).toBe(true);
+    const drive = parseTeamRestitchDefaults({ ...base, sourceMode: 'drive' });
+    expect(drive.ok && drive.value.sourceMode).toBe('drive');
+    const odd = parseTeamRestitchDefaults({ ...base, sourceMode: 'bucket' });
+    expect(odd.ok && odd.value.sourceMode).toBe('legacy');
+  });
+
+  it('does not judge a drive-mode set by its empty id lists', () => {
+    expect(restitchDefaultsSaveable({ ...base, sourceMode: 'drive' } as never)).toBe(true);
+    expect(
+      restitchDefaultsSaveable({
+        ...base,
+        sourceMode: 'drive',
+        startEnabled: false,
+        endEnabled: false
+      } as never)
+    ).toBe(false);
+    const parsed = parseTeamRestitchDefaults({ ...base, sourceMode: 'drive' });
+    expect(parsed.ok && parsed.value.configured).toBe(true);
+    const legacy = parseTeamRestitchDefaults({ ...base, sourceMode: 'legacy' });
+    expect(legacy.ok && legacy.value.configured).toBe(false);
+  });
+});
+
+describe('the pool listing, off the wire (030)', () => {
+  const source = {
+    materialId: 'm1',
+    driveFileId: null,
+    kind: 'folder',
+    name: 'Finals',
+    availability: 'available',
+    imageCount: 3,
+    skipped: { format: 1, size: 0, animated: 2 }
+  };
+  const pool = { state: 'ready', overLimit: false, eligibleCount: 3, sources: [source] };
+
+  it('accepts a full listing and defaults what it may', () => {
+    const parsed = parseRestitchSourcesListing({
+      sourceMode: 'drive',
+      legacyImageCount: 0,
+      pools: { start: pool, end: { state: 'empty', sources: [] } }
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error('Expected a valid pool listing');
+    expect(parsed.value.pools.start.sources[0]).toEqual(source);
+    expect(parsed.value.pools.end).toEqual({
+      state: 'empty',
+      overLimit: false,
+      eligibleCount: 0,
+      sources: []
+    });
+  });
+
+  it('refuses the whole listing when one source cannot be read', () => {
+    expect(
+      parseRestitchSourcesListing({
+        sourceMode: 'drive',
+        pools: {
+          start: { ...pool, sources: [{ ...source, availability: 'somewhere' }] },
+          end: pool
+        }
+      }).ok
+    ).toBe(false);
+    expect(parseRestitchSourcesListing({ pools: { start: pool } }).ok).toBe(false);
+  });
+});
+
+describe('a draw and the screens a job carries (030)', () => {
+  const drawn = {
+    slot: 'start',
+    materialId: 'm1',
+    checksum: 'abc',
+    mimeType: 'image/jpeg',
+    fileName: 'a.jpg',
+    sizeBytes: 100,
+    driveVersion: '7'
+  };
+  const grant = {
+    ticket: 't',
+    purpose: 'download_range',
+    expiresAt: '2026-10-08T00:00:00Z',
+    maxRangeBytes: 1,
+    maxUses: 2
+  };
+
+  it('parses a draw and defaults the pool states', () => {
+    const parsed = parseRestitchDrawResult({
+      sourceMode: 'drive',
+      pool: { start: 'ready' },
+      screens: [drawn]
+    });
+    expect(parsed.ok && parsed.value.pool).toEqual({ start: 'ready', end: 'empty' });
+    expect(parsed.ok && parsed.value.screens[0]?.fileName).toBe('a.jpg');
+  });
+
+  it('refuses a draw with one bad screen and a screen with a bad grant', () => {
+    expect(
+      parseRestitchDrawResult({ screens: [drawn, { ...drawn, mimeType: 'image/gif' }] }).ok
+    ).toBe(false);
+    expect(parseRestitchScreens([{ ...drawn, transfer: { transferUrl: 'u', grant } }]).ok).toBe(
+      true
+    );
+    expect(parseRestitchScreens([{ ...drawn, transfer: { transferUrl: 'u' } }]).ok).toBe(false);
+    expect(
+      parseRestitchScreens([
+        { ...drawn, transfer: null },
+        { ...drawn, slot: 'top' }
+      ]).ok
+    ).toBe(false);
+  });
+
+  it('reads no screens as the legacy path, not as an error', () => {
+    expect(parseRestitchScreens(undefined)).toEqual({ ok: true, value: null });
+    expect(parseRestitchScreens(null)).toEqual({ ok: true, value: null });
+    expect(parseRestitchScreens('nope').ok).toBe(false);
   });
 });

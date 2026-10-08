@@ -1305,3 +1305,46 @@ are `uuid, text, bigint`); the unfenced originals are untouched. Restore
 diagnostics view from `20261015100000_sync_requests_and_cancel.sql`. Keep
 `catalog_sync_jobs.no_progress_runs`. Jobs retired as `NO_PROGRESS` stay failed;
 a new request starts a fresh scan.
+
+## 20261029100000_restitch_sources.sql
+
+Roll the web back first (the panel of this release writes `set_restitch_sources`),
+then `drive-ops` (its claim calls `service_draw_restitch_screens` and
+`service_defer_restitch_job`). Then drop, in this order:
+`public.service_defer_restitch_job(uuid,bytea,text,interval)`,
+`public.service_draw_restitch_screens(uuid,uuid,uuid[])`,
+`public.draw_restitch_screens(uuid,uuid[])`, `private.draw_restitch_screens_for(uuid,uuid,jsonb,uuid[])`,
+`public.set_member_restitch_sources(uuid,text,jsonb)`, `public.set_restitch_sources(uuid,text,jsonb)`,
+`private.replace_restitch_sources(uuid,uuid,text,jsonb)`, `public.list_restitch_sources(uuid,text)`,
+`private.restitch_listing_json(uuid,uuid)`, `private.restitch_pool_json(uuid,uuid,text)`,
+`private.restitch_pool_images(uuid,uuid,text)`, `private.resolve_restitch_pending(uuid)`,
+`private.restitch_image_ok(text,bigint,text,text)`, and the table `public.team_restitch_sources`.
+Restore `public.set_restitch_defaults(uuid,jsonb)`, `public.set_member_restitch_defaults(uuid,jsonb)`
+from `20260929150000_member_restitch_preferences.sql` and
+`private.effective_restitch_defaults_json(uuid,uuid)` from
+`20261001011000_restitch_defaults_owner_lookup.sql`. Drop the `source_mode` columns from
+`team_restitch_defaults` and `team_member_restitch_preferences` last: a row saved in `drive`
+mode has empty id lists, so after the rollback that space shows as "not configured" and the
+owner re-publishes from a local library. The error codes may stay in `team_error_codes`.
+
+The INSERT policy on the bucket was dropped on purpose. To reopen the bucket for writes
+(only together with the rolled-back web), re-create it verbatim from
+`20261001010000_restitch_storage_policy_access.sql`:
+
+```sql
+create policy team_restitch_images_write on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'team-restitch-images'
+  and (storage.foldername(name))[2] = auth.uid()::text
+  and case when (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    then private.can((storage.foldername(name))[1]::uuid, 'view', auth.uid())
+    else false end
+);
+```
+
+## 20261105100000_restitch_bucket_retirement.sql
+
+Reserved for the approved deletion of the legacy `team-restitch-images` objects
+(feature 030, release C). Not written yet; it will carry an explicit object list
+and no bucket-wide delete. Deleted objects cannot be restored, which is why the
+list is approved first.

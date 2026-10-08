@@ -3,6 +3,7 @@
   "modules": {
     "packages/shared/src/team/agent-finance.ts": 90,
     "packages/shared/src/team/agent-finance-report.ts": 90,
+    "apps/agent/src/stitcher/exif.ts": 90,
     "apps/agent/src/ffmpeg/encoder.ts": 95,
     "apps/agent/src/ffmpeg/presets.ts": 99,
     "apps/agent/src/ffmpeg/stitch-presets.ts": 50,

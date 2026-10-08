@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
-import { parseFolderSyncStatus } from '../packages/shared/src/team/transport';
+import { parseFolderSyncStatus } from '../apps/web/src/team/syncStatus';
 
 let db: TeamTestDb;
 let connection: string;

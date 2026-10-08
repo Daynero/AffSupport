@@ -21,6 +21,7 @@ const running: CatalogUpdaterState = {
   catalogCount: 3,
   failingCount: 0,
   spareReadyCount: null,
+  restitchBlockedCode: null,
   serverNow: new Date(NOW).toISOString()
 };
 
@@ -104,5 +105,28 @@ describe('formatRemaining', () => {
     [86_400_000 * 6 + 3_660_000, '6d 01:01']
   ])('formats %i ms as %s', (ms, text) => {
     expect(formatRemaining(ms)).toBe(text);
+  });
+});
+
+describe('why the spares stand still (030)', () => {
+  it('names an empty pool and a member who may not download', () => {
+    renderChip({
+      ...running,
+      restitch: true,
+      spareReadyCount: 1,
+      restitchBlockedCode: 'RESTITCH_POOL_EMPTY'
+    });
+    expect(screen.getByText(/No pictures are available for re-stitching/)).toBeTruthy();
+    cleanup();
+    renderChip({
+      ...running,
+      restitch: true,
+      spareReadyCount: 1,
+      restitchBlockedCode: 'RESTITCH_SOURCE_FORBIDDEN'
+    });
+    expect(screen.getByText(/not download its files/)).toBeTruthy();
+    cleanup();
+    renderChip({ ...running, restitch: true, spareReadyCount: 1 });
+    expect(screen.queryByText(/No pictures are available/)).toBeNull();
   });
 });

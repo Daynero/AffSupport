@@ -38,6 +38,33 @@ describe('team-aware account deletion', () => {
     expect(deps.revokeDeletedUserGrants).toHaveBeenCalledWith(userId);
   });
 
+  it('drops the member’s legacy re-stitch pictures before the Auth row goes (030)', async () => {
+    const order: string[] = [];
+    const deps = dependencies({
+      revokeDeletedUserGrants: vi.fn(async () => {
+        order.push('revoke');
+      }),
+      purgeLegacyMedia: vi.fn(async () => {
+        order.push('purge');
+      }),
+      deleteAuthUser: vi.fn(async () => {
+        order.push('delete');
+      })
+    });
+    const userId = '10000000-0000-4000-8000-000000000004';
+    await expect(deleteAccountWithTeamPreflight(userId, deps)).resolves.toEqual({ deleted: true });
+    expect(deps.purgeLegacyMedia).toHaveBeenCalledWith(userId);
+    expect(order).toEqual(['revoke', 'purge', 'delete']);
+
+    const failing = dependencies({
+      purgeLegacyMedia: vi.fn().mockRejectedValue(new TeamFunctionError('DRIVE_UNAVAILABLE'))
+    });
+    await expect(deleteAccountWithTeamPreflight(userId, failing)).rejects.toMatchObject({
+      code: 'DRIVE_UNAVAILABLE'
+    });
+    expect(failing.deleteAuthUser).not.toHaveBeenCalled();
+  });
+
   it('applies the same ownership preflight to a blocked account with a still-valid JWT', async () => {
     const deps = dependencies({ ownedTeamCount: vi.fn().mockResolvedValue(1) });
 
