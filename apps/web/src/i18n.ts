@@ -2044,6 +2044,11 @@ const en = {
   teamRestitchLegacyBanner:
     'This space still points at {count} pictures from a computer’s library. Pick sources from the space to keep re-stitching.',
   teamRestitchLegacyRepick: 'Pick from the space',
+  teamRestitchLegacyNames: 'On this computer they are: {names}.',
+  teamRestitchLegacyTransfer: 'Move the old pictures into the space',
+  teamRestitchLegacyTransferring: 'Moving {done} of {total}…',
+  teamRestitchLegacyTransferred:
+    'Moved {moved} pictures into “Re-stitch images”; {missing} were no longer on the server.',
   teamRestitchFolder: 'Where downloads go',
   teamRestitchFolderChange: 'Change',
   teamRestitchPrepare: 'Prepare the space’s videos',
@@ -5221,6 +5226,11 @@ const uk: Record<keyof typeof en, string> = {
   teamRestitchLegacyBanner:
     'Цей простір досі посилається на {count} картинок з бібліотеки одного компʼютера. Оберіть джерела з простору, щоб далі перезашивати.',
   teamRestitchLegacyRepick: 'Обрати з простору',
+  teamRestitchLegacyNames: 'На цьому компʼютері це: {names}.',
+  teamRestitchLegacyTransfer: 'Перенести старі картинки в простір',
+  teamRestitchLegacyTransferring: 'Переношу {done} з {total}…',
+  teamRestitchLegacyTransferred:
+    'Перенесено картинок у «Re-stitch images»: {moved}; на сервері вже не було: {missing}.',
   teamRestitchFolder: 'Куди зберігати',
   teamRestitchFolderChange: 'Змінити',
   teamRestitchPrepare: 'Підготувати відео простору',

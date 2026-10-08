@@ -17,7 +17,8 @@ function objectPath(
   return `${teamId}/${userId}/${slot}/${id}${extension}`;
 }
 
-async function downloadImage(
+/** One legacy image out of the bucket, by the three extensions it may have been published under. */
+export async function downloadLegacyRestitchImage(
   teamId: string,
   sourceUserId: string,
   slot: ImageSlot,
@@ -57,7 +58,7 @@ export async function ensureRestitchImages(
       .map(id => ({ slot: 'end' as const, id }))
   ];
   for (const { slot, id } of needs) {
-    const downloaded = await downloadImage(teamId, preference.sourceUserId, slot, id);
+    const downloaded = await downloadLegacyRestitchImage(teamId, preference.sourceUserId, slot, id);
     if (!downloaded) throw new Error('RESTITCH_IMAGE_UNAVAILABLE');
     const mime =
       downloaded.extension === '.png'

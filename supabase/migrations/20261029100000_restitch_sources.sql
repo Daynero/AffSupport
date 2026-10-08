@@ -831,6 +831,22 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------------------------------
+-- 8c. What a leaving member left in the legacy bucket, for `delete-account` to drop (FR-030).
+--     Names only; the objects are removed through Storage, never through this table.
+-- ---------------------------------------------------------------------------------------------
+
+create or replace function public.service_list_user_restitch_objects(p_user uuid)
+returns text[] language sql security definer set search_path = '' stable as $$
+  select coalesce(array_agg(object.name order by object.name), '{}'::text[])
+  from storage.objects as object
+  where object.bucket_id = 'team-restitch-images'
+    and (storage.foldername(object.name))[2] = p_user::text;
+$$;
+revoke all on function public.service_list_user_restitch_objects(uuid)
+  from public, anon, authenticated, service_role;
+grant execute on function public.service_list_user_restitch_objects(uuid) to service_role;
+
+-- ---------------------------------------------------------------------------------------------
 -- 9. The codes the contract seed must know, and the bucket closed to writes (FR-028). Reading
 --    stays until the approved deletion; nothing can be put in any more.
 -- ---------------------------------------------------------------------------------------------

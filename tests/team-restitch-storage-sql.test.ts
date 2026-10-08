@@ -101,3 +101,15 @@ it('reads saved owner settings through the same RPC after a page reload', async 
   expect(rows[0]!.settings.configured).toBe(true);
   expect(rows[0]!.settings.startImageIds).toEqual([owner]);
 });
+
+it('lists what one member left in the bucket, for account deletion (030)', async () => {
+  await harness.root(
+    "insert into storage.objects(bucket_id, name) values ('team-restitch-images', $1), ('team-restitch-images', $2)",
+    [`${team}/${stranger}/end/a.png`, `${team}/${owner}/end/b.png`]
+  );
+  const rows = await harness.root<{ names: string[] }>(
+    'select public.service_list_user_restitch_objects($1) as names',
+    [stranger]
+  );
+  expect(rows[0]!.names).toEqual([`${team}/${stranger}/end/a.png`]);
+});

@@ -54,6 +54,22 @@ Deno.serve(async request => {
           throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
         }
       },
+      purgeLegacyMedia: async userId => {
+        // The objects are named `<team>/<user>/<slot>/<id>`; SQL finds this user's, Storage drops them.
+        const { data, error } = await admin.rpc('service_list_user_restitch_objects', {
+          p_user: userId
+        });
+        if (error || !Array.isArray(data)) {
+          throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+        }
+        const names = data.filter((name): name is string => typeof name === 'string');
+        for (let offset = 0; offset < names.length; offset += 100) {
+          const { error: removeError } = await admin.storage
+            .from('team-restitch-images')
+            .remove(names.slice(offset, offset + 100));
+          if (removeError) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+        }
+      },
       deleteAuthUser: async () => {
         const { error: deleteError } = await admin.auth.admin.deleteUser(user.id, false);
         if (deleteError) {

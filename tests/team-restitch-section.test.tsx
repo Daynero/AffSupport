@@ -203,15 +203,68 @@ describe('a space’s re-stitching settings', () => {
     expect(value.setMemberRestitchSources).not.toHaveBeenCalled();
   });
 
-  it('tells a space saved the old way to pick from the space', async () => {
-    renderSection(
-      client({
-        getRestitchDefaults: vi.fn().mockResolvedValue({ ...stored, sourceMode: 'legacy' }),
-        listRestitchSources: vi.fn().mockResolvedValue(legacyListing)
+  it('tells a space saved the old way to pick from the space, naming the pictures this computer has', async () => {
+    const legacyDefaults = {
+      ...stored,
+      sourceMode: 'legacy' as const,
+      startImageIds: ['old-1'],
+      endImageIds: ['old-2']
+    };
+    const value = client({
+      getRestitchDefaults: vi.fn().mockResolvedValue(legacyDefaults),
+      listRestitchSources: vi.fn().mockResolvedValue(legacyListing),
+      localLibrary: vi.fn().mockResolvedValue({
+        settings: {
+          imageEmbedding: {
+            startImages: [{ id: 'old-1', fileName: 'opener.png' }],
+            endImages: [
+              { id: 'old-2', fileName: 'closer.jpg' },
+              { id: 'other', fileName: 'x.png' }
+            ]
+          }
+        }
       })
-    );
+    });
+    renderSection(value);
     expect(await screen.findByText(/still points at 2 pictures/)).toBeTruthy();
+    expect(await screen.findByText(/opener\.png, closer\.jpg/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Pick from the space' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Move the old pictures into the space' })
+    ).toBeTruthy();
+  });
+
+  it('moves the old pictures into the space on the owner’s word and re-reads the pools', async () => {
+    const legacyDefaults = {
+      ...stored,
+      sourceMode: 'legacy' as const,
+      startImageIds: ['old-1'],
+      endImageIds: []
+    };
+    const transferLegacyImages = vi.fn(
+      async (_team: string, _defaults: unknown, onProgress: (d: number, t: number) => void) => {
+        onProgress(1, 1);
+        return { moved: 1, missing: 0 };
+      }
+    );
+    const value = client({
+      getRestitchDefaults: vi.fn().mockResolvedValueOnce(legacyDefaults).mockResolvedValue(stored),
+      listRestitchSources: vi.fn().mockResolvedValueOnce(legacyListing).mockResolvedValue(listing),
+      transferLegacyImages
+    });
+    renderSection(value, owned, 'disconnected');
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Move the old pictures into the space' }));
+    await waitFor(() =>
+      expect(transferLegacyImages).toHaveBeenCalledWith(
+        TEAM_ID,
+        legacyDefaults,
+        expect.any(Function)
+      )
+    );
+    expect(await screen.findByText('Openers')).toBeTruthy();
+    expect(screen.queryByText(/still points at/)).toBeNull();
   });
 
   it('inherits owner settings by default, showing the owner’s pools without controls', async () => {

@@ -45,6 +45,8 @@ import { SettingsSection } from './SettingsSection';
 import { Alert, PermissionState, SegmentedControl } from '../../components/ui/index';
 import { Checkbox } from '../../components/ui';
 import { RestitchSourcePool, type RestitchSourcePoolClient } from './RestitchSourcePool';
+import { fetchCompressorState } from '../../stitcher/api';
+import { transferLegacyRestitchImages } from '../restitch/migrate-legacy';
 
 export interface RestitchDefaultsClient {
   getRestitchDefaults: (teamId: string) => Promise<TeamRestitchDefaults | null>;
@@ -74,6 +76,10 @@ export interface RestitchDefaultsClient {
   /** Browsing the catalog for the pickers; without it sources can be seen but not added. */
   listMaterials?: RestitchSourcePoolClient['listMaterials'];
   searchCatalog?: RestitchSourcePoolClient['searchCatalog'];
+  /** Moving a legacy space's bucket pictures into the space (030, US5); injected by tests. */
+  transferLegacyImages?: typeof transferLegacyRestitchImages;
+  /** The connected app's library, for naming a legacy space's old pictures; injected by tests. */
+  localLibrary?: typeof fetchCompressorState;
 }
 
 const OPERATION_KEYS = {
@@ -358,6 +364,62 @@ export function RestitchDefaultsSection({
   const legacy = listing?.sourceMode === 'legacy' && listing.legacyImageCount > 0;
   const poolsRef = useRef<HTMLDivElement>(null);
 
+  /*
+   * A legacy space names ids of one computer's library. When that computer is this one, the
+   * names are worth more than the count; when it is not, the count is all there is to say.
+   */
+  const [legacyNames, setLegacyNames] = useState<string[]>([]);
+  useEffect(() => {
+    if (!legacy || !connected || !defaults) {
+      setLegacyNames([]);
+      return;
+    }
+    let active = true;
+    void (client.localLibrary ?? fetchCompressorState)()
+      .then(state => {
+        if (!active) return;
+        const ids = new Set([...defaults.startImageIds, ...defaults.endImageIds]);
+        const library = state.settings.imageEmbedding;
+        setLegacyNames(
+          [...library.startImages, ...library.endImages]
+            .filter(asset => ids.has(asset.id))
+            .map(asset => asset.fileName)
+        );
+      })
+      .catch(() => {
+        if (active) setLegacyNames([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [legacy, connected, defaults, client.localLibrary]);
+
+  const [transferring, setTransferring] = useState<{ done: number; total: number } | null>(null);
+  const transferLegacy = async () => {
+    if (!defaults || !isOwner) return;
+    setTransferring({
+      done: 0,
+      total: defaults.startImageIds.length + defaults.endImageIds.length
+    });
+    try {
+      const report = await (client.transferLegacyImages ?? transferLegacyRestitchImages)(
+        teamId,
+        defaults,
+        (done, total) => setTransferring({ done, total })
+      );
+      setDefaults(await client.getRestitchDefaults(teamId));
+      if (client.listRestitchSources) setListing(await client.listRestitchSources(teamId, scope));
+      push({
+        tone: report.missing > 0 ? 'error' : 'success',
+        text: t('teamRestitchLegacyTransferred', { moved: report.moved, missing: report.missing })
+      });
+    } catch (error) {
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setTransferring(null);
+    }
+  };
+
   if (!isOwner && useOwner) {
     return (
       <SettingsSection
@@ -427,6 +489,8 @@ export function RestitchDefaultsSection({
       {legacy && (
         <Alert className="team-inline-note" color="warning" variant="soft" role="status">
           {t('teamRestitchLegacyBanner', { count: listing.legacyImageCount })}
+          {legacyNames.length > 0 &&
+            ` ${t('teamRestitchLegacyNames', { names: legacyNames.join(', ') })}`}
           {editable && (
             <Button
               type="button"
@@ -434,6 +498,21 @@ export function RestitchDefaultsSection({
               onClick={() => poolsRef.current?.scrollIntoView({ block: 'start' })}
             >
               {t('teamRestitchLegacyRepick')}
+            </Button>
+          )}
+          {/* The owner alone may move them: the bucket is read as the member who published
+              them, and the pool the folder joins is the space's. */}
+          {isOwner && editable && (
+            <Button
+              type="button"
+              variant="secondary"
+              loading={transferring !== null}
+              disabled={saving}
+              onClick={() => void transferLegacy()}
+            >
+              {transferring
+                ? t('teamRestitchLegacyTransferring', transferring)
+                : t('teamRestitchLegacyTransfer')}
             </Button>
           )}
         </Alert>

@@ -230,3 +230,19 @@ operation or returned workflow). A zero denominator is `insufficient`. `all_wind
 is false if any week fails, null if none fail but any is insufficient, and true only when all
 four pass. The command's final privacy guard refuses identifying fields or values before JSON
 is printed.
+
+## Legacy media inventory (feature 030)
+
+`scripts/restitch-bucket-inventory.mjs` lists what the two legacy Storage buckets still hold
+(`team-restitch-images`, `team-thumbnail-cache`), grouped by space and by publishing member,
+as one JSON document on stdout. It uses the Storage API with the service key and only ever
+lists; nothing is removed or written. Its output is the input to the approved object list in
+`supabase/migrations/20261105100000_restitch_bucket_retirement.sql`.
+
+```sh
+SUPABASE_URL=https://<ref>.supabase.co SUPABASE_SERVICE_ROLE_KEY=... \
+  node scripts/restitch-bucket-inventory.mjs > inventory.json
+```
+
+Pass `--bucket team-restitch-images` to list one bucket. The service key is read from the
+environment for the one call and is never written anywhere.
