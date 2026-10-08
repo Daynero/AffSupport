@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -106,7 +107,7 @@ describe('the delegate', () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'restitch-delegate-'));
   });
   afterEach(async () => {
-    await rm(directory, { recursive: true, force: true });
+    await removeTemporaryDirectory(directory);
   });
 
   function input(options: unknown): TeamProcessDelegateInput {

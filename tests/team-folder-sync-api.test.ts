@@ -12,15 +12,29 @@ afterEach(() => rpc.mockReset());
 
 const status = {
   jobId: 'job',
+  requestId: null,
   scopeFolderId: 'folder',
   state: 'running',
   phase: 'replaying_changes',
-  discoveredFiles: 20,
-  completedFolders: 2,
+  blockedReason: null,
+  filesListed: 20,
+  filesAdded: 0,
+  filesUpdated: 0,
+  filesRemoved: 0,
+  itemsUnavailable: 0,
+  foldersDone: 2,
   pendingFolders: 0,
+  progressRevision: 0,
+  sharedWith: 0,
+  coverage: 'unknown',
+  cancelable: false,
+  startedAt: null,
   lastProgressAt: '2026-09-24T12:00:00Z',
+  scanCompletedAt: null,
   completedAt: null,
-  errorCode: null
+  nextAttemptAt: null,
+  errorCode: null,
+  errorDetail: null
 };
 
 describe('folder sync API boundary', () => {
@@ -54,7 +68,7 @@ describe('folder sync API boundary', () => {
   });
   it.each([
     { ...status, lease_owner: 'private' },
-    { ...status, discoveredFiles: -1 },
+    { ...status, filesListed: -1 },
     { ...status, jobId: 'other-job' }
   ])('rejects private fields, invalid counts and another job response', async data => {
     rpc.mockResolvedValue({ data, error: null });

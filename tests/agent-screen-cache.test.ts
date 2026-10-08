@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,7 +74,7 @@ function transferOf(behaviour: 'copy' | 'fail' | ((name: string) => 'copy' | 'fa
           sizeBytes: bytes.length,
           sourceVersion: '1',
           sourceChecksum: createHash('md5').update(bytes).digest('hex'),
-          cleanup: () => rm(workspace, { recursive: true, force: true })
+          cleanup: () => removeTemporaryDirectory(workspace)
         };
       }
     )
@@ -119,7 +120,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await rm(directory, { recursive: true, force: true });
+  await removeTemporaryDirectory(directory);
 });
 
 describe('resolving a job’s screens', () => {

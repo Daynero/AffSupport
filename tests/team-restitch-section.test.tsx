@@ -242,8 +242,8 @@ describe('a space’s re-stitching settings', () => {
       endImageIds: []
     };
     const transferLegacyImages = vi.fn(
-      async (_team: string, _defaults: unknown, onProgress: (d: number, t: number) => void) => {
-        onProgress(1, 1);
+      async (_team: string, _defaults: unknown, onProgress?: (d: number, t: number) => void) => {
+        onProgress?.(1, 1);
         return { moved: 1, missing: 0 };
       }
     );

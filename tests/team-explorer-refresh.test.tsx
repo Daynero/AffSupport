@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, render, renderHook } from '@testing-library/react';
+import { act, cleanup, render, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FolderPage, TeamFolderNode } from '@video-compressor/shared';
 import { ExplorerProvider, useExplorer } from '../apps/web/src/team/explorer/ExplorerProvider';
@@ -70,9 +70,7 @@ describe('ExplorerProvider.refreshStrict', () => {
         <Probe onReady={onReady} />
       </ExplorerProvider>
     );
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 600));
-    });
+    await waitFor(() => expect(listFolderTree).toHaveBeenCalledTimes(3));
     expect(listFolderTree).toHaveBeenCalledTimes(3);
     await act(async () => strict.resolve([node]));
     expect(settled).toBeNull();
@@ -117,9 +115,7 @@ describe('ExplorerProvider.refreshStrict', () => {
         <Probe onReady={onReady} />
       </ExplorerProvider>
     );
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 600));
-    });
+    await waitFor(() => expect(listFolderTree).toHaveBeenCalledTimes(3));
     await act(async () => strict.resolve([node]));
     await act(async () => background.reject(new Error('offline')));
     await act(async () => pending);

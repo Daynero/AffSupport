@@ -36,7 +36,7 @@ const row = (index: number): TeamMaterialRow => ({
 });
 
 describe('visible explorer window refresh', () => {
-  it('rejects a strict refresh superseded by a newer read instead of confirming success', async () => {
+  it('settles a superseded strict refresh with the newer successful read', async () => {
     let release!: (value: FolderPage) => void;
     const client = {
       listFolderPage: vi
@@ -61,7 +61,7 @@ describe('visible explorer window refresh', () => {
     });
     await act(async () => {
       release({ rows: [row(2)], total: 1, next: null });
-      await expect(strict).rejects.toThrow('CATALOG_REFRESH_SUPERSEDED');
+      await expect(strict).resolves.toBeUndefined();
     });
     expect(view.result.current.rows[0]?.id).toBe('id-3');
   });

@@ -66,6 +66,7 @@ function row(id: string, videoName: string, patch: Partial<CatalogRegistryRow> =
 }
 
 const stopped: CatalogUpdaterState = {
+  restitchBlockedCode: null,
   state: 'stopped',
   interval: '1h',
   restitch: false,

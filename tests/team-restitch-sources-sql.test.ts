@@ -51,7 +51,7 @@ async function list(scope: 'owner' | 'self', as = RESTITCH_OWNER): Promise<Listi
 }
 
 async function set(
-  slot: 'start' | 'end',
+  slot: string,
   items: unknown[],
   as = RESTITCH_OWNER,
   fn = 'set_restitch_sources'

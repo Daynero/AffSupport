@@ -53,13 +53,11 @@ const agentGrant = (materialId: string) => ({
 
 function deps(overrides: Partial<Parameters<typeof prepareRestitchScreens>[2]> = {}) {
   return {
-    draw: vi
-      .fn()
-      .mockResolvedValue({
-        sourceMode: 'drive',
-        pool: { start: 'ready', end: 'ready' },
-        screens: [drawn('m1'), drawn('m2', 'end')]
-      }),
+    draw: vi.fn().mockResolvedValue({
+      sourceMode: 'drive',
+      pool: { start: 'ready', end: 'ready' },
+      screens: [drawn('m1'), drawn('m2', 'end')]
+    }),
     grant: vi.fn(async (_team: string, materialId: string) => agentGrant(materialId)),
     capable: vi.fn().mockResolvedValue('yes'),
     ...overrides

@@ -476,16 +476,16 @@ failed», «sweeper створює canonical сироті»; React у `team-fold
 
 ## Стан після реалізації (2026-10-08)
 
-| Знахідка | Що зроблено | Де |
-| -------- | ----------- | -- |
-| F1 сироти після смерті canonical | waiters → `CANONICAL_FAILED` з причиною або новий canonical автоматично; nudge з `retry`; sweeper у cron; data-fix при міграції | M1 `20261008100000` |
-| F2 браузер чекає без кінця | deadline 15/15/30 с, abort до HTTP, кнопка завжди звільняється, стани `unreachable/disconnected/stalled`, localStorage між вкладками | `useFolderResync.ts` |
-| F3 orphan callbacks, `__root__` | callback-и огороджені scope; `__root__` на початку scope кожної папки; гейт кнопки за роллю | `ExplorerShell.tsx` |
-| F4 бідний статус, немає cancel | 8 станів, причина й дія, підсумок у числах, «Зупинити» через `cancel_team_folder_sync`, лічильники на job | M3 `20261015100000`, `SyncStatusPanel.tsx` |
-| F5 доставка залежить від Realtime | superseded strict read → успіх; revision до membership; invalidation з монітора ≤ 1/5 с; вік застарілого health | `readSettle.ts`, `TeamContext.tsx`, `useStorageHealth.ts` |
-| F6 бюджети й fencing | бюджет між кандидатами, checkpoint до транскриптів, усі replay-RPC огороджені, lease-live перед Drive trash, `NO_PROGRESS` | M4 `20261022100000`, `engine.ts`, `index.ts` |
-| F7 права й діагностика | кнопка = RPC-дозвіл; view `analytics_catalog_sync_jobs`, команда `analytics -- sync`; лог worker-а з ідентифікаторами; SQL-помилки видимі | M2 `20261008110000`, `scripts/analytics` |
-| Аудит: ярлик/403/page token | ярлик розміщується за власними батьками, rate-limit 403 → `RATE_LIMITED`, page token → перезапуск сторінки | `_shared/drive.ts` |
+| Знахідка                          | Що зроблено                                                                                                                               | Де                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| F1 сироти після смерті canonical  | waiters → `CANONICAL_FAILED` з причиною або новий canonical автоматично; nudge з `retry`; sweeper у cron; data-fix при міграції           | M1 `20261008100000`                                       |
+| F2 браузер чекає без кінця        | deadline 15/15/30 с, abort до HTTP, кнопка завжди звільняється, стани `unreachable/disconnected/stalled`, localStorage між вкладками      | `useFolderResync.ts`                                      |
+| F3 orphan callbacks, `__root__`   | callback-и огороджені scope; `__root__` на початку scope кожної папки; гейт кнопки за роллю                                               | `ExplorerShell.tsx`                                       |
+| F4 бідний статус, немає cancel    | 8 станів, причина й дія, підсумок у числах, «Зупинити» через `cancel_team_folder_sync`, лічильники на job                                 | M3 `20261015100000`, `SyncStatusPanel.tsx`                |
+| F5 доставка залежить від Realtime | superseded strict read → успіх; revision до membership; invalidation з монітора ≤ 1/5 с; вік застарілого health                           | `readSettle.ts`, `TeamContext.tsx`, `useStorageHealth.ts` |
+| F6 бюджети й fencing              | бюджет між кандидатами, checkpoint до транскриптів, усі replay-RPC огороджені, lease-live перед Drive trash, `NO_PROGRESS`                | M4 `20261022100000`, `engine.ts`, `index.ts`              |
+| F7 права й діагностика            | кнопка = RPC-дозвіл; view `analytics_catalog_sync_jobs`, команда `analytics -- sync`; лог worker-а з ідентифікаторами; SQL-помилки видимі | M2 `20261008110000`, `scripts/analytics`                  |
+| Аудит: ярлик/403/page token       | ярлик розміщується за власними батьками, rate-limit 403 → `RATE_LIMITED`, page token → перезапуск сторінки                                | `_shared/drive.ts`                                        |
 
 Крок 1 (знімок production) лишається відкритим: після backend-apply M1+M2 —
 `npm run analytics -- sync <owner-email> --json`, до 2026-10-14.

@@ -94,3 +94,19 @@ describe('team edge error transport', () => {
     });
   });
 });
+
+describe('re-stitch source edge statuses', () => {
+  it.each([
+    ['RESTITCH_POOL_EMPTY', 409],
+    ['RESTITCH_SOURCE_FORBIDDEN', 403],
+    ['RESTITCH_SOURCES_INVALID', 422],
+    ['RESTITCH_SOURCES_TOO_MANY', 413],
+    ['RESTITCH_CLIENT_OUTDATED', 409]
+  ] as const)('returns the status for %s', async (code, status) => {
+    const { TeamFunctionError, errorResponse } =
+      await import('../supabase/functions/_shared/errors');
+    const response = errorResponse(new TeamFunctionError(code));
+    expect(response.status).toBe(status);
+    expect(await response.json()).toMatchObject({ ok: false, error: { code, retryable: false } });
+  });
+});

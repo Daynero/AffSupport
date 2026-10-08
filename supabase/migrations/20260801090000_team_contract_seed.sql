@@ -173,6 +173,11 @@ insert into public.team_error_codes (code) values
   ('RESTITCH_FORBIDDEN'),
   ('RESTITCH_NO_SCREENS'),
   ('RESTITCH_INVALID'),
+  ('RESTITCH_POOL_EMPTY'),
+  ('RESTITCH_SOURCE_FORBIDDEN'),
+  ('RESTITCH_SOURCES_INVALID'),
+  ('RESTITCH_SOURCES_TOO_MANY'),
+  ('RESTITCH_CLIENT_OUTDATED'),
   ('UPLOAD_SESSION_UNAVAILABLE');
 
 insert into public.geo_options (code) values

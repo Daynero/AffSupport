@@ -264,7 +264,7 @@ describe('the pool listing, off the wire (030)', () => {
       pools: { start: pool, end: { state: 'empty', sources: [] } }
     });
     expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
+    if (!parsed.ok) throw new Error('Expected a valid pool listing');
     expect(parsed.value.pools.start.sources[0]).toEqual(source);
     expect(parsed.value.pools.end).toEqual({
       state: 'empty',

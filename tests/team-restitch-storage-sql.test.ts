@@ -60,7 +60,7 @@ it('does not allow outsiders to read or publish images', async () => {
     )
   ).rejects.toThrow();
 });
-it.skip('does not let the owner write another user’s image namespace (no INSERT policy since 030)', async () => {
+it('rejects writes to another user’s namespace after the bucket closes', async () => {
   await expect(
     asStorageUser(
       owner,

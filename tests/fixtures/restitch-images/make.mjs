@@ -9,6 +9,9 @@
  *
  * Usage: node tests/fixtures/restitch-images/make.mjs   (run from the repository root)
  */
+import process from 'node:process';
+import { Buffer } from 'node:buffer';
+import console from 'node:console';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';

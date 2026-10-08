@@ -14,6 +14,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 
+/** @returns {never} */
 function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exit(1);

@@ -249,7 +249,8 @@ export function createRestitchDelegate(
         );
       } catch (error) {
         throw new Error(
-          error instanceof ScreenCacheError ? error.code : 'RESTITCH_SCREEN_FETCH_FAILED'
+          error instanceof ScreenCacheError ? error.code : 'RESTITCH_SCREEN_FETCH_FAILED',
+          { cause: error }
         );
       }
     }
