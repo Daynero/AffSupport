@@ -114,9 +114,17 @@ import {
   type TeamTaskSummary,
   type TeamTaskAttachmentSummary,
   parseMaterialRestitchPrep,
+  parseRestitchDrawResult,
+  parseRestitchSourcesListing,
   parseTeamRestitchDefaults,
   type MaterialRestitchPrep,
   type TeamRestitchDefaults
+} from '@video-compressor/shared';
+import type {
+  RestitchDrawResult,
+  RestitchSlot,
+  RestitchSourceInput,
+  RestitchSourcesListing
 } from '@video-compressor/shared';
 import { parseFolderSyncStatus, type FolderSyncStatus } from '../team/syncStatus';
 import { parseUpdaterInterval, type UpdaterInterval } from '../team/catalog-updater/limits';
@@ -1604,6 +1612,23 @@ function mapProvenance(value: unknown): TeamMaterialProvenanceEntry | null {
     createdAt: row.created_at
   };
 }
+
+/** What the settings panel saves: the stitcher's own controls plus where the pictures come from. */
+export type RestitchDefaultsInput = Pick<
+  TeamRestitchDefaults,
+  | 'operation'
+  | 'startImageIds'
+  | 'endImageIds'
+  | 'fitMode'
+  | 'finalDurationMode'
+  | 'customFinalDurationSeconds'
+> &
+  Partial<
+    Pick<
+      TeamRestitchDefaults,
+      'startEnabled' | 'endEnabled' | 'startDurationMode' | 'customStartDurationMs' | 'sourceMode'
+    >
+  >;
 
 export const teamApi = {
   async listTeams(): Promise<TeamContextSnapshot[]> {
@@ -4691,15 +4716,7 @@ export const teamApi = {
   /** Stores the space's defaults. Refusals arrive as their own codes, not as sentences. */
   async setRestitchDefaults(
     teamId: string,
-    defaults: Pick<
-      TeamRestitchDefaults,
-      | 'operation'
-      | 'startImageIds'
-      | 'endImageIds'
-      | 'fitMode'
-      | 'finalDurationMode'
-      | 'customFinalDurationSeconds'
-    >
+    defaults: RestitchDefaultsInput
   ): Promise<TeamRestitchDefaults> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('set_restitch_defaults', {
@@ -4715,15 +4732,7 @@ export const teamApi = {
 
   async setMemberRestitchDefaults(
     teamId: string,
-    defaults: Pick<
-      TeamRestitchDefaults,
-      | 'operation'
-      | 'startImageIds'
-      | 'endImageIds'
-      | 'fitMode'
-      | 'finalDurationMode'
-      | 'customFinalDurationSeconds'
-    >
+    defaults: RestitchDefaultsInput
   ): Promise<TeamRestitchDefaults> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('set_member_restitch_defaults', {
@@ -4733,6 +4742,81 @@ export const teamApi = {
     );
     throwRpc(error);
     const parsed = parseTeamRestitchDefaults(data);
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value;
+  },
+
+  /**
+   * The space's (or the caller's personal) re-stitch pools, every source with its
+   * availability and counts (030). `'owner'` is the space's pool, `'self'` the caller's.
+   */
+  async listRestitchSources(
+    teamId: string,
+    scope: 'owner' | 'self'
+  ): Promise<RestitchSourcesListing> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_restitch_sources', { p_team: teamId, p_scope: scope })
+    );
+    throwRpc(error);
+    const parsed = parseRestitchSourcesListing(data);
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value;
+  },
+
+  /** Replace one slot of the space's pool (owner only). Flips the settings to drive mode. */
+  async setRestitchSources(
+    teamId: string,
+    slot: RestitchSlot,
+    items: readonly RestitchSourceInput[]
+  ): Promise<RestitchSourcesListing> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_restitch_sources', {
+        p_team: teamId,
+        p_slot: slot,
+        p_items: items as unknown as Json
+      })
+    );
+    throwRpc(error);
+    const parsed = parseRestitchSourcesListing(data);
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value;
+  },
+
+  /** Replace one slot of the caller's personal pool. */
+  async setMemberRestitchSources(
+    teamId: string,
+    slot: RestitchSlot,
+    items: readonly RestitchSourceInput[]
+  ): Promise<RestitchSourcesListing> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_member_restitch_sources', {
+        p_team: teamId,
+        p_slot: slot,
+        p_items: items as unknown as Json
+      })
+    );
+    throwRpc(error);
+    const parsed = parseRestitchSourcesListing(data);
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value;
+  },
+
+  /**
+   * One picture per enabled slot for a job, drawn by the server from the caller's effective
+   * pools (030). `exclude` is the one picture a failed grant said not to try again.
+   */
+  async drawRestitchScreens(
+    teamId: string,
+    options: { exclude?: readonly string[] } = {}
+  ): Promise<RestitchDrawResult> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('draw_restitch_screens', {
+        p_team: teamId,
+        p_exclude: [...(options.exclude ?? [])]
+      })
+    );
+    throwRpc(error);
+    const parsed = parseRestitchDrawResult(data);
     if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed.value;
   },

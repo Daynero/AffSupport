@@ -5480,6 +5480,16 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       set_member_restitch_defaults: { Args: { p_defaults: Json; p_team: string }; Returns: Json };
+      set_member_restitch_sources: {
+        Args: { p_items: Json; p_slot: string; p_team: string };
+        Returns: Json;
+      };
+      set_restitch_sources: {
+        Args: { p_items: Json; p_slot: string; p_team: string };
+        Returns: Json;
+      };
+      list_restitch_sources: { Args: { p_scope: string; p_team: string }; Returns: Json };
+      draw_restitch_screens: { Args: { p_exclude?: string[]; p_team: string }; Returns: Json };
       set_member_restitch_use_owner: {
         Args: { p_team: string; p_use_owner: boolean };
         Returns: Json;

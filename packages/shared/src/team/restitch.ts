@@ -581,8 +581,15 @@ export function parseRestitchScreens(value: unknown): RestitchParse<RestitchScre
     const drawn = parseDrawnScreen(entry);
     const transfer = isRecord(entry) ? parseTransfer(entry.transfer) : undefined;
     if (!drawn || transfer === undefined) return { ok: false, error: 'RESTITCH_SCREENS_INVALID' };
-    const { driveVersion: _driveVersion, ...screen } = drawn;
-    screens.push({ ...screen, transfer });
+    screens.push({
+      slot: drawn.slot,
+      materialId: drawn.materialId,
+      checksum: drawn.checksum,
+      mimeType: drawn.mimeType,
+      fileName: drawn.fileName,
+      sizeBytes: drawn.sizeBytes,
+      transfer
+    });
   }
   return { ok: true, value: screens };
 }

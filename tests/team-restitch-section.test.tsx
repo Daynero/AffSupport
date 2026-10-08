@@ -4,30 +4,21 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+import type { RestitchSourcesListing } from '@video-compressor/shared';
 import type { TeamContextSnapshot } from '../apps/web/src/api/team';
 
 /**
- * The space's re-stitching settings, as a member meets them.
+ * The space's re-stitching settings, as a member meets them (015, redrawn by 030).
  *
- * What is worth proving here is the three states a person can actually be in — nobody has set
- * this up, somebody has, and I am not allowed to — and that saving records the photos the
- * library currently has switched on. The controls themselves are the stitcher's own and are
- * tested where they live; re-asserting them here would only assert the import.
+ * What is worth proving here is the states a person can actually be in — nobody has set this
+ * up, somebody has, I am not allowed to, I inherit the owner's, the space still points at an
+ * old library — and that saving writes the form and the pools, never a library and never a
+ * picture. The stitcher's controls are its own and are tested where they live.
  */
 
-const compressorState = vi.hoisted(() => vi.fn());
-const updateCompressorSettings = vi.hoisted(() => vi.fn());
-
-vi.mock('../apps/web/src/stitcher/api', () => ({
-  fetchCompressorState: compressorState,
-  updateCompressorSettings,
-  uploadScreenImage: vi.fn(),
-  removeScreenImage: vi.fn()
-}));
 vi.mock('../apps/web/src/api/useSubresourceUrl', () => ({ useSubresourceUrl: () => null }));
-vi.mock('../apps/web/src/team/restitch/images', () => ({
-  publishRestitchImages: vi.fn().mockResolvedValue(undefined)
-}));
+const track = vi.hoisted(() => vi.fn());
+vi.mock('../apps/web/src/analytics/service', () => ({ analytics: { track } }));
 
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
@@ -53,49 +44,73 @@ const viewing: TeamContextSnapshot = {
   permissions: DEFAULT_ROLE_PERMISSIONS.viewer
 };
 
-const image = (id: string) => ({
-  id,
-  fileName: `${id}.png`,
-  width: 1080,
-  height: 1080,
-  size: 1024,
-  mimeType: 'image/png' as const,
-  extension: '.png' as const
-});
-
-const library = {
-  enabled: true,
-  startEnabled: true,
-  endEnabled: true,
-  startImages: [image('start-a')],
-  endImages: [image('end-a'), image('end-b')],
-  // One photo is switched off in the gallery; the space must not record it.
-  disabledImageIds: ['end-b'],
-  replaceExisting: true,
-  finalDurationMode: 'random-30-40' as const,
-  customFinalDurationSeconds: 2700,
-  startDurationMode: 'one-frame' as const,
-  customStartDurationMs: 100,
-  fitMode: 'cover' as const
-};
-
 const stored = {
   operation: 'restitch' as const,
-  startImageIds: ['start-a'],
-  endImageIds: ['end-a'],
-  fitMode: 'cover' as const,
+  startImageIds: [],
+  endImageIds: [],
+  fitMode: 'contain' as const,
   finalDurationMode: 'random-30-40' as const,
   customFinalDurationSeconds: 2700,
+  startEnabled: true,
+  endEnabled: true,
+  startDurationMode: 'one-frame' as const,
+  customStartDurationMs: 100,
+  sourceMode: 'drive' as const,
   configured: true,
-  updatedAt: '2026-09-02T00:00:00.000Z',
+  updatedAt: '2026-10-08T00:00:00.000Z',
   updatedBy: 'someone'
 };
+
+const listing: RestitchSourcesListing = {
+  sourceMode: 'drive',
+  legacyImageCount: 0,
+  pools: {
+    start: {
+      state: 'ready',
+      overLimit: false,
+      eligibleCount: 3,
+      sources: [
+        {
+          materialId: 'folder-1',
+          driveFileId: null,
+          kind: 'folder',
+          name: 'Openers',
+          availability: 'available',
+          imageCount: 3,
+          skipped: { format: 0, size: 0, animated: 0 }
+        }
+      ]
+    },
+    end: { state: 'empty', overLimit: false, eligibleCount: 0, sources: [] }
+  }
+};
+
+const legacyListing: RestitchSourcesListing = {
+  ...listing,
+  sourceMode: 'legacy',
+  legacyImageCount: 2,
+  pools: {
+    start: { state: 'empty', overLimit: false, eligibleCount: 0, sources: [] },
+    end: { state: 'empty', overLimit: false, eligibleCount: 0, sources: [] }
+  }
+};
+
+function client(overrides: Partial<RestitchDefaultsClient> = {}): RestitchDefaultsClient {
+  return {
+    getRestitchDefaults: vi.fn().mockResolvedValue(stored),
+    setRestitchDefaults: vi.fn().mockResolvedValue(stored),
+    listRestitchSources: vi.fn().mockResolvedValue(listing),
+    setRestitchSources: vi.fn().mockResolvedValue(listing),
+    setMemberRestitchSources: vi.fn().mockResolvedValue(listing),
+    listMaterials: vi.fn().mockResolvedValue([]),
+    ...overrides
+  };
+}
 
 beforeEach(() => {
   localStorage.setItem('wishly.active-team.v1', TEAM_ID);
   localStorage.setItem('language', 'en');
-  compressorState.mockResolvedValue({ settings: { imageEmbedding: library } });
-  updateCompressorSettings.mockResolvedValue({ settings: { imageEmbedding: library } });
+  track.mockReset();
 });
 
 afterEach(() => {
@@ -104,12 +119,16 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderSection(client: RestitchDefaultsClient, team: TeamContextSnapshot = owned) {
+function renderSection(
+  value: RestitchDefaultsClient,
+  team: TeamContextSnapshot = owned,
+  connection: 'connected' | 'disconnected' = 'connected'
+) {
   return render(
-    <AgentContextOverride value={agentContextStub({ capabilities: ['stitcher'] })}>
+    <AgentContextOverride value={agentContextStub({ capabilities: ['stitcher'], connection })}>
       <TeamProvider initialTeams={[team]} realtime={false}>
         <ToastProvider>
-          <RestitchDefaultsSection teamId={TEAM_ID} client={client} />
+          <RestitchDefaultsSection teamId={TEAM_ID} client={value} />
         </ToastProvider>
       </TeamProvider>
     </AgentContextOverride>
@@ -118,46 +137,43 @@ function renderSection(client: RestitchDefaultsClient, team: TeamContextSnapshot
 
 describe('a space’s re-stitching settings', () => {
   it('says so when nobody has set them up', async () => {
-    renderSection({
-      getRestitchDefaults: vi.fn().mockResolvedValue(null),
-      setRestitchDefaults: vi.fn()
-    });
+    renderSection(client({ getRestitchDefaults: vi.fn().mockResolvedValue(null) }));
     expect(await screen.findByText('Not set up yet')).toBeTruthy();
   });
 
   it('names every operation on its own segment', async () => {
-    renderSection({
-      getRestitchDefaults: vi.fn().mockResolvedValue(stored),
-      setRestitchDefaults: vi.fn()
-    });
-    /*
-     * The panel used to open with a machine-assembled recap — "Re-stitch, 2
-     * photos, Random: 30–40 min" — above three unlabelled pictograms that said
-     * the same thing. The recap is gone; what a person needs is the name of the
-     * option the pictogram row has selected, which is what the group below it
-     * already did.
-     */
+    renderSection(client());
     const chosen = await screen.findByRole('radio', { name: 'Re-stitch' });
     expect(chosen.getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: 'Stitch' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'Remove the stitching' })).toBeTruthy();
-    const status = (await screen.findAllByRole('status'))[0] as HTMLElement;
-    expect(status.textContent).toBe('');
   });
 
-  it('records the photos the library currently has switched on', async () => {
-    const setRestitchDefaults = vi.fn().mockResolvedValue(stored);
-    renderSection({ getRestitchDefaults: vi.fn().mockResolvedValue(null), setRestitchDefaults });
+  it('shows the pools where the galleries would be, read from the space', async () => {
+    const value = client();
+    renderSection(value);
+    expect(await screen.findByText('Openers')).toBeTruthy();
+    expect(screen.getByText(/3 pictures ready to draw from/)).toBeTruthy();
+    expect(screen.getByText(/this slot is off/)).toBeTruthy();
+    expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'owner');
+    // The form is the saved settings', not a library's: the stored fit is what is selected.
+    expect(
+      screen.getByRole('button', { name: 'Fit completely' }).getAttribute('aria-pressed')
+    ).toBe('true');
+  });
+
+  it('saves the form with no ids and no pictures, and works without the app running', async () => {
+    const value = client();
+    renderSection(value, owned, 'disconnected');
     const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Save' }));
-
-    await waitFor(() => expect(setRestitchDefaults).toHaveBeenCalled());
-    expect(setRestitchDefaults.mock.calls[0]?.[1]).toMatchObject({
+    await user.click(await screen.findByRole('button', { name: 'Fill and crop' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(value.setRestitchDefaults).toHaveBeenCalled());
+    expect(vi.mocked(value.setRestitchDefaults).mock.calls[0]?.[1]).toMatchObject({
       operation: 'restitch',
-      startImageIds: ['start-a'],
-      // `end-b` is switched off in the gallery, so the space never draws it.
-      endImageIds: ['end-a'],
+      sourceMode: 'drive',
+      startImageIds: [],
+      endImageIds: [],
       fitMode: 'cover',
       finalDurationMode: 'random-30-40',
       startEnabled: true,
@@ -165,168 +181,109 @@ describe('a space’s re-stitching settings', () => {
       startDurationMode: 'one-frame',
       customStartDurationMs: 100
     });
+    await waitFor(() => expect(value.listRestitchSources).toHaveBeenCalledTimes(2));
+    expect(track).toHaveBeenCalledWith('setting_changed', {
+      setting_name: 'team_restitch_defaults',
+      setting_value: 'restitch',
+      file_count: 3
+    });
   });
 
-  it('inherits owner settings by default and hides personal controls', async () => {
-    renderSection(
-      {
-        getRestitchDefaults: vi.fn().mockResolvedValue(stored),
-        setRestitchDefaults: vi.fn(),
-        getMemberRestitchPreference: vi.fn().mockResolvedValue({
-          ownerId: 'owner',
-          sourceUserId: 'owner',
-          useOwner: true,
-          personalConfigured: false
-        }),
-        setMemberRestitchUseOwner: vi.fn()
-      },
-      viewing
+  it('writes a pool the moment a source is removed', async () => {
+    const value = client();
+    renderSection(value);
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Remove Openers from the pictures' }));
+    await waitFor(() =>
+      expect(value.setRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'start', [])
     );
+    expect(value.setMemberRestitchSources).not.toHaveBeenCalled();
+  });
+
+  it('tells a space saved the old way to pick from the space', async () => {
+    renderSection(
+      client({
+        getRestitchDefaults: vi.fn().mockResolvedValue({ ...stored, sourceMode: 'legacy' }),
+        listRestitchSources: vi.fn().mockResolvedValue(legacyListing)
+      })
+    );
+    expect(await screen.findByText(/still points at 2 pictures/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pick from the space' })).toBeTruthy();
+  });
+
+  it('inherits owner settings by default, showing the owner’s pools without controls', async () => {
+    const value = client({
+      getMemberRestitchPreference: vi.fn().mockResolvedValue({
+        ownerId: 'owner',
+        sourceUserId: 'owner',
+        useOwner: true,
+        personalConfigured: false
+      }),
+      setMemberRestitchUseOwner: vi.fn()
+    });
+    renderSection(value, viewing);
     expect(await screen.findByRole('checkbox', { name: "Use owner's settings" })).toHaveProperty(
       'checked',
       true
     );
+    expect(await screen.findByText('Openers')).toBeTruthy();
+    expect(screen.getByText(/These are the owner’s pools/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
-    expect(screen.queryByRole('radio', { name: 'Re-stitch' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add pictures' })).toBeNull();
+    expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'owner');
   });
 
-  it('opens personal settings when a member unchecks inheritance', async () => {
+  it('opens personal settings and pools when a member unchecks inheritance', async () => {
     const setMemberRestitchUseOwner = vi.fn().mockResolvedValue(undefined);
-    renderSection(
-      {
-        getRestitchDefaults: vi.fn().mockResolvedValue(stored),
-        setRestitchDefaults: vi.fn(),
-        getMemberRestitchPreference: vi.fn().mockResolvedValue({
-          ownerId: 'owner',
-          sourceUserId: 'owner',
-          useOwner: true,
-          personalConfigured: false
-        }),
-        setMemberRestitchUseOwner,
-        setMemberRestitchDefaults: vi.fn().mockResolvedValue(stored)
-      },
-      viewing
-    );
+    const value = client({
+      getMemberRestitchPreference: vi.fn().mockResolvedValue({
+        ownerId: 'owner',
+        sourceUserId: 'owner',
+        useOwner: true,
+        personalConfigured: false
+      }),
+      setMemberRestitchUseOwner,
+      setMemberRestitchDefaults: vi.fn().mockResolvedValue(stored)
+    });
+    renderSection(value, viewing);
     await userEvent
       .setup()
       .click(await screen.findByRole('checkbox', { name: "Use owner's settings" }));
     await waitFor(() => expect(setMemberRestitchUseOwner).toHaveBeenCalledWith(TEAM_ID, false));
     expect(await screen.findByRole('radio', { name: 'Re-stitch' })).toBeTruthy();
+    await waitFor(() => expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'self'));
   });
 
-  it('saves personal settings without changing the owner defaults', async () => {
-    const setRestitchDefaults = vi.fn();
-    const setMemberRestitchDefaults = vi.fn().mockResolvedValue(stored);
-    renderSection(
-      {
-        getRestitchDefaults: vi.fn().mockResolvedValue(stored),
-        setRestitchDefaults,
-        getMemberRestitchPreference: vi.fn().mockResolvedValue({
-          ownerId: 'owner',
-          sourceUserId: 'member',
-          useOwner: false,
-          personalConfigured: true
-        }),
-        setMemberRestitchUseOwner: vi.fn(),
-        setMemberRestitchDefaults
-      },
-      viewing
+  it('saves personal settings and pools without touching the owner’s', async () => {
+    const value = client({
+      getMemberRestitchPreference: vi.fn().mockResolvedValue({
+        ownerId: 'owner',
+        sourceUserId: 'member',
+        useOwner: false,
+        personalConfigured: true
+      }),
+      setMemberRestitchUseOwner: vi.fn(),
+      setMemberRestitchDefaults: vi.fn().mockResolvedValue(stored)
+    });
+    renderSection(value, viewing);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(value.setMemberRestitchDefaults).toHaveBeenCalled());
+    expect(value.setRestitchDefaults).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Remove Openers from the pictures' }));
+    await waitFor(() =>
+      expect(value.setMemberRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'start', [])
     );
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(setMemberRestitchDefaults).toHaveBeenCalled());
-    expect(setRestitchDefaults).not.toHaveBeenCalled();
+    expect(value.setRestitchSources).not.toHaveBeenCalled();
   });
 
-  it('says what is missing when the local app is not running', async () => {
-    render(
-      <AgentContextOverride value={agentContextStub({ connection: 'disconnected' })}>
-        <TeamProvider initialTeams={[owned]} realtime={false}>
-          <ToastProvider>
-            <RestitchDefaultsSection
-              teamId={TEAM_ID}
-              client={{
-                getRestitchDefaults: vi.fn().mockResolvedValue(null),
-                setRestitchDefaults: vi.fn()
-              }}
-            />
-          </ToastProvider>
-        </TeamProvider>
-      </AgentContextOverride>
-    );
+  it('only the preparation needs the app running, and says so there', async () => {
+    renderSection(client(), owned, 'disconnected');
     expect(
       await screen.findByText('This needs the Soty app running on this computer.')
     ).toBeTruthy();
-  });
-});
-
-describe('a member who meets a space nobody has set up', () => {
-  it('is offered the way in, and is told who can when it is not them', async () => {
-    const { RestitchDeliveryNotices } =
-      await import('../apps/web/src/team/restitch/RestitchDeliveryNotices');
-    const onConfigure = vi.fn();
-    const states = { 'material-1': { kind: 'unconfigured' as const } };
-
-    const view = render(
-      <TeamProvider initialTeams={[owned]} realtime={false}>
-        <ToastProvider>
-          <RestitchDeliveryNotices states={states} onConfigure={onConfigure} />
-        </ToastProvider>
-      </TeamProvider>
-    );
-
-    const user = userEvent.setup();
-    expect(await screen.findByText('Re-stitching is not set up for this space')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Set it up now' }));
-    // The action opens the settings; it does not navigate away and it does not run anything.
-    expect(onConfigure).toHaveBeenCalledTimes(1);
-
-    view.unmount();
-    cleanup();
-
-    // A member who cannot change the space is told who can, rather than handed a control that
-    // would refuse them (FR-012).
-    render(
-      <TeamProvider initialTeams={[viewing]} realtime={false}>
-        <ToastProvider>
-          <RestitchDeliveryNotices states={states} onConfigure={onConfigure} />
-        </ToastProvider>
-      </TeamProvider>
-    );
-    expect(await screen.findByText(/A space manager can set it up\./)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Set it up now' })).toBeNull();
-  });
-
-  it('leaves a running delivery to the panel, and speaks only when it is done', async () => {
-    const { RestitchDeliveryNotices } =
-      await import('../apps/web/src/team/restitch/RestitchDeliveryNotices');
-    const view = render(
-      <TeamProvider initialTeams={[owned]} realtime={false}>
-        <ToastProvider>
-          <RestitchDeliveryNotices
-            states={{
-              'material-1': { kind: 'running', phase: 'inspecting', fileName: 'creative.mp4' }
-            }}
-            onConfigure={null}
-          />
-        </ToastProvider>
-      </TeamProvider>
-    );
-    // The step, the bar and the way to stop belong to the process panel. Saying the same
-    // sentence here as well put it on screen twice and parked a toast over the panel's own
-    // buttons.
-    expect(screen.queryByText('Looking at the video…')).toBeNull();
-
-    view.rerender(
-      <TeamProvider initialTeams={[owned]} realtime={false}>
-        <ToastProvider>
-          <RestitchDeliveryNotices
-            states={{ 'material-1': { kind: 'delivered', fileName: 'creative_restitched.mp4' } }}
-            onConfigure={null}
-          />
-        </ToastProvider>
-      </TeamProvider>
-    );
-    // What the panel cannot say, because by then it is gone: the file has landed.
-    expect(await screen.findByText('Saved as creative_restitched.mp4')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(false);
   });
 });

@@ -2,21 +2,27 @@
  * Owner defaults and each member's optional personal re-stitch settings.
  *
  * Deliberately not a new screen full of new controls: it mounts the tool's own — the operation
- * row, the two photo galleries with their enable/disable behaviour, the fit mode and the hold
- * ranges — so a member who has used the stitcher already knows this. What is added here is the
- * three things that only make sense for a space: whether it is set up at all, where its
- * downloads land, and the button that prepares its material.
+ * row, the two slots with their switches, the fit mode and the hold ranges — so a member who
+ * has used the stitcher already knows this. What is added here is the three things that only
+ * make sense for a space: whether it is set up at all, where its pictures come from, and the
+ * button that prepares its material.
  *
- * Selected photos are published as private space assets before their IDs are saved. A member's
- * paired agent materializes those bytes under the same IDs when a run needs them.
+ * Since 030 the pictures are sources of the connected Drive — files and folders picked from
+ * the space — and the server draws one per slot for every job. The panel therefore has its own
+ * form state, read from the saved settings and not from any computer's library, and saving
+ * needs no running app: nothing is published anywhere. Spaces saved the old way still point at
+ * ids of a library; they are told so and asked to pick from the space.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { Eraser, Plus, Replace } from 'lucide-react';
 import type {
-  AgentSettings,
+  ImageEmbeddingSettings,
   ImageEmbeddingSettingsPatch,
-  ImageSlot,
+  RestitchSlot,
+  RestitchSourceInput,
+  RestitchSourcesListing,
   StitchOperation,
   TeamRestitchDefaults
 } from '@video-compressor/shared';
@@ -27,36 +33,24 @@ import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { useTeam } from '../TeamContext';
 import { teamErrorMessageFor } from '../errors';
-import {
-  fetchCompressorState,
-  removeScreenImage,
-  updateCompressorSettings,
-  uploadScreenImage
-} from '../../stitcher/api';
 import { useOptionalAgent } from '../../AgentContext';
 import { analytics } from '../../analytics/service';
+import type { RestitchDefaultsInput } from '../../api/team';
 import {
   useRestitchPreparation,
   type RestitchPreparationState
 } from '../restitch/useRestitchPreparation';
+import { CatalogFreshnessContext, useCatalogRead } from '../catalog/CatalogFreshness';
 import { SettingsSection } from './SettingsSection';
 import { Alert, PermissionState, SegmentedControl } from '../../components/ui/index';
 import { Checkbox } from '../../components/ui';
-import { publishRestitchImages } from '../restitch/images';
+import { RestitchSourcePool, type RestitchSourcePoolClient } from './RestitchSourcePool';
 
 export interface RestitchDefaultsClient {
   getRestitchDefaults: (teamId: string) => Promise<TeamRestitchDefaults | null>;
   setRestitchDefaults: (
     teamId: string,
-    defaults: Pick<
-      TeamRestitchDefaults,
-      | 'operation'
-      | 'startImageIds'
-      | 'endImageIds'
-      | 'fitMode'
-      | 'finalDurationMode'
-      | 'customFinalDurationSeconds'
-    >
+    defaults: RestitchDefaultsInput
   ) => Promise<TeamRestitchDefaults>;
   getMemberRestitchPreference?: (teamId: string) => Promise<{
     ownerId: string;
@@ -66,6 +60,20 @@ export interface RestitchDefaultsClient {
   }>;
   setMemberRestitchUseOwner?: (teamId: string, useOwner: boolean) => Promise<void>;
   setMemberRestitchDefaults?: RestitchDefaultsClient['setRestitchDefaults'];
+  /** The pools (030). Absent only in tests of the older surface; the panel then shows no pools. */
+  listRestitchSources?: (
+    teamId: string,
+    scope: 'owner' | 'self'
+  ) => Promise<RestitchSourcesListing>;
+  setRestitchSources?: (
+    teamId: string,
+    slot: RestitchSlot,
+    items: readonly RestitchSourceInput[]
+  ) => Promise<RestitchSourcesListing>;
+  setMemberRestitchSources?: RestitchDefaultsClient['setRestitchSources'];
+  /** Browsing the catalog for the pickers; without it sources can be seen but not added. */
+  listMaterials?: RestitchSourcePoolClient['listMaterials'];
+  searchCatalog?: RestitchSourcePoolClient['searchCatalog'];
 }
 
 const OPERATION_KEYS = {
@@ -74,10 +82,58 @@ const OPERATION_KEYS = {
   unstitch: 'stitcherOpUnstitch'
 } as const;
 
-/** What the space will draw from: everything in the library that is not switched off. */
-function enabledIds(images: { id: string }[], disabled: readonly string[]): string[] {
-  return images.filter(image => !disabled.includes(image.id)).map(image => image.id);
+/** The stitcher's own controls, with the space's answer filled in. */
+interface RestitchForm {
+  fitMode: ImageEmbeddingSettings['fitMode'];
+  finalDurationMode: ImageEmbeddingSettings['finalDurationMode'];
+  customFinalDurationSeconds: number;
+  startEnabled: boolean;
+  endEnabled: boolean;
+  startDurationMode: ImageEmbeddingSettings['startDurationMode'];
+  customStartDurationMs: number;
 }
+
+const FORM_DEFAULTS: RestitchForm = {
+  fitMode: 'cover',
+  finalDurationMode: 'random-40-50',
+  customFinalDurationSeconds: 2700,
+  startEnabled: true,
+  endEnabled: true,
+  startDurationMode: 'one-frame',
+  customStartDurationMs: 100
+};
+
+function formOf(defaults: TeamRestitchDefaults | null): RestitchForm {
+  if (!defaults) return FORM_DEFAULTS;
+  return {
+    fitMode: defaults.fitMode,
+    finalDurationMode: defaults.finalDurationMode,
+    customFinalDurationSeconds: defaults.customFinalDurationSeconds,
+    startEnabled: defaults.startEnabled !== false,
+    endEnabled: defaults.endEnabled !== false,
+    startDurationMode: defaults.startDurationMode ?? 'one-frame',
+    customStartDurationMs: defaults.customStartDurationMs ?? 100
+  };
+}
+
+/**
+ * The stitcher's settings object for the shared section, with no pictures in it: the slots
+ * draw from the pools rendered in their place, so the galleries are never shown.
+ */
+function embeddingOf(form: RestitchForm): ImageEmbeddingSettings {
+  return {
+    enabled: true,
+    replaceExisting: true,
+    startImages: [],
+    endImages: [],
+    disabledImageIds: [],
+    ...form
+  };
+}
+
+const noop = () => () => {};
+const zero = () => 0;
+const noFiles = async () => {};
 
 export function RestitchDefaultsSection({
   teamId,
@@ -87,10 +143,6 @@ export function RestitchDefaultsSection({
   client: RestitchDefaultsClient;
 }) {
   const { t } = useI18n();
-  /* Closed: the count on the control says what is inside, and open it put the
-     rest of the settings below a wall of thumbnails — the thing the fold was
-     added to stop. */
-  const [embeddingOpen, setEmbeddingOpen] = useState(false);
   const { push } = useToasts();
   const { activeTeam, can } = useTeam();
   const agent = useOptionalAgent();
@@ -99,8 +151,10 @@ export function RestitchDefaultsSection({
   const editable = isOwner ? can('manage_metadata') : can('view');
 
   const [defaults, setDefaults] = useState<TeamRestitchDefaults | null>(null);
+  const [listing, setListing] = useState<RestitchSourcesListing | null>(null);
   const [operation, setOperation] = useState<StitchOperation>('restitch');
-  const [compressor, setCompressor] = useState<AgentSettings | null>(null);
+  const [form, setForm] = useState<RestitchForm>(FORM_DEFAULTS);
+  const [formValid, setFormValid] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [useOwner, setUseOwner] = useState(true);
@@ -109,87 +163,134 @@ export function RestitchDefaultsSection({
   // Preparation touches the space's drive; without one there is nothing to prepare, and the
   // way forward is the connection panel one section down rather than a button that would fail.
   const driveConnected = activeTeam?.connectionState === 'connected';
+  const scope: 'owner' | 'self' = isOwner || useOwner ? 'owner' : 'self';
+  const poolsEditable = editable && (isOwner || !useOwner) && !saving;
 
-  useEffect(() => {
-    let active = true;
-    void Promise.all([
+  const load = useCallback(async () => {
+    const [found, preference] = await Promise.all([
       client.getRestitchDefaults(teamId),
       !isOwner && client.getMemberRestitchPreference
         ? client.getMemberRestitchPreference(teamId)
         : Promise.resolve(null)
-    ])
-      .then(([found, preference]) => {
+    ]);
+    const inherits = preference?.useOwner ?? true;
+    const pools = client.listRestitchSources
+      ? await client.listRestitchSources(teamId, isOwner || inherits ? 'owner' : 'self')
+      : null;
+    return { found, inherits, pools };
+  }, [client, teamId, isOwner]);
+
+  /*
+   * The pools change under the panel whenever the catalog does — a folder renamed, a picture
+   * binned — and the explorer already learns that through the one realtime seam. This panel
+   * registers as one more reader of it and re-reads the pools when the catalog says it moved;
+   * no timer, no second channel.
+   */
+  const freshness = useContext(CatalogFreshnessContext);
+  const read = useCatalogRead(teamId, Boolean(client.listRestitchSources));
+  const revision = useSyncExternalStore(freshness?.subscribe ?? noop, freshness?.snapshot ?? zero);
+  useEffect(() => {
+    let active = true;
+    const reading = read();
+    void load()
+      .then(({ found, inherits, pools }) => {
         if (!active) return;
         setDefaults(found);
-        setUseOwner(preference?.useOwner ?? true);
-        if (found) setOperation(found.operation);
+        setUseOwner(inherits);
+        setListing(pools);
+        if (found) {
+          setOperation(found.operation);
+          setForm(formOf(found));
+        }
+        reading.succeed();
       })
-      .catch(() => {})
+      .catch(() => reading.fail())
       .finally(() => {
         if (active) setLoaded(true);
       });
     return () => {
       active = false;
     };
-  }, [teamId, client, isOwner]);
+  }, [load, read]);
 
+  const refreshing = useRef(false);
   useEffect(() => {
-    if (!connected || (!isOwner && useOwner)) return;
-    let active = true;
-    void fetchCompressorState()
-      .then(queue => {
-        if (active) setCompressor(queue.settings);
+    if (!freshness || !loaded || !client.listRestitchSources || freshness.isFresh(teamId)) return;
+    if (refreshing.current) return;
+    refreshing.current = true;
+    const reading = read();
+    client
+      .listRestitchSources(teamId, scope)
+      .then(pools => {
+        setListing(pools);
+        reading.succeed();
       })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [connected, isOwner, useOwner]);
+      .catch(() => reading.fail())
+      .finally(() => {
+        refreshing.current = false;
+      });
+  }, [revision, freshness, loaded, client, teamId, scope, read]);
 
-  const updateEmbedding = useCallback((patch: ImageEmbeddingSettingsPatch) => {
-    void updateCompressorSettings({ imageEmbedding: patch })
-      .then(queue => setCompressor(queue.settings))
-      .catch(() => {});
+  const updateForm = useCallback((patch: ImageEmbeddingSettingsPatch) => {
+    setForm(current => {
+      const next = { ...current };
+      if (patch.fitMode) next.fitMode = patch.fitMode;
+      if (patch.finalDurationMode) next.finalDurationMode = patch.finalDurationMode;
+      if (patch.customFinalDurationSeconds !== undefined)
+        next.customFinalDurationSeconds = patch.customFinalDurationSeconds;
+      if (patch.startEnabled !== undefined) next.startEnabled = patch.startEnabled;
+      if (patch.endEnabled !== undefined) next.endEnabled = patch.endEnabled;
+      if (patch.startDurationMode) next.startDurationMode = patch.startDurationMode;
+      if (patch.customStartDurationMs !== undefined)
+        next.customStartDurationMs = patch.customStartDurationMs;
+      return next;
+    });
   }, []);
 
-  const uploadImages = useCallback(async (slot: ImageSlot, files: File[]) => {
-    for (const file of files) setCompressor((await uploadScreenImage(slot, file)).settings);
-  }, []);
-
-  const removeImage = useCallback(async (slot: ImageSlot, id: string) => {
-    setCompressor((await removeScreenImage(slot, id)).settings);
-  }, []);
-
-  const save = async () => {
-    const embedding = compressor?.imageEmbedding;
-    if (!embedding) return;
+  const changePool = async (slot: RestitchSlot, items: RestitchSourceInput[]) => {
+    const write = isOwner ? client.setRestitchSources : client.setMemberRestitchSources;
+    if (!write) return;
     setSaving(true);
     try {
-      const chosen = {
+      setListing(await write(teamId, slot, items));
+      // The first pool a space gets also makes its settings row; the panel learns that here.
+      if (!defaults) setDefaults(await client.getRestitchDefaults(teamId));
+      analytics.track('setting_changed', {
+        setting_name: 'team_restitch_sources',
+        setting_value: slot,
+        file_count: items.length
+      });
+    } catch (error) {
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const chosen: RestitchDefaultsInput = {
         operation,
-        // A snapshot of what is switched on right now — the galleries above are the library,
-        // and this is the space saying which of it to draw from.
-        startImageIds: enabledIds(embedding.startImages, embedding.disabledImageIds),
-        endImageIds: enabledIds(embedding.endImages, embedding.disabledImageIds),
-        startEnabled: embedding.startEnabled,
-        endEnabled: embedding.endEnabled,
-        startDurationMode: embedding.startDurationMode,
-        customStartDurationMs: embedding.customStartDurationMs,
-        fitMode: embedding.fitMode,
-        finalDurationMode: embedding.finalDurationMode,
-        customFinalDurationSeconds: embedding.customFinalDurationSeconds
+        ...form,
+        // Where the pictures come from is the pools, never a list of ids (030).
+        startImageIds: [],
+        endImageIds: [],
+        sourceMode: 'drive'
       };
-      await publishRestitchImages(teamId, embedding, chosen);
       const stored = await (isOwner
         ? client.setRestitchDefaults(teamId, chosen)
         : client.setMemberRestitchDefaults!(teamId, chosen));
       setDefaults(stored);
-      // Which operation a space settles on, and how many photos it draws from — no ids, no
+      if (client.listRestitchSources) setListing(await client.listRestitchSources(teamId, scope));
+      // Which operation a space settles on, and how many pictures it draws from — no ids, no
       // names, nothing about the space itself.
       analytics.track('setting_changed', {
         setting_name: 'team_restitch_defaults',
         setting_value: stored.operation,
-        file_count: stored.startImageIds.length + stored.endImageIds.length
+        file_count: listing
+          ? listing.pools.start.eligibleCount + listing.pools.end.eligibleCount
+          : 0
       });
       push({ tone: 'success', text: t('teamRestitchSaved') });
     } catch (error) {
@@ -207,13 +308,55 @@ export function RestitchDefaultsSection({
       setUseOwner(checked);
       const effective = await client.getRestitchDefaults(teamId);
       setDefaults(effective);
-      if (effective) setOperation(effective.operation);
+      if (effective) {
+        setOperation(effective.operation);
+        setForm(formOf(effective));
+      }
+      if (client.listRestitchSources) {
+        setListing(await client.listRestitchSources(teamId, checked ? 'owner' : 'self'));
+      }
     } catch (error) {
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
       setSwitching(false);
     }
   };
+
+  const poolClient = useMemo<RestitchSourcePoolClient | undefined>(
+    () =>
+      client.listMaterials
+        ? { listMaterials: client.listMaterials, searchCatalog: client.searchCatalog }
+        : undefined,
+    [client.listMaterials, client.searchCatalog]
+  );
+
+  const slotContent = listing
+    ? {
+        start: (
+          <RestitchSourcePool
+            teamId={teamId}
+            slot="start"
+            pool={listing.pools.start}
+            editable={poolsEditable}
+            client={poolClient}
+            onChange={(slot, items) => void changePool(slot, items)}
+          />
+        ),
+        end: (
+          <RestitchSourcePool
+            teamId={teamId}
+            slot="end"
+            pool={listing.pools.end}
+            editable={poolsEditable}
+            client={poolClient}
+            onChange={(slot, items) => void changePool(slot, items)}
+          />
+        )
+      }
+    : undefined;
+
+  const legacy = listing?.sourceMode === 'legacy' && listing.legacyImageCount > 0;
+  const poolsRef = useRef<HTMLDivElement>(null);
 
   if (!isOwner && useOwner) {
     return (
@@ -229,6 +372,24 @@ export function RestitchDefaultsSection({
           onChange={event => void toggleOwner(event.target.checked)}
           label={t('teamRestitchUseOwner')}
         />
+        {/* Read, not hidden: what the owner chose is what this member's downloads will carry,
+            and seeing it is how they decide whether to choose their own. */}
+        {listing && defaults && (
+          <>
+            <p className="team-inline-note">{t('teamRestitchOwnerPoolsNote')}</p>
+            <ImageEmbeddingSection
+              settings={embeddingOf(formOf(defaults))}
+              disabled
+              update={() => {}}
+              uploadImages={noFiles}
+              removeImage={noFiles}
+              onValidityChange={() => {}}
+              optional={false}
+              slotContent={slotContent}
+              t={t}
+            />
+          </>
+        )}
       </SettingsSection>
     );
   }
@@ -238,6 +399,7 @@ export function RestitchDefaultsSection({
       icon={Replace}
       titleId="team-restitch-settings-title"
       title={t('teamRestitchSection')}
+      description={client.listRestitchSources ? t('teamRestitchSourcesExplain') : undefined}
       className="team-restitch-defaults"
     >
       {!isOwner && (
@@ -248,25 +410,32 @@ export function RestitchDefaultsSection({
           label={t('teamRestitchUseOwner')}
         />
       )}
-      {/* The controls below say what the space does; a machine-assembled recap
-          above them ("Перезашити, фото: 21, Випадково: 30–40 хв") said it again
-          in a shape no one writes. What is left is the one thing the controls
-          cannot say: that nothing has been set yet. */}
+      {/* The controls below say what the space does; what is left for a sentence is the one
+          thing the controls cannot say: that nothing has been set yet. */}
       <p className="settings-section-note" role="status">
         {loaded && !defaults ? t('teamRestitchNotConfigured') : ''}
       </p>
 
       {/* Read rather than hidden: a member who cannot change this can still see what the
           space does, which is what they need in order to ask for it to change. */}
-      {/* A boundary, not a failure: the neutral note, said once. */}
       {!editable && (
         <PermissionState className="team-inline-note" message={t('teamRestitchReadOnly')} />
       )}
-      {/* A condition that stops the panel working, not a note about it: it is
-          announced, and it carries the role's colour and its icon. */}
-      {!connected && (
-        <Alert className="team-inline-note" color="warning" variant="soft">
-          {t('teamRestitchAgentMissing')}
+
+      {/* A space saved before 030 points at pictures of one computer's library. It keeps
+          working where those pictures are, and is told here what to do about it. */}
+      {legacy && (
+        <Alert className="team-inline-note" color="warning" variant="soft" role="status">
+          {t('teamRestitchLegacyBanner', { count: listing.legacyImageCount })}
+          {editable && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => poolsRef.current?.scrollIntoView({ block: 'start' })}
+            >
+              {t('teamRestitchLegacyRepick')}
+            </Button>
+          )}
         </Alert>
       )}
 
@@ -298,35 +467,21 @@ export function RestitchDefaultsSection({
         />
       </div>
 
-      {compressor?.imageEmbedding && (
-        /* The image wells are the tallest thing in this panel by a long way —
-           two galleries of thumbnails under a row of toggles. Folded, the rest
-           of the settings fit on one screen; the summary counts what is inside,
-           so nothing is hidden silently. */
-        <details
-          className="team-restitch-fold"
-          open={embeddingOpen}
-          onToggle={event => setEmbeddingOpen((event.currentTarget as HTMLDetailsElement).open)}
-        >
-          <summary className="team-catalog-filter-summary">
-            {t('teamRestitchImagesFold', {
-              count:
-                (compressor.imageEmbedding.startImages?.length ?? 0) +
-                (compressor.imageEmbedding.endImages?.length ?? 0)
-            })}
-          </summary>
-          <ImageEmbeddingSection
-            settings={compressor.imageEmbedding}
-            disabled={!editable || !connected}
-            update={updateEmbedding}
-            uploadImages={uploadImages}
-            removeImage={removeImage}
-            onValidityChange={() => {}}
-            optional={false}
-            t={t}
-          />
-        </details>
-      )}
+      {/* The stitcher's own controls — slot switches, fit, hold lengths — with the space's
+          pools where the galleries would be. The form is the panel's; no library is read. */}
+      <div ref={poolsRef}>
+        <ImageEmbeddingSection
+          settings={embeddingOf(form)}
+          disabled={!editable || saving}
+          update={updateForm}
+          uploadImages={noFiles}
+          removeImage={noFiles}
+          onValidityChange={setFormValid}
+          optional={false}
+          slotContent={slotContent}
+          t={t}
+        />
+      </div>
 
       {editable && (
         <div className="settings-section-actions">
@@ -334,7 +489,7 @@ export function RestitchDefaultsSection({
             type="button"
             variant="primary"
             loading={saving}
-            disabled={!connected || !compressor}
+            disabled={!loaded || !formValid}
             onClick={() => void save()}
           >
             {t('teamRestitchSave')}
@@ -345,6 +500,13 @@ export function RestitchDefaultsSection({
       {editable && can('process') && (
         <div className="team-restitch-prepare">
           <p className="team-inline-note prose">{t('teamRestitchPrepareExplain')}</p>
+          {/* A condition that stops preparation working, not a note about it: it is
+              announced, and it carries the role's colour and its icon. */}
+          {!connected && (
+            <Alert className="team-inline-note" color="warning" variant="soft">
+              {t('teamRestitchAgentMissing')}
+            </Alert>
+          )}
           {/* One reason at a time. Two "first do this" lines side by side make neither of them
               the next step. */}
           {!driveConnected ? (

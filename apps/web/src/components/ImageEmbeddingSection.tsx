@@ -53,6 +53,7 @@ export function ImageEmbeddingSection({
    * there rather than forked, so there is still one gallery and one set of settings.
    */
   optional = true,
+  slotContent,
   t
 }: {
   settings: ImageEmbeddingSettings;
@@ -62,6 +63,12 @@ export function ImageEmbeddingSection({
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
   onValidityChange: (valid: boolean) => void;
   optional?: boolean;
+  /**
+   * What a slot shows in place of its gallery (030). A space's settings draw from Drive
+   * pools, not from this machine's library, so the slot keeps its switch, its duration and
+   * its fit — the stitcher's own controls — and the pictures come from the node given here.
+   */
+  slotContent?: Partial<Record<ImageSlot, React.ReactNode>>;
   t: Translate;
 }) {
   const [customTime, setCustomTime] = useState(() =>
@@ -179,6 +186,7 @@ export function ImageEmbeddingSection({
           <div className="image-columns">
             <ImageColumn
               slot="start"
+              content={slotContent?.start}
               title={t('startImageTitle')}
               description={t('startImageDescription')}
               slotEnabled={settings.startEnabled !== false}
@@ -262,6 +270,7 @@ export function ImageEmbeddingSection({
             </ImageColumn>
             <ImageColumn
               slot="end"
+              content={slotContent?.end}
               title={t('endImageTitle')}
               description={t('endImageDescription')}
               slotEnabled={settings.endEnabled !== false}
@@ -384,11 +393,14 @@ function ImageColumn({
   disabledIds,
   onToggleImage,
   children,
+  content,
   t
 }: {
   slotEnabled: boolean;
   onToggleSlot: () => void;
   slot: ImageSlot;
+  /** Replaces the drop area when the pictures live elsewhere than this machine. */
+  content?: React.ReactNode;
   title: string;
   description: string;
   assets: ImageAsset[];
@@ -425,18 +437,22 @@ function ImageColumn({
       <Collapse open={slotEnabled}>
         <div className="image-column-body">
           {children}
-          <ImageDropArea
-            slot={slot}
-            assets={assets}
-            dropTarget={panel}
-            onDraggingChange={setDragging}
-            disabled={disabled}
-            uploadImages={uploadImages}
-            removeImage={removeImage}
-            disabledIds={disabledIds}
-            onToggleImage={onToggleImage}
-            t={t}
-          />
+          {content !== undefined ? (
+            content
+          ) : (
+            <ImageDropArea
+              slot={slot}
+              assets={assets}
+              dropTarget={panel}
+              onDraggingChange={setDragging}
+              disabled={disabled}
+              uploadImages={uploadImages}
+              removeImage={removeImage}
+              disabledIds={disabledIds}
+              onToggleImage={onToggleImage}
+              t={t}
+            />
+          )}
         </div>
       </Collapse>
     </section>

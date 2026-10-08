@@ -1,29 +1,11 @@
-import type {
-  ImageEmbeddingSettings,
-  ImageSlot,
-  TeamRestitchDefaults
-} from '@video-compressor/shared';
+import type { ImageSlot, TeamRestitchDefaults } from '@video-compressor/shared';
 import { requireSupabaseClient } from '../../lib/supabase';
-import { imageContentUrl, importTeamRestitchImage } from '../../api/client';
+import { importTeamRestitchImage } from '../../api/client';
 import { teamApi } from '../../api/team';
 import { fetchCompressorState } from '../../stitcher/api';
 
 const BUCKET = 'team-restitch-images';
 const EXTENSIONS = ['.png', '.jpg', '.webp'] as const;
-
-function selected(
-  embedding: ImageEmbeddingSettings,
-  defaults: Pick<TeamRestitchDefaults, 'startImageIds' | 'endImageIds'>
-) {
-  return [
-    ...embedding.startImages
-      .filter(asset => defaults.startImageIds.includes(asset.id))
-      .map(asset => ({ slot: 'start' as const, asset })),
-    ...embedding.endImages
-      .filter(asset => defaults.endImageIds.includes(asset.id))
-      .map(asset => ({ slot: 'end' as const, asset }))
-  ];
-}
 
 function objectPath(
   teamId: string,
@@ -33,44 +15,6 @@ function objectPath(
   extension: string
 ) {
   return `${teamId}/${userId}/${slot}/${id}${extension}`;
-}
-
-/** Publish the bytes before saving the settings that refer to them. */
-export async function publishRestitchImages(
-  teamId: string,
-  embedding: ImageEmbeddingSettings,
-  defaults: Pick<TeamRestitchDefaults, 'startImageIds' | 'endImageIds'>
-): Promise<void> {
-  const client = requireSupabaseClient();
-  const { data: user, error: userError } = await client.auth.getUser();
-  if (userError || !user.user) throw new Error('AUTH_REQUIRED');
-  const assets = selected(embedding, defaults);
-  for (let offset = 0; offset < assets.length; offset += 4) {
-    await Promise.all(
-      assets.slice(offset, offset + 4).map(async ({ slot, asset }) => {
-        let response: Response;
-        try {
-          const url = await imageContentUrl(asset.id);
-          if (!url) throw new Error('RESTITCH_AGENT_UNAVAILABLE');
-          response = await fetch(url);
-        } catch {
-          throw new Error('RESTITCH_AGENT_UNAVAILABLE');
-        }
-        if (response.status === 404) throw new Error('RESTITCH_LOCAL_IMAGE_MISSING');
-        if (!response.ok) throw new Error('RESTITCH_AGENT_UNAVAILABLE');
-        const blob = await response.blob();
-        const { error } = await client.storage
-          .from(BUCKET)
-          .upload(objectPath(teamId, user.user.id, slot, asset.id, asset.extension), blob, {
-            contentType: asset.mimeType,
-            upsert: false
-          });
-        // A previously published immutable image is already the right file.
-        if (error && Number(error.statusCode) !== 409)
-          throw new Error('RESTITCH_IMAGE_UPLOAD_FAILED');
-      })
-    );
-  }
 }
 
 async function downloadImage(
@@ -89,7 +33,13 @@ async function downloadImage(
   return null;
 }
 
-/** Bring selected team images to this paired app with their stable IDs before processing. */
+/**
+ * Bring the legacy team images to this paired app with their stable IDs before processing.
+ *
+ * Only for spaces still in `legacy` source mode (030): their settings name ids of the owner's
+ * library, published to the bucket before this release. Nothing is published any more — the
+ * uploader is gone with its INSERT policy — and this reader goes when the last space moves.
+ */
 export async function ensureRestitchImages(
   teamId: string,
   defaults: TeamRestitchDefaults
