@@ -130,7 +130,9 @@ export function useTeamLandings(input: { teamId: string; client: TeamLandingsDat
     await Promise.all([catalog.refetch(), refetchRenders()]);
   }, [catalog.refetch, refetchRenders]);
 
-  const agentPaired = agent?.connectedOnce === true;
+  // The link as it is now, not as it once was (032 W14): `connectedOnce` never
+  // resets, so after a loss the gallery kept offering what the agent could not do.
+  const agentPaired = agent?.connection === 'connected';
   const agentCompatible =
     agent?.connection === 'connected' &&
     (agent.toolContracts.teamWorkspace ?? 0) >= AGENT_TOOL_CONTRACTS.teamWorkspace;

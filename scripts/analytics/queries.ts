@@ -23,8 +23,13 @@ import type {
   TeamActivationWindow,
   SyncConnection,
   SyncData,
-  SyncJobRow
+  SyncJobRow,
+  ConnectionBrowserRow,
+  ConnectionData,
+  ConnectionOriginRow,
+  ConnectionReasonRow
 } from './types.js';
+import { CONNECTION_COVERAGE_NOTE } from './types.js';
 
 /** Range params are always $1 = start (nullable), $2 = end. */
 function rangeParams(period: ResolvedPeriod): [string | null, string] {
@@ -915,4 +920,150 @@ export async function getSyncJobs(teamOrEmail: string, limit = 50): Promise<Sync
     connection.jobs.push(row);
   }
   return { team_id: teamId, connections: [...connections.values()] };
+}
+
+/* ---------------------------------------------------------------------------
+ * 032 — `connection`: did the link to the Agent drop, did it come back, and
+ * why did a check fail. Aggregates only; the one list it returns is of web
+ * build ids, so a build that emits no link event at all is named as
+ * uncovered rather than silently counted as healthy.
+ * ------------------------------------------------------------------------- */
+
+const LINK_EVENT_NAMES = [
+  'link_check_started',
+  'link_check_completed',
+  'link_lost',
+  'link_recovered',
+  'reconnect_clicked',
+  'blocked_by_browser_detected',
+  'link_inconsistency'
+] as const;
+
+const LINK_EVENT_LIST = LINK_EVENT_NAMES.map(name => `'${name}'`).join(',');
+
+export async function getConnection(period: ResolvedPeriod): Promise<ConnectionData> {
+  const params = rangeParams(period);
+  const totals = await queryOne<{
+    users_with_loss: number;
+    losses: number;
+    recoveries: number;
+    samples: number;
+    p50: number | null;
+    p95: number | null;
+    mode_auto: number;
+    mode_manual: number;
+    mode_local_copy: number;
+    inconsistency_events: number;
+    inconsistency_users: number;
+  }>(
+    `select
+       count(distinct e.user_id) filter (where e.event_name = 'link_lost')::int as users_with_loss,
+       count(*) filter (where e.event_name = 'link_lost')::int as losses,
+       count(*) filter (where e.event_name = 'link_recovered')::int as recoveries,
+       count(*) filter (
+         where e.event_name = 'link_recovered'
+           and jsonb_typeof(e.properties -> 'duration_ms') = 'number'
+       )::int as samples,
+       percentile_cont(0.5) within group (order by (e.properties ->> 'duration_ms')::numeric)
+         filter (
+           where e.event_name = 'link_recovered'
+             and jsonb_typeof(e.properties -> 'duration_ms') = 'number'
+         ) as p50,
+       percentile_cont(0.95) within group (order by (e.properties ->> 'duration_ms')::numeric)
+         filter (
+           where e.event_name = 'link_recovered'
+             and jsonb_typeof(e.properties -> 'duration_ms') = 'number'
+         ) as p95,
+       count(*) filter (
+         where e.event_name = 'link_recovered' and e.properties ->> 'recovery_mode' = 'auto'
+       )::int as mode_auto,
+       count(*) filter (
+         where e.event_name = 'link_recovered' and e.properties ->> 'recovery_mode' = 'manual'
+       )::int as mode_manual,
+       count(*) filter (
+         where e.event_name = 'link_recovered' and e.properties ->> 'recovery_mode' = 'local_copy'
+       )::int as mode_local_copy,
+       count(*) filter (where e.event_name = 'link_inconsistency')::int as inconsistency_events,
+       count(distinct e.user_id) filter (where e.event_name = 'link_inconsistency')::int as inconsistency_users
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.event_name in (${LINK_EVENT_LIST})`,
+    params
+  );
+
+  const failedChecks = await query<ConnectionReasonRow>(
+    `select coalesce(e.properties ->> 'link_reason', 'unknown') as reason,
+       count(*)::int as events,
+       count(distinct e.user_id)::int as users
+     from public.analytics_events e
+     where ${EVENTS_RANGE}
+       and e.event_name = 'link_check_completed'
+       and coalesce(e.outcome, e.properties ->> 'outcome') in ('failure', 'blocked')
+     group by 1
+     order by events desc, users desc, reason asc`,
+    params
+  );
+
+  const blockedByBrowser = await query<ConnectionBrowserRow>(
+    `select coalesce(e.properties ->> 'browser_family', 'unknown') as browser_family,
+       count(distinct e.user_id)::int as users
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.event_name = 'blocked_by_browser_detected'
+     group by 1
+     order by users desc, browser_family asc`,
+    params
+  );
+
+  const origins = await query<ConnectionOriginRow>(
+    `select e.properties ->> 'link_origin' as link_origin,
+       count(distinct e.user_id)::int as users,
+       count(*)::int as events
+     from public.analytics_events e
+     where ${EVENTS_RANGE}
+       and e.event_name in (${LINK_EVENT_LIST})
+       and e.properties ->> 'link_origin' is not null
+     group by 1
+     order by users desc, events desc, link_origin asc`,
+    params
+  );
+
+  const builds = await query<{ web_build_id: string; covered: boolean }>(
+    `select e.web_build_id,
+       bool_or(e.event_name in (${LINK_EVENT_LIST})) as covered
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.web_build_id is not null
+     group by e.web_build_id
+     order by e.web_build_id asc`,
+    params
+  );
+
+  const toMs = (value: number | null | undefined) =>
+    typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
+
+  return {
+    users_with_loss: totals?.users_with_loss ?? 0,
+    losses: totals?.losses ?? 0,
+    recoveries: totals?.recoveries ?? 0,
+    recovery_ms: {
+      p50: toMs(totals?.p50),
+      p95: toMs(totals?.p95),
+      samples: totals?.samples ?? 0
+    },
+    recovery_mode: {
+      auto: totals?.mode_auto ?? 0,
+      manual: totals?.mode_manual ?? 0,
+      local_copy: totals?.mode_local_copy ?? 0
+    },
+    failed_checks_by_reason: failedChecks,
+    blocked_by_browser: blockedByBrowser,
+    origins,
+    inconsistencies: {
+      events: totals?.inconsistency_events ?? 0,
+      users: totals?.inconsistency_users ?? 0
+    },
+    coverage: {
+      web_builds_with_link_events: builds.filter(build => build.covered).length,
+      web_builds_without: builds.filter(build => !build.covered).map(build => build.web_build_id),
+      note: CONNECTION_COVERAGE_NOTE
+    }
+  };
 }

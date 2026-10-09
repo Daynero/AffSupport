@@ -53,7 +53,9 @@ export function agentLandingSource(multiplexed = false): LandingViewerSource {
         });
         // The shared connection knows when it drops; without this the banner could never
         // appear on the path every current client takes.
-        const unwatch = streamClient.watchConnection(open => onStatus?.(open ? 'open' : 'lost'));
+        const unwatch = streamClient.watchConnection(status =>
+          onStatus?.(status.open ? 'open' : 'lost')
+        );
         return () => {
           unwatch();
           unsubscribe();

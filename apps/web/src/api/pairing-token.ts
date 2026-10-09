@@ -149,11 +149,16 @@ export function consumePairingToken(): boolean {
   if (value) history.replaceState(null, '', location.pathname + location.search);
   if (!value || !TOKEN_PATTERN.test(value)) return false;
   pendingToken = value;
+  pendingSince = Date.now();
   return true;
 }
 
 /** A token seen in the URL and not yet proven to belong to the local app. */
 let pendingToken = '';
+/** When it arrived; an unproven token is held for re-verification only this long. */
+let pendingSince = 0;
+/** How long an unverified token survives an unreachable local app. */
+const PENDING_HOLD_MS = 30_000;
 
 /**
  * Adopts the held token only if the local app answers for it.
@@ -174,7 +179,11 @@ export async function verifyPairingToken(agentOrigin: string): Promise<boolean> 
     if (!response.ok) return false;
   } catch {
     // Unreachable is not the same as invalid, but it is not proof either, and
-    // this path exists precisely to stop unproven tokens being written.
+    // this path exists precisely to stop unproven tokens being written. The
+    // token is held for a while rather than dropped: the local app that just
+    // minted it is often still starting up, and losing a real token here sent
+    // people round the pairing loop until its budget ran out (032 FR-019).
+    if (Date.now() - pendingSince < PENDING_HOLD_MS) pendingToken = candidate;
     return false;
   }
   const changed = adopt(candidate);

@@ -43,7 +43,7 @@ import { activeThreadBudget, setActiveGovernor } from './power/spawn.js';
 import { buildServer } from './server/app.js';
 import { hasCapability } from './server/capabilities.js';
 import { resolveSessionToken } from './server/session-token.js';
-import { ChannelHub, EventChannel } from './server/sse.js';
+import { ChannelHub, EventChannel, type ShutdownReason } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
 import { StitchQueue } from './stitcher/queue.js';
 import { loadStitcherState, saveStitcherState } from './stitcher/store.js';
@@ -290,7 +290,7 @@ function requestRuntimeRestart(error: MediaToolUnavailableError) {
   if (process.env.PACKAGED_APP !== '1' || runtimeRestartRequested || shuttingDown) return;
   runtimeRestartRequested = true;
   const timer = setTimeout(() => {
-    void saveChain.finally(() => shutdown(75));
+    void saveChain.finally(() => shutdown(75, 'restart'));
   }, 250);
   timer.unref();
 }
@@ -549,7 +549,7 @@ function requestUpdateDrain(targetBuildId: string) {
     updateDrainTimer = null;
     // Preserve the latest queue state before the native host releases its
     // lock. The next Agent can then restore exactly the same durable queue.
-    void saveChain.finally(() => shutdown(UPDATE_HANDOFF_EXIT_CODE));
+    void saveChain.finally(() => shutdown(UPDATE_HANDOFF_EXIT_CODE, 'update'));
   };
 
   updateDrainTimer = setInterval(finishWhenIdle, 250);
@@ -599,7 +599,18 @@ if (config.installedReleasePath) {
   installedReleaseTimer.unref();
 }
 
-async function shutdown(code = 0) {
+/**
+ * How long the server close may take before the process exits regardless.
+ *
+ * Node's `server.close` waits for every connection to end. The streams are ended first,
+ * so ordinarily it returns at once; this is for the connection that does not — a peer
+ * that never acknowledges the close, an upload that never finishes. Three seconds is
+ * long enough for any reply that was already being written and short enough that the
+ * launcher waiting on the exit code is not left guessing.
+ */
+const CLOSE_DEADLINE_MS = 3000;
+
+async function shutdown(code: number, reason: ShutdownReason) {
   if (shuttingDown) return;
   shuttingDown = true;
   if (mediaToolsTimer) clearInterval(mediaToolsTimer);
@@ -613,6 +624,15 @@ async function shutdown(code = 0) {
     // Resume anything the duty cycler left stopped before the process exits: a
     // suspended child would outlive the agent and never make progress again.
     await powerGovernor.shutdown();
+    // The same code whether close returns or not. `unref` so the timer itself never
+    // holds a process open that would otherwise have finished.
+    setTimeout(() => process.exit(code), CLOSE_DEADLINE_MS).unref();
+    // Every open stream is told why and ended *before* close: an open stream is a
+    // connection, and close waits for connections. Left open, the process would sit on a
+    // port it no longer answers, heartbeating "connected" at an interface showing state
+    // that is never going to change, and the launcher would never see the exit code.
+    channelHub.closeAll(reason);
+    EventChannel.closeAll(reason);
     await app.close();
   } catch (error) {
     logError(error, 'Shutdown failed');
@@ -629,7 +649,7 @@ try {
 }
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
-    void shutdown(0);
+    void shutdown(0, 'signal');
   });
 }
 // A rejection nobody caught used to end the process. The queues fire and forget a great
@@ -652,7 +672,7 @@ if (process.env.PACKAGED_APP === '1') {
       })
     ) {
       clearInterval(watchdog);
-      void shutdown(0);
+      void shutdown(0, 'launcher');
     }
   }, 1000);
   watchdog.unref();

@@ -56,7 +56,7 @@ function context(host: ActionHost, over: Partial<ActionContext> = {}): ActionCon
     host,
     permissions,
     isOwner: true,
-    agentConnected: true,
+    agentAvailability: 'ready',
     storageConnected: true,
     restitchConfigured: true,
     catalogSettingsReady: true,
@@ -130,7 +130,7 @@ describe('one material, every surface', () => {
   });
 
   it('never puts an action it cannot run inline', () => {
-    const offline = context('explorer-row', { agentConnected: false });
+    const offline = context('explorer-row', { agentAvailability: 'disconnected' });
     const list = resolveMaterialActions(video, offline, everyHandler());
     for (const entry of list.inline) expect(entry.availability.ok).toBe(true);
   });

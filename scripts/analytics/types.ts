@@ -307,6 +307,53 @@ export interface RetentionMetric {
 }
 
 /* ---------------------------------------------------------------------------
+ * 032 — the browser ↔ Agent link (`connection` command). Aggregates only:
+ * no user, session, installation or instance id ever appears here.
+ * ------------------------------------------------------------------------- */
+
+export interface ConnectionReasonRow {
+  reason: string;
+  events: number;
+  users: number;
+}
+
+export interface ConnectionBrowserRow {
+  browser_family: string;
+  users: number;
+}
+
+export interface ConnectionOriginRow {
+  link_origin: string;
+  users: number;
+  events: number;
+}
+
+export interface ConnectionData {
+  users_with_loss: number;
+  losses: number;
+  recoveries: number;
+  /** `duration_ms` of `link_recovered`: how long the break lasted. */
+  recovery_ms: { p50: number | null; p95: number | null; samples: number };
+  recovery_mode: { auto: number; manual: number; local_copy: number };
+  failed_checks_by_reason: ConnectionReasonRow[];
+  blocked_by_browser: ConnectionBrowserRow[];
+  origins: ConnectionOriginRow[];
+  inconsistencies: { events: number; users: number };
+  /**
+   * Which web builds seen in the period emit link events at all. A build on the
+   * `without` list predates 032 (or lost its analytics) — it is uncovered, and
+   * a missing `link_lost` from it says nothing about its link.
+   */
+  coverage: {
+    web_builds_with_link_events: number;
+    web_builds_without: string[];
+    note: string;
+  };
+}
+
+export const CONNECTION_COVERAGE_NOTE = 'builds without link events are uncovered, not healthy';
+
+/* ---------------------------------------------------------------------------
  * 028 — manual sync diagnostics (`sync` command). One row per catalog sync job,
  * from the read-only view `public.analytics_catalog_sync_jobs`. No cursors,
  * tokens, lease owners or Drive names ever appear here; `scope_hash` is a

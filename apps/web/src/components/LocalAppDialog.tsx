@@ -13,6 +13,7 @@ import {
 } from '../lib/platform';
 import { analytics } from '../analytics/service';
 import { Modal } from './Modal';
+import { ReconnectAction } from './ReconnectAction';
 import { SotyMark } from './SotyLogo';
 import { Button } from './ui';
 import { ErrorState } from './ui/index';
@@ -27,13 +28,16 @@ export default function LocalAppDialog({
   onClose?: () => void;
 }) {
   const { t } = useI18n();
-  const { capabilities, reconnect, releaseManifest, state, toolAvailable } = useAgent();
+  const { capabilities, releaseManifest, state, toolAvailability } = useAgent();
   const titleId = useId();
   const windowsButton = useRef<HTMLButtonElement>(null);
   const [windowsNoticeOpen, setWindowsNoticeOpen] = useState(false);
-  const incompatible = connection === 'connected' && !toolAvailable(tool);
   const updatePending = state.update?.state === 'pending' || state.update?.state === 'draining';
-  const needsUpdate = incompatible || connection === 'agent_update_required';
+  // "Update" is said only of an agent that answered and is too old for this
+  // tool (032 FR-013). A lost link is `disconnected`, never `too_old`, so a
+  // dropped connection cannot send anyone to download what they already have.
+  const needsUpdate =
+    toolAvailability(tool) === 'too_old' || connection === 'agent_update_required';
   const macDownloadUrl = macAppleSiliconDownloadUrl(releaseManifest.manifest);
   const windowsDownload = downloadUrlForPlatform(releaseManifest.manifest, 'windows-x64');
   // An installed agent knows the host it runs on; the browser only claims one.
@@ -204,11 +208,7 @@ export default function LocalAppDialog({
               {t('openSoty')}
             </a>
           )}
-          {!updatePending && (
-            <Button variant="secondary" onClick={reconnect}>
-              {t('checkAgain')}
-            </Button>
-          )}
+          {!updatePending && <ReconnectAction surface="home" size="md" />}
         </div>
       </Modal>
       {windowsNoticeOpen && <WindowsComingSoonDialog onClose={closeWindowsNotice} />}

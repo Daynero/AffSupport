@@ -6,6 +6,7 @@ import type { StableReleaseManifest } from '../packages/shared/src/release';
 import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/AgentContext';
 import LocalAppDialog from '../apps/web/src/components/LocalAppDialog';
 import { emptyQueueState } from './web-auth-helpers';
+import { fakeAgentValue } from './support/fake-agent';
 
 const WINDOWS_ARTIFACT_URL = 'https://example.com/Soty-v1.0.0-Windows-x64.exe';
 const MAC_ARTIFACT_URL = 'https://example.com/Soty-v1.0.0-macOS-arm64.dmg';
@@ -42,22 +43,19 @@ function mockNavigator(platform: string, userAgent: string) {
 }
 
 function agentValue(): AgentContextValue {
-  return {
+  return fakeAgentValue({
     connection: 'not_installed_or_not_running',
     state: emptyQueueState,
-    setState: vi.fn(),
     connectedOnce: false,
-    releaseBlocked: false,
     agentVersion: null,
     agentBuildId: null,
     agentChannel: null,
     agentApiVersion: null,
-    capabilities: [],
-    toolContracts: {},
-    releaseManifest: { status: 'unavailable', manifest: null },
     toolAvailable: () => false,
-    reconnect: vi.fn()
-  };
+    toolAvailability: () => 'disconnected',
+    teamWorkspaceAvailable: false,
+    teamWorkspaceAvailability: 'disconnected'
+  });
 }
 
 function bothPlatformsPublished(): AgentContextValue {

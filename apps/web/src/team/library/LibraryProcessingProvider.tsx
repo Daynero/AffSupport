@@ -23,6 +23,7 @@ import {
   type LibraryRequirementScanResult
 } from '../../api/team';
 import { cancelTeamLibraryAgentProcess, startTeamLibraryAgentProcess } from '../../api/client';
+import type { Availability } from '../../AgentContext';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { teamErrorMessage } from '../errors';
@@ -73,6 +74,13 @@ export interface LibraryProcessingValue {
   scan: LibraryRequirementScanResult | null;
   /** Job kinds this device can actually run, given the agent's tool contracts. */
   supportedKinds: LibraryJobKind[];
+  /**
+   * Whether the local app is there for the work, and if not, why (032 FR-013).
+   * Separate from `supportedKinds`: a lost link empties nothing, so the window
+   * can keep saying what this computer does and ask for the link back, rather
+   * than telling a person with a current agent to update it.
+   */
+  agentAvailability: Availability;
   /** The kinds the person chose to run (024): a folder can be transcribed without its landings. */
   chosenKinds: LibraryJobKind[];
   setChosenKinds: (kinds: LibraryJobKind[]) => void;
@@ -153,7 +161,7 @@ export function LibraryProcessingProvider({
   teamId,
   sourceMaterialIds,
   scope = { kind: 'space' },
-  agentCompatible,
+  agentAvailability,
   toolContracts,
   client = teamApi,
   agent = defaultAgent,
@@ -172,7 +180,7 @@ export function LibraryProcessingProvider({
   sourceMaterialIds?: readonly string[];
   /** The same scope in words, for whoever is showing the batch. */
   scope?: LibraryBatchScope;
-  agentCompatible: boolean;
+  agentAvailability: Availability;
   toolContracts: ToolContracts;
   client?: ProcessLibraryClient;
   agent?: ProcessLibraryAgent;
@@ -259,7 +267,10 @@ export function LibraryProcessingProvider({
   }, [phase, scopeKey]);
 
   const supportedKinds = useMemo<LibraryJobKind[]>(() => {
-    if (!agentCompatible || (toolContracts.teamWorkspace ?? 0) < 1) return [];
+    // The contracts are what decides this; they are kept across a loss, so a
+    // dropped link leaves the list alone (032 W7). Only an agent that answered
+    // and is too old for the workspace has nothing to offer.
+    if (agentAvailability === 'too_old' || (toolContracts.teamWorkspace ?? 0) < 1) return [];
     const kinds: LibraryJobKind[] = [];
     if ((toolContracts.transcription ?? 0) >= 5) kinds.push('transcription', 'translation');
     /*
@@ -272,7 +283,7 @@ export function LibraryProcessingProvider({
      */
     if ((toolContracts.landingOptimizer ?? 0) >= 2) kinds.push('landing_optimization');
     return kinds;
-  }, [agentCompatible, toolContracts]);
+  }, [agentAvailability, toolContracts]);
 
   const [chosenKinds, setChosenKinds] = useState<LibraryJobKind[]>([
     'transcription',
@@ -728,6 +739,7 @@ export function LibraryProcessingProvider({
       scope: appliedScope,
       scan,
       supportedKinds,
+      agentAvailability,
       chosenKinds,
       setChosenKinds,
       previewCount: previewIds.length,
@@ -762,6 +774,7 @@ export function LibraryProcessingProvider({
       skipped,
       start,
       supportedKinds,
+      agentAvailability,
       chosenKinds,
       previewIds.length,
       previewError,

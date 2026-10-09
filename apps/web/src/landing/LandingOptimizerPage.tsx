@@ -50,7 +50,9 @@ import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { DropZone } from '../components/DropZone';
-import { Button, Checkbox, Spinner, Tooltip, type Translate } from '../components/ui';
+import { Alert, Button, Checkbox, Spinner, Tooltip, type Translate } from '../components/ui';
+import { ReconnectAction } from '../components/ReconnectAction';
+import { useToolStateRead } from '../lib/use-tool-state-read';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useCompactToolbar } from '../components/useCompactToolbar';
 import { compactPath } from '../format';
@@ -71,6 +73,8 @@ interface UploadFile {
   file: File;
   relPath: string;
 }
+
+const readLandingState = () => request<LandingState>('/api/landing/state', 'GET');
 
 export default function LandingOptimizerPage() {
   const { language, t } = useI18n();
@@ -114,18 +118,8 @@ export default function LandingOptimizerPage() {
     analytics.track('tool_opened', { tool_identifier: 'landing-optimizer' });
   }, []);
 
-  useEffect(() => {
-    if (connection !== 'connected') return;
-    let active = true;
-    request<LandingState>('/api/landing/state', 'GET')
-      .then(value => {
-        if (active) applyState(value);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [connection]);
+  // Read again after every recovery, and said out loud when it fails (032 W12).
+  const { stateError } = useToolStateRead(readLandingState, applyState);
 
   // Through the shared hook rather than a socket of this page's own. Three pages each
   // opening their own `EventSource` is three of the seven connections the multiplexed
@@ -418,6 +412,28 @@ export default function LandingOptimizerPage() {
   return (
     <>
       <main className={`workspace${entering ? ' page-enter' : ''}`}>
+        {!connected && (
+          <Alert
+            className="blocking-message"
+            color="neutral"
+            variant="subtle"
+            live="alert"
+            title={t('linkConnectSoty')}
+            action={<ReconnectAction surface="landing_optimizer" />}
+          >
+            {t('linkConnectSotyBody')}
+          </Alert>
+        )}
+        {connected && stateError && (
+          <Alert
+            className="blocking-message"
+            color="warning"
+            variant="soft"
+            live="alert"
+            title={t('linkStateNotRead')}
+            action={<ReconnectAction surface="landing_optimizer" />}
+          />
+        )}
         {connected && state && (!state.tools.ffmpeg || !state.tools.ffprobe) && (
           <section className="blocking-message blocking-error" role="alert">
             <div>

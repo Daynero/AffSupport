@@ -6,7 +6,9 @@ import type {
 } from '@video-compressor/shared';
 import type { TeamProcessStartInput } from '../../api/team';
 import { teamApi } from '../../api/team';
+import type { Availability } from '../../AgentContext';
 import { Button } from '../../components/ui';
+import { ReconnectAction } from '../../components/ReconnectAction';
 import { useI18n } from '../../i18n';
 import { Modal } from '../../components/Modal';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
@@ -38,7 +40,7 @@ export function ProcessMaterialDialog({
   teamId,
   material,
   destinationFolderId,
-  agentCompatible,
+  agentAvailability,
   toolContracts,
   client = defaultClient,
   browseClient,
@@ -51,7 +53,8 @@ export function ProcessMaterialDialog({
   destinationFolderId: string | null;
   /** Reads the folder tree for the destination picker. */
   browseClient: FolderPickerClient;
-  agentCompatible: boolean;
+  /** Whether the local app is there for the work, and if not, why (032 FR-013). */
+  agentAvailability: Availability;
   toolContracts: ToolContracts;
   client?: ProcessMaterialClient;
   onStarted: (result: TeamProcessStartResult, input: TeamProcessStartInput) => void;
@@ -74,7 +77,8 @@ export function ProcessMaterialDialog({
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState(false);
   const toolContractVersion = toolContracts[toolId] ?? 0;
-  const compatible = agentCompatible && toolContractVersion >= CONTRACTS[toolId];
+  const agentReady = agentAvailability === 'ready';
+  const compatible = agentReady && toolContractVersion >= CONTRACTS[toolId];
 
   const start = async (conflictMode: 'cancel' | 'keep_both') => {
     if (!destination || !compatible || !outputName.trim()) return;
@@ -120,12 +124,35 @@ export function ProcessMaterialDialog({
         </Button>
       </div>
 
-      {!agentCompatible && (
+      {/* The reason, not a boolean (032 FR-013): "update Soty" is said only of
+          an agent that answered and is too old; a lost link asks for the link. */}
+      {agentAvailability === 'too_old' && (
         <p className="team-inline-error" role="alert">
           {t('teamProcessAgentUpdate')}
         </p>
       )}
-      {agentCompatible && !compatible && (
+      {agentAvailability === 'disconnected' && (
+        <Alert
+          className="team-inline-error"
+          color="warning"
+          variant="soft"
+          live="alert"
+          action={<ReconnectAction surface="team_process_dialog" />}
+        >
+          {t('linkConnectSoty')}
+        </Alert>
+      )}
+      {agentAvailability === 'blocked' && (
+        <p className="team-inline-error" role="alert">
+          {t('linkBrowserBlocked')}
+        </p>
+      )}
+      {agentAvailability === 'account' && (
+        <p className="team-inline-error" role="alert">
+          {t('entitlementBlocked')}
+        </p>
+      )}
+      {agentReady && !compatible && (
         <p className="team-inline-error" role="alert">
           {t('teamProcessToolUpdate')}
         </p>

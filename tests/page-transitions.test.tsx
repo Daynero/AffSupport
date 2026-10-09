@@ -35,7 +35,8 @@ vi.mock('../apps/web/src/AgentContext.js', async () => {
       connectedOnce: true,
       reconnect: vi.fn(),
       capabilities: ['landing'],
-      toolAvailable: () => true
+      toolAvailable: () => true,
+      toolAvailability: () => 'ready'
     }),
     // The status-only context, for components that do not want the queue
     // snapshot — the route guard and the header both take it now.
@@ -44,7 +45,8 @@ vi.mock('../apps/web/src/AgentContext.js', async () => {
       connectedOnce: true,
       reconnect: vi.fn(),
       capabilities: ['landing'],
-      toolAvailable: () => true
+      toolAvailable: () => true,
+      toolAvailability: () => 'ready'
     }),
     // The header's power throttle reads the agent optionally, so it can render
     // its "not connected" state instead of throwing outside a provider.

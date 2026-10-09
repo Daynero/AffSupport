@@ -77,8 +77,14 @@ if (config.environment === 'beta') {
     throw new Error(`The beta agent refuses to start. ${detail}`);
   }
 }
+// Both spellings of the local copy. The agent listens on 127.0.0.1 and the same socket is
+// reached as `localhost`; a browser at one of them is the same page as at the other, and
+// refusing the second turned every POST from a `localhost` bookmark into a 403.
 export const allowedOrigins = new Set(
-  [config.devOrigin, config.publicOrigin, `http://${config.host}:${config.port}`].filter(
-    (value): value is string => Boolean(value)
-  )
+  [
+    config.devOrigin,
+    config.publicOrigin,
+    `http://${config.host}:${config.port}`,
+    `http://localhost:${config.port}`
+  ].filter((value): value is string => Boolean(value))
 );

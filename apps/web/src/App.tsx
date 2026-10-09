@@ -65,6 +65,7 @@ import {
   uiClasses
 } from './components/ui/index';
 import { LanguageSwitch } from './components/LanguageSwitch';
+import { ReconnectAction } from './components/ReconnectAction';
 
 const COMPRESSOR_SELECTION_KEY = 'wishly.compressor.selection.v1';
 
@@ -570,11 +571,7 @@ export default function CompressorPage() {
           <BlockingMessage
             title={t('agentDisconnected')}
             body={t('restoreQueue')}
-            action={
-              <Button onClick={reconnect} loading={connection === 'connecting'}>
-                {t('reconnect')}
-              </Button>
-            }
+            action={<ReconnectAction surface="compressor" />}
           />
         )}
         {connected && (!state.tools.ffmpeg || !state.tools.ffprobe) && (
@@ -914,20 +911,41 @@ export function ConnectionBadge({ state, t }: { state: ConnectionState; t: Trans
     pairing_required: 'agentReady',
     agent_update_required: 'agentUpdateRequired',
     web_update_required: 'webUpdateRequired',
-    connection_blocked: 'connectionBlocked',
+    connection_blocked: 'linkBrowserBlocked',
     entitlement_blocked: 'entitlementBlocked',
     disconnected: 'agentDisconnected'
   };
   return (
-    <span className={`connection-badge connection-${state}`} title={t(keys[state])}>
-      <i aria-hidden="true" />
-      {/* Its own element, so a phone can keep the dot and drop the words from
+    <>
+      <span className={`connection-badge connection-${state}`} title={t(keys[state])}>
+        <i aria-hidden="true" />
+        {/* Its own element, so a phone can keep the dot and drop the words from
           sight without dropping them from the page (024): cut to fit, the chip
           read "підк". */}
-      <span className="connection-badge-text">{t(keys[state])}</span>
-    </span>
+        <span className="connection-badge-text">{t(keys[state])}</span>
+      </span>
+      {/* The way out, beside the fact (032, FR-010). A browser that blocks
+          loopback blocks every retry, so there the one action is the Agent's
+          own copy of this page. */}
+      {RECONNECTABLE.has(state) && <ReconnectAction surface="header_badge" compact />}
+      {state === 'connection_blocked' && (
+        <a
+          className={uiClasses('button', { color: 'neutral', variant: 'outline', size: 'xs' })}
+          href={agentLocalUrl()}
+        >
+          {t('linkOpenInSoty')}
+        </a>
+      )}
+    </>
   );
 }
+
+/** The states the header offers to reconnect from: Soty is, or was, reachable. */
+const RECONNECTABLE: ReadonlySet<ConnectionState> = new Set<ConnectionState>([
+  'disconnected',
+  'not_installed_or_not_running',
+  'pairing_required'
+]);
 
 export function Onboarding({
   state,
@@ -942,7 +960,7 @@ export function Onboarding({
   connect: () => void;
   t: Translate;
 }) {
-  const { capabilities, releaseManifest } = useAgent();
+  const { capabilities, releaseManifest, reason } = useAgent();
   const downloadUrl = preferredDownload(releaseManifest.manifest, capabilities).url;
   // A manual connect flips the connection to "connecting" for a moment. Rather
   // than swapping the whole panel for a spinner (which read as a flicker), we
@@ -999,10 +1017,17 @@ export function Onboarding({
     );
   }
   if (state === 'entitlement_blocked') {
+    // The server that could not be reached is not the server that said no: the
+    // context retries the check on its own (032 FR-015), and the panel says so
+    // rather than sending anyone to re-pair.
     return (
       <BlockingMessage
         title={t('entitlementBlockedTitle')}
-        body={t('entitlementBlockedBody')}
+        body={
+          reason === 'account_check_unavailable'
+            ? t('linkReasonAccountUnavailable')
+            : t('entitlementBlockedBody')
+        }
         action={
           <div className="inline-actions">
             {/**
@@ -1028,21 +1053,28 @@ export function Onboarding({
     // The browser has refused this page permission to reach loopback, so
     // "try again" is the one action guaranteed not to work — it asks for the
     // same denied permission. Opening the copy the Agent serves itself sidesteps
-    // the permission entirely, and it leads. Same tab: this is a way onward, not
-    // a detour, and a new tab leaves a dead page behind for the user to tidy up.
+    // the permission entirely, and it leads — on this very page, path and query
+    // kept (032 FR-016). Same tab: this is a way onward, not a detour. The
+    // download stays, quieter, for the one person whose Agent really is gone.
     return (
       <BlockingMessage
-        title={t('blockedTitle')}
-        body={t('blockedBody')}
+        title={t('linkBrowserBlocked')}
+        body={t('linkBrowserBlockedBody')}
         action={
           <div className="inline-actions">
             <a
               className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
               href={agentLocalUrl()}
             >
-              {t('openSoty')}
+              {t('linkOpenInSoty')}
             </a>
-            <Button onClick={connect}>{t('tryAgain')}</Button>
+            <a
+              className={uiClasses('button', { color: 'neutral', variant: 'outline', size: 'md' })}
+              href={downloadUrl}
+              onClick={markAgentInstallStarted}
+            >
+              {t('downloadAgent')}
+            </a>
           </div>
         }
       />

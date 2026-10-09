@@ -1,4 +1,5 @@
 import type { Json } from '../lib/database.types';
+import type { BrowserFamily } from '../lib/browser';
 import {
   TEAM_ANALYTICS_EVENT_NAMES,
   sanitizeTeamAnalyticsProperties,
@@ -52,6 +53,14 @@ export const analyticsEventNames = [
   'agent_connected',
   'agent_disconnected',
   'agent_update_required',
+  // 032 — the browser ↔ Agent link lifecycle (FR-025/026).
+  'link_check_started',
+  'link_check_completed',
+  'link_lost',
+  'link_recovered',
+  'reconnect_clicked',
+  'blocked_by_browser_detected',
+  'link_inconsistency',
   'update_available',
   'update_prompt_shown',
   'update_started',
@@ -120,6 +129,88 @@ export type AnalyticsTool =
 export type CompressionMode = 'optimal' | 'custom';
 export type RateControl = 'crf' | 'bitrate';
 
+/* ---------------------------------------------------------------------------
+ * 032 — closed vocabularies of the link lifecycle. The database guard
+ * (`analytics_properties_are_safe_v2`, migration 20261110100000) repeats each
+ * list verbatim; a value outside it is dropped here so the event still
+ * arrives, and rejected there so a tampered value never lands.
+ * ------------------------------------------------------------------------- */
+
+export const LINK_TRIGGERS = [
+  'boot',
+  'visibility',
+  'pageshow',
+  'online',
+  'manual',
+  'stream_lost',
+  'request_failed',
+  'token_changed',
+  'retry'
+] as const;
+export type LinkTrigger = (typeof LINK_TRIGGERS)[number];
+
+export const LINK_ORIGINS = ['hosted', 'local_copy'] as const;
+export type LinkOrigin = (typeof LINK_ORIGINS)[number];
+
+export const BROWSER_FAMILIES = ['safari', 'chrome', 'firefox', 'edge', 'other'] as const;
+
+export const LINK_REASONS = [
+  'not_running',
+  'not_installed',
+  'blocked_by_browser',
+  'pairing_rejected',
+  'agent_too_old',
+  'web_too_old',
+  'account_check_required',
+  'account_check_unavailable',
+  'update_in_progress',
+  'timeout',
+  'unknown'
+] as const;
+export type LinkReasonProp = (typeof LINK_REASONS)[number];
+
+export const LINK_STAGES = [
+  'probe',
+  'token',
+  'health',
+  'entitlement',
+  'snapshot',
+  'stream'
+] as const;
+export type LinkStage = (typeof LINK_STAGES)[number];
+
+export const LINK_TRANSPORTS = ['stream', 'request', 'watchdog'] as const;
+export type LinkTransport = (typeof LINK_TRANSPORTS)[number];
+
+export const RECOVERY_MODES = ['auto', 'manual', 'local_copy'] as const;
+export type RecoveryMode = (typeof RECOVERY_MODES)[number];
+
+/** Every surface of FR-010 that renders a "Reconnect" action. */
+export const RECONNECT_SURFACES = [
+  'header_badge',
+  'home',
+  'account',
+  'compressor',
+  'transcription',
+  'stitcher',
+  'landing_optimizer',
+  'landing_preview',
+  'power',
+  'team_shell',
+  'team_actions',
+  'team_process_dialog',
+  'team_library_dialog',
+  'team_preview',
+  'team_landings'
+] as const;
+export type ReconnectSurface = (typeof RECONNECT_SURFACES)[number];
+
+export const PAIRING_METHODS = ['fragment', 'handshake', 'navigation'] as const;
+export type PairingMethod = (typeof PAIRING_METHODS)[number];
+
+/** One day: the longest break the link analytics will describe as a duration. */
+export const LINK_DURATION_MAX_MS = 86_400_000;
+
 export type AnalyticsProperties = {
   flow_id?: string;
   run_id?: string;
@@ -167,6 +258,19 @@ export type AnalyticsProperties = {
   has_audio?: boolean;
   language?: 'en' | 'uk';
   marketing_consent?: boolean;
+  // 032 — link lifecycle (FR-024…FR-026).
+  link_trigger?: LinkTrigger;
+  link_origin?: LinkOrigin;
+  browser_family?: BrowserFamily;
+  link_reason?: LinkReasonProp;
+  link_stage?: LinkStage;
+  link_transport?: LinkTransport;
+  recovery_mode?: RecoveryMode;
+  surface?: ReconnectSurface;
+  instance_changed?: boolean;
+  token_changed?: boolean;
+  pairing_method?: PairingMethod;
+  link_stream_open?: boolean;
 } & TeamAnalyticsProperties;
 
 export interface TeamFileAttemptStartedProperties {
@@ -322,8 +426,36 @@ const allowedPropertyKeys = new Set<keyof AnalyticsProperties>([
   'discovery_completed',
   'production_completed',
   'window_index',
-  'stage'
+  'stage',
+  'link_trigger',
+  'link_origin',
+  'browser_family',
+  'link_reason',
+  'link_stage',
+  'link_transport',
+  'recovery_mode',
+  'surface',
+  'instance_changed',
+  'token_changed',
+  'pairing_method',
+  'link_stream_open'
 ]);
+
+/**
+ * Closed vocabularies: a value outside its list is dropped, never passed
+ * through as a free string. Mirrored by the database guard.
+ */
+const enumValues: Partial<Record<keyof AnalyticsProperties, readonly string[]>> = {
+  link_trigger: LINK_TRIGGERS,
+  link_origin: LINK_ORIGINS,
+  browser_family: BROWSER_FAMILIES,
+  link_reason: LINK_REASONS,
+  link_stage: LINK_STAGES,
+  link_transport: LINK_TRANSPORTS,
+  recovery_mode: RECOVERY_MODES,
+  surface: RECONNECT_SURFACES,
+  pairing_method: PAIRING_METHODS
+};
 
 const numericRanges: Partial<Record<keyof AnalyticsProperties, readonly [number, number]>> = {
   video_count: [0, 10_000],
@@ -332,7 +464,10 @@ const numericRanges: Partial<Record<keyof AnalyticsProperties, readonly [number,
   total_output_bytes: [0, Number.MAX_SAFE_INTEGER],
   saving_percent: [-10_000, 100],
   processing_duration_ms: [0, 31_536_000_000],
-  duration_ms: [0, 31_536_000_000],
+  // The database guard bounds `duration_ms` to one day (032); a larger value is
+  // dropped here so the event still arrives without it, instead of the whole
+  // event being refused at ingestion.
+  duration_ms: [0, LINK_DURATION_MAX_MS],
   queue_wait_ms: [0, 31_536_000_000],
   attempt_number: [0, 10_000],
   width: [0, 131_072],
@@ -350,7 +485,10 @@ const booleans = new Set<keyof AnalyticsProperties>([
   'success',
   'image_embedding',
   'has_audio',
-  'marketing_consent'
+  'marketing_consent',
+  'instance_changed',
+  'token_changed',
+  'link_stream_open'
 ]);
 
 export function isAnalyticsEventName(value: string): value is AnalyticsEventName {
@@ -380,8 +518,14 @@ export function sanitizeAnalyticsProperties(
       output[key] = Math.round(raw);
       continue;
     }
-    if (booleans.has(typedKey) && typeof raw === 'boolean') {
-      output[key] = raw;
+    if (booleans.has(typedKey)) {
+      // A boolean slot takes a boolean or nothing — never the string "true".
+      if (typeof raw === 'boolean') output[key] = raw;
+      continue;
+    }
+    const vocabulary = enumValues[typedKey];
+    if (vocabulary) {
+      if (typeof raw === 'string' && vocabulary.includes(raw)) output[key] = raw;
       continue;
     }
     if (typedKey === 'setting_value' && (typeof raw === 'number' || typeof raw === 'boolean')) {

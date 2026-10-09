@@ -28,6 +28,13 @@ export function agentContextStub(overrides: Partial<AgentContextValue> = {}): Ag
     toolContracts: {},
     releaseManifest: { status: 'checking', manifest: null },
     toolAvailable: () => true,
+    toolAvailability: () => 'ready',
+    teamWorkspaceAvailable: true,
+    teamWorkspaceAvailability: 'ready',
+    reason: null,
+    attempt: null,
+    lastKnownAgent: null,
+    accountCheckPending: false,
     reconnect: vi.fn(),
     ...overrides
   };

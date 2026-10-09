@@ -76,7 +76,7 @@ export function SearchResultActions({
     permissions,
     isOwner: space?.role === 'owner',
     currentFolderId: destinationFolderId,
-    agentConnected: agent?.teamWorkspaceAvailable === true,
+    agentAvailability: agent?.teamWorkspaceAvailability ?? 'disconnected',
     storageConnected: space?.connectionState === 'connected',
     restitchConfigured: true,
     catalogSettingsReady: true

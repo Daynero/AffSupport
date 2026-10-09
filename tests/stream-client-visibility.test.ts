@@ -5,7 +5,8 @@ const transport = vi.hoisted(() => ({
   calls: [] as Array<{ url: string; signal: AbortSignal }>
 }));
 
-vi.mock('../apps/web/src/api/event-stream.js', () => ({
+vi.mock('../apps/web/src/api/event-stream.js', async importOriginal => ({
+  ...(await importOriginal<typeof import('../apps/web/src/api/event-stream.js')>()),
   streamUrl: (agentUrl: string, channels: readonly string[]) =>
     `${agentUrl}/api/stream?channels=${channels.join(',')}`,
   readEventStream: (options: { url: string; signal: AbortSignal; onOpen?: () => void }) => {
@@ -34,7 +35,7 @@ describe('stream client and hidden tabs', () => {
     vi.useFakeTimers();
     transport.calls.length = 0;
     setVisibility('visible');
-    streamClient.configure({ agentUrl: 'http://127.0.0.1:4', token: 't' });
+    streamClient.configure({ agentUrl: 'http://127.0.0.1:4', token: () => 't' });
   });
 
   afterEach(() => {

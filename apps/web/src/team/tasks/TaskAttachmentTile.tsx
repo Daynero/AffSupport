@@ -211,7 +211,7 @@ export function TaskAttachmentTile({
     host: 'task-attachment',
     permissions: space?.permissions ?? null,
     isOwner: space?.role === 'owner',
-    agentConnected: agent?.teamWorkspaceAvailable === true,
+    agentAvailability: agent?.teamWorkspaceAvailability ?? 'disconnected',
     storageConnected: space?.connectionState === 'connected',
     restitchConfigured: true,
     // The catalog dialog already explains a missing default and links to the

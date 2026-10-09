@@ -172,6 +172,7 @@ const LOCAL_RUN: Record<string, TranslationKey> = {
 const UNAVAILABLE: Record<UnavailableReason, TranslationKey> = {
   NO_PERMISSION: 'materialReasonNoPermission',
   AGENT_REQUIRED: 'materialReasonAgentRequired',
+  AGENT_UPDATE_REQUIRED: 'teamErrorAgentUpdateRequired',
   STORAGE_DISCONNECTED: 'materialReasonStorageDisconnected',
   CATALOG_SETTINGS_MISSING: 'materialReasonCatalogSettings',
   RESTITCH_UNCONFIGURED: 'materialReasonRestitchUnconfigured',

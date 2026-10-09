@@ -45,7 +45,7 @@ function context(host: ActionHost, over: Partial<ActionContext> = {}): ActionCon
     host,
     permissions,
     isOwner: true,
-    agentConnected: true,
+    agentAvailability: 'ready',
     storageConnected: true,
     restitchConfigured: true,
     catalogSettingsReady: true,

@@ -43,10 +43,13 @@ const agent = vi.hoisted(() => ({
   connection: 'connected' as 'checking' | 'connected' | 'disconnected',
   connectedOnce: true,
   reconnect: vi.fn(),
-  capabilities: ['local-file-paths']
+  capabilities: ['local-file-paths'],
+  attempt: null as null | { id: string },
+  reason: null as null | string
 }));
 vi.mock('../apps/web/src/AgentContext.js', () => ({
-  useAgent: () => ({ ...agent })
+  useAgent: () => ({ ...agent }),
+  useOptionalAgent: () => ({ ...agent })
 }));
 vi.mock('../apps/web/src/App.js', async () => {
   const ReactModule = await import('react');
@@ -404,6 +407,57 @@ describe('mounting before the agent answers', () => {
       errors.mockRestore();
       agent.connection = 'connected';
       agent.connectedOnce = true;
+    }
+  });
+});
+
+describe('losing and recovering the link (032)', () => {
+  it('says the link is gone with a way back, then re-reads the state and re-enables input', async () => {
+    const view = render(<TranscriptionPage />);
+    await screen.findByRole('checkbox', { name: 'Вибрати все' });
+    expect(api.request).toHaveBeenCalledTimes(1);
+    const zone = () =>
+      screen.getByRole('button', { name: 'Перетягніть аудіо чи відео сюди або виберіть файли' });
+    expect(zone().getAttribute('aria-disabled')).toBe('false');
+
+    agent.connection = 'disconnected';
+    view.rerender(<TranscriptionPage />);
+    expect(screen.getByText('Підключіть Soty')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Перепідключити' })).toBeTruthy();
+    expect(zone().getAttribute('aria-disabled')).toBe('true');
+
+    agent.connection = 'connected';
+    view.rerender(<TranscriptionPage />);
+    await waitFor(() => expect(api.request).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(zone().getAttribute('aria-disabled')).toBe('false'));
+    expect(screen.queryByText('Підключіть Soty')).toBeNull();
+  });
+
+  it('says so when the state cannot be read, instead of silently disabling the page', async () => {
+    vi.useFakeTimers();
+    try {
+      api.request.mockRejectedValue(new Error('CONNECTION_FAILED'));
+      render(<TranscriptionPage />);
+      // The first read and three quick retries, two seconds apart: nothing is
+      // said until the last of them has failed.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await act(async () => {
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+        expect(screen.queryByText('Стан інструмента не прочитано')).toBeNull();
+        await act(async () => {
+          vi.advanceTimersByTime(2_000);
+        });
+      }
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.request).toHaveBeenCalledTimes(4);
+      expect(screen.getByText('Стан інструмента не прочитано')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Перепідключити' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

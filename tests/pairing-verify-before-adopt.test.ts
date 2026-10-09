@@ -62,7 +62,7 @@ describe('a token that arrives in the URL', () => {
     expect(hasPendingPairingToken()).toBe(false);
   });
 
-  it('is discarded when the local app cannot be reached', async () => {
+  it('is held, not stored, when the local app cannot be reached', async () => {
     arriveWith(PLANTED);
     vi.stubGlobal(
       'fetch',
@@ -71,9 +71,11 @@ describe('a token that arrives in the URL', () => {
       })
     );
     // Unreachable is not the same as invalid — but it is not proof either, and
-    // this path exists to stop unproven tokens being written.
+    // this path exists to stop unproven tokens being written. It stays pending
+    // so a local app that is still starting up can answer for it a moment later.
     await expect(verifyPairingToken(AGENT)).resolves.toBe(false);
     expect(pairingToken()).toBe('');
+    expect(hasPendingPairingToken()).toBe(true);
   });
 
   it('is adopted once the local app confirms it', async () => {

@@ -50,6 +50,7 @@ import { useRestitchPreparer } from '../catalog-updater/useRestitchPreparer';
 import { MembersSection } from './MembersSection';
 import { SpaceSwitcher } from './SpaceSwitcher';
 import { RealtimeChip } from './RealtimeChip';
+import { AgentLinkChip } from './AgentLinkChip';
 import { BackgroundWorkChip } from './BackgroundWorkChip';
 import { LibraryProcessingProvider } from '../library/LibraryProcessingProvider';
 import { AgentQueueProvider } from '../processing/AgentQueueProvider';
@@ -633,7 +634,7 @@ export function WorkspaceShell({
       teamId={teamId}
       sourceMaterialIds={batchSources}
       scope={batchScope}
-      agentCompatible={agent?.teamWorkspaceAvailable === true}
+      agentAvailability={agent?.teamWorkspaceAvailability ?? 'disconnected'}
       toolContracts={agent?.toolContracts ?? {}}
       onChanged={() => setBrowserRevision(value => value + 1)}
     >
@@ -688,6 +689,7 @@ export function WorkspaceShell({
                         />
                       )}
                       <RealtimeChip />
+                      <AgentLinkChip />
                       <BackgroundWorkChip
                         /* The chip only appears while a batch is running, so opening it
                    must show *that* batch. Resetting the scope here retitled a
@@ -1044,7 +1046,6 @@ export function WorkspaceShell({
               not, because the pick is not (024, FR-050). */}
                 {(batchSelectionOpen || query?.process) && (
                   <ProcessLibraryDialog
-                    agentCompatible={agent?.teamWorkspaceAvailable === true}
                     scope={batchScope}
                     onClose={() => {
                       if (batchSelectionOpen) setBatchSelectionOpen(false);

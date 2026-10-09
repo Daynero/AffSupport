@@ -2,6 +2,7 @@ import {
   MAX_SUPPORTED_AGENT_API_VERSION,
   MIN_SUPPORTED_AGENT_API_VERSION
 } from '@video-compressor/shared';
+import { currentBrowserFamily } from './lib/browser';
 
 export type ConnectionState =
   | 'checking'
@@ -14,6 +15,27 @@ export type ConnectionState =
   | 'connection_blocked'
   | 'entitlement_blocked'
   | 'disconnected';
+
+/**
+ * Why the interface is not simply connected (032 FR-012).
+ *
+ * `ConnectionState` says which screen to show; this says which sentence. The two used to be
+ * one, and the sentence was wrong whenever two causes shared a screen — "update the agent"
+ * for an agent that was merely not running, "not running" for one that was too old.
+ */
+export type LinkReason =
+  | 'not_running'
+  | 'not_installed'
+  | 'blocked_by_browser'
+  | 'pairing_rejected'
+  | 'agent_too_old'
+  | 'web_too_old'
+  | 'account_check_required'
+  | 'account_check_unavailable'
+  | 'update_in_progress'
+  | 'timeout'
+  | 'unknown';
+
 export const MIN_SUPPORTED_API_VERSION = MIN_SUPPORTED_AGENT_API_VERSION;
 export const MAX_SUPPORTED_API_VERSION = MAX_SUPPORTED_AGENT_API_VERSION;
 export function versionState(apiVersion: number): ConnectionState {
@@ -79,7 +101,21 @@ export function agentFetchOptions(agentOrigin: string, pageOrigin: string): Requ
   return { targetAddressSpace: 'local' } as RequestInit;
 }
 
-export async function failureState(): Promise<ConnectionState> {
+/**
+ * What a failed probe most likely means, when the Agent answered nothing at all.
+ *
+ * Three readings share one failed fetch: the Agent is not running, it was never installed,
+ * or the browser refused to look at loopback. The last one has two known shapes — Chrome
+ * with the local-network permission denied, which can be asked about, and Safari on the
+ * hosted origin, which blocks plain-http loopback from an https page by policy (WebKit
+ * 171934, 279249) and cannot be asked. For Safari the answer is the same whether or not
+ * the Agent is running: the hosted page will never reach it, and the one useful action is
+ * the Agent's own copy of the page. So a hosted page in Safari that has seen the Agent
+ * before reads a failed probe as "blocked", not as "not running".
+ */
+export async function failureState(
+  input: { hosted?: boolean; agentKnown?: boolean } = {}
+): Promise<ConnectionState> {
   const permissions = navigator.permissions as Permissions & {
     query(descriptor: { name: string }): Promise<PermissionStatus>;
   };
@@ -91,6 +127,9 @@ export async function failureState(): Promise<ConnectionState> {
     } catch {
       /* unsupported permission name/API */
     }
+  }
+  if (input.hosted && input.agentKnown && currentBrowserFamily() === 'safari') {
+    return 'connection_blocked';
   }
   return 'not_installed_or_not_running';
 }

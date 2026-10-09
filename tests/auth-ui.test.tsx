@@ -300,8 +300,10 @@ describe('profile onboarding, account and blocked state', () => {
     );
     expect(screen.getByText('Not connected')).toBeTruthy();
     expect(screen.getByText('Not running')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
-    expect(reconnect).toHaveBeenCalledOnce();
+    // The one reconnect action (032): it names its surface so analytics can tell
+    // where the press came from.
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }));
+    expect(reconnect).toHaveBeenCalledWith('account');
     expect(screen.getByRole('link', { name: 'Download the app' })).toBeTruthy();
   });
 

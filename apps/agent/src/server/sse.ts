@@ -2,6 +2,59 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { eventStreamHeaders } from '../http.js';
 
 /**
+ * What a fan-out needs from a socket. The real one is an `http.ServerResponse`; the tests
+ * hand in a recorder, which is why nothing beyond `write` is required.
+ */
+export interface StreamSocket {
+  write(chunk: string): unknown;
+  /** Finishes the response cleanly, so the reader sees the end of the body rather than a reset. */
+  end?(): unknown;
+  destroy?(): void;
+  writableLength?: number;
+}
+
+/**
+ * Why the agent is going away, as told to every open stream.
+ *
+ * The client does the same thing for each — back off and reconnect — but the reason is
+ * what lets a support log say "it was an update" rather than "the socket closed".
+ */
+export type ShutdownReason = 'update' | 'restart' | 'signal' | 'launcher' | 'error';
+
+/**
+ * How often a subscriber hears from the server when nothing else is happening.
+ *
+ * Fifteen seconds is well inside the shortest idle timeout a proxy or a laptop's power
+ * management is likely to impose, and far longer than any real update interval. Published
+ * on `/health` so the client's read watchdog is derived from it rather than guessed.
+ */
+export const HEARTBEAT_MS = 15_000;
+
+/**
+ * The last frame on a stream before the agent closes it, on every transport.
+ *
+ * A socket that merely goes quiet is indistinguishable from a laptop that went to sleep; a
+ * named event is not. The reader learns the process is going, not just that this socket is.
+ */
+function shutdownFrame(reason: string): string {
+  return `event: shutdown\ndata: ${JSON.stringify({ reason })}\n\n`;
+}
+
+/** Writes the goodbye and finishes the socket; a peer that is already gone is not an error. */
+function sayGoodbye(socket: StreamSocket, reason: string): void {
+  try {
+    socket.write(shutdownFrame(reason));
+    if (socket.end) socket.end();
+    else socket.destroy?.();
+  } catch {
+    socket.destroy?.();
+  }
+}
+
+/** Every channel ever constructed, so shutdown can reach the ones the hub never saw. */
+const channels = new Set<EventChannel<unknown>>();
+
+/**
  * One server-sent-events fan-out. Every tool (compressor, landing,
  * transcription) keeps its own channel: `broadcast` pushes an event to all
  * connected clients and `handler` serves the SSE endpoint, replaying the
@@ -12,16 +65,35 @@ import { eventStreamHeaders } from '../http.js';
  * know that the stream exists.
  */
 export class EventChannel<TEvent> {
-  private readonly clients = new Set<
-    NodeJS.WritableStream & { writableLength?: number; destroy?: () => void }
-  >();
+  private readonly clients = new Set<StreamSocket>();
   private hub: ChannelHub | null = null;
   private hubName = '';
 
   constructor(
     private readonly allowedOrigins: ReadonlySet<string>,
     private readonly snapshot: () => TEvent
-  ) {}
+  ) {
+    channels.add(this as EventChannel<unknown>);
+  }
+
+  /**
+   * Closes every client of every channel in the process.
+   *
+   * Static, because the channels are constructed in seven places and the entrypoint's
+   * shutdown must not depend on remembering each. A channel lives as long as the process,
+   * so a registry that is never pruned holds nothing that would otherwise be collected.
+   */
+  static closeAll(reason: string = 'shutdown'): void {
+    for (const channel of channels) channel.close(reason);
+  }
+
+  /** Tells every client of this channel the agent is going, and finishes their sockets. */
+  close(reason: string = 'shutdown'): void {
+    for (const client of [...this.clients]) {
+      this.clients.delete(client);
+      sayGoodbye(client, reason);
+    }
+  }
 
   /**
    * Publishes this channel on `hub` under `name`, as well as on its own endpoint.
@@ -104,14 +176,6 @@ interface Frame {
 }
 
 /**
- * How long a subscriber may go without any traffic before a heartbeat is sent.
- *
- * Fifteen seconds is well inside the shortest idle timeout a proxy or a laptop's power
- * management is likely to impose, and far longer than any real update interval.
- */
-const HEARTBEAT_MS = 15_000;
-
-/**
  * How much unwritten data a subscriber may accumulate before it is dropped.
  *
  * A reader that has stopped draining — a suspended tab, a laptop that closed mid-run — does
@@ -126,7 +190,7 @@ const MAX_PER_CHANNEL = 8;
 const MAX_PER_PROCESS = 32;
 
 interface Subscriber {
-  socket: NodeJS.WritableStream & { writableLength?: number; destroy?: () => void };
+  socket: StreamSocket;
   channels: Set<string>;
   /** Ordering for eviction: the oldest connection goes first. */
   joinedAt: number;
@@ -206,9 +270,18 @@ export class ChannelHub {
     return () => this.detach(subscriber);
   }
 
-  /** Closes every subscriber. For shutdown, so nothing holds the process open. */
-  closeAll(): void {
-    for (const subscriber of [...this.subscribers]) this.detach(subscriber);
+  /**
+   * Tells every subscriber the agent is going and finishes their sockets.
+   *
+   * For shutdown. The server's own close waits for its connections to end, and a stream
+   * that is never ended is a connection that never does — the process would sit on a port
+   * it no longer answers, heartbeating "connected" at an interface showing frozen state.
+   */
+  closeAll(reason: string = 'shutdown'): void {
+    for (const subscriber of [...this.subscribers]) {
+      this.detach(subscriber);
+      sayGoodbye(subscriber.socket, reason);
+    }
     this.stopHeartbeat();
   }
 

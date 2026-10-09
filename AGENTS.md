@@ -44,6 +44,7 @@ npm run analytics -- cohorts [--cohort-by local-app-version|platform|web-build] 
 npm run analytics -- retention  [--period ...] [--json]
 npm run analytics -- team-workspace [--period ...] [--json]
 npm run analytics -- sync <team-id|owner-email> [--limit N] [--json]
+npm run analytics -- connection [--period ...] [--json]
 ```
 
 Default period is `7d`. `--days N` gives a rolling N-day window and overrides
@@ -72,6 +73,7 @@ Default period is `7d`. `--days N` gives a rolling N-day window and overrides
 | Which features are seen but not learned?                 | `features`                                                                                 |
 | Team pilot onboarding/find/weekly activation health?     | `team-workspace` → `data.sc001` / `data.sc005` / four separate `data.sc009.windows`        |
 | Team storage: connections, index completions, attention? | `team-workspace` → `data.storage` (011 storage events, aggregate only)                     |
+| Why does a user's Soty link drop / not reconnect?        | `connection` (losses, recovery p50/p95, reasons, coverage), then `journey <email>`         |
 
 ### Examples
 

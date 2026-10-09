@@ -131,7 +131,7 @@ export function MaterialProcessFlow({
       material={material}
       destinationFolderId={destinationFolderId}
       browseClient={browseClient}
-      agentCompatible={agent?.teamWorkspaceAvailable === true}
+      agentAvailability={agent?.teamWorkspaceAvailability ?? 'disconnected'}
       toolContracts={agent?.toolContracts ?? {}}
       onClose={onClose}
       onStarted={start}

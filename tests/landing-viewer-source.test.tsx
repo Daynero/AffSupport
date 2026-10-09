@@ -48,13 +48,13 @@ vi.mock('../apps/web/src/api/client.js', () => ({
 
 // The shared live connection, so the multiplexed source can be told the link dropped.
 const stream = vi.hoisted(() => ({
-  watchers: [] as Array<(open: boolean) => void>
+  watchers: [] as Array<(status: { open: boolean; reason?: string }) => void>
 }));
 
 vi.mock('../apps/web/src/api/stream-client.js', () => ({
   streamClient: {
     subscribe: vi.fn(() => () => {}),
-    watchConnection: vi.fn((listener: (open: boolean) => void) => {
+    watchConnection: vi.fn((listener: (status: { open: boolean; reason?: string }) => void) => {
       stream.watchers.push(listener);
       return () => {};
     })
@@ -288,9 +288,9 @@ describe('agentLandingSource', () => {
     const onStatus = vi.fn();
     const unsubscribe = agentLandingSource(true).subscribe({ onState: () => {}, onStatus });
     expect(onStatus).toHaveBeenLastCalledWith('open');
-    for (const watcher of stream.watchers) watcher(false);
+    for (const watcher of stream.watchers) watcher({ open: false, reason: 'network' });
     expect(onStatus).toHaveBeenLastCalledWith('lost');
-    for (const watcher of stream.watchers) watcher(true);
+    for (const watcher of stream.watchers) watcher({ open: true });
     expect(onStatus).toHaveBeenLastCalledWith('open');
     unsubscribe();
   });

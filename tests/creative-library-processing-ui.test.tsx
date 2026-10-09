@@ -110,18 +110,14 @@ describe('Process Library confirmation UI', () => {
         <LibraryProcessingProvider
           teamId={TEAM_ID}
           sourceMaterialIds={[SOURCE_ID]}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
           agent={agent}
           agentInstanceId={AGENT_ID}
           onChanged={changed}
         >
-          <ProcessLibraryDialog
-            scope={{ kind: 'selection', count: 1 }}
-            agentCompatible
-            onClose={vi.fn()}
-          />
+          <ProcessLibraryDialog scope={{ kind: 'selection', count: 1 }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -206,17 +202,13 @@ describe('Process Library confirmation UI', () => {
         <LibraryProcessingProvider
           teamId={TEAM_ID}
           sourceMaterialIds={[SOURCE_ID]}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
           agent={agent}
           agentInstanceId={AGENT_ID}
         >
-          <ProcessLibraryDialog
-            scope={{ kind: 'selection', count: 1 }}
-            agentCompatible
-            onClose={vi.fn()}
-          />
+          <ProcessLibraryDialog scope={{ kind: 'selection', count: 1 }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );

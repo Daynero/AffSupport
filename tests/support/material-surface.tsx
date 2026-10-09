@@ -27,7 +27,7 @@ const DEFAULT_CONTEXT: Omit<ActionContext, 'permissions'> = {
   host: 'explorer-row',
   isOwner: true,
   currentFolderId: null,
-  agentConnected: true,
+  agentAvailability: 'ready',
   storageConnected: true,
   restitchConfigured: true,
   catalogSettingsReady: true

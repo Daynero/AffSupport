@@ -45,6 +45,7 @@ import { compactPath, formatCodec, formatDuration, formatFps, formatSize } from 
 import { DropZone } from '../components/DropZone';
 import { ImageEmbeddingSection } from '../components/ImageEmbeddingSection';
 import { Button, Checkbox, StatusBadge, Tooltip, type Translate } from '../components/ui';
+import { ReconnectAction } from '../components/ReconnectAction';
 import { toggleSelection } from '../queue-ui';
 import { useCompactToolbar } from '../components/useCompactToolbar';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
@@ -88,7 +89,7 @@ export default function StitcherPage() {
 export function Stitcher() {
   const { t, language } = useI18n();
   const { connection, capabilities, reconnect } = useAgent();
-  const { state, applyState } = useStitcher();
+  const { state, applyState, stateError } = useStitcher();
   const connected = connection === 'connected';
   const canPick = capabilities.includes('native-file-picker');
   const canDropPaths = capabilities.includes('local-file-paths');
@@ -279,9 +280,15 @@ export function Stitcher() {
             <strong>{t('agentDisconnected')}</strong>
             <span>{t('stitcherSubtitle')}</span>
           </div>
-          <Button onClick={reconnect} loading={connection === 'connecting'}>
-            {t('reconnect')}
-          </Button>
+          <ReconnectAction surface="stitcher" />
+        </section>
+      )}
+      {connected && stateError && (
+        <section className="blocking-message blocking-neutral" role="alert">
+          <div>
+            <strong>{t('linkStateNotRead')}</strong>
+          </div>
+          <ReconnectAction surface="stitcher" />
         </section>
       )}
 

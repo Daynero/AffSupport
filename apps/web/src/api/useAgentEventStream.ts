@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { streamClient } from './stream-client';
+import { streamClient, type StreamEndReason } from './stream-client';
 
 /** FR-034: below this, an interruption is not the user's problem. */
 const DEFAULT_GRACE_MS = 3_000;
@@ -17,6 +17,11 @@ const MAX_RECONNECT_DELAY_MS = 15_000;
  *
  * The fallback is not a temporary scaffold — the seven per-tool endpoints stay in this
  * release, so an interface and an agent can be upgraded independently rather than in step.
+ *
+ * Both transports report the same three things to the caller — opened, dropped for longer
+ * than the grace, about to retry — so the owner of the connection state hears about a loss
+ * whichever one is in use. Before 032 the multiplexed path reported nothing, and the
+ * interface kept saying "connected" after the local app had gone.
  */
 export function useAgentEventStream<T>(input: {
   /** The per-tool endpoint. Used when no channel is given, or the agent has no stream. */
@@ -28,8 +33,13 @@ export function useAgentEventStream<T>(input: {
   enabled: boolean;
   onMessage: (event: T) => void;
   onOpen?: () => void;
-  onDisconnect?: () => void;
-  onReconnect?: () => void | Promise<void>;
+  onDisconnect?: (reason?: StreamEndReason) => void;
+  /**
+   * Called before a retry, with why the connection ended. On the multiplexed path the
+   * shared client retries by itself; this is the owner's chance to re-read the agent's
+   * state, re-pair on `unauthorized`, or refresh the entitlement on `forbidden`.
+   */
+  onReconnect?: (reason?: StreamEndReason) => void | Promise<void>;
   reconnectDelayMs?: number;
   /**
    * How long an interruption must last before the interface hears about it.
@@ -49,7 +59,37 @@ export function useAgentEventStream<T>(input: {
     // One connection for every channel, owned by the client rather than by any component:
     // four tool pages open between them a single socket, and whichever mounts first is not
     // special.
-    return streamClient.subscribe(input.channel, event => callbacks.current.onMessage(event as T));
+    const unsubscribe = streamClient.subscribe(input.channel, event =>
+      callbacks.current.onMessage(event as T)
+    );
+    let graceTimer: ReturnType<typeof setTimeout> | null = null;
+    let reportedDisconnect = false;
+    const unwatch = streamClient.watchConnection(status => {
+      if (status.open) {
+        if (graceTimer !== null) {
+          clearTimeout(graceTimer);
+          graceTimer = null;
+        }
+        reportedDisconnect = false;
+        callbacks.current.onOpen?.();
+        return;
+      }
+      // Parking is not a loss: the tab is hidden and will reconnect when looked at.
+      if (status.reason === 'parked') return;
+      if (graceTimer === null && !reportedDisconnect) {
+        graceTimer = setTimeout(() => {
+          graceTimer = null;
+          reportedDisconnect = true;
+          callbacks.current.onDisconnect?.(status.reason);
+        }, callbacks.current.graceMs ?? DEFAULT_GRACE_MS);
+      }
+      void callbacks.current.onReconnect?.(status.reason);
+    });
+    return () => {
+      unwatch();
+      unsubscribe();
+      if (graceTimer) clearTimeout(graceTimer);
+    };
   }, [input.enabled, multiplexed, input.channel]);
 
   useEffect(() => {
@@ -101,7 +141,7 @@ export function useAgentEventStream<T>(input: {
             graceTimer = null;
             if (!active) return;
             reportedDisconnect = true;
-            callbacks.current.onDisconnect?.();
+            callbacks.current.onDisconnect?.('network');
           }, callbacks.current.graceMs ?? DEFAULT_GRACE_MS);
         }
         // Progressive backoff, so a local app that is genuinely down is not
@@ -114,7 +154,7 @@ export function useAgentEventStream<T>(input: {
           timer = null;
           const reconnect = callbacks.current.onReconnect;
           if (reconnect) {
-            void Promise.resolve(reconnect()).finally(() => connect());
+            void Promise.resolve(reconnect('network')).finally(() => connect());
           } else connect();
         }, delay);
       };

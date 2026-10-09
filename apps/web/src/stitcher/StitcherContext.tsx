@@ -11,7 +11,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -21,11 +20,14 @@ import type { StitchSettingsPatch, StitcherState } from '@video-compressor/share
 import { toolEventUrl } from '../api/client';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { useAgent } from '../AgentContext';
+import { useToolStateRead } from '../lib/use-tool-state-read';
 import { fetchStitcherState, updateStitcherSettings } from './api';
 
 export interface StitcherStore {
   state: StitcherState | null;
   connected: boolean;
+  /** The first read after a connection failed and stayed failed: the page must say so. */
+  stateError?: boolean;
   refresh: () => Promise<void>;
   applyState: (next: StitcherState) => void;
   updateSettings: (patch: StitchSettingsPatch) => Promise<void>;
@@ -61,18 +63,12 @@ export function StitcherProvider({ children }: { children: ReactNode }) {
     if (generation.current === mine) applyState(next);
   }, [applyState]);
 
-  useEffect(() => {
-    if (!connected) return;
-    let active = true;
-    void fetchStitcherState()
-      .then(({ state: next }) => {
-        if (active) applyState(next);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [connected, applyState]);
+  // Read again after every recovery, and said out loud when it fails (032 W12).
+  const applyRead = useCallback(
+    ({ state: next }: { state: StitcherState }) => applyState(next),
+    [applyState]
+  );
+  const { stateError } = useToolStateRead(fetchStitcherState, applyRead);
 
   useAgentEventStream<{ state: StitcherState }>({
     url: connected ? toolEventUrl('stitcher') : null,
@@ -91,8 +87,8 @@ export function StitcherProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<StitcherStore>(
-    () => ({ state, connected, refresh, applyState, updateSettings }),
-    [state, connected, refresh, applyState, updateSettings]
+    () => ({ state, connected, stateError, refresh, applyState, updateSettings }),
+    [state, connected, stateError, refresh, applyState, updateSettings]
   );
 
   return <StitcherContext.Provider value={value}>{children}</StitcherContext.Provider>;

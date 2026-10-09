@@ -578,6 +578,11 @@ export interface HealthResponse {
   update?: QueueState['update'];
   /** Absent on agents older than the entitlement rollout. */
   entitlement?: AgentEntitlementStatus;
+  /**
+   * How often the live-update stream sends a heartbeat, in milliseconds. A client derives
+   * its read watchdog from it. Absent on agents older than 032.
+   */
+  heartbeatMs?: number;
 }
 
 /**

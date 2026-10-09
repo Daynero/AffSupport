@@ -18,7 +18,8 @@ import type {
   UserDetailData,
   UsersData,
   SyncData,
-  SyncJobRow
+  SyncJobRow,
+  ConnectionData
 } from './types.js';
 
 export function formatBytes(bytes: number): string {
@@ -426,4 +427,57 @@ export function formatSyncJobs(data: SyncData, period: ResolvedPeriod, now = Dat
     ].join('\n');
   });
   return [header(`Sync jobs · team ${data.team_id.slice(0, 8)}`, period), ...sections].join('\n');
+}
+
+export function formatConnection(data: ConnectionData, period: ResolvedPeriod): string {
+  const ms = (value: number | null) => (value == null ? '—' : `${(value / 1000).toFixed(1)}s`);
+  return [
+    header('Connection', period),
+    kv([
+      ['Users with a lost link', num(data.users_with_loss)],
+      ['Links lost', num(data.losses)],
+      ['Links recovered', num(data.recoveries)],
+      [
+        'Time to recover (p50 / p95)',
+        `${ms(data.recovery_ms.p50)} / ${ms(data.recovery_ms.p95)} · ${num(data.recovery_ms.samples)} samples`
+      ],
+      [
+        'Recovery mode',
+        `auto ${num(data.recovery_mode.auto)} · manual ${num(data.recovery_mode.manual)} · local copy ${num(data.recovery_mode.local_copy)}`
+      ],
+      [
+        'Inconsistencies (stream open, request refused)',
+        `${num(data.inconsistencies.events)} events · ${num(data.inconsistencies.users)} users`
+      ]
+    ]),
+    '',
+    '  Failed checks by reason:',
+    data.failed_checks_by_reason.length
+      ? table(
+          ['Reason', 'Events', 'Users'],
+          data.failed_checks_by_reason.map(row => [row.reason, num(row.events), num(row.users)])
+        )
+      : '  —',
+    '',
+    '  Blocked by the browser:',
+    data.blocked_by_browser.length
+      ? table(
+          ['Browser', 'Users'],
+          data.blocked_by_browser.map(row => [row.browser_family, num(row.users)])
+        )
+      : '  —',
+    '',
+    '  Page origin:',
+    data.origins.length
+      ? table(
+          ['Origin', 'Users', 'Events'],
+          data.origins.map(row => [row.link_origin, num(row.users), num(row.events)])
+        )
+      : '  —',
+    '',
+    `  Coverage: ${num(data.coverage.web_builds_with_link_events)} web build(s) emit link events.`,
+    data.coverage.web_builds_without.length
+      ? `  Without link events (${data.coverage.note}): ${data.coverage.web_builds_without.join(', ')}`
+      : '  Every web build seen in the period emits link events.'
+  ].join('\n');
 }

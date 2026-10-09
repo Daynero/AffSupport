@@ -1,4 +1,10 @@
-import { readEventStream, streamUrl, type StreamFrame } from './event-stream';
+import {
+  readEventStream,
+  StreamIdleError,
+  StreamRefusedError,
+  streamUrl,
+  type StreamFrame
+} from './event-stream';
 
 /**
  * The one connection, shared by everything that wants live updates.
@@ -10,13 +16,44 @@ import { readEventStream, streamUrl, type StreamFrame } from './event-stream';
  * Reconnection lives here too, for the same reason the seven-connection design was a
  * problem: seven readers each deciding independently whether the local app was reachable is
  * how one page could say "connected" while another offered to install the application.
+ *
+ * What this does *not* decide is what a failure means. It classifies how a connection
+ * ended and tells the owner of the connection state (032 FR-001); the owner decides whether
+ * to re-pair, refresh the entitlement or just wait.
  */
 
 export type ChannelListener = (event: unknown) => void;
 
+/** Why a connection ended, as far as this layer can tell. */
+export type StreamEndReason =
+  | 'closed'
+  | 'aborted'
+  | 'replaced'
+  | 'shutdown'
+  | 'watchdog'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'throttled'
+  | 'network'
+  | 'parked';
+
+export interface StreamStatus {
+  open: boolean;
+  reason?: StreamEndReason;
+}
+
 interface Config {
   agentUrl: string;
-  token: string;
+  /**
+   * Read at every (re)connection, never captured.
+   *
+   * The token changes when the local app is re-paired, and a connection that kept the
+   * value it was configured with would retry with a stale token forever — every tool
+   * stream dead while plain requests, which read the token each time, worked (032 W2).
+   */
+  token: () => string;
+  /** The agent's heartbeat period; the idle watchdog is derived from it. */
+  heartbeatMs?: number;
 }
 
 /**
@@ -27,6 +64,25 @@ interface Config {
  * an app the user quit deliberately, is not hammered for as long as the tab stays open.
  */
 const RETRY_MS = [500, 1_000, 2_000, 4_000, 8_000];
+
+/**
+ * Slower, when the agent said another client took this slot.
+ *
+ * Reconnecting at once would evict the client that evicted us, which evicts us again: two
+ * tabs over the limit chasing each other forever (032 A5).
+ */
+const REPLACED_RETRY_MS = [5_000, 10_000, 30_000];
+
+/** A rate limit is a request to go away for a while, not an invitation to retry faster. */
+const THROTTLED_RETRY_MS = [4_000, 8_000, 16_000];
+
+/** The agent's default heartbeat, used until health says otherwise. */
+export const DEFAULT_HEARTBEAT_MS = 15_000;
+
+/** Two missed heartbeats plus slack: a quiet connection is a dead one (032 FR-003). */
+export function idleBudgetMs(heartbeatMs: number): number {
+  return 2 * heartbeatMs + 5_000;
+}
 
 /**
  * How long a tab may stay hidden before it gives its socket back.
@@ -50,7 +106,12 @@ class StreamClient {
   /** True while the socket has been given back because the tab is hidden. */
   private parked = false;
   private failures = 0;
-  private openListeners = new Set<(open: boolean) => void>();
+  /** How the last connection ended, which decides the next retry schedule. */
+  private lastEnd: StreamEndReason | null = null;
+  /** Set by the agent's own named events, so the end of the body can be classified. */
+  private announced: 'replaced' | 'shutdown' | null = null;
+  private open = false;
+  private openListeners = new Set<(status: StreamStatus) => void>();
 
   constructor() {
     if (typeof document === 'undefined') return;
@@ -83,6 +144,11 @@ class StreamClient {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
     this.failures = 0;
+    this.lastEnd = 'parked';
+    if (this.open) {
+      this.open = false;
+      this.notify({ open: false, reason: 'parked' });
+    }
   }
 
   /**
@@ -94,13 +160,20 @@ class StreamClient {
    */
   configure(config: Config | null): void {
     const changed =
-      config?.agentUrl !== this.config?.agentUrl || config?.token !== this.config?.token;
+      config?.agentUrl !== this.config?.agentUrl ||
+      Boolean(config) !== Boolean(this.config) ||
+      config?.heartbeatMs !== this.config?.heartbeatMs;
     this.config = config;
     if (changed) this.restart();
   }
 
-  /** Notified whenever the connection opens or drops. */
-  watchConnection(listener: (open: boolean) => void): () => void {
+  /** Whether a connection is open right now. */
+  isOpen(): boolean {
+    return this.open;
+  }
+
+  /** Notified whenever the connection opens or drops, with why it dropped. */
+  watchConnection(listener: (status: StreamStatus) => void): () => void {
     this.openListeners.add(listener);
     return () => this.openListeners.delete(listener);
   }
@@ -136,15 +209,35 @@ class StreamClient {
     this.hiddenTimer = null;
     this.parked = false;
     this.failures = 0;
+    this.lastEnd = null;
+    this.open = false;
   }
 
-  private restart(): void {
+  /**
+   * Drops the current connection, if any, and opens a fresh one at once.
+   *
+   * Public because the owner of the connection state calls it when the pairing token has
+   * changed: the next attempt must carry the new token, and waiting out a backoff computed
+   * for the old one would be waiting for nothing.
+   */
+  restart(): void {
     this.abort?.abort();
     this.abort = null;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
     this.failures = 0;
+    this.lastEnd = null;
     void this.connect();
+  }
+
+  private notify(status: StreamStatus): void {
+    for (const listener of [...this.openListeners]) {
+      try {
+        listener(status);
+      } catch {
+        // A listener throwing must not stop the others from hearing.
+      }
+    }
   }
 
   private async connect(): Promise<void> {
@@ -154,31 +247,49 @@ class StreamClient {
 
     const abort = new AbortController();
     this.abort = abort;
+    this.announced = null;
+    let reason: StreamEndReason;
     try {
       await readEventStream({
         url: streamUrl(config.agentUrl, channels),
-        token: config.token,
+        token: config.token(),
         signal: abort.signal,
+        idleMs: idleBudgetMs(config.heartbeatMs ?? DEFAULT_HEARTBEAT_MS),
         onOpen: () => {
           this.failures = 0;
-          for (const listener of this.openListeners) listener(true);
+          this.open = true;
+          this.notify({ open: true });
+        },
+        onNamedEvent: name => {
+          if (name === 'replaced' || name === 'shutdown') this.announced = name;
         },
         onFrame: frame => this.deliver(frame)
       });
-    } catch {
-      // Every failure is the same failure from here: the connection is not usable. Which of
-      // the possible causes it was belongs to whatever asks the health endpoint next.
+      reason = this.announced ?? 'closed';
+    } catch (error) {
+      reason = classify(error, this.announced);
     }
 
     if (abort.signal.aborted || this.abort !== abort) return;
     this.abort = null;
-    for (const listener of this.openListeners) listener(false);
+    this.open = false;
+    this.lastEnd = reason;
+    this.notify({ open: false, reason });
+    // Authentication failures are the owner's to resolve: retrying a rejected token every
+    // half second is how a stale tab exhausts the agent's auth budget for every other tab.
+    if (reason === 'unauthorized' || reason === 'forbidden') return;
     this.scheduleRetry();
   }
 
   private scheduleRetry(): void {
     if (this.retryTimer) return;
-    const delay = RETRY_MS[Math.min(this.failures, RETRY_MS.length - 1)] as number;
+    const schedule =
+      this.lastEnd === 'replaced'
+        ? REPLACED_RETRY_MS
+        : this.lastEnd === 'throttled'
+          ? THROTTLED_RETRY_MS
+          : RETRY_MS;
+    const delay = schedule[Math.min(this.failures, schedule.length - 1)] as number;
     this.failures += 1;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
@@ -195,6 +306,18 @@ class StreamClient {
       }
     }
   }
+}
+
+function classify(error: unknown, announced: 'replaced' | 'shutdown' | null): StreamEndReason {
+  if (announced) return announced;
+  if (error instanceof StreamIdleError) return 'watchdog';
+  if (error instanceof StreamRefusedError) {
+    if (error.status === 401) return 'unauthorized';
+    if (error.status === 403) return 'forbidden';
+    if (error.status === 429) return 'throttled';
+    return 'network';
+  }
+  return 'network';
 }
 
 /** The process-wide client. One connection, however many pages are open. */

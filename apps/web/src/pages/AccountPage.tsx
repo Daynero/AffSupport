@@ -63,6 +63,7 @@ import { markAgentInstallStarted } from '../api/client';
 import { teamApi, type TeamContextSnapshot } from '../api/team';
 import { ICON_STROKE } from '../components/icons';
 import { ToastProvider } from '../components/toast';
+import { linkReasonText, ReconnectAction } from '../components/ReconnectAction';
 import {
   Button,
   Card,
@@ -464,7 +465,8 @@ function LocalAppSection() {
     agentChannel,
     capabilities,
     connection,
-    reconnect,
+    lastKnownAgent,
+    reason,
     releaseManifest,
     toolAvailable
   } = useAgent();
@@ -475,19 +477,36 @@ function LocalAppSection() {
   // The version and the check are two facts. They used to be one sentence —
   // "1.1.1 (could not check for updates)" — in which a failure of the second
   // read as a property of the first.
-  const state: LocalAppState = !agentVersion
-    ? connection === 'checking' || connection === 'connecting'
-      ? 'checking'
-      : 'offline'
-    : releaseManifest.status === 'checking'
-      ? 'checking'
-      : installedReleaseStatus({
-          manifest,
-          installedVersion: agentVersion,
-          installedChannel: agentChannel,
-          compatible: toolAvailable('compressor')
-        });
+  //
+  // Read from the connection, not from the version (032 W8). The version is
+  // kept across a loss so other screens can choose between "open" and
+  // "download"; here that kept value made the Connect action vanish after the
+  // first successful connection and showed the last version as the current one.
+  const connected = connection === 'connected';
+  const checking = connection === 'checking' || connection === 'connecting';
+  const state: LocalAppState = checking
+    ? 'checking'
+    : !connected || !agentVersion
+      ? 'offline'
+      : releaseManifest.status === 'checking'
+        ? 'checking'
+        : installedReleaseStatus({
+            manifest,
+            installedVersion: agentVersion,
+            installedChannel: agentChannel,
+            compatible: toolAvailable('compressor')
+          });
   const chip = LOCAL_APP_CHIP[state];
+  // "Not running" is the ordinary loss; any more specific reason is said instead.
+  const offlineLabel =
+    reason && !['not_running', 'not_installed', 'timeout', 'unknown'].includes(reason)
+      ? linkReasonText(reason, t)
+      : t(chip.key);
+  const versionLabel = connected
+    ? (agentVersion ?? t('accountLocalAppNotConnected'))
+    : lastKnownAgent?.version
+      ? t('accountLocalAppLastSeen', { version: lastKnownAgent.version })
+      : t('accountLocalAppNotConnected');
   const download = preferredDownload(manifest, capabilities).url;
   const updating = state === 'update_available' || state === 'update_required';
   const revision = String(import.meta.env.VITE_WEB_REVISION ?? 'unknown');
@@ -503,10 +522,10 @@ function LocalAppSection() {
       <div className="account-row">
         <dl className="account-version">
           <dt>{t('accountLocalAppVersion')}</dt>
-          <dd>{agentVersion ?? t('accountLocalAppNotConnected')}</dd>
+          <dd>{versionLabel}</dd>
         </dl>
         <Chip size="sm" color={chip.color} className="account-version-state">
-          {t(chip.key, { version: manifest?.version ?? '' })}
+          {state === 'offline' ? offlineLabel : t(chip.key, { version: manifest?.version ?? '' })}
         </Chip>
         <span className="account-row-actions">
           {updating && (
@@ -525,9 +544,7 @@ function LocalAppSection() {
           )}
           {state === 'offline' && (
             <>
-              <Button type="button" variant="secondary" onClick={reconnect}>
-                {t('accountLocalAppConnect')}
-              </Button>
+              <ReconnectAction surface="account" size="md" />
               <Link href={download} onClick={markAgentInstallStarted}>
                 {t('accountLocalAppDownload')}
               </Link>

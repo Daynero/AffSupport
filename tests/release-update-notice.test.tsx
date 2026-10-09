@@ -5,6 +5,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { StableReleaseManifest } from '../packages/shared/src/release';
 import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/AgentContext';
+import { fakeAgentValue } from './support/fake-agent.js';
 import ReleaseUpdateNotice from '../apps/web/src/components/ReleaseUpdateNotice';
 import { emptyQueueState } from './web-auth-helpers';
 
@@ -46,7 +47,7 @@ function releaseManifest(
 }
 
 function agentValue(manifest = releaseManifest()): AgentContextValue {
-  return {
+  return fakeAgentValue({
     connection: 'connected',
     state: emptyQueueState,
     setState: vi.fn(),
@@ -61,7 +62,7 @@ function agentValue(manifest = releaseManifest()): AgentContextValue {
     releaseManifest: { status: 'ready', manifest },
     toolAvailable: () => true,
     reconnect: vi.fn()
-  };
+  });
 }
 
 function renderNotice(value = agentValue()) {

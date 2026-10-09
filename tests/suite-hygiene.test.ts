@@ -33,6 +33,8 @@ const SLEEP_IS_THE_POINT: Record<string, string> = {
   'media-actions.test.ts': 'a stub converter that measures peak concurrency',
   'power-shared-budget.test.ts': 'a real sampling interval — the test measures the sampler',
   'agent-http.test.ts': 'a grace period after aborting a stream, before asserting cleanup',
+  'agent-shutdown-streams.test.ts':
+    'a bounded wait proving that app.close() does not resolve while a stream is open',
   'pairing-token-boot.test.ts': 'a zero-delay macrotask yield for a BroadcastChannel delivery',
   'session-handoff-screens.test.tsx': 'a zero-delay yield before asserting no navigation happened',
   'transcription-translation.test.ts': 'a zero-delay yield named `tick`',

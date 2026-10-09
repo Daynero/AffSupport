@@ -1,5 +1,6 @@
 import { useI18n } from '../i18n';
 import { usePower } from '../lib/power';
+import { ReconnectAction } from './ReconnectAction';
 import { Alert } from './ui/index';
 
 /**
@@ -18,9 +19,18 @@ export function PowerReadout() {
   const { state, status } = usePower();
 
   return (
-    <p className="power-readout" aria-live="polite">
-      {text()}
-    </p>
+    <>
+      <p className="power-readout" aria-live="polite">
+        {text()}
+      </p>
+      {/* Outside the live region: a button inside one is read out again every
+          time the sentence changes. */}
+      {status === 'offline' && (
+        <div className="power-readout-action">
+          <ReconnectAction surface="power" />
+        </div>
+      )}
+    </>
   );
 
   function text(): string {

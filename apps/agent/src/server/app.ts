@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -13,7 +13,7 @@ import {
 } from '@video-compressor/shared';
 import { advertisedCapabilities } from './capabilities.js';
 import { registerStreamRoutes } from './stream.js';
-import type { ChannelHub } from './sse.js';
+import { HEARTBEAT_MS, type ChannelHub } from './sse.js';
 import type { EntitlementGate } from '../entitlement/entitlement.js';
 import type { JobQueue } from '../queue/queue.js';
 import type { PowerGovernor } from '../power/governor.js';
@@ -150,11 +150,6 @@ class FixedWindowBudget {
     entry.count += 1;
     return entry.count <= this.limit;
   }
-
-  /** Forgets a key, so a success can clear a failure streak. */
-  clear(key: string): void {
-    this.#hits.delete(key);
-  }
 }
 
 /**
@@ -170,9 +165,22 @@ const ROUTE_BUDGET_WINDOW_MS = 60_000;
  * A wrong token is ordinary — the local app restarted and minted a new one — so
  * a handful of attempts stays free. Twenty in a minute is not a stale token; it
  * is something enumerating, and the answer is to stop answering.
+ *
+ * The budget is per *presented* token, not per caller. A tab left open across a
+ * restart retries its stale token in a loop, and it used to spend the whole
+ * caller's budget doing so — every tab on the machine shares one loopback
+ * address, so the tab that had just paired was refused for a minute for what a
+ * different one was doing. A fixed-width digest of the token keys the streak to
+ * the thing that is actually wrong; a correct token never touches it.
  */
 const AUTH_FAILURE_LIMIT = 20;
 const AUTH_FAILURE_WINDOW_MS = 60_000;
+
+/** The limiter key for a token that was refused: the caller plus a prefix of the token's digest. */
+function authFailureKey(caller: string, presented: string | null): string {
+  if (presented === null) return `${caller}:none`;
+  return `${caller}:${createHash('sha256').update(presented).digest('hex').slice(0, 8)}`;
+}
 
 /**
  * The logger configuration, exported so a test can assert on the real one.
@@ -230,7 +238,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     // than a raw URL anyway. Redaction covers the headers and — the one that matters for
     // /pair — the redirect Location, which carries the session token.
     logger: deps.logger === undefined || deps.logger === true ? SAFE_LOGGER : deps.logger,
-    bodyLimit: 16_384
+    bodyLimit: 16_384,
+    // On close, idle keep-alive connections are dropped and in-flight requests finish. Not
+    // `true`: that would cut an upload mid-body with no reply, and the client would retry
+    // against a process that is gone. The open streams are ended by the entrypoint before
+    // close is called, which is what lets close return at all.
+    forceCloseConnections: 'idle'
   });
 
   await app.register(cors, {
@@ -342,26 +355,23 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       return;
     }
 
-    // Refused before the token is looked at: something that has failed twenty
-    // times in a minute is not a stale token, and answering it at all is what
-    // makes the attempt worth repeating.
     const caller = request.ip || 'local';
-    if (!authFailures.take(`${caller}:probe`)) {
-      return reply.code(429).send({ error: 'TOO_MANY_ATTEMPTS' });
-    }
     if (!routeBudget.take(`${caller}:${route}`)) {
       return reply.code(429).send({ error: 'RATE_LIMITED' });
     }
     const supplied =
       request.headers['x-session-token'] ?? (request.query as { token?: unknown }).token;
-    if (typeof supplied !== 'string' || !tokensMatch(token, supplied)) {
-      authFailures.take(`${caller}:probe`);
+    const presented = typeof supplied === 'string' ? supplied : null;
+    if (presented === null || !tokensMatch(token, presented)) {
+      // The failure budget is consulted only here, after the comparison: a request that
+      // carries the right token is never counted and never refused by it. Something that
+      // has failed twenty times in a minute with the same wrong token is not a stale tab,
+      // and answering it at all is what makes the attempt worth repeating.
+      if (!authFailures.take(authFailureKey(caller, presented))) {
+        return reply.code(429).send({ error: 'TOO_MANY_ATTEMPTS' });
+      }
       return reply.code(401).send({ error: 'Invalid session token.' });
     }
-    // A success clears the streak. The ordinary cause of a failure here is a
-    // restarted local app, and the tab that re-pairs must not spend the rest of
-    // the minute in a cooldown it earned before it had the new token.
-    authFailures.clear(`${caller}:probe`);
     if (
       !ENTITLEMENT_EXEMPT_ROUTES.has(route) &&
       entitlementGate.enforced &&
@@ -413,7 +423,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
     update: queue.updateStatus(),
-    entitlement: entitlementGate.status()
+    entitlement: entitlementGate.status(),
+    heartbeatMs: HEARTBEAT_MS
   }));
   app.get('/health', async () => ({
     product: 'local-video-compressor-agent',
@@ -435,7 +446,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
     update: queue.updateStatus(),
     startedAt: deps.startedAt,
-    busy: modules.some(module => module.busy())
+    busy: modules.some(module => module.busy()),
+    heartbeatMs: HEARTBEAT_MS
   }));
   app.get('/api/diagnostics', async () => ({
     environment: config.environment,
@@ -516,11 +528,16 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
    * inside a hidden frame instead, which posts the token and closes.
    *
    * **The target origin is chosen here, by the server.** Never `*`, and never
-   * the requesting origin: both would let any page that can frame this one
-   * collect a live session token. The value is the same origin the pairing
-   * redirect already trusts, so the handshake grants nothing the existing flow
-   * did not. A nonce is echoed back so the receiving page can tell its own
-   * handshake from a message someone else sent it.
+   * an arbitrary requesting origin: both would let any page that can frame
+   * this one collect a live session token. The value is the request's own
+   * origin when — and only when — it is one the agent already trusts for API
+   * calls, otherwise the origin the pairing redirect trusts; so the handshake
+   * grants nothing the existing flow did not, and the local copy at
+   * `http://127.0.0.1:<port>` (where Safari users live, because the hosted
+   * site cannot reach loopback from there) can pair in place rather than by a
+   * full navigation that throws away the page. A nonce is echoed back so the
+   * receiving page can tell its own handshake from a message someone else sent
+   * it.
    */
   /**
    * Mints a ticket for one subresource the caller has already been authorised
@@ -555,15 +572,20 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/pair/handshake', async (request, reply) => {
     const nonce = handshakeNonce((request.query as { nonce?: unknown }).nonce);
     if (!nonce) return reply.code(400).send({ error: 'A handshake nonce is required.' });
+    const frameOrigin =
+      allowedRequestOrigin(request.headers.origin, request.headers.referer, allowedOrigins) ??
+      pairOrigin;
     reply.header('Content-Type', 'text/html; charset=utf-8');
     reply.header('Cache-Control', 'no-store');
-    // No framing by anyone but the origin the token is being posted to.
-    reply.header('Content-Security-Policy', `frame-ancestors ${pairOrigin}`);
+    // No framing by anyone but the origin the token is being posted to. The CSP directive
+    // is the one browsers honour when both are present; X-Frame-Options stays as the
+    // fallback for an engine without it, where SAMEORIGIN admits only the local copy.
+    reply.header('Content-Security-Policy', `frame-ancestors ${frameOrigin}`);
     reply.header('X-Frame-Options', 'SAMEORIGIN');
     return reply.send(
       '<!doctype html><meta charset="utf-8"><title>Pairing</title><script>' +
         `window.parent.postMessage({type:"soty:pairing",nonce:${JSON.stringify(nonce)},` +
-        `token:${JSON.stringify(token)}},${JSON.stringify(pairOrigin)});` +
+        `token:${JSON.stringify(token)}},${JSON.stringify(frameOrigin)});` +
         '</script>'
     );
   });
@@ -612,6 +634,30 @@ function localRedirectPath(value: unknown) {
   if (typeof value !== 'string' || value.length > 512) return '/';
   if (value.startsWith('//') || !LOCAL_REDIRECT_PATH.test(value)) return '/';
   return value;
+}
+
+/**
+ * The origin a request came from, when it is one the agent trusts; otherwise null.
+ *
+ * A frame's navigation request carries `Referer` (the framing page) and, on some engines,
+ * `Origin`. Either is good enough to *choose among* trusted origins, and neither is
+ * trusted on its own: a value outside the allowlist is simply not used.
+ */
+function allowedRequestOrigin(
+  origin: unknown,
+  referer: unknown,
+  allowedOrigins: ReadonlySet<string>
+): string | null {
+  if (typeof origin === 'string' && allowedOrigins.has(origin)) return origin;
+  if (typeof referer === 'string') {
+    try {
+      const refererOrigin = new URL(referer).origin;
+      if (allowedOrigins.has(refererOrigin)) return refererOrigin;
+    } catch {
+      // Not a URL; treated as absent.
+    }
+  }
+  return null;
 }
 
 function tokensMatch(expected: string, supplied: string) {

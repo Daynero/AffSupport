@@ -2760,3 +2760,34 @@
     display: flex;
   }
 }
+
+/* ============================================================
+   Reconnect (032): the action beside every "not connected"
+   ============================================================ */
+.reconnect-action {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.reconnect-action-result {
+  max-width: 40ch;
+}
+.reconnect-action-result .ui-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The space's chip for the local app: the fact, and the action beside it. */
+.team-agent-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* The power panel's offline line: the sentence, then the way out, centred like the sentence. */
+.power-readout-action {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-2);
+}

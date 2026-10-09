@@ -15,6 +15,7 @@ import { teamApi } from '../../api/team';
 import { X } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { IconButton } from '../../components/ui/index';
+import { ReconnectAction } from '../../components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import { useI18n } from '../../i18n';
@@ -255,6 +256,10 @@ export function MaterialPreview({
                     : t('teamPreviewLoadFailed')}
           </p>
         )}
+        {state.kind === 'error' &&
+          (state.code === 'PAIRING_REQUIRED' || state.code === 'CONNECTION_FAILED') && (
+            <ReconnectAction surface="team_preview" />
+          )}
         {state.kind === 'media' && (
           <>
             {mediaLoading && (

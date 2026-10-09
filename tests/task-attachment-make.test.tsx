@@ -44,7 +44,7 @@ const taskContext: ActionContext = {
     manage_metadata: true
   },
   isOwner: true,
-  agentConnected: true,
+  agentAvailability: 'ready',
   storageConnected: true,
   restitchConfigured: true,
   catalogSettingsReady: true

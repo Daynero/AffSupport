@@ -23,6 +23,7 @@ import {
   Upload
 } from 'lucide-react';
 import type { MaterialKind, TeamPermissionFlag, TeamPermissions } from '@video-compressor/shared';
+import type { Availability as LinkAvailability } from '../../AgentContext';
 import type { TranslationKey } from '../../i18n';
 
 /**
@@ -167,7 +168,8 @@ export interface ActionContext {
   permissions: TeamPermissions | null;
   isOwner: boolean;
   currentFolderId?: string | null;
-  agentConnected: boolean;
+  /** Whether the local app is there for the work, and if not, why (032 FR-013). */
+  agentAvailability: LinkAvailability;
   storageConnected: boolean;
   restitchConfigured: boolean;
   catalogSettingsReady: boolean;
@@ -184,6 +186,7 @@ export interface ActionContext {
 export const UNAVAILABLE_REASONS = [
   'NO_PERMISSION',
   'AGENT_REQUIRED',
+  'AGENT_UPDATE_REQUIRED',
   'STORAGE_DISCONNECTED',
   'CATALOG_SETTINGS_MISSING',
   'RESTITCH_UNCONFIGURED',
@@ -244,8 +247,13 @@ function ready(material: MaterialRef): Availability {
   return OK;
 }
 
+/** The nearest true reason (032 FR-013): an agent that is too old is not "not running". */
 const needsAgent = (context: ActionContext): Availability =>
-  context.agentConnected ? OK : no('AGENT_REQUIRED');
+  context.agentAvailability === 'ready'
+    ? OK
+    : context.agentAvailability === 'too_old'
+      ? no('AGENT_UPDATE_REQUIRED')
+      : no('AGENT_REQUIRED');
 
 /**
  * The registry.

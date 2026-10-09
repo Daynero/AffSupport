@@ -28,6 +28,7 @@ import {
   TriangleAlert
 } from 'lucide-react';
 import { Button, Progress, Spinner } from '../components/ui/index';
+import { ReconnectAction } from '../components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
 import { navigateTo } from '../lib/navigation';
@@ -811,6 +812,10 @@ export function LandingViewer({
               </span>
             )}
           </div>
+          {/* The way back, beside the loss (032 FR-010). Rendered only under an
+              agent provider: an embedded viewer with no agent has nothing to
+              reconnect to. */}
+          {connectionLost && !state.running && <ReconnectAction surface="landing_preview" />}
           {state.running && (
             <>
               {/* A run with no total to measure against is indeterminate, and

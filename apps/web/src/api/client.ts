@@ -128,6 +128,34 @@ export function pairWithAgent() {
   location.assign(`${agentUrl}${pairingPath(agentUrl, location.origin)}`);
 }
 
+/**
+ * What a failed request says about the connection, for the owner of the connection state.
+ *
+ * A page that was told "connected" and then sees its request refused is the one signal
+ * that the two have come apart (032 FR-026): the stream may be open against a process
+ * whose token or entitlement no longer matches, or the agent may have gone while the
+ * stream had not yet noticed. The owner hears about it here and re-checks.
+ */
+export type RequestFailureKind = 'unauthorized' | 'forbidden' | 'connection_failed';
+const requestFailureListeners = new Set<(kind: RequestFailureKind) => void>();
+
+export function onRequestFailure(listener: (kind: RequestFailureKind) => void) {
+  requestFailureListeners.add(listener);
+  return () => {
+    requestFailureListeners.delete(listener);
+  };
+}
+
+function reportRequestFailure(kind: RequestFailureKind) {
+  for (const listener of [...requestFailureListeners]) {
+    try {
+      listener(kind);
+    } catch {
+      // A listener's mistake must not turn into the caller's error.
+    }
+  }
+}
+
 export async function connect(signal?: AbortSignal): Promise<{
   state: QueueState | null;
   version: string;
@@ -139,6 +167,10 @@ export async function connect(signal?: AbortSignal): Promise<{
   capabilities: string[];
   toolContracts: ToolContracts;
   entitlement: AgentEntitlementStatus | null;
+  /** The agent's heartbeat period, when it says; the stream watchdog is derived from it. */
+  heartbeatMs: number | null;
+  /** Whether the agent is draining for an update, when it says. */
+  update: HealthResponse['update'] | null;
 }> {
   if (!pairingToken()) {
     // Health answered, so the Agent is running and only the token is missing.
@@ -150,7 +182,15 @@ export async function connect(signal?: AbortSignal): Promise<{
     'GET',
     signal
   );
-  const apiVersion = health.apiVersion ?? 0;
+  // A health answer without a protocol version is not an old agent, it is not an agent:
+  // a proxy, a stale cache, some other service on the port. Reading it as "update the
+  // local app" sent people to download what they already had (032 W10).
+  if (!Number.isInteger(health.apiVersion) || typeof health.version !== 'string') {
+    throw new Error('CONNECTION_FAILED', {
+      cause: new Error('Agent health answer carried no protocol version')
+    });
+  }
+  const apiVersion = health.apiVersion as number;
   const capabilities = Array.isArray(health.capabilities) ? health.capabilities : [];
   const toolContracts = normalizeToolContracts(health.toolContracts, capabilities, apiVersion);
   const entitlement = health.entitlement ?? null;
@@ -169,7 +209,10 @@ export async function connect(signal?: AbortSignal): Promise<{
     apiVersion,
     capabilities,
     toolContracts,
-    entitlement
+    entitlement,
+    heartbeatMs:
+      typeof health.heartbeatMs === 'number' && health.heartbeatMs > 0 ? health.heartbeatMs : null,
+    update: health.update ?? null
   };
 }
 export function submitEntitlementToken(entitlementToken: string): Promise<AgentEntitlementStatus> {
@@ -230,6 +273,7 @@ export async function request<T>(url: string, method = 'GET', signal?: AbortSign
     });
   } catch (error) {
     if (signal?.aborted) throw new Error('TIMEOUT', { cause: error });
+    reportRequestFailure('connection_failed');
     throw new Error('CONNECTION_FAILED', { cause: error });
   }
   return assertOk(response) as Promise<T>;
@@ -253,6 +297,7 @@ export async function requestBody<T>(
     });
   } catch (error) {
     if (signal?.aborted) throw new Error('TIMEOUT', { cause: error });
+    reportRequestFailure('connection_failed');
     throw new Error('CONNECTION_FAILED', { cause: error });
   }
   return assertOk(response) as Promise<T>;
@@ -327,6 +372,7 @@ export async function uploadFile(file: File): Promise<SelectionResponse> {
       ...privateNetworkInit
     });
   } catch (error) {
+    reportRequestFailure('connection_failed');
     throw new Error('CONNECTION_FAILED', { cause: error });
   }
   return assertOk(response) as Promise<SelectionResponse>;
@@ -351,6 +397,7 @@ export async function uploadImage(slot: ImageSlot, file: File): Promise<QueueSta
       ...privateNetworkInit
     });
   } catch (error) {
+    reportRequestFailure('connection_failed');
     throw new Error('CONNECTION_FAILED', { cause: error });
   }
   return assertOk(response) as Promise<QueueState>;
@@ -375,6 +422,7 @@ export async function importTeamRestitchImage(
       }
     );
   } catch (error) {
+    reportRequestFailure('connection_failed');
     throw new Error('CONNECTION_FAILED', { cause: error });
   }
   return assertOk(response) as Promise<QueueState>;
@@ -1003,6 +1051,7 @@ export async function uploadForm<T>(url: string, body: FormData): Promise<T> {
       ...privateNetworkInit
     });
   } catch (error) {
+    reportRequestFailure('connection_failed');
     throw new Error('CONNECTION_FAILED', { cause: error });
   }
   return assertOk(response) as Promise<T>;
@@ -1204,9 +1253,14 @@ async function assertOk(response: Response) {
   // running and only this token is stale — the normal state after a restart
   // minted a new one. Parsing first would turn an unparseable 401 body into a
   // generic failure and cost us that fact.
-  if (response.status === 401) throw new PairingRequiredError(true);
+  if (response.status === 401) {
+    reportRequestFailure('unauthorized');
+    throw new PairingRequiredError(true);
+  }
   const body = await response.json();
   if (!response.ok) {
+    if (response.status === 403 && body?.error === 'ENTITLEMENT_REQUIRED')
+      reportRequestFailure('forbidden');
     const error = new Error(body.error || 'AGENT_ERROR');
     // A refusal can say which of its reasons it was — "this file has a variable
     // frame rate" rather than "this file type is not supported". The reason

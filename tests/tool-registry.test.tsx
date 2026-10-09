@@ -31,8 +31,17 @@ vi.mock('../apps/web/src/AgentContext.js', () => ({
     capabilities: agent.capabilities,
     connectedOnce: agent.connection === 'connected',
     toolAvailable: agent.toolAvailable,
+    toolAvailability: (tool: string) =>
+      agent.connection !== 'connected'
+        ? 'disconnected'
+        : agent.toolAvailable(tool)
+          ? 'ready'
+          : 'too_old',
+    reason: null,
+    attempt: null,
     reconnect: vi.fn()
-  })
+  }),
+  useOptionalAgent: () => null
 }));
 // The setup dialog is a heavy component with its own release plumbing; what
 // matters here is only whether the home screen decided to show one.

@@ -124,7 +124,7 @@ export function RowActions({
     permissions: permissions ?? space?.permissions ?? null,
     isOwner: space?.role === 'owner',
     currentFolderId,
-    agentConnected: agent?.teamWorkspaceAvailable === true,
+    agentAvailability: agent?.teamWorkspaceAvailability ?? 'disconnected',
     storageConnected: space?.connectionState === 'connected',
     restitchConfigured: true,
     catalogSettingsReady: true

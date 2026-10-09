@@ -8,6 +8,7 @@ import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/Ag
 import LocalAppDialog from '../apps/web/src/components/LocalAppDialog';
 import { markAgentSeen } from '../apps/web/src/api/client';
 import { emptyQueueState } from './web-auth-helpers';
+import { fakeAgentValue } from './support/fake-agent';
 import { expectPrimaryAction, expectSecondaryAction } from './support/design-system';
 
 const WINDOWS_ARTIFACT_URL = 'https://example.com/Soty-Agent-v0.9.0-Windows-x64.exe';
@@ -41,22 +42,19 @@ function mockNavigator(platform: string, userAgent: string) {
 }
 
 function agentValue(): AgentContextValue {
-  return {
+  return fakeAgentValue({
     connection: 'not_installed_or_not_running',
     state: emptyQueueState,
-    setState: vi.fn(),
     connectedOnce: false,
-    releaseBlocked: false,
     agentVersion: null,
     agentBuildId: null,
     agentChannel: null,
     agentApiVersion: null,
-    capabilities: [],
-    toolContracts: {},
-    releaseManifest: { status: 'unavailable', manifest: null },
     toolAvailable: () => false,
-    reconnect: vi.fn()
-  };
+    toolAvailability: () => 'disconnected',
+    teamWorkspaceAvailable: false,
+    teamWorkspaceAvailability: 'disconnected'
+  });
 }
 
 beforeEach(() => {

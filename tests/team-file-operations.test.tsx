@@ -409,7 +409,7 @@ describe('team file operations', () => {
           material={material()}
           destinationFolderId="folder-1"
           browseClient={browseClient}
-          agentCompatible={false}
+          agentAvailability="too_old"
           toolContracts={{}}
           client={client}
           onStarted={vi.fn()}
@@ -429,7 +429,7 @@ describe('team file operations', () => {
           material={material()}
           destinationFolderId="folder-1"
           browseClient={browseClient}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ compressor: 3 }}
           client={client}
           onStarted={vi.fn()}

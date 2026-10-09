@@ -14,6 +14,7 @@
  *   tools               Per-tool opens / users / starts / completions.
  *   events              Event-name breakdown with unique users.
  *   funnel              Compressor conversion funnel by unique users.
+ *   connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage.
  *
  * Options:
  *   --period <token>    today | 7d | 30d | 90d | all   (default: 7d)
@@ -29,6 +30,7 @@
 import { closePool } from './db.js';
 import {
   formatCompressor,
+  formatConnection,
   formatEvents,
   formatFunnel,
   formatCohorts,
@@ -50,6 +52,7 @@ import { resolvePeriod } from './periods.js';
 import { syncOutputIsPrivate } from './types.js';
 import {
   getCompressor,
+  getConnection,
   getEvents,
   getFunnel,
   getCohorts,
@@ -114,6 +117,7 @@ Commands:
   retention           Return activity after registration
   team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
+  connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage
 
 Options:
   --period <t>   today | 7d | 30d | 90d | all  (default 7d)
@@ -317,6 +321,11 @@ async function run(args: ParsedArgs): Promise<void> {
         fail(args, command, 'Sync diagnostics failed their privacy guard.');
       }
       emit(args, command, period, data, formatSyncJobs(data, period));
+      break;
+    }
+    case 'connection': {
+      const data = await getConnection(period);
+      emit(args, command, period, data, formatConnection(data, period));
       break;
     }
     case 'team-workspace': {

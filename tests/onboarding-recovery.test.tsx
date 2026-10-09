@@ -7,33 +7,34 @@ import { markAgentSeen } from '../apps/web/src/api/client';
 import { Onboarding } from '../apps/web/src/App';
 import { translate, type TranslationKey } from '../apps/web/src/i18n';
 import { emptyQueueState } from './web-auth-helpers';
+import { fakeAgentValue } from './support/fake-agent';
 import { expectPrimaryAction } from './support/design-system';
 
 const t = (key: TranslationKey, values?: Record<string, string | number>) =>
   translate('uk', key, values);
 
 function agentValue(): AgentContextValue {
-  return {
+  return fakeAgentValue({
     connection: 'not_installed_or_not_running',
     state: emptyQueueState,
-    setState: vi.fn(),
     connectedOnce: false,
-    releaseBlocked: false,
     agentVersion: null,
     agentBuildId: null,
     agentChannel: null,
     agentApiVersion: null,
-    capabilities: [],
-    toolContracts: {},
-    releaseManifest: { status: 'unavailable', manifest: null },
     toolAvailable: () => false,
-    reconnect: vi.fn()
-  };
+    toolAvailability: () => 'disconnected',
+    teamWorkspaceAvailable: false,
+    teamWorkspaceAvailability: 'disconnected'
+  });
 }
 
-function renderOnboarding(state: AgentContextValue['connection']) {
+function renderOnboarding(
+  state: AgentContextValue['connection'],
+  overrides: Partial<AgentContextValue> = {}
+) {
   return render(
-    <AgentContextOverride value={agentValue()}>
+    <AgentContextOverride value={{ ...agentValue(), ...overrides }}>
       <Onboarding state={state} help={false} setHelp={vi.fn()} connect={vi.fn()} t={t} />
     </AgentContextOverride>
   );
@@ -89,16 +90,24 @@ describe('the panel shown when the page cannot reach the Agent', () => {
     );
   });
 
-  it('puts opening ahead of retrying when the browser has denied local access', () => {
-    // "Try again" asks for the same permission that was just refused; opening
-    // the Agent's own copy is the only action that can actually succeed.
+  it('leads to the Agent copy of this very page when the browser blocks loopback', () => {
+    // "Try again" asks for the same permission that was just refused, so it is
+    // gone; opening the Agent's own copy is the one action that can succeed,
+    // and it lands on the page the person was on (032 FR-016). The download
+    // stays, quieter, for the one person whose Agent really is missing.
+    history.replaceState(null, '', '/stitcher?tab=queue');
+
     renderOnboarding('connection_blocked');
 
-    const open = screen.getByRole('link', { name: 'Відкрити Soty' });
+    const open = screen.getByRole('link', { name: 'Відкрити в Soty' });
     expectPrimaryAction(open);
     expect(open.getAttribute('target')).toBeNull();
-    expect(screen.getByText('Відкрийте Soty, щоб продовжити')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Спробувати знову' })).toBeTruthy();
+    expect(open.getAttribute('href')).toBe(
+      'http://127.0.0.1:43120/local?to=%2Fstitcher%3Ftab%3Dqueue'
+    );
+    expect(screen.getByText('Браузер блокує з’єднання з Soty')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Встановити Soty' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Спробувати знову' })).toBeNull();
   });
 
   it('re-pairs through the local app when the account check is blocked', () => {
@@ -111,6 +120,17 @@ describe('the panel shown when the page cannot reach the Agent', () => {
     expect(recover.getAttribute('href')).toBe(
       'http://127.0.0.1:43120/local?to=%2Ftools%2Fcompressor'
     );
+    expect(screen.getByRole('button', { name: 'Спробувати знову' })).toBeTruthy();
+  });
+
+  it('says the account check could not be reached, and keeps trying on its own', () => {
+    // A server that could not be reached is not a server that said no: the
+    // panel names the reason and offers a retry, not a re-pairing (032 FR-015).
+    renderOnboarding('entitlement_blocked', { reason: 'account_check_unavailable' });
+
+    expect(
+      screen.getByText('Онлайн-перевірка акаунта зараз недоступна; спробуємо ще раз самі')
+    ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Спробувати знову' })).toBeTruthy();
   });
 });

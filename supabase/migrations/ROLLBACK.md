@@ -1,5 +1,21 @@
 # Rollback notes
 
+## 20261110100000_link_analytics_keys.sql
+
+Restore `public.analytics_properties_are_safe_v2(jsonb)` verbatim from
+`20260801103000_team_analytics.sql`. The function is immutable and sits in the
+check constraint of `public.analytics_events`, so `create or replace` is the
+whole rollback: no table, grant or type changes. Rows already ingested with the
+link keys (`link_trigger`, `link_origin`, `browser_family`, `link_reason`,
+`link_stage`, `link_transport`, `recovery_mode`, `surface`, `instance_changed`,
+`token_changed`, `pairing_method`, `link_stream_open`) stay as they are — a
+check constraint is not re-evaluated on existing rows and analytics rows are
+never updated — but every further `link_*`, `reconnect_clicked` and
+`blocked_by_browser_detected` event from a 032 web build is refused at
+ingestion as "Unsafe event properties", and the `connection` CLI command reads
+only what landed before. Roll back the web build with it, or accept that the
+link lifecycle goes dark; the older guard also stops bounding `duration_ms`.
+
 ## 20260928140000_catalog_restitch_visible_progress.sql
 
 Stop progress reports from the web before reverting. Restore

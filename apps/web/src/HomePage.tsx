@@ -87,12 +87,13 @@
 import { useEffect, useId, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { ArrowRight, LayoutDashboard, Plus } from 'lucide-react';
 import { Onboarding } from './App';
-import { useAgent } from './AgentContext';
+import { useAgent, type Availability } from './AgentContext';
 import { useI18n, type TranslationKey } from './i18n';
 import { analytics } from './analytics/service';
 import { agentKnown } from './api/pairing-token';
 import { teamApi, type TeamContextSnapshot } from './api/team';
 import { Badge, Button, Card, Skeleton } from './components/ui/index';
+import { ReconnectAction } from './components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from './components/icons';
 import FeatureLockDialog from './components/FeatureLockDialog';
 import LocalAppDialog from './components/LocalAppDialog';
@@ -128,7 +129,7 @@ const STATUS_LABEL: Record<ConnectionState, TranslationKey> = {
   pairing_required: 'agentReady',
   agent_update_required: 'agentUpdateRequired',
   web_update_required: 'webUpdateRequired',
-  connection_blocked: 'connectionBlocked',
+  connection_blocked: 'linkBrowserBlocked',
   entitlement_blocked: 'entitlementBlocked',
   disconnected: 'agentDisconnected'
 };
@@ -144,6 +145,15 @@ const NEEDS_PANEL: ReadonlySet<ConnectionState> = new Set<ConnectionState>([
   'connection_blocked',
   'entitlement_blocked'
 ]);
+
+/** What a tile says under its caption for each reason it will not open; nothing when it will. */
+const TILE_NOTE: Record<Availability, TranslationKey | undefined> = {
+  ready: undefined,
+  disconnected: 'agentRequired',
+  too_old: 'agentUpdateRequired',
+  blocked: 'linkBrowserBlocked',
+  account: 'entitlementBlocked'
+};
 
 /** States the setup dialog answers: open the app, or get it. */
 const DIALOG_HELPS: ReadonlySet<ConnectionState> = new Set<ConnectionState>([
@@ -268,7 +278,7 @@ function Tile({
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
   const { t } = useI18n();
-  const { connection, connectedOnce, reconnect, toolAvailable } = useAgent();
+  const { connection, connectedOnce, reconnect, toolAvailable, toolAvailability } = useAgent();
   const { teams, loading: teamsLoading } = useTeam();
   const entering = usePageEntrance();
   const spacesTitleId = useId();
@@ -549,6 +559,10 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             >
               {statusLabel}
             </Badge>
+            {/* The way back, beside the fact (032, FR-010): the panel below has
+                its own action when it is shown, so this one only speaks when
+                the panel does not. */}
+            {!showPanel && DIALOG_HELPS.has(connection) && <ReconnectAction surface="home" />}
             {offerHowToStart && anyAgentTool && (
               <Button
                 variant="link"
@@ -599,18 +613,16 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                 {tools.map(tool => {
                   const openable = tool.status !== 'coming-soon';
                   // Asked only of agent tools: a browser tool has no contract to
-                  // be compatible with, and `toolAvailable` takes a `SotyToolId`.
+                  // be compatible with, and `toolAvailability` takes a `SotyToolId`.
                   // Nothing is said while the first check is still in flight —
                   // a note that appears and vanishes on every visit is noise.
-                  const note = !openable
-                    ? undefined
-                    : tool.runtime !== 'agent' || connection === 'checking'
+                  // The reason, not a boolean (032 FR-013): "update" is only
+                  // ever said of an agent that answered and is too old.
+                  const noteKey =
+                    !openable || tool.runtime !== 'agent' || connection === 'checking'
                       ? undefined
-                      : !connected
-                        ? t('agentRequired')
-                        : toolAvailable(tool.id)
-                          ? undefined
-                          : t('agentUpdateRequired');
+                      : TILE_NOTE[toolAvailability(tool.id)];
+                  const note = noteKey ? t(noteKey) : undefined;
                   return (
                     <Tile
                       key={tool.id}

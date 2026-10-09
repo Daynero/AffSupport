@@ -14,6 +14,7 @@ export {
   type ProcessLibraryClient
 } from './process-library-contract';
 import { Alert, EmptyState } from '../../components/ui/index';
+import { ReconnectAction } from '../../components/ReconnectAction';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string;
@@ -28,15 +29,16 @@ type Translate = (key: TranslationKey, values?: Record<string, string | number>)
  */
 export function ProcessLibraryDialog({
   scope = { kind: 'space' },
-  agentCompatible,
   onClose
 }: {
   scope?: LibraryBatchScope;
-  agentCompatible: boolean;
   onClose: () => void;
 }) {
   const { t } = useI18n();
   const batch = useLibraryProcessing();
+  // The reason, not a boolean (032 FR-013): "update Soty" is said only of an
+  // agent that answered and is too old; a lost link asks for the link back.
+  const agentReady = batch.agentAvailability === 'ready';
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const cancelTitleId = useId();
 
@@ -207,12 +209,33 @@ export function ProcessLibraryDialog({
           batch.scan &&
           totalOf(batch.scan, batch.supportedKinds) === 0 &&
           batch.previewCount === 0 && <EmptyState size="sm" title={t('teamBatchNothing')} />}
-        {!agentCompatible && batch.previewCount === 0 && (
+        {batch.agentAvailability === 'too_old' && batch.previewCount === 0 && (
           <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
             {t('teamProcessAgentUpdate')}
           </Alert>
         )}
-        {agentCompatible && batch.supportedKinds.length === 0 && batch.previewCount === 0 && (
+        {batch.agentAvailability === 'disconnected' && (
+          <Alert
+            className="team-inline-error"
+            color="warning"
+            variant="soft"
+            live="alert"
+            action={<ReconnectAction surface="team_library_dialog" />}
+          >
+            {t('linkConnectSoty')}
+          </Alert>
+        )}
+        {batch.agentAvailability === 'blocked' && (
+          <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
+            {t('linkBrowserBlocked')}
+          </Alert>
+        )}
+        {batch.agentAvailability === 'account' && (
+          <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
+            {t('entitlementBlocked')}
+          </Alert>
+        )}
+        {agentReady && batch.supportedKinds.length === 0 && batch.previewCount === 0 && (
           <Alert className="team-inline-error" color="warning" variant="soft" live="alert">
             {t('teamProcessToolUpdate')}
           </Alert>
@@ -255,6 +278,7 @@ export function ProcessLibraryDialog({
         )}
         <div className="team-dialog-actions">
           {batch.phase !== 'running' &&
+            agentReady &&
             batch.scan &&
             (totalOf(batch.scan, batch.supportedKinds) > 0 || batch.previewCount > 0) && (
               <Button

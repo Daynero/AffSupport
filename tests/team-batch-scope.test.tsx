@@ -66,13 +66,13 @@ function mount(
         teamId={TEAM_ID}
         sourceMaterialIds={sources}
         scope={scope}
-        agentCompatible
+        agentAvailability="ready"
         toolContracts={{ teamWorkspace: 1, transcription: 5 }}
         client={client}
         agent={agent}
         agentInstanceId={THIRD}
       >
-        <ProcessLibraryDialog scope={scope} agentCompatible onClose={vi.fn()} />
+        <ProcessLibraryDialog scope={scope} onClose={vi.fn()} />
       </LibraryProcessingProvider>
     </ToastProvider>
   );
@@ -190,7 +190,7 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[FIRST]}
           scope={{ kind: 'selection', count: 1 }}
-          agentCompatible
+          agentAvailability="ready"
           // No landing tool on this device, so its four landing jobs are not
           // this batch's to promise.
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
@@ -198,11 +198,7 @@ describe('the batch window and its scope', () => {
           agent={agent}
           agentInstanceId={THIRD}
         >
-          <ProcessLibraryDialog
-            scope={{ kind: 'selection', count: 1 }}
-            agentCompatible
-            onClose={vi.fn()}
-          />
+          <ProcessLibraryDialog scope={{ kind: 'selection', count: 1 }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -243,13 +239,13 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[]}
           scope={{ kind: 'space' }}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
         >
-          <ProcessLibraryDialog scope={{ kind: 'space' }} agentCompatible onClose={vi.fn()} />
+          <ProcessLibraryDialog scope={{ kind: 'space' }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -264,17 +260,13 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[FIRST, SECOND]}
           scope={{ kind: 'selection', count: 2 }}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
         >
-          <ProcessLibraryDialog
-            scope={{ kind: 'selection', count: 2 }}
-            agentCompatible
-            onClose={vi.fn()}
-          />
+          <ProcessLibraryDialog scope={{ kind: 'selection', count: 2 }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -306,13 +298,13 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[]}
           scope={{ kind: 'space' }}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5, landingOptimizer: 2 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
         >
-          <ProcessLibraryDialog scope={{ kind: 'space' }} agentCompatible onClose={vi.fn()} />
+          <ProcessLibraryDialog scope={{ kind: 'space' }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -330,17 +322,13 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[FIRST]}
           scope={{ kind: 'selection', count: 1 }}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5, landingOptimizer: 2 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
         >
-          <ProcessLibraryDialog
-            scope={{ kind: 'selection', count: 1 }}
-            agentCompatible
-            onClose={vi.fn()}
-          />
+          <ProcessLibraryDialog scope={{ kind: 'selection', count: 1 }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -355,17 +343,13 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[FIRST, SECOND]}
           scope={{ kind: 'folder', name: 'spy joints' }}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
         >
-          <ProcessLibraryDialog
-            scope={{ kind: 'folder', name: 'spy joints' }}
-            agentCompatible
-            onClose={vi.fn()}
-          />
+          <ProcessLibraryDialog scope={{ kind: 'folder', name: 'spy joints' }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -379,17 +363,13 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[FIRST, SECOND]}
           scope={{ kind: 'selection', count: 2 }}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
         >
-          <ProcessLibraryDialog
-            scope={{ kind: 'selection', count: 2 }}
-            agentCompatible
-            onClose={vi.fn()}
-          />
+          <ProcessLibraryDialog scope={{ kind: 'selection', count: 2 }} onClose={vi.fn()} />
         </LibraryProcessingProvider>
       </ToastProvider>
     );
@@ -412,7 +392,7 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[FIRST]}
           scope={{ kind: 'folder', name: 'spy joints', folders: 5, files: 24, videos: 20 }}
-          agentCompatible
+          agentAvailability="ready"
           // No landing tool: the four landing jobs are not this device's to run.
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
@@ -421,7 +401,6 @@ describe('the batch window and its scope', () => {
         >
           <ProcessLibraryDialog
             scope={{ kind: 'folder', name: 'spy joints', folders: 5, files: 24, videos: 20 }}
-            agentCompatible
             onClose={vi.fn()}
           />
         </LibraryProcessingProvider>
@@ -455,7 +434,7 @@ describe('the batch window and its scope', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[FIRST]}
           scope={{ kind: 'folder', name: 'spy joints', folders: 5, files: 24, videos: 24 }}
-          agentCompatible
+          agentAvailability="ready"
           toolContracts={{ teamWorkspace: 1, transcription: 5 }}
           client={client}
           agent={agent}
@@ -463,7 +442,6 @@ describe('the batch window and its scope', () => {
         >
           <ProcessLibraryDialog
             scope={{ kind: 'folder', name: 'spy joints', folders: 5, files: 24, videos: 24 }}
-            agentCompatible
             onClose={vi.fn()}
           />
         </LibraryProcessingProvider>

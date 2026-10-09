@@ -305,7 +305,7 @@ export function TeamCatalog({
           material={overlay.material}
           destinationFolderId={overlay.material.parentFolderId ?? null}
           browseClient={client}
-          agentCompatible={agent?.teamWorkspaceAvailable === true}
+          agentAvailability={agent?.teamWorkspaceAvailability ?? 'disconnected'}
           toolContracts={agent?.toolContracts ?? {}}
           onClose={closeOverlay}
           onStarted={(result, input) => startLocalProcess(result, input, overlay.material)}

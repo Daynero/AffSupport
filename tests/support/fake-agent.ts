@@ -58,7 +58,13 @@ export function fakeAgentValue(overrides: Partial<AgentContextValue> = {}): Agen
     // Available by default. A test about an unavailable tool says so explicitly, which
     // reads better than every other test having to say the opposite.
     toolAvailable: () => true,
+    toolAvailability: () => 'ready',
     teamWorkspaceAvailable: true,
+    teamWorkspaceAvailability: 'ready',
+    reason: null,
+    attempt: null,
+    lastKnownAgent: null,
+    accountCheckPending: false,
     reconnect: () => {},
     ...overrides
   };

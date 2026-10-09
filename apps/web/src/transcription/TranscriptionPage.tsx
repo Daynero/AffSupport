@@ -86,7 +86,9 @@ import {
   type TranscriptExportContent,
   type TranscriptExportFormat
 } from './export';
-import { Button, Checkbox, EmptyState, Progress, Spinner } from '../components/ui/index';
+import { Alert, Button, Checkbox, EmptyState, Progress, Spinner } from '../components/ui/index';
+import { ReconnectAction } from '../components/ReconnectAction';
+import { useToolStateRead } from '../lib/use-tool-state-read';
 
 const EMPTY_MODEL: TranscriptionModelInfo = {
   present: false,
@@ -230,18 +232,8 @@ export default function TranscriptionPage() {
     analytics.track('tool_opened', { tool_identifier: 'transcription' });
   }, []);
 
-  useEffect(() => {
-    if (connection !== 'connected') return;
-    let active = true;
-    request<TranscriptionState>('/api/transcription/state', 'GET')
-      .then(value => {
-        if (active) applyState(value);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [connection]);
+  // Read again after every recovery, and said out loud when it fails (032 W12).
+  const { stateError } = useToolStateRead(readTranscriptionState, applyState);
 
   useAgentEventStream<{ state: TranscriptionState }>({
     url: connection === 'connected' ? toolEventUrl('transcription') : null,
@@ -755,6 +747,28 @@ export default function TranscriptionPage() {
         ref={workspaceRef}
         className={`workspace transcription-workspace${entering ? ' page-enter' : ''}`}
       >
+        {!connected && (
+          <Alert
+            className="blocking-message"
+            color="neutral"
+            variant="subtle"
+            live="alert"
+            title={t('linkConnectSoty')}
+            action={<ReconnectAction surface="transcription" />}
+          >
+            {t('linkConnectSotyBody')}
+          </Alert>
+        )}
+        {connected && stateError && (
+          <Alert
+            className="blocking-message"
+            color="warning"
+            variant="soft"
+            live="alert"
+            title={t('linkStateNotRead')}
+            action={<ReconnectAction surface="transcription" />}
+          />
+        )}
         {connected && state && !binaryReady && (
           <section className="blocking-message blocking-error" role="alert">
             <div>
@@ -1075,6 +1089,8 @@ export default function TranscriptionPage() {
 }
 
 const EMPTY_JOBS: TranscriptionJob[] = [];
+
+const readTranscriptionState = () => request<TranscriptionState>('/api/transcription/state', 'GET');
 
 /** Fields of a job that change; `translation` is compared one level deeper. */
 function sameJob(previous: TranscriptionJob, next: TranscriptionJob): boolean {

@@ -82,7 +82,7 @@ export function PaneActions({
     host: 'explorer-detail',
     permissions: space?.permissions ?? null,
     isOwner: space?.role === 'owner',
-    agentConnected: agent?.teamWorkspaceAvailable === true,
+    agentAvailability: agent?.teamWorkspaceAvailability ?? 'disconnected',
     storageConnected: space?.connectionState === 'connected',
     restitchConfigured: true,
     catalogSettingsReady: true
