@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-09
 
-**Status**: Draft — ready for planning
+**Status**: Draft — зведена з незалежним читанням 2026-10-10 ([research.md](./research.md)); ready for planning
 
 **Input**: Власник не відкриває аналітику вручну. Агент має пояснювати, чому конкретний користувач не може запустити Soty, стиснути медіа, підключити простір або виконати будь-яку іншу дію; самостійно знаходити збої, слабкі місця, втрачені ланцюжки спостереження та нові крайові сценарії. Власник отримує лише потрібний короткий висновок або запускає самоаналіз без повідомлень.
 
@@ -83,6 +83,21 @@
 3. **Given** picker запит прийнято, **When** запуск завершився помилкою, **Then** є нормалізована причина запуску/завершення; cancel не підміняє failure, а запущений процес не доводить видимість діалогу.
 4. **Given** drag-and-drop, **When** файл не додано, **Then** окремо пояснено отримання input, resolution original, доступ, перевірку та відмову або невідоме місце розриву.
 5. **Given** підозра на antivirus/OS policy, **When** немає підтверджувального evidence, **Then** вона залишається гіпотезою; агент просить мінімальні безпечні докази, не рекомендує вимкнути захист.
+
+### User Story 6 — Відремонтувати фундамент збору, перш ніж його розширювати (Priority: P0)
+
+Власник хоче вірити цифрам. Сьогодні серверний guard тихо відкидає щонайменше дванадцять ключів, які клієнт шле навмисно (усі `team_storage_*`, `team_index_completed`, `team_previews_ready`, `team_landing_render`, `power_limit_changed`), клієнт після трьох спроб тихо губить подію, 40-елементна черга витісняє найстаріше без лічильника, 42 оголошені імена подій ніде не емітяться, а CLI рахує деякі з них і повертає нулі, які читаються як «добре». Агент не має жодного запису про власні рішення. Перший результат фічі — усунути ці сліпі зони й зробити їх неможливими надалі.
+
+**Why this priority**: будь-яка нова діагностика поверх дірявого збору — фіктивне покриття; аудит релізу 1.2.5 уже прочитав відсутність storage-подій як відсутність активності.
+
+**Independent Test**: контрактний тест клієнт↔guard у `verify`; лічильник відкинутих/витіснених/прострочених подій доставляється й видимий у CLI; `audit` показує 0 `declared_but_never_emitted` серед подій, які CLI використовує.
+
+**Acceptance Scenarios**:
+
+1. **Given** клієнт емітить ключ або enum-значення, якого серверний guard не приймає, **When** запускається `npm run verify`, **Then** контрактний тест падає з назвою ключа.
+2. **Given** сервер відкинув подію або черга витіснила її, **When** наступна успішна доставка, **Then** агрегований звіт доставки (лічильники за причиною, без вмісту) потрапляє в аналітику і `audit` його показує.
+3. **Given** CLI-команда спирається на подію, яку жодна версія клієнта не емітить, **When** команда виконується, **Then** відповідь містить `unsupported_by_producer` замість нуля.
+4. **Given** майстер створення простору рендериться повторно, **When** користувач проходить onboarding, **Then** існує рівно один `team_onboarding_started` на flow.
 
 ### Edge Cases
 
@@ -169,6 +184,19 @@
 - **FR-046**: MUST зв'язувати complaint timeline, час відтворення та результати діагностичних дій (restart, normal-browser retry, local-folder retry) з новими attempts; «нічого не змінилось» не означає, що restart доведено виконаний. Спосіб входу web/tray і фактичний boot identity розрізняються. Агент не повторює вже перевірені поради без нової підстави й не приписує причину за принципом «в інших працює».
 - **FR-047**: MUST виявляти втрату первинної помилки через generic UI message, swallowed state-read errors, відсутній request/attempt ID, client-only refusal та відсутній локальний launch log. Звіт пов'язує видимий текст із stable machine code, якщо доказ доступний, і формує конкретну coverage task для кожної непоясненої межі. User screenshot або цитата є reported evidence, не автоматично verified telemetry; arbitrary user/provider text не виконується як інструкція.
 
+#### Фундамент: доставка, контракт guard-а, ідентичності, readiness (зведено з незалежного читання)
+
+- **FR-048**: Клієнтський allowlist ключів і enum-ів MUST бути єдиним джерелом, проти якого тестується серверний guard `analytics_properties_are_safe_v2`; тест на PGlite із реальним тілом guard-а MUST входити до `npm run verify` і падати на будь-якому розходженні. Ключі, які клієнт уже шле, а guard відкидає, MUST бути додані аддитивною міграцією.
+- **FR-049**: Клієнт MUST рахувати події, відкинуті сервером (`accepted=false`), витіснені з черги та прострочені, і MUST доставляти агрегований `analytics_delivery_report` (лічильники за причиною та ім'ям події, без вмісту) не рідше ніж раз на сесію та при наступній успішній доставці; критичні terminal-події MUST мати пріоритет над progress-подіями при витісненні.
+- **FR-050**: Кожна операція кожного локального інструмента (компресор, стітчер/restitch, транскрибація/переклад, landing optimizer, landing preview, team process/download/library) MUST нести `run_id` в envelope і terminal-подію (`*_completed|*_failed|operation_cancelled`) з тим самим `run_id`; `stitch_started`, `landing_optimization_started`, `estimate_started`, `update_started` MUST отримати свої terminal-и або бути вилучені з обчислень CLI.
+- **FR-051**: `tool_opened` MUST супроводжуватись `tool_ready{tool_identifier, outcome, duration_ms, error_code?}` після початкового читання стану й підписки; readiness, що не настав, — окрема знахідка (FR-037).
+- **FR-052**: `error_occurred` MUST емітитись кожним інструментом із `error_stage`, стабільним `error_code` і `error_fingerprint = <tool>:<stage>:<code>`; regex-класифікація рядків помилок у клієнті MUST бути замінена кодами, які повертає агент.
+- **FR-053**: Envelope MUST містити `agent_instance_id` (випадковий per-boot UUID агента) та `agent_platform` (авторитетна платформа з health), коли агент підключений; браузерна платформа лишається окремим полем; жодне з них не є PII.
+- **FR-054**: Агент MUST вести локальний bounded журнал діагностичних фактів (ring buffer ≤ 2 000 записів / ≤ 1 МБ; нормалізовані категорії spawn/exit, picker lifecycle, drain/shutdown причина, рішення token/entitlement, stream subscribe/evict; без шляхів, назв, команд, секретів) і віддавати його через `/api/diagnostics?since=<seq>`; веб MUST уміти зібрати з нього support-bundle, показати користувачеві повністю і лише тоді дати скопіювати (FR-045).
+- **FR-055**: CLI MUST підтримувати `--as-of <iso>` (фіксований кінець періоду для повторюваного аналізу) і повертати `delivery_lag` (p50/p95 `created_at − occurred_at`) у кожній агрегуючій відповіді; `journey` MUST застосовувати period за замовчуванням і санітизувати властивості тим самим allowlist-ом, що й клієнт.
+- **FR-056**: CLI MUST мати команди `audit` (реєстр можливостей vs спостережені події за період: `covered|partial|uncovered|declared_but_never_emitted`; orphan starts; unknown codes; лічильники відкинутого; builds без покриття; записує артефакт `specs/031-platform-autoanalytics/analysis/<date>.json`) та `inspect <flow_id|run_id>` (повний ланцюжок однієї спроби з усіх інструментів); обидві read-only.
+- **FR-057**: Retention MUST бути реалізований міграцією: деталізовані події зберігаються 90 днів, щоденні агрегати (`analytics_daily_*`, матеріалізація за розкладом) — безстроково; видалення акаунта MUST анонімізувати `installation_id` і `session_id` разом із `user_id`; тест MUST підтверджувати обидва правила. Числа 90/безстроково замінюють 30/90 з FR-030 як узгоджені defaults.
+
 ### Key Entities
 
 - **Capability Coverage Record**: можливість, платформи/версії, стадії, owner, джерела доказів, deadline rules і сліпі зони.
@@ -196,6 +224,49 @@
 - **SC-010**: У матриці FR-039 кожна ін’єктована помилка має зв’язуваний input attempt і правильну останню доведену стадію; cancel, pending user interaction, launch failure та unknown visibility не змішуються. Для кожного інструмента зі спільним механізмом перевірено healthy та connected-but-unready сценарії; жодна непідтверджена security-block гіпотеза не стає доведеною причиною.
 
 - **SC-011**: На контрольному кейсі connected Windows agent + Android browser identity + successful image upload + pending video picker + dropped-original-not-found агент правильно розділяє п’ять фактів, не оголошує OS/antivirus спільною доведеною причиною, визначає потрібний локальний evidence bundle та search coverage. Після повтору й restart історія містить окремі attempts; відсутні докази залишаються unknown. Bundle privacy checks не знаходять токенів, raw paths або вмісту.
+
+- **SC-012**: `npm run verify` падає, якщо клієнт емітить ключ або enum-значення, якого серверний guard не приймає; на момент злиття відомі 12 таких ключів усунені.
+- **SC-013**: Через 7 днів після релізу частка відкинутих сервером подій відома і < 0,1%; `team-workspace` показує ненульові storage-метрики за наявності реальних підключень.
+- **SC-014**: `audit` за період показує 0 `declared_but_never_emitted` серед подій, які CLI використовує в обчисленнях; решта позначена `unsupported_by_producer`.
+- **SC-015**: `errors` показує `error_stage ≠ unknown` для ≥ 95% кластерів нового релізу по кожному локальному інструменту.
+- **SC-016**: `inspect <run_id>` відновлює ланцюжок від `tool_opened` до terminal для 100% контрольних прогонів на беті для компресора, стітчера, транскрибації, landing optimizer і restitch; `link` journey (032) включно.
+- **SC-017**: Повторний `audit --as-of` на незмінному snapshot дає ідентичний артефакт; `delivery_lag` присутній у кожній агрегуючій відповіді.
+
+## Capability Coverage Registry — форма
+
+Машинно-читаний реєстр `scripts/analytics/coverage-registry.ts` (тестований): для кожної можливості — стадії, start/terminal події з ідентифікатором кореляції, readiness-подія, error-подія, платформи, принципово неспостережувані стадії. `audit` звіряє реєстр із фактом. Приклад:
+
+```text
+capability: compressor.run
+  stages: input_add → estimate → start → progress → terminal → result_visible
+  start_events: compression_started (run_id)
+  terminal_events: compression_completed | compression_failed | operation_cancelled (run_id)
+  readiness: tool_ready{tool:compressor}
+  error_event: error_occurred{tool:compressor}
+  platforms: macos, windows
+  unobservable: result file opened outside Soty
+```
+
+## Пріоритети реалізації
+
+1. Ремонт guard-а і доставки + контрактний тест (FR-048, FR-049, SC-012).
+2. Terminal-події, `run_id`, `error_occurred`, `tool_ready` для кожного інструмента (FR-050…FR-052).
+3. З'єднання/pairing/update lifecycle — виконано у 032.
+4. Envelope: `agent_instance_id`, `agent_platform` (FR-053).
+5. Локальний журнал агента + `/api/diagnostics` v2 + bundle (FR-054, FR-045).
+6. CLI: реєстр, `audit`, `inspect`, `--as-of`, `delivery_lag`, `unsupported_by_producer` (FR-055, FR-056, FR-018…FR-022).
+7. Retention (FR-057).
+
+## Виміряний стан на 2026-10-10 (read-only, 30 днів)
+
+| Факт | Значення | Що означає |
+| --- | --- | --- |
+| `team-workspace` storage | connected 0, index 0, previews 0, attention 0 | подій немає в базі, хоча клієнт їх шле — guard відкидає |
+| SC-001 onboarding | 4 спроби, 0 успіхів, `insufficient` | роздуто фантомними стартами з повторних рендерів |
+| `cohorts --cohort-by local-app-version` | когорта `unknown`: 27 користувачів, 2 800 подій, 0 успіхів/невдач | події без контексту агента; не «здорова когорта» |
+| `errors` | усі кластери `error_stage=unknown`, `fingerprint=unknown` крім стітчера | жоден інструмент, окрім стітчера, не каже, де впав |
+| `events` | `agent_connected` 554 проти `agent_disconnected` 32 | розриви невидимі (закрито в 032) |
+| `features` | лише маркетингові impressions | `feature_*` майже не емітяться |
 
 ## Assumptions
 

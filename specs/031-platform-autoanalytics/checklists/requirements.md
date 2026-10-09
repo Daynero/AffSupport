@@ -32,3 +32,5 @@ Validated against the specification. The user explicitly requests an agent-facin
 Revalidated 2026-10-09 after adding Story 5 and FR-034–FR-039 for native picker, dropped inputs, per-tool readiness and evidence-based security-block diagnosis. The reported Windows incident remains unconfirmed as to root cause.
 
 Revalidated after FR-040–FR-047 and SC-011: browser/agent platform mismatch, pending/preflight evidence boundaries, picker process context, resolver search coverage, partial functionality, sanitized support bundles and incident/restart correlation. Regression seed explicitly separates reported facts from unproven causes.
+
+Revalidated 2026-10-10 after merging the independent reading (research.md): Story 6 (foundation repair, P0), FR-048–FR-057 and SC-012–SC-017 added; FR-030 retention defaults superseded by FR-057 (90 days detailed, aggregates indefinitely); measured 30-day state recorded in the spec. The 12 guard-rejected keys, 42 never-emitted events and the onboarding re-render defect are facts from code, not hypotheses.
