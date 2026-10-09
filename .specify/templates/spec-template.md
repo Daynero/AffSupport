@@ -98,6 +98,21 @@
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
 - **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
 
+### Analytics & Diagnostic Coverage *(mandatory)*
+
+<!--
+  Follow AGENTS.md "Analytics coverage for every feature" and
+  specs/031-platform-autoanalytics/spec.md. Define agent-readable evidence for
+  each new or changed journey: expected stages, correlated attempts, actual
+  delivered outcome, failure reasons, cancellation/interruption, and recovery.
+  Include missing/delayed evidence, privacy boundaries, and acceptance scenarios
+  proving end-to-end diagnosis through the read-only analytics tooling.
+  Identify unsupported or genuinely unobservable stages and safe fallback evidence.
+  Do not treat event emission alone as verified diagnostic coverage.
+-->
+
+- [Define diagnostic coverage and its acceptance criteria for this feature]
+
 ### Key Entities *(include if feature involves data)*
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]

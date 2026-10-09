@@ -87,6 +87,31 @@ the one-time setup in `docs/ANALYTICS_CLI.md`; do not fall back to manual Supaba
 
 Do not change production data during analytics queries.
 
+## Analytics coverage for every feature
+
+Every new feature and every changed user journey MUST include analytics and
+diagnostic coverage as part of its specification, implementation, and acceptance
+criteria. Follow the platform requirements in
+[`specs/031-platform-autoanalytics/spec.md`](specs/031-platform-autoanalytics/spec.md).
+The consumer is an agent: it must be able to explain what the user attempted,
+where the operation stopped, why, and whether the result actually reached the
+user, without the product owner opening an analytics dashboard.
+
+- Define the expected stages, correlated flow/operation/attempt identifiers,
+  success and partial outcomes, failures, cancellation, interruption, and recovery.
+  Include background work and dependencies where applicable.
+- Reuse the typed analytics seams and read-only CLI. Add or extend diagnostic
+  queries when existing commands cannot explain the feature's outcomes.
+- Verify the complete path from signal production to agent-readable diagnosis,
+  including missing or delayed signals. An emitted event alone is not proof of
+  coverage; unknown causes and blind spots must remain explicit.
+- Keep collection bounded and privacy-safe: never collect user content, secrets,
+  raw paths, credentials, or provider payloads to improve diagnosis.
+- Update the capability coverage inventory and include relevant regression
+  scenarios. A feature is not production-ready while a critical journey lacks
+  verified diagnostic coverage. Document genuinely unobservable stages and the
+  safe fallback evidence needed rather than claiming complete coverage.
+
 ## Changing what the product looks like
 
 Two documents, in this order. [`docs/DESIGN.md`](docs/DESIGN.md) is the
