@@ -28,7 +28,7 @@ const WINDOWS: PlatformCapabilities = {
   nativeFilePicker: true,
   directoryIntake: false,
   revealInFileManager: true,
-  spotlightSearch: false,
+  indexedFileSearch: false,
   shellContextMenuIntegration: false,
   processPause: false
 };
@@ -37,7 +37,7 @@ const MACOS: PlatformCapabilities = {
   nativeFilePicker: true,
   directoryIntake: false,
   revealInFileManager: true,
-  spotlightSearch: true,
+  indexedFileSearch: true,
   shellContextMenuIntegration: true,
   processPause: true
 };

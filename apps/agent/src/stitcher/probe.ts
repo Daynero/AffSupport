@@ -14,6 +14,12 @@ import { ffprobePath, probeBodyFrameRate } from '../ffmpeg/tools.js';
 import { runTool, toolSucceeded } from './run.js';
 
 export type ProbeFailure = 'unreadable' | 'tool-unavailable';
+export type ProbeDiagnosticCode =
+  | 'SOURCE_STAT_FAILED'
+  | 'PROBE_SPAWN_FAILED'
+  | 'PROBE_EXIT_FAILED'
+  | 'PROBE_JSON_INVALID'
+  | 'PROBE_METADATA_INVALID';
 
 export function buildSourceProbeArgs(input: string): string[] {
   return [
@@ -236,24 +242,29 @@ export function sourceProfileFromProbe(
 export async function probeSource(
   input: string,
   options: { signal?: AbortSignal; keyframes?: boolean } = {}
-): Promise<{ ok: true; value: SourceProfile } | { ok: false; error: ProbeFailure }> {
+): Promise<
+  | { ok: true; value: SourceProfile }
+  | { ok: false; error: ProbeFailure; diagnosticCode?: ProbeDiagnosticCode }
+> {
   let facts: SourceFileFacts;
   try {
     const stats = await stat(input);
     facts = { path: path.resolve(input), sizeBytes: stats.size, modifiedAtMs: stats.mtimeMs };
   } catch {
-    return { ok: false, error: 'unreadable' };
+    return { ok: false, error: 'unreadable', diagnosticCode: 'SOURCE_STAT_FAILED' };
   }
 
   const description = await runTool(ffprobePath, buildSourceProbeArgs(input), options);
-  if (description.spawnErrorCode) return { ok: false, error: 'tool-unavailable' };
-  if (!toolSucceeded(description)) return { ok: false, error: 'unreadable' };
+  if (description.spawnErrorCode)
+    return { ok: false, error: 'tool-unavailable', diagnosticCode: 'PROBE_SPAWN_FAILED' };
+  if (!toolSucceeded(description))
+    return { ok: false, error: 'unreadable', diagnosticCode: 'PROBE_EXIT_FAILED' };
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(description.stdout);
   } catch {
-    return { ok: false, error: 'unreadable' };
+    return { ok: false, error: 'unreadable', diagnosticCode: 'PROBE_JSON_INVALID' };
   }
 
   let keyframeTimes: number[] = [];
@@ -271,7 +282,8 @@ export async function probeSource(
    * the rest.
    */
   const first = sourceProfileFromProbe(parsed, facts, keyframeTimes);
-  if (!first.ok || !first.value.variableFrameRate || first.value.durationSeconds < 8) {
+  if (!first.ok) return { ...first, diagnosticCode: 'PROBE_METADATA_INVALID' };
+  if (!first.value.variableFrameRate || first.value.durationSeconds < 8) {
     return first;
   }
   const timing = await bodyTimingIsConstant(input, first.value.durationSeconds, options);

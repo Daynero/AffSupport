@@ -154,11 +154,25 @@ export function registerStitcherRoutes(app: FastifyInstance, ctx: StitcherContex
        * at once (FR-030).
        */
       const candidates = [];
-      const refused: { path: string; reason: string }[] = [];
+      const refused: { path: string; reason: string; diagnosticCode?: string }[] = [];
       for (const candidate of local) {
         const probed = await probeSource(candidate, { keyframes: false });
         if (!probed.ok) {
-          refused.push({ path: candidate, reason: 'unreadable' });
+          if (probed.error === 'tool-unavailable')
+            return reply.code(503).send({ error: 'MEDIA_TOOL_UNAVAILABLE' });
+          request.log.warn(
+            {
+              code: probed.diagnosticCode ?? 'STITCH_SOURCE_UNREADABLE',
+              stage: 'source_probe',
+              requestId: request.id
+            },
+            'Stitch input probe failed'
+          );
+          refused.push({
+            path: candidate,
+            reason: 'unreadable',
+            ...(probed.diagnosticCode ? { diagnosticCode: probed.diagnosticCode } : {})
+          });
           continue;
         }
         const unsupported = stitchUnsupportedReason(probed.value);

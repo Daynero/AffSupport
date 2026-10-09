@@ -1,11 +1,9 @@
-import { spawn } from 'node:child_process';
 import type { Dirent } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { capabilities } from '../platform/platform.js';
+import { indexedFileSearch, userContentFolders } from '../platform/platform.js';
 
-const COMMON_SOURCE_FOLDERS = ['Downloads', 'Desktop', 'Movies', 'Documents'];
 const MAX_COMMON_FOLDER_ENTRIES = 5_000;
 const MAX_COMMON_FOLDER_DEPTH = 4;
 
@@ -16,18 +14,15 @@ export async function findDroppedSource(
 ): Promise<string | null> {
   if (!Number.isFinite(expectedSize)) return null;
 
-  const home = os.homedir();
-  const common = COMMON_SOURCE_FOLDERS.map(folder => path.join(home, folder));
   const inCommonFolder = await findDroppedSourceInDirectories(
-    common,
+    await userContentFolders(),
     fileName,
     expectedSize,
     expectedModifiedAt
   );
   if (inCommonFolder) return inCommonFolder;
 
-  if (!capabilities().spotlightSearch) return null;
-  const candidates = await spotlight(home, fileName);
+  const candidates = await indexedFileSearch(os.homedir(), fileName);
   for (const candidate of candidates) {
     if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) return candidate;
   }
@@ -96,7 +91,7 @@ export interface DroppedFolderSample {
 /**
  * Recover a dropped folder's real on-disk path from its {@link DroppedFolderSample}, so the landing
  * viewer's drag-and-drop can open the same watched folder the native picker would. First probes the
- * usual drop locations by exact layout (cheap, cross-platform); then, on macOS, uses Spotlight to
+ * usual drop locations by exact layout (cheap, cross-platform); then asks the OS file index to
  * find the sample file anywhere under home and derives the folder from its path. Returns `null` when
  * the folder can't be located, in which case the caller falls back to the picker.
  */
@@ -114,15 +109,12 @@ export async function findDroppedFolder(sample: DroppedFolderSample): Promise<st
     return null;
   }
 
-  const home = os.homedir();
-  for (const folder of COMMON_SOURCE_FOLDERS) {
-    const root = path.join(home, folder, sample.folderName);
+  for (const folder of await userContentFolders()) {
+    const root = path.join(folder, sample.folderName);
     if (await folderMatches(root, relSegments, sample)) return root;
   }
 
-  if (!capabilities().spotlightSearch) return null;
-
-  const hits = await spotlight(home, sample.fileName);
+  const hits = await indexedFileSearch(os.homedir(), sample.fileName);
   for (const hit of hits) {
     let root = hit;
     for (let index = 0; index < relSegments.length; index += 1) root = path.dirname(root);
@@ -162,41 +154,4 @@ async function matchesFile(
   } catch {
     return false;
   }
-}
-
-/**
- * Asks Spotlight for files with this exact name, by argument rather than by query.
- *
- * It used to build a `kMDItemFSName == "…"` expression by interpolating the
- * name, with two characters escaped by hand. `shell: false` meant this was
- * never a shell injection — but the query language is a language, and hand-rolled
- * escaping for one is the same bet every time: that nobody will ever pass the
- * character the author did not think of. `-name` takes the value as its own
- * argv entry, so there is no expression to escape and nothing to get wrong.
- *
- * The size predicate went with it. It was only ever a narrowing hint; every
- * candidate is checked against size and modification time by `matchesFile`
- * afterwards, which is the check that actually decides.
- */
-function spotlight(root: string, name: string): Promise<string[]> {
-  return new Promise(resolve => {
-    const child = spawn('/usr/bin/mdfind', ['-onlyin', root, '-name', name], {
-      shell: false,
-      stdio: ['ignore', 'pipe', 'ignore']
-    });
-    let output = '';
-    const timer = setTimeout(() => child.kill('SIGTERM'), 3000);
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', chunk => {
-      if (output.length < 64 * 1024) output += chunk;
-    });
-    child.once('error', () => {
-      clearTimeout(timer);
-      resolve([]);
-    });
-    child.once('close', () => {
-      clearTimeout(timer);
-      resolve(output.split('\n').filter(Boolean));
-    });
-  });
 }

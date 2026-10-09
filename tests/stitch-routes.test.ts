@@ -293,6 +293,18 @@ describe('POST /api/stitcher/inspect', () => {
 });
 
 describe('POST /api/stitcher/files', () => {
+  it('reports a media engine that disappeared after readiness as unavailable', async () => {
+    probeSource.mockResolvedValue({ ok: false, error: 'tool-unavailable' });
+    const { app } = harness();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/stitcher/files',
+      payload: { paths: [source] }
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: 'MEDIA_TOOL_UNAVAILABLE' });
+  });
+
   it('adds a row per readable file and names what it refused', async () => {
     const other = path.join(workspace, 'wrong-codec.mp4');
     await writeFile(other, 'not really a video');

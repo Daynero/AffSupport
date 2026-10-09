@@ -53,12 +53,12 @@ export function inspectStitchSource(choice: StitchChoice): Promise<StitchInspect
 /** Put files in the list. Nothing runs — the compressor's `add`. */
 export function addStitchFiles(paths: string[]): Promise<{
   state: StitcherState;
-  refused: { path: string; reason: string }[];
+  refused: { path: string; reason: string; diagnosticCode?: string }[];
 }> {
-  return requestBody<{ state: StitcherState; refused: { path: string; reason: string }[] }>(
-    '/api/stitcher/files',
-    { paths }
-  );
+  return requestBody<{
+    state: StitcherState;
+    refused: { path: string; reason: string; diagnosticCode?: string }[];
+  }>('/api/stitcher/files', { paths });
 }
 
 /** Start the chosen rows — the compressor's "compress selected". */

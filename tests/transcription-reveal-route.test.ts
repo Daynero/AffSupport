@@ -58,14 +58,15 @@ describe('revealing a completed transcription source', () => {
     expect(response.statusCode).toBe(200);
     const expected: [string, string[]] =
       process.platform === 'win32'
-        ? ['explorer.exe', [`/select,${REAL_SOURCE}`]]
+        ? ['explorer.exe', [`/select,"${REAL_SOURCE}"`]]
         : process.platform === 'darwin'
           ? ['/usr/bin/open', ['-R', REAL_SOURCE]]
           : ['xdg-open', [path.dirname(REAL_SOURCE)]];
     expect(processMock.spawn).toHaveBeenCalledWith(expected[0], expected[1], {
       shell: false,
       detached: true,
-      stdio: 'ignore'
+      stdio: 'ignore',
+      ...(process.platform === 'win32' ? { windowsVerbatimArguments: true } : {})
     });
     expect(processMock.unref).toHaveBeenCalledOnce();
     await app.close();

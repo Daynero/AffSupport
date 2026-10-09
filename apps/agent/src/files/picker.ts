@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 import { TRANSCRIBE_EXTENSIONS } from '@video-compressor/shared';
+import { powerShellQuote as psQuote, windowsPowerShell } from '../platform/platform.js';
 import { pathGrants, type GrantAccess } from './path-grants.js';
 
 /**
@@ -144,40 +146,71 @@ function windowsFilter(label: string, extensions: readonly string[]): string {
   return `${label} (${patterns})|${patterns}|All files (*.*)|*.*`;
 }
 
-/** PowerShell single-quoted literal: only the quote itself needs doubling. */
-function psQuote(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
-}
-
 /**
  * Multi-select OpenFileDialog. Cancel prints nothing and exits 0, matching the
  * macOS "User canceled" → [] semantics; a non-zero exit means a real failure.
  */
+/**
+ * An invisible, topmost owner for the dialog.
+ *
+ * Without an owner the dialog is a plain top-level window of a process the user
+ * never clicked, and Windows will not bring it to the front: it opens behind
+ * Chrome, the user sees nothing, and two minutes later the request times out.
+ * Owned by a topmost window, the dialog is topmost too.
+ *
+ * The owner is shown, not just created. The agent starts PowerShell with its
+ * console hidden, which Windows records in the process's STARTUPINFO — and the
+ * first ShowWindow call a process makes ignores its own argument and uses that
+ * recorded state instead. Shown first, this one-pixel transparent form absorbs
+ * that call, so the dialog's own show is honoured. Centred, so the dialog that
+ * centres on its owner lands mid-screen.
+ */
+function windowsDialogOwner(): string[] {
+  return [
+    '$owner = New-Object System.Windows.Forms.Form',
+    "$owner.FormBorderStyle = 'None'",
+    "$owner.StartPosition = 'CenterScreen'",
+    '$owner.Size = New-Object System.Drawing.Size(1, 1)',
+    '$owner.Opacity = 0',
+    '$owner.ShowInTaskbar = $false',
+    '$owner.TopMost = $true',
+    '$owner.Show()'
+  ];
+}
+
 function windowsOpenFileScript(title: string, filter: string): string {
   return [
-    'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
+    "$ErrorActionPreference = 'Stop'",
+    'Add-Type -AssemblyName System.Windows.Forms, System.Drawing | Out-Null',
     '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
     '$dialog = New-Object System.Windows.Forms.OpenFileDialog',
     `$dialog.Title = ${psQuote(title)}`,
     `$dialog.Filter = ${psQuote(filter)}`,
     '$dialog.Multiselect = $true',
     '$dialog.CheckFileExists = $true',
-    'if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {',
+    ...windowsDialogOwner(),
+    'try {',
+    'if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {',
     '  foreach ($file in $dialog.FileNames) { [Console]::Out.WriteLine($file) }',
-    '}'
+    '}',
+    '} finally { $dialog.Dispose(); $owner.Dispose() }'
   ].join('\n');
 }
 
 function windowsFolderScript(description: string): string {
   return [
-    'Add-Type -AssemblyName System.Windows.Forms | Out-Null',
+    "$ErrorActionPreference = 'Stop'",
+    'Add-Type -AssemblyName System.Windows.Forms, System.Drawing | Out-Null',
     '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
     '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog',
     `$dialog.Description = ${psQuote(description)}`,
     '$dialog.ShowNewFolderButton = $true',
-    'if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {',
+    ...windowsDialogOwner(),
+    'try {',
+    'if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {',
     '  [Console]::Out.WriteLine($dialog.SelectedPath)',
-    '}'
+    '}',
+    '} finally { $dialog.Dispose(); $owner.Dispose() }'
   ].join('\n');
 }
 
@@ -208,7 +241,7 @@ function runWindowsPicker(script: string, failure: string): Promise<string[]> {
     let child;
     try {
       child = spawn(
-        'powershell.exe',
+        windowsPowerShell(),
         ['-NoProfile', '-NonInteractive', '-STA', '-Command', script],
         { shell: false, windowsHide: true }
       );
@@ -230,14 +263,18 @@ function runWindowsPicker(script: string, failure: string): Promise<string[]> {
     timer.unref();
     let out = '',
       err = '';
+    const outputDecoder = new StringDecoder('utf8');
+    const errorDecoder = new StringDecoder('utf8');
     child.stdout.on('data', d => {
-      out += d;
+      out += typeof d === 'string' ? d : outputDecoder.write(d);
     });
     child.stderr.on('data', d => {
-      err += d;
+      err = (err + (typeof d === 'string' ? d : errorDecoder.write(d))).slice(-4000);
     });
     child.on('error', () => finish(() => reject(new Error('NATIVE_PICKER_UNAVAILABLE'))));
     child.on('close', code => {
+      out += outputDecoder.end();
+      err = (err + errorDecoder.end()).slice(-4000);
       finish(() => {
         if (code === 0) {
           resolve(

@@ -216,7 +216,7 @@ it('keeps an edited row mounted in its original account after an external transf
   await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
   expect(screen.getByRole('textbox', { name: /Top-up.*USD/ })).toBe(input);
   expect((input as HTMLInputElement).value).toBe('250');
-  expect(screen.getByText(/An account association changed/)).toBeTruthy();
+  expect(screen.getByText(/An ad account association changed/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await screen.findByText(/The ad account moved to another account/);
   expect(save).toHaveBeenCalledWith(

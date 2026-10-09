@@ -245,7 +245,10 @@ export function droppedFilePaths(data: DataTransfer): string[] {
       try {
         const url = new URL(value);
         if (url.protocol !== 'file:' || (url.hostname && url.hostname !== 'localhost')) return [];
-        return [decodeURIComponent(url.pathname)];
+        const decoded = decodeURIComponent(url.pathname);
+        // A file URL carries /C:/ on Windows; that slash is URL syntax, not
+        // part of the drive path. Keep POSIX paths unchanged.
+        return [/^\/[a-z]:\//iu.test(decoded) ? decoded.slice(1) : decoded];
       } catch {
         return [];
       }

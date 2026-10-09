@@ -39,6 +39,7 @@ import type {
 import { useAgent } from '../AgentContext';
 import { useI18n, type Language } from '../i18n';
 import { analytics } from '../analytics/service';
+import { observeStitchInput, recordStitchInputFailure } from './input-diagnostics';
 import { toolJobActivityEvents } from '../analytics/tools';
 import { compactPath, formatCodec, formatDuration, formatFps, formatSize } from '../format';
 import { DropZone } from '../components/DropZone';
@@ -125,7 +126,7 @@ export function Stitcher() {
   useEffect(() => {
     if (!connected) return;
     let active = true;
-    void fetchCompressorState()
+    void observeStitchInput('settings_read', crypto.randomUUID(), fetchCompressorState)
       .then(queue => {
         if (active) setCompressor(queue.settings);
       })
@@ -156,16 +157,20 @@ export function Stitcher() {
 
   /** Adds files to the list, selects what arrived, and says what was refused and why. */
   const addFiles = useCallback(
-    async (paths: string[]) => {
+    async (paths: string[], flowId = crypto.randomUUID()) => {
       if (!paths.length) return;
       setBusy(true);
       setMessage(null);
       try {
         const before = new Set((state?.jobs ?? []).map(job => job.id));
-        const { state: next, refused } = await addStitchFiles(paths);
+        const { state: next, refused } = await observeStitchInput('input_probe', flowId, () =>
+          addStitchFiles(paths)
+        );
         applyState(next);
         const added = next.jobs.filter(job => !before.has(job.id)).map(job => job.id);
         if (added.length) setSelected(current => new Set([...current, ...added]));
+        for (const refusal of refused)
+          recordStitchInputFailure('input_probe', flowId, refusal.diagnosticCode ?? refusal.reason);
         if (refused.length) setMessage(refusalMessage(refused[0]!.reason, t));
       } catch (error) {
         handleError(error);
@@ -184,6 +189,7 @@ export function Stitcher() {
    * button — a copy in a temp folder would make "beside the original" a lie.
    */
   const takeDropped = async (files: File[]) => {
+    const flowId = crypto.randomUUID();
     setBusy(true);
     try {
       // One file the agent cannot place must not lose the rest of the drop: each is
@@ -192,12 +198,14 @@ export function Stitcher() {
       let lost: unknown = null;
       for (const file of files) {
         try {
-          found.push(...(await resolveDroppedVideo(file)));
+          found.push(
+            ...(await observeStitchInput('drop_resolve', flowId, () => resolveDroppedVideo(file)))
+          );
         } catch (error) {
           lost = error;
         }
       }
-      if (found.length) await addFiles(found);
+      if (found.length) await addFiles(found, flowId);
       if (lost) {
         const code = lost instanceof Error ? lost.message : '';
         setMessage(
@@ -210,8 +218,12 @@ export function Stitcher() {
   };
 
   const choose = async () => {
+    const flowId = crypto.randomUUID();
     try {
-      take((await selectStitchSources()).paths);
+      const { paths } = await observeStitchInput('picker', flowId, selectStitchSources, result =>
+        result.paths.length ? 'success' : 'cancelled'
+      );
+      await addFiles(paths, flowId);
     } catch (error) {
       handleError(error);
     }

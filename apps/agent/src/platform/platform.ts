@@ -27,8 +27,8 @@ export interface PlatformCapabilities {
   directoryIntake: boolean;
   /** "Reveal in Finder/Explorer" style actions. */
   revealInFileManager: boolean;
-  /** Content-indexed file search (Spotlight's mdfind on macOS). */
-  spotlightSearch: boolean;
+  /** A file index the agent can ask by name (Spotlight on macOS, Windows Search on Windows). */
+  indexedFileSearch: boolean;
   /**
    * File-manager context-menu integration that calls back into the agent (the
    * macOS Finder Sync extension and image-conversion Services provider, which
@@ -51,7 +51,7 @@ export function capabilities(): PlatformCapabilities {
         nativeFilePicker: true,
         directoryIntake: true,
         revealInFileManager: true,
-        spotlightSearch: true,
+        indexedFileSearch: true,
         shellContextMenuIntegration: true,
         processPause: true
       };
@@ -61,7 +61,8 @@ export function capabilities(): PlatformCapabilities {
         nativeFilePicker: true,
         directoryIntake: true,
         revealInFileManager: true,
-        spotlightSearch: false,
+        // Windows Search, through PowerShell (indexedFileSearch below).
+        indexedFileSearch: true,
         shellContextMenuIntegration: false,
         // Real since the power throttle: NtSuspendProcess through a resident
         // PowerShell helper. Before that this was false and every suspend was a
@@ -73,7 +74,7 @@ export function capabilities(): PlatformCapabilities {
         nativeFilePicker: false,
         directoryIntake: false,
         revealInFileManager: true,
-        spotlightSearch: false,
+        indexedFileSearch: false,
         shellContextMenuIntegration: false,
         processPause: true
       };
@@ -152,8 +153,12 @@ export function installedBrowserCandidates(): string[] {
 }
 
 /** Fire-and-forget spawn for desktop shell actions (never blocks the agent). */
-function spawnDetached(command: string, args: string[]): void {
-  spawn(command, args, { shell: false, detached: true, stdio: 'ignore' }).unref();
+function spawnDetached(
+  command: string,
+  args: string[],
+  options: { windowsVerbatimArguments?: boolean } = {}
+): void {
+  spawn(command, args, { shell: false, detached: true, stdio: 'ignore', ...options }).unref();
 }
 
 /**
@@ -196,8 +201,14 @@ function revealInFileManager(filePath: string): void {
       spawnDetached('/usr/bin/open', ['-R', filePath]);
       return;
     case 'win32':
-      // Explorer expects the switch and path as a single `/select,`-joined arg.
-      spawnDetached('explorer.exe', [`/select,${filePath}`]);
+      // Explorer wants `/select,"C:\path"` — the switch joined to the quoted
+      // path. Node quotes any argument with a space as a whole, which turns it
+      // into `"/select,C:\path"`; Explorer does not recognise that, and shows
+      // the default folder instead of the file. So the argument is built here
+      // and passed verbatim. A Windows path cannot contain a double quote.
+      spawnDetached('explorer.exe', [`/select,"${filePath}"`], {
+        windowsVerbatimArguments: true
+      });
       return;
     default:
       // No portable "select file" verb; open the containing folder instead.
@@ -607,4 +618,213 @@ export function parseCpuTime(value: string | undefined): number | null {
     seconds += parsedDays * 86_400;
   }
   return seconds;
+}
+
+/* ── Where a dropped file is looked for ──────────────────────────────────────
+   A browser drop carries a file's name, size and modification time, never its
+   path. The agent finds the original on disk from those three facts: first in
+   the folders people drag from, then through the OS file index. Both halves
+   are platform-shaped, so both live here. */
+
+/** The folder names people ordinarily drag files from, as the OS names them. */
+const COMMON_CONTENT_FOLDERS = ['Downloads', 'Desktop', 'Movies', 'Videos', 'Documents'];
+
+/** The Downloads folder has no `[Environment+SpecialFolder]` name; this is its known-folder id. */
+const WINDOWS_DOWNLOADS_FOLDER_ID = '{374DE290-123F-4565-9164-39C4925E467B}';
+
+/**
+ * Asks Windows where the user's Desktop, Documents, Videos and Downloads really
+ * are. On a typical Windows 10/11 install OneDrive moves the first three into
+ * `~/OneDrive/...` ("Known Folder Move"), so `~/Desktop` is either empty or
+ * missing and a drop from the real desktop is never found by name. PowerShell
+ * reads the same registry Explorer does and prints the paths in UTF-8, which
+ * `reg.exe` would not (it writes the console code page, mangling a Cyrillic
+ * user name). One line per folder; nothing else is printed.
+ */
+const WINDOWS_KNOWN_FOLDERS_SCRIPT = [
+  "$ErrorActionPreference = 'SilentlyContinue'",
+  '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+  "$shell = Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders'",
+  `$downloads = $shell.'${WINDOWS_DOWNLOADS_FOLDER_ID}'`,
+  'if ($downloads) { [Console]::Out.WriteLine([Environment]::ExpandEnvironmentVariables($downloads)) }',
+  "foreach ($name in 'Desktop', 'MyVideos', 'MyDocuments') { [Console]::Out.WriteLine([Environment]::GetFolderPath($name)) }"
+].join('\n');
+
+const KNOWN_FOLDERS_TIMEOUT_MS = 8_000;
+
+/** Windows PowerShell by its full path when the system root is known; by name otherwise. */
+export function windowsPowerShell(): string {
+  const systemRoot = process.env.SystemRoot?.trim() || process.env.windir?.trim();
+  return systemRoot
+    ? path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    : 'powershell.exe';
+}
+
+/** PowerShell single-quoted literal: only the quote itself needs doubling. */
+export function powerShellQuote(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+/** Runs a PowerShell snippet with its console hidden and returns stdout lines, or [] on any failure. */
+function powerShellLines(script: string, timeoutMs: number): Promise<string[]> {
+  return new Promise(resolve => {
+    let child: ChildProcess;
+    try {
+      child = spawn(
+        windowsPowerShell(),
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+        { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
+      );
+    } catch {
+      resolve([]);
+      return;
+    }
+    let output = '';
+    const timer = setTimeout(() => child.kill(), timeoutMs);
+    timer.unref();
+    child.stdout?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk: string) => {
+      if (output.length < 256 * 1024) output += chunk;
+    });
+    child.once('error', () => {
+      clearTimeout(timer);
+      resolve([]);
+    });
+    child.once('close', code => {
+      clearTimeout(timer);
+      resolve(
+        code === 0
+          ? output
+              .split(/\r?\n/u)
+              .map(line => line.trim())
+              .filter(Boolean)
+          : []
+      );
+    });
+  });
+}
+
+/**
+ * Merges the folders Windows reported with the defaults and the OneDrive roots the
+ * environment names (`OneDrive`, `OneDriveConsumer`, `OneDriveCommercial`), in
+ * that order, without duplicates. Exported for its test; the public door is
+ * {@link userContentFolders}.
+ */
+export function mergeWindowsContentFolders(
+  home: string,
+  reported: readonly string[],
+  env: NodeJS.ProcessEnv
+): string[] {
+  const roots = [home];
+  for (const name of ['OneDrive', 'OneDriveConsumer', 'OneDriveCommercial']) {
+    const root = env[name]?.trim();
+    if (root && path.win32.isAbsolute(root)) roots.push(root);
+  }
+  const candidates = [
+    ...reported,
+    ...roots.flatMap(root => COMMON_CONTENT_FOLDERS.map(folder => path.win32.join(root, folder)))
+  ];
+  const seen = new Set<string>();
+  const folders: string[] = [];
+  for (const candidate of candidates) {
+    if (!path.win32.isAbsolute(candidate)) continue;
+    const key = path.win32.normalize(candidate).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    folders.push(path.win32.normalize(candidate));
+  }
+  return folders;
+}
+
+let windowsContentFolders: { home: string; folders: Promise<string[]> } | null = null;
+
+/**
+ * The folders a dropped file is looked for in, by absolute path.
+ *
+ * macOS and Linux: the common folders under home. Windows: the same names, but
+ * where the user's known folders actually are (OneDrive redirection included),
+ * resolved once per agent lifetime and remembered.
+ */
+export function userContentFolders(): Promise<string[]> {
+  const home = os.homedir();
+  if (process.platform !== 'win32')
+    return Promise.resolve(COMMON_CONTENT_FOLDERS.map(folder => path.join(home, folder)));
+  if (windowsContentFolders?.home !== home) {
+    windowsContentFolders = {
+      home,
+      folders: powerShellLines(WINDOWS_KNOWN_FOLDERS_SCRIPT, KNOWN_FOLDERS_TIMEOUT_MS).then(
+        reported => mergeWindowsContentFolders(home, reported, process.env)
+      )
+    };
+  }
+  return windowsContentFolders.folders;
+}
+
+const INDEXED_SEARCH_TIMEOUT_MS = 6_000;
+
+/**
+ * Windows Search's SQL for "every indexed file with exactly this name". The
+ * name is a literal inside single quotes, so a quote in it is doubled; nothing
+ * else in a file name is special to this dialect. Exported for its test.
+ */
+export function windowsSearchSql(fileName: string): string {
+  return `SELECT TOP 50 System.ItemPathDisplay FROM SYSTEMINDEX WHERE System.FileName = '${fileName.replaceAll("'", "''")}'`;
+}
+
+function windowsSearchScript(fileName: string): string {
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+    '$connection = New-Object System.Data.OleDb.OleDbConnection \'Provider=Search.CollatorDSO;Extended Properties="Application=Windows"\'',
+    '$command = $connection.CreateCommand()',
+    `$command.CommandText = ${powerShellQuote(windowsSearchSql(fileName))}`,
+    '$connection.Open()',
+    'try {',
+    '  $reader = $command.ExecuteReader()',
+    '  while ($reader.Read()) { [Console]::Out.WriteLine($reader.GetString(0)) }',
+    '  $reader.Close()',
+    '} finally { $connection.Close() }'
+  ].join('\n');
+}
+
+/**
+ * Asks the OS file index for files with this exact name: Spotlight on macOS
+ * (`mdfind`, by argument rather than by query so there is nothing to escape),
+ * Windows Search on Windows (the same index Explorer's search box uses). Both
+ * are a hint, not an answer — every candidate is still checked against size
+ * and modification time by the caller. Resolves to [] wherever there is no
+ * index, where it is off, or where it does not answer in time.
+ */
+export function indexedFileSearch(root: string, fileName: string): Promise<string[]> {
+  switch (process.platform) {
+    case 'darwin':
+      return new Promise(resolve => {
+        const child = spawn('/usr/bin/mdfind', ['-onlyin', root, '-name', fileName], {
+          shell: false,
+          stdio: ['ignore', 'pipe', 'ignore']
+        });
+        let output = '';
+        const timer = setTimeout(() => child.kill('SIGTERM'), 3000);
+        child.stdout.setEncoding('utf8');
+        child.stdout.on('data', chunk => {
+          if (output.length < 64 * 1024) output += chunk;
+        });
+        child.once('error', () => {
+          clearTimeout(timer);
+          resolve([]);
+        });
+        child.once('close', () => {
+          clearTimeout(timer);
+          resolve(output.split('\n').filter(Boolean));
+        });
+      });
+    case 'win32':
+      // The index spans every indexed drive, which is the point: a video kept on
+      // D:\ is exactly the drop the bounded folder walk cannot find.
+      return powerShellLines(windowsSearchScript(fileName), INDEXED_SEARCH_TIMEOUT_MS).then(lines =>
+        lines.filter(line => path.win32.isAbsolute(line))
+      );
+    default:
+      return Promise.resolve([]);
+  }
 }

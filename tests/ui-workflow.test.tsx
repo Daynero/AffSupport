@@ -189,6 +189,13 @@ describe('drop zone and list selection', () => {
     expect(droppedFilePaths(data)).toEqual(['/Users/daynero/Downloads/HR17+e_compressed.mp4']);
   });
 
+  it('converts a Windows file URI into a drive path without the URL leading slash', () => {
+    const data = {
+      getData: () => 'file:///C:/Users/Ada/My%20Videos/clip.mp4'
+    } as unknown as DataTransfer;
+    expect(droppedFilePaths(data)).toEqual(['C:/Users/Ada/My Videos/clip.mp4']);
+  });
+
   it('falls back to uploaded files when the browser blocks URI access', () => {
     const data = {
       getData: () => {

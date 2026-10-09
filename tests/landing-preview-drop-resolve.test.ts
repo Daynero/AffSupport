@@ -34,6 +34,15 @@ describe('findDroppedFolder', () => {
     expect(resolved).toBe(file);
   });
 
+  it('finds a video in the standard Videos folder', async () => {
+    const seed = await seedDrop('unused', 'seed.mp4');
+    const file = path.join(path.dirname(path.dirname(seed.root)), 'Videos', 'clip.mp4');
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, 'video contents');
+    const info = await stat(file);
+    expect(await findDroppedSource('clip.mp4', info.size, info.mtimeMs)).toBe(file);
+  });
+
   it('recovers a folder dropped into a common location from a top-level sample file', async () => {
     const seed = await seedDrop('promo', 'index.html');
     const resolved = await findDroppedFolder({

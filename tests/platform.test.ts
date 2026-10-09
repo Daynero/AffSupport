@@ -86,19 +86,20 @@ describe('capabilities', () => {
       nativeFilePicker: true,
       directoryIntake: true,
       revealInFileManager: true,
-      spotlightSearch: true,
+      indexedFileSearch: true,
       shellContextMenuIntegration: true,
       processPause: true
     });
   });
 
-  it('keeps pickers and reveal on Windows and gates Spotlight off', () => {
+  it('keeps pickers, reveal and the file index on Windows', () => {
     setPlatform('win32');
     expect(capabilities()).toEqual({
       nativeFilePicker: true,
       directoryIntake: true,
       revealInFileManager: true,
-      spotlightSearch: false,
+      // Windows Search, asked through PowerShell.
+      indexedFileSearch: true,
       // No Explorer shell extension ships.
       shellContextMenuIntegration: false,
       // Windows has no SIGSTOP, but it does have NtSuspendProcess: the power
@@ -114,7 +115,7 @@ describe('capabilities', () => {
       nativeFilePicker: false,
       directoryIntake: false,
       revealInFileManager: true,
-      spotlightSearch: false,
+      indexedFileSearch: false,
       shellContextMenuIntegration: false,
       processPause: true
     });
@@ -167,10 +168,13 @@ describe('file manager actions', () => {
   it('uses Explorer with a /select, argument on Windows', () => {
     setPlatform('win32');
     expect(showInFileManager(realFile, { reveal: true })).toBe(true);
-    expect(processMock.spawn).toHaveBeenCalledWith('explorer.exe', [`/select,${realFile}`], {
+    // The switch joined to the *quoted* path, passed verbatim: Node's own quoting
+    // would wrap the whole argument, which Explorer answers with the default folder.
+    expect(processMock.spawn).toHaveBeenCalledWith('explorer.exe', [`/select,"${realFile}"`], {
       shell: false,
       detached: true,
-      stdio: 'ignore'
+      stdio: 'ignore',
+      windowsVerbatimArguments: true
     });
     expect(showInFileManager(realDirectory)).toBe(true);
     expect(processMock.spawn).toHaveBeenLastCalledWith('explorer.exe', [realDirectory], {

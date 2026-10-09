@@ -3,6 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setQueryExecutor } from '../scripts/analytics/db';
 import { resolvePeriod } from '../scripts/analytics/periods';
 import {
+  getJourney,
+  getRun,
+  diagnoseFingerprint,
   getCompressor,
   getEvents,
   getFunnel,
@@ -64,6 +67,15 @@ beforeAll(async () => {
       platform text,
       occurred_at timestamptz not null default now(),
       flow_id uuid,
+      event_id uuid,
+      session_sequence integer,
+      installation_id uuid,
+      run_id uuid,
+      local_app_version text,
+      local_app_build text,
+      web_build_id text,
+      architecture text,
+      error_fingerprint text,
       outcome text,
       created_at timestamptz not null default now()
     );
@@ -353,4 +365,26 @@ describe('getTeamWorkspace', () => {
       /alice|bob|carol|dave|example\.com|workspace-[ab]|[0-9a-f]{8}-[0-9a-f-]{27}/i
     );
   });
+});
+
+it('retains input flow correlation in journey, run and fingerprint diagnostics', async () => {
+  const eventId = '55555555-aaaa-4555-8555-555555555555';
+  const flowId = '66666666-aaaa-4666-8666-666666666666';
+  await db.exec('begin');
+  try {
+    await db.query(
+      `insert into analytics_events
+      (event_id,user_id,event_name,flow_id,run_id,error_fingerprint)
+      values ($1,$2,'error_occurred',$3,$1,'stitcher:picker:NATIVE_PICKER_TIMEOUT')`,
+      [eventId, ALICE, flowId]
+    );
+    const journey = await getJourney('alice@example.com');
+    expect(journey.find(event => event.event_id === eventId)?.flow_id).toBe(flowId);
+    expect((await getRun(eventId))[0]?.flow_id).toBe(flowId);
+    expect((await diagnoseFingerprint('stitcher:picker:NATIVE_PICKER_TIMEOUT'))[0]?.flow_id).toBe(
+      flowId
+    );
+  } finally {
+    await db.exec('rollback');
+  }
 });

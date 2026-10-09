@@ -279,6 +279,7 @@ export interface JourneyEvent {
   session_sequence: number | null;
   session_id: string | null;
   installation_id: string | null;
+  flow_id: string | null;
   run_id: string | null;
   event_name: string;
   tool: string | null;

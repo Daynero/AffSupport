@@ -91,6 +91,14 @@ describe('Windows video picker', () => {
     const script = args[4];
     expect(script).toContain('System.Windows.Forms.OpenFileDialog');
     expect(script).toContain('$dialog.Multiselect = $true');
+    expect(script).toContain("$ErrorActionPreference = 'Stop'");
+    expect(script).toContain('$owner.TopMost = $true');
+    expect(script).toContain('$owner.Opacity = 0');
+    // Shown before the dialog: the hidden-console STARTUPINFO state is spent on
+    // the invisible owner, not on the dialog's first ShowWindow.
+    expect(script.indexOf('$owner.Show()')).toBeLessThan(script.indexOf('$dialog.ShowDialog'));
+    expect(script).toContain('$dialog.ShowDialog($owner)');
+    expect(script).toContain('$dialog.Dispose(); $owner.Dispose()');
     expect(script).toContain("$dialog.Title = 'Select videos to compress'");
     // Video extension filter mirrors SUPPORTED_VIDEO_EXTENSIONS in queue/queue.ts.
     expect(script).toContain(
@@ -100,6 +108,17 @@ describe('Windows video picker', () => {
     );
     // UTF-8 output so unicode paths survive the pipe.
     expect(script).toContain('[Console]::OutputEncoding = [System.Text.Encoding]::UTF8');
+  });
+
+  it('preserves a Unicode path when stdout splits a UTF-8 character', async () => {
+    const child = stubPickerRun();
+    const bytes = Buffer.from('C:\\Videos\\відео.mp4\r\n');
+    const split = bytes.indexOf(Buffer.from('в')) + 1;
+    // Feed before the queued close event.
+    const pending = selectVideos();
+    child.stdout.emit('data', bytes.subarray(0, split));
+    child.stdout.emit('data', bytes.subarray(split));
+    await expect(pending).resolves.toEqual(['C:\\Videos\\відео.mp4']);
   });
 
   it('keeps paths containing spaces intact', async () => {

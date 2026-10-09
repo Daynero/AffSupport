@@ -554,7 +554,7 @@ export async function getFeatures(period: ResolvedPeriod): Promise<FeatureMetric
 export async function getJourney(email: string, limit = 200): Promise<JourneyEvent[]> {
   return query<JourneyEvent>(
     `select e.event_id::text, e.occurred_at::text, e.session_sequence, e.session_id::text,
-       e.installation_id::text, e.run_id::text, e.event_name, e.tool,
+       e.installation_id::text, e.flow_id::text, e.run_id::text, e.event_name, e.tool,
        e.local_app_version, e.local_app_build, e.web_build_id, e.platform, e.architecture, e.properties
      from public.analytics_events e
      join public.analytics_users u on u.id = e.user_id
@@ -567,7 +567,7 @@ export async function getJourney(email: string, limit = 200): Promise<JourneyEve
 export async function getRun(runId: string, limit = 500): Promise<JourneyEvent[]> {
   return query<JourneyEvent>(
     `select event_id::text, occurred_at::text, session_sequence, session_id::text,
-       installation_id::text, run_id::text, event_name, tool,
+       installation_id::text, flow_id::text, run_id::text, event_name, tool,
        local_app_version, local_app_build, web_build_id, platform, architecture, properties
      from public.analytics_events where run_id = $1::uuid
      order by occurred_at, session_sequence nulls last limit $2`,
@@ -581,7 +581,7 @@ export async function diagnoseFingerprint(
 ): Promise<JourneyEvent[]> {
   return query<JourneyEvent>(
     `select event_id::text, occurred_at::text, session_sequence, session_id::text,
-       installation_id::text, run_id::text, event_name, tool,
+       installation_id::text, flow_id::text, run_id::text, event_name, tool,
        local_app_version, local_app_build, web_build_id, platform, architecture, properties
      from public.analytics_events
      where error_fingerprint = $1 or properties ->> 'error_fingerprint' = $1

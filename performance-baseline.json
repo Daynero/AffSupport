@@ -1,7 +1,7 @@
 {
-  "note": "TEMPORARY 026 release baseline, measured from 91 built JS/CSS assets on 2026-09-27. Previous 021 baseline: total 605534 B, entry 5376 B, largest 91012 B. Current measured values include the incomplete 024 HeroUI migration and legacy CSS; they are not acceptance of its final download weight. During 024 T138/T143, delete orphaned CSS, rebuild, compare against the original 021 numbers and this temporary baseline, document the library-added/CSS-removed tradeoff, and ratchet again. The 5% regression tolerance still applies meanwhile.",
-  "measured_at": "2026-09-27",
-  "total_gzip_bytes": 860582,
+  "note": "Ratcheted 2026-10-10 on main after the Windows video-input fix: measured from the rebuilt apps/web/dist assets. The growth over the 2026-09-27 figure (860582 B) is the finance backdating, task copy and accounts work merged on 2026-10-09 (d287ae50) plus the 024 HeroUI migration still in progress on main; the Windows fix itself adds under a kilobyte (stitcher/input-diagnostics.ts). Not acceptance of the final weight: branch 024-heroui-finish carries its own re-measured baseline with the lazy date/combobox split, and supersedes this one when it merges. Previous 021 baseline: total 605534 B, entry 5376 B, largest 91012 B. The 5% regression tolerance still applies.",
+  "measured_at": "2026-10-10",
+  "total_gzip_bytes": 913612,
   "entry_gzip_bytes": 6022,
   "largest_gzip_bytes": 122173
 }
