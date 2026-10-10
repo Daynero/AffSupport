@@ -1000,8 +1000,8 @@ const en = {
   blockedStatus: 'Blocked',
   deletedStatus: 'Deleted',
   never: 'Never',
-  adminTitle: 'Soty analytics',
-  adminSubtitle: 'Privacy-minimized product health and user administration.',
+  adminTitle: 'Soty admin',
+  adminSubtitle: 'Space tariffs, product health and user administration.',
   adminSupportGoalTitle: 'Donation goal',
   adminSupportGoalSubtitle:
     'Edit the goal title, target and confirmed total — changes reach every open Soty tab automatically.',
@@ -4466,8 +4466,8 @@ const uk: Record<keyof typeof en, string> = {
   blockedStatus: 'Заблокований',
   deletedStatus: 'Видалений',
   never: 'Ніколи',
-  adminTitle: 'Аналітика Soty',
-  adminSubtitle: 'Мінімізована продуктова статистика та керування користувачами.',
+  adminTitle: 'Адмінка Soty',
+  adminSubtitle: 'Тарифи просторів, продуктова статистика й користувачі.',
   adminSupportGoalTitle: 'Донатна ціль',
   adminSupportGoalSubtitle:
     'Зміни назву, ціль і загальну підтверджену суму — усе автоматично оновиться у всіх відкритих вкладках Soty.',
