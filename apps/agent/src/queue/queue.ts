@@ -1190,6 +1190,7 @@ export class JobQueue {
       job.estimateStatus = 'waiting';
       job.estimateProgress = null;
       job.estimateError = null;
+      job.estimateErrorCode = null;
     }
     if (wasProcessing) this.stopActiveEncode();
     return true;
@@ -1276,6 +1277,7 @@ export class JobQueue {
     job.estimateStatus = 'waiting';
     job.estimateProgress = null;
     job.estimateError = null;
+    job.estimateErrorCode = null;
     this.notify('estimate:queued');
     void this.runPrioritizedEstimates();
     return true;
@@ -1289,6 +1291,7 @@ export class JobQueue {
       job.estimateStatus = 'waiting';
       job.estimateProgress = null;
       job.estimateError = null;
+      job.estimateErrorCode = null;
     }
     this.estimateHooks?.cancelPrioritized?.(id);
     this.notify('estimate:queued');
@@ -1589,6 +1592,7 @@ export class JobQueue {
         estimateRangeMaxBytes: null,
         estimateProgress: null,
         estimateError: null,
+        estimateErrorCode: null,
         estimateKey: null,
         estimatePriorityOrder: null,
         estimateBreakdown: null
@@ -2285,6 +2289,7 @@ function resetEstimate(job: CompressionJob) {
   job.estimateRangeMaxBytes = null;
   job.estimateProgress = null;
   job.estimateError = null;
+  job.estimateErrorCode = null;
   job.estimateKey = null;
   job.estimatePriorityOrder = null;
   job.estimateBreakdown = null;

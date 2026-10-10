@@ -22,6 +22,7 @@ import { useI18n } from '../../i18n';
 import { teamErrorMessage } from '../errors';
 import { LandingPreviewFrame, type LandingPreviewView } from './LandingPreviewFrame';
 import { PreviewUnavailable } from './PreviewUnavailable';
+import { startPreviewAttempt } from './previewAnalytics';
 import { Modal } from '../../components/Modal';
 
 type AgentRequest = Extract<TeamPreviewResult, { kind: 'agent' }>;
@@ -137,11 +138,14 @@ export function MaterialPreview({
     closed.current.clear();
     setState({ kind: 'loading' });
     const mode = previewMode(material);
+    // 033 FR-009: one started and one completed per opening, on one opaque attempt id.
+    const attempt = startPreviewAttempt(material.category);
     void client
       .requestPreview(teamId, material.id, mode)
       .then(async result => {
         if (!active) return;
         if (result.kind !== 'agent') {
+          attempt.finish(result.kind === 'unavailable' ? 'unsupported' : 'success');
           setState(result);
           return;
         }
@@ -154,6 +158,7 @@ export function MaterialPreview({
           await closeOperation(result.operationId);
           return;
         }
+        attempt.finish(local.kind === 'unavailable' ? 'unsupported' : 'success');
         if (
           result.previewKind === 'landing' &&
           local.kind === 'landing' &&
@@ -177,10 +182,15 @@ export function MaterialPreview({
         );
       })
       .catch(error => {
-        if (active) setState({ kind: 'error', code: errorCode(error) });
+        if (!active) return;
+        const code = errorCode(error);
+        attempt.finish('failure', code);
+        setState({ kind: 'error', code });
       });
     return () => {
       active = false;
+      // Closed before the preview settled: the attempt ends here, not as a failure.
+      attempt.finish('cancelled');
       void closeOperation(operationId.current);
     };
   }, [client, closeOperation, material, teamId]);

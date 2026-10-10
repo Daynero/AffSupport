@@ -10,6 +10,7 @@ import {
   defaultLandingSettings,
   type LandingAsset,
   type LandingAssetStatus,
+  type LandingErrorCode,
   type LandingEventType,
   type LandingJob,
   type LandingJobStatus,
@@ -70,6 +71,22 @@ function transitionJob(
   job.status = next;
   job.phase = phaseOf(next, step);
   return true;
+}
+
+/**
+ * Why a landing run failed, as a code (033 FR-007): the file system's own answer when it gave
+ * one, and otherwise the step the run was in.
+ */
+export function landingErrorCode(error: unknown, step: LandingStep): LandingErrorCode {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? (error as { code?: unknown }).code
+      : null;
+  if (code === 'ENOSPC') return 'DISK_FULL';
+  if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') return 'DESTINATION_NOT_WRITABLE';
+  if (step === 'rewriting') return 'LANDING_REWRITE_FAILED';
+  if (step === 'packaging') return 'LANDING_PACKAGE_FAILED';
+  return 'LANDING_OPTIMIZE_FAILED';
 }
 
 /** Advances the step inside `processing`, re-deriving the phase from it. */
@@ -379,10 +396,11 @@ class LandingJobOptimizer {
    * the pump walked past it, so the tool reported itself busy from then until it was
    * restarted. A landing that cannot run says why it cannot.
    */
-  private refuse(reason: string): boolean {
+  private refuse(reason: LandingErrorCode): boolean {
     if (!this.job) return false;
     transitionJob(this.job, 'failed');
     this.job.error = reason;
+    this.job.errorCode = reason;
     this.job.finishedAt = Date.now();
     this.notify();
     return false;
@@ -431,9 +449,15 @@ class LandingJobOptimizer {
       transitionJob(this.job, 'completed');
       this.job.progress = 100;
     } catch (error) {
+      // Read before the transition: the step is what names where the run broke.
+      const failedStep: LandingStep =
+        this.job.phase === 'rewriting' || this.job.phase === 'packaging'
+          ? this.job.phase
+          : 'optimizing';
       // A user-requested stop aborts the same signal a real failure would, so
       // the flag — not the error — decides which state the card ends up in.
       transitionJob(this.job, this.cancelling ? 'cancelled' : 'failed');
+      this.job.errorCode = this.cancelling ? null : landingErrorCode(error, failedStep);
       this.job.currentAssetId = null;
       this.job.error = this.cancelling
         ? null
@@ -1226,6 +1250,7 @@ function preparingJob(
     paused: false,
     repeatable: false,
     error: null,
+    errorCode: null,
     warnings: [],
     createdAt: Date.now(),
     startedAt: null,

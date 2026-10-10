@@ -80,9 +80,16 @@ function getPool(): pg.Pool {
  *  Postgres. Production always uses the pooled read-only connection below. */
 export type QueryExecutor = (sql: string, params: unknown[]) => Promise<Record<string, unknown>[]>;
 let executorOverride: QueryExecutor | null = null;
+let executorGeneration = 0;
 
 export function setQueryExecutor(executor: QueryExecutor | null): void {
   executorOverride = executor;
+  executorGeneration += 1;
+}
+
+/** Changes whenever the executor does, so per-database caches (`schema.ts`) know to re-read. */
+export function queryExecutorGeneration(): number {
+  return executorGeneration;
 }
 
 export async function query<T = Record<string, unknown>>(

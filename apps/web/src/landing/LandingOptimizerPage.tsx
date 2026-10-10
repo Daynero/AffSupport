@@ -60,7 +60,7 @@ import { landingCountKey, useI18n } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
-import { toolErrorProperties, trackToolError, type ToolErrorStage } from '../analytics/errors';
+import { landingFailureError, trackToolError, type ToolErrorStage } from '../analytics/errors';
 import { LandingJobCard } from './LandingJobCard';
 import { RadioGroup } from '../components/ui/index';
 
@@ -182,13 +182,8 @@ export default function LandingOptimizerPage() {
         failed: ['failed'],
         cancelled: ['cancelled']
       },
-      (job, runId) =>
-        toolErrorProperties({
-          tool: 'landing-optimizer',
-          stage: 'optimize',
-          code: job.error,
-          ...(runId ? { runId } : {})
-        })
+      // 033 FR-007: the agent's code and the stage it names, never the card's text.
+      (job, runId) => landingFailureError(job, runId)
     )) {
       analytics.track(event.name, event.properties);
       // The optimizer's own terminal beside the generic one, on the same `run_id` as its

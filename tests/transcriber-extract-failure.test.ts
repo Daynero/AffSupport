@@ -102,7 +102,8 @@ describe('transcription extract failures', () => {
     });
     expect(handle.setPaused(true)).toBe('no-child');
     expect(handle.setPaused(false)).toBe('released');
-    await vi.waitFor(() => access(marker), { timeout: 2_000 });
+    // The stub is a fresh Node process; under a full parallel suite it can take seconds to start.
+    await vi.waitFor(() => access(marker), { timeout: 15_000 });
     expect(handle.setPaused(true)).toBe('unsupported');
     expect(handle.setPaused(false)).toBe('released');
     const result = await handle.done;
@@ -133,7 +134,8 @@ describe('transcription extract failures', () => {
       durationSeconds: 2,
       onProgress: () => {}
     });
-    await vi.waitFor(() => access(marker), { timeout: 2_000 });
+    // The stub is a fresh Node process; under a full parallel suite it can take seconds to start.
+    await vi.waitFor(() => access(marker), { timeout: 15_000 });
     handle.cancel();
     expect(await handle.done).toMatchObject({ cancelled: true, failedStage: null });
   });

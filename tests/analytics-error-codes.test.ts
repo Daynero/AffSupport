@@ -1,15 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
-import { COMPRESSION_ERROR_CODES } from '../packages/shared/src/types';
+import {
+  COMPRESSION_ERROR_CODES,
+  ESTIMATE_ERROR_CODES,
+  LANDING_ERROR_CODES,
+  STITCH_ERROR_CODES,
+  TRANSCRIPTION_ERROR_CODES
+} from '../packages/shared/src/types';
 import {
   ERROR_STAGES_BY_TOOL,
   sanitizeAnalyticsProperties
 } from '../apps/web/src/analytics/events';
 import {
   errorFingerprint,
+  landingErrorStage,
+  landingFailureError,
   safeErrorCode,
+  stitchErrorStage,
+  stitchFailureError,
   teamOperationErrorStage,
   toolErrorProperties,
-  trackToolError
+  trackToolError,
+  transcriptionErrorStage,
+  transcriptionFailureError,
+  transcriptionTranslationErrors
 } from '../apps/web/src/analytics/errors';
 import {
   compressionErrorCode,
@@ -269,5 +282,166 @@ describe('team', () => {
     expect(teamOperationErrorStage('process')).toBe('process');
     expect(teamOperationErrorStage('download')).toBe('download');
     expect(teamOperationErrorStage('upload')).toBe('transfer');
+  });
+});
+
+describe('agent codes for every tool (033 T006)', () => {
+  const lifecycle = {
+    started: ['processing', 'running'],
+    completed: ['completed', 'done'],
+    failed: ['failed', 'interrupted'],
+    cancelled: ['cancelled']
+  };
+
+  it('carries the transcription code to error_occurred with its stage, never the sentence', () => {
+    const events = toolJobActivityEvents(
+      'transcription',
+      [{ id: RUN, status: 'processing' as const, errorCode: null }],
+      [
+        {
+          id: RUN,
+          status: 'failed' as const,
+          error: 'The speech model for this run is not installed.',
+          errorCode: 'MODEL_MISSING' as const
+        }
+      ],
+      lifecycle,
+      (job, runId) => transcriptionFailureError(job, runId)
+    );
+    expect(events.map(event => event.name)).toEqual(['operation_failed', 'error_occurred']);
+    expect(events[1]!.properties).toMatchObject({
+      run_id: RUN,
+      error_stage: 'model',
+      error_code: 'MODEL_MISSING',
+      error_fingerprint: 'transcription:model:MODEL_MISSING'
+    });
+    // An agent older than the field: the sentence is never read; an interruption still is a status.
+    expect(transcriptionFailureError({ status: 'failed' }, RUN)).toMatchObject({
+      error_fingerprint: 'transcription:transcribe:unknown'
+    });
+    expect(transcriptionFailureError({ status: 'interrupted' }, RUN)).toMatchObject({
+      error_fingerprint: 'transcription:transcribe:INTERRUPTED'
+    });
+  });
+
+  it('reports a failed translation once, and never a cancelled one', () => {
+    const translation = (status: 'processing' | 'failed', error: string | null) => ({
+      targetLanguage: 'uk',
+      status,
+      progress: null,
+      completedSegments: 0,
+      totalSegments: 0,
+      error: error as 'TRANSLATION_FAILED' | null
+    });
+    const before = [{ id: RUN, translation: translation('processing', null) }];
+    const failed = [{ id: RUN, translation: translation('failed', 'TRANSLATION_FAILED') }];
+    expect(transcriptionTranslationErrors(before, failed, () => RUN)).toEqual([
+      expect.objectContaining({
+        run_id: RUN,
+        error_stage: 'translate',
+        error_fingerprint: 'transcription:translate:TRANSLATION_FAILED'
+      })
+    ]);
+    expect(transcriptionTranslationErrors(failed, failed)).toEqual([]);
+    expect(transcriptionTranslationErrors(null, failed)).toEqual([]);
+    const cancelled = [{ id: RUN, translation: translation('failed', 'TRANSLATION_CANCELLED') }];
+    expect(transcriptionTranslationErrors(before, cancelled)).toEqual([]);
+  });
+
+  it('carries the stitcher code to error_occurred with its stage', () => {
+    const events = toolJobActivityEvents(
+      'stitcher',
+      [{ id: RUN, status: 'running', error: null }],
+      [
+        {
+          id: RUN,
+          status: 'failed',
+          error: 'STITCH_OUTPUT_UNWRITABLE',
+          errorCode: 'STITCH_OUTPUT_UNWRITABLE' as const
+        }
+      ],
+      lifecycle,
+      (job, runId) => stitchFailureError(job, runId)
+    );
+    expect(events[1]!.properties).toMatchObject({
+      tool_identifier: 'stitcher',
+      run_id: RUN,
+      error_stage: 'output',
+      error_fingerprint: 'stitcher:output:STITCH_OUTPUT_UNWRITABLE'
+    });
+    // An older agent's `error` is taken only when it normalises into the closed list.
+    expect(stitchFailureError({ error: 'STITCH_PLAN_VIDEO-CODEC' })).toMatchObject({
+      error_fingerprint: 'stitcher:input_probe:STITCH_PLAN_VIDEO_CODEC'
+    });
+    expect(
+      stitchFailureError({ error: 'Could not write /Users/someone/secret.mov' })
+    ).toMatchObject({ error_fingerprint: 'stitcher:stitch:unknown' });
+  });
+
+  it('carries the landing optimizer code to error_occurred with its stage', () => {
+    const events = toolJobActivityEvents(
+      'landing-optimizer',
+      [{ id: RUN, status: 'processing', error: null }],
+      [{ id: RUN, status: 'failed', error: 'ENOSPC: /x', errorCode: 'DISK_FULL' as const }],
+      lifecycle,
+      (job, runId) => landingFailureError(job, runId)
+    );
+    expect(events[1]!.properties).toMatchObject({
+      tool_identifier: 'landing-optimizer',
+      run_id: RUN,
+      error_stage: 'package',
+      error_code: 'DISK_FULL',
+      error_fingerprint: 'landing-optimizer:package:DISK_FULL'
+    });
+    expect(JSON.stringify(events)).not.toMatch(PRIVATE);
+    expect(landingFailureError({ error: 'The landing could not be optimized.' })).toMatchObject({
+      error_fingerprint: 'landing-optimizer:optimize:unknown'
+    });
+  });
+
+  it('carries the estimate code to estimate_failed and error_occurred', () => {
+    const failed = makeJob(RUN, 'ready', {
+      estimateStatus: 'unavailable',
+      estimateError: 'Too few representative samples could be read.',
+      estimateErrorCode: 'ESTIMATE_SAMPLES_UNREADABLE'
+    });
+    expect(estimateErrorCode(failed)).toBe('ESTIMATE_SAMPLES_UNREADABLE');
+    expect(estimateFailureError(failed)).toMatchObject({
+      run_id: RUN,
+      error_stage: 'estimate',
+      error_code: 'ESTIMATE_SAMPLES_UNREADABLE',
+      error_fingerprint: 'compressor:estimate:ESTIMATE_SAMPLES_UNREADABLE'
+    });
+  });
+
+  it('places every agent code of every tool in one of its tool stages', () => {
+    const cases: [readonly string[], readonly string[], (code: string) => string, string][] = [
+      [
+        TRANSCRIPTION_ERROR_CODES,
+        ERROR_STAGES_BY_TOOL.transcription,
+        transcriptionErrorStage,
+        'transcription'
+      ],
+      [STITCH_ERROR_CODES, ERROR_STAGES_BY_TOOL.stitcher, stitchErrorStage, 'stitcher'],
+      [
+        LANDING_ERROR_CODES,
+        ERROR_STAGES_BY_TOOL['landing-optimizer'],
+        landingErrorStage,
+        'landing-optimizer'
+      ],
+      [ESTIMATE_ERROR_CODES, ERROR_STAGES_BY_TOOL.compressor, () => 'estimate', 'compressor']
+    ];
+    for (const [codes, stages, stageOf, tool] of cases) {
+      for (const code of codes) {
+        expect(safeErrorCode(code)).toBe(code);
+        expect(stages, `${tool}:${code}`).toContain(stageOf(code));
+        expect(errorFingerprint(tool as 'stitcher', stageOf(code), code).length).toBeLessThan(96);
+      }
+    }
+    expect(transcriptionErrorStage('AUDIO_EXTRACT_FAILED')).toBe('input');
+    expect(transcriptionErrorStage('DOCUMENT_WRITE_FAILED')).toBe('save');
+    expect(stitchErrorStage('STITCH_PLAN_NO_SCREENS')).toBe('input_probe');
+    expect(stitchErrorStage('BODY_JOIN_FAILED')).toBe('stitch');
+    expect(landingErrorStage('LANDING_WORKSPACE_LOST')).toBe('upload');
   });
 });

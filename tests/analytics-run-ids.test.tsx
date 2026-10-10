@@ -129,7 +129,12 @@ describe('compressor', () => {
     view.rerender(page([makeJob(RUN, 'ready', { estimateStatus: 'estimating' })]));
     view.rerender(
       page([
-        makeJob(RUN, 'ready', { estimateStatus: 'unavailable', estimateError: 'ESTIMATE_TIMEOUT' })
+        // 033 FR-007: the agent's code is read, never the message beside it.
+        makeJob(RUN, 'ready', {
+          estimateStatus: 'unavailable',
+          estimateError: 'Too few representative samples could be read.',
+          estimateErrorCode: 'ESTIMATE_SAMPLES_UNREADABLE'
+        })
       ])
     );
     view.rerender(page([makeJob(RUN, 'processing', { estimateStatus: 'unavailable' })]));
@@ -137,7 +142,7 @@ describe('compressor', () => {
 
     expect(runIdsOf('estimate_started', 'estimate_failed')).toEqual([RUN, RUN]);
     expect(events('estimate_failed')[0]!.properties).toMatchObject({
-      error_code: 'ESTIMATE_TIMEOUT'
+      error_code: 'ESTIMATE_SAMPLES_UNREADABLE'
     });
     expect(runIdsOf('compression_started', 'compression_failed')).toEqual([RUN, RUN]);
     expect(events('compression_failed')[0]!.properties).toMatchObject({ error_code: 'DISK_FULL' });
@@ -248,7 +253,8 @@ describe('transcription', () => {
       detectedLanguage: null,
       text: null,
       characters: null,
-      error: status === 'failed' ? 'WHISPER_EXIT_FAILED' : null,
+      error: status === 'failed' ? 'The transcription engine failed.' : null,
+      errorCode: status === 'failed' ? 'TRANSCRIBE_FAILED' : null,
       errorDetails: null,
       batchId: null,
       createdAt: 1,
@@ -291,7 +297,8 @@ describe('transcription', () => {
       expect.objectContaining({
         tool_identifier: 'transcription',
         run_id: RUN,
-        error_code: 'WHISPER_EXIT_FAILED'
+        error_code: 'TRANSCRIBE_FAILED',
+        error_fingerprint: 'transcription:transcribe:TRANSCRIBE_FAILED'
       })
     ]);
   });

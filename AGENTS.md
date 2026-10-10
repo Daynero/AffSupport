@@ -47,6 +47,8 @@ npm run analytics -- team-workspace [--period ...] [--json]
 npm run analytics -- sync <team-id|owner-email> [--limit N] [--json]
 npm run analytics -- connection [--period ...] [--json]
 npm run analytics -- audit      [--period ...] [--as-of <iso>] [--write] [--json]
+npm run analytics -- investigate <email|installation_id|run_id|flow_id|attempt_id> [--period ... (default 30d)] [--as-of <iso>] [--json]
+npm run analytics -- journal <email|installation_id|agent_instance_id> [--period ... (default 30d)] [--as-of <iso>] [--limit N] [--json]
 ```
 
 Default period is `7d`. `--days N` gives a rolling N-day window and overrides
@@ -59,29 +61,31 @@ means no client emits that event today — treat it as unknown, never as zero.
 
 ### Which command answers which question
 
-| User asks (any language)                                  | Command                                                                                            |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| How many videos compressed today / 7d / all time?         | `compressor --period today` / `--days 7` / `--period all` → `data.total_videos_compressed`         |
-| How many `compression_completed`?                         | `compressor` → `data.compression_completed` (or `events`)                                          |
-| How many unique users used the compressor?                | `compressor` → `data.unique_users`                                                                 |
-| How many `compression_started` never completed?           | `compressor` → `data.started_without_completion`                                                   |
-| Who is the most active user? / top 10 users?              | `top-users --by activity` or `--by compressions`                                                   |
-| What did user@example.com do? / their compression count?  | `user user@example.com`                                                                            |
-| New users this week? Active users day/7d/30d?             | `overview --period 7d` / `users --period 30d`                                                      |
-| Most popular locale / platform / app_version?             | `overview` → `data.top_locales` / `top_platforms` / `top_app_versions`                             |
-| Which tools are used most?                                | `tools`                                                                                            |
-| Event breakdown / counts by event_name?                   | `events`                                                                                           |
-| Conversion funnel of the compressor?                      | `funnel`                                                                                           |
-| General product health for a period?                      | `overview`                                                                                         |
-| Why could a user not complete a task?                     | `journey <email>`, then `inspect <id>`, `run <uuid>` or `diagnose <fingerprint>`                   |
-| Що сталося з цією операцією? / What happened to this run? | `inspect <flow_id\|run_id\|attempt_id>` → `data.stages`, `data.terminal`, `data.last_proven_stage` |
-| Де сліпі зони аналітики? / Where are the blind spots?     | `audit --period 30d --json` → `data.capabilities[].status`, `data.findings`, `data.delivery`       |
-| Are users stuck installing, pairing, or updating?         | `onboarding`, `updates`, and `friction`                                                            |
-| Is one build or platform less reliable?                   | `cohorts --cohort-by local-app-version                                                             | platform | web-build`and`errors` |
-| Which features are seen but not learned?                  | `features`                                                                                         |
-| Team pilot onboarding/find/weekly activation health?      | `team-workspace` → `data.sc001` / `data.sc005` / four separate `data.sc009.windows`                |
-| Team storage: connections, index completions, attention?  | `team-workspace` → `data.storage` (011 storage events, aggregate only)                             |
-| Why does a user's Soty link drop / not reconnect?         | `connection` (losses, recovery p50/p95, reasons, coverage), then `journey <email>`                 |
+| User asks (any language)                                  | Command                                                                                             |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| How many videos compressed today / 7d / all time?         | `compressor --period today` / `--days 7` / `--period all` → `data.total_videos_compressed`          |
+| How many `compression_completed`?                         | `compressor` → `data.compression_completed` (or `events`)                                           |
+| How many unique users used the compressor?                | `compressor` → `data.unique_users`                                                                  |
+| How many `compression_started` never completed?           | `compressor` → `data.started_without_completion`                                                    |
+| Who is the most active user? / top 10 users?              | `top-users --by activity` or `--by compressions`                                                    |
+| What did user@example.com do? / their compression count?  | `user user@example.com`                                                                             |
+| New users this week? Active users day/7d/30d?             | `overview --period 7d` / `users --period 30d`                                                       |
+| Most popular locale / platform / app_version?             | `overview` → `data.top_locales` / `top_platforms` / `top_app_versions`                              |
+| Which tools are used most?                                | `tools`                                                                                             |
+| Event breakdown / counts by event_name?                   | `events`                                                                                            |
+| Conversion funnel of the compressor?                      | `funnel`                                                                                            |
+| General product health for a period?                      | `overview`                                                                                          |
+| Why could a user not complete a task?                     | `journey <email>`, then `inspect <id>`, `run <uuid>` or `diagnose <fingerprint>`                    |
+| Що сталося з цією операцією? / What happened to this run? | `inspect <flow_id\|run_id\|attempt_id>` → `data.stages`, `data.terminal`, `data.last_proven_stage`  |
+| Де сліпі зони аналітики? / Where are the blind spots?     | `audit --period 30d --json` → `data.capabilities[].status`, `data.findings`, `data.delivery`        |
+| Are users stuck installing, pairing, or updating?         | `onboarding`, `updates`, and `friction`                                                             |
+| Is one build or platform less reliable?                   | `cohorts --cohort-by local-app-version                                                              | platform | web-build`and`errors` |
+| Which features are seen but not learned?                  | `features`                                                                                          |
+| Team pilot onboarding/find/weekly activation health?      | `team-workspace` → `data.sc001` / `data.sc005` / four separate `data.sc009.windows`                 |
+| Team storage: connections, index completions, attention?  | `team-workspace` → `data.storage` (011 storage events, aggregate only)                              |
+| Why does a user's Soty link drop / not reconnect?         | `connection` (losses, recovery p50/p95, reasons, coverage), then `journey <email>`                  |
+| Що не так у user@x? / What is wrong for this user?        | `investigate <email> --json` → `data.findings` (fact / hypothesis / insufficient, `code_locations`) |
+| Що записав агент на комп'ютері користувача?               | `journal <email\|installation_id\|agent_instance_id> --json` → `data.records`                       |
 
 ### Examples
 
@@ -96,6 +100,42 @@ If the CLI reports `ANALYTICS_DATABASE_URL is not set`, tell the user to follow
 the one-time setup in `docs/ANALYTICS_CLI.md`; do not fall back to manual Supabase.
 
 Do not change production data during analytics queries.
+
+### Розслідування проблеми користувача і виправлення
+
+When the owner reports a user's problem ("у user@x не працює транскрибація"),
+do not ask where to look. Run this loop yourself:
+
+1. **One command.** `npm run analytics -- investigate <email> --json` (or an
+   `installation_id`, `run_id`, `flow_id`, `attempt_id`; default `--period 30d`).
+   It reads events and the agent journal the web forwarded, and returns
+   `subject`, `environment`, `sessions`, `operations` (failed / unfinished /
+   cancelled runs with their stage chain, terminal, code and fingerprint),
+   `link`, `errors`, `journal_around_failures` (±2 min), `sync`, `coverage`
+   (blind spots) and ranked `findings`. The output never contains the email.
+2. **Read the findings in order.** A `fact` is proven by the cited evidence
+   (`event:…`, `run:…`, `journal:<agent_instance_id>:<seq>`). A `hypothesis`
+   is a likely cause (a failure without a code next to a journal record, a
+   stale agent) — confirm it before acting on it. `insufficient` means the
+   data cannot answer: name the blind spot from `data.coverage.blind_spots`
+   to the owner instead of guessing, and add the missing signal (a code, an
+   event, a journal record) as a task.
+3. **Open the code.** Every finding carries `code_locations` from
+   `scripts/analytics/code-map.ts`: the files where that fingerprint
+   originates (agent) and is surfaced (web), and one sentence on what to check
+   first. `journal <id>` and `inspect <run_id>` give the full detail.
+4. **Reproduce with a failing test** in `tests/` (the agent's queue or route,
+   or the web mapping), using the stage and code from the finding.
+5. **Fix**, then keep the regression green (single-worker vitest on the
+   touched tests; `npm run verify` before committing).
+6. **After the release, confirm the effect** with
+   `investigate <email> --as-of <after-release instant>` and
+   `audit --as-of …`: the fact must be gone and no new `unknown` code appear.
+
+Never write to production while investigating: the CLI is read-only, and the
+fix ships through a release like any other change. A new failure code goes
+into the closed list in `packages/shared/src/types.ts` _and_ into the code map
+(`tests/analytics-code-map.test.ts` fails otherwise).
 
 ## Analytics coverage for every feature
 

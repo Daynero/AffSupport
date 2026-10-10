@@ -16,6 +16,23 @@ export interface ResolvedPeriod {
   as_of?: string;
 }
 
+/** Which newer analytics columns and tables the database has (`schema.ts` probes it). */
+export interface AnalyticsSchema {
+  events: { attempt_id: boolean; agent_instance_id: boolean; agent_platform: boolean };
+  tables: {
+    agent_journal_records: boolean;
+    analytics_daily_events: boolean;
+    analytics_daily_tool_outcomes: boolean;
+    analytics_catalog_sync_jobs: boolean;
+  };
+}
+
+/** What a command reports as `data.schema`: the probe and the objects it could not see. */
+export interface SchemaSummary extends AnalyticsSchema {
+  /** `analytics_events.<column>` and `<table>` names this connection cannot read. */
+  missing: string[];
+}
+
 /* ---------------------------------------------------------------------------
  * 031 — shapes shared by every aggregating command.
  * ------------------------------------------------------------------------- */
@@ -169,6 +186,14 @@ export interface AuditData {
   delivery_lag_ms: DeliveryLag;
   findings: AuditFinding[];
   summary: Record<AuditStatus, number>;
+  /** Which newer columns and tables this database has (`schema.ts`); `note` when any is missing. */
+  schema: SchemaSummary & { note?: string };
+}
+
+/** `inspect` on a database without the envelope v3 columns: what it could not read. */
+export interface InspectSchemaNote {
+  missing: string[];
+  note: string;
 }
 
 /** What `audit --write` saves: the envelope without `generated_at`, so an unchanged snapshot yields identical bytes (SC-017). */
@@ -220,11 +245,13 @@ export interface InspectFound {
   delivery_lag_ms: DeliveryLag;
   agent: InspectAgentIdentity;
   events: JourneyEvent[];
+  schema?: InspectSchemaNote;
 }
 
 export interface InspectNotFound {
   found: false;
   id: string;
+  schema?: InspectSchemaNote;
 }
 
 export type InspectData = InspectFound | InspectNotFound;
@@ -659,5 +686,249 @@ export function syncOutputIsPrivate(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return true;
   return Object.entries(value).every(
     ([key, nested]) => !SYNC_OUTPUT_FORBIDDEN_KEYS.has(key) && syncOutputIsPrivate(nested)
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * 033 — the agent journal in the database (`journal`) and one-command
+ * investigation of a user (`investigate`). Opaque ids only: no email, name,
+ * path, URL or credential ever appears; `investigateOutputIsPrivate` checks.
+ * ------------------------------------------------------------------------- */
+
+/** One agent journal record as the CLI returns it; props already passed the server fence again. */
+export interface JournalRecordRow {
+  seq: number;
+  category: string;
+  code: string;
+  props: Record<string, string | number | boolean>;
+  agent_instance_id: string;
+  installation_id: string | null;
+  /** When the agent wrote it (its clock). */
+  recorded_at: string;
+  /** When the database stored it (server clock; `--as-of` bounds this). */
+  received_at: string;
+  /** `received_at − recorded_at`: how long the record waited on the user's machine. */
+  lag_ms: number | null;
+}
+
+/** `journal` on a database without `agent_journal_records` (or no grant on it). */
+export interface JournalUnavailable {
+  available: false;
+  reason: 'journal_table_missing';
+  records: [];
+}
+
+/** What `journal` returns: the records, or why there are none to read. */
+export type JournalResult = JournalData | JournalUnavailable;
+
+export interface JournalData {
+  available: true;
+  subject: {
+    kind: 'user' | 'installation' | 'agent_instance';
+    user_id: string | null;
+    installation_id: string | null;
+    agent_instance_id: string | null;
+  };
+  /** Records in the period, oldest first; the newest `--limit` when there are more. */
+  records: JournalRecordRow[];
+  total: number;
+  truncated: boolean;
+  lag_ms: DeliveryLag;
+}
+
+export type InvestigateSubjectKind = 'user' | 'installation' | 'run' | 'flow' | 'attempt';
+
+export interface InvestigateSubject {
+  kind: InvestigateSubjectKind;
+  /** The id that was passed in; null when it was an email (never echoed). */
+  id: string | null;
+  user_id: string | null;
+  installation_ids: string[];
+  agent_instance_ids: string[];
+}
+
+export interface InvestigateEnvironment {
+  web_builds: string[];
+  local_app_versions: string[];
+  local_app_builds: string[];
+  agent_platforms: string[];
+  browser_platforms: string[];
+  architectures: string[];
+  browser_families: string[];
+  link_origins: string[];
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  /** The newest local app version any user ran in the period (the stale-agent baseline). */
+  newest_local_app_version_seen: string | null;
+}
+
+export interface InvestigateSession {
+  session_id: string;
+  started_at: string;
+  ended_at: string;
+  events: number;
+  tools: string[];
+  failures: number;
+}
+
+export interface InvestigateChainStep {
+  event: string;
+  at: string;
+  stage: string | null;
+}
+
+export interface InvestigateOperation {
+  id: string;
+  id_kind: 'run_id' | 'workflow_id' | 'attempt_id';
+  status: 'failed' | 'unfinished' | 'cancelled';
+  capability: string | null;
+  tool: string | null;
+  stages: InspectStages;
+  last_proven_stage: string | null;
+  chain: InvestigateChainStep[];
+  terminal: { event: string; outcome: string; occurred_at: string } | null;
+  error_code: string | null;
+  error_stage: string | null;
+  fingerprint: string | null;
+  agent_instance_ids: string[];
+  started_at: string | null;
+  last_seen_at: string | null;
+}
+
+export interface InvestigateLink {
+  losses: number;
+  recoveries: Array<{
+    flow_id: string | null;
+    at: string;
+    duration_ms: number | null;
+    mode: string;
+  }>;
+  unrecovered: Array<{ flow_id: string | null; at: string; reason: string | null }>;
+  failed_checks_by_reason: Array<{ reason: string; events: number }>;
+  inconsistencies: number;
+  pairing_rejected: number;
+}
+
+export interface InvestigateErrorCluster {
+  fingerprint: string;
+  tool: string;
+  error_stage: string;
+  error_code: string;
+  occurrences: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface InvestigateFailureRef {
+  kind: 'operation' | 'error' | 'readiness' | 'link_lost';
+  ref: string;
+  at: string;
+  fingerprint: string | null;
+}
+
+export interface InvestigateJournalWindow {
+  failure: InvestigateFailureRef;
+  records: JournalRecordRow[];
+}
+
+export interface InvestigateSyncSummary {
+  status: 'ok' | 'none' | 'unavailable';
+  team_id: string | null;
+  connections: Array<{
+    connection_id: string;
+    connection_state: string;
+    jobs: number;
+    states: Record<string, number>;
+    error_codes: string[];
+    last_updated_at: string | null;
+  }>;
+  note: string;
+}
+
+export interface InvestigateBlindSpot {
+  kind:
+    | 'no_events_in_period'
+    | 'web_build_without_link_events'
+    | 'agent_version_without_journal'
+    | 'agent_journal_missing'
+    | 'analytics_disabled'
+    | 'analytics_delivery_losses'
+    | 'sync_unavailable'
+    | 'journal_table_missing'
+    | 'envelope_v3_missing';
+  detail: string;
+  values: string[];
+}
+
+export type InvestigateFindingKind = 'fact' | 'hypothesis' | 'insufficient';
+
+export interface InvestigateFinding {
+  /** sha256 of the rule and its key: the same finding has the same id on every run. */
+  id: string;
+  kind: InvestigateFindingKind;
+  severity: FindingSeverity;
+  rule: string;
+  title: string;
+  /** `event:<id>`, `run:<id>`, `journal:<agent_instance_id>:<seq>`. */
+  evidence: string[];
+  fingerprint?: string;
+  code_locations: Array<{ fingerprint: string; matched: string; files: string[]; check: string }>;
+  next_step: string;
+}
+
+export interface InvestigateData {
+  subject: InvestigateSubject;
+  environment: InvestigateEnvironment;
+  sessions: { count: number; recent: InvestigateSession[] };
+  operations: InvestigateOperation[];
+  link: InvestigateLink;
+  errors: InvestigateErrorCluster[];
+  journal_around_failures: InvestigateJournalWindow[];
+  sync: InvestigateSyncSummary;
+  coverage: { events: number; journal_records: number; blind_spots: InvestigateBlindSpot[] };
+  findings: InvestigateFinding[];
+  /** Which newer columns and tables this database has (`schema.ts`). */
+  schema: SchemaSummary;
+}
+
+const INVESTIGATE_FORBIDDEN_KEYS = new Set([
+  'email',
+  'email_normalized',
+  'owner_email_normalized',
+  'display_name',
+  'name',
+  'path',
+  'file_name',
+  'filename',
+  'url',
+  'token',
+  'error_detail'
+]);
+
+/** A repo-relative source file: the one kind of path `investigate` may print (`code_locations`). */
+const REPO_FILE = /^(apps|packages|supabase)\/[\w.@-]+(\/[\w.@-]+)*$/;
+const CREDENTIAL = /bearer|oauth|token=|authorization/i;
+
+/**
+ * 033 FR-011 — defense in depth for `investigate` and `journal`: no forbidden key anywhere, and
+ * no string that is an address, a URL, a credential or a path. The only path allowed is a
+ * repo-relative source file inside a `files` array.
+ */
+export function investigateOutputIsPrivate(value: unknown, key = ''): boolean {
+  if (Array.isArray(value)) return value.every(item => investigateOutputIsPrivate(item, key));
+  if (value && typeof value === 'object') {
+    return Object.entries(value).every(
+      ([entryKey, entry]) =>
+        !INVESTIGATE_FORBIDDEN_KEYS.has(entryKey.toLowerCase()) &&
+        investigateOutputIsPrivate(entry, entryKey)
+    );
+  }
+  if (typeof value !== 'string') return true;
+  if (key === 'files') return REPO_FILE.test(value) && !value.includes('..');
+  return (
+    !value.includes('@') &&
+    !value.includes('://') &&
+    !/[/\\]/.test(value) &&
+    !CREDENTIAL.test(value)
   );
 }

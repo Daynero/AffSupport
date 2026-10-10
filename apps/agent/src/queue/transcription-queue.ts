@@ -15,6 +15,7 @@ import {
   type SelectionWarning,
   type SourceKind,
   type TranscriptionDocument,
+  type TranscriptionErrorCode,
   type TranscriptionEventType,
   type TranscriptionJob,
   type TranscriptionJobStatus,
@@ -766,6 +767,7 @@ export class TranscriptionQueue {
       characters: null,
       translation: null,
       error: null,
+      errorCode: null,
       errorDetails: null,
       batchId: null,
       createdAt: Date.now(),
@@ -979,6 +981,7 @@ export class TranscriptionQueue {
       job.batchId = batchId;
       job.progress = null;
       job.error = null;
+      job.errorCode = null;
       job.errorDetails = null;
       job.text = null;
       job.characters = null;
@@ -1257,6 +1260,7 @@ export class TranscriptionQueue {
       if (!transitionJob(job, 'failed')) return;
       job.progress = null;
       job.error = 'The speech model for this run is not installed.';
+      job.errorCode = 'MODEL_MISSING';
       job.errorDetails = 'MODEL_MISSING';
       job.finishedAt = Date.now();
       this.notify();
@@ -1380,6 +1384,7 @@ export class TranscriptionQueue {
           if (transitionJob(job, 'failed')) {
             job.progress = null;
             job.error = 'The transcript could not be saved to disk.';
+            job.errorCode = 'DOCUMENT_WRITE_FAILED';
             job.errorDetails = `DOCUMENT_WRITE_FAILED: ${saved}`;
           }
           return;
@@ -1412,6 +1417,7 @@ export class TranscriptionQueue {
           result.failedStage === 'extract'
             ? 'The audio track could not be prepared.'
             : 'The transcription engine failed.';
+        job.errorCode = transcriptionRunErrorCode(result);
         job.errorDetails = result.stderr.slice(-4_000) || result.spawnErrorCode;
         job.finishedAt = Date.now();
       }
@@ -1421,6 +1427,7 @@ export class TranscriptionQueue {
       if (transitionJob(job, 'failed')) {
         job.progress = null;
         job.error = 'The transcription could not be completed.';
+        job.errorCode = transcriptionThrownErrorCode(error);
         job.errorDetails = error instanceof Error ? error.message : String(error);
         job.finishedAt = Date.now();
       }
@@ -1484,4 +1491,30 @@ export class TranscriptionQueue {
     }
     return removed;
   }
+}
+
+/**
+ * The code for a run whisper or FFmpeg finished without a transcript (033 FR-007): a tool that
+ * never started, the audio extract, or the recognizer itself.
+ */
+export function transcriptionRunErrorCode(result: {
+  failedStage: 'extract' | 'transcribe' | null;
+  spawnErrorCode: string | null;
+  stderr: string;
+}): TranscriptionErrorCode {
+  if (result.spawnErrorCode) return 'MEDIA_TOOL_UNAVAILABLE';
+  if (/no space left on device/i.test(result.stderr)) return 'DISK_FULL';
+  return result.failedStage === 'extract' ? 'AUDIO_EXTRACT_FAILED' : 'TRANSCRIBE_FAILED';
+}
+
+/**
+ * The code for a run that threw. Only a cause the error itself names is a code; anything else
+ * is left without one rather than guessed, and the web reports it as `unknown`.
+ */
+export function transcriptionThrownErrorCode(error: unknown): TranscriptionErrorCode | null {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? (error as { code?: unknown }).code
+      : null;
+  return code === 'ENOSPC' ? 'DISK_FULL' : null;
 }

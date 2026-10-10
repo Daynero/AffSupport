@@ -9,7 +9,9 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  STITCH_ERROR_CODES,
   defaultStitchSettings,
+  knownErrorCode,
   parseStitchSettingsPatch,
   type StitchJob,
   type StitchSettings
@@ -60,7 +62,9 @@ function parseJob(value: unknown): StitchJob | null {
       : { sizeBytes: 0, durationSeconds: 0, width: 0, height: 0, frameRate: 0, codec: '' },
     result: isRecord(value.result) ? job.result : null,
     detected: isRecord(value.detected) ? job.detected : null,
-    plan: isRecord(value.plan) ? job.plan : null
+    plan: isRecord(value.plan) ? job.plan : null,
+    // Kept only when it is one of the closed codes (033 FR-007); an older record has none.
+    errorCode: status === 'failed' ? knownErrorCode(STITCH_ERROR_CODES, value.errorCode) : null
   };
 }
 

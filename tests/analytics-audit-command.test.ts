@@ -113,7 +113,7 @@ describe('audit · capability status', () => {
     expect(stitcher.samples).toBe(1);
   });
 
-  it('calls a capability with no events uncovered and a declared-but-unemitted metric input by name', async () => {
+  it('calls a capability with no events uncovered, and has no declared-but-unemitted metric input (SC-004)', async () => {
     const data = await getAudit(ALL);
     expect(capability(data, 'team.tasks')).toMatchObject({
       status: 'uncovered',
@@ -126,11 +126,14 @@ describe('audit · capability status', () => {
       // `tool_ready` has a producer since 031 T009, so its absence is a missing stage too.
       missing: ['start', 'terminal', 'readiness']
     });
+    // 033 T008 gave `team_preview_completed` a producer: no rows yet reads as uncovered, not
+    // as a contract nobody emits.
     expect(capability(data, 'team.preview')).toMatchObject({
-      status: 'declared_but_never_emitted',
-      missing: ['team_preview_completed']
+      status: 'uncovered',
+      producer_status: 'emitted',
+      missing: ['start', 'terminal']
     });
-    expect(data.summary.declared_but_never_emitted).toBe(1);
+    expect(data.summary.declared_but_never_emitted).toBe(0);
     expect(data.registry_size).toBe(data.capabilities.length);
   });
 
@@ -188,7 +191,8 @@ describe('audit · findings', () => {
     expect(findingId('stitcher.run', 'partial', partial!.missing)).toBe(expected);
 
     const statuses = data.findings.map(finding => `${finding.capability}:${finding.status}`);
-    expect(statuses).toContain('team.preview:declared_but_never_emitted');
+    expect(statuses).not.toContain('team.preview:declared_but_never_emitted');
+    expect(statuses.some(status => status.endsWith(':declared_but_never_emitted'))).toBe(false);
     expect(statuses).toContain('compressor.run:orphan_starts');
     expect(statuses).toContain('compressor:unknown_codes');
     expect(statuses).not.toContain('stitcher:unknown_codes');
@@ -240,7 +244,7 @@ describe('audit · command', () => {
     });
     expect(readFileSync(file, 'utf8')).toBe(before);
     expect(written.human).toContain('Coverage audit');
-    expect(written.human).toContain('declared_but_never_emitted');
+    expect(written.human).toContain('declared but never emitted 0');
     expect(formatAudit(written.data as AuditData, written.period, [])).not.toContain('Written:');
   });
 

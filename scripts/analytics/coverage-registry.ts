@@ -486,9 +486,9 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     terminal: [{ event: 'team_preview_completed', correlate: 'attempt_id' }],
     platforms: BOTH,
     unobservable: [],
-    producerStatus: 'pending_producer',
+    producerStatus: 'emitted',
     source: 'events',
-    note: 'Declared in the shared contract and counted by team-workspace SC-009 discovery, but no call site emits it yet.'
+    note: 'Emitted by MaterialPreview (033 FR-009); a failure adds error_occurred on the same attempt_id.'
   },
   {
     id: 'team.library',

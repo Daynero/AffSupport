@@ -41,7 +41,7 @@ import { useI18n, type Language } from '../i18n';
 import { analytics } from '../analytics/service';
 import { observeStitchInput, recordStitchInputFailure } from './input-diagnostics';
 import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
-import { toolErrorProperties } from '../analytics/errors';
+import { stitchFailureError } from '../analytics/errors';
 import { compactPath, formatCodec, formatDuration, formatFps, formatSize } from '../format';
 import { DropZone } from '../components/DropZone';
 import { ImageEmbeddingSection } from '../components/ImageEmbeddingSection';
@@ -119,13 +119,8 @@ export function Stitcher() {
         failed: ['failed'],
         cancelled: ['cancelled']
       },
-      (job, runId) =>
-        toolErrorProperties({
-          tool: 'stitcher',
-          stage: 'stitch',
-          code: job.error,
-          ...(runId ? { runId } : {})
-        })
+      // 033 FR-007: the agent's code and the stage it names, never the row's text.
+      (job, runId) => stitchFailureError(job, runId)
     )) {
       analytics.track(event.name, event.properties);
       // The stitcher's own terminal beside the generic one, on the same `run_id` as its

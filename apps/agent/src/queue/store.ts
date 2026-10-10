@@ -17,8 +17,10 @@ import {
   defaultImageEmbeddingSettings,
   draftImageEmbedding,
   COMPRESSION_ERROR_CODES,
+  ESTIMATE_ERROR_CODES,
   type AgentSettings,
   type CompressionErrorCode,
+  type EstimateErrorCode,
   type CompressionJob,
   type EncodingSettings,
   type EstimateBreakdown,
@@ -332,6 +334,12 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
     estimateRangeMaxBytes: numberOrNull(raw.estimateRangeMaxBytes),
     estimateProgress: null,
     estimateError: typeof raw.estimateError === 'string' ? raw.estimateError : null,
+    // Only a closed code survives, and only beside the `unavailable` it explains (033 FR-007).
+    ...(raw.estimateStatus === 'unavailable' &&
+    status !== 'completed' &&
+    (ESTIMATE_ERROR_CODES as readonly unknown[]).includes(raw.estimateErrorCode)
+      ? { estimateErrorCode: raw.estimateErrorCode as EstimateErrorCode }
+      : {}),
     estimateKey: typeof raw.estimateKey === 'string' ? raw.estimateKey : null,
     estimatePriorityOrder: null,
     estimateBreakdown: migrateEstimateBreakdown(raw.estimateBreakdown)

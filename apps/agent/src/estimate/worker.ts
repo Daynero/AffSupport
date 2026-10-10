@@ -6,7 +6,8 @@ import path from 'node:path';
 import {
   jobConfigurationKey,
   type AgentEventType,
-  type CompressionJob
+  type CompressionJob,
+  type EstimateErrorCode
 } from '@video-compressor/shared';
 import { buildEstimateArgs, buildStaticEstimateArgs } from '../ffmpeg/presets.js';
 import { ffmpegPath, ffprobePath } from '../ffmpeg/tools.js';
@@ -15,7 +16,7 @@ import {
   outputFrameRate,
   refreshEstimateFromBreakdown
 } from '../images/embedding.js';
-import { ImageAssetStore } from '../images/store.js';
+import { ImageAssetError, ImageAssetStore } from '../images/store.js';
 import { detectStaticEdgeTrims, type StaticEdgeTrims } from '../images/static-edges.js';
 import { EstimateCache, estimateCacheKey } from './cache.js';
 import { createSamplePlan, estimateBreakdownFromSamples } from './sampler.js';
@@ -30,6 +31,7 @@ type EstimatePatch = Partial<
     | 'estimateRangeMaxBytes'
     | 'estimateProgress'
     | 'estimateError'
+    | 'estimateErrorCode'
     | 'estimateKey'
     | 'estimatePriorityOrder'
     | 'estimateBreakdown'
@@ -53,6 +55,8 @@ export class EstimationWorker {
   // invalidate/pause/cancel actually stop them instead of letting them run —
   // and burn CPU — to completion.
   private currentAbort: AbortController | null = null;
+  /** Set when an FFmpeg sample could not even be started, so the failure says so. */
+  private spawnFailed = false;
 
   constructor(
     private jobs: () => CompressionJob[],
@@ -92,6 +96,7 @@ export class EstimationWorker {
           estimateRangeMaxBytes: null,
           estimateProgress: null,
           estimateError: null,
+          estimateErrorCode: null,
           estimateKey: null,
           estimateBreakdown: null
         },
@@ -119,7 +124,11 @@ export class EstimationWorker {
     this.paused = false;
     for (const job of this.jobs()) {
       if (job.status === 'ready' && job.estimateStatus === 'cancelled') {
-        this.update(job.id, { estimateStatus: 'waiting', estimateError: null }, 'estimate:queued');
+        this.update(
+          job.id,
+          { estimateStatus: 'waiting', estimateError: null, estimateErrorCode: null },
+          'estimate:queued'
+        );
       }
     }
     this.schedule();
@@ -223,7 +232,12 @@ export class EstimationWorker {
     const abort = new AbortController();
     this.currentAbort = abort;
     try {
-      const source = await stat(job.inputPath);
+      const source = await stat(job.inputPath).catch((error: unknown) => {
+        throw new EstimateFailure(
+          errnoOf(error) === 'ENOSPC' ? 'DISK_FULL' : 'SOURCE_NOT_FOUND',
+          error
+        );
+      });
       let metadata: Awaited<ReturnType<typeof probe>> | null = null;
       if (job.imageEmbedding?.replaceExisting) {
         metadata = await probe(job.inputPath, abort.signal);
@@ -270,6 +284,7 @@ export class EstimationWorker {
             estimateKey: configurationKey,
             estimateProgress: null,
             estimateError: null,
+            estimateErrorCode: null,
             estimatePriorityOrder: null
           },
           'estimate:completed'
@@ -289,7 +304,9 @@ export class EstimationWorker {
         ...sample,
         start: sample.start + sourceStart
       }));
-      if (!plan.length) throw new Error('Duration is unavailable.');
+      if (!plan.length) {
+        throw new EstimateFailure('ESTIMATE_DURATION_UNAVAILABLE', 'Duration is unavailable.');
+      }
       const staticAsset = job.imageEmbedding?.endImage ?? job.imageEmbedding?.startImage ?? null;
       const totalSteps = plan.length + (staticAsset ? 1 : 0);
       if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
@@ -300,11 +317,13 @@ export class EstimationWorker {
           estimateStatus: 'estimating',
           estimateKey: configurationKey,
           estimateProgress: { completed: 0, total: totalSteps },
-          estimateError: null
+          estimateError: null,
+          estimateErrorCode: null
         },
         'estimate:started'
       );
       temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'local-video-estimate-'));
+      this.spawnFailed = false;
       const sizes: number[] = [];
       const durations: number[] = [];
       for (let index = 0; index < plan.length; index++) {
@@ -327,13 +346,19 @@ export class EstimationWorker {
       }
 
       if (sizes.length < Math.max(1, Math.ceil(plan.length * 0.5))) {
-        throw new Error('Too few representative samples could be read.');
+        throw new EstimateFailure(
+          this.spawnFailed ? 'MEDIA_TOOL_UNAVAILABLE' : 'ESTIMATE_SAMPLES_UNREADABLE',
+          'Too few representative samples could be read.'
+        );
       }
       let staticVideoBytesPerSecond = 0;
       if (staticAsset && job.imageEmbedding) {
         const dimensions = outputDimensions(job);
         if (!dimensions)
-          throw new Error('Output dimensions are unavailable for the image estimate.');
+          throw new EstimateFailure(
+            'ESTIMATE_IMAGE_DIMENSIONS_UNAVAILABLE',
+            'Output dimensions are unavailable for the image estimate.'
+          );
         const imagePath = await this.imageStore.validate(staticAsset);
         const staticDuration = 6;
         const output = path.join(temporaryDirectory, 'static-sample.h264');
@@ -350,7 +375,12 @@ export class EstimationWorker {
           )
         );
         if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
-        if (result !== 0) throw new Error('The static image sample could not be encoded.');
+        if (result !== 0) {
+          throw new EstimateFailure(
+            this.spawnFailed ? 'MEDIA_TOOL_UNAVAILABLE' : 'ESTIMATE_IMAGE_SAMPLE_FAILED',
+            'The static image sample could not be encoded.'
+          );
+        }
         staticVideoBytesPerSecond = (await stat(output)).size / staticDuration;
         this.update(
           job.id,
@@ -370,9 +400,13 @@ export class EstimationWorker {
         audioBytesPerSecond,
         staticVideoBytesPerSecond
       );
-      if (!estimateBreakdown) throw new Error('Not enough sample data.');
+      if (!estimateBreakdown) {
+        throw new EstimateFailure('ESTIMATE_INSUFFICIENT_DATA', 'Not enough sample data.');
+      }
       const estimatedJob: CompressionJob = { ...job, estimateBreakdown };
-      if (!refreshEstimateFromBreakdown(estimatedJob)) throw new Error('Estimate unavailable.');
+      if (!refreshEstimateFromBreakdown(estimatedJob)) {
+        throw new EstimateFailure('ESTIMATE_INSUFFICIENT_DATA', 'Estimate unavailable.');
+      }
       const estimate = {
         estimatedOutputBytes: estimatedJob.estimatedOutputBytes!,
         estimatedSavingPercent: estimatedJob.estimatedSavingPercent!,
@@ -390,6 +424,7 @@ export class EstimationWorker {
           estimateKey: configurationKey,
           estimateProgress: null,
           estimateError: null,
+          estimateErrorCode: null,
           estimatePriorityOrder: null
         },
         'estimate:completed'
@@ -406,7 +441,8 @@ export class EstimationWorker {
           {
             estimateStatus: paused ? 'cancelled' : 'waiting',
             estimateProgress: null,
-            estimateError: null
+            estimateError: null,
+            estimateErrorCode: null
           },
           paused ? 'estimate:cancelled' : 'estimate:queued'
         );
@@ -417,6 +453,7 @@ export class EstimationWorker {
             estimateStatus: 'unavailable',
             estimateProgress: null,
             estimateError: error instanceof Error ? error.message : 'Estimate unavailable.',
+            estimateErrorCode: estimateErrorCode(error),
             estimatePriorityOrder: null
           },
           'estimate:failed'
@@ -435,7 +472,10 @@ export class EstimationWorker {
     return new Promise<number | null>(resolve => {
       const child = spawnTracked(ffmpegPath, args, { toolId: 'estimate' });
       this.child = child;
-      child.on('error', () => resolve(null));
+      child.on('error', () => {
+        this.spawnFailed = true;
+        resolve(null);
+      });
       child.on('close', resolve);
     });
   }
@@ -471,6 +511,49 @@ export class EstimationWorker {
 
 class Cancelled extends Error {}
 
+/** FFprobe's failure, told apart from a tool that never started. */
+class ProbeFailure extends Error {
+  constructor(readonly code: 'MEDIA_TOOL_UNAVAILABLE' | 'ESTIMATE_PROBE_FAILED') {
+    super('FFprobe could not determine duration.');
+  }
+}
+
+/**
+ * A failure the estimator can name (033 FR-007). The message stays the sentence it always was;
+ * the code is what analytics reads.
+ */
+export class EstimateFailure extends Error {
+  constructor(
+    readonly code: EstimateErrorCode,
+    cause: unknown
+  ) {
+    super(
+      typeof cause === 'string' ? cause : cause instanceof Error ? cause.message : code,
+      cause instanceof Error ? { cause } : undefined
+    );
+  }
+}
+
+function errnoOf(error: unknown): unknown {
+  return error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code
+    : null;
+}
+
+/**
+ * The code for a failed estimate, or null when nothing names the cause — the web then reports
+ * `unknown` rather than a guess.
+ */
+export function estimateErrorCode(error: unknown): EstimateErrorCode | null {
+  if (error instanceof EstimateFailure) return error.code;
+  if (error instanceof ImageAssetError) {
+    return error.code === 'IMAGE_DAMAGED' || error.code === 'IMAGE_UNAVAILABLE' ? error.code : null;
+  }
+  if (error instanceof ProbeFailure) return error.code;
+  if (errnoOf(error) === 'ENOSPC') return 'DISK_FULL';
+  return null;
+}
+
 function probe(input: string, signal?: AbortSignal) {
   return new Promise<{ duration: number; audioBitrate: number; hasAudio: boolean }>(
     (resolve, reject) => {
@@ -501,9 +584,9 @@ function probe(input: string, signal?: AbortSignal) {
       process.stdout.on('data', data => {
         output += data;
       });
-      process.on('error', error => {
+      process.on('error', () => {
         detach();
-        reject(error);
+        reject(new ProbeFailure('MEDIA_TOOL_UNAVAILABLE'));
       });
       process.on('close', code => {
         detach();
@@ -525,7 +608,7 @@ function probe(input: string, signal?: AbortSignal) {
             hasAudio: Boolean(audio)
           });
         } catch {
-          reject(new Error('FFprobe could not determine duration.'));
+          reject(new ProbeFailure('ESTIMATE_PROBE_FAILED'));
         }
       });
     }

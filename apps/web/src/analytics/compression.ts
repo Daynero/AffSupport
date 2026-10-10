@@ -130,11 +130,12 @@ export function compressionFailureError(job: CompressionJob): AnalyticsPropertie
 }
 
 /**
- * The estimate's code. The agent keeps only a message for a failed estimate, so this is a code
- * only when that message already is one, and `unknown` otherwise.
+ * 033 FR-007 — the agent's own code for a failed estimate (`CompressionJob.estimateErrorCode`),
+ * never a reading of the message beside it. An agent older than the field, or a failure the
+ * estimator could not name, gives `unknown`.
  */
-export function estimateErrorCode(job: Pick<CompressionJob, 'estimateError'>): string {
-  return safeErrorCode(job.estimateError);
+export function estimateErrorCode(job: Pick<CompressionJob, 'estimateErrorCode'>): string {
+  return safeErrorCode(job.estimateErrorCode ?? null);
 }
 
 /** `error_occurred` for an estimate that just failed, correlated by its `run_id`. */

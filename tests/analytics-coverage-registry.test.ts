@@ -30,12 +30,11 @@ const ROOT = resolve(__dirname, '..');
 const CONTRACT_NAMES = new Set<string>([...analyticsEventNames, ...TEAM_ANALYTICS_EVENT_NAMES]);
 
 /**
- * The CLI still computes SC-009 "discovery" from `team_preview_completed`,
- * which the shared contract declares and no call site emits. `audit` reports
- * it as `declared_but_never_emitted` (SC-014 names it as the one to fix). Add a
- * name here only with a reason; remove it the moment a producer exists.
+ * Events the CLI computes from that no call site emits. Empty since 033 T008 gave
+ * `team_preview_completed` a producer (SC-004). Add a name here only with a reason; remove it
+ * the moment a producer exists.
  */
-const KNOWN_DECLARED_BUT_NEVER_EMITTED = ['team_preview_completed'];
+const KNOWN_DECLARED_BUT_NEVER_EMITTED: string[] = [];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

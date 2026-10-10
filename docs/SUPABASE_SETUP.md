@@ -366,6 +366,8 @@ select * from public.analytics_daily_tool_outcomes
   order by day desc, starts desc limit 20;
 ```
 
+Журнал агента (`public.agent_journal_records`, міграція `20261124100000_agent_journal.sql`, feature 033) прибирає та сама щоденна задача: `private.purge_analytics_events` видаляє записи з `recorded_at` старшим за 30 днів незалежно від `keep_days` і повертає їх кількість у `deleted_journal_records`. Агрегатів журнал не має.
+
 Rollback описаний у `supabase/migrations/ROLLBACK.md`: видалені purge-ом події не відновлюються, залишаються лише агрегати. Перед першим запуском у production зробіть backup.
 
 ## 13. Що Soty навмисно не робить

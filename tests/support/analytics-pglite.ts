@@ -3,9 +3,10 @@ import { setQueryExecutor } from '../../scripts/analytics/db';
 
 /**
  * An in-process Postgres with the three analytics objects the CLI reads
- * (`analytics_events` with the v2 envelope columns, `analytics_users`,
+ * (`analytics_events` with the v2 and v3 envelope columns, `analytics_users`,
  * `analytics_team_workspace`) plus the 028 sync-jobs view as a plain table, so
- * `audit` can count it. The CLI's exact SQL runs against it through the
+ * `audit` can count it, the 031 daily rollup tables and the 033 agent journal table.
+ * `createAnalyticsDb({ schema: 'pre-031' })` builds the schema from before those migrations. The CLI's exact SQL runs against it through the
  * pluggable executor; nothing here is shared with production.
  */
 export interface AnalyticsTestDb {
@@ -14,7 +15,51 @@ export interface AnalyticsTestDb {
   close(): Promise<void>;
 }
 
-export const ANALYTICS_SCHEMA = `
+/** Envelope v3 (migration 20261117110000): absent from a pre-031 database. */
+const ENVELOPE_V3_COLUMNS = `
+    attempt_id text,
+    agent_instance_id uuid,
+    agent_platform text,`;
+
+/** Retention (20261120100000) and the agent journal (20261124100000): absent before 031/033. */
+const POST_031_TABLES = `
+  create table public.analytics_daily_events (
+    day date not null,
+    event_name text not null,
+    count bigint not null default 0,
+    users bigint not null default 0,
+    primary key (day, event_name)
+  );
+  create table public.analytics_daily_tool_outcomes (
+    day date not null,
+    tool text not null,
+    local_app_version text not null,
+    platform text not null,
+    starts bigint not null default 0,
+    completions bigint not null default 0,
+    failures bigint not null default 0,
+    cancellations bigint not null default 0,
+    users bigint not null default 0,
+    primary key (day, tool, local_app_version, platform)
+  );
+  -- 033: the agent journal as supabase/migrations/20261124100000_agent_journal.sql creates it
+  -- (without the auth.users reference, which this database does not have).
+  create table public.agent_journal_records (
+    id bigint generated always as identity primary key,
+    user_id uuid,
+    installation_id uuid,
+    agent_instance_id uuid not null,
+    seq bigint not null check (seq > 0),
+    recorded_at timestamptz not null,
+    received_at timestamptz not null default now(),
+    category text not null,
+    code text not null,
+    props jsonb not null default '{}'::jsonb,
+    constraint agent_journal_records_instance_seq_key unique (agent_instance_id, seq)
+  );
+`;
+
+const schemaOf = (post031: boolean) => `
   create table public.analytics_users (
     id uuid primary key,
     email text,
@@ -53,11 +98,7 @@ export const ANALYTICS_SCHEMA = `
     error_code text,
     error_stage text,
     error_fingerprint text,
-    outcome text,
-    -- envelope v3 (migration 20261117110000).
-    attempt_id text,
-    agent_instance_id uuid,
-    agent_platform text,
+    outcome text,${post031 ? ENVELOPE_V3_COLUMNS : ''}
     created_at timestamptz not null default now()
   );
   create table public.analytics_team_workspace (
@@ -75,13 +116,68 @@ export const ANALYTICS_SCHEMA = `
     team_id uuid,
     connection_id uuid,
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    updated_at timestamptz not null default now(),
+    -- The rest of the 028 view, so sync and investigate run their exact SQL here.
+    owner_email_normalized text,
+    connection_state text not null default 'connected',
+    job_kind text not null default 'scan',
+    phase text not null default 'listing',
+    state text not null default 'queued',
+    scope_hash text,
+    requested_by uuid,
+    request_id uuid,
+    request_outcome text,
+    completed_at timestamptz,
+    scan_completed_at timestamptz,
+    last_progress_at timestamptz,
+    lease_expires_at timestamptz,
+    lease_epoch integer not null default 0,
+    run_count integer not null default 0,
+    attempts integer not null default 0,
+    lease_lost_count integer not null default 0,
+    no_progress_runs integer,
+    next_attempt_at timestamptz not null default now(),
+    replay_after integer,
+    confirmed_sequence bigint,
+    confirmed_at timestamptz,
+    recovery_count integer,
+    last_recovery_at timestamptz,
+    canonical_job_id uuid,
+    canonical_state text,
+    canonical_error_code text,
+    canonical_next_attempt_at timestamptz,
+    last_error_code text,
+    error_detail text,
+    cancel_requested_at timestamptz,
+    files_listed integer not null default 0,
+    files_added integer not null default 0,
+    files_updated integer not null default 0,
+    files_removed integer not null default 0,
+    items_unavailable integer not null default 0,
+    folders_done integer not null default 0
   );
+  ${post031 ? POST_031_TABLES : ''}
 `;
 
-export async function createAnalyticsDb(): Promise<AnalyticsTestDb> {
+/** The schema with every 031/033 migration applied. */
+export const ANALYTICS_SCHEMA = schemaOf(true);
+
+/**
+ * The schema production had before the 031/033 migrations: no envelope v3 columns on
+ * `analytics_events`, no daily rollup tables, no agent journal. The CLI must still run on it.
+ */
+export const ANALYTICS_SCHEMA_PRE_031 = schemaOf(false);
+
+export interface AnalyticsDbOptions {
+  /** `pre-031` builds {@link ANALYTICS_SCHEMA_PRE_031}; the default is the current schema. */
+  schema?: 'current' | 'pre-031';
+}
+
+export async function createAnalyticsDb(
+  options: AnalyticsDbOptions = {}
+): Promise<AnalyticsTestDb> {
   const db = await PGlite.create();
-  await db.exec(ANALYTICS_SCHEMA);
+  await db.exec(options.schema === 'pre-031' ? ANALYTICS_SCHEMA_PRE_031 : ANALYTICS_SCHEMA);
 
   // PGlite has a single connection and does not tolerate overlapping queries;
   // a real pg Pool (max 3) does. Serialize so Promise.all call sites in the CLI

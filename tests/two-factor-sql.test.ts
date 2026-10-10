@@ -103,6 +103,12 @@ describe('storing and reading back', () => {
   it('lists newest first', async () => {
     await clearNotebooks();
     const first = await addEntry(OWNER, 'First');
+    // Two inserts can land in the same instant, and then the tie is broken by a random id.
+    // The order under test is "newer first", so the first entry is made unambiguously older.
+    await harness.root(
+      "update private.two_factor_entries set created_at = created_at - interval '1 second' where id = $1",
+      [first.id]
+    );
     const second = await addEntry(OWNER, 'Second');
     const listed = await listEntries(OWNER);
     expect(listed.map(entry => entry.id)).toEqual([second.id, first.id]);

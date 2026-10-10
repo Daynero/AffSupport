@@ -1,5 +1,29 @@
 # Rollback notes
 
+## 20261124100000_agent_journal.sql
+
+Roll the web build back first (or accept that its journal forwarder fails
+silently: it swallows every error and never advances its cursor). Then restore
+`private.purge_analytics_events(integer)` verbatim from
+`20261120100000_analytics_retention.sql` (including its `revoke` line and
+comment) — the signature is unchanged, so `create or replace` is enough and the
+`analytics-retention` schedule keeps working; only the
+`deleted_journal_records` key disappears from its result. Then drop the RPC
+and the table, in this order:
+
+```sql
+drop function public.ingest_agent_journal(uuid, uuid, jsonb);
+drop table public.agent_journal_records;
+notify pgrst, 'reload schema';
+```
+
+Dropping the table deletes every forwarded journal record; there is nothing to
+restore them from except the users' own local journals (`diagnostics.jsonl`,
+bounded to 2 000 records). Keep the table (drop only the function) if the
+records still matter for an open investigation. Regenerate
+`apps/web/src/lib/database.types.ts` afterwards if it was regenerated with the
+RPC.
+
 ## 20261117110000_analytics_envelope_v3.sql
 
 Restore `public.ingest_analytics_events(jsonb)` verbatim from

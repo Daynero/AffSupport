@@ -20,6 +20,8 @@ import {
   formatFeatures,
   formatFriction,
   formatInspect,
+  formatInvestigate,
+  formatJournal,
   formatJourney,
   formatRetention,
   formatStages,
@@ -31,6 +33,7 @@ import {
   formatUserDetail,
   formatUsers
 } from './format.js';
+import { SubjectNotFoundError, getInvestigation, getJournal } from './investigate.js';
 import { asOfDate, resolvePeriod } from './periods.js';
 import {
   getAudit,
@@ -61,6 +64,7 @@ import {
 } from './queries.js';
 import {
   NO_AGENT_CONTEXT_NOTE,
+  investigateOutputIsPrivate,
   syncOutputIsPrivate,
   teamWorkspaceOutputIsPrivate,
   type AuditArtifact,
@@ -110,6 +114,12 @@ Commands:
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
   connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage
   audit               Coverage registry vs observed events: blind spots, orphans, losses
+  investigate <email|installation_id|run_id|flow_id|attempt_id>
+                      One user's problem in one call: environment, sessions, failed runs,
+                      link, errors, agent journal around failures, sync, blind spots and
+                      ranked findings with code locations (--period, default 30d)
+  journal <email|installation_id|agent_instance_id>
+                      The agent's journal records in the database, oldest first (default 30d)
 
 Options:
   --period <t>   today | 7d | 30d | 90d | all  (default 7d)
@@ -127,7 +137,9 @@ Examples:
   npm run analytics -- compressor --days 7 --json
   npm run analytics -- top-users --by compressions --period 30d
   npm run analytics -- audit --period 30d --as-of 2026-10-10T00:00:00Z --json --write
-  npm run analytics -- inspect 1b1e6d8c-0c2d-4f0e-8c6e-2a6a1a2b3c4d --json`;
+  npm run analytics -- inspect 1b1e6d8c-0c2d-4f0e-8c6e-2a6a1a2b3c4d --json
+  npm run analytics -- investigate user@example.com --json
+  npm run analytics -- journal user@example.com --period 7d --json`;
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const parsed: ParsedArgs = {
@@ -208,6 +220,16 @@ function requireArg(args: ParsedArgs, index: number, usage: string): string {
   const value = args.positional[index];
   if (!value) throw new CommandError(`Missing argument. Usage: ${usage}`);
   return value;
+}
+
+/** A subject that resolves to nothing is a command error, not a crash. */
+async function subjectCommand<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof SubjectNotFoundError) throw new CommandError(error.message);
+    throw error;
+  }
 }
 
 export async function executeCommand(
@@ -359,6 +381,42 @@ export async function executeCommand(
       }
       const full = { ...data, delivery_lag_ms };
       return done(full, formatTeamWorkspace(full, period));
+    }
+    case 'journal': {
+      const subject = requireArg(args, 0, 'journal <email | installation_id | agent_instance_id>');
+      const journalPeriod = resolvePeriod(args.period ?? '30d', args.days, args.asOf);
+      const data = await subjectCommand(() =>
+        getJournal(subject, journalPeriod, args.limit ?? 200)
+      );
+      if (!investigateOutputIsPrivate(data)) {
+        throw new CommandError('Journal output failed its privacy guard.');
+      }
+      return {
+        period: journalPeriod,
+        data,
+        human: formatJournal(data, journalPeriod),
+        written: []
+      };
+    }
+    case 'investigate': {
+      const subject = requireArg(
+        args,
+        0,
+        'investigate <email | installation_id | run_id | flow_id | attempt_id>'
+      );
+      const investigatePeriod = resolvePeriod(args.period ?? '30d', args.days, args.asOf);
+      const data = await subjectCommand(() =>
+        getInvestigation(subject, investigatePeriod, args.limit ?? 10)
+      );
+      if (!investigateOutputIsPrivate(data)) {
+        throw new CommandError('Investigation output failed its privacy guard.');
+      }
+      return {
+        period: investigatePeriod,
+        data,
+        human: formatInvestigate(data, investigatePeriod),
+        written: []
+      };
     }
     case 'audit': {
       const data = await getAudit(period);

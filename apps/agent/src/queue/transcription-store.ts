@@ -3,11 +3,14 @@ import { stat, chmod, access, mkdir, readFile, unlink, writeFile } from 'node:fs
 import { replaceFile } from '../files/replace-file.js';
 import path from 'node:path';
 import {
+  TRANSCRIPTION_ERROR_CODES,
   TRANSCRIPTION_LIFECYCLE,
   defaultTranscriptionSettings,
+  knownErrorCode,
   isTranscriptionQualityMode,
   isValidTargetLanguage,
   normalizeTargetLanguage,
+  type TranscriptionErrorCode,
   type TranscriptionJob,
   type TranscriptionLanguageCandidate,
   type TranscriptionQualityMode,
@@ -61,7 +64,7 @@ export interface PersistedTranscriptionState {
 }
 
 /** Machine-readable marker for a job whose transcription an agent restart cut short. */
-export const TRANSCRIPTION_INTERRUPTED_CODE = 'INTERRUPTED';
+export const TRANSCRIPTION_INTERRUPTED_CODE = 'INTERRUPTED' satisfies TranscriptionErrorCode;
 /** Human-facing message, phrased like the compressor's interrupted-job message. */
 export const TRANSCRIPTION_INTERRUPTED_MESSAGE =
   'The transcription was interrupted when the agent stopped.';
@@ -116,6 +119,7 @@ export async function loadTranscriptionState(
               job.status = 'failed';
               job.progress = null;
               job.error = 'The saved transcript is missing or damaged.';
+              job.errorCode = 'DOCUMENT_UNAVAILABLE';
               job.errorDetails = 'DOCUMENT_UNAVAILABLE';
               return job;
             }
@@ -248,6 +252,12 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
       ? TRANSCRIPTION_INTERRUPTED_MESSAGE
       : typeof raw.error === 'string'
         ? raw.error
+        : null,
+    // Kept only when it is one of the closed codes (033 FR-007); an older record has none.
+    errorCode: interrupted
+      ? TRANSCRIPTION_INTERRUPTED_CODE
+      : status === 'failed'
+        ? knownErrorCode(TRANSCRIPTION_ERROR_CODES, raw.errorCode)
         : null,
     errorDetails: interrupted
       ? TRANSCRIPTION_INTERRUPTED_CODE

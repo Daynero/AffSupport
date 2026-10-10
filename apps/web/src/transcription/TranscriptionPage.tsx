@@ -61,7 +61,12 @@ import { describeError } from './errors';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
 import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
-import { toolErrorProperties, trackToolError, type ToolErrorStage } from '../analytics/errors';
+import {
+  trackToolError,
+  transcriptionFailureError,
+  transcriptionTranslationErrors,
+  type ToolErrorStage
+} from '../analytics/errors';
 import { languageDisplayName } from './language';
 import { TranscriptTextModal } from './TranscriptTextModal';
 import {
@@ -292,15 +297,17 @@ export default function TranscriptionPage() {
         failed: ['failed', 'interrupted'],
         cancelled: ['cancelled']
       },
-      (job, runId) =>
-        toolErrorProperties({
-          tool: 'transcription',
-          stage: transcriptionErrorStage(job),
-          code: job.status === 'interrupted' ? 'INTERRUPTED' : job.error,
-          ...(runId ? { runId } : {})
-        })
+      // 033 FR-007: the agent's code and the stage it names, never the row's sentence.
+      (job, runId) => transcriptionFailureError(job, runId)
     )) {
       analytics.track(event.name, event.properties);
+    }
+    for (const error of transcriptionTranslationErrors(
+      previousAnalyticsJobs.current,
+      jobs,
+      analyticsRunId
+    )) {
+      analytics.track('error_occurred', error);
     }
     previousAnalyticsJobs.current = jobs;
   }, [jobs]);
@@ -1188,11 +1195,4 @@ function ToastRegion({ toasts }: { toasts: ToastMessage[] }) {
       ))}
     </div>
   );
-}
-
-/** Where in the pipeline a transcription stopped, from the phase it last reported. */
-function transcriptionErrorStage(job: TranscriptionJob): ToolErrorStage<'transcription'> {
-  if (job.phase === 'extract') return 'input';
-  if (job.phase === 'save') return 'save';
-  return 'transcribe';
 }

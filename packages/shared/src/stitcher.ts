@@ -12,7 +12,7 @@
  * compressor's world (a resolved end-screen duration) is passed in already resolved.
  */
 
-import type { ImageFitMode } from './types.js';
+import type { ImageFitMode, StitchErrorCode } from './types.js';
 
 export type StitchOperation = 'stitch' | 'restitch' | 'unstitch';
 
@@ -168,6 +168,8 @@ export interface StitchJob {
   outputPath: string | null;
   elapsedMs: number | null;
   error: string | null;
+  /** `error` normalised into `STITCH_ERROR_CODES` (033 FR-007); absent when it is not one. */
+  errorCode?: StitchErrorCode | null;
   verification: StitchVerification | null;
   createdAt: string;
 }

@@ -428,6 +428,129 @@ export const COMPRESSION_ERROR_CODES = [
 ] as const;
 export type CompressionErrorCode = (typeof COMPRESSION_ERROR_CODES)[number];
 
+/**
+ * Why a compressor estimate became `unavailable`, as a code (033 FR-007). Closed, like
+ * `COMPRESSION_ERROR_CODES`: a failure the estimator cannot name carries no code at all, and
+ * the web client reports it as `unknown`.
+ */
+export const ESTIMATE_ERROR_CODES = [
+  /** The source could not be read (`stat` refused: gone, moved or not permitted). */
+  'SOURCE_NOT_FOUND',
+  /** FFmpeg or FFprobe could not be started. */
+  'MEDIA_TOOL_UNAVAILABLE',
+  /** FFprobe ran but could not read the source's duration. */
+  'ESTIMATE_PROBE_FAILED',
+  /** Nothing of the source is left to sample once its trims are taken off. */
+  'ESTIMATE_DURATION_UNAVAILABLE',
+  /** Fewer than half of the sample encodes produced output. */
+  'ESTIMATE_SAMPLES_UNREADABLE',
+  /** An end/start image is set but the output frame size is not known yet. */
+  'ESTIMATE_IMAGE_DIMENSIONS_UNAVAILABLE',
+  /** The screen image is in the library but cannot be decoded. */
+  'IMAGE_DAMAGED',
+  /** The screen image is missing from the library. */
+  'IMAGE_UNAVAILABLE',
+  /** The screen image's sample encode failed. */
+  'ESTIMATE_IMAGE_SAMPLE_FAILED',
+  /** The samples did not add up to an estimate. */
+  'ESTIMATE_INSUFFICIENT_DATA',
+  /** The temporary sample directory could not be written: the disk is full. */
+  'DISK_FULL'
+] as const;
+export type EstimateErrorCode = (typeof ESTIMATE_ERROR_CODES)[number];
+
+/**
+ * Why a transcription failed, as a code (033 FR-007). `error` stays the sentence a person
+ * reads; this is what analytics and support read.
+ */
+export const TRANSCRIPTION_ERROR_CODES = [
+  /** The speech model the run needs is not on disk and is not arriving. */
+  'MODEL_MISSING',
+  /** FFmpeg or whisper could not be started. */
+  'MEDIA_TOOL_UNAVAILABLE',
+  /** FFmpeg could not prepare the audio track. */
+  'AUDIO_EXTRACT_FAILED',
+  /** whisper exited without a transcript. */
+  'TRANSCRIBE_FAILED',
+  /** The transcript could not be written to disk. */
+  'DOCUMENT_WRITE_FAILED',
+  /** A completed transcript's saved document is missing or damaged after a restart. */
+  'DOCUMENT_UNAVAILABLE',
+  /** The run was cut short by the local app stopping. */
+  'INTERRUPTED',
+  /** The disk filled up during the run. */
+  'DISK_FULL',
+  /** A translation of the transcript failed. */
+  'TRANSLATION_FAILED',
+  /** The translation engine is not available on this machine. */
+  'TRANSLATOR_UNAVAILABLE'
+] as const;
+export type TranscriptionErrorCode = (typeof TRANSCRIPTION_ERROR_CODES)[number];
+
+/**
+ * Why a stitch failed (033 FR-007). The stitcher's `error` was already a code, but an open
+ * one (`STITCH_PLAN_VIDEO-CODEC`); this is the closed list it is normalised into.
+ */
+export const STITCH_ERROR_CODES = [
+  'STITCH_INTERRUPTED',
+  'STITCH_TOOL_FAILED',
+  'STITCH_PATH_INVALID',
+  'STITCH_PLAN_VIDEO_CODEC',
+  'STITCH_PLAN_AUDIO_CODEC',
+  'STITCH_PLAN_VARIABLE_FRAME_RATE',
+  'STITCH_PLAN_CONTAINER',
+  'STITCH_PLAN_UNREADABLE',
+  'STITCH_PLAN_NOTHING_TO_REMOVE',
+  'STITCH_PLAN_NO_SCREENS',
+  'STITCH_OUTPUT_UNWRITABLE',
+  'STITCH_VERIFICATION_FAILED',
+  'STITCH_IMAGE_UNAVAILABLE',
+  'STITCH_JOIN_FAILED',
+  'STITCH_AUDIO_MISMATCH',
+  'MEDIA_TOOL_UNAVAILABLE',
+  'SILENCE_BANK_FAILED',
+  'SCREEN_ENCODE_FAILED',
+  'SCREEN_SILENCE_FAILED',
+  'SCREEN_MUX_FAILED',
+  'BODY_PREPARE_FAILED',
+  'BODY_REMUX_FAILED',
+  'BODY_HEAD_FAILED',
+  'BODY_TAIL_FAILED',
+  'BODY_AUDIO_MISMATCH',
+  'BODY_TIMING_UNREADABLE',
+  'BODY_JOIN_FAILED'
+] as const;
+export type StitchErrorCode = (typeof STITCH_ERROR_CODES)[number];
+
+/** Why a landing optimization failed as a whole (033 FR-007). Per-file notes stay notes. */
+export const LANDING_ERROR_CODES = [
+  /** The prepared working copy is gone before the run could start. */
+  'LANDING_WORKSPACE_LOST',
+  /** FFmpeg or FFprobe is not available. */
+  'MEDIA_TOOL_UNAVAILABLE',
+  /** The disk filled up while the landing was being written. */
+  'DISK_FULL',
+  /** The destination refused the write (permissions, read-only volume). */
+  'DESTINATION_NOT_WRITABLE',
+  /** The media pass failed outside any single file. */
+  'LANDING_OPTIMIZE_FAILED',
+  /** Rewriting the landing's references failed. */
+  'LANDING_REWRITE_FAILED',
+  /** Writing the optimized folder or archive failed. */
+  'LANDING_PACKAGE_FAILED'
+] as const;
+export type LandingErrorCode = (typeof LANDING_ERROR_CODES)[number];
+
+/** `value` when it is one of `codes`, otherwise null: how a store restores a persisted code. */
+export function knownErrorCode<Code extends string>(
+  codes: readonly Code[],
+  value: unknown
+): Code | null {
+  return typeof value === 'string' && (codes as readonly string[]).includes(value)
+    ? (value as Code)
+    : null;
+}
+
 export interface CompressionJob {
   id: string;
   /**
@@ -514,6 +637,11 @@ export interface CompressionJob {
   estimateRangeMaxBytes: number | null;
   estimateProgress: { completed: number; total: number } | null;
   estimateError: string | null;
+  /**
+   * The stable machine code behind `estimateError` (033 FR-007), one of `ESTIMATE_ERROR_CODES`.
+   * Absent on agents older than 033 and when the estimator could not name the cause.
+   */
+  estimateErrorCode?: EstimateErrorCode | null;
   estimateKey: string | null;
   /** FIFO position for an estimate requested while the compression queue is running. */
   estimatePriorityOrder: number | null;
@@ -918,6 +1046,8 @@ export interface LandingJob {
    */
   repeatable: boolean;
   error: string | null;
+  /** The stable machine code behind `error` (033 FR-007), one of `LANDING_ERROR_CODES`. */
+  errorCode?: LandingErrorCode | null;
   warnings: string[];
   createdAt: number;
   startedAt: number | null;
@@ -1652,6 +1782,11 @@ export interface TranscriptionJob {
    */
   translation?: TranscriptionTranslationSummary | null;
   error: string | null;
+  /**
+   * The stable machine code behind `error` (033 FR-007), one of `TRANSCRIPTION_ERROR_CODES`.
+   * Absent on agents older than 033 and when the run failed for a reason it cannot name.
+   */
+  errorCode?: TranscriptionErrorCode | null;
   errorDetails: string | null;
   batchId: string | null;
   createdAt: number;

@@ -15,11 +15,14 @@ import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import {
   STITCH_LIFECYCLE,
+  STITCH_ERROR_CODES,
   defaultStitchSettings,
+  knownErrorCode,
   planStitch,
   type DetectedStitching,
   type SourceProfile,
   type StitchDestination,
+  type StitchErrorCode,
   type StitchJob,
   type StitchPlan,
   type StitchOperation,
@@ -127,7 +130,12 @@ export class StitchQueue {
     // mid-flight is reported as interrupted work rather than silently resurrected.
     this.jobs = (deps.jobs ?? []).map(job =>
       job.status === 'running' || job.status === 'queued'
-        ? { ...job, status: 'failed' as const, error: 'STITCH_INTERRUPTED' }
+        ? {
+            ...job,
+            status: 'failed' as const,
+            error: 'STITCH_INTERRUPTED',
+            errorCode: 'STITCH_INTERRUPTED' as const
+          }
         : job
     );
   }
@@ -217,6 +225,7 @@ export class StitchQueue {
           outputPath: null,
           result: null,
           error: null,
+          errorCode: null,
           verification: null,
           elapsedMs: null
         })
@@ -246,7 +255,7 @@ export class StitchQueue {
        compressor's rule, and the reason stop-all and the batch counters can say what
        happened to it. It carries no error: it reads as "not stitched yet". */
     if (job.status !== 'queued') return false;
-    this.transition(id, 'cancelled', { stage: null, error: null });
+    this.transition(id, 'cancelled', { stage: null, error: null, errorCode: null });
     return true;
   }
 
@@ -343,15 +352,22 @@ export class StitchQueue {
             outcome.profile
           ),
           elapsedMs,
-          error: null
+          error: null,
+          errorCode: null
         });
       } else if (controller.signal.aborted || outcome.error === 'STITCH_CANCELLED') {
-        this.transition(id, 'cancelled', { stage: null, elapsedMs, error: null });
+        this.transition(id, 'cancelled', {
+          stage: null,
+          elapsedMs,
+          error: null,
+          errorCode: null
+        });
       } else {
         this.transition(id, 'failed', {
           stage: null,
           elapsedMs,
           error: outcome.error,
+          errorCode: stitchErrorCode(outcome.error),
           verification: outcome.verification ?? null
         });
       }
@@ -359,7 +375,8 @@ export class StitchQueue {
       this.transition(id, 'failed', {
         stage: null,
         elapsedMs: Date.now() - startedAt,
-        error: 'STITCH_TOOL_FAILED'
+        error: 'STITCH_TOOL_FAILED',
+        errorCode: 'STITCH_TOOL_FAILED'
       });
     } finally {
       this.running.delete(id);
@@ -519,6 +536,17 @@ async function moveInto(from: string, to: string): Promise<void> {
     await copyFile(from, to);
     await unlink(from).catch(() => {});
   }
+}
+
+/**
+ * A run's `error` in the closed vocabulary (033 FR-007), or null when it is not one.
+ *
+ * The pipeline's failures are codes already; the planner's refusals arrive spelled with its own
+ * hyphens (`STITCH_PLAN_VIDEO-CODEC`), which no machine-code reader accepts.
+ */
+export function stitchErrorCode(error: string | null | undefined): StitchErrorCode | null {
+  if (!error) return null;
+  return knownErrorCode(STITCH_ERROR_CODES, error.replace(/-/g, '_'));
 }
 
 /** The real reads, used unless a caller injects its own. */

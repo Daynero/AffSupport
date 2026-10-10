@@ -9,6 +9,9 @@ import type {
   FrictionData,
   FunnelData,
   InspectData,
+  InvestigateData,
+  JournalResult,
+  JournalRecordRow,
   JourneyEvent,
   OverviewData,
   ResolvedPeriod,
@@ -601,13 +604,20 @@ export function formatAudit(data: AuditData, period: ResolvedPeriod, written: st
       ? table(['Severity', 'Capability', 'Status', 'Missing', 'Id'], findings)
       : '  —',
     ...lagLine(data.delivery_lag_ms),
+    ...(data.schema.note ? ['', `  Schema: ${data.schema.note}`] : []),
     ...(written.length ? ['', `  Written: ${written.join(', ')}`] : [])
   ].join('\n');
 }
 
 export function formatInspect(data: InspectData): string {
+  const schemaLines = data.schema
+    ? ['', `  Schema: ${data.schema.note}`, `  Missing: ${data.schema.missing.join(', ')}`]
+    : [];
   if (!data.found) {
-    return `\nInspect · ${data.id}\n${'─'.repeat(32)}\n  No event carries this id (as run_id, flow_id, attempt_id or workflow_id).`;
+    return [
+      `\nInspect · ${data.id}\n${'─'.repeat(32)}\n  No event carries this id (as run_id, flow_id, attempt_id or workflow_id).`,
+      ...schemaLines
+    ].join('\n');
   }
   const body = data.events.map(r => [
     new Date(r.occurred_at).toISOString().replace('T', ' ').slice(0, 19),
@@ -641,7 +651,153 @@ export function formatInspect(data: InspectData): string {
       ]
     ]),
     ...lagLine(data.delivery_lag_ms),
+    ...schemaLines,
     '',
     table(['When (UTC)', 'Event', 'Tool', 'App', 'Properties'], body)
   ].join('\n');
+}
+
+/* ---------------------------------------------------------------------------
+ * 033 — `journal` and `investigate`
+ * ------------------------------------------------------------------------- */
+
+function journalLine(record: JournalRecordRow): string[] {
+  return [
+    record.recorded_at.replace('T', ' ').slice(0, 19),
+    `${record.category}:${record.code}`,
+    String(record.seq),
+    record.agent_instance_id.slice(0, 8),
+    ms(record.lag_ms),
+    JSON.stringify(record.props)
+  ];
+}
+
+const JOURNAL_HEADERS = ['Recorded (UTC)', 'Record', 'Seq', 'Agent run', 'Lag', 'Props'];
+
+export function formatJournal(data: JournalResult, period: ResolvedPeriod): string {
+  if (!data.available) {
+    return [
+      header('Agent journal', period),
+      '  Not available: this database has no agent_journal_records table visible to this role',
+      '  (migration 20261124100000 not applied). Nothing could be read; that is not "no records".'
+    ].join('\n');
+  }
+  const subject =
+    data.subject.kind === 'user'
+      ? `user ${data.subject.user_id ?? '—'}`
+      : data.subject.kind === 'installation'
+        ? `installation ${data.subject.installation_id ?? '—'}`
+        : `agent run ${data.subject.agent_instance_id ?? '—'}`;
+  return [
+    header(`Agent journal · ${subject}`, period),
+    `  ${num(data.records.length)} of ${num(data.total)} record(s)${data.truncated ? ' (newest shown; raise --limit)' : ''} · lag p50 ${ms(data.lag_ms.p50)} · p95 ${ms(data.lag_ms.p95)}`,
+    '',
+    data.records.length
+      ? table(JOURNAL_HEADERS, data.records.map(journalLine))
+      : '  No journal record reached the database for this subject in the period.'
+  ].join('\n');
+}
+
+export function formatInvestigate(data: InvestigateData, period: ResolvedPeriod): string {
+  const env = data.environment;
+  const list = (values: string[]) => values.join(', ') || '—';
+  const lines: string[] = [
+    header(
+      `Investigate · ${data.subject.kind} ${data.subject.id ?? data.subject.user_id ?? ''}`,
+      period
+    ),
+    kv([
+      ['User', data.subject.user_id ?? '— (anonymous installation)'],
+      ['Installations', list(data.subject.installation_ids)],
+      ['Agent runs', list(data.subject.agent_instance_ids)],
+      ['Web builds', list(env.web_builds)],
+      [
+        'Local app',
+        `${list(env.local_app_versions)} (newest seen ${env.newest_local_app_version_seen ?? '—'})`
+      ],
+      [
+        'Platforms',
+        `agent ${list(env.agent_platforms)} · browser ${list(env.browser_platforms)} · ${list(env.browser_families)}`
+      ],
+      ['Page origin', list(env.link_origins)],
+      ['First / last seen', `${env.first_seen_at ?? '—'} / ${env.last_seen_at ?? '—'}`],
+      ['Sessions', num(data.sessions.count)],
+      ['Events / journal', `${num(data.coverage.events)} / ${num(data.coverage.journal_records)}`],
+      ['Schema missing', list(data.schema.missing)]
+    ]),
+    '',
+    'Findings'
+  ];
+  if (data.findings.length === 0) lines.push('  None.');
+  for (const finding of data.findings) {
+    lines.push(`  [${finding.severity} · ${finding.kind}] ${finding.title}`);
+    if (finding.fingerprint) lines.push(`      fingerprint ${finding.fingerprint}`);
+    for (const location of finding.code_locations) {
+      lines.push(`      ${location.matched}: ${location.files.join(', ')}`);
+      lines.push(`        check: ${location.check}`);
+    }
+    if (finding.evidence.length)
+      lines.push(
+        `      evidence ${finding.evidence.slice(0, 6).join(', ')}${finding.evidence.length > 6 ? ', …' : ''}`
+      );
+    lines.push(`      next: ${finding.next_step}`);
+  }
+
+  lines.push('', 'Operations (failed, unfinished, cancelled)');
+  if (data.operations.length === 0) lines.push('  None.');
+  else
+    lines.push(
+      table(
+        ['Id', 'Tool', 'Status', 'Chain', 'Code', 'Last seen'],
+        data.operations.map(op => [
+          op.id,
+          op.tool ?? '—',
+          op.status,
+          op.chain.map(step => step.event).join(' → '),
+          op.fingerprint ?? op.error_code ?? '—',
+          op.last_seen_at ?? '—'
+        ])
+      )
+    );
+
+  const link = data.link;
+  lines.push(
+    '',
+    'Link',
+    `  losses ${link.losses} · unrecovered ${link.unrecovered.length} · recoveries ${link.recoveries.length} (${link.recoveries.map(r => `${r.mode} ${ms(r.duration_ms)}`).join(', ') || '—'}) · inconsistencies ${link.inconsistencies} · pairing rejected ${link.pairing_rejected}`,
+    `  failed checks: ${link.failed_checks_by_reason.map(r => `${r.reason} (${r.events})`).join(', ') || '—'}`
+  );
+
+  lines.push('', 'Errors');
+  if (data.errors.length === 0) lines.push('  None.');
+  else
+    lines.push(
+      table(
+        ['Fingerprint', 'Count', 'Last seen'],
+        data.errors.map(e => [e.fingerprint, String(e.occurrences), e.last_seen_at])
+      )
+    );
+
+  lines.push('', 'Agent journal around failures (±2 min)');
+  if (data.journal_around_failures.length === 0) lines.push('  None.');
+  for (const window of data.journal_around_failures) {
+    lines.push(`  ${window.failure.kind} ${window.failure.ref} at ${window.failure.at}`);
+    lines.push(table(JOURNAL_HEADERS, window.records.map(journalLine)));
+  }
+
+  lines.push('', `Sync (${data.sync.status})`);
+  for (const connection of data.sync.connections) {
+    lines.push(
+      `  ${connection.connection_id} ${connection.connection_state}: ${connection.jobs} job(s) ${JSON.stringify(connection.states)} errors ${list(connection.error_codes)}`
+    );
+  }
+
+  lines.push('', 'Blind spots');
+  if (data.coverage.blind_spots.length === 0) lines.push('  None found.');
+  for (const spot of data.coverage.blind_spots) {
+    lines.push(
+      `  ${spot.kind}: ${spot.detail}${spot.values.length ? ` (${spot.values.join(', ')})` : ''}`
+    );
+  }
+  return lines.join('\n');
 }

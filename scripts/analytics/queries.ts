@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { query, queryOne } from './db.js';
+import { eventColumnSql, getSchema, missingObjects, schemaSummary } from './schema.js';
 import {
   COVERAGE_REGISTRY,
   capabilitySignals,
@@ -13,6 +14,7 @@ import {
 } from './coverage-registry.js';
 import { sanitizeEventProperties } from './sanitize.js';
 import type {
+  AnalyticsSchema,
   AuditCapability,
   AuditData,
   AuditDelivery,
@@ -974,6 +976,7 @@ export async function getRetention(period: ResolvedPeriod): Promise<RetentionMet
 
 export async function getTeamWorkspace(period: ResolvedPeriod): Promise<TeamWorkspaceData> {
   const params = rangeParams(period);
+  const { attemptId } = eventColumnSql(await getSchema());
   const onboarding = await queryOne<{ attempts: number; successes: number }>(
     `with started as (
        select distinct e.flow_id
@@ -1011,17 +1014,17 @@ export async function getTeamWorkspace(period: ResolvedPeriod): Promise<TeamWork
     `with started as (
        select distinct
          e.properties ->> 'study_run_id' as study_run_id,
-         coalesce(e.attempt_id, e.properties ->> 'attempt_id') as attempt_id,
+         ${attemptId} as attempt_id,
          e.properties ->> 'cue_category' as cue
        from public.analytics_events e
        where ${EVENTS_RANGE}
          and e.event_name = 'team_find_started'
          and e.properties ->> 'study_run_id' is not null
-         and coalesce(e.attempt_id, e.properties ->> 'attempt_id') is not null
+         and ${attemptId} is not null
          and e.properties ->> 'cue_category' in ('geo','offer','language','category')
      ), completed as (
        select e.properties ->> 'study_run_id' as study_run_id,
-         coalesce(e.attempt_id, e.properties ->> 'attempt_id') as attempt_id,
+         ${attemptId} as attempt_id,
          bool_or(
            coalesce(e.outcome, e.properties ->> 'outcome') = 'success'
            and e.properties ->> 'assisted' = 'false'
@@ -1032,7 +1035,7 @@ export async function getTeamWorkspace(period: ResolvedPeriod): Promise<TeamWork
        where ${EVENTS_RANGE}
          and e.event_name = 'team_find_completed'
          and e.properties ->> 'study_run_id' is not null
-         and coalesce(e.attempt_id, e.properties ->> 'attempt_id') is not null
+         and ${attemptId} is not null
        group by 1, 2
      )
      select started.cue,
@@ -1432,8 +1435,8 @@ function registryTuples(): RegistryTuple[] {
   return tuples;
 }
 
-/** `$1/$2` range, `$3..$7` the registry as parallel arrays. */
-const AUDIT_EVENTS_CTE = `with reg as (
+/** `$1/$2` range, `$3..$7` the registry as parallel arrays; `attemptId` from `eventColumnSql`. */
+const auditEventsCte = (attemptId: string) => `with reg as (
        select * from unnest($3::text[], $4::text[], $5::text[], $6::text[], $7::text[])
          as r(capability, event_name, role, correlate, tool)
      ), ev as (
@@ -1441,7 +1444,7 @@ const AUDIT_EVENTS_CTE = `with reg as (
          case r.correlate
            when 'run_id' then coalesce(e.run_id::text, e.properties ->> 'run_id')
            when 'flow_id' then coalesce(e.flow_id::text, e.properties ->> 'flow_id')
-           when 'attempt_id' then coalesce(e.attempt_id, e.properties ->> 'attempt_id')
+           when 'attempt_id' then ${attemptId}
            when 'workflow_id' then e.properties ->> 'workflow_id'
            else null
          end as cid
@@ -1451,6 +1454,8 @@ const AUDIT_EVENTS_CTE = `with reg as (
      )`;
 
 export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
+  const schema = await getSchema();
+  const AUDIT_EVENTS_CTE = auditEventsCte(eventColumnSql(schema).attemptId);
   const tuples = registryTuples();
   const params = [
     ...rangeParams(period),
@@ -1494,13 +1499,17 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     params
   );
 
-  const syncJobs = await queryOne<{ jobs: number }>(
-    `select count(*)::int as jobs
-     from public.analytics_catalog_sync_jobs j
-     where ($1::timestamptz is null or j.created_at >= $1::timestamptz)
-       and j.created_at <= $2::timestamptz`,
-    rangeParams(period)
-  );
+  // The sync view is the authoritative source for one capability; a role that cannot see it
+  // counts nothing there, and `schema` says so.
+  const syncJobs = schema.tables.analytics_catalog_sync_jobs
+    ? await queryOne<{ jobs: number }>(
+        `select count(*)::int as jobs
+         from public.analytics_catalog_sync_jobs j
+         where ($1::timestamptz is null or j.created_at >= $1::timestamptz)
+           and j.created_at <= $2::timestamptz`,
+        rangeParams(period)
+      )
+    : null;
 
   const unknownCodes = await query<AuditUnknownCode>(
     `select coalesce(e.tool, 'unknown') as tool,
@@ -1584,7 +1593,7 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
       eventStatuses,
       observedBy.get(capability.id) ?? [],
       pairsBy.get(capability.id),
-      syncJobs?.jobs ?? 0
+      syncJobs ? syncJobs.jobs : null
     )
   );
 
@@ -1617,8 +1626,19 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     uncovered_builds: uncoveredBuilds,
     delivery_lag_ms: deliveryLag,
     findings: auditFindings(capabilities, unknownCodes, delivery, uncoveredBuilds),
-    summary
+    summary,
+    schema: { ...schemaSummary(schema), ...schemaNote(schema) }
   };
+}
+
+/** A sentence for `audit` and `inspect` when this database lacks a column or table the CLI reads. */
+function schemaNote(schema: AnalyticsSchema): { note?: string } {
+  const missing = missingObjects(schema);
+  return missing.length === 0
+    ? {}
+    : {
+        note: `This database lacks ${missing.join(', ')} (migrations not applied, or not visible to this role); values from them read as empty, not as zero.`
+      };
 }
 
 function auditCapability(
@@ -1632,7 +1652,8 @@ function auditCapability(
     correlated: number;
   }>,
   pairs: { orphan_starts: number; correlated_pairs: number } | undefined,
-  syncJobs: number
+  /** Jobs in the sync view, or null when this connection cannot see the view. */
+  syncJobs: number | null
 ): AuditCapability {
   const base = {
     id: capability.id,
@@ -1653,7 +1674,10 @@ function auditCapability(
   };
 
   if (capability.source === 'authoritative_table') {
-    return { ...base, status: 'covered', missing: [], samples: syncJobs };
+    // An authoritative source this role cannot read is not coverage; `schema` names it.
+    return syncJobs === null
+      ? { ...base, status: 'uncovered', missing: ['analytics_catalog_sync_jobs'], samples: 0 }
+      : { ...base, status: 'covered', missing: [], samples: syncJobs };
   }
 
   const status = (signal: CapabilitySignal): ProducerStatus => signalStatus(capability, signal);
@@ -1850,7 +1874,8 @@ function auditFindings(
  *
  * `attempt_id` is read as `coalesce(e.attempt_id, e.properties ->> 'attempt_id')`:
  * envelope v3 (migration 20261117110000) moves it into its own column on ingest,
- * and rows written before it keep it inside `properties`. The audit CTE and the
+ * and rows written before it keep it inside `properties`. On a database without the
+ * v3 columns (`schema.ts`) it is read from `properties` alone and `data.schema` says so. The audit CTE and the
  * SC-005 find study read it the same way. `workflow_id` stays a property.
  * ------------------------------------------------------------------------- */
 
@@ -1861,17 +1886,29 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
   // The uuid columns need a uuid-typed parameter; a non-uuid id binds null there
   // and can only match the opaque ids kept in `properties`.
   const asUuid = UUID.test(id) ? id : null;
+  const schema = await getSchema();
+  const columns = eventColumnSql(schema);
+  const missing = missingObjects(schema).filter(name => name.startsWith('analytics_events.'));
+  const schemaPart =
+    missing.length > 0
+      ? {
+          schema: {
+            missing,
+            note: 'This database lacks these envelope v3 columns: attempt_id is read from properties only, and the Agent run and platform are unknown, not absent.'
+          }
+        }
+      : {};
   const rows = await query<InspectRow>(
     `select ${JOURNEY_COLUMNS},
-       coalesce(e.attempt_id, e.properties ->> 'attempt_id') as attempt_id,
-       e.agent_instance_id::text as agent_instance_id, e.agent_platform
+       ${columns.attemptId} as attempt_id,
+       ${columns.agentInstanceId} as agent_instance_id, ${columns.agentPlatform} as agent_platform
      from public.analytics_events e
      where (
          e.run_id = $3::uuid
          or e.flow_id = $3::uuid
          or e.properties ->> 'run_id' = $1::text
          or e.properties ->> 'flow_id' = $1::text
-         or coalesce(e.attempt_id, e.properties ->> 'attempt_id') = $1::text
+         or ${columns.attemptId} = $1::text
          or e.properties ->> 'workflow_id' = $1::text
        )
        and e.created_at <= $4::timestamptz
@@ -1879,7 +1916,7 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
      limit $2`,
     [id, limit, asUuid, asOf ?? FAR_FUTURE]
   );
-  if (rows.length === 0) return { found: false, id };
+  if (rows.length === 0) return { found: false, id, ...schemaPart };
 
   const matchedBy = new Set<InspectFound['matched_by'][number]>();
   for (const row of rows) {
@@ -1962,7 +1999,8 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
       agent_platforms: distinct(row => row.agent_platform),
       note: INSPECT_AGENT_NOTE
     },
-    events
+    events,
+    ...schemaPart
   };
 }
 
@@ -1990,7 +2028,7 @@ function inferCapability(rows: JourneyRow[]): Capability | null {
 }
 
 /** Postgres renders `timestamptz::text` in the session zone; the envelope speaks UTC ISO-8601. */
-function isoUtc(value: string | null | undefined): string | null {
+export function isoUtc(value: string | null | undefined): string | null {
   if (!value) return null;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? value : new Date(parsed).toISOString();

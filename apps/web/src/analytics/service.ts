@@ -30,6 +30,7 @@ import {
   type AnalyticsEventName,
   type AnalyticsEventProperties
 } from './events';
+import { bindJournalContext, forwardsAgentJournal, journalForwarder } from './journal-forwarder';
 import { productSessionId } from './session';
 
 const QUEUE_KEY = 'wishly.analytics.queue.v2';
@@ -382,7 +383,19 @@ export class ProductAnalytics {
 
   track<E extends AnalyticsEventName>(name: E, properties: AnalyticsEventProperties[E]) {
     if (!ANALYTICS_ENABLED || !this.userId || typeof window === 'undefined') return;
-    this.enqueue(this.buildEvent(name, sanitizeAnalyticsProperties(properties, name)));
+    const sanitized = sanitizeAnalyticsProperties(properties, name);
+    this.enqueue(this.buildEvent(name, sanitized));
+    // 033 FR-003: a failure or a fresh link is when the agent's journal is worth reading.
+    if (forwardsAgentJournal(name, sanitized)) void journalForwarder.forward(name);
+  }
+
+  /** What the agent-journal forwarder needs to know about this session (033 FR-003). */
+  journalContext() {
+    return {
+      enabled: ANALYTICS_ENABLED && Boolean(this.userId) && typeof window !== 'undefined',
+      installationId: this.installationId,
+      instanceId: this.context.instanceId ?? null
+    };
   }
 
   async flush() {
@@ -671,6 +684,7 @@ function safeAgentPlatform(value: unknown): AgentAnalyticsPlatform | null {
 }
 
 export const analytics = new ProductAnalytics();
+bindJournalContext(() => analytics.journalContext());
 
 type AnalyticsTracker = Pick<ProductAnalytics, 'track'>;
 
@@ -1057,6 +1071,8 @@ export function completeTeamFindFlow(
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => void analytics.flush());
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') void analytics.flush();
+    if (document.visibilityState !== 'hidden') return;
+    void analytics.flush();
+    void journalForwarder.forward('visibility_hidden');
   });
 }
