@@ -296,6 +296,42 @@ describe('explorer keyboard, second pass', () => {
     fireEvent.keyDown(document.body, { key: '/' });
     expect(onQueryChange).toHaveBeenCalledWith({ scope: 'space' });
   });
+
+  it('leaves `/` and Cmd+V alone while another section hides it', async () => {
+    // The workspace keeps the explorer mounted behind `hidden` while Tasks is open; a paste
+    // there once dropped a copy of the explorer's focused file into its folder on Drive.
+    localStorage.setItem('wishly.active-team.v1', TEAM.id);
+    const onQueryChange = vi.fn();
+    render(
+      <ToastProvider>
+        <TeamProvider realtime={false} initialTeams={[TEAM]}>
+          <div hidden>
+            <ExplorerShell
+              teamId={TEAM.id}
+              client={makeClient([row(1)])}
+              actionsClient={actionsClient() as never}
+              query={{ ...emptyTeamRouteQuery(), view: 'list' }}
+              onQueryChange={onQueryChange}
+              onFolderChange={vi.fn()}
+              onSearched={vi.fn()}
+              onPreview={vi.fn()}
+            />
+          </div>
+        </TeamProvider>
+      </ToastProvider>
+    );
+    await waitFor(() => expect(document.body.textContent).toContain('file-1.png'));
+    // A focused row is what Cmd+C would take.
+    fireEvent.keyDown(document.querySelector<HTMLElement>('.team-explorer-content-keys')!, {
+      key: 'ArrowDown'
+    });
+    // `fireEvent` answers false when a handler called preventDefault — i.e. acted on the key.
+    expect(fireEvent.keyDown(document.body, { key: '/' })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: 'c', metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: 'v', metaKey: true })).toBe(true);
+    expect(onQueryChange).not.toHaveBeenCalledWith({ scope: 'space' });
+    expect(document.body.textContent).not.toMatch(/Скопійовано|Copied/);
+  });
 });
 
 /**

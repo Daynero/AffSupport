@@ -83,6 +83,15 @@ export interface AgentQueue {
   activeProgress: number;
 }
 
+/** The closing toast's words, named after what the run actually carried. */
+export function queueDoneMessages(tools: ReadonlySet<AgentQueueItem['tool']>) {
+  if (tools.size === 1 && tools.has('compressor'))
+    return ['teamCompressQueueDone', 'teamCompressQueueDoneSome'] as const;
+  if (tools.size === 1 && tools.has('transcription'))
+    return ['teamTranscribeQueueDone', 'teamTranscribeQueueDoneSome'] as const;
+  return ['teamProcessQueueDone', 'teamProcessQueueDoneSome'] as const;
+}
+
 export function useAgentQueue({
   teamId,
   actionsClient,
@@ -267,13 +276,7 @@ export function useAgentQueue({
     const made = Math.max(0, tDone - tFailed);
     // Compression shares this queue (013); "transcriptions finished" after two
     // compressed videos named work that never happened.
-    const tools = runTools.current;
-    const done =
-      tools.size === 1 && tools.has('compressor')
-        ? (['teamCompressQueueDone', 'teamCompressQueueDoneSome'] as const)
-        : tools.size === 1
-          ? (['teamTranscribeQueueDone', 'teamTranscribeQueueDoneSome'] as const)
-          : (['teamProcessQueueDone', 'teamProcessQueueDoneSome'] as const);
+    const done = queueDoneMessages(runTools.current);
     if (made > 0) {
       push({
         tone: 'success',

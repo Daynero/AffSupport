@@ -63,6 +63,8 @@ describe('Soty product launcher', () => {
   it('keeps the home styles in their own sheet, on tokens, with the three widths', async () => {
     const home = await readFile('apps/web/src/styles/home.css', 'utf8');
     expect(home).toContain('.home-tile-link::after');
+    // "Open →" sits over the stretched link; it must let the click through to it.
+    expect(home).toMatch(/\.home-tile-trailing\s*\{[^}]*pointer-events:\s*none/);
     expect(home).toContain(':focus-visible');
     expect(home).toContain('@media (min-width: 720px)');
     expect(home).toContain('@media (min-width: 1100px)');

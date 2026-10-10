@@ -122,3 +122,26 @@ describe('the hand-written grids are gone', () => {
     expect(styles).not.toContain('.task-calendar-heading');
   });
 });
+
+describe('the board filter row', () => {
+  it('puts the date chip before "Yesterday" and "Today"', async () => {
+    const { TaskDateFilterControl } = await import('../apps/web/src/team/tasks/TaskDateFilter');
+    render(
+      <TaskDateFilterControl
+        value={{ kind: 'range', from: '2026-10-10', to: '2026-10-10' }}
+        onChange={vi.fn()}
+        status="all"
+        onStatusChange={vi.fn()}
+        showStatus={false}
+        inlineDays
+      />
+    );
+    const row = document.querySelector('.task-date-filter')!;
+    const parts = Array.from(row.children).map(child => child.className);
+    expect(parts.indexOf('task-date-filter-calendar is-active')).toBe(0);
+    expect(parts.indexOf('task-date-filter-days')).toBe(1);
+    expect(
+      Array.from(row.querySelectorAll('.task-date-filter-days button')).map(b => b.textContent)
+    ).toEqual(['Yesterday', 'Today']);
+  });
+});

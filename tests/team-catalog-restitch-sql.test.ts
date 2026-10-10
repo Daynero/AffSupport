@@ -649,6 +649,36 @@ describe('copies nothing uses leave Drive', () => {
     expect(await row(abandoned)).toBeNull();
   }, 60_000);
 
+  it('keeps a copy something is still being made from, or that has its own companion', async () => {
+    const busy = await material('D restitched.mp4', 'video', 'video/mp4', 'restitched-r');
+    const parent = await material('E restitched.mp4', 'video', 'video/mp4', 'restitched-r');
+    for (const id of [busy, parent]) await age(id);
+    await harness.root(
+      `insert into public.team_operations
+         (team_id, actor_id, kind, state, source_material_id, idempotency_key, request_nonce)
+       values ($1, $2, 'process', 'running', $3, gen_random_uuid()::text, gen_random_uuid()::text)`,
+      [teamId, OWNER, busy]
+    );
+    const transcript = await material('E.txt', 'transcript', 'text/plain', 'restitched-r');
+    await harness.root(
+      `update public.team_materials set companion_of = $2, companion_kind = 'transcript'
+       where id = $1`,
+      [transcript, parent]
+    );
+    await sweep();
+    expect(await row(busy)).toBeNull();
+    expect(await row(parent)).toBeNull();
+  }, 60_000);
+
+  it('runs where the worker is woken, so a space without an updater is swept too', async () => {
+    const source = (
+      await harness.root<{ source: string }>(
+        `select pg_get_functiondef('private.invoke_catalog_updater_worker()'::regprocedure) as source`
+      )
+    )[0]!.source;
+    expect(source).toContain('private.retire_unused_restitch_copies()');
+  }, 60_000);
+
   it('retires the copies of a catalog re-created over it', async () => {
     const { video, sheet } = await catalog('replaced');
     const inUse = await material('replaced restitched.mp4', 'video', 'video/mp4');

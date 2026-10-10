@@ -191,3 +191,14 @@ describe('the ways out of a task come back to it', () => {
     ).toBe('/team/space-1/tasks');
   });
 });
+
+describe('the queue closing toast', () => {
+  it('names compression, transcription, or both, by what the run carried', async () => {
+    const { queueDoneMessages } = await import('../apps/web/src/team/explorer/useAgentQueue');
+    expect(queueDoneMessages(new Set(['compressor']))[0]).toBe('teamCompressQueueDone');
+    expect(queueDoneMessages(new Set(['transcription']))[0]).toBe('teamTranscribeQueueDone');
+    expect(queueDoneMessages(new Set(['compressor', 'transcription']))[1]).toBe(
+      'teamProcessQueueDoneSome'
+    );
+  });
+});
