@@ -933,7 +933,7 @@ export type GeneratedDatabase = {
       };
       team_catalog_restitch_copies: {
         Row: {
-          catalog_material_id: string;
+          catalog_material_id: string | null;
           created_at: string;
           delete_attempts: number;
           drive_file_id: string;
@@ -946,7 +946,7 @@ export type GeneratedDatabase = {
           team_id: string;
         };
         Insert: {
-          catalog_material_id: string;
+          catalog_material_id?: string | null;
           created_at?: string;
           delete_attempts?: number;
           drive_file_id: string;
@@ -959,7 +959,7 @@ export type GeneratedDatabase = {
           team_id: string;
         };
         Update: {
-          catalog_material_id?: string;
+          catalog_material_id?: string | null;
           created_at?: string;
           delete_attempts?: number;
           drive_file_id?: string;

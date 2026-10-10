@@ -597,3 +597,94 @@ describe('rounds', () => {
     await stop();
   }, 60_000);
 });
+
+describe('copies nothing uses leave Drive', () => {
+  const sweep = () => harness.root('select private.retire_unused_restitch_copies() as retired');
+  const row = async (materialId: string) =>
+    (
+      await harness.root<{ role: string; catalog_material_id: string | null }>(
+        'select role, catalog_material_id from public.team_catalog_restitch_copies where material_id = $1',
+        [materialId]
+      )
+    )[0] ?? null;
+  const age = (materialId: string) =>
+    harness.root(
+      `update public.team_materials set created_at = now() - interval '2 hours' where id = $1`,
+      [materialId]
+    );
+
+  it('retires a copy in the folder that no catalog links, once the dialog had its hour', async () => {
+    await harness.root('select public.service_note_restitched_folder($1, $2)', [
+      teamId,
+      'restitched-r'
+    ]);
+    const abandoned = await material('A restitched (2).mp4', 'video', 'video/mp4', 'restitched-r');
+    const fresh = await material('A restitched (3).mp4', 'video', 'video/mp4', 'restitched-r');
+    const linked = await material('B restitched.mp4', 'video', 'video/mp4', 'restitched-r');
+    const ownWork = await material('C restitched.mp4', 'video', 'video/mp4', 'folder-r');
+    for (const id of [abandoned, linked, ownWork]) await age(id);
+    const { sheet } = await catalog('linked-by-sheet');
+    const drive = (
+      await harness.root<{ drive_file_id: string }>(
+        'select drive_file_id from public.team_materials where id = $1',
+        [linked]
+      )
+    )[0]!.drive_file_id;
+    await harness.root(
+      'update public.team_product_catalogs set current_video_link = $2 where material_id = $1',
+      [sheet, `https://drive.google.com/file/d/${drive}/view`]
+    );
+
+    await sweep();
+
+    expect(await row(abandoned)).toEqual({ role: 'retired', catalog_material_id: null });
+    expect(await row(fresh)).toBeNull();
+    expect(await row(linked)).toBeNull();
+    expect(await row(ownWork)).toBeNull();
+    const due = await harness.root<{ material_id: string }>(
+      'select material_id from public.service_claim_retired_restitch_copies(50)'
+    );
+    expect(due.map(item => item.material_id)).toContain(abandoned);
+    await harness.root('select public.service_forget_restitch_copy($1, true)', [abandoned]);
+    expect(await row(abandoned)).toBeNull();
+  }, 60_000);
+
+  it('retires the copies of a catalog re-created over it', async () => {
+    const { video, sheet } = await catalog('replaced');
+    const inUse = await material('replaced restitched.mp4', 'video', 'video/mp4');
+    const spare = await material('replaced restitched 1.mp4', 'video', 'video/mp4');
+    await harness.root(
+      `insert into public.team_catalog_restitch_copies
+         (material_id, catalog_material_id, team_id, role, drive_file_id, shared_link)
+       values ($1, $3, $4, 'in_use', 'drive-in-use', 'https://l.test/a'),
+              ($2, $3, $4, 'spare', 'drive-spare', 'https://l.test/b')`,
+      [inUse, spare, sheet, teamId]
+    );
+    await sweep();
+    expect((await row(inUse))?.role).toBe('in_use');
+
+    const next = await material('replaced catalog v2', 'other', SHEET_MIME);
+    await harness.root('select public.service_link_product_catalog_companion($1, $2, $3, $4, $5)', [
+      teamId,
+      video,
+      next,
+      sheet,
+      JSON.stringify({
+        sourceLink: 'https://offer.example.test/?sub=2',
+        productCount: 3,
+        sheetUrl: `https://docs.google.com/spreadsheets/d/${next}/edit`,
+        videoLink: 'https://drive.google.com/file/d/video/view?usp=sharing',
+        settingsSnapshot: {
+          title: 'T',
+          description: 'D',
+          price: 10,
+          imageLink: 'https://i.test/a.png'
+        },
+        createdBy: OWNER
+      })
+    ]);
+    await sweep();
+    expect((await row(inUse))?.role).toBe('retired');
+    expect((await row(spare))?.role).toBe('retired');
+  }, 60_000);
+});

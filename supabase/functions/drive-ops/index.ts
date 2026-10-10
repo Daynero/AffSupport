@@ -2337,6 +2337,18 @@ async function handleEnsureTaskDropFolder(
   };
 }
 
+/**
+ * The folder, found by its mark, told to the database: the hourly sweep retires copies in it that
+ * nothing refers to any more (a catalog re-created, a create that never finished). Best effort —
+ * a copy made while this fails is swept the next time the folder is resolved.
+ */
+async function noteRestitchedFolder(service: RpcClient, teamId: string, folderId: string) {
+  await rpcValue(service, 'service_note_restitched_folder', {
+    p_team: teamId,
+    p_drive_folder_id: folderId
+  }).catch(() => undefined);
+}
+
 /** Give catalog creation the same cache destination as the automatic updater. */
 async function handleEnsureRestitchedFolder(
   request: Request,
@@ -2360,6 +2372,7 @@ async function handleEnsureRestitchedFolder(
     root.rootFolderId,
     cacheId
   );
+  await noteRestitchedFolder(service, teamId, folder.id);
   const committed = firstRecord(
     await rpcValue(service, 'service_commit_task_drop_folder', {
       p_team: teamId,
@@ -2806,6 +2819,7 @@ function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterResti
         drive
       });
       await moveGeneratedFolderToCache(drive, resolved.folder, root.rootFolderId, cacheId);
+      await noteRestitchedFolder(service, teamId, resolved.folder.id);
       return resolved.folder.id;
     },
     startProcess: async (actorId, body) => {
