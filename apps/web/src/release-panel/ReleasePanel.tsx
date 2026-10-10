@@ -46,6 +46,7 @@ export function ReleasePanel({
         <div>
           <h1>{title}</h1>
           <p>{snapshot?.targetId}</p>
+          {snapshot?.readOnly && <p>{m.observing}</p>}
         </div>
         <Badge color={connection === 'connected' ? 'success' : 'warning'}>
           {connection === 'connected' ? m.connected : m.reconnecting}
@@ -114,12 +115,18 @@ export function ReleasePanel({
         />
       </Card>
       <Card role="section" title={m.details}>
-        <p>
-          {m.tokens}: {snapshot?.usage == null ? m.unknown : snapshot.usage.toLocaleString('uk-UA')}
-        </p>
-        <p>
-          {m.attempts}: {snapshot?.attempts ?? 0}
-        </p>
+        {/* Watching the runner there is no repair to count. */}
+        {!snapshot?.readOnly && (
+          <>
+            <p>
+              {m.tokens}:{' '}
+              {snapshot?.usage == null ? m.unknown : snapshot.usage.toLocaleString('uk-UA')}
+            </p>
+            <p>
+              {m.attempts}: {snapshot?.attempts ?? 0}
+            </p>
+          </>
+        )}
         <p className="release-panel-muted">{m.monitoring}</p>
         <details>
           <summary>{m.candidates}</summary>
@@ -140,11 +147,13 @@ export function ReleasePanel({
           {m.logs}
         </Button>
         {logs.length > 0 && <pre className="release-panel-logs">{logs.join('\n')}</pre>}
-        {snapshot && !['completed', 'cancelled', 'cancelling'].includes(snapshot.state) && (
-          <Button variant="ghost" color="error" onClick={() => setConfirm(true)}>
-            {m.cancel}
-          </Button>
-        )}
+        {snapshot &&
+          !snapshot.readOnly &&
+          !['completed', 'cancelled', 'cancelling'].includes(snapshot.state) && (
+            <Button variant="ghost" color="error" onClick={() => setConfirm(true)}>
+              {m.cancel}
+            </Button>
+          )}
       </Card>
       <ConfirmDialog
         open={confirm}

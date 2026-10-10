@@ -75,4 +75,6 @@ export interface ReleasePanelSnapshot {
   blocker: { code: string; detail: string | null; requiredAction: string } | null;
   windowsUrl: string | null;
   logRef?: string | null;
+  /** Watching a canonical runner run: nothing here can be started, repaired or cancelled. */
+  readOnly?: boolean;
 }

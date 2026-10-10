@@ -92,6 +92,24 @@ and browser disconnection are distinct from failure. Source repair creates a
 new run/SHA, invalidates exact-SHA evidence and visibly explains any progress
 regression. Logs are bounded, redacted and escaped, obtained through opaque refs.
 
+## Watching a runner release (read-only)
+
+A release started directly with `npm run release -- start` — the path production
+takes until activation exists — gets the same panel without the controller:
+
+```bash
+nice -n 15 npm run release:panel:build   # once, or after panel changes
+npm run release:panel:watch -- RUN_UUID
+```
+
+It reads only the run's hash-chained journal, snapshot and worker heartbeat,
+prints a single-use 60-second URL and serves it on 127.0.0.1:43150. It starts,
+repairs and cancels nothing and invokes no model; the panel hides cancel and the
+repair counters and says so. Stop a run with `npm run release -- cancel RUN_UUID`.
+Open the URL from the terminal or the address bar: a navigation from another
+site (another localhost port included) is refused as `PANEL_ORIGIN_DENIED`.
+Do not run it alongside the controller service; both bind the same port.
+
 ## Automatic repair and safety boundaries
 
 Defaults in `config/release-automation-policy.json`: 3 attempts per cause,

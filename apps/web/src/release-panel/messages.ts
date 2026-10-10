@@ -4,7 +4,8 @@ export const messages = {
   loading: 'Підключення до контролера…',
   connected: 'Підключено',
   reconnecting: 'Зв’язок втрачено — перепідключення',
-  unavailable: 'Панель недоступна. Відкрий її знову через release:controller panel.',
+  unavailable:
+    'Панель недоступна. Візьми нове посилання: release:controller panel або release:panel:watch.',
   progress: 'За підтвердженими етапами, не за часом очікування',
   stale: 'Дані воркера застаріли. Це не доказ, що реліз зупинився.',
   steps: 'Етапи релізу',
@@ -15,6 +16,8 @@ export const messages = {
   attempts: 'Спроби ремонту',
   monitoring: 'Моніторинг не викликає модель',
   candidates: 'Кандидати',
+  observing:
+    'Лише спостереження за раннером: без автоматичних ремонтів. Зупинити — npm run release -- cancel <runId>.',
   cancel: 'Скасувати реліз',
   keep: 'Продовжити виконання',
   cancelBody:

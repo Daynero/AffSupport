@@ -24,6 +24,7 @@
     "release:install": "node scripts/install-release-runner.mjs",
     "release:bridge": "node scripts/release-bridge.mjs",
     "release:controller": "node scripts/release-controller.mjs",
+    "release:panel:watch": "node scripts/release-panel-watch.mjs",
     "release:panel:build": "vite build --config apps/web/vite.release-panel.config.ts",
     "release:provider:verify": "node scripts/verify-release-provider.mjs",
     "release:controller:install": "node scripts/install-release-controller.mjs",
