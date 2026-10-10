@@ -497,6 +497,17 @@ describe('a browser can find the job it lost the answer for', () => {
       phase: 'listing'
     });
     expect(status!.status).toHaveProperty('lastProgressAt');
+    // Between the worker's slices the job is pending again; having run once, it reads as running.
+    await db.root(
+      "update private.catalog_sync_jobs set run_count = 1, state = 'pending' where id = $1",
+      [root!.sync_job_id]
+    );
+    const [between] = await db.asUser<{ status: Record<string, unknown> }>(
+      owner,
+      'select public.get_team_folder_sync_status($1, $2) as status',
+      [team, root!.sync_job_id]
+    );
+    expect(between!.status).toMatchObject({ state: 'running' });
     expect(
       await db.asUser(
         owner,

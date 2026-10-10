@@ -12346,8 +12346,10 @@ button.team-landing-tile:hover {
 }
 .team-explorer-tree {
   position: sticky;
-  top: var(--space-3);
-  max-height: calc(100vh - var(--space-5) * 2);
+  /* Below the topbar and the space's tab strip (both in --topbar-h here), not
+     under them: at 12px from the window's edge its head scrolled out of sight. */
+  top: calc(var(--topbar-h, 62px) + var(--space-3));
+  max-height: calc(100vh - var(--topbar-h, 62px) - var(--space-5) * 2);
   overflow: auto;
   padding: var(--space-2);
   border: 1px solid var(--color-border);
@@ -13564,7 +13566,12 @@ button.team-landing-tile:hover {
    many being scanned. */
 .team-explorer-pane {
   position: sticky;
-  top: var(--space-3);
+  /* Under the topbar, the tab strip (both in --topbar-h here) and the explorer's own sticky
+     header, which spans this column: at 12px from the window's edge it slid beneath all three. */
+  --explorer-pane-top: calc(
+    var(--topbar-h, 62px) + var(--explorer-header-height, 0px) + var(--space-3)
+  );
+  top: var(--explorer-pane-top);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -13576,8 +13583,8 @@ button.team-landing-tile:hover {
   /* A sticky card taller than the window could never show its end: the page stops scrolling
      before the card does, so on a short screen the transcript and catalog actions sat below the
      fold with no way to reach them. The card keeps to the window and scrolls inside itself. */
-  max-height: calc(100vh - 2 * var(--space-3));
-  max-height: calc(100dvh - 2 * var(--space-3));
+  max-height: calc(100vh - var(--explorer-pane-top) - var(--space-3));
+  max-height: calc(100dvh - var(--explorer-pane-top) - var(--space-3));
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -13977,6 +13984,8 @@ button.team-landing-tile:hover {
    so the controls sit left and the buttons right, on one line or on their own. */
 .team-explorer-toolbar-actions:has(> .team-explorer-list-controls) {
   flex-grow: 1;
+  /* A wrapped second row of buttons lines up under the first, at the right. */
+  justify-content: flex-end;
 }
 .team-explorer-toolbar-actions:has(> .team-explorer-list-controls) > .team-explorer-view-toggle {
   margin-left: 0;
@@ -13985,6 +13994,19 @@ button.team-landing-tile:hover {
   margin-right: auto;
   padding-right: var(--space-3);
   border-right: 1px solid var(--color-border);
+}
+/* On a phone the arrangement gets its own line, and the buttons wrap from the left as before:
+   a rule beside a line of its own divides nothing. */
+@media (max-width: 560px) {
+  .team-explorer-toolbar-actions:has(> .team-explorer-list-controls) {
+    justify-content: flex-start;
+  }
+  .team-explorer-toolbar-actions > .team-explorer-list-controls {
+    flex: 1 1 100%;
+    margin-right: 0;
+    padding-right: 0;
+    border-right: 0;
+  }
 }
 .team-explorer-filter,
 .team-explorer-sort {

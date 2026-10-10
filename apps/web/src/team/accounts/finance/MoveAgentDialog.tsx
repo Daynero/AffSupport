@@ -78,6 +78,11 @@ export function MoveAgentDialog({
       a.id !== eligibility?.accountId &&
       (!query.trim() || a.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
   );
+  // One match is the answer: picking it again from a list of one is a step for nothing.
+  const onlyMatch = query.trim() && options.length === 1 ? options[0]!.id : null;
+  useEffect(() => {
+    if (onlyMatch && !locked) setTarget(onlyMatch);
+  }, [onlyMatch, locked]);
   const move = async () => {
     if (!attempt.current) {
       if (!eligibility || !target) return;
@@ -129,10 +134,7 @@ export function MoveAgentDialog({
       busy={busy}
       footer={
         <Button
-          disabled={
-            busy ||
-            (!uncertain && (checking || !eligibility || !target))
-          }
+          disabled={busy || (!uncertain && (checking || !eligibility || !target))}
           onClick={() => {
             void move();
           }}
@@ -156,7 +158,7 @@ export function MoveAgentDialog({
         }}
         disabled={locked}
       />
-      {query.trim() && (
+      {query.trim() && !onlyMatch && (
         <p className="text-label text-ink-muted" role="status">
           {t('financeMoveResults', { count: options.length })}
         </p>

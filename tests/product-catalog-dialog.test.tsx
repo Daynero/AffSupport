@@ -399,6 +399,24 @@ describe('creating a catalog', () => {
     ).toBeTruthy();
     expect(confirm().disabled).toBe(false);
   });
+
+  it('offers the way to the catalog settings when the server says there are none', async () => {
+    renderDialog(
+      dialogClient({
+        createProductCatalog: vi
+          .fn()
+          .mockRejectedValue(
+            new TeamApiError('INVALID_INPUT', false, { reason: 'settings_missing' })
+          )
+      })
+    );
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+    expect(await screen.findByText('This space has no catalog settings yet.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Open catalog settings' })).toBeTruthy();
+  });
 });
 
 describe('a space without catalog settings', () => {

@@ -1,5 +1,22 @@
 # Rollback notes
 
+## 20261126100000_sync_status_running_between_slices.sql
+
+Display-only. Re-applying the `get_team_folder_sync_status` body from
+`20261015100000_sync_requests_and_cancel.sql` restores "queued" for a pending
+job between worker slices. No data is written or migrated.
+
+## 20261125110000_team_agent_transfer_rehome.sql
+
+Forward-fix only once an agent has moved under it: its values, events and
+legacy amounts were rewritten to the new social account and new placement, and
+nothing records the old split. Keep the transfer audit's account ids and names,
+the nullable placement links (`on delete set null`) and the guard that ignores
+zero-length audit placements — restoring the old guard makes every former
+account undeletable again, and restoring `not null` fails on events whose
+former account was deleted. A web build that still sends an effective date
+keeps working; the date is ignored.
+
 ## 20261125100000_support_goal_admin_edit.sql
 
 Roll the web build back first (the previous build only calls

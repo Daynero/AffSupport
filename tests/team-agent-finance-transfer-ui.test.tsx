@@ -99,11 +99,14 @@ it('labels the RK, filters actual targets and warns that every amount moves with
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'target' } });
   expect(screen.getByRole('option', { name: 'Target' })).toBeTruthy();
   expect(screen.queryByRole('option', { name: 'Other' })).toBeNull();
-  expect(screen.getByText(/Matching social accounts: 1/)).toBeTruthy();
+  // One match is the answer: it is chosen at once, with no count asking to choose it again.
+  expect(screen.queryByText(/Matching social accounts/)).toBeNull();
   const button = screen.getByRole('button', { name: 'Move to another account' });
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+  expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('y');
+  // Clearing the search clears the choice.
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
   expect((button as HTMLButtonElement).disabled).toBe(true);
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'y' } });
-  expect((button as HTMLButtonElement).disabled).toBe(false);
 });
 it('retries the exact original move after a lost response and a refreshed placement', async () => {
   vi.mocked(teamFinanceApi.transferEligibility).mockResolvedValue(eligible);

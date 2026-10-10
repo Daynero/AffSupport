@@ -237,6 +237,66 @@ describe('manual folder sync without Realtime', () => {
     expect(test.onOutcome).toHaveBeenCalledWith('succeeded');
   });
 
+  it('forgets a remembered job that failed long ago, without a panel or a toast', async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem(KEY, 'job-1');
+    const client = {
+      resyncFolder: vi.fn(),
+      getFolderSyncStatus: vi
+        .fn()
+        .mockResolvedValue(
+          status('failed', { completedAt: new Date(Date.now() - 24 * 3_600_000).toISOString() })
+        ),
+      findFolderSyncRequest: vi.fn(),
+      findFolderSyncRequestByKey: vi.fn(),
+      cancelFolderSync: vi.fn()
+    };
+    const onOutcome = vi.fn();
+    const hook = renderHook(() =>
+      useFolderResync({
+        teamId: 'team-1',
+        folderId: 'doctors',
+        client,
+        onComplete: vi.fn(),
+        onOutcome
+      })
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(onOutcome).not.toHaveBeenCalled();
+    expect(hook.result.current.status).toBeNull();
+    expect(window.localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('still reports a remembered job that failed a moment ago', async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem(KEY, 'job-1');
+    const client = {
+      resyncFolder: vi.fn(),
+      getFolderSyncStatus: vi
+        .fn()
+        .mockResolvedValue(status('failed', { completedAt: new Date().toISOString() })),
+      findFolderSyncRequest: vi.fn(),
+      findFolderSyncRequestByKey: vi.fn(),
+      cancelFolderSync: vi.fn()
+    };
+    const onOutcome = vi.fn();
+    renderHook(() =>
+      useFolderResync({
+        teamId: 'team-1',
+        folderId: 'doctors',
+        client,
+        onComplete: vi.fn(),
+        onOutcome
+      })
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(onOutcome).toHaveBeenCalledWith('failed');
+  });
+
   it('keeps an ancestor sync active after entering its child and blocks a duplicate request', async () => {
     const test = setup('running', {
       resyncFolder: vi.fn().mockResolvedValue({ syncJobId: 'job-parent' })

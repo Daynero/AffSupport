@@ -170,6 +170,9 @@ function progressMark(status: FolderSyncStatus): string {
   ].join('|');
 }
 
+/** A remembered job that ended longer ago than this is old news, not a result to report. */
+const STALE_RESULT_MS = 10 * 60_000;
+
 /** The job is gone or was never this scope's: forget it and start over on the next click. */
 function isMissingJob(error: unknown): boolean {
   return (
@@ -234,6 +237,7 @@ export function useFolderResync(input: {
     if (active.current || !client.getFolderSyncStatus) return;
     const key = memoryKey(teamId, scopeFolderId);
     const jobId = requestedJobId ?? readMemory(key);
+    const resumed = requestedJobId === undefined;
     if (!jobId || jobId === UNKNOWN_JOB) return;
     const controller = new AbortController();
     active.current = controller;
@@ -272,6 +276,19 @@ export function useFolderResync(input: {
           read.clear();
         }
         if (controller.signal.aborted) return;
+        // Picked up from this browser's memory rather than started now, and long over: a scan
+        // that failed or was stopped yesterday is not news on today's visit — and a later sync
+        // may well have refreshed the folder since. Forget it without a panel or a toast.
+        if (
+          resumed &&
+          lastRevision === null &&
+          (current.state === 'failed' || current.state === 'canceled') &&
+          current.completedAt &&
+          Date.now() - Date.parse(current.completedAt) > STALE_RESULT_MS
+        ) {
+          forget();
+          return;
+        }
         if (inScope(teamId, scopeFolderId)) setStatus(current);
         if (current.requestId) writeMemory(`${key}:request`, current.requestId);
         if (lastRevision !== null && current.progressRevision !== lastRevision) {
