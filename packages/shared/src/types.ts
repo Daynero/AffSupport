@@ -45,6 +45,7 @@ export {
 
 export {
   compareProductVersions,
+  isPinnedReleaseArtifact,
   normalizeToolContracts,
   powerThrottleSupported,
   releaseManifestSigningPayload,
@@ -53,6 +54,8 @@ export {
   teamProcessPauseSupported,
   toolContractCompatible,
   MIN_POWER_CONTRACT,
+  RELEASE_ARTIFACT_ORIGIN,
+  RELEASE_ARTIFACT_PATH_PREFIX,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   WEB_TOOL_REQUIREMENTS
 } from './release.js';
