@@ -1116,6 +1116,14 @@
   color: var(--color-neutral-text-muted);
   cursor: pointer;
 }
+/* The library's toggle button pins its icon to 16px, under the size the icon
+   was drawn at; the plate is the place to give room, never the icon. */
+.ui-pictos button svg {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  max-width: none;
+}
 .ui-pictos button.is-labeled {
   font-size: var(--text-caption);
   font-weight: var(--weight-label);
