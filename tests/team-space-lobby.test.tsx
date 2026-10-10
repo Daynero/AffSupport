@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -46,38 +46,15 @@ describe('team space lobby', () => {
     expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
   });
 
-  it('blocks users without a team behind the workspace launch gate', async () => {
+  it('shows the showcase page — not a gate, not a donation — to someone without a space (034)', async () => {
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
     renderSpace(client);
 
-    expect(
-      await screen.findByRole('heading', { name: 'Spaces are still in closed beta' })
-    ).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Notify me when it’s ready' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Speed up development' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'A space to work together' })).toBeTruthy();
+    // A page with one way forward: no modal, no waiting list, no "speed up development".
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Write to the administrator' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Speed up development' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create your first space' })).toBeNull();
-  });
-
-  it('closes the workspace launch gate and returns home when its backdrop is pressed', async () => {
-    history.replaceState(null, '', '/team');
-    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
-    renderSpace(client);
-
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.pointerDown(dialog.parentElement!);
-
-    expect(screen.queryByRole('heading', { name: 'Spaces are still in closed beta' })).toBeNull();
-    expect(location.pathname).toBe('/');
-  });
-
-  it('closes the workspace launch gate before opening the donation dialog', async () => {
-    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
-    const user = userEvent.setup();
-    renderSpace(client);
-
-    await user.click(await screen.findByRole('button', { name: 'Speed up development' }));
-
-    expect(screen.queryByRole('heading', { name: 'Spaces are still in closed beta' })).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Support the project' })).toBeTruthy();
   });
 });

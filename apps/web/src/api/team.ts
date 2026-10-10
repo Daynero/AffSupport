@@ -114,7 +114,33 @@ import {
   RESTITCH_CONTRACT_VERSION,
   parseTeamRestitchDefaults,
   type MaterialRestitchPrep,
-  type TeamRestitchDefaults
+  type TeamRestitchDefaults,
+  parseAdminLegacySpaces,
+  parseAdminOwnerSpaces,
+  parseAdminSpaceRequests,
+  parseAdminTariffEvents,
+  parseAdminTariffPreview,
+  parseAdminTariffRow,
+  parseAdminTariffRows,
+  parseAdminTariffSeats,
+  parseAdminTariffSettings,
+  parseSpaceAccess,
+  parseSpaceOwnerNudge,
+  parseTariffPlans,
+  parseTeamTariff,
+  type AdminLegacySpace,
+  type AdminOwnerSpace,
+  type AdminSpaceRequest,
+  type AdminTariffEvent,
+  type AdminTariffPreview,
+  type AdminTariffRow,
+  type AdminTariffSeat,
+  type AdminTariffSettings,
+  type SpaceAccess,
+  type SpaceOwnerNudgeResult,
+  type TariffContactChannel,
+  type TariffPlan,
+  type TeamTariff
 } from '@video-compressor/shared';
 import type {
   RestitchDrawResult,
@@ -1195,7 +1221,20 @@ function throwRpc(error: { message: string; code?: string } | null): void {
     value => value.match(/[A-Z][A-Z0-9_]+/g) ?? []
   );
   const code = candidates[0] as TeamErrorCode | undefined;
+  if (code === 'PERMISSION_DENIED' || code === 'SPACE_BLOCKED') requestSpaceAccessRecheck();
   throw new TeamApiError(code ?? 'INVALID_RESPONSE', false);
+}
+
+/**
+ * 034 — a refusal may mean the space was just paused (or opened). The access
+ * hook listens for this and asks again, so an open tab learns within seconds
+ * rather than at the next reload (FR-018).
+ */
+export const SPACE_ACCESS_RECHECK_EVENT = 'soty:space-access-recheck';
+
+export function requestSpaceAccessRecheck(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(SPACE_ACCESS_RECHECK_EVENT));
 }
 
 function uploadSessionGuard(value: unknown): value is TeamUploadSession {
@@ -1778,6 +1817,37 @@ export const teamApi = {
     try {
       const { data, error } = await requireSupabaseClient().rpc('can_access_team_workspace');
       return !error && data === true;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * 034 — a space that left `list_my_teams` while this person is still its
+   * member is paused, not lost. Never throws: unknown reads as "not paused",
+   * which is the older behaviour.
+   */
+  /**
+   * 034 — the access reply, or — where the database does not have it yet — the
+   * pre-tariff yes/no question dressed as one. Never throws.
+   */
+  async getMySpaceAccess(): Promise<SpaceAccess> {
+    try {
+      return await spaceTariffApi.getMySpaceAccess();
+    } catch {
+      return fallbackSpaceAccess(await teamApi.canAccessTeamWorkspace());
+    }
+  },
+
+  /** 034 — seats and term of one space, for the invitation panel and settings. */
+  async getTeamTariff(teamId: string): Promise<TeamTariff> {
+    return spaceTariffApi.getTeamTariff(teamId);
+  },
+
+  async isTeamPaused(teamId: string): Promise<boolean> {
+    try {
+      const access = await spaceTariffApi.getMySpaceAccess();
+      return access.teams.some(team => team.teamId === teamId && team.accessState === 'blocked');
     } catch {
       return false;
     }
@@ -4889,3 +4959,311 @@ function mapRestitchPrepRow(value: unknown): unknown {
     preparedAt: row.prepared_at
   };
 }
+
+/* ------------------------------------------------------------------------- */
+/* 034 — space tariffs                                                        */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * One call to an RPC the generated types may not know yet.
+ *
+ * The tariff functions arrive in a migration written beside this file, and the
+ * generated `database.types.ts` is regenerated from the database rather than
+ * edited by hand — so these go through an untyped seam and every reply through
+ * a parser from `packages/shared/src/team/tariffs.ts`, which is the contract
+ * that actually holds.
+ */
+type UntypedRpcClient = {
+  rpc: (
+    name: string,
+    args?: Record<string, unknown>
+  ) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+};
+
+async function tariffRpc(name: string, args: Record<string, unknown> = {}): Promise<unknown> {
+  const client = requireSupabaseClient() as unknown as UntypedRpcClient;
+  const { data, error } = await withFreshSession(() => client.rpc(name, args));
+  throwRpc(error);
+  return data;
+}
+
+function parsedOrThrow<T>(value: T | null): T {
+  if (value === null) throw new TeamApiError('INVALID_RESPONSE', false);
+  return value;
+}
+
+/** PostgREST hands a `returns jsonb` function's object back as-is, and a set as an array. */
+function single(value: unknown): unknown {
+  return Array.isArray(value) && value.length === 1 ? value[0] : value;
+}
+
+/** What the page assumes when it can only ask the old question (034). */
+export function fallbackSpaceAccess(allowed: boolean): SpaceAccess {
+  return {
+    mode: allowed ? 'workspace' : 'showcase',
+    canCreate: false,
+    pendingTariff: null,
+    teams: [],
+    invitations: [],
+    banner: null,
+    toast: null,
+    showcase: allowed
+      ? null
+      : { plans: [], contact: { telegram: null, email: null }, email: '', request: null }
+  };
+}
+
+export const spaceTariffApi = {
+  async getMySpaceAccess(): Promise<SpaceAccess> {
+    return parsedOrThrow(parseSpaceAccess(single(await tariffRpc('get_my_space_access'))));
+  },
+
+  async getTeamTariff(teamId: string): Promise<TeamTariff> {
+    return parsedOrThrow(
+      parseTeamTariff(single(await tariffRpc('get_team_tariff', { p_team: teamId })))
+    );
+  },
+
+  async ackToast(eventId: string): Promise<boolean> {
+    return (await tariffRpc('ack_space_tariff_toast', { p_event: eventId })) === true;
+  },
+
+  /** Records interest from the showcase: the plan and the channel the person chose. */
+  async joinWaitlist(plan: string | null, channel: TariffContactChannel | null): Promise<boolean> {
+    return (
+      (await tariffRpc('join_team_workspace_waitlist', { p_plan: plan, p_channel: channel })) ===
+      true
+    );
+  },
+
+  async requestOwnerNudge(teamId: string): Promise<SpaceOwnerNudgeResult> {
+    return parsedOrThrow(
+      parseSpaceOwnerNudge(single(await tariffRpc('request_space_owner_nudge', { p_team: teamId })))
+    );
+  },
+
+  async resumeCatalogUpdater(teamId: string): Promise<boolean> {
+    return (await tariffRpc('resume_team_catalog_updater', { p_team: teamId })) === true;
+  }
+};
+
+export type SpaceTariffClient = typeof spaceTariffApi;
+
+export interface AdminGrantTariffInput {
+  email: string;
+  plan: string;
+  endsOn: string;
+  extraSeats: number;
+  teamId: string | null;
+  note: string | null;
+  externalRef: string | null;
+  notify: boolean;
+  source?: 'manual' | 'trial';
+}
+
+export interface AdminUpdateTariffInput {
+  id: string;
+  plan: string;
+  endsOn: string;
+  extraSeats: number;
+  note: string | null;
+  externalRef: string | null;
+}
+
+export const adminTariffApi = {
+  async listTariffs(): Promise<AdminTariffRow[]> {
+    return parsedOrThrow(parseAdminTariffRows((await tariffRpc('admin_list_space_tariffs')) ?? []));
+  },
+
+  async listPlans(): Promise<TariffPlan[]> {
+    return parsedOrThrow(parseTariffPlans((await tariffRpc('admin_list_tariff_plans')) ?? []));
+  },
+
+  async listOwnerSpaces(email: string): Promise<AdminOwnerSpace[]> {
+    return parsedOrThrow(
+      parseAdminOwnerSpaces((await tariffRpc('admin_list_owner_spaces', { p_email: email })) ?? [])
+    );
+  },
+
+  async preview(email: string, teamId: string | null): Promise<AdminTariffPreview> {
+    return parsedOrThrow(
+      parseAdminTariffPreview(
+        single(await tariffRpc('admin_preview_space_tariff', { p_email: email, p_team: teamId }))
+      )
+    );
+  },
+
+  async grant(input: AdminGrantTariffInput): Promise<AdminTariffRow> {
+    return parsedOrThrow(
+      parseAdminTariffRow(
+        single(
+          await tariffRpc('admin_grant_space_tariff', {
+            p_email: input.email,
+            p_plan: input.plan,
+            p_ends_on: input.endsOn,
+            p_extra_seats: input.extraSeats,
+            p_team: input.teamId,
+            p_note: input.note,
+            p_external_ref: input.externalRef,
+            p_notify: input.notify,
+            p_source: input.source ?? 'manual'
+          })
+        )
+      )
+    );
+  },
+
+  async update(input: AdminUpdateTariffInput): Promise<AdminTariffRow> {
+    return parsedOrThrow(
+      parseAdminTariffRow(
+        single(
+          await tariffRpc('admin_update_space_tariff', {
+            p_id: input.id,
+            p_plan: input.plan,
+            p_ends_on: input.endsOn,
+            p_extra_seats: input.extraSeats,
+            p_note: input.note,
+            p_external_ref: input.externalRef
+          })
+        )
+      )
+    );
+  },
+
+  /** The returned row carries `eventId`, which is what the toast's Undo takes back. */
+  async extend(id: string, months: number, notify = false): Promise<AdminTariffRow> {
+    return parsedOrThrow(
+      parseAdminTariffRow(
+        single(
+          await tariffRpc('admin_extend_space_tariff', {
+            p_id: id,
+            p_months: months,
+            p_notify: notify
+          })
+        )
+      )
+    );
+  },
+
+  /** `now=false` ends the term today (three more days follow); `true` closes the space at once. */
+  async end(id: string, now: boolean): Promise<AdminTariffRow> {
+    return parsedOrThrow(
+      parseAdminTariffRow(
+        single(await tariffRpc('admin_end_space_tariff', { p_id: id, p_now: now }))
+      )
+    );
+  },
+
+  async undo(eventId: string): Promise<AdminTariffRow> {
+    return parsedOrThrow(
+      parseAdminTariffRow(
+        single(await tariffRpc('admin_undo_space_tariff_event', { p_event: eventId }))
+      )
+    );
+  },
+
+  async listEvents(id: string): Promise<AdminTariffEvent[]> {
+    return parsedOrThrow(
+      parseAdminTariffEvents(
+        (await tariffRpc('admin_list_space_tariff_events', { p_id: id })) ?? []
+      )
+    );
+  },
+
+  async listSeats(teamId: string): Promise<AdminTariffSeat[]> {
+    return parsedOrThrow(
+      parseAdminTariffSeats((await tariffRpc('admin_list_tariff_seats', { p_team: teamId })) ?? [])
+    );
+  },
+
+  async removeMember(teamId: string, userId: string): Promise<boolean> {
+    return (
+      (await tariffRpc('admin_remove_tariff_member', { p_team: teamId, p_user: userId })) === true
+    );
+  },
+
+  async revokeInvitation(invitationId: string): Promise<boolean> {
+    return (
+      (await tariffRpc('admin_revoke_tariff_invitation', { p_invitation: invitationId })) === true
+    );
+  },
+
+  async listLegacySpaces(): Promise<AdminLegacySpace[]> {
+    return parsedOrThrow(
+      parseAdminLegacySpaces((await tariffRpc('admin_list_legacy_spaces')) ?? [])
+    );
+  },
+
+  async listRequests(): Promise<AdminSpaceRequest[]> {
+    return parsedOrThrow(
+      parseAdminSpaceRequests((await tariffRpc('admin_list_space_requests')) ?? [])
+    );
+  },
+
+  async markRequest(
+    userId: string,
+    handled: boolean,
+    note: string | null = null
+  ): Promise<boolean> {
+    return (
+      (await tariffRpc('admin_mark_space_request', {
+        p_user: userId,
+        p_handled: handled,
+        p_note: note
+      })) === true
+    );
+  },
+
+  async getSettings(): Promise<AdminTariffSettings> {
+    return parsedOrThrow(
+      parseAdminTariffSettings(single(await tariffRpc('admin_get_tariff_settings')))
+    );
+  },
+
+  async setSettings(input: {
+    telegram: string | null;
+    email: string | null;
+    legacyRuleEnabled: boolean;
+    confirm?: boolean;
+  }): Promise<AdminTariffSettings> {
+    return parsedOrThrow(
+      parseAdminTariffSettings(
+        single(
+          await tariffRpc('admin_set_tariff_settings', {
+            p_telegram: input.telegram,
+            p_email: input.email,
+            p_legacy_rule_enabled: input.legacyRuleEnabled,
+            p_confirm: input.confirm ?? false
+          })
+        )
+      )
+    );
+  }
+};
+
+export interface AdminUserMatch {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
+/** 034 — accounts whose address starts like the one being typed, for the grant dialog. */
+export async function searchAdminUsers(query: string): Promise<AdminUserMatch[]> {
+  const data = await tariffRpc('admin_list_users', { p_search: query, p_limit: 6, p_offset: 0 });
+  if (!Array.isArray(data)) return [];
+  return data.flatMap(item => {
+    const row = asRecord(item);
+    if (!row || typeof row.id !== 'string' || typeof row.email !== 'string') return [];
+    return [
+      {
+        id: row.id,
+        email: row.email,
+        name: typeof row.display_name === 'string' && row.display_name ? row.display_name : null
+      }
+    ];
+  });
+}
+
+export type AdminTariffClient = typeof adminTariffApi & {
+  searchUsers?: (query: string) => Promise<AdminUserMatch[]>;
+};

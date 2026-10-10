@@ -74,7 +74,14 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   RESTITCH_SOURCE_FORBIDDEN: 'teamRestitchSourceForbidden',
   RESTITCH_SOURCES_INVALID: 'teamRestitchSourcesInvalid',
   RESTITCH_SOURCES_TOO_MANY: 'teamRestitchSourcesTooMany',
-  RESTITCH_CLIENT_OUTDATED: 'teamRestitchClientOutdated'
+  RESTITCH_CLIENT_OUTDATED: 'teamRestitchClientOutdated',
+  // 034 — space tariffs.
+  SEATS_FULL: 'tariffErrorSeatsFull',
+  SEATS_IN_USE: 'tariffErrorSeatsInUse',
+  SPACE_BLOCKED: 'tariffErrorSpaceBlocked',
+  TARIFF_BOUND: 'tariffErrorBound',
+  LEGACY_SPACES_REMAIN: 'tariffErrorLegacyRemain',
+  TARIFF_DATE_INVALID: 'tariffErrorDateInvalid'
 };
 
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);

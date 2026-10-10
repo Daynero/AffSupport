@@ -46,6 +46,8 @@ import { SettingsDialog } from './SettingsDialog';
 import { CatalogUpdaterChip } from '../catalog-updater/CatalogUpdaterChip';
 import { CatalogUpdaterDialog } from '../catalog-updater/CatalogUpdaterDialog';
 import { useCatalogUpdater } from '../catalog-updater/useCatalogUpdater';
+import { TariffBanner } from '../tariffs/TariffBanner';
+import { UpdaterResumeNotice } from '../tariffs/UpdaterResumeNotice';
 import { useRestitchPreparer } from '../catalog-updater/useRestitchPreparer';
 import { MembersSection } from './MembersSection';
 import { SpaceSwitcher } from './SpaceSwitcher';
@@ -872,6 +874,10 @@ export function WorkspaceShell({
                     </div>
                   </header>
 
+                  {/* 034 — the term running out, and the updater the pause left off. */}
+                  <TariffBanner teamId={teamId} />
+                  <UpdaterResumeNotice teamId={teamId} onResumed={catalogUpdater.reload} />
+
                   {/* Real links, not toggles: middle-click, copy-link and Back all work,
           and the active one is announced rather than merely coloured. The strip
           is the inventory's (021, T082), which grew the address variant for
@@ -1051,6 +1057,13 @@ export function WorkspaceShell({
                     preparing={restitchPreparer.preparing}
                     onClose={() => navigateTo(explorerRoute({ updater: false }))}
                     onChanged={catalogUpdater.reload}
+                    notice={
+                      <UpdaterResumeNotice
+                        teamId={teamId}
+                        compact
+                        onResumed={catalogUpdater.reload}
+                      />
+                    }
                     onReveal={row =>
                       navigateTo(
                         buildTeamRoute({

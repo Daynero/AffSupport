@@ -1,11 +1,17 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
-import { UserPlus } from 'lucide-react';
-import type { TeamBaseRole } from '@video-compressor/shared';
+import { useCallback, useEffect, useId, useState, type FormEvent } from 'react';
+import { Info, UserPlus } from 'lucide-react';
+import type { TeamBaseRole, TeamTariff } from '@video-compressor/shared';
 import { TeamApiError, type TeamInvitationSummary, type TeamMemberSummary } from '../../api/team';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { useToasts } from '../../components/toast';
+import { useOptionalAuth } from '../../auth/AuthContext';
 import { teamErrorMessageFor } from '../errors';
-import { Button, FormField, Input, Select } from '../../components/ui/index';
+import { useOptionalTeam } from '../TeamContext';
+import { ContactAdminButton } from '../tariffs/ContactAdminButton';
+import { planName, pluralForm } from '../tariffs/format';
+import { useOptionalSpaceAccess } from '../tariffs/useSpaceAccess';
+import { Alert, Button, FormField, Input, Select, Tooltip } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { SettingsSection } from '../workspace/SettingsSection';
 import { MemberRowMenu } from './MemberList';
@@ -27,7 +33,12 @@ export interface InvitationPanelClient {
   }) => Promise<TeamMemberSummary>;
   resendInvitation?: (invitationId: string) => Promise<TeamInvitationSummary>;
   revokeInvitation?: (invitationId: string) => Promise<void>;
+  /** 034 — the space's seats; absent (or failing) means no counter, as before tariffs. */
+  getTeamTariff?: (teamId: string) => Promise<TeamTariff>;
 }
+
+/** States in which seats are a limit people see; the old rule and internal spaces have none. */
+const SEATED_STATES = new Set<TeamTariff['state']>(['active', 'expiring', 'grace']);
 
 const INVITE_ROLES: readonly TeamBaseRole[] = ['admin', 'editor', 'viewer'];
 const ROLE_LABEL = {
@@ -89,7 +100,7 @@ export function InvitationPanel({
   revision?: number;
   onChanged?: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { push } = useToasts();
   const [confirmingRevoke, setConfirmingRevoke] = useState<string | null>(null);
   const revokeTitleId = useId();
@@ -104,6 +115,31 @@ export function InvitationPanel({
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const directAdd = directAddMode === 'testing';
+  const listId = useId();
+
+  /* 034 — seats (US4.1–4.2). Read from the server, never counted here. */
+  const auth = useOptionalAuth();
+  const team = useOptionalTeam();
+  const spaceAccess = useOptionalSpaceAccess();
+  const [tariff, setTariff] = useState<TeamTariff | null>(null);
+  const loadTariff = useCallback(() => {
+    if (!client.getTeamTariff) return;
+    void client
+      .getTeamTariff(teamId)
+      .then(setTariff)
+      .catch(() => setTariff(null));
+  }, [client, teamId]);
+  useEffect(() => {
+    loadTariff();
+  }, [loadTariff, revision]);
+  const seated = tariff !== null && SEATED_STATES.has(tariff.state) && tariff.seatsTotal > 0;
+  const seatsFull = seated && tariff.seatsUsed >= tariff.seatsTotal;
+  const soloPlan = seated && !tariff.canInvite;
+  const spaceName =
+    team?.teams.find(item => item.id === teamId)?.name ?? team?.activeTeam?.name ?? '';
+  const myEmail = spaceAccess?.access?.showcase?.email || auth?.user?.email || '';
+  const contact = spaceAccess?.access?.showcase?.contact;
+  const pendingIds = invitations.filter(item => item.state === 'pending').map(item => item.id);
 
   useEffect(() => {
     let active = true;
@@ -150,6 +186,7 @@ export function InvitationPanel({
         setLinkCopied(false);
       }
       setEmail('');
+      loadTariff();
       onChanged?.();
     } catch (caught) {
       if (directAdd && caught instanceof TeamApiError) {
@@ -162,7 +199,10 @@ export function InvitationPanel({
         // The server already distinguishes why an invitation was refused. Saying
         // "Delivery failed" for all of them is doubly wrong: it names the wrong
         // cause, and no delivery was even attempted.
-        if (caught.code === 'ALREADY_INVITED') setError(t('teamInviteAlreadyInvited'));
+        if (caught.code === 'SEATS_FULL') {
+          setError(t('tariffErrorSeatsFull'));
+          loadTariff();
+        } else if (caught.code === 'ALREADY_INVITED') setError(t('teamInviteAlreadyInvited'));
         else if (caught.code === 'ALREADY_MEMBER') setError(t('teamInviteAlreadyMember'));
         else if (caught.code === 'TEAM_MEMBER_LIMIT') setError(t('teamInviteLimit'));
         else if (caught.code === 'PERMISSION_DENIED' || caught.code === 'NOT_A_MEMBER')
@@ -203,6 +243,7 @@ export function InvitationPanel({
         current.map(item => (item.id === invitationId ? { ...item, state: 'revoked' } : item))
       );
       push({ tone: 'success', text: t('teamToastInvitationRevoked') });
+      loadTariff();
       onChanged?.();
     } catch (cause) {
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
@@ -217,7 +258,71 @@ export function InvitationPanel({
       className="team-invitations"
     >
       {directAdd && canManage && <p className="team-test-mode-note">{t('teamDirectAddNote')}</p>}
-      {canManage && (
+      {seated && tariff && (
+        <p className="tariff-seat-counter text-caption text-ink-muted">
+          <span>
+            {t('tariffSeatsCounter', { used: tariff.seatsUsed, total: tariff.seatsTotal })}
+            {tariff.pendingInvites > 0 &&
+              ` · ${t(
+                pluralForm(language, tariff.pendingInvites, {
+                  one: 'tariffSeatsPendingOne',
+                  few: 'tariffSeatsPendingFew',
+                  many: 'tariffSeatsPendingMany'
+                }),
+                { count: tariff.pendingInvites }
+              )}`}
+          </span>
+          <Tooltip label={t('tariffSeatsHint')}>
+            <Info
+              size={ICON_SIZE - 4}
+              strokeWidth={ICON_STROKE}
+              aria-label={t('tariffSeatsHint')}
+            />
+          </Tooltip>
+        </p>
+      )}
+      {canManage && seated && tariff && (soloPlan || seatsFull) && (
+        <Alert
+          color="neutral"
+          variant="subtle"
+          className="tariff-seats-full"
+          action={
+            <div className="flex flex-wrap gap-2">
+              {!soloPlan && pendingIds.length > 0 && client.revokeInvitation && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    if (pendingIds.length === 1) setConfirmingRevoke(pendingIds[0]!);
+                    else document.getElementById(listId)?.scrollIntoView({ block: 'nearest' });
+                  }}
+                >
+                  {t('teamInvitationRevoke')}
+                </Button>
+              )}
+              <ContactAdminButton
+                contact={contact}
+                size="sm"
+                color="neutral"
+                variant="outline"
+                icon={false}
+                label={soloPlan ? undefined : t('tariffSeatsAsk')}
+                subject={t('tariffMessageSubject')}
+                message={
+                  soloPlan
+                    ? t('tariffMessageTogether', { space: spaceName, email: myEmail })
+                    : t('tariffMessageSeat', { space: spaceName, email: myEmail })
+                }
+              />
+            </div>
+          }
+        >
+          {soloPlan
+            ? t('tariffInviteSolo', { plan: planName(tariff, language) })
+            : t('tariffSeatsFull', { total: tariff.seatsTotal })}
+        </Alert>
+      )}
+      {canManage && !(seated && (soloPlan || seatsFull)) && (
         <form className="team-invite-form" onSubmit={event => void submit(event)}>
           <FormField
             label={directAdd ? t('teamDirectAddEmail') : t('teamInviteEmail')}
@@ -275,7 +380,7 @@ export function InvitationPanel({
           </Button>
         </div>
       )}
-      <ul className="team-invitation-list">
+      <ul className="team-invitation-list" id={listId}>
         {invitations.map(invitation => (
           <li key={invitation.id}>
             {/* Email, its state in one word, and one menu (024, benchmarked on

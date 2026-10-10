@@ -1,15 +1,13 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { LockKeyhole } from 'lucide-react';
 import { useOptionalAuth } from '../auth/AuthContext';
-import { Modal, ModalBackdrop } from '../components/Modal';
-import { SupportDialog } from '../components/SupportDialog';
+import { Modal } from '../components/Modal';
 import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui';
 import { ICON_STROKE } from '../components/icons';
 import { Empty } from '../components/ui/index';
-import { requireSupabaseClient } from '../lib/supabase';
 import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';
-import { teamApi } from '../api/team';
+import { spaceTariffApi, teamApi } from '../api/team';
 import { useI18n } from '../i18n';
 import { navigateTo, useBrowserRoute, usePageEntrance } from '../lib/navigation';
 import { configuredTeamDirectAddMode } from '../lib/config';
@@ -28,6 +26,17 @@ import {
 import { spaceReadiness } from './lobby/SpaceCard';
 import { CreateSpaceWizard, type CreateSpaceWizardClient } from './create/CreateSpaceWizard';
 import type { WorkspaceShellClient } from './workspace/WorkspaceShell';
+import {
+  SpaceAccessContext,
+  fallbackSpaceAccess,
+  useSpaceAccess,
+  type SpaceAccessClient
+} from './tariffs/useSpaceAccess';
+import { SpaceShowcase } from './tariffs/SpaceShowcase';
+import { SpaceBlocked, type SpaceBlockedClient } from './tariffs/SpaceBlocked';
+import { TariffToastNotice } from './tariffs/TariffBanner';
+import { formatTariffDay, planName } from './tariffs/format';
+import type { TariffContactChannel } from '@video-compressor/shared';
 
 const WorkspaceShell = lazy(() =>
   import('./workspace/WorkspaceShell').then(module => ({ default: module.WorkspaceShell }))
@@ -169,7 +178,17 @@ export function resolveTeamEntry(input: {
 }
 
 type Flow = { mode: 'browse' } | { mode: 'create' } | { mode: 'resume'; teamId: string };
-type WorkspaceAccess = 'checking' | 'allowed' | 'denied';
+type WorkspaceAccess = 'checking' | 'allowed' | 'blocked' | 'denied';
+
+/** 034 — the tariff calls the team surface makes besides reading access. */
+export type SpaceTariffSurfaceClient = SpaceBlockedClient & {
+  joinWaitlist: (plan: string | null, channel: TariffContactChannel | null) => Promise<boolean>;
+};
+
+const defaultAccessClient: SpaceAccessClient = {
+  getMySpaceAccess: () => spaceTariffApi.getMySpaceAccess(),
+  canAccessTeamWorkspace: () => teamApi.canAccessTeamWorkspace()
+};
 
 /**
  * Single `/team` resolver. Renders exactly one surface — the space lobby, the
@@ -179,10 +198,15 @@ type WorkspaceAccess = 'checking' | 'allowed' | 'denied';
  */
 export function TeamSpace({
   client = teamApi as TeamSpaceClient,
+  accessClient = defaultAccessClient,
+  tariffClient = spaceTariffApi,
   directAddMode = configuredTeamDirectAddMode(),
   route: routeProp
 }: {
   client?: TeamSpaceClient;
+  /** 034 — where `get_my_space_access` is asked; replaced in tests. */
+  accessClient?: SpaceAccessClient;
+  tariffClient?: SpaceTariffSurfaceClient;
   directAddMode?: 'disabled' | 'testing';
   /**
    * Parsed address for this render. The application shell supplies it; when it
@@ -192,7 +216,7 @@ export function TeamSpace({
    */
   route?: TeamRoute;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const auth = useOptionalAuth();
   // Supabase replaces the session object when a backgrounded browser returns
   // and refreshes its token. Access depends on the person and admin flag, not
@@ -200,8 +224,8 @@ export function TeamSpace({
   // a routine token refresh from dropping the mounted workspace and every
   // dialog inside it.
   const authPresent = auth !== null;
-  const authUserId = auth?.user?.id ?? null;
   const authIsAdmin = auth?.isAdmin ?? false;
+  const authEmail = auth?.user?.email ?? null;
   const entering = usePageEntrance();
   const browserRoute = useBrowserRoute();
   const route: TeamRoute = routeProp ??
@@ -218,17 +242,36 @@ export function TeamSpace({
   // Also captured once, and for the same reason: the note a Drive press left
   // behind describes the trip that is arriving now, not a later one.
   const [driveTarget] = useState(readDriveAuthorization);
-  const [waitlistState, setWaitlistState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [gateOpen, setGateOpen] = useState(true);
-  const [supportOpen, setSupportOpen] = useState(false);
-  const [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess>(() => {
-    // Component-only previews do not mount AuthProvider. Keep their existing
-    // supplied-team behavior while the real application always asks the DB.
-    if (!authPresent) return teams.length ? 'allowed' : 'denied';
-    return authIsAdmin ? 'allowed' : 'checking';
-  });
-  const gateTitleId = useId();
   const resumedFromDrive = useRef(false);
+
+  /*
+   * 034 — who may be here is the server's answer (R10), asked of everyone but
+   * an administrator, whose spaces are internal and always open. Asked again
+   * every few seconds while this person is looking at the showcase or a paused
+   * space, so a grant or a renewal replaces the screen without a reload.
+   */
+  const [pollAccess, setPollAccess] = useState(false);
+  const spaceAccess = useSpaceAccess({
+    client: accessClient,
+    enabled: authPresent && !authIsAdmin,
+    poll: pollAccess
+  });
+  const access = spaceAccess.access;
+  const workspaceAccess: WorkspaceAccess = !authPresent
+    ? // Component-only previews do not mount AuthProvider. Keep their existing
+      // supplied-team behaviour while the real application always asks the DB.
+      teams.length
+      ? 'allowed'
+      : 'denied'
+    : authIsAdmin
+      ? 'allowed'
+      : !access
+        ? 'checking'
+        : access.mode === 'workspace'
+          ? 'allowed'
+          : access.mode === 'blocked'
+            ? 'blocked'
+            : 'denied';
 
   const driveReturn = route.kind === 'resolver' ? route.driveReturn : null;
 
@@ -300,40 +343,32 @@ export function TeamSpace({
     };
   }, [client]);
 
+  /*
+   * A space the server now says is open, that this tab does not list yet — a
+   * grant, a renewal, an accepted invitation. The list is read again once per
+   * change, so the address that showed the showcase or the paused screen opens
+   * the space itself.
+   */
+  const allowedKey = (access?.teams ?? [])
+    .map(team => `${team.teamId}:${team.accessState}`)
+    .sort()
+    .join(',');
+  // Either way round: a space opened that this tab does not list, or a space
+  // paused that it still lists (the list drops paused spaces, R10).
+  const listIsStale = (access?.teams ?? []).some(team =>
+    team.accessState === 'allowed'
+      ? !teams.some(known => known.id === team.teamId)
+      : teams.some(known => known.id === team.teamId)
+  );
+  const refreshedFor = useRef<string | null>(null);
   useEffect(() => {
-    let active = true;
-    if (!authPresent) {
-      setWorkspaceAccess(teams.length ? 'allowed' : 'denied');
-      return () => {
-        active = false;
-      };
-    }
-    if (authIsAdmin) {
-      setWorkspaceAccess('allowed');
-      return () => {
-        active = false;
-      };
-    }
-
-    setWorkspaceAccess('checking');
-    try {
-      void requireSupabaseClient()
-        .rpc('can_access_team_workspace')
-        .then(
-          ({ data, error }) => {
-            if (active) setWorkspaceAccess(!error && data === true ? 'allowed' : 'denied');
-          },
-          () => {
-            if (active) setWorkspaceAccess('denied');
-          }
-        );
-    } catch {
-      setWorkspaceAccess('denied');
-    }
-    return () => {
-      active = false;
-    };
-  }, [authIsAdmin, authPresent, authUserId, teams.length]);
+    if (!listIsStale || refreshedFor.current === allowedKey) return;
+    refreshedFor.current = allowedKey;
+    void client
+      .listTeams()
+      .then(replaceTeams)
+      .catch(() => undefined);
+  }, [allowedKey, client, listIsStale, replaceTeams]);
 
   // Every team surface renders through `wrap`, so mounting the toast provider
   // here — rather than per surface — is what lets an outcome outlive the thing
@@ -367,97 +402,115 @@ export function TeamSpace({
 
   const wrap = (node: React.ReactNode) => (
     <main className={`page-container team-space-page ${entering ? 'page-enter' : ''}`.trim()}>
-      <ToastProvider>
-        <MembershipLostNotice />
-        <Suspense fallback={<section className="team-space-lobby" aria-busy="true" />}>
-          {node}
-        </Suspense>
-      </ToastProvider>
+      <SpaceAccessContext.Provider value={authPresent && !authIsAdmin ? spaceAccess : null}>
+        <ToastProvider>
+          <MembershipLostNotice />
+          <TariffToastNotice />
+          <Suspense fallback={<section className="team-space-lobby" aria-busy="true" />}>
+            {node}
+          </Suspense>
+        </ToastProvider>
+      </SpaceAccessContext.Provider>
     </main>
   );
 
-  const joinWaitlist = async () => {
-    if (waitlistState === 'saving' || waitlistState === 'saved') return;
-    setWaitlistState('saving');
-    const { error } = await requireSupabaseClient().rpc('join_team_workspace_waitlist');
-    setWaitlistState(error ? 'error' : 'saved');
-  };
+  /*
+   * A space this person belongs to that is paused (034, US6.2): the address is
+   * kept, the paused screen is drawn at it, and the space comes back at the
+   * same address when the plan is renewed.
+   */
+  const routedSpaceId = route.kind === 'space' ? route.spaceId : null;
+  const blockedTeams = (access?.teams ?? []).filter(team => team.accessState === 'blocked');
+  const blockedRouteTeam = routedSpaceId
+    ? (blockedTeams.find(team => team.teamId === routedSpaceId) ?? null)
+    : null;
+  const showsBlocked =
+    workspaceAccess === 'blocked' ||
+    (workspaceAccess === 'allowed' &&
+      blockedRouteTeam !== null &&
+      !teams.some(team => team.id === blockedRouteTeam.teamId));
+  const showsShowcase = workspaceAccess === 'denied';
+  const shouldPoll = authPresent && !authIsAdmin && (showsBlocked || showsShowcase);
+  useEffect(() => {
+    setPollAccess(shouldPoll);
+  }, [shouldPoll]);
 
-  const closeWorkspaceGate = () => {
-    setGateOpen(false);
-    navigateTo('/', true);
-  };
-
-  const openSupport = () => {
-    setGateOpen(false);
-    setSupportOpen(true);
-  };
-
-  const closeSupport = () => {
-    setSupportOpen(false);
-    navigateTo('/', true);
-  };
+  const contactEmail = access?.showcase?.email || authEmail || '';
 
   if (workspaceAccess === 'checking') {
     // Labeled: an unexplained dimmed screen is indistinguishable from a hang.
     return wrap(
-      <>
-        <div className="team-workspace-gate-background" aria-busy="true" />
-        <ModalBackdrop className="team-workspace-gate-backdrop" />
+      <section className="team-space-lobby" aria-busy="true">
         <p className="team-workspace-gate-checking" aria-live="polite">
           {t('teamAccessChecking')}
         </p>
-      </>
+      </section>
     );
   }
 
-  if (workspaceAccess === 'denied') {
+  if (showsShowcase) {
     return wrap(
-      <>
-        <div className="team-workspace-gate-background" aria-hidden="true" />
-        {gateOpen && (
-          <Modal
-            labelledBy={gateTitleId}
-            className="team-workspace-gate"
-            backdropClassName="team-workspace-gate-backdrop"
-            initialFocus="[data-team-waitlist]"
-            onClose={closeWorkspaceGate}
-          >
-            <h2 id={gateTitleId}>{t('teamWorkspaceGateTitle')}</h2>
-            <p>{t('teamWorkspaceGateBody')}</p>
-            <div className="team-workspace-gate-actions">
-              <Button
-                variant="primary"
-                data-team-waitlist="true"
-                loading={waitlistState === 'saving'}
-                disabled={waitlistState === 'saved'}
-                onClick={() => void joinWaitlist()}
-              >
-                {t(
-                  waitlistState === 'saved' ? 'teamWorkspaceWaitlistSaved' : 'teamWorkspaceWaitlist'
-                )}
-              </Button>
-              <Button onClick={openSupport}>{t('teamWorkspaceAccelerate')}</Button>
-            </div>
-            {waitlistState === 'error' && (
-              <p className="support-error" role="alert">
-                {t('teamWorkspaceWaitlistError')}
-              </p>
-            )}
-          </Modal>
-        )}
-        {supportOpen && <SupportDialog onClose={closeSupport} />}
-      </>
+      <SpaceShowcase
+        access={access ?? fallbackSpaceAccess(false)}
+        email={authEmail}
+        client={{
+          joinWaitlist: (plan, channel) => tariffClient.joinWaitlist(plan, channel),
+          acceptInvitation: invitationId => client.acceptInvitation(invitationId)
+        }}
+        onAccepted={teamId => {
+          spaceAccess.recheck();
+          void client
+            .listTeams()
+            .then(replaceTeams)
+            .catch(() => undefined)
+            .finally(() =>
+              navigateTo(teamId ? buildTeamRoute({ spaceId: teamId }) : teamResolverRoute(), true)
+            );
+        }}
+      />
     );
   }
+
+  if (showsBlocked) {
+    const shown = blockedRouteTeam ? [blockedRouteTeam] : blockedTeams;
+    return wrap(
+      <div className="flex flex-col gap-4">
+        {shown.map(team => (
+          <SpaceBlocked
+            key={team.teamId}
+            team={team}
+            contact={access?.showcase?.contact}
+            email={contactEmail}
+            client={tariffClient}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  /* 034, US1.3 — a tariff waiting for its space names itself on the wizard. */
+  const pendingTariff = access?.canCreate ? access.pendingTariff : null;
+  const wizardHeading = pendingTariff
+    ? t('tariffCreateHeading', {
+        plan: planName(pendingTariff, language),
+        date: formatTariffDay(pendingTariff.endsOn, language)
+      })
+    : undefined;
+  const createForTariff =
+    pendingTariff !== null &&
+    teamsLoaded &&
+    teams.length === 0 &&
+    route.kind === 'resolver' &&
+    !route.showAll;
 
   // Asked for by address — from the space switcher — as well as by the lobby's
   // own button (024, FR-048).
-  const createAsked = route.kind === 'resolver' && route.create === true;
+  const createAsked = (route.kind === 'resolver' && route.create === true) || createForTariff;
   if (flow.mode !== 'browse' || createAsked) {
     return wrap(
       <CreateSpaceWizard
         client={client}
+        heading={wizardHeading}
         resumeTeamId={flow.mode === 'resume' ? flow.teamId : null}
         onCancel={() => {
           setFlow({ mode: 'browse' });
@@ -466,7 +519,9 @@ export function TeamSpace({
           // with no history behind it (a pasted link), there is nowhere to go
           // back to, and the lobby is the honest answer.
           if (!createAsked) return;
-          if (window.history.length > 1) window.history.back();
+          // A tariff with no space yet has nothing behind the wizard but home.
+          if (createForTariff) navigateTo('/', true);
+          else if (window.history.length > 1) window.history.back();
           else navigateTo(teamResolverRoute({ showAll: true }), true);
         }}
         onCreated={teamId => {

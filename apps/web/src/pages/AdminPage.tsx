@@ -19,8 +19,12 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
+  Tabs,
   fillRatio
 } from '../components/ui/index';
+import { ToastProvider } from '../components/toast';
+import { TariffsPanel } from './admin/TariffsPanel';
+import { TariffsSkeleton } from './admin/TariffsSkeleton';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
 import type { AdminUserRow, Json, MarketingExportRow, SupportGoalRow } from '../lib/database.types';
@@ -162,6 +166,9 @@ export default function AdminPage() {
   const { refresh: refreshSupportGoal } = useSupportGoal();
   const entering = usePageEntrance();
   const [range, setRange] = useState<7 | 30 | 90>(30);
+  /* 034 — the page opens on tariffs; analytics is read when it is first opened. */
+  const [tab, setTab] = useState<AdminTab>('tariffs');
+  const [analyticsOpened, setAnalyticsOpened] = useState(false);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [daily, setDaily] = useState<DailyActivity[]>([]);
   const [usage, setUsage] = useState<UsageRow[]>([]);
@@ -260,8 +267,12 @@ export default function AdminPage() {
   }, [consentFilter, dates.end, dates.start, isAdmin, page, search, statusFilter]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (tab === 'analytics') setAnalyticsOpened(true);
+  }, [tab]);
+
+  useEffect(() => {
+    if (analyticsOpened) void load();
+  }, [analyticsOpened, load]);
 
   if (!isAdmin) {
     /*
@@ -365,339 +376,369 @@ export default function AdminPage() {
           <h2>{t('adminTitle')}</h2>
           <p>{t('adminSubtitle')}</p>
         </div>
-        <SegmentedControl
-          className="admin-range"
-          size="sm"
-          label={t('dateRange')}
-          value={String(range)}
-          options={([7, 30, 90] as const).map(value => ({
-            value: String(value),
-            label: t(`range${value}` as TranslationKey)
-          }))}
-          onChange={value => setRange(Number(value) as 7 | 30 | 90)}
-        />
+        {tab === 'analytics' && (
+          <SegmentedControl
+            className="admin-range"
+            size="sm"
+            label={t('dateRange')}
+            value={String(range)}
+            options={([7, 30, 90] as const).map(value => ({
+              value: String(value),
+              label: t(`range${value}` as TranslationKey)
+            }))}
+            onChange={value => setRange(Number(value) as 7 | 30 | 90)}
+          />
+        )}
       </header>
 
-      {error && (
-        <Alert
-          color="error"
-          live="alert"
-          action={
-            <Button size="sm" color="neutral" variant="outline" onClick={() => void load()}>
-              {t('retry')}
-            </Button>
-          }
-        >
-          {t('adminError')}
-        </Alert>
-      )}
+      <Tabs
+        className="admin-tabs"
+        label={t('adminTitle')}
+        value={tab}
+        onChange={setTab}
+        panelId={id => `admin-panel-${id}`}
+        items={[
+          { id: 'tariffs', label: t('adminTabTariffs') },
+          { id: 'analytics', label: t('adminTabAnalytics') }
+        ]}
+      />
 
-      {loading && !overview ? (
-        <AdminPageSkeleton t={t} />
-      ) : overview ? (
-        <div className={`admin-loaded${sawSkeleton.current ? ' content-appear' : ''}`}>
-          <SupportGoalAdminCard
-            goal={supportGoal}
-            form={supportForm}
-            language={language}
-            state={supportGoalState}
-            saving={supportGoalSaving}
-            t={t}
-            onFormChange={patch => {
-              setSupportForm(current => ({ ...current, ...patch }));
-              setSupportGoalState('idle');
-            }}
-            onSave={() => void saveSupportGoal()}
-          />
-          <Card className="admin-card" aria-labelledby="team-waitlist-heading">
-            <div className="admin-card-heading">
-              <div>
-                <h3 id="team-waitlist-heading">{t('adminTeamWaitlistTitle')}</h3>
-                <p>{t('adminTeamWaitlistSubtitle', { count: teamWorkspaceWaitlist.length })}</p>
-              </div>
-            </div>
-            {teamWorkspaceWaitlist.length ? (
-              <Table
-                size="sm"
-                className="admin-table"
-                columns="minmax(0, 2fr) minmax(0, 1fr)"
-                aria-labelledby="team-waitlist-heading"
-              >
-                <TableHeader>
-                  <TableHeaderCell>{t('email')}</TableHeaderCell>
-                  <TableHeaderCell>{t('joined')}</TableHeaderCell>
-                </TableHeader>
-                {teamWorkspaceWaitlist.map(entry => (
-                  <TableRow key={entry.user_id}>
-                    <TableCell>{entry.email}</TableCell>
-                    <TableCell>
-                      {new Date(entry.created_at).toLocaleString(
-                        language === 'uk' ? 'uk-UA' : 'en-US'
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </Table>
-            ) : (
-              <EmptyState className="admin-empty" size="sm" title={t('adminTeamWaitlistEmpty')} />
-            )}
-          </Card>
-
-          <Card className="admin-card" aria-labelledby="windows-waitlist-heading">
-            <div className="admin-card-heading">
-              <div>
-                <h3 id="windows-waitlist-heading">{t('adminWindowsWaitlistTitle')}</h3>
-                <p>{t('adminWindowsWaitlistSubtitle', { count: windowsAppWaitlist.length })}</p>
-              </div>
-            </div>
-            {windowsAppWaitlist.length ? (
-              <Table
-                size="sm"
-                className="admin-table"
-                columns="minmax(0, 2fr) minmax(0, 1fr)"
-                aria-labelledby="windows-waitlist-heading"
-              >
-                <TableHeader>
-                  <TableHeaderCell>{t('email')}</TableHeaderCell>
-                  <TableHeaderCell>{t('joined')}</TableHeaderCell>
-                </TableHeader>
-                {windowsAppWaitlist.map(entry => (
-                  <TableRow key={entry.user_id}>
-                    <TableCell>{entry.email}</TableCell>
-                    <TableCell>
-                      {new Date(entry.created_at).toLocaleString(
-                        language === 'uk' ? 'uk-UA' : 'en-US'
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </Table>
-            ) : (
-              <EmptyState
-                className="admin-empty"
-                size="sm"
-                title={t('adminWindowsWaitlistEmpty')}
-              />
-            )}
-          </Card>
-
-          <section className="metric-grid" aria-label={t('adminTitle')}>
-            {overviewKeys.map(key => (
-              <Card as="article" className="metric-card" key={key}>
-                <span>{t(metricLabels[key])}</span>
-                <strong>{metricValue(key, overview[key])}</strong>
-              </Card>
-            ))}
-          </section>
-
-          <Card className="admin-card activity-card" aria-labelledby="activity-heading">
-            <div className="admin-card-heading">
-              <h3 id="activity-heading">{t('dailyActivity')}</h3>
-              <div className="chart-legend">
-                <span>
-                  <i className="legend-users" />
-                  {t('activeUsers')}
-                </span>
-                <span>
-                  <i className="legend-events" />
-                  {t('events')}
-                </span>
-              </div>
-            </div>
-            <ActivityChart data={daily} />
-          </Card>
-
-          <div className="admin-split-grid">
-            <Breakdown
-              title={t('toolUsage')}
-              rows={usage.map(row => ({
-                label: `${row.category} · ${row.label}`,
-                total: row.total
-              }))}
-              empty={t('adminEmpty')}
-            />
-            <Breakdown
-              title={t('agentVersions')}
-              rows={versions.map(row => ({ label: row.agent_version, total: row.total }))}
-              empty={t('adminEmpty')}
-            />
-          </div>
-
-          <Card className="admin-card users-card" aria-labelledby="users-heading">
-            <div className="admin-card-heading users-heading">
-              <h3 id="users-heading">{t('latestUsers')}</h3>
-              <Button
-                color="neutral"
-                variant="outline"
-                loading={exporting}
-                onClick={() => void exportConsent()}
-              >
-                {exporting ? t('exporting') : t('exportConsent')}
-              </Button>
-            </div>
-            <form
-              className="admin-filters"
-              onSubmit={event => {
-                event.preventDefault();
-                setPage(0);
-                setSearch(searchInput.trim());
-              }}
+      {tab === 'tariffs' ? (
+        <div role="tabpanel" id="admin-panel-tariffs" aria-labelledby="tab-tariffs">
+          <ToastProvider>
+            <TariffsPanel />
+          </ToastProvider>
+        </div>
+      ) : (
+        <div role="tabpanel" id="admin-panel-analytics" aria-labelledby="tab-analytics">
+          {error && (
+            <Alert
+              color="error"
+              live="alert"
+              action={
+                <Button size="sm" color="neutral" variant="outline" onClick={() => void load()}>
+                  {t('retry')}
+                </Button>
+              }
             >
-              <FormField
-                className="search-field"
-                label={t('searchEmail')}
-                htmlFor="admin-search-email"
-              >
-                <Input
-                  id="admin-search-email"
-                  type="search"
-                  value={searchInput}
-                  onChange={event => setSearchInput(event.target.value)}
-                />
-              </FormField>
-              <FormField label={t('consent')} htmlFor="admin-consent-filter">
-                <Select
-                  id="admin-consent-filter"
-                  value={consentFilter}
-                  placeholder={t('allConsent')}
-                  options={[
-                    { value: 'true', label: t('consented') },
-                    { value: 'false', label: t('notConsented') }
-                  ]}
-                  onChange={next => {
-                    setPage(0);
-                    setConsentFilter(next);
-                  }}
-                />
-              </FormField>
-              <FormField label={t('accountStatus')} htmlFor="admin-status-filter">
-                <Select
-                  id="admin-status-filter"
-                  value={statusFilter}
-                  placeholder={t('allStatuses')}
-                  options={[
-                    { value: 'active', label: t('activeStatus') },
-                    { value: 'blocked', label: t('blockedStatus') },
-                    { value: 'deleted', label: t('deletedStatus') }
-                  ]}
-                  onChange={next => {
-                    setPage(0);
-                    setStatusFilter(next);
-                  }}
-                />
-              </FormField>
-              <Button type="submit" color="primary" variant="solid">
-                {t('search')}
-              </Button>
-            </form>
+              {t('adminError')}
+            </Alert>
+          )}
 
-            {users.length ? (
-              <Table
-                size="sm"
-                stickyHeader
-                className="admin-table admin-users-table"
-                columns="minmax(200px, 2fr) minmax(140px, 1.4fr) auto auto auto auto auto"
-                aria-labelledby="users-heading"
-              >
-                <TableHeader>
-                  <TableHeaderCell>{t('email')}</TableHeaderCell>
-                  <TableHeaderCell>{t('displayName')}</TableHeaderCell>
-                  <TableHeaderCell>{t('joined')}</TableHeaderCell>
-                  <TableHeaderCell>{t('lastActive')}</TableHeaderCell>
-                  <TableHeaderCell>{t('consent')}</TableHeaderCell>
-                  <TableHeaderCell>{t('accountStatus')}</TableHeaderCell>
-                  <TableHeaderCell>{t('actions')}</TableHeaderCell>
-                </TableHeader>
-                {users.map(row => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.email ?? t('notAvailable')}</TableCell>
-                    <TableCell>{row.display_name ?? '—'}</TableCell>
-                    <TableCell>
-                      {new Date(row.created_at).toLocaleDateString(
-                        language === 'uk' ? 'uk-UA' : 'en-US'
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {row.last_seen_at
-                        ? new Date(row.last_seen_at).toLocaleDateString(
+          {loading && !overview ? (
+            <AdminPageSkeleton t={t} tab="analytics" />
+          ) : overview ? (
+            <div className={`admin-loaded${sawSkeleton.current ? ' content-appear' : ''}`}>
+              <SupportGoalAdminCard
+                goal={supportGoal}
+                form={supportForm}
+                language={language}
+                state={supportGoalState}
+                saving={supportGoalSaving}
+                t={t}
+                onFormChange={patch => {
+                  setSupportForm(current => ({ ...current, ...patch }));
+                  setSupportGoalState('idle');
+                }}
+                onSave={() => void saveSupportGoal()}
+              />
+              <Card className="admin-card" aria-labelledby="team-waitlist-heading">
+                <div className="admin-card-heading">
+                  <div>
+                    <h3 id="team-waitlist-heading">{t('adminTeamWaitlistTitle')}</h3>
+                    <p>{t('adminTeamWaitlistSubtitle', { count: teamWorkspaceWaitlist.length })}</p>
+                  </div>
+                </div>
+                {teamWorkspaceWaitlist.length ? (
+                  <Table
+                    size="sm"
+                    className="admin-table"
+                    columns="minmax(0, 2fr) minmax(0, 1fr)"
+                    aria-labelledby="team-waitlist-heading"
+                  >
+                    <TableHeader>
+                      <TableHeaderCell>{t('email')}</TableHeaderCell>
+                      <TableHeaderCell>{t('joined')}</TableHeaderCell>
+                    </TableHeader>
+                    {teamWorkspaceWaitlist.map(entry => (
+                      <TableRow key={entry.user_id}>
+                        <TableCell>{entry.email}</TableCell>
+                        <TableCell>
+                          {new Date(entry.created_at).toLocaleString(
                             language === 'uk' ? 'uk-UA' : 'en-US'
-                          )
-                        : t('never')}
-                    </TableCell>
-                    <TableCell>
-                      {row.marketing_consent ? t('consented') : t('notConsented')}
-                    </TableCell>
-                    <TableCell>
-                      {/* The state is the badge's colour role, so "blocked" and
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Table>
+                ) : (
+                  <EmptyState
+                    className="admin-empty"
+                    size="sm"
+                    title={t('adminTeamWaitlistEmpty')}
+                  />
+                )}
+              </Card>
+
+              <Card className="admin-card" aria-labelledby="windows-waitlist-heading">
+                <div className="admin-card-heading">
+                  <div>
+                    <h3 id="windows-waitlist-heading">{t('adminWindowsWaitlistTitle')}</h3>
+                    <p>{t('adminWindowsWaitlistSubtitle', { count: windowsAppWaitlist.length })}</p>
+                  </div>
+                </div>
+                {windowsAppWaitlist.length ? (
+                  <Table
+                    size="sm"
+                    className="admin-table"
+                    columns="minmax(0, 2fr) minmax(0, 1fr)"
+                    aria-labelledby="windows-waitlist-heading"
+                  >
+                    <TableHeader>
+                      <TableHeaderCell>{t('email')}</TableHeaderCell>
+                      <TableHeaderCell>{t('joined')}</TableHeaderCell>
+                    </TableHeader>
+                    {windowsAppWaitlist.map(entry => (
+                      <TableRow key={entry.user_id}>
+                        <TableCell>{entry.email}</TableCell>
+                        <TableCell>
+                          {new Date(entry.created_at).toLocaleString(
+                            language === 'uk' ? 'uk-UA' : 'en-US'
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Table>
+                ) : (
+                  <EmptyState
+                    className="admin-empty"
+                    size="sm"
+                    title={t('adminWindowsWaitlistEmpty')}
+                  />
+                )}
+              </Card>
+
+              <section className="metric-grid" aria-label={t('adminTitle')}>
+                {overviewKeys.map(key => (
+                  <Card as="article" className="metric-card" key={key}>
+                    <span>{t(metricLabels[key])}</span>
+                    <strong>{metricValue(key, overview[key])}</strong>
+                  </Card>
+                ))}
+              </section>
+
+              <Card className="admin-card activity-card" aria-labelledby="activity-heading">
+                <div className="admin-card-heading">
+                  <h3 id="activity-heading">{t('dailyActivity')}</h3>
+                  <div className="chart-legend">
+                    <span>
+                      <i className="legend-users" />
+                      {t('activeUsers')}
+                    </span>
+                    <span>
+                      <i className="legend-events" />
+                      {t('events')}
+                    </span>
+                  </div>
+                </div>
+                <ActivityChart data={daily} />
+              </Card>
+
+              <div className="admin-split-grid">
+                <Breakdown
+                  title={t('toolUsage')}
+                  rows={usage.map(row => ({
+                    label: `${row.category} · ${row.label}`,
+                    total: row.total
+                  }))}
+                  empty={t('adminEmpty')}
+                />
+                <Breakdown
+                  title={t('agentVersions')}
+                  rows={versions.map(row => ({ label: row.agent_version, total: row.total }))}
+                  empty={t('adminEmpty')}
+                />
+              </div>
+
+              <Card className="admin-card users-card" aria-labelledby="users-heading">
+                <div className="admin-card-heading users-heading">
+                  <h3 id="users-heading">{t('latestUsers')}</h3>
+                  <Button
+                    color="neutral"
+                    variant="outline"
+                    loading={exporting}
+                    onClick={() => void exportConsent()}
+                  >
+                    {exporting ? t('exporting') : t('exportConsent')}
+                  </Button>
+                </div>
+                <form
+                  className="admin-filters"
+                  onSubmit={event => {
+                    event.preventDefault();
+                    setPage(0);
+                    setSearch(searchInput.trim());
+                  }}
+                >
+                  <FormField
+                    className="search-field"
+                    label={t('searchEmail')}
+                    htmlFor="admin-search-email"
+                  >
+                    <Input
+                      id="admin-search-email"
+                      type="search"
+                      value={searchInput}
+                      onChange={event => setSearchInput(event.target.value)}
+                    />
+                  </FormField>
+                  <FormField label={t('consent')} htmlFor="admin-consent-filter">
+                    <Select
+                      id="admin-consent-filter"
+                      value={consentFilter}
+                      placeholder={t('allConsent')}
+                      options={[
+                        { value: 'true', label: t('consented') },
+                        { value: 'false', label: t('notConsented') }
+                      ]}
+                      onChange={next => {
+                        setPage(0);
+                        setConsentFilter(next);
+                      }}
+                    />
+                  </FormField>
+                  <FormField label={t('accountStatus')} htmlFor="admin-status-filter">
+                    <Select
+                      id="admin-status-filter"
+                      value={statusFilter}
+                      placeholder={t('allStatuses')}
+                      options={[
+                        { value: 'active', label: t('activeStatus') },
+                        { value: 'blocked', label: t('blockedStatus') },
+                        { value: 'deleted', label: t('deletedStatus') }
+                      ]}
+                      onChange={next => {
+                        setPage(0);
+                        setStatusFilter(next);
+                      }}
+                    />
+                  </FormField>
+                  <Button type="submit" color="primary" variant="solid">
+                    {t('search')}
+                  </Button>
+                </form>
+
+                {users.length ? (
+                  <Table
+                    size="sm"
+                    stickyHeader
+                    className="admin-table admin-users-table"
+                    columns="minmax(200px, 2fr) minmax(140px, 1.4fr) auto auto auto auto auto"
+                    aria-labelledby="users-heading"
+                  >
+                    <TableHeader>
+                      <TableHeaderCell>{t('email')}</TableHeaderCell>
+                      <TableHeaderCell>{t('displayName')}</TableHeaderCell>
+                      <TableHeaderCell>{t('joined')}</TableHeaderCell>
+                      <TableHeaderCell>{t('lastActive')}</TableHeaderCell>
+                      <TableHeaderCell>{t('consent')}</TableHeaderCell>
+                      <TableHeaderCell>{t('accountStatus')}</TableHeaderCell>
+                      <TableHeaderCell>{t('actions')}</TableHeaderCell>
+                    </TableHeader>
+                    {users.map(row => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.email ?? t('notAvailable')}</TableCell>
+                        <TableCell>{row.display_name ?? '—'}</TableCell>
+                        <TableCell>
+                          {new Date(row.created_at).toLocaleDateString(
+                            language === 'uk' ? 'uk-UA' : 'en-US'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {row.last_seen_at
+                            ? new Date(row.last_seen_at).toLocaleDateString(
+                                language === 'uk' ? 'uk-UA' : 'en-US'
+                              )
+                            : t('never')}
+                        </TableCell>
+                        <TableCell>
+                          {row.marketing_consent ? t('consented') : t('notConsented')}
+                        </TableCell>
+                        <TableCell>
+                          {/* The state is the badge's colour role, so "blocked" and
                           "deleted" are the same red the rest of the product
                           uses for a stop. */}
-                      <Badge
-                        size="xs"
-                        color={row.account_status === 'active' ? 'success' : 'error'}
-                        className="account-status"
-                      >
-                        {t(statusKey(row.account_status))}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {row.id !== user?.id && row.account_status !== 'deleted' && (
-                        <Button
-                          size="sm"
-                          color="neutral"
-                          variant="ghost"
-                          onClick={() => void changeStatus(row)}
-                        >
-                          {t(row.account_status === 'blocked' ? 'unblockUser' : 'blockUser')}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </Table>
-            ) : (
-              /* Nothing matched: the filters are what emptied the table, so
+                          <Badge
+                            size="xs"
+                            color={row.account_status === 'active' ? 'success' : 'error'}
+                            className="account-status"
+                          >
+                            {t(statusKey(row.account_status))}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {row.id !== user?.id && row.account_status !== 'deleted' && (
+                            <Button
+                              size="sm"
+                              color="neutral"
+                              variant="ghost"
+                              onClick={() => void changeStatus(row)}
+                            >
+                              {t(row.account_status === 'blocked' ? 'unblockUser' : 'blockUser')}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Table>
+                ) : (
+                  /* Nothing matched: the filters are what emptied the table, so
                  clearing them is the action rather than a sentence about it. */
-              <EmptyState
-                className="admin-empty"
-                title={t('adminEmpty')}
-                action={
-                  (search || consentFilter || statusFilter) && (
-                    <Button
-                      type="button"
-                      color="neutral"
-                      variant="outline"
-                      onClick={() => {
-                        setSearchInput('');
-                        setSearch('');
-                        setConsentFilter('');
-                        setStatusFilter('');
-                        setPage(0);
-                      }}
-                    >
-                      {t('adminClearFilters')}
-                    </Button>
-                  )
-                }
-              />
-            )}
-            <div className="soty-pagination">
-              <Button
-                disabled={page === 0}
-                onClick={() => setPage(value => Math.max(0, value - 1))}
-              >
-                {t('previous')}
-              </Button>
-              <span>{t('pageOf', { page: page + 1, pages })}</span>
-              <Button disabled={page + 1 >= pages} onClick={() => setPage(value => value + 1)}>
-                {t('next')}
-              </Button>
+                  <EmptyState
+                    className="admin-empty"
+                    title={t('adminEmpty')}
+                    action={
+                      (search || consentFilter || statusFilter) && (
+                        <Button
+                          type="button"
+                          color="neutral"
+                          variant="outline"
+                          onClick={() => {
+                            setSearchInput('');
+                            setSearch('');
+                            setConsentFilter('');
+                            setStatusFilter('');
+                            setPage(0);
+                          }}
+                        >
+                          {t('adminClearFilters')}
+                        </Button>
+                      )
+                    }
+                  />
+                )}
+                <div className="soty-pagination">
+                  <Button
+                    disabled={page === 0}
+                    onClick={() => setPage(value => Math.max(0, value - 1))}
+                  >
+                    {t('previous')}
+                  </Button>
+                  <span>{t('pageOf', { page: page + 1, pages })}</span>
+                  <Button disabled={page + 1 >= pages} onClick={() => setPage(value => value + 1)}>
+                    {t('next')}
+                  </Button>
+                </div>
+              </Card>
             </div>
-          </Card>
+          ) : null}
         </div>
-      ) : null}
+      )}
     </main>
   );
 }
+
+type AdminTab = 'tariffs' | 'analytics';
 
 type SupportGoalForm = { titleUk: string; titleEn: string; target: string; raised: string };
 
@@ -870,7 +911,12 @@ function SupportGoalAdminCard({
 /** Loading placeholders that mirror the loaded dashboard geometry — the
  * metric grid, activity chart card, the two breakdown lists and the users
  * table — so real data crossfades in without layout shift. */
-function AdminPageSkeleton({ t }: { t: Translate }) {
+/**
+ * The page while its first answer is on the way, in the shape of the tab that
+ * is open (034): the tariff ledger, or the analytics cards.
+ */
+function AdminPageSkeleton({ t, tab }: { t: Translate; tab: AdminTab }) {
+  if (tab === 'tariffs') return <TariffsSkeleton />;
   return (
     <div className="admin-skeleton" role="status" aria-label={t('loading')}>
       <Card as="div" className="admin-card support-goal-admin-card" aria-hidden="true">

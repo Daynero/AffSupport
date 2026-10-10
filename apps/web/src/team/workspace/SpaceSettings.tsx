@@ -17,6 +17,7 @@ import {
   type ProductCatalogSettingsClient
 } from '../product-catalog/ProductCatalogSettingsSection';
 import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
+import { SpaceTariffSection } from '../tariffs/SpaceTariffSection';
 import type { TeamSettingsTab } from '../routes';
 import { Tabs } from '../../components/ui/index';
 import type { StorageHealth } from '@video-compressor/shared';
@@ -205,6 +206,9 @@ export function SpaceSettings({
         {tab === 'general' && (
           <>
             {activeTeam?.role === 'owner' && <SpaceNameSection teamId={teamId} client={client} />}
+            {activeTeam?.role === 'owner' && (
+              <SpaceTariffSection teamId={teamId} spaceName={activeTeam.name} client={client} />
+            )}
             {/* How team mode behaves, first: it is what a person opens these
                 settings to change. */}
             <TeamPreferencesSection teamId={teamId} client={client} />

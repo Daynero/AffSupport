@@ -138,6 +138,11 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+/** 034 — the page opens on «Тарифи»; the analytics content is the second tab. */
+function openAnalytics() {
+  fireEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
+}
+
 describe('database-authorized admin UI', () => {
   it('shows a 403-style screen for a non-admin without making admin queries', () => {
     render(
@@ -155,6 +160,7 @@ describe('database-authorized admin UI', () => {
         <AdminPage />
       </AuthContextOverride>
     );
+    openAnalytics();
     await waitFor(() => expect(screen.getByText('Total users')).toBeTruthy());
     expect(screen.getByText('10')).toBeTruthy();
     expect(screen.getByText('user@example.com')).toBeTruthy();
@@ -182,6 +188,7 @@ describe('database-authorized admin UI', () => {
         <AdminPage />
       </AuthContextOverride>
     );
+    openAnalytics();
     const raised = await screen.findByLabelText('Total raised, USD');
     expect(raised.getAttribute('value')).toBe('0');
     expect(screen.getByLabelText('Goal, USD').getAttribute('value')).toBe('99');
@@ -217,6 +224,7 @@ describe('database-authorized admin UI', () => {
         <AdminPage />
       </AuthContextOverride>
     );
+    openAnalytics();
     const target = await screen.findByLabelText('Goal, USD');
     fireEvent.change(target, { target: { value: '0' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));

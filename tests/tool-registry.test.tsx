@@ -59,7 +59,7 @@ import { catalogueTools, routeKind, toolByPath, webTools } from '../apps/web/src
 import { featureFlags } from '../apps/web/src/lib/feature-flags';
 import { translate } from '../apps/web/src/i18n';
 import { markAgentSeen } from '../apps/web/src/api/pairing-token';
-import { teamApi } from '../apps/web/src/api/team';
+import { fallbackSpaceAccess, teamApi } from '../apps/web/src/api/team';
 
 /**
  * The home reads the reader's spaces from the provider every signed-in page
@@ -98,6 +98,10 @@ beforeEach(() => {
   // The workspace opens gradually, and the home screen asks whether this reader is inside the
   // gate. Inside, unless a test says otherwise; nothing here should reach the network.
   vi.spyOn(teamApi, 'canAccessTeamWorkspace').mockResolvedValue(true);
+  // 034 — the home tile asks the tariff question; without one, the old answer stands in.
+  vi.spyOn(teamApi, 'getMySpaceAccess').mockImplementation(async () =>
+    fallbackSpaceAccess(await teamApi.canAccessTeamWorkspace())
+  );
   vi.spyOn(teamApi, 'listMyInvitations').mockResolvedValue([]);
 });
 
@@ -231,10 +235,11 @@ describe('web tool registry', () => {
     vi.mocked(teamApi.canAccessTeamWorkspace).mockResolvedValue(false);
     renderHome();
 
-    // The tile is the gate it opens: same title, same sentence, and the button it will offer.
-    expect(await screen.findByText(translate('en', 'teamWorkspaceGateTitle'))).toBeTruthy();
+    // 034 — the tile says what a space is and leads to the showcase, not to a waiting list.
+    expect(await screen.findByText(translate('en', 'tariffHomeTitle'))).toBeTruthy();
+    expect(screen.getByText(translate('en', 'tariffHomeCaption'))).toBeTruthy();
     const waitlist = screen.getByRole('link', {
-      name: new RegExp(translate('en', 'teamWorkspaceGateTitle'), 'u')
+      name: new RegExp(translate('en', 'tariffHomeTitle'), 'u')
     });
     expect(waitlist.getAttribute('href')).toBe('/team?all=1');
     expect(

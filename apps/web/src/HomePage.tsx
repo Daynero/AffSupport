@@ -92,6 +92,8 @@ import { useI18n, type TranslationKey } from './i18n';
 import { analytics } from './analytics/service';
 import { agentKnown } from './api/pairing-token';
 import { teamApi, type TeamContextSnapshot } from './api/team';
+import type { SpaceAccess } from '@video-compressor/shared';
+import { formatTariffShortDay } from './team/tariffs/format';
 import { Badge, Button, Card, Skeleton } from './components/ui/index';
 import { ReconnectAction } from './components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from './components/icons';
@@ -277,7 +279,7 @@ function Tile({
 }
 
 export default function HomePage({ navigate }: { navigate: (path: string) => void }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { connection, connectedOnce, reconnect, toolAvailable, toolAvailability } = useAgent();
   const { teams, loading: teamsLoading } = useTeam();
   const entering = usePageEntrance();
@@ -359,21 +361,28 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
    * answer. Never blocking and never an error: the home screen renders for somebody with no team
    * access whatsoever, and "not yet" is a perfectly good answer to draw (finding I1).
    */
-  const [spacesOpen, setSpacesOpen] = useState<boolean | null>(null);
+  /*
+   * 034 — the same question as the team surface asks (`get_my_space_access`), once: it also says
+   * whose term is running out and which space is paused, which the tile shows to its owner.
+   */
+  const [access, setAccess] = useState<SpaceAccess | null>(null);
   useEffect(() => {
     if (teamsLoading) return;
-    if (teams.length > 0) {
-      setSpacesOpen(true);
-      return;
-    }
     let active = true;
-    void teamApi.canAccessTeamWorkspace().then(allowed => {
-      if (active) setSpacesOpen(allowed);
+    void teamApi.getMySpaceAccess().then(value => {
+      if (active) setAccess(value);
     });
     return () => {
       active = false;
     };
   }, [teams.length, teamsLoading]);
+  const pausedSpaces = (access?.teams ?? []).filter(team => team.accessState === 'blocked');
+  const spacesOpen: boolean | null =
+    teams.length > 0
+      ? true
+      : access === null
+        ? null
+        : access.mode === 'workspace' || pausedSpaces.length > 0;
   /* Above the tools while it is somewhere to go, below them while it is only news. */
   const spacesFirst = spacesOpen !== false;
   /* Nothing at all until the answer is in: a create tile that turns into a waiting list a moment
@@ -422,6 +431,27 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       : t(STATUS_LABEL[connection]);
 
   const allSpacesHref = teamResolverRoute({ showAll: true });
+
+  /* 034, US7.5 — what the owner is told on the tile: the last day when the term is running
+     out, "paused" when it has. Members see neither; the server says who owns what. */
+  const tariffBadge = (spaceId: string) => {
+    const tariff = access?.teams.find(team => team.teamId === spaceId)?.tariff;
+    if (!tariff || !tariff.isOwner) return undefined;
+    if (tariff.state === 'blocked') {
+      return (
+        <Badge color="neutral" variant="soft" size="xs">
+          {t('tariffStatePaused')}
+        </Badge>
+      );
+    }
+    if (tariff.state !== 'expiring' && tariff.state !== 'grace') return undefined;
+    const day = tariff.state === 'grace' ? tariff.graceUntil : tariff.endsOn;
+    return (
+      <Badge color={tariff.state === 'grace' ? 'error' : 'warning'} variant="soft" size="xs">
+        {t('tariffHomeUntil', { date: formatTariffShortDay(day, language) })}
+      </Badge>
+    );
+  };
   const createSpaceHref = teamResolverRoute({ create: true });
 
   /*
@@ -488,6 +518,7 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
                   </>
                 }
                 title={space.name}
+                badge={tariffBadge(space.id)}
                 caption={t(roleKey(space.role))}
                 note={
                   readiness === 'setup_incomplete'
@@ -508,23 +539,40 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             );
           })}
         </ul>
+      ) : pausedSpaces[0] ? (
+        <ul className="home-grid">
+          {/* A paused space is still this person's (034, US6.2): its tile leads to the screen
+              that says so, at the space's own address. */}
+          <Tile
+            href={buildTeamRoute({ spaceId: pausedSpaces[0].teamId })}
+            onFollow={() => navigate(buildTeamRoute({ spaceId: pausedSpaces[0]!.teamId }))}
+            icon={<LayoutDashboard />}
+            title={pausedSpaces[0].name}
+            caption={t(roleKey(pausedSpaces[0].role as TeamContextSnapshot['role']))}
+            badge={
+              <Badge color="neutral" variant="soft" size="xs">
+                {t('tariffStatePaused')}
+              </Badge>
+            }
+          />
+        </ul>
       ) : (
         <ul className="home-grid">
-          {/* Outside the gate the tile is the gate, in the gate's own words: the same title, the
-              same sentence, and the button it will offer written on it. Not dimmed — it is a
-              real way somewhere, only the last row rather than the first. */}
+          {/* Outside the gate the tile says what a space is and how to get one (034, US7.5): it
+              leads to the showcase, not to a waiting list. Not dimmed — it is a real way
+              somewhere, only the last row rather than the first. */}
           <Tile
             href={spacesOpen ? createSpaceHref : allSpacesHref}
             onFollow={() => navigate(spacesOpen ? createSpaceHref : allSpacesHref)}
             icon={
               spacesOpen ? <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} /> : <LayoutDashboard />
             }
-            title={t(spacesOpen ? 'teamSpaceEmptyAction' : 'teamWorkspaceGateTitle')}
-            caption={t(spacesOpen ? 'teamSpaceEmptyBody' : 'teamWorkspaceGateBody')}
+            title={t(spacesOpen ? 'teamSpaceEmptyAction' : 'tariffHomeTitle')}
+            caption={t(spacesOpen ? 'teamSpaceEmptyBody' : 'tariffHomeCaption')}
             trailing={
               spacesOpen ? undefined : (
                 <>
-                  {t('teamWorkspaceWaitlist')}
+                  {t('tariffHomeHow')}
                   <ArrowRight size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} />
                 </>
               )

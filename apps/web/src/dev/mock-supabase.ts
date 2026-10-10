@@ -220,9 +220,9 @@ const DRIVE_STATUS = [
 
 /** Handlers keyed by the RPC the product calls. */
 const RPC: Record<string, (args: Record<string, unknown>) => unknown> = {
-  can_access_team_workspace: () => true,
+  can_access_team_workspace: () => mockAccessMode() === 'workspace',
   list_my_invitations: () => [],
-  list_my_teams: () => TEAMS,
+  list_my_teams: () => (mockAccessMode() === 'workspace' ? TEAMS : []),
   list_team_members: () => MEMBERS,
   list_team_invitations: () => [],
   list_team_audit: () => [],
@@ -539,6 +539,322 @@ const TASKS = [
     completed_at: ago(60 * 5)
   }
 ];
+
+/* 034 — space tariffs. The dev user is an administrator with a couple of
+   tariffs to look at; `localStorage['soty.mock.space-access']` set to
+   `showcase` or `blocked` shows the screens a person without a space sees. */
+
+const PLANS = [
+  {
+    code: 'solo',
+    nameUk: 'Соло',
+    nameEn: 'Solo',
+    summaryUk: 'для одного баєра',
+    summaryEn: 'for one media buyer',
+    baseSeats: 1,
+    invitesAllowed: false,
+    extraSeatsAllowed: true,
+    maxExtraSeats: null,
+    billingPeriod: 'month',
+    highlight: false,
+    features: [],
+    showcase: true,
+    sortOrder: 10
+  },
+  {
+    code: 'lead',
+    nameUk: 'Лід',
+    nameEn: 'Lead',
+    summaryUk: 'тімлід і двоє людей, місця можна додати',
+    summaryEn: 'a lead and two people, more seats on request',
+    baseSeats: 3,
+    invitesAllowed: true,
+    extraSeatsAllowed: true,
+    maxExtraSeats: null,
+    billingPeriod: 'month',
+    highlight: true,
+    features: [],
+    showcase: true,
+    sortOrder: 20
+  }
+];
+
+const kyivDay = (offsetDays: number) =>
+  new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+
+const TEAM_TARIFF = {
+  state: 'expiring',
+  planCode: 'lead',
+  planNameUk: 'Лід',
+  planNameEn: 'Lead',
+  seatsTotal: 3,
+  seatsUsed: 3,
+  pendingInvites: 0,
+  canInvite: true,
+  endsOn: kyivDay(3),
+  endsAt: `${kyivDay(3)}T20:59:59.999Z`,
+  graceUntil: `${kyivDay(6)}T20:59:59.999Z`,
+  daysLeft: 3,
+  isOwner: true,
+  updaterPausedByTariff: false
+};
+
+function mockAccessMode(): 'workspace' | 'showcase' | 'blocked' {
+  try {
+    const value = window.localStorage.getItem('soty.mock.space-access');
+    return value === 'showcase' || value === 'blocked' ? value : 'workspace';
+  } catch {
+    return 'workspace';
+  }
+}
+
+function spaceAccess() {
+  const mode = mockAccessMode();
+  const showcase = {
+    plans: PLANS,
+    contact: { telegram: 'soty_admin', email: 'admin@soty.local' },
+    email: 'dev@wishly.local',
+    request: null
+  };
+  if (mode === 'showcase') {
+    return {
+      mode,
+      canCreate: false,
+      pendingTariff: null,
+      teams: [],
+      invitations: [
+        {
+          invitationId: 'inv-mock',
+          teamId: '22222222-2222-4222-8222-222222222222',
+          teamName: 'Студія Оля',
+          inviterName: 'Оля',
+          role: 'editor',
+          blocked: false
+        }
+      ],
+      banner: null,
+      toast: null,
+      showcase
+    };
+  }
+  const blocked = mode === 'blocked';
+  return {
+    mode,
+    canCreate: false,
+    pendingTariff: null,
+    teams: [
+      {
+        teamId: TEAM_ID,
+        name: TEAMS[0]!.name,
+        role: 'owner',
+        accessState: blocked ? 'blocked' : 'allowed',
+        ownerName: 'Soty Developer',
+        tariff: blocked
+          ? { ...TEAM_TARIFF, state: 'blocked', endsOn: kyivDay(-5), daysLeft: -5 }
+          : TEAM_TARIFF
+      }
+    ],
+    invitations: [],
+    banner: blocked
+      ? null
+      : {
+          teamId: TEAM_ID,
+          teamName: TEAMS[0]!.name,
+          kind: 'warn_3d',
+          endsOn: TEAM_TARIFF.endsOn,
+          graceUntil: kyivDay(6),
+          daysLeft: 3,
+          updaterRunning: true,
+          planCode: 'lead'
+        },
+    toast: null,
+    showcase
+  };
+}
+
+const ADMIN_TARIFFS = [
+  {
+    id: 'tar-1',
+    ownerEmail: 'dev@wishly.local',
+    ownerId: USER_ID,
+    ownerName: 'Soty Developer',
+    teamId: TEAM_ID,
+    teamName: 'Медіабаїнг',
+    planCode: 'lead',
+    planNameUk: 'Лід',
+    baseSeats: 3,
+    extraSeats: 0,
+    seatsTotal: 3,
+    seatsUsed: 3,
+    pendingInvites: 0,
+    startsAt: ago(60 * 24 * 27),
+    endsOn: kyivDay(3),
+    daysLeft: 3,
+    graceUntil: kyivDay(6),
+    revokedAt: null,
+    state: 'expiring',
+    legacyAlso: false,
+    source: 'manual',
+    externalRef: null,
+    note: 'оплата в Telegram, 30 днів',
+    grantedBy: USER_ID,
+    createdAt: ago(60 * 24 * 27),
+    updatedAt: ago(60 * 24 * 27)
+  },
+  {
+    id: 'tar-2',
+    ownerEmail: 'buyer@example.com',
+    ownerId: null,
+    ownerName: null,
+    teamId: null,
+    teamName: null,
+    planCode: 'solo',
+    planNameUk: 'Соло',
+    baseSeats: 1,
+    extraSeats: 0,
+    seatsTotal: 1,
+    seatsUsed: 0,
+    pendingInvites: 0,
+    startsAt: ago(60 * 24),
+    endsOn: kyivDay(30),
+    daysLeft: 30,
+    graceUntil: kyivDay(33),
+    revokedAt: null,
+    state: 'pending',
+    legacyAlso: false,
+    source: 'manual',
+    externalRef: null,
+    note: null,
+    grantedBy: USER_ID,
+    createdAt: ago(60 * 24),
+    updatedAt: ago(60 * 24)
+  }
+];
+
+const TARIFF_RPC: Record<string, (args: Record<string, unknown>) => unknown> = {
+  get_my_space_access: () => spaceAccess(),
+  get_team_tariff: () => spaceAccess().teams[0]?.tariff ?? null,
+  ack_space_tariff_toast: () => true,
+  join_team_workspace_waitlist: () => true,
+  request_space_owner_nudge: () => ({
+    sent: true,
+    nextAllowedAt: new Date(Date.now() + 86_400_000).toISOString()
+  }),
+  resume_team_catalog_updater: () => true,
+  admin_list_space_tariffs: () => ADMIN_TARIFFS,
+  admin_list_tariff_plans: () => PLANS,
+  admin_list_owner_spaces: () => [
+    { teamId: TEAM_ID, name: 'Медіабаїнг', membersUsed: 3, boundTariffId: 'tar-1' }
+  ],
+  admin_preview_space_tariff: args => ({
+    accountExists: args.p_email === 'dev@wishly.local',
+    ownerName: null,
+    seatsUsed: 0,
+    pendingInvites: 0,
+    suggestedExtraSeats: 0,
+    occupants: []
+  }),
+  admin_grant_space_tariff: args => ({
+    ...ADMIN_TARIFFS[1],
+    id: `tar-${Date.now()}`,
+    ownerEmail: args.p_email,
+    planCode: args.p_plan,
+    endsOn: args.p_ends_on,
+    extraSeats: args.p_extra_seats
+  }),
+  admin_update_space_tariff: args => ({
+    ...ADMIN_TARIFFS[0],
+    planCode: args.p_plan,
+    endsOn: args.p_ends_on,
+    extraSeats: args.p_extra_seats,
+    note: args.p_note
+  }),
+  admin_extend_space_tariff: () => ({
+    ...ADMIN_TARIFFS[0],
+    endsOn: kyivDay(33),
+    daysLeft: 33,
+    state: 'active',
+    eventId: 'evt-extend'
+  }),
+  admin_end_space_tariff: () => ({ ...ADMIN_TARIFFS[0], endsOn: kyivDay(0), daysLeft: 0 }),
+  admin_undo_space_tariff_event: () => ADMIN_TARIFFS[0],
+  admin_list_space_tariff_events: () => [
+    {
+      id: 'evt-1',
+      tariffId: 'tar-1',
+      actorId: USER_ID,
+      actorName: 'Роман',
+      kind: 'granted',
+      before: null,
+      after: { planCode: 'lead', endsOn: kyivDay(3), extraSeats: 0 },
+      createdAt: ago(60 * 24 * 27),
+      undoable: false
+    }
+  ],
+  admin_list_tariff_seats: () =>
+    MEMBERS.map((member, index) => ({
+      userId: member.user_id,
+      invitationId: null,
+      name: member.display_name,
+      email: member.email,
+      role: member.base_role,
+      kind: 'member',
+      isOwner: index === 0,
+      isAdmin: false
+    })),
+  admin_remove_tariff_member: () => true,
+  admin_revoke_tariff_invitation: () => true,
+  admin_list_legacy_spaces: () => [
+    {
+      teamId: '33333333-3333-4333-8333-333333333333',
+      name: 'Старий простір',
+      ownerEmail: 'old@example.com',
+      ownerName: 'Ігор',
+      membersUsed: 4
+    }
+  ],
+  admin_list_space_requests: () => [
+    {
+      userId: 'u-w1',
+      email: 'buyer@example.com',
+      name: null,
+      planInterest: 'solo',
+      channel: 'telegram',
+      createdAt: ago(48),
+      lastContactAt: ago(40),
+      handledAt: null,
+      adminNote: null,
+      hasTariff: true
+    },
+    {
+      userId: 'u-w2',
+      email: 'media@example.com',
+      name: 'Марія',
+      planInterest: 'lead',
+      channel: 'email',
+      createdAt: ago(12),
+      lastContactAt: ago(12),
+      handledAt: null,
+      adminNote: null,
+      hasTariff: false
+    }
+  ],
+  admin_mark_space_request: () => true,
+  admin_get_tariff_settings: () => ({
+    telegram: 'soty_admin',
+    email: 'admin@soty.local',
+    legacyRuleEnabled: true,
+    legacySpacesRemaining: 1
+  }),
+  admin_set_tariff_settings: args => ({
+    telegram: args.p_telegram,
+    email: args.p_email,
+    legacyRuleEnabled: args.p_legacy_rule_enabled,
+    legacySpacesRemaining: 1
+  })
+};
+
+Object.assign(RPC, TARIFF_RPC);
 
 /** Everything an unanswered call should look like: empty, not broken. */
 function fallback(name: string) {

@@ -131,6 +131,12 @@ export const analyticsEventNames = [
   // losses, counted and reported rather than silently dropped (FR-049).
   'tool_ready',
   'analytics_delivery_report',
+  // 034 — space tariffs: the showcase seen, the administrator written to
+  // (`feature_identifier` = plan code, `input_method` = channel), and a tariff
+  // granted from the admin page (`source_kind` = manual | trial | request).
+  'space_showcase_viewed',
+  'space_contact_clicked',
+  'space_tariff_granted',
   ...TEAM_ANALYTICS_EVENT_NAMES
 ] as const;
 

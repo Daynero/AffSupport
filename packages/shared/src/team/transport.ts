@@ -93,7 +93,15 @@ export const TEAM_ERROR_CODES = [
   // must be a code and not a bare `Error`: thrown as one it reached the reader
   // as "something went wrong, try again in a moment", which named neither the
   // file nor anything they could do.
-  'UPLOAD_SESSION_UNAVAILABLE'
+  'UPLOAD_SESSION_UNAVAILABLE',
+  // 034 — space tariffs: seats, a paused space, a space bound to a tariff, the
+  // legacy rule switch and a term in the past.
+  'SEATS_FULL',
+  'SEATS_IN_USE',
+  'SPACE_BLOCKED',
+  'TARIFF_BOUND',
+  'LEGACY_SPACES_REMAIN',
+  'TARIFF_DATE_INVALID'
 ] as const;
 export type TeamErrorCode = (typeof TEAM_ERROR_CODES)[number];
 

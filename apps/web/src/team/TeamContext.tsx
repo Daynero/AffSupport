@@ -10,7 +10,7 @@ import {
   type ReactNode
 } from 'react';
 import type { TeamPermissionFlag, TeamPermissions } from '@video-compressor/shared';
-import type { TeamContextSnapshot } from '../api/team';
+import { requestSpaceAccessRecheck, type TeamContextSnapshot } from '../api/team';
 import { navigateTo, useBrowserRoute } from '../lib/navigation';
 import { buildTeamRoute, teamResolverRoute } from './routes';
 import { useTeamRealtime, type TeamRealtimeState } from './useTeamRealtime';
@@ -76,7 +76,15 @@ export function TeamProvider({
   children: ReactNode;
   initialTeams?: TeamContextSnapshot[];
   loading?: boolean;
-  client?: { listTeams: () => Promise<TeamContextSnapshot[]> };
+  client?: {
+    listTeams: () => Promise<TeamContextSnapshot[]>;
+    /**
+     * 034 — whether a space that just left the list is paused rather than
+     * left. A paused space is still this person's (US6.2): it must never be
+     * explained as "you were removed".
+     */
+    isTeamPaused?: (teamId: string) => Promise<boolean>;
+  };
   realtime?: boolean;
 }) {
   const [teams, setTeams] = useState<TeamContextSnapshot[]>(initialTeams);
@@ -151,7 +159,11 @@ export function TeamProvider({
           teamsRef.current.some(team => team.id === selected) &&
           !nextTeams.some(team => team.id === selected)
         ) {
-          setMembershipLostTeamId(selected);
+          const paused = client.isTeamPaused
+            ? await client.isTeamPaused(selected).catch(() => false)
+            : false;
+          if (paused) requestSpaceAccessRecheck();
+          else setMembershipLostTeamId(selected);
         }
         setTeams(nextTeams);
         setError(null);

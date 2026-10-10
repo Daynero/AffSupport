@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, RefreshCw, Search, X } from 'lucide-react';
 import type {
   CatalogRegistryRow,
@@ -71,9 +71,12 @@ export function CatalogUpdaterDialog({
   preparing = false,
   onClose,
   onChanged,
-  onReveal
+  onReveal,
+  notice
 }: {
   teamId: string;
+  /** 034 — a line above the list: the updater the pause left off, with its switch. */
+  notice?: ReactNode;
   client?: CatalogUpdaterDialogClient;
   /** This tab is preparing a re-stitched copy right now. */
   preparing?: boolean;
@@ -401,6 +404,8 @@ export function CatalogUpdaterDialog({
           {t('catalogUpdaterClose')}
         </Button>
       </header>
+
+      {notice}
 
       <div className="team-updater-toolbar">
         <label className="team-task-picker-search team-updater-search" htmlFor={searchId}>

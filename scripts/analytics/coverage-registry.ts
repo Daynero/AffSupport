@@ -854,6 +854,27 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     source: 'events'
   },
   {
+    id: 'team.tariff',
+    tool: 'team',
+    title: 'Team · space tariff (showcase → contact → granted)',
+    stages: ['showcase', 'contact', 'granted'],
+    stageEvents: {
+      showcase: ['space_showcase_viewed'],
+      contact: ['space_contact_clicked'],
+      granted: ['space_tariff_granted']
+    },
+    start: [{ event: 'space_showcase_viewed', correlate: 'none' }],
+    terminal: [{ event: 'space_tariff_granted', correlate: 'none' }],
+    platforms: BOTH,
+    unobservable: [
+      'the conversation with the administrator outside Soty (Telegram, mail)',
+      'payment, which happens outside the product'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    note: 'The grant is emitted by the administrator’s browser, not the owner’s; the authoritative record is space_tariffs / space_tariff_events.'
+  },
+  {
     id: 'analytics.delivery',
     tool: 'analytics',
     title: 'Analytics · delivery report (rejected / evicted / expired)',

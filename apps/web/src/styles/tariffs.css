@@ -1,0 +1,155 @@
+/*
+ * 034 — space tariffs: the showcase, the paused screen, the banner, the seat
+ * counter and the admin ledger. Every value is a token; layout only.
+ */
+
+.tariff-page {
+  display: grid;
+  gap: var(--space-4);
+  width: min(100%, 860px);
+  margin-inline: auto;
+}
+
+.tariff-showcase-card,
+.tariff-blocked-card {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6);
+}
+
+.tariff-showcase-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.tariff-showcase-art {
+  width: min(100%, 220px);
+  height: auto;
+  border-radius: var(--radius-lg);
+}
+
+.tariff-showcase-title {
+  margin: 0;
+  font-size: var(--text-title);
+}
+
+.tariff-feature-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tariff-feature {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tariff-feature-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: var(--radius-md);
+  background: var(--color-secondary-softer);
+  color: var(--color-secondary-text);
+}
+
+.tariff-showcase-action,
+.tariff-showcase-sent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tariff-showcase-sent p {
+  flex: 1 1 280px;
+  margin: 0;
+}
+
+.tariff-showcase-email {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.tariff-contact-popover {
+  display: grid;
+  gap: var(--space-2);
+  width: min(320px, calc(100vw - var(--space-6)));
+  padding: var(--space-2);
+}
+
+.tariff-contact-message {
+  margin: 0;
+  padding: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.tariff-banner,
+.tariff-updater-notice {
+  margin-block: var(--space-2);
+}
+
+.tariff-updater-notice.is-compact {
+  margin-inline: var(--space-4);
+}
+
+.tariff-seat-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.admin-tabs {
+  margin-bottom: var(--space-4);
+}
+
+.admin-tariff-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.admin-tariff-search {
+  width: min(100%, 280px);
+}
+
+.admin-tariff-note {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-muted);
+}
+
+.admin-tariff-subtitle {
+  margin: 0;
+  font-size: var(--text-section);
+}
+
+.admin-tariff-seats {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-tariff-seat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

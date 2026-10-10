@@ -42,10 +42,13 @@ export function CreateSpaceWizard({
   client,
   resumeTeamId,
   onCancel,
-  onCreated
+  onCreated,
+  heading
 }: {
   client: CreateSpaceWizardClient;
   resumeTeamId: string | null;
+  /** 034 — «Тариф «Лід» діє до … — створіть свій простір», in place of the plain title. */
+  heading?: string;
   onCancel: () => void;
   onCreated: (teamId: string) => void;
 }) {
@@ -131,7 +134,7 @@ export function CreateSpaceWizard({
   return (
     <section className="team-create-wizard" aria-labelledby="team-create-title">
       <header className="team-create-wizard-header">
-        <h1 id="team-create-title">{t('teamCreateSpaceTitle')}</h1>
+        <h1 id="team-create-title">{heading ?? t('teamCreateSpaceTitle')}</h1>
         <p className="team-create-progress" aria-live="polite">
           {t('teamCreateStepProgress', { current: stepNumber, total: 2 })}
         </p>
