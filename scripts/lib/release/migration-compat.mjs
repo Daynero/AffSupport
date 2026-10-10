@@ -101,11 +101,49 @@ export function clientBreakingStatements(sql) {
     problems.push({ reason: `changes the type of column ${match[1]} to ${match[2]}` });
 
   // An insert written by the released client omits the new column, so making it
-  // mandatory turns every one of those inserts into an error.
-  for (const match of text.matchAll(/\balter\s+column\s+([\w$]+)\s+set\s+not\s+null/gu))
+  // mandatory turns every one of those inserts into an error — unless the same
+  // migration fills it on every insert itself, with a BEFORE INSERT trigger whose
+  // function assigns `new.<column>`. Then no insert can reach the constraint empty.
+  const filled = columnsFilledOnInsert(text);
+  for (const match of text.matchAll(
+    /\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([\w.$]+)\s+alter\s+column\s+([\w$]+)\s+set\s+not\s+null/gu
+  )) {
+    if (filled.has(`${unqualified(match[1])}.${match[2]}`)) continue;
+    problems.push({ reason: `makes column ${match[2]} mandatory, which the released client's inserts may omit` });
+  }
+  for (const match of text.matchAll(/,\s*alter\s+column\s+([\w$]+)\s+set\s+not\s+null/gu))
     problems.push({ reason: `makes column ${match[1]} mandatory, which the released client's inserts may omit` });
 
   return problems;
+}
+
+function unqualified(name) {
+  return name.split('.').pop();
+}
+
+/**
+ * `table.column` pairs a BEFORE INSERT row trigger created in this migration
+ * assigns from its own function body, defined in the same migration.
+ *
+ * @param {string} text comment-free, lower-cased migration
+ * @returns {Set<string>}
+ */
+function columnsFilledOnInsert(text) {
+  const filled = new Set();
+  const triggers = text.matchAll(
+    /\bcreate\s+(?:or\s+replace\s+)?trigger\s+[\w$]+\s+before\s+insert\b[^;]*?\bon\s+([\w.$]+)\s+for\s+each\s+row\s+execute\s+(?:function|procedure)\s+([\w.$]+)\s*\(/gu
+  );
+  for (const [, table, fn] of triggers) {
+    const name = fn.replaceAll('.', '\\.').replaceAll('$', '\\$');
+    const body = new RegExp(
+      String.raw`\bcreate\s+(?:or\s+replace\s+)?function\s+${name}\s*\([^)]*\)[\s\S]*?\$(\w*)\$([\s\S]*?)\$\1\$`,
+      'u'
+    ).exec(text);
+    if (!body) continue;
+    for (const assigned of body[2].matchAll(/\binto\s+new\.([\w$]+)|\bnew\.([\w$]+)\s*:=/gu))
+      filled.add(`${unqualified(table)}.${assigned[1] ?? assigned[2]}`);
+  }
+  return filled;
 }
 
 /**

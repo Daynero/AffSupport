@@ -75,6 +75,35 @@ describe('what a migration does to a client that has not updated', () => {
     ).toEqual(["makes column occurred_at mandatory, which the released client's inserts may omit"]);
   });
 
+  it('lets a column through that a BEFORE INSERT trigger of the same migration fills', () => {
+    const fill = (table: string, assign: string) => `
+      alter table public.links add column account_id uuid;
+      alter table public.links alter column account_id set not null;
+      create function private.fill_link() returns trigger language plpgsql as $$ begin
+        ${assign}
+        return new;
+      end $$;
+      create trigger fill_link before insert or update on ${table}
+        for each row execute function private.fill_link();`;
+    expect(
+      clientBreakingStatements(
+        fill('public.links', 'select a.id into new.account_id from public.accounts a;')
+      )
+    ).toEqual([]);
+    expect(
+      clientBreakingStatements(fill('public.links', 'new.account_id := gen_random_uuid();'))
+    ).toEqual([]);
+    // A trigger on another table, or one that never sets the column, fills nothing here.
+    expect(
+      clientBreakingStatements(
+        fill('public.other', 'select a.id into new.account_id from public.accounts a;')
+      ).map(problem => problem.reason)
+    ).toEqual(["makes column account_id mandatory, which the released client's inserts may omit"]);
+    expect(
+      clientBreakingStatements(fill('public.links', 'perform 1;')).map(problem => problem.reason)
+    ).toEqual(["makes column account_id mandatory, which the released client's inserts may omit"]);
+  });
+
   it('ignores a drop that is only mentioned in a comment', () => {
     expect(stripComments('-- drop table public.profiles;\nselect 1;')).not.toContain('drop table');
     expect(clientBreakingStatements('-- drop table public.profiles;\nselect 1;')).toEqual([]);
