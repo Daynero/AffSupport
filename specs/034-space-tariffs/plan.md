@@ -1,164 +1,127 @@
 # План реалізації: тарифи на простір
 
-**Специфікація**: [spec.md](./spec.md) · **Гілка**: `beta` (робота в основній лінії, як 026–033)
+**Специфікація**: [spec.md](./spec.md) · **Гілка**: `beta`
 
 ## Підсумок
 
-Доступ до простору перестає залежати від «у просторі є учасник-адмін» і починає залежати від тарифу власника. Тариф —
-запис про період у базі; каталог тарифів — дані. Уся перевірка — у Postgres (одна функція стану, через яку проходять
-`private.can`, лобі, запрошення й фонові воркери). Веб лише показує стан, який повертає сервер. Листи — новий edge
-function `tariff-notices` на тому ж Resend, що й запрошення; запускається з cron без нового секрету.
+Доступ до простору залежить від тарифу простору (або внутрішнього статусу простору адміністратора, або старого правила,
+доки воно ввімкнене). Тариф — запис про період; каталог тарифів — дані. Перевірка — у Postgres: дешева SQL-функція
+`private.team_workspace_allowed`, через яку проходять `private.can`, `private.team_role`, лобі, запрошення й фонові claim-и.
+Стан для людей рахує `private.space_tariff_state`. Листи — edge function `tariff-notices` на тому ж Resend, що й запрошення,
+запускається cron-ом без нового секрету.
 
 ## Технічний контекст
 
-- **Стек**: Postgres (Supabase) + PL/pgSQL, Deno edge functions, React 19 + HeroUI v3 (інвентар `components/ui`), shared
-  TypeScript (`packages/shared`), vitest + PGlite (`tests/support/team-db.ts`).
-- **Обмеження**: секрети не записуємо (повторно використовуємо `wishly_catalog_sync_secret` і похідну URL, як
-  `private.catalog_updater_endpoint`); жодних `db reset`; слабка машина — тести по одному файлу, single-worker.
-- **Сумісність**: стара веб-збірка має працювати з новою базою (сигнатури наявних RPC не ламаємо; `can_access_team_workspace`
-  лишається boolean; нові поля — лише додаткові).
-- **Час**: строк — `ends_on date`; кінець = початок наступної доби за `Europe/Kyiv`; пільга = +3 доби. Уся арифметика — у SQL.
+- Postgres (Supabase) + PL/pgSQL, Deno edge functions, React 19 + HeroUI v3 (`components/ui`), `packages/shared`,
+  vitest + PGlite (`tests/support/team-db.ts` — застосовує всі міграції за іменем).
+- Секрети не записуємо: URL edge function — похідна від `wishly_catalog_sync_url` (як `private.catalog_updater_endpoint`),
+  секрет — `wishly_catalog_sync_secret` / `CATALOG_SYNC_SECRET`, заголовок `x-catalog-sync-secret`.
+- Стара веб-збірка працює з новою базою: сигнатури й типи наявних RPC не змінюються (`list_my_teams`,
+  `can_access_team_workspace` — ті самі); нове — лише нові RPC і нові необов'язкові поля.
+- `citext` пишемо як `extensions.citext`. Часовий пояс `Europe/Kyiv` (перевірити наявність у PGlite; запасний — `Europe/Kiev`).
 
-## Рішення (research)
+## Рішення
 
-- **R1 — одна функція стану.** `private.space_tariff_state(p_team uuid)` повертає рядок: `state`
-  (`active|expiring|grace|blocked|legacy|none`), `plan_code`, `seats_total`, `seats_used`, `ends_at`, `grace_until`,
-  `days_left`, `features text[]`, `tariff_id`. Усе інше читає її, тож немає двох способів порахувати «скільки лишилось».
-- **R2 — прив'язка тарифу до простору.** Тариф має `team_id` (nullable). Видача на пошту власника, який має рівно один
-  власний активний простір, прив'язує одразу; без простору — прив'язується при `create_team`; кілька власних просторів
-  (старі) — адміністратор вибирає простір у діалозі видачі.
-- **R3 — пошта без акаунта.** `owner_email citext` + `owner_id uuid null`. Збіг — за підтвердженою поштою
-  (`private.team_confirmed_email`). `owner_id` заповнюється ліниво першим викликом `get_my_space_access()`; тригер на
-  `auth.users` не чіпаємо.
-- **R4 — старе правило паралельно.** Налаштування `legacy_rule_enabled` (за замовчуванням `true`). Доступ =
-  `tariff in (active, expiring, grace)` **або** (`legacy_rule_enabled` **і** старе правило). Тести, що спираються на
-  «власник = адмін», лишаються зеленими без змін.
-- **R5 — місця.** `seats_used = активні учасники + pending-запрошення, що не прострочені`. Перевірка в `create_invitation`,
-  `resend_invitation` (лише якщо запрошення вже прострочене), `accept_invitation` (активні учасники ≤ місць),
-  `service_direct_add_registered_member`. Новий код помилки `SEATS_FULL` (додати в `TEAM_ERROR_CODES`). Простори лише на
-  старому правилі зберігають наявну межу 50.
-- **R6 — блокування фону.** Фільтр «простір доступний» у: `service_open_catalog_updater_rounds` і claim оновлювача,
-  `private.claim_catalog_sync_jobs` і `private.invoke_catalog_sync_worker`, `service_claim_preview_warm`; ручні resync-RPC
-  (`request_team_catalog_resync`, `request_team_folder_resync`) отримують явну перевірку. Підготовка копій і операції
-  агента вже йдуть через `private.can` — закриваються автоматично. Плюс періодичний `private.apply_tariff_blocks()`: для
-  заблокованих просторів зупиняє оновлювач (`state='stopped'`, `stopped_by_tariff_at=now()`, `retire_restitch_spares`).
-- **R7 — відновлення.** Продовження/нова видача відкриває одразу (стан рахується на льоту). Оновлювач не вмикається сам;
-  `stopped_by_tariff_at` лишається, і власник бачить пропозицію «увімкнути знову»; увімкнення його скидає.
-- **R8 — попередження.** `private.queue_tariff_notices()` (cron щогодини) створює рядки `space_tariff_notices` з унікальністю
-  `(tariff_id, kind, period_end)` — продовження змінює `period_end`, тож старі попередження не дублюються й не
-  надсилаються за новий строк. Потім — `net.http_post` на `tariff-notices` з тим самим секретом воркерів. Edge function
-  бере pending-листи через service-RPC, шле Resend, позначає `sent/failed` (до 3 спроб). Банер не залежить від листа:
-  він приходить з `get_my_space_access()`.
-- **R9 — лобі й заблокований простір.** `list_my_teams` повертає й заблоковані простори з полем `access_state`, щоб веб
-  показав екран «доступ призупинено», а не «вас видалили». Зміна типу повернення — `drop function` + `create`.
-- **R10 — вітрина.** `get_my_space_access()` повертає `mode`: `workspace` (є доступний простір або можна створити),
-  `blocked` (є простори, усі заблоковані), `showcase` (нічого немає). Для `showcase` — каталог тарифів з `showcase=true`,
-  контакт адміністратора, чи людина в списку очікування, її пошта.
-- **R11 — `profiles.plan`.** Наявне поле `free|pro|team` не використовується для доступу; не чіпаємо й не плутаємо з тарифами.
-  Слово «entitlement» зайняте токеном агента — у коді тарифів не вживаємо.
-- **R12 — масштабування (US8).** `tariff_plans` — каталог (код, назви, базові місця, запрошення, докупівля, можливості,
-  порядок, вітрина, активний). `space_tariffs.source` (`manual` зараз). Майбутня оплата додасть джерело й процес видачі,
-  а не нову перевірку доступу.
+- **R1 Стан.** `private.space_tariff_state(p_team uuid, p_at timestamptz default now())` → `state`
+  (`internal|legacy|active|expiring|grace|blocked|none`), `tariff_id`, `plan_code`, `seats_total`, `seats_used`, `ends_on`,
+  `ends_at`, `grace_until`, `days_left`. `ends_at = private.kyiv_day_end(ends_on)`, `grace_until = kyiv_day_end(ends_on+3)`,
+  `days_left = ends_on - (p_at at time zone 'Europe/Kyiv')::date`. `expiring` — `days_left ≤ 3`. Відкликано
+  (`revoked_at ≤ p_at`) → `blocked`. Порядок: `internal` (власник у `admin_users`) → тариф діє/після строку →
+  `legacy` (правило ввімкнене й виконується) → `blocked` (є прив'язаний тариф, що минув чи відкликаний) → `none`.
+  Стан `legacy` має пріоритет над `expiring/grace` для попереджень (US2.2): якщо старе правило ввімкнене й виконується,
+  попереджень немає.
+- **R2 Шлюз.** `private.team_workspace_allowed(p_team)` — `language sql stable`, лише індексні пошуки: команда активна і
+  (власник — адмін; або є тариф з `team_id`, не відкликаний, `now() < kyiv_day_end(ends_on+3)`; або налаштування
+  `legacy_rule_enabled` і є активний учасник-адмін). `private.team_role` повертає `null`, якщо простір недоступний (одна
+  точка для всіх функцій на `team_role`); `leave_team` і `delete_draft_team` перевіряють членство напряму й лишаються.
+- **R3 Власник і прив'язка.** `space_tariffs.owner_email extensions.citext`, `owner_id uuid null`, `claimed_at`.
+  `private.claim_space_tariffs(user)` ставить `owner_id` для рядків з `owner_id is null and claimed_at is null`, де пошта
+  збігається з `private.team_confirmed_email(user)`. Викликається з `get_my_space_access`, `can_access_team_workspace`,
+  `create_team`. Видалення профілю власника (`owner_id` → set null тригером) — відкликає тариф. Прив'язка до простору
+  (`team_id`) — явно: адмін вибирає простір у діалозі видачі (підставлено, якщо власний простір один); без простору —
+  `create_team` прив'язує перший чинний неприв'язаний тариф власника.
+- **R4 Унікальність.** `unique(team_id) where revoked_at is null and team_id is not null`; неприв'язаний чинний тариф —
+  не більше одного на пошту (`unique(lower(owner_email)) where revoked_at is null and team_id is null`).
+- **R5 Місця.** `private.team_seats_total(team)` (базові + додаткові з тарифу; внутрішній чи лише legacy — 50),
+  `private.team_seats_used(team)` = активні учасники без `admin_users` + `team_invitations` `state='pending' and
+expires_at > now()`. Перевірки (`SEATS_FULL`): `create_invitation`; `resend_invitation` лише коли `expires_at <= now()`;
+  `accept_invitation` — активні учасники (без адмінів) `< seats_total` (поточне запрошення не рахуємо; рядок команди вже
+  блокується); `service_direct_add_registered_member`. Запрошувати можна, якщо `invites_allowed or seats_total > 1`.
+  `admin_grant_space_tariff` і `admin_update_space_tariff` відмовляють `SEATS_IN_USE`, якщо місць менше за зайняті;
+  `admin_preview_space_tariff` повертає зайнятих і рекомендовані додаткові місця.
+- **R6 Фон.** Фільтр `private.team_workspace_allowed` у: `service_open_catalog_updater_rounds`,
+  `private.claim_catalog_updater_items`, `private.claim_catalog_sync_jobs` (+ `private.invoke_catalog_sync_worker`),
+  `service_claim_preview_warm`, `service_claim_archive_inspections`, `service_claim_retired_restitch_copies`,
+  `service_claim_orphan_cleanups`; `sweep_catalog_sync_orphans` пропускає недоступні простори. Ручні resync —
+  через `team_role` (R2). Restitch-claim і операції агента — через `private.can`.
+- **R7 Пауза оновлювача.** `team_catalog_updater_items.paused_interval interval` + `team_catalog_updaters.paused_by_tariff_at`.
+  `private.apply_tariff_pauses()` (cron кожні 10 хв, а також при відкликанні «зараз»): для недоступних просторів переносить
+  `update_interval → paused_interval`, ставить `update_interval = null`, `paused_by_tariff_at = now()`, викликає
+  `private.sync_catalog_updater`. Копії не видаляються. `resume_team_catalog_updater(p_team)` (керування оновлювачем,
+  простір доступний): повертає інтервали, `next_run_at = now()`, скидає позначку. `set_team_catalog_update_interval` і
+  `run_team_catalog_update_now` теж скидають позначку для свого каталогу.
+- **R8 Відновлення синхронізації.** Перехід недоступний → доступний (видача/продовження/скасування відкликання) ставить
+  одну звірку `service_enqueue_catalog_reconciliation` для підключення простору.
+- **R9 Попередження.** `space_tariff_notices (tariff_id, kind, period_end, state pending|sent|failed|superseded|skipped)`.
+  Види: `warn_3d`, `warn_1d`, `grace`, `blocked`, `granted`, `renewed`, `member_nudge`. `private.queue_tariff_notices(p_at)`
+  (cron щогодини): для тарифів зі станом не `legacy/internal` створює лише актуальний вид для поточного `ends_on`
+  (`unique(tariff_id, kind, period_end)`), старіші непослані того ж строку → `superseded`. `granted/renewed` — з адмін-RPC
+  за прапорцем «Повідомити листом». `member_nudge` — `request_space_owner_nudge(team)`, не частіше разу на добу на простір.
+  `service_claim_tariff_notices(p_limit)` повторно звіряє `period_end = ends_on` і стан (інакше `superseded`), повертає
+  отримувача (пошта власника, мова з профілю), назву простору, дати, тариф, контакт, `updaterRunning`.
+  `service_finish_tariff_notice(id, sent, error)` — до 3 спроб. `private.invoke_tariff_notices()` — `net.http_post` при
+  наявності pending.
+- **R10 Доступ для вебу.** `get_my_space_access()` → `{ mode: workspace|blocked|showcase, canCreate, teams:[{teamId, name,
+role, accessState, ownerName}], invitations:[{token?, teamName, inviterName, role}], tariffs:[…для простору/без
+простору], banner, toast, showcase:{plans, contact, request, email} }`. `blocked` — лише якщо в людини є простір із
+  прив'язаним тарифом, що минув чи відкликаний; інакше `showcase`. `list_my_teams` не змінюється (недоступні простори з
+  нього зникають) — новий веб бере призупинені простори з `get_my_space_access.teams`.
+- **R11 Заявки.** `team_workspace_waitlist` + `plan_interest`, `channel`, `last_contact_at`, `handled_at`, `admin_note`.
+  `join_team_workspace_waitlist(p_plan text default null, p_channel text default null)` — нова сигнатура поруч зі старою
+  (стара викликає нову).
+- **R12 Передача власності.** `transfer_ownership` → `TARIFF_BOUND`, якщо на простір прив'язано чинний тариф.
+- **R13 Каталог.** `tariff_plans(code, name_uk, name_en, summary_uk, summary_en, base_seats, invites_allowed,
+extra_seats_allowed, max_extra_seats, billing_period, highlight, features, showcase, sort_order, active)`; seed solo/lead.
+  `space_tariffs.source in ('manual','trial')`, `external_ref`, `note`.
+- **R14 Налаштування.** `tariff_settings(admin_telegram, admin_email, legacy_rule_enabled)`; Telegram — `^[A-Za-z0-9_]{5,32}$`,
+  пошта — валідна; зміни — у `tariff_settings_events`.
+- **R15 Нові коди помилок** у `TEAM_ERROR_CODES`: `SEATS_FULL`, `SEATS_IN_USE`, `SPACE_BLOCKED`, `TARIFF_BOUND`,
+  `LEGACY_SPACES_REMAIN`, `TARIFF_DATE_INVALID`.
 
-## Модель даних
+## Контракти адмін-RPC (`is_admin()`)
 
-```
-public.tariff_plans (
-  code text primary key check (code ~ '^[a-z][a-z0-9_]{1,31}$'),
-  name_uk text not null, name_en text not null,
-  summary_uk text not null, summary_en text not null,
-  base_seats int not null check (base_seats between 1 and 500),
-  invites_allowed boolean not null,
-  extra_seats_allowed boolean not null,
-  features text[] not null default '{}',
-  showcase boolean not null default true,
-  sort_order int not null default 0,
-  active boolean not null default true
-)  -- seed: solo (1, false, true), lead (3, true, true)
-
-public.space_tariffs (
-  id uuid pk default gen_random_uuid(),
-  owner_email citext not null,
-  owner_id uuid null references profiles(id) on delete set null,
-  team_id uuid null references teams(id) on delete set null,
-  plan_code text not null references tariff_plans(code),
-  extra_seats int not null default 0 check (extra_seats between 0 and 500),
-  starts_at timestamptz not null default now(),
-  ends_on date not null,
-  revoked_at timestamptz null,
-  source text not null default 'manual' check (source in ('manual')),
-  granted_by uuid not null, created_at, updated_at
-)
-unique (lower(owner_email)) where revoked_at is null      -- один чинний тариф на власника
-unique (team_id) where revoked_at is null and team_id is not null
-
-public.space_tariff_events (id, tariff_id, actor_id, kind, before jsonb, after jsonb, created_at)
-public.space_tariff_notices (id, tariff_id, kind check in ('warn_3d','warn_1d','grace','blocked'),
-  period_end date, state check in ('pending','sent','failed'), attempts int, last_error text,
-  created_at, sent_at, unique (tariff_id, kind, period_end))
-public.tariff_settings (id boolean pk default true check (id), admin_contact text, legacy_rule_enabled boolean default true)
-alter table team_catalog_updaters add column stopped_by_tariff_at timestamptz
-```
-
-Усі таблиці: RLS увімкнено й примусово, `revoke all` від `anon, authenticated`; читання й запис — лише через функції.
-
-## Контракти (RPC)
-
-Клієнт (authenticated):
-
-- `get_my_space_access() → jsonb` — `{ mode, canCreate, teams:[{teamId, name, role, accessState}], tariff: {planCode,
-planName, state, endsOn, endsAt, graceUntil, daysLeft, seatsTotal, seatsUsed, invitesAllowed} | null, banner:
-{kind, endsAt, graceUntil, updaterRunning} | null, showcase: {plans:[…], adminContact, waitlisted, email} | null }`.
-  Банер — лише власнику для `warn_3d|warn_1d|grace`; `blocked` — усім учасникам.
-- `get_team_tariff(p_team) → jsonb` — стан для простору (учасникам: лише `state`, `seatsTotal`, `seatsUsed`,
-  `invitesAllowed`; власнику — усе з R1) + `updaterStoppedByTariff`.
-- `can_access_team_workspace() → boolean` — без зміни сигнатури, нова логіка.
-- `list_my_teams()` — додає `access_state`.
-
-Адміністратор (`is_admin()`):
-
-- `admin_list_space_tariffs() → setof jsonb` — з `state`, `daysLeft`, `seatsUsed/Total`, власник, простір, джерело.
-- `admin_grant_space_tariff(p_email, p_plan, p_ends_on, p_extra_seats, p_team default null) → jsonb`
-- `admin_update_space_tariff(p_id, p_plan, p_ends_on, p_extra_seats) → jsonb` — не нижче зайнятих місць (`SEATS_IN_USE`).
-- `admin_revoke_space_tariff(p_id) → jsonb`
-- `admin_list_space_tariff_events(p_id) → setof jsonb`
-- `admin_list_tariff_members(p_team) → setof jsonb`, `admin_remove_tariff_member(p_team, p_user) → boolean`
-- `admin_list_legacy_spaces() → setof jsonb` — простори, відкриті лише старим правилом.
-- `admin_get_tariff_settings() / admin_set_tariff_settings(p_admin_contact, p_legacy_rule_enabled)` — вимкнення старого
-  правила відмовляє, доки є простори лише на ньому (`LEGACY_SPACES_REMAIN`), якщо не передано явне підтвердження.
-- `admin_list_tariff_plans()`.
-
-Сервіс (service_role): `service_claim_tariff_notices(p_limit)`, `service_finish_tariff_notice(p_id, p_sent, p_error)`.
-
-Edge function `tariff-notices` (verify_jwt=false, `x-catalog-sync-secret`): бере листи, будує текст (uk+en, як
-запрошення), шле через спільний `_shared/email.ts` (винести з `team-invitations/email.ts`), фіксує результат.
+`admin_list_space_tariffs()`, `admin_preview_space_tariff(p_email, p_team)`, `admin_grant_space_tariff(p_email, p_plan,
+p_ends_on, p_extra_seats, p_team, p_note, p_external_ref, p_notify)`, `admin_update_space_tariff(p_id, p_plan, p_ends_on,
+p_extra_seats, p_note, p_external_ref)`, `admin_extend_space_tariff(p_id, p_months, p_notify)`,
+`admin_end_space_tariff(p_id, p_now boolean)` (відкликання: сьогодні / зараз), `admin_undo_space_tariff_event(p_event)`,
+`admin_list_space_tariff_events(p_id)`, `admin_list_tariff_seats(p_team)`, `admin_remove_tariff_member(p_team, p_user)`
+(не власника; пише `record_team_audit`), `admin_revoke_tariff_invitation(p_invitation)`, `admin_list_legacy_spaces()`,
+`admin_list_owner_spaces(p_email)`, `admin_list_space_requests()`, `admin_mark_space_request(p_user, p_handled, p_note)`,
+`admin_get_tariff_settings()`, `admin_set_tariff_settings(p_telegram, p_email, p_legacy_rule_enabled, p_confirm)`,
+`admin_list_tariff_plans()`.
 
 ## Веб
 
-- `packages/shared/src/team/tariffs.ts` — типи й парсери відповідей (`parseSpaceAccess`, `parseTeamTariff`, `parseAdminTariff`).
-- `apps/web/src/api/team.ts` — обгортки RPC.
-- `TeamSpace.tsx` — замість модалки «список очікування» — `SpaceShowcase` (US7) для `showcase`, `SpaceBlocked` для `blocked`;
-  `MembershipLostNotice` не показується для заблокованого простору.
-- `WorkspaceShell.tsx` — `TariffBanner` між шапкою й вкладками (Alert warning/error, дія «Написати адміністратору»).
-- `InvitationPanel.tsx` — «Місць: N з M», недоступність із поясненням; `SEATS_FULL` → зрозумілий текст.
-- Оновлювач каталогів — пропозиція «увімкнути знову», коли `updaterStoppedByTariff`.
-- `AdminPage.tsx` — картка «Тарифи»: таблиця (стан, днів лишилось, місця), фільтр «закінчуються за 3 дні», діалоги
-  «Видати», «Змінити», «Відкликати», журнал, учасники тарифу, «Простори на старому правилі», контакт і перемикач.
-- i18n uk+en; токени й компоненти лише з дизайн-системи.
+- `packages/shared/src/team/tariffs.ts` — типи й парсери; коди помилок.
+- `api/team.ts` — обгортки; `database.types.ts`, `dev/mock-supabase.ts`.
+- `team/tariffs/useSpaceAccess.ts` — опитування `get_my_space_access` (5 с на вітрині/призупиненні, при фокусі, після
+  `PERMISSION_DENIED`).
+- `team/tariffs/SpaceShowcase.tsx` (сторінка, запрошення зверху, контакт-попап), `SpaceBlocked.tsx`, `TariffBanner.tsx`,
+  `contactAdmin.ts` (посилання Telegram/mailto/текст), `SpaceTariffSection.tsx` (налаштування), `UpdaterResumeNotice.tsx`.
+- `TeamSpace.tsx` — режими showcase/blocked замість модалки; `TeamContext` не показує «вас видалили» для призупиненого.
+- `InvitationPanel.tsx` — лічильник і пояснення замість форми.
+- `HomePage.tsx` — нова плитка, позначки власнику, без пожертви на шляху до простору.
+- `AdminPage.tsx` — вкладки «Тарифи» | «Аналітика»; `pages/admin/Tariffs*.tsx`.
+- i18n uk+en; лише токени й компоненти дизайн-системи.
 
 ## Розгортання
 
-1. Міграція (стара логіка лишається ввімкненою → для всіх нічого не змінюється).
-2. Edge function `tariff-notices` + `team-invitations` (спільний email-модуль).
-3. Веб.
-4. Адміністратор видає тарифи наявним власникам; коли список «на старому правилі» порожній — вимикає старе правило.
+Міграція (старе правило ввімкнене → змін для людей немає) → edge functions (`tariff-notices`, `team-invitations`) →
+веб → адміністратор переводить простори → вимикає старе правило.
 
 ## Тести
 
-- `tests/space-tariffs-sql.test.ts` (PGlite): стан і час (Kyiv, пільга, відкликання), доступ і `private.can`, старе
-  правило та його вимкнення, місця в запрошеннях/прийнятті/direct-add, `create_team` для власника тарифу, лінива
-  прив'язка пошти, `list_my_teams.access_state`, адмін-RPC і журнал, `SEATS_IN_USE`, блокування фону (фільтри claim,
-  `apply_tariff_blocks`), черга попереджень без дублів і з урахуванням продовження.
-- `tests/tariff-notices.test.ts` — edge handler з підставними залежностями (секрет, відправка, повтори).
-- `tests/space-tariffs-contract.test.ts` — парсери shared.
-- UI-тести не пишемо (рішення власника); перевірка інтерфейсу — на беті.
+`tests/space-tariffs-sql.test.ts` (стан і дати, шлюз і `team_role`, старе правило, внутрішні простори, місця, прив'язка,
+`create_team`, передача власності, адмін-RPC і журнал, пауза й відновлення оновлювача, фільтри claim-ів, попередження),
+`tests/tariff-notices.test.ts` (edge handler), `tests/space-tariffs-contract.test.ts` (парсери). Наявні SQL-тести мають
+лишитися зеленими без змін (старе правило ввімкнене за замовчуванням). UI-тести не пишемо.
