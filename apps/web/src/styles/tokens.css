@@ -362,6 +362,14 @@
      a hung request look identical. */
   --motion-spin: 700ms;
   --motion-spin-reduced: 1200ms;
+  /* The same exception for a skeleton's sheen: a slow, soft pass that says
+     "coming" — at a transition's speed it read as a nervous blink. */
+  --motion-sheen: 1600ms;
+
+  /* Not a motion but a wait: how long something may take before the screen
+     says it is still coming. Under it a quiet holder is enough, and a sentence
+     that flashes for a moment reads as a flicker. */
+  --delay-patience: 1200ms;
 
   /* ---- Layers -------------------------------------------------------------
      One ladder, in the order things actually sit. Two rules decide the top of

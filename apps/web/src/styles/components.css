@@ -1268,14 +1268,18 @@
 .ui-skeleton {
   display: block;
   border-radius: var(--radius-sm);
+  /* One soft highlight on a still ground, travelling slowly across: the
+     ground holds most of the width, so the bar never flashes as a whole. */
   background: linear-gradient(
     90deg,
     var(--color-neutral-surface-muted) 0%,
+    var(--color-neutral-surface-muted) 35%,
     var(--color-neutral-surface-subtle) 50%,
+    var(--color-neutral-surface-muted) 65%,
     var(--color-neutral-surface-muted) 100%
   );
-  background-size: 200% 100%;
-  animation: ui-skeleton-sheen var(--motion-slow) var(--ease-linear) infinite;
+  background-size: 300% 100%;
+  animation: ui-skeleton-sheen var(--motion-sheen) var(--ease-in-out-curve) infinite;
 }
 .ui-skeleton--text {
   height: 12px;
@@ -1296,10 +1300,10 @@
 }
 @keyframes ui-skeleton-sheen {
   from {
-    background-position: 200% 0;
+    background-position: 100% 0;
   }
   to {
-    background-position: -200% 0;
+    background-position: 0% 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2677,7 +2681,7 @@
 }
 .finance-daily-header {
   position: sticky;
-  top: var(--topbar-h, 62px);
+  top: calc(var(--topbar-h, 62px) + var(--team-accounts-sticky-height, 0px));
   z-index: var(--layer-sticky);
   background: var(--color-surface);
 }
@@ -2798,4 +2802,18 @@
   display: flex;
   justify-content: center;
   margin-top: var(--space-2);
+}
+
+/* A picture fades in over its holder once decoded. */
+.ui-fade-image {
+  opacity: 0;
+  transition: opacity var(--dur-section) var(--ease-standard);
+}
+.ui-fade-image[data-loaded] {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-fade-image {
+    transition: none;
+  }
 }

@@ -113,6 +113,7 @@ export function parseSupportAmountInput(value: string): number | null {
   return Number.isSafeInteger(cents) && cents >= 0 && cents <= maximumCents ? cents : null;
 }
 
+/** Fractions are shown with a comma; `parseSupportAmountInput` reads either. */
 export function supportAmountInputValue(cents: number): string {
-  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
+  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2).replace('.', ',');
 }

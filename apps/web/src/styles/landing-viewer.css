@@ -952,25 +952,22 @@
 .lv-stage.is-skeleton {
   width: min(100%, 1100px);
   min-height: 70vh;
-  background: color-mix(in oklab, var(--color-surface) 70%, var(--lv-stage));
-  animation: lv-breathe 1.6s ease-in-out infinite;
-}
-
-@keyframes lv-breathe {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-
-  50% {
-    opacity: 0.9;
-  }
+  /* The inventory's skeleton sheen, so a loading page moves the same way everywhere. */
+  background: linear-gradient(
+    90deg,
+    var(--color-neutral-surface-muted) 0%,
+    var(--color-neutral-surface-muted) 35%,
+    var(--color-neutral-surface-subtle) 50%,
+    var(--color-neutral-surface-muted) 65%,
+    var(--color-neutral-surface-muted) 100%
+  );
+  background-size: 300% 100%;
+  animation: ui-skeleton-sheen var(--motion-sheen) var(--ease-in-out-curve) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lv-stage.is-skeleton {
     animation: none;
-    opacity: 0.7;
   }
 }
 

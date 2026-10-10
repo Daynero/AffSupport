@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { formatFinanceAmount } from './formatFinanceAmount';
+import { financeDecimalComma, formatFinanceAmount } from './formatFinanceAmount';
 import { financeMoney, parseFinanceMoney } from '@video-compressor/shared';
 import {
   Button,
@@ -128,7 +128,7 @@ export function LegacyFinanceReview({
           value={value}
           disabled={busy}
           onChange={e => {
-            setValue(e.target.value);
+            setValue(financeDecimalComma(e.target.value));
             setRequest(crypto.randomUUID());
           }}
         />

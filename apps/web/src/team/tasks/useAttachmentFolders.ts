@@ -30,6 +30,8 @@ export function useAttachmentFolders({
   client: AttachmentFoldersClient;
 }) {
   const [parents, setParents] = useState<Map<string, string | null>>(new Map());
+  /** The attachment set the parents were last read for, failed reads included. */
+  const [settledKey, setSettledKey] = useState<string | null>(null);
   const [tree, setTree] = useState<TeamFolderNode[]>([]);
 
   useEffect(() => {
@@ -39,7 +41,10 @@ export function useAttachmentFolders({
       .then(value => {
         if (active) setParents(value);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setSettledKey(`${teamId}:${taskId}:${materialKey}`);
+      });
     return () => {
       active = false;
     };
@@ -61,6 +66,8 @@ export function useAttachmentFolders({
   const folders = indexFolders(tree);
   return {
     folders,
+    /** Whether the paths for the current set of files are known (or known to be unavailable). */
+    settled: settledKey === `${teamId}:${taskId}:${materialKey}`,
     parentOf: (materialId: string) => parents.get(materialId),
     pathOf: (materialId: string) =>
       parents.has(materialId) ? folderPathLabel(parents.get(materialId), folders, rootLabel) : null,

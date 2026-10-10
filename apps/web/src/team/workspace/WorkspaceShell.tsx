@@ -626,6 +626,27 @@ export function WorkspaceShell({
     [can, notifyStateChanged, push, t, teamId]
   );
 
+  /* The chrome sticks with only its tab strip showing: everything above the
+     strip slides under the topbar, and each section's own sticky header sits
+     below the strip. Both lengths are measured, since the header wraps. */
+  const chromeObserver = useRef<ResizeObserver | null>(null);
+  const chromeRef = useCallback((chrome: HTMLDivElement | null) => {
+    chromeObserver.current?.disconnect();
+    chromeObserver.current = null;
+    const shell = chrome?.parentElement;
+    const tabs = chrome?.querySelector<HTMLElement>('.team-space-tabs');
+    if (!chrome || !shell || !tabs) return;
+    const measure = () => {
+      const hidden = tabs.offsetTop;
+      shell.style.setProperty('--team-space-chrome-hidden', `${hidden}px`);
+      shell.style.setProperty('--team-space-tabs-bar', `${chrome.offsetHeight - hidden}px`);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    chromeObserver.current = new ResizeObserver(measure);
+    chromeObserver.current.observe(chrome);
+  }, []);
+
   return (
     /* The batch belongs to the space, not to the window that started it: this
        provider is mounted for as long as the space is open, and only leaving it
@@ -664,7 +685,7 @@ export function WorkspaceShell({
                 {/* The space's chrome on its own ground (024, US14): the name, the
                 sections and the utilities sat straight on the hexagon field,
                 and a lit cell swallowed whatever crossed it. */}
-                <div className="team-space-shell-chrome">
+                <div ref={chromeRef} className="team-space-shell-chrome">
                   <header className="team-space-shell-header">
                     <div className="team-space-shell-identity">
                       <SpaceSwitcher

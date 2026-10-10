@@ -43,7 +43,7 @@ export interface TaskActionHandlers {
   copyLink?: () => void;
   /** Write a patch to every task in the set. */
   patch: (patch: { status?: TeamTaskStatus; assigneeId?: string | null }) => void;
-  /** Hang one tag on every task in the set. */
+  /** One task: put the tag on or take it off. A set: hang it on every task. */
   tag?: (label: TeamTaskLabel) => void;
   /** Remove them, with the undo the toast carries. */
   remove?: () => void;
@@ -109,6 +109,8 @@ export function useTaskActions({
           label: label.name,
           icon: <Tag size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
           checked: single ? single.labels.some(item => item.id === label.id) : undefined,
+          // The next tag is one press away, not one more opening of the menu.
+          keepOpen: true,
           onSelect: () => handlers.tag?.(label)
         });
       }

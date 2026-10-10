@@ -257,7 +257,8 @@ export function TaskCard({
               open={menuOpen}
               onClose={() => setMenuOpen(false)}
               anchor={menuAnchor}
-              placement="bottom-end"
+              /* Beside the "…", so the whole menu shows when the window is tall enough. */
+              placement="start-top"
               selection="single"
               items={menuItems}
               label={t('teamTaskCardActions', { name: task.title })}

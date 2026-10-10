@@ -469,6 +469,11 @@ export interface MenuItem {
    * command, and carries a tick.
    */
   checked?: boolean;
+  /**
+   * Choosing it leaves the menu open, whatever the menu's own rule: a tag is
+   * put on or taken off and the reader goes on to the next one.
+   */
+  keepOpen?: boolean;
   onSelect: () => void;
 }
 
@@ -488,7 +493,12 @@ export interface DropdownMenuProps {
   onClose: () => void;
   items: ReadonlyArray<MenuEntry>;
   anchor?: RefObject<HTMLElement | null>;
-  placement?: PopoverProps['placement'];
+  /**
+   * `start-top` opens beside the trigger rather than under it: the menu then
+   * slides up to fit and may use the whole height of the window, where under
+   * or over the trigger it gets only the room on one side of it.
+   */
+  placement?: PopoverProps['placement'] | 'start-top';
   matchWidth?: boolean;
   minWidth?: number;
   maxHeight?: number;
@@ -616,7 +626,7 @@ export function DropdownMenu({
           const item = byId.get(String(key));
           if (!item || item.disabled) return;
           item.onSelect();
-          if (closeOnSelect) onClose();
+          if (closeOnSelect && !item.keepOpen) onClose();
         }}
       >
         {sections.map((section, index) => (

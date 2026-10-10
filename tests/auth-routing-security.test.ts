@@ -256,6 +256,21 @@ describe('static database and credential security checks', () => {
     expect(migration).not.toMatch(/donor_email|wallet_address|payment_token/i);
   });
 
+  it('lets only an admin edit the active goal title, target and total', async () => {
+    const migration = await readFile(
+      'supabase/migrations/20261125100000_support_goal_admin_edit.sql',
+      'utf8'
+    );
+    expect(migration).toContain('security definer');
+    expect(migration).toContain("set search_path = ''");
+    expect(migration).toContain('if not public.is_admin()');
+    expect(migration).toMatch(
+      /revoke all on function public\.admin_update_support_goal\(uuid, text, text, bigint, bigint\)\s+from public, anon/
+    );
+    expect(migration).toContain("and status = 'active'");
+    expect(migration).not.toMatch(/grant (insert|update|delete) on table public\.support_goals/i);
+  });
+
   it('keeps privileged deletion on the server and targets only the JWT user', async () => {
     const [edge, frontend] = await Promise.all([
       readFile('supabase/functions/delete-account/index.ts', 'utf8'),

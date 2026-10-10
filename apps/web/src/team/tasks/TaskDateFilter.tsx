@@ -89,6 +89,7 @@ export function TaskDateFilterControl({
   allowAll = true,
   disabled = false,
   calendarLabel,
+  inlineDays = false,
   children
 }: {
   value: TaskDateFilter;
@@ -99,6 +100,8 @@ export function TaskDateFilterControl({
   allowAll?: boolean;
   disabled?: boolean;
   calendarLabel?: string;
+  /** "Yesterday" and "Today" beside the calendar, one press each — the board's two most asked ranges. */
+  inlineDays?: boolean;
   /** A further filter that shares the row — the account scope (017). */
   children?: React.ReactNode;
 }) {
@@ -233,6 +236,34 @@ export function TaskDateFilterControl({
           />
         </Popover>
       </div>
+      {inlineDays && (
+        <div className="task-date-filter-days">
+          {quickRanges
+            .filter(
+              (option): option is typeof option & { range: 'yesterday' | 'today' } =>
+                option.range === 'yesterday' || option.range === 'today'
+            )
+            .reverse()
+            .map(option => (
+              <button
+                key={option.range}
+                type="button"
+                className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
+                aria-pressed={quick === option.range}
+                disabled={disabled}
+                onClick={() =>
+                  onChange(
+                    quick === option.range && allowAll
+                      ? { kind: 'all' }
+                      : quickRangeValue(option.range, new Date())
+                  )
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+        </div>
+      )}
       {children}
       {showStatus && (
         <div className="task-status-filter" aria-label={t('teamTaskStatus')}>

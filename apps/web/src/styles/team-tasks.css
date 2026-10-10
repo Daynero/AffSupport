@@ -1143,6 +1143,19 @@ button.team-task-label-chip:hover:not(:disabled),
   flex-wrap: nowrap;
 }
 
+/* On the board the date group takes the row's spare width, so the statuses'
+   `margin-left: auto` has somewhere to push them: the right edge. The search
+   keeps its own width — the group absorbs the space, not the field. */
+.task-filter-row > .task-date-filter {
+  flex: 999 1 auto;
+}
+
+.task-date-filter-days {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+}
+
 /* One tag chosen: the field's value carries that tag's dot, so the panel says
    which tag is in force the same way the chips do. Several, and there is no
    dot — a dot cannot be two colours. */

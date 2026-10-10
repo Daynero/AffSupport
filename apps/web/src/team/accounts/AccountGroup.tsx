@@ -134,6 +134,7 @@ export function AccountGroup({
   onAddAgent,
   onUpdateAgent,
   onDeleteAgent,
+  onMoveAgent,
   onAddRun,
   onUpdateRun,
   onDeleteRun,
@@ -164,6 +165,8 @@ export function AccountGroup({
   onAddAgent: (value: { agentId: string; note: string | null; timezone?: string }) => Promise<void>;
   onUpdateAgent: (agent: TeamAccountAgentSummary, agentId: string) => Promise<void>;
   onDeleteAgent: (agent: TeamAccountAgentSummary) => Promise<void>;
+  /** Opens the transfer of an agent to another social account. */
+  onMoveAgent?: (agent: TeamAccountAgentSummary) => void;
   onAddRun: (agent: TeamAccountAgentSummary, note: string) => Promise<void>;
   onUpdateRun: (agent: TeamAccountAgentSummary, runId: string, note: string) => Promise<void>;
   onDeleteRun: (agent: TeamAccountAgentSummary, run: TeamAgentRun) => Promise<void>;
@@ -351,7 +354,7 @@ export function AccountGroup({
           onCancel={() => closeEditor(...HEAD_FOCUS)}
           onSave={async (name, seed) => {
             await onRename(name);
-            if (seed !== undefined) await onSetTwoFactor?.(seed);
+            await onSetTwoFactor?.(seed);
             closeEditor(...HEAD_FOCUS);
           }}
         />
@@ -559,6 +562,7 @@ export function AccountGroup({
                     onSetMoney={(balance, topup) => onSetMoney(agent, balance, topup)}
                     onToggleLabel={(labelId, next) => onToggleLabel(agent, labelId, next)}
                     onRelease={() => onRelease(agent)}
+                    onMove={onMoveAgent ? () => onMoveAgent(agent) : undefined}
                     onDelete={() => onDeleteAgent(agent)}
                   />
                 )
@@ -630,7 +634,10 @@ export function AccountGroup({
   );
 }
 
-/** The head row as an editor: naming a new account, or renaming one. */
+/** The head row as an editor: naming a new account, or renaming one.
+ *
+ * A new account is named in two steps: Enter (or ✓) on the name offers the
+ * optional 2FA key, and Enter there creates it — an empty key included. */
 export function AccountNameRow({
   initialName = '',
   twoFactorSeed = null,
@@ -643,7 +650,7 @@ export function AccountNameRow({
   twoFactorSeed?: string | null;
   hold?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
-  onSave: (name: string, seed?: string | null) => Promise<void>;
+  onSave: (name: string, seed: string | null) => Promise<void>;
   onCancel: () => void;
 }) {
   const { t } = useI18n();
@@ -654,11 +661,19 @@ export function AccountNameRow({
   const [savedSeed, setSavedSeed] = useState(twoFactorSeed ?? '');
   const [seedError, setSeedError] = useState<TranslationKey | null>(null);
   const field = useRef<HTMLInputElement>(null);
+  const seedField = useRef<HTMLInputElement>(null);
+  const creating = !initialName;
+  const [seedOffered, setSeedOffered] = useState(!creating);
+  const showSeed = !creating || seedOffered;
 
   useEffect(() => {
     field.current?.focus();
     field.current?.select();
   }, []);
+
+  useEffect(() => {
+    if (creating && seedOffered) seedField.current?.focus();
+  }, [creating, seedOffered]);
 
   useEffect(() => {
     if (hold) field.current?.focus();
@@ -676,9 +691,13 @@ export function AccountNameRow({
       setError('teamAccountNameInvalid');
       return;
     }
+    if (!showSeed) {
+      setSeedOffered(true);
+      return;
+    }
     const value = seed.trim();
     const parsed = value ? parseTwoFactorSeed(value) : null;
-    if (initialName && value && !parsed?.ok) {
+    if (value && !parsed?.ok) {
       setSeedError(
         parsed?.error === 'EMPTY' ? 'teamAgentTwoFactorRequired' : 'teamAgentTwoFactorInvalid'
       );
@@ -686,7 +705,7 @@ export function AccountNameRow({
     }
     setSaving(true);
     try {
-      await onSave(clean, initialName ? (parsed?.ok ? parsed.secret : null) : undefined);
+      await onSave(clean, parsed?.ok ? parsed.secret : null);
       if (initialName) {
         setSeed(parsed?.ok ? parsed.secret : '');
         setSavedSeed(parsed?.ok ? parsed.secret : '');
@@ -724,8 +743,9 @@ export function AccountNameRow({
           }}
           onKeyDown={onKeyDown}
         />
-        {initialName && (
+        {showSeed && (
           <EditField
+            inputRef={seedField}
             className="team-account-edit-two-factor"
             value={seed}
             label={t('teamAccountTwoFactorPlaceholder')}

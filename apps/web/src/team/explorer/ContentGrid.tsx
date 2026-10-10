@@ -6,7 +6,7 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { EmptyState, ErrorState, Popover } from '../../components/ui/index';
+import { EmptyState, ErrorState, Popover, FadeImage } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { ExternalLink, FolderOpen, Paperclip } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
@@ -300,7 +300,13 @@ function Tile({
         }}
       >
         {image ? (
-          <img src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />
+          <FadeImage
+            src={image}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onError={() => setBroken(true)}
+          />
         ) : (
           <span className="team-explorer-tile-icon" aria-hidden="true">
             <KindIcon kind={row.kind} />

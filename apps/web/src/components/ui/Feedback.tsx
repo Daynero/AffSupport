@@ -1,5 +1,14 @@
 import { Tooltip as HeroTooltip } from '@heroui/react/tooltip';
-import { type HTMLAttributes, type ReactNode } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useState,
+  type HTMLAttributes,
+  type ImgHTMLAttributes,
+  type ReactNode,
+  type SyntheticEvent
+} from 'react';
 import { uiClasses, type UiColor, type UiSize } from './types';
 
 /**
@@ -197,3 +206,56 @@ export function Tooltip({
     </HeroTooltip>
   );
 }
+
+/**
+ * A picture that arrives softly (owner, 2026-10-10).
+ *
+ * The box it sits in is the holder — it keeps its size and its muted ground —
+ * and the picture fades in over it once it has decoded, rather than snapping
+ * in half-painted. A cached one fades too: it still replaces a holder that was
+ * on screen a moment ago, and a snap there is the flicker this exists to stop.
+ */
+export const FadeImage = forwardRef<HTMLImageElement, ImgHTMLAttributes<HTMLImageElement>>(
+  function FadeImage({ className, onLoad, src, ...props }, forwarded) {
+    /** The address that has decoded; a new address fades in again. */
+    const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined);
+    /**
+     * The address the holder has been painted for. A cached picture decodes before the first
+     * frame, and a style that is already final when first computed has nothing to fade from —
+     * so it waits for one painted frame at the holder.
+     */
+    const [paintedFor, setPaintedFor] = useState<string | undefined>(undefined);
+    useEffect(() => {
+      let second = 0;
+      const first = requestAnimationFrame(() => {
+        second = requestAnimationFrame(() => setPaintedFor(src));
+      });
+      return () => {
+        cancelAnimationFrame(first);
+        cancelAnimationFrame(second);
+      };
+    }, [src]);
+    const ref = useCallback(
+      (element: HTMLImageElement | null) => {
+        if (element?.complete && element.naturalWidth > 0) setLoadedFor(src);
+        if (typeof forwarded === 'function') forwarded(element);
+        else if (forwarded) forwarded.current = element;
+      },
+      [forwarded, src]
+    );
+    const loaded = src !== undefined && loadedFor === src && paintedFor === src;
+    return (
+      <img
+        {...props}
+        ref={ref}
+        src={src}
+        className={['ui-fade-image', className].filter(Boolean).join(' ')}
+        data-loaded={loaded || undefined}
+        onLoad={(event: SyntheticEvent<HTMLImageElement>) => {
+          setLoadedFor(src);
+          onLoad?.(event);
+        }}
+      />
+    );
+  }
+);

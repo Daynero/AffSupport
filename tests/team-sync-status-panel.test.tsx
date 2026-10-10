@@ -59,6 +59,29 @@ describe('SyncStatusPanel', () => {
     expect(screen.getByRole('region', { name: 'Sync status for Doctors' })).toBeTruthy();
   });
 
+  it('offers Close only once the job is over', () => {
+    const onDismiss = vi.fn();
+    const { rerender } = render(
+      <SyncStatusPanel
+        status={status('running')}
+        scopeName="Doctors"
+        onDismiss={onDismiss}
+        now={NOW}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
+    rerender(
+      <SyncStatusPanel
+        status={status('canceled')}
+        scopeName="Doctors"
+        onDismiss={onDismiss}
+        now={NOW}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   it('shows absolute progress and no invented percentage when the total is unknown', () => {
     render(
       <SyncStatusPanel

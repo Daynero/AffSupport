@@ -378,9 +378,12 @@ export function TaskSpace({
     (task: TeamTaskSummary): TaskActionHandlers => ({
       patch: patch => void tasks.update(task, patch, { checkVersion: false }),
       tag: label => {
-        if (task.labels.some(item => item.id === label.id)) return;
-        void client
-          .attachTaskLabel({ teamId, taskId: task.id, labelId: label.id })
+        const input = { teamId, taskId: task.id, labelId: label.id };
+        void (
+          task.labels.some(item => item.id === label.id)
+            ? client.detachTaskLabel(input)
+            : client.attachTaskLabel(input)
+        )
           .then(next => tasks.setTaskLabels(task.id, next))
           .catch((cause: unknown) => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }));
       },

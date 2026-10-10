@@ -26,7 +26,17 @@ import {
   type KeyboardEvent,
   type ReactNode
 } from 'react';
-import { Check, CircleCheck, Copy, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  Check,
+  CircleCheck,
+  Copy,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  X
+} from 'lucide-react';
 import {
   nextTeamAgentRunMarker,
   normalizeTeamAgentId,
@@ -150,16 +160,21 @@ let closeOpenAgentMenu: (() => void) | null = null;
 function AgentMenu({
   label,
   editLabel,
+  moveLabel,
   deleteLabel,
   triggerRef,
   onEdit,
+  onMove,
   onDelete
 }: {
   label: string;
   editLabel: string;
+  moveLabel: string;
   deleteLabel: string;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   onEdit: () => void;
+  /** Absent when there is nowhere to move to. */
+  onMove?: () => void;
   onDelete: () => void;
 }) {
   const { t } = useI18n();
@@ -255,6 +270,9 @@ function AgentMenu({
     </button>
   );
 
+  // The arrows walk exactly the items on screen, with or without "Move".
+  items.current.length = onMove ? 3 : 2;
+
   return (
     <div className="team-agent-menu" ref={box}>
       <button
@@ -307,10 +325,19 @@ function AgentMenu({
             t('teamAgentEdit'),
             () => choose(onEdit)
           )}
+          {onMove &&
+            item(
+              1,
+              'team-agent-menu-item',
+              moveLabel,
+              <ArrowRightLeft size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+              t('financeMove'),
+              () => choose(onMove)
+            )}
           {/* Last, and alone in its danger colour: the one press in this menu
               that cannot be taken back by typing again. */}
           {item(
-            1,
+            onMove ? 2 : 1,
             'team-agent-menu-item is-danger',
             deleteLabel,
             <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />,
@@ -343,6 +370,7 @@ export function AgentRow({
   onSetMoney,
   onToggleLabel,
   onRelease,
+  onMove,
   onDelete
 }: {
   agent: TeamAccountAgentSummary;
@@ -369,6 +397,8 @@ export function AgentRow({
   onSetMoney: (balance: number | null, topup: number | null) => Promise<void>;
   onToggleLabel: (labelId: string, next: boolean) => Promise<void>;
   onRelease: () => Promise<void>;
+  /** Opens the transfer to another social account; absent when there is none. */
+  onMove?: () => void;
   onDelete: () => Promise<void>;
 }) {
   const { t, language } = useI18n();
@@ -708,9 +738,11 @@ export function AgentRow({
             <AgentMenu
               label={named('teamAgentMore')}
               editLabel={named('teamAgentEdit')}
+              moveLabel={named('teamAgentMove')}
               deleteLabel={named('teamAgentDelete')}
               triggerRef={menuTrigger}
               onEdit={onEdit}
+              onMove={onMove}
               onDelete={() => setConfirming(true)}
             />
           </>

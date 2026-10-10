@@ -101,10 +101,13 @@ beforeEach(() => {
     if (name === 'admin_agent_versions')
       return { data: [{ agent_version: '0.4.0-test.1', total: 7 }], error: null };
     if (name === 'admin_active_support_goal') return { data: supportGoal, error: null };
-    if (name === 'admin_update_support_goal_amount')
+    if (name === 'admin_update_support_goal')
       return {
         data: {
           ...supportGoal,
+          title_en: 'Code signing',
+          title_uk: 'Підпис коду',
+          target_cents: 15000,
           raised_cents: 4250,
           updated_at: '2026-07-31T12:00:00.000Z'
         },
@@ -173,24 +176,57 @@ describe('database-authorized admin UI', () => {
     expect(parseAdminOverview(['raw-event'])).toBeNull();
   });
 
-  it('updates the manually confirmed donation total through the admin-only RPC', async () => {
+  it('edits the goal title, target and confirmed total through the admin-only RPC', async () => {
     render(
       <AuthContextOverride value={context(true)}>
         <AdminPage />
       </AuthContextOverride>
     );
-    const input = await screen.findByLabelText('Total raised, USD');
-    expect(input.getAttribute('value')).toBe('0');
+    const raised = await screen.findByLabelText('Total raised, USD');
+    expect(raised.getAttribute('value')).toBe('0');
+    expect(screen.getByLabelText('Goal, USD').getAttribute('value')).toBe('99');
+    expect(screen.getByLabelText('Goal title, Ukrainian').getAttribute('value')).toBe(
+      supportGoal.title_uk
+    );
 
-    fireEvent.change(input, { target: { value: '42.50' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Update amount' }));
+    fireEvent.change(screen.getByLabelText('Goal title, Ukrainian'), {
+      target: { value: ' Підпис коду ' }
+    });
+    fireEvent.change(screen.getByLabelText('Goal title, English'), {
+      target: { value: 'Code signing' }
+    });
+    fireEvent.change(screen.getByLabelText('Goal, USD'), { target: { value: '150' } });
+    fireEvent.change(raised, { target: { value: '42,50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));
 
-    await waitFor(() => expect(screen.getByText('Amount updated.')).toBeTruthy());
-    expect(rpc).toHaveBeenCalledWith('admin_update_support_goal_amount', {
+    await waitFor(() => expect(screen.getByText('Goal updated.')).toBeTruthy());
+    expect(rpc).toHaveBeenCalledWith('admin_update_support_goal', {
       p_goal_id: supportGoal.id,
+      p_title_en: 'Code signing',
+      p_title_uk: 'Підпис коду',
+      p_target_cents: 15000,
       p_raised_cents: 4250
     });
-    expect(screen.getByText('$42.50 of $99')).toBeTruthy();
+    expect(screen.getByText('$42.50 of $150')).toBeTruthy();
+    expect(screen.getByText('Code signing')).toBeTruthy();
+  });
+
+  it('refuses an empty title or a zero goal without calling the RPC', async () => {
+    render(
+      <AuthContextOverride value={context(true)}>
+        <AdminPage />
+      </AuthContextOverride>
+    );
+    const target = await screen.findByLabelText('Goal, USD');
+    fireEvent.change(target, { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+
+    fireEvent.change(target, { target: { value: '99' } });
+    fireEvent.change(screen.getByLabelText('Goal title, English'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    expect(rpc).not.toHaveBeenCalledWith('admin_update_support_goal', expect.anything());
   });
 
   it('exports only the consent list and neutralizes spreadsheet formulas', () => {

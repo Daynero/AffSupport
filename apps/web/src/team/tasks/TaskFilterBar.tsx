@@ -157,6 +157,7 @@ export function TaskFilterBar({
           onChange={onDateChange}
           status={status}
           onStatusChange={onStatusChange}
+          inlineDays
         >
           <div ref={filtersRoot} className="task-filter-more">
             {/* The chip says how many are on before the panel is opened: a

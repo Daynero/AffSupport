@@ -5,6 +5,7 @@ import { ICON_STROKE } from '../components/icons';
 import { Spinner } from '../components/ui';
 import { useI18n } from '../i18n';
 import type { LandingViewerSource } from './types';
+import { FadeImage } from '../components/ui/index';
 
 type ImageUrl = LandingViewerSource['imageUrl'];
 type ThumbnailUrl = NonNullable<LandingViewerSource['thumbnailUrl']>;
@@ -100,5 +101,5 @@ function GalleryThumbnail({
     };
   }, [imageUrl, thumbnailUrl, revision]);
   if (!url) return null;
-  return <img src={url} alt="" loading="lazy" decoding="async" draggable={false} />;
+  return <FadeImage src={url} alt="" loading="lazy" decoding="async" draggable={false} />;
 }

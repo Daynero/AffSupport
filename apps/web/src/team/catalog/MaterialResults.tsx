@@ -13,7 +13,7 @@ import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
 import { useThumbnailSession, type ThumbnailSessionClient } from '../explorer/useThumbnailSession';
-import { EmptyState, ErrorState } from '../../components/ui/index';
+import { EmptyState, ErrorState, FadeImage } from '../../components/ui/index';
 
 /** Matches the page size `useCatalogSearch` requests. */
 const PAGE_SIZE = 50;
@@ -150,7 +150,12 @@ export function MaterialResults({
                 <div className="team-catalog-material-heading">
                   <span className="team-catalog-material-glyph" aria-hidden="true">
                     {thumbnail(material) ? (
-                      <img src={thumbnail(material)!} alt="" loading="lazy" decoding="async" />
+                      <FadeImage
+                        src={thumbnail(material)!}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
                     ) : (
                       categoryGlyph
                     )}

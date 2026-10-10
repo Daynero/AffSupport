@@ -14,7 +14,7 @@
  * agents are different numbers, and the chips have only ever meant agents.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronsDownUp,
   ChevronsUpDown,
@@ -56,6 +56,8 @@ import { copyText } from '../../two-factor/clipboard';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
 import { FinanceWorkspace } from './finance/FinanceWorkspace';
+import { MoveAgentDialog } from './finance/MoveAgentDialog';
+import { financeToday } from '@video-compressor/shared';
 
 export type AccountSpaceClient = AccountsClient & TaskLabelsClient;
 
@@ -156,6 +158,20 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   const dirty = useRef(false);
   /** Set when a switch was refused; the open editor shows why. */
   const [hold, setHold] = useState(false);
+  /** The agent whose transfer dialog is open, from its row's "…" menu. */
+  const [moving, setMoving] = useState<string | null>(null);
+  // The transfer dialog only needs who is where; the list already knows.
+  const moveSnapshot = useMemo(
+    () => ({
+      teamId,
+      accounts: accounts.accounts.map(account => ({ id: account.id, name: account.name })),
+      agents: accounts.accounts.flatMap(account =>
+        account.agents.map(agent => ({ id: agent.id, agentId: agent.agentId }))
+      ),
+      placements: []
+    }),
+    [accounts.accounts, teamId]
+  );
   const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(teamId));
   const [moneyFolded, setMoneyFolded] = useState(() => readMoneyFolded(teamId));
 
@@ -301,6 +317,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
     );
 
   const panel = useRef<HTMLElement>(null);
+  const stickyHeader = useRef<HTMLDivElement>(null);
   const startCreate = () => requestEditor({ kind: 'create' });
   /** Abandoning the name row hands focus back to the button that opened it. */
   const cancelCreate = () => {
@@ -483,6 +500,29 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
 
   const listEmpty = !accounts.loading && !accounts.error && accounts.accounts.length === 0;
   const creating = editor?.kind === 'create';
+  const showToolbar = !listEmpty && (Boolean(client) || view === 'accounts');
+  const hasStickyHeader = !client || showToolbar;
+  // The captions and the finance header stick below the tabs and the toolbar,
+  // whose height changes as the toolbar wraps.
+  useLayoutEffect(() => {
+    const surface = panel.current;
+    const header = stickyHeader.current;
+    if (!surface) return;
+    if (!header) {
+      surface.style.removeProperty('--team-accounts-sticky-height');
+      return;
+    }
+    const measure = () =>
+      surface.style.setProperty(
+        '--team-accounts-sticky-height',
+        `${header.getBoundingClientRect().height}px`
+      );
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [hasStickyHeader]);
 
   return (
     <section
@@ -506,26 +546,129 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         )}
       </div>
 
-      {!client && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label={t('financeView')}>
-          <Button
-            size="sm"
-            variant="soft"
-            aria-pressed={view === 'accounts'}
-            color={view === 'accounts' ? 'secondary' : 'neutral'}
-            onClick={() => setView('accounts')}
-          >
-            {t('financeAccountsView')}
-          </Button>
-          <Button
-            size="sm"
-            variant="soft"
-            aria-pressed={view === 'finance'}
-            color={view === 'finance' ? 'secondary' : 'neutral'}
-            onClick={() => setView('finance')}
-          >
-            {t('financeTitle')}
-          </Button>
+      {/* The tabs, the search and the filters stay on screen while the list
+          scrolls under them; the column captions stick just below (measured). */}
+      {(!client || showToolbar) && (
+        <div ref={stickyHeader} className="team-accounts-sticky">
+          {!client && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t('financeView')}>
+              <Button
+                size="sm"
+                variant="soft"
+                aria-pressed={view === 'accounts'}
+                color={view === 'accounts' ? 'secondary' : 'neutral'}
+                onClick={() => setView('accounts')}
+              >
+                {t('financeAccountsView')}
+              </Button>
+              <Button
+                size="sm"
+                variant="soft"
+                aria-pressed={view === 'finance'}
+                color={view === 'finance' ? 'secondary' : 'neutral'}
+                onClick={() => setView('finance')}
+              >
+                {t('financeTitle')}
+              </Button>
+            </div>
+          )}
+          {/* The search and the occupancy filter share one row, as the task filters
+            do. The pills are the task filter's pills — same class, so the two
+            toolbars cannot drift — with a count on each. */}
+          {/* Nothing to search or filter yet: no toolbar of zeros over the invitation. */}
+          {showToolbar && (
+            <div className="team-accounts-toolbar">
+              <label className="team-accounts-search">
+                <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={search}
+                  aria-label={t('teamAccountsSearchLabel')}
+                  placeholder={t('teamAccountsSearchPlaceholder')}
+                  onChange={event => setSearch(event.target.value)}
+                />
+                {search !== '' && (
+                  <IconButton
+                    title=""
+                    label={t('teamAccountsClearField')}
+                    tabIndex={-1}
+                    onClick={() => setSearch('')}
+                  >
+                    <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </IconButton>
+                )}
+              </label>
+              {/* The chips have always counted agents, never accounts; now they say
+              so out loud rather than only to a screen reader. */}
+              <div className="team-accounts-toolbar-end">
+                <div
+                  className="team-accounts-occupancy"
+                  role="group"
+                  aria-label={t('teamAccountsFilterLabel')}
+                >
+                  {OCCUPANCY.map(value => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
+                      aria-pressed={occupancy === value}
+                      onClick={() => setOccupancy(value)}
+                    >
+                      {value !== 'all' && (
+                        <span className="team-accounts-occupancy-dot" aria-hidden="true" />
+                      )}
+                      <span>{occupancyLabel(value)}</span>
+                      <b>{occupancyCount(value)}</b>
+                    </button>
+                  ))}
+                </div>
+                {/* The colours, behind one control: they are the filter reached for
+              least, and four more chips in this row pushed the fold onto a line
+              of its own. Clearing every marker in the space lives in the same
+              menu — it is the only other thing on this screen about markers.
+              Absent while no run carries a marker (024, FR-092): "Markers 0" was
+              a filter with nothing to filter, read as one more thing to learn. */}
+                {(markedRuns > 0 || marker !== 'all') && (
+                  <MarkerFilter
+                    value={marker}
+                    counts={counts.markers}
+                    total={counts.agents}
+                    marked={markedRuns}
+                    canEdit={canEdit}
+                    onChange={setMarker}
+                    onClearAll={() => void clearMarkers()}
+                  />
+                )}
+                {/* The fold, for the whole list: with four accounts open the fourth
+              one's rows are a screen away, and folding them one at a time is
+              four presses to see what is on the page. */}
+                {/* Only with two accounts or more (024): with one, folding everything is the
+                  same press as folding its own head. */}
+                {visible.length > 1 && (
+                  <button
+                    type="button"
+                    className="team-accounts-fold-all"
+                    aria-expanded={!allCollapsed}
+                    onClick={() =>
+                      toggleAll(
+                        visible.map(account => account.id),
+                        !allCollapsed
+                      )
+                    }
+                  >
+                    {allCollapsed ? (
+                      <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    ) : (
+                      <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    )}
+                    <span>
+                      {t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {!client && (
@@ -547,104 +690,6 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         </div>
       )}
       <div className={!client && view === 'finance' ? 'hidden' : 'contents'}>
-        {/* The search and the occupancy filter share one row, as the task filters
-          do. The pills are the task filter's pills — same class, so the two
-          toolbars cannot drift — with a count on each. */}
-        {/* Nothing to search or filter yet: no toolbar of zeros over the invitation. */}
-        {!listEmpty && (
-          <div className="team-accounts-toolbar">
-            <label className="team-accounts-search">
-              <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              <input
-                type="search"
-                value={search}
-                aria-label={t('teamAccountsSearchLabel')}
-                placeholder={t('teamAccountsSearchPlaceholder')}
-                onChange={event => setSearch(event.target.value)}
-              />
-              {search !== '' && (
-                <IconButton
-                  title=""
-                  label={t('teamAccountsClearField')}
-                  tabIndex={-1}
-                  onClick={() => setSearch('')}
-                >
-                  <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </IconButton>
-              )}
-            </label>
-            {/* The chips have always counted agents, never accounts; now they say
-            so out loud rather than only to a screen reader. */}
-            <div className="team-accounts-toolbar-end">
-              <div
-                className="team-accounts-occupancy"
-                role="group"
-                aria-label={t('teamAccountsFilterLabel')}
-              >
-                {OCCUPANCY.map(value => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
-                    aria-pressed={occupancy === value}
-                    onClick={() => setOccupancy(value)}
-                  >
-                    {value !== 'all' && (
-                      <span className="team-accounts-occupancy-dot" aria-hidden="true" />
-                    )}
-                    <span>{occupancyLabel(value)}</span>
-                    <b>{occupancyCount(value)}</b>
-                  </button>
-                ))}
-              </div>
-              {/* The colours, behind one control: they are the filter reached for
-            least, and four more chips in this row pushed the fold onto a line
-            of its own. Clearing every marker in the space lives in the same
-            menu — it is the only other thing on this screen about markers.
-            Absent while no run carries a marker (024, FR-092): "Markers 0" was
-            a filter with nothing to filter, read as one more thing to learn. */}
-              {(markedRuns > 0 || marker !== 'all') && (
-                <MarkerFilter
-                  value={marker}
-                  counts={counts.markers}
-                  total={counts.agents}
-                  marked={markedRuns}
-                  canEdit={canEdit}
-                  onChange={setMarker}
-                  onClearAll={() => void clearMarkers()}
-                />
-              )}
-              {/* The fold, for the whole list: with four accounts open the fourth
-            one's rows are a screen away, and folding them one at a time is
-            four presses to see what is on the page. */}
-              {/* Only with two accounts or more (024): with one, folding everything is the
-                same press as folding its own head. */}
-              {visible.length > 1 && (
-                <button
-                  type="button"
-                  className="team-accounts-fold-all"
-                  aria-expanded={!allCollapsed}
-                  onClick={() =>
-                    toggleAll(
-                      visible.map(account => account.id),
-                      !allCollapsed
-                    )
-                  }
-                >
-                  {allCollapsed ? (
-                    <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  ) : (
-                    <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  )}
-                  <span>
-                    {t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}
-                  </span>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         {accounts.loading && accounts.accounts.length === 0 && (
           <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
         )}
@@ -708,8 +753,17 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                     hold={hold}
                     onDirtyChange={onDirtyChange}
                     onCancel={cancelCreate}
-                    onSave={async name => {
+                    onSave={async (name, seed) => {
                       const created = await accounts.createAccount(name);
+                      // The account exists from here on: a refused key is said,
+                      // not allowed to strand the editor on a name already taken.
+                      if (seed) {
+                        try {
+                          await accounts.setAccountTwoFactor(created.id, seed);
+                        } catch (cause) {
+                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                        }
+                      }
                       // The next thing after naming an account is putting an agent
                       // in it, so the agent editor opens without another press.
                       setEditor({ kind: 'account', accountId: created.id, state: { kind: 'add' } });
@@ -786,6 +840,11 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                     ).then(() => undefined)
                   }
                   onRelease={release}
+                  onMoveAgent={
+                    canEdit && accounts.accounts.length > 1
+                      ? agent => setMoving(agent.id)
+                      : undefined
+                  }
                   onDeleteAgent={async agent => {
                     await accounts.deleteAgent(agent);
                     push({ tone: 'success', text: t('teamAccountsToastAgentDeleted') });
@@ -901,6 +960,16 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
           />
         )}
       </div>
+      {moving && (
+        <MoveAgentDialog
+          snapshot={moveSnapshot}
+          agent={moving}
+          today={financeToday(Intl.DateTimeFormat().resolvedOptions().timeZone)}
+          timezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+          onClose={() => setMoving(null)}
+          onMoved={() => void accounts.refetch()}
+        />
+      )}
     </section>
   );
 }

@@ -51,7 +51,7 @@ import { useToasts } from '../../components/toast';
 import { uploadTeamFile } from '../catalog/material-actions-client';
 import { classifyMaterial } from '@video-compressor/shared';
 import { teamErrorMessageFor } from '../errors';
-import { PermissionState, Textarea } from '../../components/ui/index';
+import { PermissionState, Skeleton, Textarea } from '../../components/ui/index';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
 import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
@@ -454,7 +454,10 @@ export function TaskEditor({
       } catch {
         if (request === readRevision.current) setError('read');
       } finally {
-        if (!quiet) setLoading(false);
+        // Only the latest read ends the loading: a superseded one used to take the
+        // skeleton away while the read that mattered was still out, and the list
+        // stood empty for a moment before the files arrived.
+        if (!quiet && request === readRevision.current) setLoading(false);
       }
     },
     [client, task.id, teamId]
@@ -523,6 +526,19 @@ export function TaskEditor({
     rootLabel: t('teamExplorerRootLabel'),
     client: client as AttachmentFoldersClient
   });
+  /* The files appear once, whole: their folder lines come from a second read, and a tile that
+     grew a line after it landed shoved the whole dialog. The skeleton stays until both are in;
+     later changes (an upload, a detach) never bring it back. */
+  const [attachmentsShown, setAttachmentsShown] = useState(false);
+  const attachmentsReady = !loading && attachmentFolders.settled;
+  useEffect(() => {
+    if (attachmentsReady) setAttachmentsShown(true);
+  }, [attachmentsReady]);
+  const holdAttachments = !attachmentsShown && !attachmentsReady;
+  /* While they load, the card already said how many there are: as many placeholder tiles of the
+     same shape, so nothing moves when the real ones replace them. */
+  const pendingTiles = holdAttachments ? task.attachmentCount : 0;
+  const shownCount = holdAttachments ? task.attachmentCount : attachmentCount;
   /* Paths only where they tell files apart: on a task whose files all share one folder the
      same line under every tile says nothing. */
   const pathsDiffer =
@@ -1345,7 +1361,7 @@ export function TaskEditor({
                     <h3 id="team-task-attachments-title">{t('teamTaskAttachments')}</h3>
                     {/* Said while there is nothing yet; once there are files the
                     tiles and the picker speak for themselves (024, US14). */}
-                    {visibleAttachments.length === 0 && (
+                    {shownCount === 0 && (
                       <p>
                         {canEdit && can('upload')
                           ? t('teamTaskAttachmentsDropHint')
@@ -1354,19 +1370,41 @@ export function TaskEditor({
                     )}
                   </div>
                   {/* A zero says nothing the empty grid does not (024). */}
-                  {attachmentCount > 0 && (
-                    <Badge size="sm">
-                      {t('teamTaskAttachmentsCount', { count: attachmentCount })}
-                    </Badge>
+                  {shownCount > 0 && (
+                    <Badge size="sm">{t('teamTaskAttachmentsCount', { count: shownCount })}</Badge>
                   )}
                 </div>
 
-                {/* The shape of what is coming, so the list does not jump when it
-                lands — and the sentence stays, because a bare shimmer is
-                indistinguishable from a stuck screen. */}
-                {loading && <LabeledSkeleton label="teamTaskLoadingAttachments" rows={2} />}
+                {/* A re-read with nothing to stand in for (no count yet) still says so. */}
+                {loading && !holdAttachments && (
+                  <LabeledSkeleton label="teamTaskLoadingAttachments" rows={2} />
+                )}
                 <div className="team-task-attachment-grid">
-                  {visibleAttachments.map(attachment => (
+                  {/* The shape of what is coming, so the list does not jump when it lands — and
+                    the sentence stays, because a bare shimmer is indistinguishable from a stuck
+                    screen. */}
+                  {Array.from({ length: pendingTiles }, (_, index) => (
+                    <div
+                      key={`pending:${index}`}
+                      className="team-task-attachment is-placeholder"
+                      aria-hidden={index > 0 || undefined}
+                    >
+                      <div className="team-task-attachment-preview">
+                        {index === 0 && (
+                          <span className="team-task-attachment-fallback" aria-live="polite">
+                            {t('teamTaskLoadingAttachments')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="team-task-attachment-caption">
+                        {/* A third line for the folder path, which only a task with more
+                          than one file can show. */}
+                        <Skeleton shape="text" count={pendingTiles > 1 ? 3 : 2} />
+                        <Skeleton shape="row" />
+                      </div>
+                    </div>
+                  ))}
+                  {(holdAttachments ? [] : visibleAttachments).map(attachment => (
                     <TaskAttachmentTile
                       key={attachment.id}
                       teamId={teamId}
@@ -1483,7 +1521,7 @@ export function TaskEditor({
                     />
                   )}
                 </div>
-                {persistedAttachments.length < task.attachmentCount && (
+                {!holdAttachments && persistedAttachments.length < task.attachmentCount && (
                   <Button
                     color="neutral"
                     variant="outline"

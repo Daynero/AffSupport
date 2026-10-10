@@ -646,7 +646,7 @@ describe('the list', () => {
       <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
     );
     await screen.findByText('v31-434');
-    await openQuickRanges(user);
+    // "Today" sits beside the calendar, one press away.
     await user.click(screen.getByRole('button', { name: 'Today' }));
     await waitFor(() => expect(screen.getAllByRole('article').length).toBeGreaterThan(0));
 
@@ -669,6 +669,32 @@ describe('the list', () => {
     await waitFor(() => expect(screen.queryAllByRole('article').length).toBe(0));
   });
 
+  it('offers Yesterday beside the calendar and takes it off on a second press', async () => {
+    const api = client([tagFor(A434)]);
+    const user = userEvent.setup();
+    wrap(
+      <TaskSpace teamId={TEAM_ID} client={api} scope={{ kind: 'all' }} onScopeChange={vi.fn()} />
+    );
+    await screen.findByText('v31-434');
+    const yesterday = screen.getByRole('button', { name: 'Yesterday' });
+    await user.click(yesterday);
+    const day = new Date();
+    day.setDate(day.getDate() - 1);
+    const value = [
+      day.getFullYear(),
+      String(day.getMonth() + 1).padStart(2, '0'),
+      String(day.getDate()).padStart(2, '0')
+    ].join('-');
+    await waitFor(() =>
+      expect(api.listTasks).toHaveBeenCalledWith(
+        expect.objectContaining({ dayFrom: value, dayTo: value })
+      )
+    );
+    expect(yesterday.getAttribute('aria-pressed')).toBe('true');
+    await user.click(yesterday);
+    await waitFor(() => expect(yesterday.getAttribute('aria-pressed')).toBe('false'));
+  });
+
   it('asks for a day range by the date a task is for, not the day it was made', async () => {
     const api = client([tagFor(A434)]);
     const user = userEvent.setup();
@@ -678,7 +704,8 @@ describe('the list', () => {
     await screen.findByText('v31-434');
 
     await openQuickRanges(user);
-    await user.click(screen.getByRole('button', { name: 'Today' }));
+    // The calendar's own preset — the last "Today" in the document, after the inline one.
+    await user.click(screen.getAllByRole('button', { name: 'Today' }).at(-1)!);
     const now = new Date();
     const today = [
       now.getFullYear(),

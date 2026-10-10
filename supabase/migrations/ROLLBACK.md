@@ -1,5 +1,12 @@
 # Rollback notes
 
+## 20261125100000_support_goal_admin_edit.sql
+
+Roll the web build back first (the previous build only calls
+`admin_update_support_goal_amount`, which this migration leaves untouched),
+then `drop function public.admin_update_support_goal(uuid, text, text, bigint, bigint);`.
+Titles and targets already edited stay as they are in `public.support_goals`.
+
 ## 20261124100000_agent_journal.sql
 
 Roll the web build back first (or accept that its journal forwarder fails

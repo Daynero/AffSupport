@@ -60,12 +60,26 @@
   min-width: 0;
 }
 
-/* The captions stay where they are while the list runs under them — below the
-   fixed topbar, never over it, the same offset the compressor's intake uses. */
+/* The tabs, the search and the filters stay on screen while the list runs under
+   them — below the fixed topbar, never over it. The padding covers the panel's
+   gap, so a row never shows through between this and the captions. */
+.team-accounts-sticky {
+  position: sticky;
+  z-index: calc(var(--layer-sticky) + 1);
+  top: var(--topbar-h, 62px);
+  display: grid;
+  gap: var(--space-4);
+  padding-block: var(--space-3) var(--space-4);
+  margin-block: calc(-1 * var(--space-3)) calc(-1 * var(--space-4));
+  background: var(--color-surface);
+}
+
+/* The captions stay where they are while the list runs under them — under the
+   header above, whose height is measured onto the panel. */
 .team-accounts-columns {
   position: sticky;
   z-index: var(--layer-sticky);
-  top: var(--topbar-h, 62px);
+  top: calc(var(--topbar-h, 62px) + var(--team-accounts-sticky-height, 0px));
   display: grid;
   grid-template-columns: var(--team-agent-columns);
   gap: 0 var(--space-3);

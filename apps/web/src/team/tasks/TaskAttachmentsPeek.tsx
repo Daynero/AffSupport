@@ -6,6 +6,7 @@ import { KindIcon } from '../explorer/KindIcon';
 import { useThumbnailSession } from '../explorer/useThumbnailSession';
 import { onTaskAttachmentsChanged } from './taskAttachmentEvents';
 import { HoverPeek } from '../workspace/HoverPeek';
+import { FadeImage } from '../../components/ui/index';
 
 const PEEK_LIMIT = 12;
 
@@ -136,7 +137,13 @@ function AttachmentThumb({
   return (
     <span className="team-peek-tile-thumb" aria-hidden="true">
       {src && src !== brokenSrc ? (
-        <img src={src} alt="" loading="eager" decoding="sync" onError={() => setBrokenSrc(src)} />
+        <FadeImage
+          src={src}
+          alt=""
+          loading="eager"
+          decoding="sync"
+          onError={() => setBrokenSrc(src)}
+        />
       ) : (
         <KindIcon kind={attachment.category ?? 'other'} />
       )}

@@ -5,9 +5,6 @@ import {
   Modal,
   Select,
   SearchField,
-  Calendar,
-  toCalendarDate,
-  fromCalendarDate,
   ErrorState,
   LoadingState
 } from '../../../components/ui/index';
@@ -16,7 +13,6 @@ import { teamFinanceApi } from '../../../api/team-finance';
 import { TeamApiError } from '../../../api/team';
 import { teamErrorMessageFor } from '../../errors';
 import { AgentIdentity } from '../AgentIdentity';
-import { formatFinanceAmount } from './formatFinanceAmount';
 
 type Eligibility = Awaited<ReturnType<typeof teamFinanceApi.transferEligibility>>;
 type Attempt = Parameters<typeof teamFinanceApi.move>;
@@ -29,7 +25,8 @@ export function MoveAgentDialog({
   onClose,
   onMoved
 }: {
-  snapshot: FinanceSnapshot;
+  /** Only who is where: the finance board passes its snapshot, the accounts list builds one. */
+  snapshot: Pick<FinanceSnapshot, 'teamId' | 'accounts' | 'agents' | 'placements'>;
   agent: string;
   today: string;
   timezone: string;
@@ -38,7 +35,6 @@ export function MoveAgentDialog({
 }) {
   const { t } = useI18n();
   const [target, setTarget] = useState('');
-  const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -55,7 +51,6 @@ export function MoveAgentDialog({
       .then(result => {
         if (!active) return;
         setEligibility(result);
-        setDate(old => (old < result.minDate && result.minDate <= today ? result.minDate : old));
       })
       .catch(cause => {
         if (active) {
@@ -69,7 +64,7 @@ export function MoveAgentDialog({
     return () => {
       active = false;
     };
-  }, [snapshot.teamId, agent, timezone, today, revision, t]);
+  }, [snapshot.teamId, agent, timezone, revision, t]);
   const source = snapshot.accounts.find(
     a =>
       a.id ===
@@ -83,15 +78,16 @@ export function MoveAgentDialog({
       a.id !== eligibility?.accountId &&
       (!query.trim() || a.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
   );
-  const unavailable = !eligibility || eligibility.minDate > today;
   const move = async () => {
     if (!attempt.current) {
-      if (!eligibility || !target || unavailable || date < eligibility.minDate) return;
+      if (!eligibility || !target) return;
+      // The server no longer splits money at a date: every sum moves with the
+      // ad account. Today is sent only because the RPC's signature keeps it.
       attempt.current = [
         snapshot.teamId,
         agent,
         target,
-        date,
+        today,
         eligibility.placementId,
         eligibility.placementVersion,
         timezone,
@@ -135,8 +131,7 @@ export function MoveAgentDialog({
         <Button
           disabled={
             busy ||
-            (!uncertain &&
-              (checking || !target || unavailable || date < eligibility!.minDate || date > today))
+            (!uncertain && (checking || !eligibility || !target))
           }
           onClick={() => {
             void move();
@@ -146,30 +141,11 @@ export function MoveAgentDialog({
         </Button>
       }
     >
+      <p role="note" className="text-label text-error-text">
+        {t('financeMoveWarning', { account: source?.name ?? '' })}
+      </p>
       <p className="text-label text-ink-muted">{t('financeMoveHelp')}</p>
       {checking && <LoadingState label={t('financeMove')} />}
-      {eligibility && eligibility.blockers.length > 0 && (
-        <div role="status" className="text-label text-warning">
-          <p>{t('financeMoveEarliest', { date: eligibility.minDate })}</p>
-          {eligibility.blockers.map(row => (
-            <p key={`${row.date}/${row.metric}`}>
-              {row.date} ·{' '}
-              {t(
-                row.metric === 'balance'
-                  ? 'financeBalance'
-                  : row.metric === 'topup'
-                    ? 'financeTopup'
-                    : 'financeSpend'
-              )}{' '}
-              ·{' '}
-              {row.value === null
-                ? t('financeMoveClearedEntry')
-                : `${formatFinanceAmount(row.value)} USD`}
-            </p>
-          ))}
-          {unavailable && <p>{t('financeMoveWait')}</p>}
-        </div>
-      )}
       <SearchField
         aria-label={t('financeSearchTarget')}
         placeholder={t('financeSearchTarget')}
@@ -192,21 +168,6 @@ export function MoveAgentDialog({
         onChange={setTarget}
         disabled={locked || checking}
         options={options.map(a => ({ value: a.id, label: a.name }))}
-      />
-      <p className="text-label">{t('financeMoveDateHelp')}</p>
-      <Calendar
-        label={t('financeDate')}
-        value={toCalendarDate(date)}
-        minValue={toCalendarDate(unavailable ? today : eligibility!.minDate) ?? undefined}
-        maxValue={toCalendarDate(today) ?? undefined}
-        isDateUnavailable={value =>
-          locked || unavailable || value.toString() < eligibility!.minDate
-        }
-        onChange={value => {
-          if (locked) return;
-          const next = fromCalendarDate(value);
-          if (next) setDate(next);
-        }}
       />
       {uncertain && (
         <p role="status" className="text-label">

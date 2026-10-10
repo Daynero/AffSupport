@@ -79,33 +79,31 @@ const ui = (data = snapshot, onMoved = vi.fn()) => (
     onMoved={onMoved}
   />
 );
-it('labels the RK, filters actual targets and explains an out-of-period cleared blocker', async () => {
-  vi.mocked(teamFinanceApi.transferEligibility).mockResolvedValue({
-    ...eligible,
-    minDate: '2026-10-04',
-    blockers: [{ date: '2026-10-03', metric: 'spend', value: null }]
-  });
+it('labels the RK, filters actual targets and warns that every amount moves with it', async () => {
+  vi.mocked(teamFinanceApi.transferEligibility).mockResolvedValue(eligible);
   render(ui());
-  await screen.findByText(/Earliest date: 2026-10-04/);
+  await waitFor(() =>
+    expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(false)
+  );
   expect(screen.getByRole('heading', { name: /Transfer ad account/ }).textContent).toContain(
     'Transfer ad account 001234 from social account Source'
   );
   expect(screen.getByLabelText('001234').querySelector('.team-agent-tail')?.textContent).toBe(
     '234'
   );
-  expect(screen.getByText(/Cleared entry/)).toBeTruthy();
-  expect(
-    screen.getByText(
-      'Choose the date from which this advertising account will belong to another social account.'
-    )
-  ).toBeTruthy();
+  expect(screen.getByRole('note').textContent).toBe(
+    'All of this ad account’s amounts — balances, top-ups and spend, for all time — will move to the new social account and will no longer count toward Source.'
+  );
+  // No date to pick: nothing blocks a transfer any more.
+  expect(screen.queryByRole('grid')).toBeNull();
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'target' } });
   expect(screen.getByRole('option', { name: 'Target' })).toBeTruthy();
   expect(screen.queryByRole('option', { name: 'Other' })).toBeNull();
   expect(screen.getByText(/Matching social accounts: 1/)).toBeTruthy();
-  expect(
-    (screen.getByRole('button', { name: 'Move to another account' }) as HTMLButtonElement).disabled
-  ).toBe(true);
+  const button = screen.getByRole('button', { name: 'Move to another account' });
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'y' } });
+  expect((button as HTMLButtonElement).disabled).toBe(false);
 });
 it('retries the exact original move after a lost response and a refreshed placement', async () => {
   vi.mocked(teamFinanceApi.transferEligibility).mockResolvedValue(eligible);

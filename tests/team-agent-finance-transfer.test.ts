@@ -48,7 +48,12 @@ it('allows deleting a transferred agent with no financial history', async () => 
     ])
   ).toHaveLength(0);
 });
-it('protects a former social account when the agent gained financial history after moving', async () => {
+it('moves every sum the agent ever had to the new social account', async () => {
+  await f.db.asUser(
+    FINANCE_OWNER,
+    'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
+    [f.team, f.agent, '2026-09-10', 'spend', '40.00', '0', 'UTC', randomUUID()]
+  );
   const p = (
     await f.db.root<{ id: string; version: string }>(
       'select id,version::text from public.team_agent_placements where agent_row_id=$1 and ends_on is null',
@@ -60,28 +65,59 @@ it('protects a former social account when the agent gained financial history aft
     'select public.move_team_account_agent($1,$2,$3,$4,$5,$6,$7,$8)',
     [f.team, f.agent, f.accounts[1], '2026-09-15', p.id, p.version, 'UTC', randomUUID()]
   );
+  // Money recorded before the move now counts under the new social account.
+  for (const table of ['team_agent_finance_values', 'team_agent_finance_events'])
+    expect(
+      await f.db.root(`select account_id from public.${table} where agent_row_id=$1`, [f.agent])
+    ).toEqual([{ account_id: f.accounts[1] }]);
+  const report = (
+    await f.db.asUser<{ result: { placements: { accountId: string }[] } }>(
+      FINANCE_OWNER,
+      'select public.get_team_agent_finance($1,$2,$3,$4) as result',
+      [f.team, '2026-09-01', '2026-09-30', 'UTC']
+    )
+  )[0]!.result;
+  expect(report.placements.map(place => place.accountId)).toEqual([f.accounts[1]]);
+  // A later write on an earlier day lands on the new account too.
   await f.db.asUser(
     FINANCE_OWNER,
     'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
-    [f.team, f.agent, '2026-09-16', 'spend', '40.00', '0', 'UTC', randomUUID()]
+    [f.team, f.agent, '2026-09-01', 'topup', '5', '0', 'UTC', randomUUID()]
   );
-  await expect(
-    f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account($1,$2)', [f.team, f.accounts[0]])
-  ).rejects.toThrow(/FINANCE_HISTORY_PROTECTED/);
   expect(
-    await f.db.root('select id from public.team_agent_transfer_events where agent_row_id=$1', [
-      f.agent
-    ])
-  ).toHaveLength(1);
+    await f.db.root(
+      "select account_id from public.team_agent_finance_values where agent_row_id=$1 and metric='topup'",
+      [f.agent]
+    )
+  ).toEqual([{ account_id: f.accounts[1] }]);
+  // The former social account holds nothing any more; the new one is protected.
+  await expect(
+    f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account($1,$2)', [f.team, f.accounts[1]])
+  ).rejects.toThrow(/FINANCE_HISTORY_PROTECTED/);
+  await f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account($1,$2)', [
+    f.team,
+    f.accounts[0]
+  ]);
+  // The audit still names where the agent came from, after that account is gone.
+  const history = (
+    await f.db.asUser<{ result: { transfers: { from_account: string; to_account: string }[] } }>(
+      FINANCE_OWNER,
+      'select public.list_team_agent_finance_history($1,$2,null,50) as result',
+      [f.team, f.agent]
+    )
+  )[0]!.result;
+  expect(history.transfers).toEqual([
+    expect.objectContaining({ from_account: 'X', to_account: 'Y' })
+  ]);
 });
-it('rejects invalid targets, ID collisions and dates with cleared entries; retries a move exactly once', async () => {
+it('rejects invalid targets and ID collisions, ignores dates and history, retries a move exactly once', async () => {
   const p = (
     await f.db.root<{ id: string; version: string }>(
       'select id,version::text from public.team_agent_placements where agent_row_id=$1 and ends_on is null',
       [f.agent]
     )
   )[0]!;
-  const call = (target: string, date: string, request = randomUUID()) =>
+  const call = (target: string, date: string | null, request = randomUUID()) =>
     f.db.asUser(FINANCE_OWNER, 'select public.move_team_account_agent($1,$2,$3,$4,$5,$6,$7,$8)', [
       f.team,
       f.agent,
@@ -92,9 +128,8 @@ it('rejects invalid targets, ID collisions and dates with cleared entries; retri
       'UTC',
       request
     ]);
-  await expect(call(f.accounts[0]!, '2026-09-25')).rejects.toThrow(/TRANSFER_DATE_INVALID/);
+  await expect(call(f.accounts[0]!, '2026-09-25')).rejects.toThrow(/INVALID_INPUT/);
   await expect(call(f.otherAccount, '2026-09-25')).rejects.toThrow(/NOT_FOUND/);
-  await expect(call(f.accounts[1]!, '2025-12-31')).rejects.toThrow(/TRANSFER_DATE_INVALID/);
   const duplicate = (
     await f.db.asUser<{ id: string }>(
       FINANCE_OWNER,
@@ -107,6 +142,8 @@ it('rejects invalid targets, ID collisions and dates with cleared entries; retri
     f.team,
     duplicate
   ]);
+  // Entries — even today's, even cleared ones — no longer hold a transfer back,
+  // and whatever date an older client sends is ignored.
   for (const [value, version] of [
     ['10.00', '0'],
     [null, '1']
@@ -116,10 +153,9 @@ it('rejects invalid targets, ID collisions and dates with cleared entries; retri
       'select public.set_team_agent_finance_value($1,$2,$3,$4,$5,$6,$7,$8,(select id from public.team_agent_placements where team_id=$1 and agent_row_id=$2 and starts_on<=$3::date and (ends_on is null or $3::date<ends_on)))',
       [f.team, f.agent, '2026-09-25', 'spend', value, version, 'UTC', randomUUID()]
     );
-  await expect(call(f.accounts[1]!, '2026-09-25')).rejects.toThrow(/TRANSFER_DATE_INVALID/);
   const request = randomUUID();
-  const first = await call(f.accounts[1]!, '2026-09-26', request);
-  expect(await call(f.accounts[1]!, '2026-09-26', request)).toEqual(first);
+  const first = await call(f.accounts[1]!, '2025-12-31', request);
+  expect(await call(f.accounts[1]!, '2025-12-31', request)).toEqual(first);
   expect(
     (
       await f.db.root<{ n: number }>(
@@ -128,8 +164,13 @@ it('rejects invalid targets, ID collisions and dates with cleared entries; retri
       )
     )[0]!.n
   ).toBe(1);
+  expect(
+    await f.db.root('select account_id from public.team_agent_finance_values where agent_row_id=$1', [
+      f.agent
+    ])
+  ).toEqual([{ account_id: f.accounts[1] }]);
 });
-it('preserves the same agent through X → Y → X and attributes backdated money', async () => {
+it('preserves the same agent through X → Y → X and counts backdated money where it is now', async () => {
   const move = async (target: string, date: string) => {
     const p = (
       await f.db.root<{ id: string; version: string }>(
@@ -154,9 +195,10 @@ it('preserves the same agent through X → Y → X and attributes backdated mone
     'select account_id from public.team_agent_finance_values where agent_row_id=$1',
     [f.agent]
   );
-  expect(value[0]!.account_id).toBe(f.accounts[1]);
+  // Every sum follows the agent to where it is now, whatever day it is for.
+  expect(value[0]!.account_id).toBe(f.accounts[0]);
   await expect(
-    f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account($1,$2)', [f.team, f.accounts[1]])
+    f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account($1,$2)', [f.team, f.accounts[0]])
   ).rejects.toThrow(/FINANCE_HISTORY_PROTECTED/);
   expect(
     await f.db.root('select id from public.team_account_agents where id=$1', [f.agent])
@@ -289,7 +331,7 @@ it('records repeated same-day transfers without duplicate report columns', async
     ])
   ).toHaveLength(3);
 });
-it('explains zero and cleared blockers outside the viewed period', async () => {
+it('reports nothing blocking a transfer, whatever the history holds', async () => {
   for (const [metric, value, version] of [
     ['topup', '0', '0'],
     ['spend', '15', '0'],
@@ -308,11 +350,6 @@ it('explains zero and cleared blockers outside the viewed period', async () => {
       [f.team, f.agent, 'UTC']
     )
   )[0]!.result;
-  expect(result.minDate).toBe('2026-09-26');
-  expect(result.blockers).toEqual(
-    expect.arrayContaining([
-      { date: '2026-09-25', metric: 'topup', value: '0.00' },
-      { date: '2026-09-25', metric: 'spend', value: null }
-    ])
-  );
+  expect(result.minDate).toBe(new Date().toISOString().slice(0, 10));
+  expect(result.blockers).toEqual([]);
 });

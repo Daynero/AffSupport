@@ -20,6 +20,7 @@ import { Modal } from '../../components/Modal';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 import { cachedPreview } from '../preview-url-cache';
+import { getThumbnailSession, type ThumbnailSessionClient } from '../explorer/useThumbnailSession';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { KindIcon } from '../explorer/KindIcon';
 import type { TeamMaterialRowKind } from '@video-compressor/shared';
@@ -40,6 +41,7 @@ function kindOfCategory(category: TeamTaskAttachmentSummary['category']): TeamMa
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+import { FadeImage } from '../../components/ui/index';
 
 /* A member the space has not told us about may read and nothing more. */
 const NO_PERMISSIONS = DEFAULT_ROLE_PERMISSIONS.viewer;
@@ -68,6 +70,9 @@ export interface TaskAttachmentPreviewClient {
     consumer: 'browser'
   ): Promise<TeamDownloadGrantResult>;
   shareLibraryMaterial(request: LibraryShareCopyRequest): Promise<LibraryShareCopyResult>;
+  /** The explorer's thumbnails; absent on a client that predates them. */
+  mintThumbnailSession?: ThumbnailSessionClient['mintThumbnailSession'];
+  thumbnailUrl?: ThumbnailSessionClient['thumbnailUrl'];
 }
 
 const defaultClient: TaskAttachmentPreviewClient = teamApi;
@@ -147,6 +152,12 @@ export function TaskAttachmentTile({
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
   const [unavailable, setUnavailable] = useState(attachment.availability !== 'ready');
+  /**
+   * Whether the media grant is needed: `relay` when there is no thumbnail
+   * session and the picture has to come through the grant, `direct` when the
+   * thumbnail failed and the file itself is shown.
+   */
+  const [rangeWanted, setRangeWanted] = useState<false | 'relay' | 'direct'>(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   /**
    * Opened in the shared viewer rather than as a picture in this dialog: a
@@ -269,6 +280,7 @@ export function TaskAttachmentTile({
     setRangeUrl(null);
     setThumbnailUrl(null);
     setVideoReady(false);
+    setRangeWanted(false);
     // No preview will ever come for these (a folder, an unpreviewable file):
     // say so instead of "preparing…" forever.
     const noPreview =
@@ -278,24 +290,26 @@ export function TaskAttachmentTile({
       return;
     }
     if (attachment.category === 'image' || attachment.category === 'video') {
-      void cachedPreview(
-        (id, materialId, mode) => client.previewMaterial(id, materialId, mode),
-        teamId,
-        attachment.materialId,
-        'media'
-      )
-        .then(result => {
-          if (!active) return;
-          if (result.kind !== 'media') {
-            setUnavailable(true);
-            return;
-          }
-          setRangeUrl(result.rangeUrl);
-          setThumbnailUrl(thumbnailRelayUrl(result.rangeUrl));
-        })
-        .catch(() => {
-          if (active) setUnavailable(true);
-        });
+      /*
+       * The explorer's thumbnail first: one stable, browser-cacheable address per
+       * file, the same one the grid and the card's peek already loaded. Minting a
+       * media grant here gave every opening of the task a fresh ticket in the
+       * address — a new download of every picture, each one checked against
+       * Drive again. The grant is asked for only when it is needed: the
+       * thumbnail failed, or the file is being opened.
+       */
+      const { mintThumbnailSession, thumbnailUrl: thumbnailFor } = client;
+      if (mintThumbnailSession && thumbnailFor) {
+        void getThumbnailSession({ mintThumbnailSession, thumbnailUrl: thumbnailFor }, teamId)
+          .then(session => {
+            if (active) setThumbnailUrl(thumbnailFor(session, attachment.materialId));
+          })
+          .catch(() => {
+            if (active) setRangeWanted('relay');
+          });
+      } else {
+        setRangeWanted('relay');
+      }
     } else if (attachment.category === 'landing') {
       void client
         .listLandingRenders(teamId, [attachment.materialId], 'default')
@@ -323,6 +337,44 @@ export function TaskAttachmentTile({
     teamId
   ]);
 
+  // The media grant, minted only once something needs the file itself.
+  const needsRange = rangeWanted || (previewOpen && !opensInViewer);
+  useEffect(() => {
+    if (!needsRange || rangeUrl || unavailable) return;
+    if (attachment.category !== 'image' && attachment.category !== 'video') return;
+    let active = true;
+    void cachedPreview(
+      (id, materialId, mode) => client.previewMaterial(id, materialId, mode),
+      teamId,
+      attachment.materialId,
+      'media'
+    )
+      .then(result => {
+        if (!active) return;
+        if (result.kind !== 'media') {
+          setUnavailable(true);
+          return;
+        }
+        setRangeUrl(result.rangeUrl);
+        if (rangeWanted === 'relay') setThumbnailUrl(thumbnailRelayUrl(result.rangeUrl));
+      })
+      .catch(() => {
+        if (active) setUnavailable(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    attachment.category,
+    attachment.materialId,
+    client,
+    needsRange,
+    rangeUrl,
+    rangeWanted,
+    teamId,
+    unavailable
+  ]);
+
   const seekVideo = () => {
     const element = video.current;
     if (!element || !Number.isFinite(element.duration)) return;
@@ -348,6 +400,7 @@ export function TaskAttachmentTile({
 
   const fallBackToRangePreview = () => {
     setThumbnailUrl(null);
+    setRangeWanted('direct');
   };
 
   const download = async () => {
@@ -409,7 +462,7 @@ export function TaskAttachmentTile({
     >
       <div className="team-task-attachment-preview">
         {thumbnailUrl && (
-          <img
+          <FadeImage
             loading="lazy"
             decoding="async"
             src={thumbnailUrl}
@@ -436,7 +489,7 @@ export function TaskAttachmentTile({
           />
         )}
         {attachment.category !== 'video' && rangeUrl && !thumbnailUrl && (
-          <img
+          <FadeImage
             loading="lazy"
             decoding="async"
             src={rangeUrl}
@@ -445,7 +498,7 @@ export function TaskAttachmentTile({
             onError={markUnavailable}
           />
         )}
-        {(!rangeUrl || (!thumbnailUrl && attachment.category === 'video' && !videoReady)) && (
+        {!thumbnailUrl && (!rangeUrl || (attachment.category === 'video' && !videoReady)) && (
           <span className="team-task-attachment-fallback">
             {/* A file with no picture of itself — a transcript, a document, a
                 folder — shows what it is, not an apology (024, US14). The
@@ -460,7 +513,7 @@ export function TaskAttachmentTile({
             ) : unavailable ? (
               t('teamTaskPreviewUnavailable')
             ) : (
-              t('teamTaskPreviewLoading')
+              <span className="team-task-attachment-pending">{t('teamTaskPreviewLoading')}</span>
             )}
           </span>
         )}

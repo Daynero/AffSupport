@@ -927,12 +927,21 @@ async function handleThumbnail(
     throw new TeamFunctionError('UNSUPPORTED_MEDIA', { retryable: false });
   }
   const cachePath = await thumbnailCachePath(context, live.version, live.checksum);
+  // A session address lives as long as its session, so the browser may keep
+  // the picture as long: a task reopened inside it shows the same bytes
+  // without asking Drive again. A one-time ticket stays `no-store`.
+  const keepForSession = (headers: Headers) => {
+    if (parsed.mode === 'session') headers.set('cache-control', 'private, max-age=900');
+    return headers;
+  };
   if (cachePath) {
     const cached = await read(cachePath);
     if (cached) {
       return new Response(cached.body.stream(), {
         status: 200,
-        headers: thumbnailHeaders(cached.mimeType, cached.contentLength, cors, 'hit')
+        headers: keepForSession(
+          thumbnailHeaders(cached.mimeType, cached.contentLength, cors, 'hit')
+        )
       });
     }
   }
@@ -962,7 +971,9 @@ async function handleThumbnail(
   }
   return new Response(body, {
     status: 200,
-    headers: thumbnailHeaders(mimeType, contentLength, cors, cachePath ? 'miss' : 'bypass')
+    headers: keepForSession(
+      thumbnailHeaders(mimeType, contentLength, cors, cachePath ? 'miss' : 'bypass')
+    )
   });
 }
 

@@ -2231,14 +2231,17 @@ input.is-invalid {
 .soty-skeleton {
   display: inline-block;
   border-radius: var(--radius-sm);
+  /* The inventory's skeleton sheen, so a loading page moves the same way everywhere. */
   background: linear-gradient(
-    100deg,
-    var(--color-surface-muted) 40%,
-    var(--purple-100) 50%,
-    var(--color-surface-muted) 60%
+    90deg,
+    var(--color-neutral-surface-muted) 0%,
+    var(--color-neutral-surface-muted) 35%,
+    var(--color-neutral-surface-subtle) 50%,
+    var(--color-neutral-surface-muted) 65%,
+    var(--color-neutral-surface-muted) 100%
   );
-  background-size: 220% 100%;
-  animation: shimmer 1.8s linear infinite;
+  background-size: 300% 100%;
+  animation: ui-skeleton-sheen var(--motion-sheen) var(--ease-in-out-curve) infinite;
 }
 
 /* Loading placeholders for the account/admin pages. They copy the loaded
@@ -4631,9 +4634,13 @@ body:has(.public-home) {
 
 .support-goal-admin-form {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
   gap: var(--space-4);
+}
+
+.support-goal-admin-actions {
+  grid-column: 1 / -1;
 }
 
 .support-goal-admin-actions {
@@ -7984,6 +7991,16 @@ body:has(.public-home) {
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
   padding: var(--space-3) var(--space-5) 0;
+  /* Sticks with only the tab strip in view: the name and the utilities above it
+     slide under the topbar (WorkspaceShell measures how far). */
+  position: sticky;
+  top: calc(var(--topbar-h) - var(--team-space-chrome-hidden, 0px));
+  z-index: calc(var(--layer-header) + 5);
+}
+/* Every section's sticky surface measures from the topbar; inside the space
+   that edge is the bottom of the tab strip. */
+.team-space-shell-body {
+  --topbar-h: calc(var(--app-header-height) + var(--team-space-tabs-bar, 0px));
 }
 /* The panel's own edge closes the strip; a second rule under it doubled it. */
 .team-space-shell-chrome > .team-space-tabs {
@@ -10208,6 +10225,11 @@ body {
   color: var(--color-text-muted);
   text-align: center;
   font-size: var(--text-caption);
+}
+/* "Preparing…" only once the preview is actually late: under that the muted
+   holder is enough, and words that blink for half a second read as a flicker. */
+.team-task-attachment-pending {
+  animation: ui-fade-in var(--dur-section) var(--ease-standard) var(--delay-patience) both;
 }
 /* A file drawn as what it is: the glyph at the size of a picture's subject. */
 .team-task-attachment-fallback > .team-kind-icon {
@@ -13950,6 +13972,20 @@ button.team-landing-tile:hover {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+/* At the left edge of the actions, set off by a rule: they arrange the list,
+   the buttons after them act on the space. The group takes the rest of the row
+   so the controls sit left and the buttons right, on one line or on their own. */
+.team-explorer-toolbar-actions:has(> .team-explorer-list-controls) {
+  flex-grow: 1;
+}
+.team-explorer-toolbar-actions:has(> .team-explorer-list-controls) > .team-explorer-view-toggle {
+  margin-left: 0;
+}
+.team-explorer-toolbar-actions > .team-explorer-list-controls {
+  margin-right: auto;
+  padding-right: var(--space-3);
+  border-right: 1px solid var(--color-border);
+}
 .team-explorer-filter,
 .team-explorer-sort {
   position: relative;
@@ -17388,6 +17424,9 @@ input[type='number'] {
   margin: 0;
 }
 .team-updater-chip {
+  /* A link, so the button rule's height never reached it and it sat thinner
+     than the button chips beside it. */
+  min-height: 44.2px;
   background-color: var(--color-surface);
   text-decoration: none;
   white-space: nowrap;
@@ -18372,9 +18411,14 @@ a.history-subject {
   z-index: calc(var(--layer-header) + 2);
   display: grid;
   gap: var(--space-4);
-  padding-bottom: var(--space-4);
+  /* Cancels the explorer's row gap and leaves a tight step to the list. */
+  padding-bottom: var(--space-2);
   margin-bottom: calc(-1 * var(--space-4));
   background: var(--color-surface);
+}
+/* Nothing to say above the list (no selection, no read-only note): no empty band. */
+.team-explorer-list-header:empty {
+  display: none;
 }
 .team-explorer-list-header {
   position: sticky;

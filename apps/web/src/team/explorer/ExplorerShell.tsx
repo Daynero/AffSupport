@@ -1639,6 +1639,15 @@ function ExplorerBody({
             </>
           )}
           <div className="team-explorer-toolbar-actions">
+            {/* In the actions' group, so they wrap with the buttons, and first in it, at the
+              left edge behind a rule (owner, 2026-10-10): how the list is shown, apart
+              from what to do to it. */}
+            {!trash && !searching && (
+              <div className="team-explorer-list-controls">
+                <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
+                <SortMenu sort={sort} onChange={setSort} />
+              </div>
+            )}
             {!trash && (
               <Button
                 type="button"
@@ -1779,6 +1788,7 @@ function ExplorerBody({
             scopeName={syncScopeName}
             onCancel={canResync ? () => void folderResync.cancel() : undefined}
             onRetry={canResync ? () => void folderResync.start() : undefined}
+            onDismiss={folderResync.dismiss}
           />
         )}
         {retryGroupId && (
@@ -1819,12 +1829,6 @@ function ExplorerBody({
             <p className="team-explorer-readonly" role="status">
               {t('teamStorageReadOnly')}
             </p>
-          )}
-          {!trash && !searching && (
-            <div className="team-explorer-list-controls">
-              <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
-              <SortMenu sort={sort} onChange={setSort} />
-            </div>
           )}
           {selectedRows.length > 0 && !trash && (
             /*

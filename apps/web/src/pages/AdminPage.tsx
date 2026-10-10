@@ -180,7 +180,7 @@ export default function AdminPage() {
   const [error, setError] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [supportGoal, setSupportGoal] = useState<SupportGoalRow | null>(null);
-  const [supportAmount, setSupportAmount] = useState('');
+  const [supportForm, setSupportForm] = useState<SupportGoalForm>(emptySupportGoalForm);
   const [supportGoalSaving, setSupportGoalSaving] = useState(false);
   const [supportGoalState, setSupportGoalState] = useState<'idle' | 'saved' | 'invalid' | 'error'>(
     'idle'
@@ -254,7 +254,7 @@ export default function AdminPage() {
     } else {
       const nextGoal = parseSupportGoal(supportGoalResult.data);
       setSupportGoal(nextGoal);
-      setSupportAmount(nextGoal ? supportAmountInputValue(nextGoal.raised_cents) : '');
+      setSupportForm(nextGoal ? supportGoalFormValue(nextGoal) : emptySupportGoalForm);
     }
     setLoading(false);
   }, [consentFilter, dates.end, dates.start, isAdmin, page, search, statusFilter]);
@@ -310,17 +310,29 @@ export default function AdminPage() {
 
   const saveSupportGoal = async () => {
     if (!supportGoal || supportGoalSaving) return;
-    const raisedCents = parseSupportAmountInput(supportAmount);
-    if (raisedCents === null) {
+    const titleEn = supportForm.titleEn.trim();
+    const titleUk = supportForm.titleUk.trim();
+    const targetCents = parseSupportAmountInput(supportForm.target);
+    const raisedCents = parseSupportAmountInput(supportForm.raised);
+    if (
+      !validSupportGoalTitle(titleEn) ||
+      !validSupportGoalTitle(titleUk) ||
+      targetCents === null ||
+      targetCents === 0 ||
+      raisedCents === null
+    ) {
       setSupportGoalState('invalid');
       return;
     }
     setSupportGoalSaving(true);
     setSupportGoalState('idle');
     const { data, error: updateError } = await requireSupabaseClient().rpc(
-      'admin_update_support_goal_amount',
+      'admin_update_support_goal',
       {
         p_goal_id: supportGoal.id,
+        p_title_en: titleEn,
+        p_title_uk: titleUk,
+        p_target_cents: targetCents,
         p_raised_cents: raisedCents
       }
     );
@@ -329,7 +341,7 @@ export default function AdminPage() {
       setSupportGoalState('error');
     } else {
       setSupportGoal(updated);
-      setSupportAmount(supportAmountInputValue(updated.raised_cents));
+      setSupportForm(supportGoalFormValue(updated));
       setSupportGoalState('saved');
       void refreshSupportGoal();
     }
@@ -386,13 +398,13 @@ export default function AdminPage() {
         <div className={`admin-loaded${sawSkeleton.current ? ' content-appear' : ''}`}>
           <SupportGoalAdminCard
             goal={supportGoal}
-            amount={supportAmount}
+            form={supportForm}
             language={language}
             state={supportGoalState}
             saving={supportGoalSaving}
             t={t}
-            onAmountChange={value => {
-              setSupportAmount(value);
+            onFormChange={patch => {
+              setSupportForm(current => ({ ...current, ...patch }));
               setSupportGoalState('idle');
             }}
             onSave={() => void saveSupportGoal()}
@@ -687,23 +699,41 @@ export default function AdminPage() {
   );
 }
 
+type SupportGoalForm = { titleUk: string; titleEn: string; target: string; raised: string };
+
+const emptySupportGoalForm: SupportGoalForm = { titleUk: '', titleEn: '', target: '', raised: '' };
+
+function supportGoalFormValue(goal: SupportGoalRow): SupportGoalForm {
+  return {
+    titleUk: goal.title_uk,
+    titleEn: goal.title_en,
+    target: supportAmountInputValue(goal.target_cents),
+    raised: supportAmountInputValue(goal.raised_cents)
+  };
+}
+
+/** Mirrors the 1–160 character title check in `admin_update_support_goal`. */
+function validSupportGoalTitle(title: string): boolean {
+  return title.length >= 1 && title.length <= 160;
+}
+
 function SupportGoalAdminCard({
   goal,
-  amount,
+  form,
   language,
   state,
   saving,
   t,
-  onAmountChange,
+  onFormChange,
   onSave
 }: {
   goal: SupportGoalRow | null;
-  amount: string;
+  form: SupportGoalForm;
   language: 'en' | 'uk';
   state: 'idle' | 'saved' | 'invalid' | 'error';
   saving: boolean;
   t: Translate;
-  onAmountChange: (value: string) => void;
+  onFormChange: (patch: Partial<SupportGoalForm>) => void;
   onSave: () => void;
 }) {
   const progress = goal ? supportGoalProgress(goal) : null;
@@ -747,15 +777,48 @@ function SupportGoalAdminCard({
               onSave();
             }}
           >
+            <FormField label={t('adminSupportGoalTitleUk')} htmlFor="support-goal-title-uk">
+              <Input
+                id="support-goal-title-uk"
+                type="text"
+                autoComplete="off"
+                maxLength={160}
+                value={form.titleUk}
+                invalid={state === 'invalid' && !validSupportGoalTitle(form.titleUk.trim())}
+                onChange={event => onFormChange({ titleUk: event.target.value })}
+              />
+            </FormField>
+            <FormField label={t('adminSupportGoalTitleEn')} htmlFor="support-goal-title-en">
+              <Input
+                id="support-goal-title-en"
+                type="text"
+                autoComplete="off"
+                maxLength={160}
+                value={form.titleEn}
+                invalid={state === 'invalid' && !validSupportGoalTitle(form.titleEn.trim())}
+                onChange={event => onFormChange({ titleEn: event.target.value })}
+              />
+            </FormField>
+            <FormField label={t('adminSupportGoalTarget')} htmlFor="support-goal-target">
+              <Input
+                id="support-goal-target"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={form.target}
+                invalid={state === 'invalid' && !parseSupportAmountInput(form.target)}
+                onChange={event => onFormChange({ target: event.target.value.replace(/\./gu, ',') })}
+              />
+            </FormField>
             <FormField label={t('adminSupportGoalCollected')} htmlFor="support-goal-amount">
               <Input
                 id="support-goal-amount"
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
-                value={amount}
-                invalid={state === 'invalid'}
-                onChange={event => onAmountChange(event.target.value)}
+                value={form.raised}
+                invalid={state === 'invalid' && parseSupportAmountInput(form.raised) === null}
+                onChange={event => onFormChange({ raised: event.target.value.replace(/\./gu, ',') })}
                 aria-describedby="support-goal-amount-hint"
               />
             </FormField>

@@ -597,9 +597,15 @@ describe('accounts and agents', () => {
     await waitForGroups();
     await user.click(screen.getByRole('button', { name: 'Add account' }));
     await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v40{Enter}');
+    // Enter on the name offers the optional 2FA key instead of creating yet.
+    const seedField = await screen.findByRole('textbox', { name: /^Social account 2FA key/ });
+    expect(document.activeElement).toBe(seedField);
+    expect(api.createAccount).not.toHaveBeenCalled();
+    await user.keyboard('{Enter}');
     await waitFor(() =>
       expect(api.createAccount).toHaveBeenCalledWith({ teamId: TEAM_ID, name: 'v40' })
     );
+    expect(api.setAccountTwoFactor).not.toHaveBeenCalled();
     // The agent editor is already open inside the new account.
     const idField = await screen.findByRole('textbox', { name: 'Full ad account ID' });
     expect(document.activeElement).toBe(idField);
@@ -622,6 +628,26 @@ describe('accounts and agents', () => {
     expect(screen.getByText('v40-777 added')).toBeTruthy();
   });
 
+  it('saves the 2FA key offered after the name, then opens the agent editor', async () => {
+    const api = client();
+    const user = userEvent.setup();
+    render(api);
+    await waitForGroups();
+    await user.click(screen.getByRole('button', { name: 'Add account' }));
+    await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v40');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    const seedField = await screen.findByRole('textbox', { name: /^Social account 2FA key/ });
+    expect(document.activeElement).toBe(seedField);
+    await user.type(seedField, 'JBSWY3DPEHPK3PXP{Enter}');
+    await waitFor(() =>
+      expect(api.setAccountTwoFactor).toHaveBeenCalledWith(
+        expect.objectContaining({ accountId: '17000000-0000-4000-8000-000000000099' })
+      )
+    );
+    const idField = await screen.findByRole('textbox', { name: 'Full ad account ID' });
+    expect(document.activeElement).toBe(idField);
+  });
+
   it('keeps a freshly named account on screen while a filter would hide it', async () => {
     const api = client();
     const user = userEvent.setup();
@@ -629,7 +655,7 @@ describe('accounts and agents', () => {
     await waitForGroups();
     await user.click(screen.getByRole('button', { name: /^Running/ }));
     await user.click(screen.getByRole('button', { name: 'Add account' }));
-    await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v40{Enter}');
+    await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v40{Enter}{Enter}');
     // No ad accounts yet, so the filter alone would drop it — but its editor is open.
     expect(await screen.findByRole('textbox', { name: 'Full ad account ID' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'v40' })).toBeTruthy();
@@ -646,7 +672,7 @@ describe('accounts and agents', () => {
     render(api);
     await waitForGroups();
     await user.click(screen.getByRole('button', { name: 'Add account' }));
-    await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v31{Enter}');
+    await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v31{Enter}{Enter}');
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'This space already has that account.'
@@ -753,9 +779,12 @@ describe('the row menu', () => {
     await user.click(trigger);
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     const edit = screen.getByRole('menuitem', { name: /^Edit ad account/ });
+    const move = screen.getByRole('menuitem', { name: /^Move to another account/ });
     const remove = screen.getByRole('menuitem', { name: /^Delete ad account/ });
     expect(document.activeElement).toBe(edit);
 
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(move);
     await user.keyboard('{ArrowDown}');
     expect(document.activeElement).toBe(remove);
     await user.keyboard('{ArrowDown}');

@@ -27,19 +27,13 @@ const en = {
   financeMoveTitle: 'Transfer ad account',
   financeMoveFrom: 'from social account {account}',
   financeMoveSelect: 'Or choose from the list',
-  financeMoveDateHelp:
-    'Choose the date from which this advertising account will belong to another social account.',
-  financeMoveEarliest:
-    'Financial history prevents an earlier transfer. Earliest date: {date}. Blocking entries:',
-  financeMoveClearedEntry: 'Cleared entry (history retained)',
-  financeMoveWait:
-    'Transfer on that day before entering new amounts. Scheduling future transfers is not supported.',
   financeMoveResults: 'Matching social accounts: {count}. Choose one from the list below.',
   financeMoveRetryHelp:
     'The response was lost and the transfer may already be complete. Retry checks the same operation without repeating the transfer.',
   financeSearchTarget: 'Find target social account',
-  financeMoveHelp:
-    'Earlier financial entries of the advertising account remain under their original social account. Its ID, runs and history are retained.',
+  financeMoveHelp: 'The ad account keeps its ID, runs and history.',
+  financeMoveWarning:
+    'All of this ad account’s amounts — balances, top-ups and spend, for all time — will move to the new social account and will no longer count toward {account}.',
   financeMoveBlockedToday:
     'This advertising account already has financial history today, including cleared entries. Move it from tomorrow, before entering new amounts.',
   financePeriodActions: 'Actions for the selected day',
@@ -1008,13 +1002,17 @@ const en = {
   adminSubtitle: 'Privacy-minimized product health and user administration.',
   adminSupportGoalTitle: 'Donation goal',
   adminSupportGoalSubtitle:
-    'Enter the total confirmed amount. Every open Soty tab updates automatically.',
+    'Edit the goal title, target and confirmed total — changes reach every open Soty tab automatically.',
+  adminSupportGoalTitleUk: 'Goal title, Ukrainian',
+  adminSupportGoalTitleEn: 'Goal title, English',
+  adminSupportGoalTarget: 'Goal, USD',
   adminSupportGoalCollected: 'Total raised, USD',
   adminSupportGoalCollectedHint:
     'Use the combined USD equivalent from Monobank and crypto. This replaces the total; it does not add a separate donation.',
-  adminSupportGoalSave: 'Update amount',
-  adminSupportGoalSaved: 'Amount updated.',
-  adminSupportGoalInvalid: 'Enter a non-negative amount with no more than two decimal places.',
+  adminSupportGoalSave: 'Save goal',
+  adminSupportGoalSaved: 'Goal updated.',
+  adminSupportGoalInvalid:
+    'Titles need 1–160 characters; the goal must be above zero and amounts may have at most two decimal places.',
   adminSupportGoalError: 'Could not load or update the donation goal.',
   adminSupportGoalUnavailable: 'There is no active donation goal.',
   adminSupportGoalUpdated: 'Updated {date}',
@@ -2991,6 +2989,7 @@ const en = {
   teamAccountColumnActions: 'Actions',
   teamAgentEdit: 'Edit ad account',
   teamAgentMore: 'More actions for',
+  teamAgentMove: 'Move to another account:',
   teamAgentRelease: 'Make free',
   teamAgentReleaseCount: 'clears {runs}',
   teamAgentDelete: 'Delete ad account',
@@ -3277,18 +3276,13 @@ const uk: Record<keyof typeof en, string> = {
   financeMoveTitle: 'Перенесення РК',
   financeMoveFrom: 'з соца {account}',
   financeMoveSelect: 'Або виберіть зі списку',
-  financeMoveDateHelp: 'Виберіть з якої дати РК належатиме іншому соцу.',
-  financeMoveEarliest:
-    'Фінансова історія не дозволяє перенести раніше. Найраніша дата: {date}. Записи, що блокують перенесення:',
-  financeMoveClearedEntry: 'Очищений запис (історія збережена)',
-  financeMoveWait:
-    'Перенесіть у цей день до внесення нових сум. Планування майбутнього перенесення не підтримується.',
   financeMoveResults: 'Знайдено соців: {count}. Виберіть потрібний у списку нижче.',
   financeMoveRetryHelp:
     'Відповідь втрачена, перенесення могло вже завершитися. Повтор перевіряє ту саму операцію без дублювання перенесення.',
   financeSearchTarget: 'Знайти цільовий соц',
-  financeMoveHelp:
-    'Попередні фінансові записи рекламного кабінету залишаться під історичним соцом. Його ID, запуски та історія збережуться.',
+  financeMoveHelp: 'ID, запуски та історія РК збережуться.',
+  financeMoveWarning:
+    'Усі суми цього РК — баланси, поповнення й витрати за весь час — перейдуть на новий соц і більше не рахуватимуться в соці {account}.',
   financeMoveBlockedToday:
     'Рекламний кабінет уже має фінансову історію сьогодні, включно з очищеними записами. Перенесіть його завтра, до внесення нових сум.',
   financePeriodActions: 'Дії за обраний день',
@@ -4250,13 +4244,17 @@ const uk: Record<keyof typeof en, string> = {
   adminSubtitle: 'Мінімізована продуктова статистика та керування користувачами.',
   adminSupportGoalTitle: 'Донатна ціль',
   adminSupportGoalSubtitle:
-    'Введи загальну підтверджену суму — вона автоматично оновиться у всіх відкритих вкладках Soty.',
+    'Зміни назву, ціль і загальну підтверджену суму — усе автоматично оновиться у всіх відкритих вкладках Soty.',
+  adminSupportGoalTitleUk: 'Назва цілі, українською',
+  adminSupportGoalTitleEn: 'Назва цілі, англійською',
+  adminSupportGoalTarget: 'Ціль, USD',
   adminSupportGoalCollected: 'Усього зібрано, USD',
   adminSupportGoalCollectedHint:
     'Вкажи сумарний USD-еквівалент Monobank і крипти. Значення замінює загальну суму, а не додає окремий донат.',
-  adminSupportGoalSave: 'Оновити суму',
-  adminSupportGoalSaved: 'Суму оновлено.',
-  adminSupportGoalInvalid: 'Введи невід’ємну суму максимум із двома знаками після коми.',
+  adminSupportGoalSave: 'Зберегти ціль',
+  adminSupportGoalSaved: 'Ціль оновлено.',
+  adminSupportGoalInvalid:
+    'Назви — від 1 до 160 символів, ціль більша за нуль, суми максимум із двома знаками після коми.',
   adminSupportGoalError: 'Не вдалося завантажити або оновити донатну ціль.',
   adminSupportGoalUnavailable: 'Активної донатної цілі немає.',
   adminSupportGoalUpdated: 'Оновлено {date}',
@@ -6220,6 +6218,7 @@ const uk: Record<keyof typeof en, string> = {
   teamAccountColumnActions: 'Дії',
   teamAgentEdit: 'Редагувати РК',
   teamAgentMore: 'Інші дії для',
+  teamAgentMove: 'Перенести на інший соц:',
   teamAgentRelease: 'Звільнити',
   teamAgentReleaseCount: 'буде прибрано {runs}',
   teamAgentDelete: 'Видалити РК',

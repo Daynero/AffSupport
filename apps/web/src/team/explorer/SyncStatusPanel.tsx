@@ -87,6 +87,7 @@ export function SyncStatusPanel({
   scopeName,
   onCancel,
   onRetry,
+  onDismiss,
   now = Date.now()
 }: {
   status: FolderSyncStatus;
@@ -94,6 +95,8 @@ export function SyncStatusPanel({
   scopeName: string;
   onCancel?: () => void;
   onRetry?: () => void;
+  /** Hides the panel once the job is over. */
+  onDismiss?: () => void;
   now?: number;
 }) {
   const { t } = useI18n();
@@ -184,6 +187,11 @@ export function SyncStatusPanel({
           >
             {expanded ? t('teamSyncLess') : t('teamSyncMore')}
           </Button>
+          {terminal && onDismiss && (
+            <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
+              {t('teamOperationClose')}
+            </Button>
+          )}
         </span>
       </div>
 

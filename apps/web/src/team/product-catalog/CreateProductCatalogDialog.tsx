@@ -145,6 +145,8 @@ export function CreateProductCatalogDialog({
   } | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
   const [failure, setFailure] = useState<string | null>(null);
+  /** The refusal was "no catalog settings yet": the way to fix it goes right under it. */
+  const [failureNeedsSettings, setFailureNeedsSettings] = useState(false);
   /*
    * The name the sheet will have, up front (024): it is what the owner types on Meta, and the
    * form used to show it only after the catalog existed. Re-creating keeps its number.
@@ -232,6 +234,7 @@ export function CreateProductCatalogDialog({
     if (!linkCheck.ok || !countCheck.ok || !canConfirm || phase.kind !== 'form') return;
     setPhase({ kind: 'busy', step: restitch ? 'restitch' : 'catalog' });
     setFailure(null);
+    setFailureNeedsSettings(false);
     try {
       // The displayed price range is a usable default even before anyone has saved settings.
       if (settings === null) {
@@ -337,6 +340,7 @@ export function CreateProductCatalogDialog({
     } catch (error) {
       const key = errorKey(error);
       setFailure(key ? t(key) : teamErrorMessageFor(error, t));
+      setFailureNeedsSettings(key === 'productCatalogErrorSettingsMissing');
       setPhase({ kind: 'form' });
     }
   };
@@ -599,6 +603,12 @@ export function CreateProductCatalogDialog({
           <p className="team-inline-error" role="alert">
             {failure}
           </p>
+        )}
+        {failure && failureNeedsSettings && can('manage_metadata') && (
+          <SpaceSettingsLink
+            target={{ kind: 'settings', tab: 'product-catalog' }}
+            label={t('productCatalogOpenSettings')}
+          />
         )}
 
         <div className="team-dialog-actions">

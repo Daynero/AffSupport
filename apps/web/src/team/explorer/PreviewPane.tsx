@@ -18,7 +18,7 @@ import { useToasts } from '../../components/toast';
 import { MaterialDetail } from '../materials/MaterialDetail';
 import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
-import { EmptyState } from '../../components/ui/index';
+import { EmptyState, FadeImage } from '../../components/ui/index';
 import { MaterialNoteBlock } from '../materials/MaterialNote';
 import { displayedSize } from '../../format';
 import { MaterialCatalogFacts } from '../materials/MaterialCatalogFacts';
@@ -182,7 +182,7 @@ export function PreviewPane({
         }
         preview={
           image ? (
-            <img src={image} alt="" decoding="async" onError={() => setBroken(true)} />
+            <FadeImage src={image} alt="" decoding="async" onError={() => setBroken(true)} />
           ) : (
             <span className="team-explorer-tile-icon" aria-hidden="true">
               <KindIcon kind={row.kind} />

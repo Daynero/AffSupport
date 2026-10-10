@@ -3233,6 +3233,35 @@ export type GeneratedDatabase = {
           total: number;
         }[];
       };
+      admin_update_support_goal: {
+        Args: {
+          p_goal_id: string;
+          p_raised_cents: number;
+          p_target_cents: number;
+          p_title_en: string;
+          p_title_uk: string;
+        };
+        Returns: {
+          created_at: string;
+          currency: string;
+          description_en: string;
+          description_uk: string;
+          id: string;
+          raised_cents: number;
+          slug: string;
+          status: string;
+          target_cents: number;
+          title_en: string;
+          title_uk: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'support_goals';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       admin_update_support_goal_amount: {
         Args: { p_goal_id: string; p_raised_cents: number };
         Returns: {

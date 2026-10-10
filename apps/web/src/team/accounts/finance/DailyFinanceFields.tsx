@@ -9,7 +9,7 @@ import {
 } from '@video-compressor/shared';
 import { Button, Input, FormField, ConfirmDialog } from '../../../components/ui/index';
 import { useI18n } from '../../../i18n';
-import { formatFinanceAmount } from './formatFinanceAmount';
+import { financeDecimalComma, formatFinanceAmount } from './formatFinanceAmount';
 
 /** Drafts never follow server rereads; cancel is the only implicit discard. */
 export function DailyFinanceField({
@@ -163,7 +163,7 @@ export function DailyFinanceField({
                     setConflicted(false);
                   }
                   setRequest(crypto.randomUUID());
-                  setDraft(event.target.value);
+                  setDraft(financeDecimalComma(event.target.value));
                   setError(
                     draft !== null && placementConflict ? t('financePlacementConflict') : null
                   );

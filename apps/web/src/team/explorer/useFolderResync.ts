@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { isRequestAborted, TeamApiError, type DriveCatalogResyncResult } from '../../api/team';
-import type { FolderSyncStatus } from '../syncStatus';
+import { TERMINAL_SYNC_STATES, type FolderSyncStatus } from '../syncStatus';
 
 /**
  * Manual folder sync, browser side (028).
@@ -454,5 +454,10 @@ export function useFolderResync(input: {
     }
   };
 
-  return { running, status, start, cancel };
+  /** Hides a finished job's panel. A terminal job is already forgotten, so it stays hidden. */
+  const dismiss = () => {
+    setStatus(current => (current && TERMINAL_SYNC_STATES.has(current.state) ? null : current));
+  };
+
+  return { running, status, start, cancel, dismiss };
 }
