@@ -171,6 +171,32 @@ describe('connected Drive media cache', () => {
     ).toBe(false);
   });
 
+  it('walks to a shard once, then reads the next picture there without searching again', async () => {
+    const { client } = drive();
+    const cache = new DriveThumbnailCache(client, 'team-shard-memo', 'root');
+    const data = new Uint8Array(64).fill(3);
+    await cache.store(path, data, 'image/webp');
+    await new DriveThumbnailCache(client, 'team-shard-memo', 'root').read(path);
+    const searches = client.findFolderByAppProperty.mock.calls.length;
+    const again = await new DriveThumbnailCache(client, 'team-shard-memo', 'root').read(path);
+    expect(new Uint8Array(await again!.body.arrayBuffer())).toEqual(data);
+    expect(client.findFolderByAppProperty.mock.calls.length).toBe(searches);
+  });
+
+  it('forgets a remembered shard that no longer answers and finds it again', async () => {
+    const { client } = drive();
+    const data = new Uint8Array(64).fill(5);
+    await new DriveThumbnailCache(client, 'team-shard-stale', 'root').store(
+      path,
+      data,
+      'image/webp'
+    );
+    await new DriveThumbnailCache(client, 'team-shard-stale', 'root').read(path);
+    client.listChildren.mockRejectedValueOnce(new Error('404'));
+    const result = await new DriveThumbnailCache(client, 'team-shard-stale', 'root').read(path);
+    expect(new Uint8Array(await result!.body.arrayBuffer())).toEqual(data);
+  });
+
   it('rejects invalid paths and oversized/non-image cache payloads before creating folders', async () => {
     const { client } = drive();
     const cache = new DriveThumbnailCache(client, 'team', 'root');

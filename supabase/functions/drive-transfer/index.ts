@@ -501,8 +501,25 @@ function productionSignals(request: Request): OAuthProductionSignals {
   };
 }
 
+/**
+ * Access tokens this isolate already holds, by credential. Google gives an hour; every
+ * thumbnail on a page used to ask for a fresh one, a token round trip before any Drive work.
+ * The credential is still read each time (a revoked connection stops at once), and a new
+ * refresh token — a reconnection — never reuses the old access token.
+ */
+const accessTokens = new Map<string, { refreshToken: string; token: string; expiresAt: number }>();
+const ACCESS_TOKEN_MARGIN_MS = 5 * 60_000;
+
 async function driveClient(service: RpcClient, credentialId: string, request: Request) {
   const credential = await readDriveCredential(service, credentialId);
+  const held = accessTokens.get(credentialId);
+  if (
+    held &&
+    held.refreshToken === credential.refreshToken &&
+    held.expiresAt - ACCESS_TOKEN_MARGIN_MS > Date.now()
+  ) {
+    return new GoogleDriveClient(held.token);
+  }
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
   if (!clientId || !clientSecret) {
@@ -516,8 +533,14 @@ async function driveClient(service: RpcClient, credentialId: string, request: Re
       oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
       productionSignals: productionSignals(request)
     });
+    accessTokens.set(credentialId, {
+      refreshToken: credential.refreshToken,
+      token: token.accessToken,
+      expiresAt: Date.now() + token.expiresIn * 1000
+    });
     return new GoogleDriveClient(token.accessToken);
   } catch (error) {
+    accessTokens.delete(credentialId);
     if (error instanceof TeamFunctionError && error.code === 'NEEDS_REAUTH') {
       await rpcValue(service, 'service_mark_drive_needs_reauth', {
         p_credential: credentialId
@@ -716,6 +739,45 @@ async function thumbnailCachePath(
   });
 }
 
+/**
+ * Pictures this isolate served lately, by cache path, newest last. The path names the team,
+ * the material and the source version, and nothing is handed out before the request's own
+ * session or ticket and the catalog's membership checks have passed — so this only saves the
+ * Drive round trips (a folder walk, a listing, a download) behind a picture already proved
+ * this viewer's to see.
+ */
+const heldThumbnails = new Map<string, { bytes: Uint8Array; mimeType: string }>();
+const HELD_THUMBNAIL_BUDGET = 24 * 1024 * 1024;
+let heldThumbnailBytes = 0;
+
+function holdThumbnail(path: string, bytes: Uint8Array, mimeType: string) {
+  if (!validThumbnail(mimeType, bytes.byteLength)) return;
+  const previous = heldThumbnails.get(path);
+  if (previous) {
+    heldThumbnailBytes -= previous.bytes.byteLength;
+    heldThumbnails.delete(path);
+  }
+  heldThumbnails.set(path, { bytes, mimeType });
+  heldThumbnailBytes += bytes.byteLength;
+  for (const [oldest, entry] of heldThumbnails) {
+    if (heldThumbnailBytes <= HELD_THUMBNAIL_BUDGET) break;
+    heldThumbnails.delete(oldest);
+    heldThumbnailBytes -= entry.bytes.byteLength;
+  }
+}
+
+function heldThumbnail(path: string) {
+  const entry = heldThumbnails.get(path);
+  if (!entry) return null;
+  heldThumbnails.delete(path);
+  heldThumbnails.set(path, entry);
+  return {
+    body: new Blob([entry.bytes], { type: entry.mimeType }),
+    mimeType: entry.mimeType,
+    contentLength: entry.bytes.byteLength
+  };
+}
+
 function thumbnailHeaders(
   mimeType: string,
   contentLength: number,
@@ -890,8 +952,13 @@ async function handleThumbnail(
   const drive = await driveClient(service, context.credentialId, request);
   const thumbnailCache = new DriveThumbnailCache(drive, context.teamId, context.rootFolderId);
   const read = async (path: string) => {
+    const held = heldThumbnail(path);
+    if (held) return held;
     const cached = await thumbnailCache.read(path).catch(() => null);
-    if (cached) return cached;
+    if (cached) {
+      holdThumbnail(path, new Uint8Array(await cached.body.arrayBuffer()), cached.mimeType);
+      return heldThumbnail(path) ?? cached;
+    }
     // Keep existing posters working while old objects move lazily to Drive.
     const { data, error } = await legacyThumbnails.from('team-thumbnail-cache').download(path);
     if (error || !data || !validThumbnail(data.type, data.size)) return null;
@@ -902,8 +969,10 @@ async function handleThumbnail(
   };
   // The catalog's lifecycle and membership were re-checked above. Cache bytes
   // now live in the connected Drive, not in a server-side media bucket.
+  let missed: string | null = null;
   if (parsed.mode === 'session') {
     const prepared = await thumbnailCachePath(context, null, null);
+    missed = prepared;
     if (prepared) {
       const cached = await read(prepared);
       if (cached) {
@@ -934,7 +1003,8 @@ async function handleThumbnail(
     if (parsed.mode === 'session') headers.set('cache-control', 'private, max-age=900');
     return headers;
   };
-  if (cachePath) {
+  // The same address the prepared read just missed is not read twice.
+  if (cachePath && cachePath !== missed) {
     const cached = await read(cachePath);
     if (cached) {
       return new Response(cached.body.stream(), {
@@ -967,6 +1037,7 @@ async function handleThumbnail(
     throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
   }
   if (cachePath) {
+    holdThumbnail(cachePath, body, mimeType);
     await thumbnailCache.store(cachePath, body, mimeType).catch(() => undefined);
   }
   return new Response(body, {

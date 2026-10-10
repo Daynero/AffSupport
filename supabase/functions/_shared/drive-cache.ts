@@ -192,6 +192,14 @@ export async function moveGeneratedFolderToCache(
   });
 }
 
+/**
+ * Shard folders this isolate has already found, by team, space root and prefix. Reading a
+ * cached picture walked three marked folders before it could list the one that holds it —
+ * three Drive searches per thumbnail. A remembered id that no longer answers (the folder was
+ * trashed or moved out) is forgotten and the walk runs again once.
+ */
+const knownShards = new Map<string, string>();
+
 export class DriveThumbnailCache {
   private root: Promise<string> | null = null;
   private folders = new Map<string, Promise<string>>();
@@ -206,7 +214,10 @@ export class DriveThumbnailCache {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
     const prefix = path.slice(0, 2);
+    const known = `${this.teamId}:${this.rootFolderId}:${prefix}`;
     if (!create) {
+      const remembered = knownShards.get(known);
+      if (remembered) return remembered;
       const root = await this.drive.findFolderByAppProperty({
         key: CACHE_FOLDER_MARK,
         value: `${this.teamId}:${this.rootFolderId}`,
@@ -224,6 +235,7 @@ export class DriveThumbnailCache {
         value: `${thumbnails.id}:${prefix}`,
         parentId: thumbnails.id
       });
+      if (shard) knownShards.set(known, shard.id);
       return shard?.id ?? null;
     }
     this.root ??= ensureDriveCacheRoot(this.drive, this.teamId, this.rootFolderId);
@@ -231,17 +243,31 @@ export class DriveThumbnailCache {
     if (!folder) {
       folder = this.root.then(async root => {
         const thumbnails = await ensureDriveCacheFolder(this.drive, root, 'Thumbnails');
-        return ensureDriveCacheFolder(this.drive, thumbnails, prefix);
+        const shard = await ensureDriveCacheFolder(this.drive, thumbnails, prefix);
+        knownShards.set(known, shard);
+        return shard;
       });
       this.folders.set(prefix, folder);
     }
     return folder;
   }
 
-  async read(path: string) {
+  async read(
+    path: string
+  ): Promise<{ body: Blob; mimeType: string; contentLength: number } | null> {
+    const known = `${this.teamId}:${this.rootFolderId}:${path.slice(0, 2)}`;
+    const remembered = knownShards.has(known);
     const folder = await this.folder(path, false);
     if (!folder) return null;
-    const file = (await children(this.drive, folder)).find(
+    let listed: DriveFileMetadata[];
+    try {
+      listed = await children(this.drive, folder);
+    } catch (error) {
+      if (!remembered) throw error;
+      knownShards.delete(known);
+      return this.read(path);
+    }
+    const file = listed.find(
       item => !item.trashed && item.appProperties['soty.thumbnail'] === path
     );
     if (!file || !validThumbnail(file.mimeType, file.size ?? 0)) return null;
