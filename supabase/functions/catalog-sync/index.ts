@@ -290,7 +290,19 @@ async function isHiddenSystemFile(
     for (const parentId of frontier) {
       if (parentId === rootFolderId || visited.has(parentId)) continue;
       visited.add(parentId);
-      const parent = await drive.getFile(parentId);
+      let parent: DriveFileMetadata;
+      try {
+        parent = await drive.getFile(parentId);
+      } catch (cause) {
+        /* The hidden caches are this application's own folders under the root, and they always
+           read back whole. An ancestor Drive will not describe (unparseable, or not visible to
+           this connection) is therefore not one of them: that branch ends here, and whether the
+           file is inside the root is the next check's question. Failing here halted a space's
+           change feed for twelve days on one such record (incident 2026-10-07). */
+        const error = mapUnknownError(cause);
+        if (error.code === 'INVALID_RESPONSE' || error.code === 'NOT_FOUND') continue;
+        throw error;
+      }
       if (isHiddenPreviewCache(parent)) return true;
       next.push(...parent.parents);
     }

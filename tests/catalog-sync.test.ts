@@ -431,6 +431,50 @@ describe('durable catalog synchronization', () => {
     expect(complete).toHaveBeenCalledWith(expect.objectContaining({ changeToken: 'change-11' }));
   });
 
+  it('retries a change it cannot place, then lets the feed move past it', async () => {
+    const { TeamFunctionError } = await import('../supabase/functions/_shared/errors');
+    const good = file({ id: 'good' });
+    const poison = file({ id: 'poison' });
+    const make = () =>
+      dependencies({
+        listChanges: vi.fn().mockResolvedValue({
+          changes: [
+            { fileId: poison.id, removed: false, file: poison },
+            { fileId: good.id, removed: false, file: good }
+          ],
+          nextPageToken: null,
+          newStartPageToken: 'change-21'
+        }),
+        isHiddenSystemFile: vi.fn(async (changed: { id: string }) => {
+          if (changed.id === 'poison')
+            throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
+          return false;
+        }),
+        complete: vi.fn().mockResolvedValue(true)
+      });
+    const incremental = {
+      ...baseJob,
+      phase: 'incremental' as const,
+      pageToken: 'change-20',
+      changeToken: 'change-20'
+    };
+
+    const early = make();
+    await expect(runCatalogSyncSlice({ ...incremental, attempts: 1 }, early)).rejects.toThrow();
+    expect(early.complete).not.toHaveBeenCalled();
+
+    const late = make();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runCatalogSyncSlice({ ...incremental, attempts: 3 }, late);
+    expect(late.tombstoneFiles).not.toHaveBeenCalled();
+    expect(late.upsertFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ files: [expect.objectContaining({ id: 'good' })] })
+    );
+    expect(late.complete).toHaveBeenCalledWith(
+      expect.objectContaining({ changeToken: 'change-21' })
+    );
+  });
+
   it('does not advance a canonical cursor when discovered-subtree scheduling loses its lease', async () => {
     const changedFolder = file({ id: 'new-folder', mimeType: folderMime });
     const deps = dependencies({

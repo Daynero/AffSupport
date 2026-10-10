@@ -487,5 +487,50 @@ failed», «sweeper створює canonical сироті»; React у `team-fold
 | F7 права й діагностика            | кнопка = RPC-дозвіл; view `analytics_catalog_sync_jobs`, команда `analytics -- sync`; лог worker-а з ідентифікаторами; SQL-помилки видимі | M2 `20261008110000`, `scripts/analytics`                  |
 | Аудит: ярлик/403/page token       | ярлик розміщується за власними батьками, rate-limit 403 → `RATE_LIMITED`, page token → перезапуск сторінки                                | `_shared/drive.ts`                                        |
 
-Крок 1 (знімок production) лишається відкритим: після backend-apply M1+M2 —
-`npm run analytics -- sync <owner-email> --json`, до 2026-10-14.
+### Крок 1 — знімок production, 2026-10-10 20:52 UTC (після релізу 1.2.6)
+
+`npm run analytics -- sync <власник> --json`, read-only. Сирі JSON лежать поза репозиторієм;
+нижче — редагований підсумок без назв файлів.
+
+**Простір Санчоса** (`e7bbca1c…`, підключення `d2b14223…`, стан `connected`):
+
+- canonical job `d3baf37e…`: `incremental`, **`failed`**, `INVALID_RESPONSE`, 10/10 спроб,
+  `last_progress_at` = момент створення — прогресу немає з першої хвилини.
+- Останнє підтверджене читання змін: **2026-09-28 11:53 UTC** (sequence 16). Відтоді жодна
+  зміна Drive у простір не потрапила — 12 днів.
+- 18 incremental jobs поспіль з 28.09 по 09.10, кожен: 10 спроб, `INVALID_RESPONSE`,
+  `files_listed = 0`. Новий job падає на тій самій сторінці змін.
+- 19 ручних `user_subtree` jobs (кнопка «Синхронізувати»): `failed`, `REPLAY_TIMEOUT` —
+  кожен чекав, доки canonical прочитає зміни, а той не міг.
+- Lease-втрат і no-progress немає (`lease_lost_count = 0`): виконавець був, тобто F1
+  («waiter без виконавця») тут вже закритий релізом 1.2.6; лишилася інша причина.
+
+**Простір Goor** (`94eff3f2…`): той самий візерунок — 5 incremental `INVALID_RESPONSE`,
+4 `user_subtree` `REPLAY_TIMEOUT`, остання підтверджена синхронізація ~237 год тому. Після
+«Перевірити зараз» 2026-10-10 новий `initial` пройшов, canonical знову `pending`,
+підтверджено о 20:51 UTC.
+
+**Відповідь на перше питання** (у якому стані canonical у момент кліку): `failed` з
+`INVALID_RESPONSE`, а не `retry` і не прострочений lease.
+
+**Причина.** `INVALID_RESPONSE` із `retryable: true` у шляху змін дає лише одне місце:
+`isHiddenSystemFile` у `catalog-sync/index.ts` — обхід предків зміненого файлу. Якщо Drive
+не описує одного з предків (метадані не розбираються або предок не видно цьому підключенню),
+обхід кидав помилку, слайс повторювався, і після 10 спроб job падав — на тій самій зміні,
+щоразу. Одна така зміна зупиняла стрічку змін простору назавжди. У журналах воркера був лише
+код без `fileId`, тому з логів запис не встановити.
+
+**Виправлено (beta, наступний реліз):**
+
+- `isHiddenSystemFile`: предок, якого Drive не описує, не може бути прихованим кешем Soty (це
+  наші власні папки під коренем, вони завжди читаються) — гілка обходу закінчується, а не
+  валить слайс.
+- `runChanges`: після 3 спроб зміна, яку не вдається розмістити (`INVALID_RESPONSE`,
+  `PERMISSION_DENIED`, `NOT_FOUND`), пропускається без зміни рядка каталогу, стрічка йде далі;
+  у журнал пишеться `catalog_sync_change_unplaceable` з `fileId` і кодом. Перші спроби, як і
+  раніше, повторюються.
+- Тест: `tests/catalog-sync.test.ts` — «retries a change it cannot place, then lets the feed
+  move past it».
+
+Після релізу перевірити: `npm run analytics -- sync <власник Санчоса>` — canonical
+`succeeded/pending`, `confirmed_at` свіжий, а ручні синхронізації завершуються.

@@ -399,7 +399,38 @@ async function runChanges(
     }
     return { kind: 'active', file: change.file };
   };
-  for (const placed of await inOrder(page.changes, CHANGE_WALKS_AT_ONCE, place)) {
+  /*
+   * One change Drive cannot place must not stop the feed for good (incident 2026-10-07, step 1).
+   * A space's incremental jobs failed on the same page with INVALID_RESPONSE, ten attempts each,
+   * for twelve days: the feed never moved past one record whose ancestry could not be read, and
+   * every manual sync behind it timed out waiting. Once the job has retried, a record that still
+   * cannot be placed is left as it is — its catalog row untouched — and the feed goes on; the
+   * finite reconcile walks its folder again. The first attempts still retry, so a passing Drive
+   * hiccup changes nothing.
+   */
+  const tolerant = job.attempts >= UNPLACEABLE_AFTER_ATTEMPTS;
+  const placeOrSkip = async (change: (typeof page.changes)[number]): Promise<Placed> => {
+    try {
+      return await place(change);
+    } catch (cause) {
+      if (
+        !tolerant ||
+        !(cause instanceof TeamFunctionError) ||
+        !UNPLACEABLE_CODES.has(cause.code)
+      ) {
+        throw cause;
+      }
+      console.warn('catalog_sync_change_unplaceable', {
+        jobId: job.jobId,
+        connectionId: job.connectionId,
+        fileId: change.fileId,
+        code: cause.code,
+        attempts: job.attempts
+      });
+      return { kind: 'skip' };
+    }
+  };
+  for (const placed of await inOrder(page.changes, CHANGE_WALKS_AT_ONCE, placeOrSkip)) {
     if (placed.kind === 'active') active.push(placed.file);
     else if (placed.kind === 'tombstone') tombstones.push(placed.item);
   }
@@ -459,6 +490,11 @@ async function runChanges(
   await ingestDeferredTranscripts(job, dependencies, transcripts);
   return { phase: 'incremental', processed: page.changes.length };
 }
+
+/** Retries a change's placement gets before the feed stops waiting for it. */
+const UNPLACEABLE_AFTER_ATTEMPTS = 3;
+/** What "Drive could not tell us where this is" looks like; anything else still fails the slice. */
+const UNPLACEABLE_CODES = new Set<string>(['INVALID_RESPONSE', 'PERMISSION_DENIED', 'NOT_FOUND']);
 
 /** Few enough that Drive does not throttle the space, enough that a page takes seconds. */
 const CHANGE_WALKS_AT_ONCE = CATALOG_SYNC_BOUNDS.providerConcurrency;

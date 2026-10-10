@@ -106,7 +106,7 @@
 
 **Checkpoint — реліз A**
 
-- [ ] T042 Зняти знімок інциденту до 2026-10-14: після backend-apply M1+M2 на prod виконати `npm run analytics -- sync <owner-email> --json` і записати редагований результат (стан canonical у момент першого кліку: `failed`+код / `retry` / прострочений lease) у `docs/incidents/2026-10-07-folder-sync-diagnosis-and-plan.md`, розділ «Крок 1»; якщо M1 ще не застосовано — той самий SELECT власником через Dashboard, без змін даних.
+- [x] T042 (знято 2026-10-10 20:52 UTC, підсумок і причина — у документі інциденту, «Крок 1»; виправлення в catalog-sync) Зняти знімок інциденту до 2026-10-14: після backend-apply M1+M2 на prod виконати `npm run analytics -- sync <owner-email> --json` і записати редагований результат (стан canonical у момент першого кліку: `failed`+код / `retry` / прострочений lease) у `docs/incidents/2026-10-07-folder-sync-diagnosis-and-plan.md`, розділ «Крок 1»; якщо M1 ще не застосовано — той самий SELECT власником через Dashboard, без змін даних.
 - [ ] T043 Реліз A за `docs/BETA.md` і runbook: гілка від `beta-dev`; targeted-тести з quickstart §1 (реліз A) локально по одному; CI verify зелений; `release:backend-apply` (M1, M2, `catalog-sync`); packaged beta на точний SHA; quickstart §2 п.1–8 на беті з двома акаунтами, результати у `specs/028-manual-sync-lifecycle/quickstart.md` (розділ «Evidence, реліз A»); web deploy; 24 год спостереження через `analytics -- sync` (жодного waiter старшого за 10 хв без причини).
 
 ## Phase 6 — User Story 3: Зрозумілий стан, чесний результат і «Зупинити» (P2, реліз B)
