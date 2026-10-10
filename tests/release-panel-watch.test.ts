@@ -15,16 +15,54 @@ describe('watching a canonical runner run', () => {
       event('step_started', { stepId: 'preflight' }),
       event('step_failed', { stepId: 'preflight', error: { code: 'GATE_FAILED', subject: 'lint' } })
     ];
+    // Nobody on it yet: what failed, in words, and who will act — never a command for a person.
     expect(panelState({ state: 'running' }, events)).toMatchObject({
       state: 'needs_owner',
-      blocker: { code: 'GATE_FAILED', detail: 'lint' }
+      blocker: { code: '«Передумови» не пройшов', detail: 'lint' }
     });
+    // The agent says it is on it: the panel shows that work instead of a blocker.
+    const now = Date.parse('2026-10-10T12:00:00.000Z');
+    expect(
+      panelState(
+        { state: 'blocked' },
+        events,
+        { message: 'Агент виправляє форматування', updatedAt: '2026-10-10T11:50:00.000Z' },
+        now
+      )
+    ).toEqual({ state: 'repairing', blocker: null, reason: 'Агент виправляє форматування' });
+    // An agent's word goes stale; then the run is waiting again.
+    expect(
+      panelState(
+        { state: 'blocked' },
+        events,
+        { message: 'old', updatedAt: '2026-10-10T10:00:00.000Z' },
+        now
+      ).state
+    ).toBe('needs_owner');
     // A retry that has started again is running, not blocked.
     expect(
       panelState({ state: 'running' }, [...events, event('step_started', { stepId: 'preflight' })])
-    ).toEqual({ state: 'running', blocker: null });
+    ).toEqual({ state: 'running', blocker: null, reason: null });
     expect(panelState({ state: 'waiting_resource' }, [])).toMatchObject({ state: 'waiting' });
     expect(panelState({ state: 'completed' }, [])).toMatchObject({ state: 'completed' });
+  });
+
+  it('names a failed GitHub run by its link, not by the command that watched it', () => {
+    const { blocker } = panelState({ state: 'running' }, [
+      event('step_started', { stepId: 'windows_smoke' }),
+      event('step_failed', {
+        stepId: 'windows_smoke',
+        error: {
+          code: 'GATE_FAILED',
+          subject:
+            '/opt/node scripts/watch-github-run.mjs 1 — 2026-10-10T16:28:24Z completed — failure\nhttps://github.com/o/r/actions/runs/1'
+        }
+      })
+    ]);
+    expect(blocker).toMatchObject({
+      code: '«Windows: перевірка» не пройшов',
+      detail: 'Збірка в GitHub Actions не пройшла: https://github.com/o/r/actions/runs/1'
+    });
   });
 
   it('serves a snapshot the panel accepts, read-only, with no stale wait on a finished run', () => {

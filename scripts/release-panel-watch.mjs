@@ -48,37 +48,98 @@ async function history(exceptRunId) {
 }
 
 /** The runner's own words for where a run stands, in the panel's states. */
-export function panelState(run, events) {
-  const lastFailed = events.findLastIndex(e => e.type === 'step_failed');
-  const lastStarted = events.findLastIndex(e => e.type === 'step_started');
-  const failure = lastFailed > lastStarted ? events[lastFailed].payload?.error : null;
-  if (run.state === 'completed') return { state: 'completed', blocker: null };
-  if (run.state === 'cancelled') return { state: 'cancelled', blocker: null };
-  if (run.state === 'cancelling') return { state: 'cancelling', blocker: null };
-  if (run.state === 'blocked' || failure) {
-    const code = failure?.code ?? run.error?.code ?? 'RUN_BLOCKED';
+/** How long an agent's word about a stopped run stays true without being renewed. */
+const AGENT_STATUS_FRESH_MS = 30 * 60_000;
+
+const STEP_NAMES = {
+  preflight: 'Передумови',
+  prepare: 'Підготовка',
+  candidate_gate: 'Перевірка кандидата',
+  beta_package: 'Пакування beta',
+  beta_verify: 'Перевірка beta',
+  backend_beta: 'Репетиція backend',
+  readiness: 'Готовність до публікації',
+  macos_package: 'Пакування macOS',
+  windows_smoke: 'Windows: перевірка',
+  publish: 'Публікація артефактів',
+  manifest: 'Підписаний маніфест',
+  manifest_beta_verify: 'Перевірка commit маніфесту',
+  backend_apply: 'Оновлення backend',
+  deploy: 'Розгортання web',
+  live_verify: 'Фінальна жива перевірка'
+};
+
+/** @param {{ type: string }[]} events @param {string} type */
+function lastIndexOf(events, type) {
+  for (let index = events.length - 1; index >= 0; index -= 1)
+    if (events[index].type === type) return index;
+  return -1;
+}
+
+/** The useful line of a failure: the runner's subject carries whole command lines and logs. */
+function failureLine(error) {
+  const subject = String(error?.subject ?? '');
+  const url = /https:\/\/github\.com\/\S+\/actions\/runs\/\d+/.exec(subject)?.[0];
+  const head = subject
+    .split(/\s+—\s+/)
+    .slice(-1)[0]
+    .split('\n')[0]
+    .trim();
+  return url ? `Збірка в GitHub Actions не пройшла: ${url}` : head.slice(0, 300) || null;
+}
+
+/**
+ * Where a run stands, in the panel's states — and who is on it.
+ *
+ * The runner itself stops at a failed step and waits. In this flow the agent
+ * running the release is the one who fixes and resumes it; while it says so
+ * (a fresh `agent-status.json` beside the run), the panel shows that work, not
+ * a request aimed at a person.
+ */
+/**
+ * @param {{ state?: string, error?: { code?: string } }} run
+ * @param {{ type: string, payload?: any }[]} events
+ * @param {{ message?: string, updatedAt?: string } | null} [agent]
+ * @param {number} [now]
+ */
+export function panelState(run, events, agent = null, now = Date.now()) {
+  const lastFailed = lastIndexOf(events, 'step_failed');
+  const lastStarted = lastIndexOf(events, 'step_started');
+  const failed = lastFailed > lastStarted ? events[lastFailed].payload : null;
+  if (run.state === 'completed') return { state: 'completed', blocker: null, reason: null };
+  if (run.state === 'cancelled') return { state: 'cancelled', blocker: null, reason: null };
+  if (run.state === 'cancelling') return { state: 'cancelling', blocker: null, reason: null };
+  const fresh =
+    agent &&
+    typeof agent.message === 'string' &&
+    now - Date.parse(agent.updatedAt ?? '') < AGENT_STATUS_FRESH_MS;
+  if (run.state === 'blocked' || failed) {
+    if (fresh) return { state: 'repairing', blocker: null, reason: agent.message };
+    const step = STEP_NAMES[failed?.stepId] ?? failed?.stepId ?? 'Етап';
     return {
       state: 'needs_owner',
+      reason: null,
       blocker: {
-        code,
-        detail: failure?.subject ?? null,
-        requiredAction: 'Fix the cause, then run `npm run release -- start` with the same intent.'
+        code: `«${step}» не пройшов`,
+        detail: failureLine(failed?.error),
+        requiredAction: 'Чекає агента, який виправить причину й перезапустить етап.'
       }
     };
   }
-  if (run.state === 'reconciling') return { state: 'validating', blocker: null };
-  if (run.state === 'waiting_resource') return { state: 'waiting', blocker: null };
-  return { state: 'running', blocker: null };
+  if (run.state === 'reconciling') return { state: 'validating', blocker: null, reason: null };
+  if (run.state === 'waiting_resource') return { state: 'waiting', blocker: null, reason: null };
+  return { state: 'running', blocker: null, reason: null };
 }
 
-export function watchSnapshot(runId, plan, observed) {
-  const { run, events, heartbeat, windowsUrl } = observed;
-  const { state, blocker } = panelState(run, events);
+export function watchSnapshot(taskId, plan, observed, revisionBase = 0) {
+  const { run, events, heartbeat, windowsUrl, agent } = observed;
+  const runId = run.runId ?? taskId;
+  const { state, blocker, reason } = panelState(run, events, agent ?? null);
   return {
     schemaVersion: 1,
-    taskId: runId,
+    taskId,
     // At least 1: a run that has not written its first event yet is still revision one.
-    revision: Math.max(1, events.length),
+    revision: revisionBase + Math.max(1, events.length),
     generation: run.generation ?? 1,
     version: run.version ?? '',
     targetId: run.targetId ?? '',
@@ -93,7 +154,7 @@ export function watchSnapshot(runId, plan, observed) {
     // The runner leaves its last wait in the snapshot; it is news only while the run waits.
     waiting: state === 'waiting' ? (run.waitReason ?? null) : null,
     nextCheckAt: state === 'waiting' ? (run.nextCheckAt ?? null) : null,
-    progressReason: null,
+    progressReason: reason,
     repair: null,
     usage: null,
     attempts: 0,
@@ -104,22 +165,61 @@ export function watchSnapshot(runId, plan, observed) {
   };
 }
 
+/** The run the release is on now: the agent points here when it starts a fresh run. */
+const CURRENT = () => path.join(runnerRoot(), 'current-release.json');
+
+async function currentRunId(fallback) {
+  try {
+    const value = JSON.parse(await readFile(CURRENT(), 'utf8'));
+    return validTaskId(value.runId);
+  } catch {
+    return fallback;
+  }
+}
+
+async function agentStatus(runId) {
+  try {
+    return JSON.parse(await readFile(path.join(runDirectory(runId), 'agent-status.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 async function main(argv) {
-  const runId = validTaskId(argv[0]);
+  // The task id is the link's identity and never changes; the run under it may, when a fix
+  // needs a new source commit and so a new run. One link follows the whole release.
+  const taskId = validTaskId(argv[0]);
   const runner = createControllerRunner({ root: runnerRoot(), repositoryRoot, bindingsPath: '' });
-  const plan = freezeProgress(await history(runId));
+  let runId = await currentRunId(taskId);
+  let plan = freezeProgress(await history(runId));
+  let revisionBase = 0;
   const watcher = new EventEmitter();
   let last = null;
-  const read = async () => watchSnapshot(runId, plan, await runner.observe(runId));
+  const read = async () => {
+    const next = await currentRunId(runId);
+    if (next !== runId) {
+      runId = next;
+      plan = freezeProgress(await history(runId));
+      // A new run starts its journal from one; the panel only takes newer revisions.
+      revisionBase += 1_000_000;
+    }
+    const observed = await runner.observe(runId);
+    return watchSnapshot(
+      taskId,
+      plan,
+      { ...observed, agent: await agentStatus(runId) },
+      revisionBase
+    );
+  };
   // The panel server asks a controller for these; a watcher answers the reads and refuses the rest.
   Object.assign(watcher, {
     snapshot: () => read(),
     store: {
       read: async id => {
-        if (id !== runId) throw new Error('TASK_NOT_FOUND');
-        return { taskId: runId, runId };
+        if (id !== taskId) throw new Error('TASK_NOT_FOUND');
+        return { taskId, runId };
       },
-      list: async () => [{ taskId: runId, runId }]
+      list: async () => [{ taskId, runId }]
     },
     cancel: async () => {
       throw new Error('PANEL_READ_ONLY');
@@ -135,7 +235,7 @@ async function main(argv) {
   const tick = async () => {
     try {
       const snapshot = await read();
-      const mark = `${snapshot.revision}:${snapshot.state}:${snapshot.workerHeartbeatAt}:${snapshot.currentStep}`;
+      const mark = `${snapshot.revision}:${snapshot.state}:${snapshot.workerHeartbeatAt}:${snapshot.currentStep}:${snapshot.progressReason}`;
       if (mark !== last) {
         last = mark;
         watcher.emit('snapshot', snapshot);
@@ -146,7 +246,7 @@ async function main(argv) {
   };
   const timer = setInterval(() => void tick(), 2000);
   await tick();
-  console.log(panel.bootstrapUrl(runId));
+  console.log(panel.bootstrapUrl(taskId));
   console.error('Read-only. The link works once, for 60 seconds; run this again for a new one.');
   const stop = async () => {
     clearInterval(timer);

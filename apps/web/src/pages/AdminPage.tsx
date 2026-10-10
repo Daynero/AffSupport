@@ -807,7 +807,9 @@ function SupportGoalAdminCard({
                 autoComplete="off"
                 value={form.target}
                 invalid={state === 'invalid' && !parseSupportAmountInput(form.target)}
-                onChange={event => onFormChange({ target: event.target.value.replace(/\./gu, ',') })}
+                onChange={event =>
+                  onFormChange({ target: event.target.value.replace(/\./gu, ',') })
+                }
               />
             </FormField>
             <FormField label={t('adminSupportGoalCollected')} htmlFor="support-goal-amount">
@@ -818,7 +820,9 @@ function SupportGoalAdminCard({
                 autoComplete="off"
                 value={form.raised}
                 invalid={state === 'invalid' && parseSupportAmountInput(form.raised) === null}
-                onChange={event => onFormChange({ raised: event.target.value.replace(/\./gu, ',') })}
+                onChange={event =>
+                  onFormChange({ raised: event.target.value.replace(/\./gu, ',') })
+                }
                 aria-describedby="support-goal-amount-hint"
               />
             </FormField>

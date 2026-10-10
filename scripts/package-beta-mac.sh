@@ -99,6 +99,14 @@ if listener=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); then
   }
   /usr/bin/osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || kill $listener 2>/dev/null || true
   for _ in {1..40}; do lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep .1; done
+  # The app quitting is not the listener quitting: an agent run from source
+  # (`node apps/agent/dist/index.js`) holds the port with no app around it, and
+  # the AppleScript quit above succeeds without touching it. It said it was idle,
+  # so it is asked to stop itself, and given the time a clean shutdown takes.
+  if listener=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); then
+    kill -TERM $listener 2>/dev/null || true
+    for _ in {1..100}; do lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep .1; done
+  fi
   lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && { print -u2 "Soty Beta did not quit cleanly."; exit 1; }
 fi
 

@@ -141,7 +141,7 @@ it('keeps unsaved finance input and its original version while a workspace revis
   const copySpend = screen.getByRole('button', { name: 'Copy amount: Spend' });
   expect(copySpend.parentElement?.parentElement?.firstElementChild?.textContent).toBe(date);
   fireEvent.click(copySpend);
-  await waitFor(() => expect(copy).toHaveBeenCalledWith('12.34'));
+  await waitFor(() => expect(copy).toHaveBeenCalledWith('12,34'));
   expect(
     (screen.getByRole('button', { name: 'Copy amount: Top-up' }) as HTMLButtonElement).disabled
   ).toBe(true);

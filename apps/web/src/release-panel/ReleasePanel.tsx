@@ -23,9 +23,11 @@ export function ReleasePanel({
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+  // Only a run that is supposed to be working can be late: a stopped or finished one has no
+  // worker to hear from, and saying its data is stale only alarms.
   const stale = Boolean(
     snapshot &&
-    !['completed', 'cancelled'].includes(snapshot.state) &&
+    ['running', 'waiting', 'validating'].includes(snapshot.state) &&
     (!snapshot.workerHeartbeatAt || now - Date.parse(snapshot.workerHeartbeatAt) > 30000)
   );
   const title = snapshot ? `${m.title} ${snapshot.version}` : m.title;

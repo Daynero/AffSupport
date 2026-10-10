@@ -120,9 +120,11 @@ describe('the token layer', () => {
      * The ceiling is about the moments a person waits through — a transition
      * from one state to another. A spinner's loop is not one of those: it is
      * the signal that work is still running, and it turns for as long as the
-     * work does. It is named here rather than excluded silently.
+     * work does. It is named here rather than excluded silently. A skeleton's
+     * sheen is the same kind of loop: it runs while something loads, and at a
+     * transition's speed it read as a nervous blink.
      */
-    const AMBIENT = new Set(['--motion-spin', '--motion-spin-reduced']);
+    const AMBIENT = new Set(['--motion-spin', '--motion-spin-reduced', '--motion-sheen']);
     for (const [name, value] of light) {
       if (!name.startsWith('--motion-') || AMBIENT.has(name)) continue;
       const ms = /^(\d+(?:\.\d+)?)ms$/.exec(value);

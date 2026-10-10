@@ -35,9 +35,9 @@ it('separates history details and formats the edit timestamp in Kyiv time', asyn
       onClose={vi.fn()}
     />
   );
-  await screen.findByText('150.25');
+  await screen.findByText('150,25');
   expect(screen.getByRole('listitem').textContent).toContain('Beta Tester');
-  expect(screen.getByText('125.50').className).toContain('text-ink-muted');
+  expect(screen.getByText('125,50').className).toContain('text-ink-muted');
   const timestamps = [...document.querySelectorAll('time')];
   expect(timestamps).toHaveLength(2);
   expect(screen.getByRole('listitem').textContent).toContain('g1 · 04/10/2026');

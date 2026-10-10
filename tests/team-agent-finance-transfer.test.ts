@@ -165,9 +165,10 @@ it('rejects invalid targets and ID collisions, ignores dates and history, retrie
     )[0]!.n
   ).toBe(1);
   expect(
-    await f.db.root('select account_id from public.team_agent_finance_values where agent_row_id=$1', [
-      f.agent
-    ])
+    await f.db.root(
+      'select account_id from public.team_agent_finance_values where agent_row_id=$1',
+      [f.agent]
+    )
   ).toEqual([{ account_id: f.accounts[1] }]);
 });
 it('preserves the same agent through X → Y → X and counts backdated money where it is now', async () => {
