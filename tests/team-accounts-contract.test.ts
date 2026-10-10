@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildTeamAgentTopupListByAccount,
-  buildTeamAgentTopupListByLabel,
+  buildFinanceTopupCopy,
   compareTeamTasksByDate,
   countTeamAccounts,
-  countTeamAgentTopups,
   normalizeTeamAgentAmount,
-  stepTeamAgentTopup,
   filterTeamAccounts,
   isTeamAgentFree,
   normalizeTeamAccountName,
@@ -23,7 +20,8 @@ import {
   teamAgentIdSuffix,
   teamAgentLabel,
   teamTaskDate,
-  type TeamAccountSummary
+  type TeamAccountSummary,
+  type FinanceSnapshot
 } from '@video-compressor/shared';
 
 /**
@@ -460,112 +458,156 @@ describe('the order agents are read in', () => {
 });
 
 /**
- * The two lists the accounts table copies out (019). They are the whole point
- * of the money fields, and the only part of the feature nobody can check by
- * eye — a list that quietly drops a row costs somebody a top-up.
+ * The copied top-up lists (019 → 027). Copying out of Accounts reads the dated
+ * finance snapshot, not the undated figures on the agent row: one day's top-ups
+ * as made, under the social account the agent sat in that day or under its
+ * tags. A list that quietly drops a row, or pastes another day's money, costs
+ * somebody a top-up — and nobody can check it by eye.
  */
 describe('the copied top-up lists', () => {
-  const label = (id: string, name: string) => ({ id, name, color: 'purple' as const });
-
-  function agentWith(
-    accountId: string,
-    agentId: string,
-    topup: number | null,
-    labels: { id: string; name: string; color: 'purple' }[] = []
-  ) {
+  const DAY = '2026-09-06';
+  function field(agentRowId: string, placementId: string, value: string | null, date = DAY) {
     return {
-      id: `row-${agentId}`,
-      accountId,
-      teamId: '19000000-0000-4000-8000-000000000000',
-      agentId,
-      runs: [],
-      labels,
-      balance: 100,
-      topup,
-      taskCount: 0,
-      createdAt: '2026-09-06T10:00:00.000Z',
-      updatedAt: '2026-09-06T10:00:00.000Z'
+      agentRowId,
+      date,
+      placementId,
+      value,
+      metric: 'topup' as const,
+      currency: 'USD' as const,
+      version: '1',
+      updatedAt: 'now',
+      updatedBy: null
     };
   }
-
-  function space() {
-    const hot = label('l-2', '#2');
-    const cold = label('l-5', '#5');
-    return [
-      {
-        id: 'acc-v31',
-        teamId: '19000000-0000-4000-8000-000000000000',
-        name: 'v31',
-        createdAt: '2026-09-06T10:00:00.000Z',
-        updatedAt: '2026-09-06T10:00:00.000Z',
-        agents: [
-          agentWith('acc-v31', '1000000000434', 50, [hot]),
-          agentWith('acc-v31', '1000000000401', null, [hot]),
-          agentWith('acc-v31', '1000000000455', 150, [hot, cold])
-        ]
-      },
-      {
-        id: 'acc-f40',
-        teamId: '19000000-0000-4000-8000-000000000000',
-        name: 'f40',
-        createdAt: '2026-09-06T10:00:00.000Z',
-        updatedAt: '2026-09-06T10:00:00.000Z',
-        agents: [agentWith('acc-f40', '1000000000117', 100, [])]
-      }
-    ];
+  function snapshot(): FinanceSnapshot {
+    const placement = (id: string, accountId: string, agentRowId: string) => ({
+      id,
+      accountId,
+      agentRowId,
+      startsOn: '2026-09-01',
+      endsOn: null,
+      version: '1'
+    });
+    return {
+      schemaVersion: 1,
+      teamId: 't',
+      teamName: 'Team',
+      from: DAY,
+      to: DAY,
+      currency: 'USD',
+      generatedAt: 'now',
+      accounts: [
+        { id: 'acc-v31', name: 'v31' },
+        { id: 'acc-f40', name: 'f40' }
+      ],
+      agents: [
+        { id: 'a434', agentId: '1000000000434' },
+        { id: 'a401', agentId: '1000000000401' },
+        { id: 'a455', agentId: '1000000000455' },
+        { id: 'a117', agentId: '1000000000117' },
+        { id: 'a999', agentId: '1000000000999' }
+      ],
+      placements: [
+        placement('p434', 'acc-v31', 'a434'),
+        placement('p401', 'acc-v31', 'a401'),
+        placement('p455', 'acc-v31', 'a455'),
+        placement('p117', 'acc-f40', 'a117'),
+        placement('p999', 'acc-f40', 'a999')
+      ],
+      fields: [
+        field('a434', 'p434', '50.00'),
+        // Cleared, and an explicit zero: neither is money moved.
+        field('a401', 'p401', null),
+        field('a999', 'p999', '0.00'),
+        field('a455', 'p455', '150.50'),
+        field('a117', 'p117', '100.00')
+      ]
+    };
   }
+  const labels = { a434: ['#2'], a401: ['#2'], a455: ['#5', '#2'], a117: [] };
 
-  it('groups by social account, carries the full ids, and leaves out what has nothing to add', () => {
-    expect(buildTeamAgentTopupListByAccount(space())).toBe(
+  it('groups by social account under the day and the currency, and leaves out null and zero', () => {
+    const copied = buildFinanceTopupCopy(snapshot(), 'account', labels, 'No tag', DAY);
+    expect(copied.text).toBe(
       [
+        `${DAY} · USD`,
+        '',
         'f40',
         '1000000000117 - $100',
         '',
         'v31',
         '1000000000434 - $50',
-        '1000000000455 - $150'
+        '1000000000455 - $150.50'
       ].join('\n')
     );
+    // The count and the sum describe exactly the rows that were copied.
+    expect(copied.count).toBe(3);
+    expect(copied.total).toBe('300.50');
   });
 
-  it('groups by agent tag, uses full ids, and lists the untagged last', () => {
-    expect(buildTeamAgentTopupListByLabel(space(), 'No tag')).toBe(
+  it('groups by tag once per payment, and lists the untagged last', () => {
+    const copied = buildFinanceTopupCopy(snapshot(), 'label', labels, 'No tag', DAY);
+    expect(copied.text).toBe(
       [
+        `${DAY} · USD`,
+        '',
         '#2',
         '1000000000434 - $50',
-        '1000000000455 - $150',
         '',
-        '#5',
-        '1000000000455 - $150',
+        '#2 + #5',
+        '1000000000455 - $150.50',
         '',
         'No tag',
         '1000000000117 - $100'
       ].join('\n')
     );
+    expect(copied.count).toBe(3);
   });
 
-  it('counts what a copy would list, and copies nothing when nothing is owed', () => {
-    expect(countTeamAgentTopups(space())).toBe(3);
-    const empty = space().map(account => ({
-      ...account,
-      agents: account.agents.map(agent => ({ ...agent, topup: null }))
-    }));
-    expect(countTeamAgentTopups(empty)).toBe(0);
-    expect(buildTeamAgentTopupListByAccount(empty)).toBe('');
-    expect(buildTeamAgentTopupListByLabel(empty, 'No tag')).toBe('');
+  it('copies only the chosen day, and nothing when nothing was paid', () => {
+    const s = snapshot();
+    s.to = '2026-09-07';
+    s.fields.push(field('a434', 'p434', '75.00', '2026-09-07'));
+    expect(buildFinanceTopupCopy(s, 'account', {}, 'No tag', '2026-09-07').text).toBe(
+      ['2026-09-07 · USD', '', 'v31', '1000000000434 - $75'].join('\n')
+    );
+    const empty = { ...s, fields: s.fields.map(item => ({ ...item, value: null })) };
+    expect(buildFinanceTopupCopy(empty, 'account', {}, 'No tag', DAY)).toEqual({
+      text: '',
+      count: 0,
+      total: null
+    });
   });
 
-  it('reads a typed figure, refuses one that is not a figure, and steps by fifty', () => {
+  it('keeps the social account the agent sat in on that day, after a later move', () => {
+    const s = snapshot();
+    s.to = '2026-09-08';
+    s.placements = s.placements.map(item =>
+      item.id === 'p434' ? { ...item, endsOn: '2026-09-07' } : item
+    );
+    s.placements.push({
+      id: 'p434b',
+      accountId: 'acc-f40',
+      agentRowId: 'a434',
+      startsOn: '2026-09-07',
+      endsOn: null,
+      version: '1'
+    });
+    s.fields.push(field('a434', 'p434b', '20.00', '2026-09-08'));
+    expect(buildFinanceTopupCopy(s, 'account', {}, 'No tag', DAY).text).toContain(
+      'v31\n1000000000434 - $50'
+    );
+    expect(buildFinanceTopupCopy(s, 'account', {}, 'No tag', '2026-09-08').text).toBe(
+      ['2026-09-08 · USD', '', 'f40', '1000000000434 - $20'].join('\n')
+    );
+  });
+});
+
+describe('the legacy figure on an agent', () => {
+  it('reads a stored figure and refuses one that is not a figure', () => {
     expect(normalizeTeamAgentAmount('50')).toBe(50);
     expect(normalizeTeamAgentAmount('')).toBeNull();
     expect(normalizeTeamAgentAmount('12345')).toBeUndefined();
     expect(normalizeTeamAgentAmount('5o')).toBeUndefined();
-    // Empty steps up to the first fifty and back down to empty.
-    expect(stepTeamAgentTopup(null, 1)).toBe(50);
-    expect(stepTeamAgentTopup(50, -1)).toBeNull();
-    // A figure typed by hand snaps to the step rather than adding to it.
-    expect(stepTeamAgentTopup(30, 1)).toBe(50);
-    expect(stepTeamAgentTopup(120, 1)).toBe(150);
-    expect(stepTeamAgentTopup(120, -1)).toBe(100);
   });
 });

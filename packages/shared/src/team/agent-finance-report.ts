@@ -95,7 +95,17 @@ export function buildFinanceReport(snapshot: FinanceSnapshot) {
   return { dates, columns, cell, totals, agents, accounts, topups };
 }
 
-/** Facts only: a copied entry is not a payment instruction and never clears it. */
+/**
+ * The top-ups actually made on one day, copied out (FR-031). Facts only: a
+ * copied entry is not a payment instruction and copying never clears it.
+ *
+ * Two readings of the same set — under the social account the agent sat in
+ * on that day (historical, so a later move does not regroup an old day), or
+ * under its agent tags. The text opens with the day and the currency, so a
+ * pasted list can never be mistaken for another day's; empty and zero
+ * top-ups are not money moved and are left out, and `count`/`total` describe
+ * exactly the rows in the text.
+ */
 export function buildFinanceTopupCopy(
   snapshot: FinanceSnapshot,
   grouping: 'account' | 'label' = 'account',
@@ -118,15 +128,23 @@ export function buildFinanceTopupCopy(
   }
   const total = sum(rows.map(row => row.value));
   const text = rows.length
-    ? Array.from(groups)
-        .sort(([a], [b]) => natural.compare(a, b))
-        .map(([heading, items]) =>
-          [
-            heading.replace(/№\s*/gu, '#'),
-            ...items.map(row => `${row.agentId} - $${row.value.replace(/\.00$/u, '')}`)
-          ].join('\n')
-        )
-        .join('\n\n')
+    ? [
+        `${date} · ${snapshot.currency}`,
+        ...Array.from(groups)
+          // Agents without a tag still have money moved; their group is listed
+          // last rather than wherever its heading happens to sort.
+          .sort(
+            ([a], [b]) =>
+              Number(grouping === 'label' && a === untagged) -
+                Number(grouping === 'label' && b === untagged) || natural.compare(a, b)
+          )
+          .map(([heading, items]) =>
+            [
+              heading.replace(/№\s*/gu, '#'),
+              ...items.map(row => `${row.agentId} - $${row.value.replace(/\.00$/u, '')}`)
+            ].join('\n')
+          )
+      ].join('\n\n')
     : '';
   return { text, count: rows.length, total };
 }

@@ -15,23 +15,9 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ChevronsDownUp, ChevronsUpDown, Plus, Search, UserRound, X } from 'lucide-react';
 import {
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Copy,
-  Eraser,
-  Plus,
-  Search,
-  UserRound,
-  Wallet,
-  X
-} from 'lucide-react';
-import {
-  buildTeamAgentTopupListByAccount,
-  buildTeamAgentTopupListByLabel,
   countTeamAccounts,
-  countTeamAgentBalances,
-  countTeamAgentTopups,
   filterTeamAccounts,
   sortTeamAccounts,
   sortTeamAgents,
@@ -52,7 +38,6 @@ import { useTeam } from '../TeamContext';
 import { teamErrorMessageFor } from '../errors';
 import { AccountGroup, AccountNameRow, type AgentEditing } from './AccountGroup';
 import { MarkerFilter } from './MarkerFilter';
-import { copyText } from '../../two-factor/clipboard';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
 import { FinanceWorkspace } from './finance/FinanceWorkspace';
@@ -86,34 +71,6 @@ function writeCollapsed(teamId: string, collapsed: Set<string>): void {
     window.localStorage.setItem(collapsedKey(teamId), JSON.stringify([...collapsed]));
   } catch {
     // Nothing to do: the fold is a convenience and the page works without it.
-  }
-}
-
-/**
- * Whether the money column is folded away, remembered the same way. A space
- * that does not run paid traffic never fills those two fields, and they took a
- * track out of the middle of every row to say nothing.
- */
-function moneyKey(teamId: string): string {
-  return `soty.team-accounts.money-folded:${teamId}`;
-}
-
-function readMoneyFolded(teamId: string): boolean {
-  try {
-    // Folded unless someone opened it (024): the figures are worked on now and
-    // then, and two empty "—" fields on every row were the loudest thing on a
-    // screen read for who is free.
-    return window.localStorage.getItem(moneyKey(teamId)) !== 'open';
-  } catch {
-    return true;
-  }
-}
-
-function writeMoneyFolded(teamId: string, folded: boolean): void {
-  try {
-    window.localStorage.setItem(moneyKey(teamId), folded ? 'folded' : 'open');
-  } catch {
-    // Same as the fold above: a convenience, and the page works without it.
   }
 }
 
@@ -173,11 +130,9 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
     [accounts.accounts, teamId]
   );
   const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(teamId));
-  const [moneyFolded, setMoneyFolded] = useState(() => readMoneyFolded(teamId));
 
   useEffect(() => {
     setCollapsed(readCollapsed(teamId));
-    setMoneyFolded(readMoneyFolded(teamId));
     setEditor(null);
     setHold(false);
   }, [teamId]);
@@ -416,88 +371,6 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
     });
   };
 
-  /**
-   * The day's top-ups, copied out (019). Two readings of one list: by social
-   * account, which is how the person who wrote the figures checks them, and by
-   * agent tag, which is how whoever moves the money works through them. Both
-   * leave out every agent with nothing to add — the list is the day's work,
-   * not the space's inventory.
-   */
-  const topupCount = countTeamAgentTopups(accounts.accounts);
-  const balanceCount = countTeamAgentBalances(accounts.accounts);
-
-  const copyList = (kind: 'names' | 'ids') => {
-    const text =
-      kind === 'names'
-        ? buildTeamAgentTopupListByAccount(accounts.accounts)
-        : buildTeamAgentTopupListByLabel(accounts.accounts, t('teamAgentLabelsUntagged'));
-    if (text === '') {
-      push({ tone: 'info', text: t('teamAccountsCopyEmpty') });
-      return;
-    }
-    void copyText(text).then(ok =>
-      push(
-        ok
-          ? { tone: 'success', text: t('teamAccountsCopied', { count: topupCount }) }
-          : { tone: 'error', text: t('teamAgentCopyFailed') }
-      )
-    );
-  };
-
-  /**
-   * The two figures, each cleared for its own reason: the top-ups once they
-   * have been paid, the balances when a round ends and last round's numbers
-   * are noise. Both put what they erased in the toast, so an accidental press
-   * is one more press to undo.
-   */
-  const clearFigures = (kind: 'topups' | 'balances') =>
-    void (async () => {
-      try {
-        const agentsById = new Map(
-          accounts.accounts.flatMap(account => account.agents).map(agent => [agent.id, agent])
-        );
-        const cleared =
-          kind === 'topups' ? await accounts.clearTopups() : await accounts.clearBalances();
-        if (cleared.length === 0) {
-          push({
-            tone: 'info',
-            text: t(
-              kind === 'topups'
-                ? 'teamAccountsTopupsAlreadyClear'
-                : 'teamAccountsBalancesAlreadyClear'
-            )
-          });
-          return;
-        }
-        push({
-          tone: 'success',
-          text: t(kind === 'topups' ? 'teamAccountsTopupsCleared' : 'teamAccountsBalancesCleared', {
-            count: cleared.length
-          }),
-          action: {
-            label: t('teamUndo'),
-            run: async () => {
-              try {
-                for (const snapshot of cleared) {
-                  const agent = agentsById.get(snapshot.agentRowId);
-                  if (!agent) continue;
-                  await accounts.setMoney(
-                    agent,
-                    'balance' in snapshot ? snapshot.balance : agent.balance,
-                    'topup' in snapshot ? snapshot.topup : agent.topup
-                  );
-                }
-              } catch (cause) {
-                push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-              }
-            }
-          }
-        });
-      } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-      }
-    })();
-
   const listEmpty = !accounts.loading && !accounts.error && accounts.accounts.length === 0;
   const creating = editor?.kind === 'create';
   const showToolbar = !listEmpty && (Boolean(client) || view === 'accounts');
@@ -702,7 +575,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         )}
 
         {(creating || accounts.accounts.length > 0) && (
-          <div className={`team-accounts-table${!client || moneyFolded ? ' is-money-folded' : ''}`}>
+          <div className="team-accounts-table">
             {/* Printed once, above every account, and left where it is while the
               list scrolls under it. Not hidden from a screen reader either:
               read once at the top it is orientation, which is what it was
@@ -712,34 +585,6 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               <span>{t('teamAccountColumnAgent')}</span>
               <span>{t('teamAccountColumnStatus')}</span>
               <span>{t('teamAccountColumnRun')}</span>
-              {/* The money caption is the control for its own column: a space that
-                does not pay for traffic folds the two fields away and gets the
-                width back for the runs. Folded, the caption's word goes and its
-                icon stays — the way back has to sit where the column was. */}
-              {client ? (
-                <button
-                  type="button"
-                  className="team-accounts-money-fold"
-                  aria-expanded={Boolean(client) && !moneyFolded}
-                  aria-controls="team-accounts-list"
-                  data-open={moneyFolded ? undefined : 'true'}
-                  title={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
-                  aria-label={t(moneyFolded ? 'teamAccountMoneyShow' : 'teamAccountMoneyHide')}
-                  onClick={() => {
-                    if (!client) return;
-                    const next = !moneyFolded;
-                    setMoneyFolded(next);
-                    writeMoneyFolded(teamId, next);
-                  }}
-                >
-                  {/* A wallet, not arrows (024): "<>" read as code. Pressed while the column
-                  is open; the tooltip says which way the press goes. */}
-                  <Wallet size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  <span>{t('teamAccountColumnMoney')}</span>
-                </button>
-              ) : (
-                <span />
-              )}
               {/* Named for a screen reader only; the row's buttons speak for
                 themselves, as they do in Airtable and Linear lists. */}
               <span>
@@ -830,9 +675,6 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                     accounts.setRunMarker(item.id, value).then(() => undefined)
                   }
                   agentLabels={agentLabels.labels}
-                  onSetMoney={(agent, balance, topup) =>
-                    accounts.setMoney(agent, balance, topup).then(() => undefined)
-                  }
                   onToggleLabel={(agent, labelId, next) =>
                     (next
                       ? accounts.attachLabel(agent, labelId)
@@ -879,63 +721,6 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                 </p>
               )}
             </div>
-            {/* Under the list, where a person arrives having filled the figures
-              in: the two ways to copy the day's top-ups out, and the way to
-              clear them once they are paid. Quiet until there is anything to
-              copy — the count on the buttons is the whole state of the thing. */}
-            {/* Only once there is something to copy or clear (024, benchmarked on
-              Airtable's selection bar): four disabled buttons over "nothing to
-              top up" were a toolbar for a job nobody had started. */}
-            {client &&
-              canEdit &&
-              accounts.accounts.length > 0 &&
-              (topupCount > 0 || balanceCount > 0) && (
-                <div className="team-accounts-footer">
-                  <span className="team-accounts-footer-count">
-                    {topupCount > 0
-                      ? t('teamAccountsTopupCount', { count: topupCount })
-                      : t('teamAccountsTopupNone')}
-                  </span>
-                  <button
-                    type="button"
-                    className="team-accounts-footer-action"
-                    disabled={topupCount === 0}
-                    onClick={() => copyList('names')}
-                  >
-                    <Copy size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    <span>{t('teamAccountsCopyNames')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="team-accounts-footer-action"
-                    disabled={topupCount === 0}
-                    onClick={() => copyList('ids')}
-                  >
-                    <Copy size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    <span>{t('teamAccountsCopyIds')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="team-accounts-footer-action is-danger"
-                    disabled={topupCount === 0}
-                    onClick={() => clearFigures('topups')}
-                  >
-                    <Eraser size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    <span>{t('teamAccountsClearTopups')}</span>
-                  </button>
-                  {/* The other figure, cleared for its own reason: a round ends and
-                  what each agent had is last round's number. */}
-                  <button
-                    type="button"
-                    className="team-accounts-footer-action is-danger"
-                    disabled={balanceCount === 0}
-                    onClick={() => clearFigures('balances')}
-                  >
-                    <Eraser size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    <span>{t('teamAccountsClearBalances')}</span>
-                  </button>
-                </div>
-              )}
           </div>
         )}
 

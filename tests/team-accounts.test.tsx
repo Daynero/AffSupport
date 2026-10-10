@@ -116,29 +116,7 @@ function client(accounts: TeamAccountSummary[] = fixture()): AccountSpaceClient 
       return { ...existing, agentId, updatedAt: '2026-09-05T11:00:00.000Z' };
     }),
     deleteAccountAgent: vi.fn().mockResolvedValue(true),
-    // 019 — the money on an agent, its tags, and the space's dictionary.
-    setAgentMoney: vi.fn(async ({ agentRowId, balance, topup }) => {
-      const existing = accounts.flatMap(item => item.agents).find(item => item.id === agentRowId)!;
-      existing.balance = balance;
-      existing.topup = topup;
-      return { ...existing };
-    }),
-    clearAgentBalances: vi.fn(async () => {
-      const cleared = accounts
-        .flatMap(item => item.agents)
-        .filter(item => item.balance !== null)
-        .map(item => ({ agentRowId: item.id, balance: item.balance! }));
-      for (const item of accounts.flatMap(account => account.agents)) item.balance = null;
-      return cleared;
-    }),
-    clearAgentTopups: vi.fn(async () => {
-      const cleared = accounts
-        .flatMap(item => item.agents)
-        .filter(item => item.topup !== null)
-        .map(item => ({ agentRowId: item.id, topup: item.topup! }));
-      for (const item of accounts.flatMap(account => account.agents)) item.topup = null;
-      return cleared;
-    }),
+    // 019 — an agent's tags and the space's dictionary.
     attachAgentLabel: vi.fn(async ({ agentRowId, labelId }) => {
       const existing = accounts.flatMap(item => item.agents).find(item => item.id === agentRowId)!;
       if (!existing.labels.some(label => label.id === labelId)) {
@@ -1003,108 +981,25 @@ describe('a viewer', () => {
 });
 
 /**
- * The money on an agent and the two lists it feeds (019). The figures are
- * written on blur, the steppers move by fifty, and the copy buttons put a
- * whole column on the clipboard — which is the part nobody can check by eye.
+ * The tags on an agent (019). The undated money cell that used to sit beside
+ * them is gone (027): money is dated now and lives in the Finance view, so the
+ * operational row carries no figure and no footer that copies or clears one.
  */
-describe('the money on an agent', () => {
-  /** Everything the clipboard was handed, in order. */
-  function clipboard(): string[] {
-    const written: string[] = [];
-    // `defineProperty`, as the copy tests above do it: `navigator.clipboard`
-    // is a getter, and userEvent installs a stub of its own over it.
-    Object.defineProperty(navigator, 'clipboard', {
-      value: {
-        writeText: vi.fn(async (text: string) => {
-          written.push(text);
-        })
-      },
-      configurable: true
-    });
-    return written;
-  }
-
-  it('writes both figures together when a field is left', async () => {
-    const user = userEvent.setup();
-    const api = client();
-    render(api);
-    await waitForGroups();
-
-    const field = screen.getByRole('textbox', { name: 'Left v31-434' });
-    await user.type(field, '250');
-    await user.tab();
-    await waitFor(() =>
-      expect(api.setAgentMoney).toHaveBeenCalledWith(
-        expect.objectContaining({ balance: 250, topup: null })
-      )
-    );
-  });
-
-  it('steps the top-up by fifty, and back to nothing', async () => {
-    const user = userEvent.setup();
-    const api = client();
-    render(api);
-    await waitForGroups();
-
-    await user.click(screen.getByRole('button', { name: 'Add 50 more to v31-434' }));
-    await waitFor(() =>
-      expect(api.setAgentMoney).toHaveBeenCalledWith(expect.objectContaining({ topup: 50 }))
-    );
-    await user.click(screen.getByRole('button', { name: 'Take 50 off v31-434' }));
-    await waitFor(() =>
-      expect(api.setAgentMoney).toHaveBeenLastCalledWith(expect.objectContaining({ topup: null }))
-    );
-  });
-
-  it('copies the day’s top-ups, by account and by tag, and clears them with an undo', async () => {
+describe('the tags on an agent', () => {
+  it('shows no undated money on the row, and no footer that copies or clears it', async () => {
     const accounts = fixture();
-    accounts[0]!.agents[0]!.topup = 50;
-    accounts[0]!.agents[0]!.labels = [{ id: 'l-2', name: '#2', color: 'purple' }];
-    const api = client(accounts);
-    render(api);
-    await waitForGroups();
-    const user = userEvent.setup();
-    const written = clipboard();
-
-    await user.click(screen.getByRole('button', { name: 'Copy with names' }));
-    await waitFor(() => expect(written).toHaveLength(1));
-    expect(written[0]).toContain('- $50');
-    await user.click(screen.getByRole('button', { name: 'Copy with IDs' }));
-    await waitFor(() => expect(written).toHaveLength(2));
-    expect(written[1]).toContain('#2');
-
-    await user.click(screen.getByRole('button', { name: 'Clear the top-ups' }));
-    await waitFor(() => expect(api.clearAgentTopups).toHaveBeenCalled());
-    // One press cleared them; one more press puts them back.
-    const undo = await screen.findByRole('button', { name: 'Undo' });
-    await user.click(undo);
-    await waitFor(() =>
-      expect(api.setAgentMoney).toHaveBeenCalledWith(expect.objectContaining({ topup: 50 }))
-    );
-  });
-
-  it('keeps the money folded until it is opened, and remembers that it was', async () => {
-    const user = userEvent.setup();
-    const accounts = fixture();
+    // An old build's figures are still on the summary (the legacy read
+    // contract); the row must not resurrect them as editable fields.
     accounts[0]!.agents[0]!.balance = 300;
-    const { unmount } = render(client(accounts));
+    accounts[0]!.agents[0]!.topup = 50;
+    render(client(accounts));
     await waitForGroups();
 
-    // The cells stay in the grid and empty through CSS — taking them out of the
-    // DOM would slide every later cell one track left — so the state is read
-    // where a person reads it: off the control that holds it. Folded at first
-    // (024): the figures are worked on now and then, not read on every visit.
-    const fold = () => screen.getByRole('button', { name: /money and balances$/ });
-    expect(fold().getAttribute('aria-expanded')).toBe('false');
-    await user.click(screen.getByRole('button', { name: 'Show money and balances' }));
-    expect(fold().getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: 'Hide money and balances' })).toBeTruthy();
-
-    // Remembered per space, like the account fold beside it.
-    unmount();
-    render(client(fixture()));
-    await waitForGroups();
-    expect(fold().getAttribute('aria-expanded')).toBe('true');
+    expect(screen.queryByRole('textbox', { name: /^(Left|Add) / })).toBeNull();
+    expect(screen.queryByRole('button', { name: /money and balances$/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Copy with (names|IDs)$/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Clear (the top-ups|what is left)$/ })).toBeNull();
+    expect(document.querySelector('.team-agent-money, .team-accounts-footer')).toBeNull();
   });
 
   it('closes the tag list on the choice itself', async () => {
@@ -1160,48 +1055,6 @@ describe('the money on an agent', () => {
     expect(within(head).getByTitle('2 ad accounts tagged #2').textContent).toContain('2');
     expect(within(head).getByTitle('1 ad accounts tagged #5').textContent).toContain('#5');
   });
-
-  it('clears the balances on their own, and leaves the top-ups alone', async () => {
-    const user = userEvent.setup();
-    const accounts = fixture();
-    accounts[0]!.agents[0]!.balance = 300;
-    accounts[0]!.agents[0]!.topup = 50;
-    const api = client(accounts);
-    render(api);
-    await waitForGroups();
-
-    await user.click(screen.getByRole('button', { name: 'Clear what is left' }));
-    await waitFor(() => expect(api.clearAgentBalances).toHaveBeenCalled());
-    expect(api.clearAgentTopups).not.toHaveBeenCalled();
-    const topupField = screen.getByRole('textbox', {
-      name: 'Add v31-434'
-    }) as HTMLInputElement;
-    await waitFor(() => expect(topupField.value).toBe('50'));
-    expect((screen.getByRole('textbox', { name: 'Left v31-434' }) as HTMLInputElement).value).toBe(
-      ''
-    );
-
-    // And the figure it erased comes back with one press.
-    await user.click(await screen.findByRole('button', { name: 'Undo' }));
-    await waitFor(() =>
-      expect(api.setAgentMoney).toHaveBeenCalledWith(
-        expect.objectContaining({ balance: 300, topup: 50 })
-      )
-    );
-  });
-
-  it('shows a viewer the figures and no way to change them', async () => {
-    const accounts = fixture();
-    accounts[0]!.agents[0]!.balance = 300;
-    render(client(accounts), 'viewer');
-    await waitForGroups();
-
-    const field = screen.getByRole('textbox', { name: 'Left v31-434' }) as HTMLInputElement;
-    expect(field.value).toBe('300');
-    expect(field.disabled).toBe(true);
-    expect(screen.queryByRole('button', { name: /Add 50 more to/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Clear the top-ups' })).toBeNull();
-  });
 });
 
 /**
@@ -1209,7 +1062,7 @@ describe('the money on an agent', () => {
  *
  * Every write also fires a realtime event, and the re-read it schedules can
  * overtake the write it was fired by. In the browser this showed as a figure
- * typed into the money cell reverting a second later, and correcting itself
+ * typed into a row reverting a second later, and correcting itself
  * only on the next change — the kind of thing that reads as "it did not
  * save" and is impossible to reproduce on purpose.
  */
@@ -1241,9 +1094,9 @@ describe('a stale list read', () => {
     // write below. Snapshotted here, because the stub writes into the array.
     const answerFromBefore = structuredClone(accounts);
 
-    // A figure is written while that read is in flight…
+    // A tag is hung on the agent while that read is in flight…
     await act(async () => {
-      await view.result.current.setMoney(stale, 777, 150);
+      await view.result.current.attachLabel(stale, 'l-9');
     });
     // …and the read finally answers with the row as it was before it.
     await act(async () => {
@@ -1253,9 +1106,6 @@ describe('a stale list read', () => {
     const agentNow = view.result.current.accounts
       .flatMap(account => account.agents)
       .find(item => item.id === stale.id)!;
-    expect({ balance: agentNow.balance, topup: agentNow.topup }).toEqual({
-      balance: 777,
-      topup: 150
-    });
+    expect(agentNow.labels.map(label => label.id)).toContain('l-9');
   });
 });

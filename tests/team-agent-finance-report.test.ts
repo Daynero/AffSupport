@@ -148,18 +148,18 @@ it('adds huge totals exactly, keeps metrics independent and rejects invalid plac
   expect(copied.count).toBe(1);
   expect(copied.total).toBe('100.25');
   expect(copied.text).toContain('Partner + Urgent');
-  expect(copied.text).toBe('Partner + Urgent\n001 - $100.25');
+  expect(copied.text).toBe('2026-09-01 · USD\n\nPartner + Urgent\n001 - $100.25');
   expect(copied.text).not.toContain('70.00');
-  expect(buildFinanceTopupCopy(paid).text).toBe('X\n001 - $100.25');
+  expect(buildFinanceTopupCopy(paid).text).toBe('2026-09-01 · USD\n\nX\n001 - $100.25');
   paid.fields.push({ ...s.fields[0]!, date: '2026-09-04', metric: 'topup', value: '130.00' });
   expect(buildFinanceTopupCopy(paid, 'label', { a: ['№2'] }, 'Без тега', '2026-09-04')).toEqual({
-    text: '#2\n001 - $130',
+    text: '2026-09-04 · USD\n\n#2\n001 - $130',
     count: 1,
     total: '130.00'
   });
   expect(buildFinanceTopupCopy(paid, 'label', {}, 'Без тега', '2026-09-05').count).toBe(0);
   expect(buildFinanceTopupCopy(paid, 'label', {}, 'Без тега', '2026-09-04').text).toBe(
-    'Без тега\n001 - $130'
+    '2026-09-04 · USD\n\nБез тега\n001 - $130'
   );
   expect(() => buildFinanceReport({ ...s, accounts: [] })).toThrow('INVALID_RESPONSE');
   expect(() =>

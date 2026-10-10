@@ -50,13 +50,11 @@
    * line through it is not a margin. The width is capped instead, and what is
    * left over is outside the table entirely.
    */
-  /* The money cell (019) takes its own track between the runs and the
-     buttons: two four-character fields and the two steppers, and no more —
-     the runs keep everything the row has left. */
-  --team-agent-money-width: 188px;
+  /* No money track (027): the agent's money is dated and lives in the
+     Finance view; the operational row is the agent, its status, its runs and
+     its buttons. */
   --team-agent-columns: var(--team-agent-rail) var(--team-agent-id-width)
-    var(--team-agent-status-width) minmax(160px, 1fr) var(--team-agent-money-width)
-    var(--team-agent-actions-width);
+    var(--team-agent-status-width) minmax(160px, 1fr) var(--team-agent-actions-width);
   min-width: 0;
 }
 
@@ -95,51 +93,6 @@
 
 .team-accounts-columns > span:nth-child(4) {
   padding-left: var(--space-2);
-}
-
-/* The money caption is the control for its own column, so it is drawn as one:
-   the same outlined pill as "Collapse all", at the caption row's own type. A
-   bare word with an icon beside it read as a caption that had sprouted a
-   glyph, not as something to press. */
-.team-accounts-money-fold {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  transition:
-    background-color var(--dur-control) var(--ease-standard),
-    border-color var(--dur-control) var(--ease-standard),
-    color var(--dur-control) var(--ease-standard);
-}
-.team-accounts-money-fold:hover {
-  border-color: var(--color-border-strong);
-  background: color-mix(in oklab, var(--color-accent) 10%, transparent);
-  color: var(--color-text);
-}
-.team-accounts-money-fold:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-/* Folded, the column narrows to the width of its own button — the word stays,
-   because the way back has to name what it brings back. */
-.team-accounts-table.is-money-folded {
-  --team-agent-money-width: 104px;
-}
-/* The cell stays and empties: `display: none` takes it out of the grid, and
-   every cell after it then slides one track left — the row's buttons landed in
-   the money track and printed over the runs beside them. */
-.team-accounts-table.is-money-folded .team-agent-money > * {
-  display: none;
 }
 
 .team-accounts-columns > span:last-child {
@@ -484,17 +437,17 @@
   grid-template-columns: var(--team-agent-columns);
 }
 
-/* The head's own columns follow the rows': the title takes everything up to
-   the money cell, and the account's buttons sit in the last track — over the
-   agents' buttons, at the right edge of the table. When the money column was
-   added (019) these still pointed at column five and the buttons stopped a
-   whole column short of the edge. */
+/* The head's own columns follow the rows': the title takes every track but
+   the last, and the account's buttons sit in the last one — over the agents'
+   buttons, at the right edge of the table. Counted from the end, so a track
+   added or taken out of the row (019 added money, 027 took it back out) can
+   never leave the buttons a column short of the edge again. */
 .team-account-head:not(.is-editing) .team-account-title {
-  grid-column: 1 / 6;
+  grid-column: 1 / -2;
 }
 
 .team-account-head:not(.is-editing) .team-account-actions {
-  grid-column: 6;
+  grid-column: -2 / -1;
   justify-self: end;
   /* The same gap as a row's actions, so the two clusters share a right edge
      exactly rather than missing it by fifteen pixels — an almost-alignment
@@ -1636,13 +1589,6 @@
      */
     --team-agent-actions-width: 248px;
   }
-  /* On the table, where the wide value is defined: set on the space above it,
-     as it was, the table's own 188 px won and this width never applied — which
-     is the whole of why a sample run overflowed its cell at 1001 px (caught by
-     scripts/check-accounts-layout.mjs). Two four-digit figures fit in 140. */
-  .team-accounts-table:not(.is-money-folded) {
-    --team-agent-money-width: 140px;
-  }
 }
 
 @media (max-width: 720px) {
@@ -1718,15 +1664,8 @@
     grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) auto;
     grid-template-areas:
       'rail id status'
-      'rail note actions'
-      'rail money money';
+      'rail note actions';
     padding: var(--space-1) var(--space-2) var(--space-1) 0;
-  }
-
-  .team-agent-row .team-agent-money {
-    grid-area: money;
-    justify-content: flex-start;
-    padding-left: var(--space-2);
   }
 
   /* Stacked, the row has the height for its own small buttons; leaving them
@@ -1813,7 +1752,6 @@
       'rail id'
       'rail status'
       'rail note'
-      'rail money'
       'rail actions';
     row-gap: 2px;
   }
@@ -2364,103 +2302,6 @@ button.team-task-agent-chip.is-selected {
 }
 
 /* ===========================================================================
-   The money on an agent (019)
-   ===========================================================================
-   Two figures in one cell, each four characters wide with a caption over it.
-   The captions are tiny on purpose: the column already carries a heading, and
-   inside the row what a person needs is which of the two fields they are in.
-   =========================================================================== */
-
-.team-agent-money {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-2);
-  justify-content: flex-end;
-  min-width: 0;
-}
-
-.team-agent-money-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.team-agent-money-caption {
-  color: var(--color-text-muted);
-  font-size: var(--text-micro);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.team-agent-money-input {
-  width: 52px;
-  min-height: 30px;
-  padding: 0 6px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-caption);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
-.team-agent-money-input:focus-visible {
-  border-color: var(--color-accent);
-  outline: none;
-}
-
-.team-agent-money-input:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-/* The stepper: the field between its two presses, one shape. Fifty at a time,
-   because that is the unit a person tops an agent up in. The presses sit on
-   the field's own line, under its caption. */
-.team-agent-money-stepper {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.team-agent-money-step {
-  display: inline-flex;
-  width: 24px;
-  height: 30px;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-muted);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.team-agent-money-step:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
-  color: var(--color-text);
-}
-
-.team-agent-money-step:disabled {
-  cursor: default;
-  opacity: 0.4;
-}
-
-/* A figure that is there reads as a figure, not as a placeholder. */
-.team-agent-money-input:not(:placeholder-shown) {
-  border-color: var(--color-border-strong);
-  font-weight: 600;
-}
-
-/* ===========================================================================
    The tags on an agent (019)
    =========================================================================== */
 
@@ -2527,59 +2368,6 @@ button.team-task-agent-chip.is-selected {
   .team-agent-labels-add {
     opacity: 1;
   }
-}
-
-/* ===========================================================================
-   The list's own footer: copy the day's top-ups out, then clear them (019)
-   =========================================================================== */
-
-.team-accounts-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-2) var(--space-2);
-  border-top: 1px solid var(--color-border);
-}
-
-.team-accounts-footer-count {
-  margin-right: auto;
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  font-variant-numeric: tabular-nums;
-}
-
-.team-accounts-footer-action {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  gap: 6px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: none;
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-caption);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.team-accounts-footer-action:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-}
-
-.team-accounts-footer-action:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
-.team-accounts-footer-action.is-danger:hover:not(:disabled) {
-  border-color: var(--color-error);
-  background: color-mix(in srgb, var(--color-error) 12%, transparent);
-  color: var(--color-error);
 }
 
 /* The tag counts in an account's head (019): the row's own chip, with the
@@ -2723,14 +2511,6 @@ button.team-task-agent-chip.is-selected {
 .team-agent-run-add.is-assign:hover:not(:disabled) {
   border-color: var(--color-border);
   background: var(--color-surface-muted);
-  color: var(--color-text);
-}
-
-.team-accounts-money-fold {
-  border-color: transparent;
-  color: var(--color-text-muted);
-}
-.team-accounts-money-fold[data-open] {
   color: var(--color-text);
 }
 

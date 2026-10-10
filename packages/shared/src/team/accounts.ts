@@ -159,8 +159,6 @@ export function parseTeamAgentRuns(value: unknown): TeamAgentRun[] | null {
   return runs;
 }
 
-/** How much a top-up moves per press of + or − (019). */
-export const TEAM_AGENT_TOPUP_STEP = 50;
 /** The largest figure four characters can hold, which is the field's width. */
 export const TEAM_AGENT_AMOUNT_MAX = 9_999;
 
@@ -182,23 +180,6 @@ export function normalizeTeamAgentAmount(value: unknown): number | null | undefi
   if (!/^\d{1,4}$/u.test(text)) return undefined;
   const amount = Number(text);
   return amount <= TEAM_AGENT_AMOUNT_MAX ? amount : undefined;
-}
-
-/**
- * The figure a press of + or − lands on: a step up or down, kept inside the
- * field's range, and snapped to the step so a typed 30 becomes 50 rather than
- * 80. Empty steps up to 50 and down to nothing, which is how a top-up is both
- * started and taken back.
- */
-export function stepTeamAgentTopup(current: number | null, direction: 1 | -1): number | null {
-  const step = TEAM_AGENT_TOPUP_STEP;
-  if (current === null) return direction === 1 ? step : null;
-  const next =
-    direction === 1
-      ? Math.floor(current / step) * step + step
-      : Math.ceil(current / step) * step - step;
-  if (next <= 0) return null;
-  return Math.min(next, Math.floor(TEAM_AGENT_AMOUNT_MAX / step) * step);
 }
 
 export interface TeamAccountAgentSummary {
@@ -509,146 +490,4 @@ export function countTeamAccounts(accounts: readonly TeamAccountSummary[]): Team
     }
   }
   return { accounts: accounts.length, agents, free, busy: agents - free, markers };
-}
-
-/**
- * The two lists the accounts table copies out (019).
- *
- * Both answer the same question — "who gets topped up, and by how much" — for
- * two different readers, so they are built here rather than in the component:
- * a media buyer reads the first one and checks it against the board, and the
- * second one goes to whoever actually moves the money, who knows the agents by
- * id and sorts the work by the tag on them.
- *
- * An agent with no top-up is in neither list. That is the whole point of the
- * button: the list is the day's work, not the space's inventory.
- */
-
-/** `$50` — the one shape a figure takes in a copied list. */
-export function teamAgentAmountText(amount: number): string {
-  return `$${amount}`;
-}
-
-function copiedGroup(heading: string, lines: readonly string[]): string {
-  return [heading, ...lines].join('\n');
-}
-
-/**
- * By social account: the account's name, then the full id of each of its
- * agents and the figure.
- *
- * The ids, not the labels the list shows on screen. Both copies are pasted
- * where the money is actually moved, and there an ad account is its id; what
- * separates the two lists is how the work is grouped — under the account it
- * belongs to, or under the tag it is paid in a batch with — and nothing else.
- */
-export function buildTeamAgentTopupListByAccount(accounts: readonly TeamAccountSummary[]): string {
-  const groups: string[] = [];
-  for (const account of sortTeamAccounts(accounts)) {
-    const lines = account.agents
-      .filter(agent => agent.topup !== null)
-      .sort((left, right) =>
-        left.agentId.localeCompare(right.agentId, undefined, { numeric: true })
-      )
-      .map(agent => `${agent.agentId} - ${teamAgentAmountText(agent.topup!)}`);
-    if (lines.length > 0) groups.push(copiedGroup(account.name, lines));
-  }
-  return groups.join('\n\n');
-}
-
-/**
- * By agent tag: the tag, then the agents' full ids under it. An agent carrying
- * two tags is in both groups — it is one payment per tag's reader, and leaving
- * it out of the second would be the quieter of the two mistakes only if
- * anybody could tell it had happened.
- *
- * `untaggedHeading` names the group for agents that carry no tag at all. They
- * are listed last rather than dropped: they have money waiting the same as the
- * rest, and a list that silently loses them is worse than one with a plain
- * heading in it.
- */
-export function buildTeamAgentTopupListByLabel(
-  accounts: readonly TeamAccountSummary[],
-  untaggedHeading: string
-): string {
-  const byLabel = new Map<string, { name: string; lines: string[] }>();
-  const untagged: string[] = [];
-  const rows = accounts
-    .flatMap(account => account.agents)
-    .filter(agent => agent.topup !== null)
-    .sort((left, right) => left.agentId.localeCompare(right.agentId, undefined, { numeric: true }));
-
-  for (const agent of rows) {
-    const line = `${agent.agentId} - ${teamAgentAmountText(agent.topup!)}`;
-    if (agent.labels.length === 0) {
-      untagged.push(line);
-      continue;
-    }
-    for (const label of agent.labels) {
-      const group = byLabel.get(label.id) ?? { name: label.name, lines: [] };
-      group.lines.push(line);
-      byLabel.set(label.id, group);
-    }
-  }
-
-  const groups = [...byLabel.values()]
-    .sort((left, right) =>
-      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
-    )
-    .map(group => copiedGroup(group.name, group.lines));
-  if (untagged.length > 0) groups.push(copiedGroup(untaggedHeading, untagged));
-  return groups.join('\n\n');
-}
-
-/** How many agents a copy would list, for the button's own count. */
-export function countTeamAgentTopups(accounts: readonly TeamAccountSummary[]): number {
-  return accounts.reduce(
-    (total, account) => total + account.agents.filter(agent => agent.topup !== null).length,
-    0
-  );
-}
-
-/** What a figure was before it was cleared, so an undo can put it back. */
-export interface TeamAgentTopupSnapshot {
-  agentRowId: string;
-  topup: number;
-}
-
-export interface TeamAgentBalanceSnapshot {
-  agentRowId: string;
-  balance: number;
-}
-
-export function parseTeamAgentBalanceSnapshots(value: unknown): TeamAgentBalanceSnapshot[] | null {
-  if (value === null || value === undefined) return [];
-  if (!Array.isArray(value)) return null;
-  const snapshots: TeamAgentBalanceSnapshot[] = [];
-  for (const raw of value) {
-    if (!isRecord(raw)) return null;
-    const { agent_row_id, balance } = raw;
-    if (typeof agent_row_id !== 'string' || typeof balance !== 'number') return null;
-    snapshots.push({ agentRowId: agent_row_id, balance });
-  }
-  return snapshots;
-}
-
-/** How many agents carry a balance, for the button that would clear them. */
-export function countTeamAgentBalances(accounts: readonly TeamAccountSummary[]): number {
-  return accounts.reduce(
-    (total, account) => total + account.agents.filter(agent => agent.balance !== null).length,
-    0
-  );
-}
-
-export function parseTeamAgentTopupSnapshots(value: unknown): TeamAgentTopupSnapshot[] | null {
-  if (value === null || value === undefined) return [];
-  if (!Array.isArray(value)) return null;
-  const snapshots: TeamAgentTopupSnapshot[] = [];
-  for (const raw of value) {
-    if (!isRecord(raw)) return null;
-    const { agent_row_id, topup } = raw;
-    if (typeof agent_row_id !== 'string' || typeof topup !== 'number') return null;
-    snapshots.push({ agentRowId: agent_row_id, topup });
-  }
-  return snapshots;
 }

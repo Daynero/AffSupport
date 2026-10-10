@@ -33,12 +33,7 @@ import {
   parseTeamAgentRunMarkerSnapshots,
   parseTeamTaskAgentTags,
   parseTeamTaskLabel,
-  parseTeamAgentTopupSnapshots,
-  parseTeamAgentBalanceSnapshots,
-  normalizeTeamAgentAmount,
   TEAM_TASK_LABEL_FILTER_MAX,
-  type TeamAgentTopupSnapshot,
-  type TeamAgentBalanceSnapshot,
   type TeamLabelScope,
   parseTeamTaskLabelRefs,
   normalizeTeamTaskLabelName,
@@ -4571,61 +4566,6 @@ export const teamApi = {
     const agent = parseTeamAccountAgent(data);
     if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
     return agent;
-  },
-
-  /**
-   * The two figures on an agent (019): what it has left and what to add. Both
-   * every time — null clears a field — and the whole agent comes back.
-   */
-  async setAgentMoney(input: {
-    teamId: string;
-    agentRowId: string;
-    balance: number | null;
-    topup: number | null;
-  }): Promise<TeamAccountAgentSummary> {
-    const balance = normalizeTeamAgentAmount(input.balance);
-    const topup = normalizeTeamAgentAmount(input.topup);
-    if (balance === undefined || topup === undefined) {
-      throw new TeamApiError('INVALID_INPUT', false);
-    }
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_agent_money', {
-        p_team: input.teamId,
-        p_agent: input.agentRowId,
-        p_balance: balance,
-        p_topup: topup
-      })
-    );
-    throwRpc(error);
-    const agent = parseTeamAccountAgent(data);
-    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
-    return agent;
-  },
-
-  /** Clears every top-up in the space, and says what they were so an undo can. */
-  async clearAgentTopups(input: { teamId: string }): Promise<TeamAgentTopupSnapshot[]> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('clear_team_agent_topups', {
-        p_team: input.teamId
-      })
-    );
-    throwRpc(error);
-    const snapshots = parseTeamAgentTopupSnapshots(data);
-    if (!snapshots) throw new TeamApiError('INVALID_RESPONSE', false);
-    return snapshots;
-  },
-
-  /** Clears every balance in the space, and says what they were. */
-  async clearAgentBalances(input: { teamId: string }): Promise<TeamAgentBalanceSnapshot[]> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('clear_team_agent_balances', {
-        p_team: input.teamId
-      })
-    );
-    throwRpc(error);
-    const snapshots = parseTeamAgentBalanceSnapshots(data);
-    if (!snapshots) throw new TeamApiError('INVALID_RESPONSE', false);
-    return snapshots;
   },
 
   /** Hangs an agent tag on an agent (019); the whole agent comes back. */

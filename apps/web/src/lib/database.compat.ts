@@ -8,7 +8,6 @@ type NullableInputs = {
   set_team_material_tag: 'p_color';
   set_team_account_two_factor_seed: 'p_secret';
   set_team_agent_run_marker: 'p_marker';
-  set_team_agent_money: 'p_balance' | 'p_topup';
   update_two_factor_entry: 'p_secret';
 };
 type Functions = GeneratedDatabase['public']['Functions'];

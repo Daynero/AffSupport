@@ -57,7 +57,6 @@ import { teamErrorMessageFor } from '../errors';
 import { Marked } from './Marked';
 import { AgentIdentity } from './AgentIdentity';
 import { AgentLabels } from './AgentLabels';
-import { AgentMoney } from './AgentMoney';
 import { AgentTasksPeek } from './AgentTasksPeek';
 import { useTeam } from '../TeamContext';
 import { copyText } from '../../two-factor/clipboard';
@@ -367,7 +366,6 @@ export function AgentRow({
   onUpdateRun,
   onDeleteRun,
   onSetRunMarker,
-  onSetMoney,
   onToggleLabel,
   onRelease,
   onMove,
@@ -393,8 +391,6 @@ export function AgentRow({
   onUpdateRun: (runId: string, note: string) => Promise<void>;
   onDeleteRun: (run: TeamAgentRun) => Promise<void>;
   onSetRunMarker: (run: TeamAgentRun, marker: TeamAgentRunMarker | null) => Promise<void>;
-  /** The two figures on the agent (019), written together. */
-  onSetMoney: (balance: number | null, topup: number | null) => Promise<void>;
   onToggleLabel: (labelId: string, next: boolean) => Promise<void>;
   onRelease: () => Promise<void>;
   /** Opens the transfer to another social account; absent when there is none. */
@@ -686,16 +682,6 @@ export function AgentRow({
           />
         )}
       </div>
-
-      {/* What the agent has and what it is owed, between the runs it is on and
-          the buttons that act on it. */}
-      <AgentMoney
-        agent={agent}
-        label={tag}
-        canEdit={canEdit}
-        disabled={waiting}
-        onSet={onSetMoney}
-      />
 
       <div className="team-agent-actions">
         {canEdit && (

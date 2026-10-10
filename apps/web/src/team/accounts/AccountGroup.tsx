@@ -139,7 +139,6 @@ export function AccountGroup({
   onUpdateRun,
   onDeleteRun,
   onSetRunMarker,
-  onSetMoney,
   onToggleLabel,
   agentLabels = [],
   onRelease
@@ -172,11 +171,6 @@ export function AccountGroup({
   onDeleteRun: (agent: TeamAccountAgentSummary, run: TeamAgentRun) => Promise<void>;
   /** The agent half of the space's tag dictionary (019). */
   agentLabels?: readonly TeamTaskLabel[];
-  onSetMoney: (
-    agent: TeamAccountAgentSummary,
-    balance: number | null,
-    topup: number | null
-  ) => Promise<void>;
   onToggleLabel: (agent: TeamAccountAgentSummary, labelId: string, next: boolean) => Promise<void>;
   onSetRunMarker: (
     agent: TeamAccountAgentSummary,
@@ -559,7 +553,6 @@ export function AccountGroup({
                     onDeleteRun={run => onDeleteRun(agent, run)}
                     onSetRunMarker={(run, marker) => onSetRunMarker(agent, run, marker)}
                     agentLabels={agentLabels}
-                    onSetMoney={(balance, topup) => onSetMoney(agent, balance, topup)}
                     onToggleLabel={(labelId, next) => onToggleLabel(agent, labelId, next)}
                     onRelease={() => onRelease(agent)}
                     onMove={onMoveAgent ? () => onMoveAgent(agent) : undefined}

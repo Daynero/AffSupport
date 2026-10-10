@@ -6,9 +6,7 @@ import {
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
   type TeamAgentRunMarker,
-  type TeamAgentRunMarkerSnapshot,
-  type TeamAgentBalanceSnapshot,
-  type TeamAgentTopupSnapshot
+  type TeamAgentRunMarkerSnapshot
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { getSupabaseClient } from '../../lib/supabase';
@@ -62,14 +60,6 @@ export interface AccountsClient {
   }): Promise<TeamAccountAgentSummary>;
   clearAgentRunMarkers(input: { teamId: string }): Promise<TeamAgentRunMarkerSnapshot[]>;
   clearAgentRuns(input: { teamId: string; agentRowId: string }): Promise<TeamAccountAgentSummary>;
-  setAgentMoney(input: {
-    teamId: string;
-    agentRowId: string;
-    balance: number | null;
-    topup: number | null;
-  }): Promise<TeamAccountAgentSummary>;
-  clearAgentTopups(input: { teamId: string }): Promise<TeamAgentTopupSnapshot[]>;
-  clearAgentBalances(input: { teamId: string }): Promise<TeamAgentBalanceSnapshot[]>;
   attachAgentLabel(input: {
     teamId: string;
     agentRowId: string;
@@ -402,46 +392,6 @@ export function useAccounts({
     [client, putAgent, teamId]
   );
 
-  /** The two figures on an agent (019); the row the write returns replaces it. */
-  const setMoney = useCallback(
-    async (agent: TeamAccountAgentSummary, balance: number | null, topup: number | null) =>
-      putAgent(await client.setAgentMoney({ teamId, agentRowId: agent.id, balance, topup })),
-    [client, putAgent, teamId]
-  );
-
-  /**
-   * Takes every top-up off the space in one call, and hands back what they
-   * were so the toast can put them back one by one.
-   */
-  const clearTopups = useCallback(async () => {
-    const cleared = await client.clearAgentTopups({ teamId });
-    writes.current += 1;
-    setAccounts(current =>
-      current.map(account => ({
-        ...account,
-        agents: account.agents.map(agent =>
-          agent.topup === null ? agent : { ...agent, topup: null }
-        )
-      }))
-    );
-    return cleared;
-  }, [client, teamId]);
-
-  /** The mirror of `clearTopups`, for what the agents have left. */
-  const clearBalances = useCallback(async () => {
-    const cleared = await client.clearAgentBalances({ teamId });
-    writes.current += 1;
-    setAccounts(current =>
-      current.map(account => ({
-        ...account,
-        agents: account.agents.map(agent =>
-          agent.balance === null ? agent : { ...agent, balance: null }
-        )
-      }))
-    );
-    return cleared;
-  }, [client, teamId]);
-
   const attachLabel = useCallback(
     async (agent: TeamAccountAgentSummary, labelId: string) =>
       putAgent(await client.attachAgentLabel({ teamId, agentRowId: agent.id, labelId })),
@@ -486,9 +436,6 @@ export function useAccounts({
     setRunMarker,
     clearMarkers,
     clearRuns,
-    setMoney,
-    clearTopups,
-    clearBalances,
     attachLabel,
     detachLabel
   };

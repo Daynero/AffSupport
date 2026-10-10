@@ -2159,8 +2159,7 @@
    shape now, which is what they were always trying to be. */
 .team-agent-run-add,
 .team-accounts-fold-all,
-.team-empty-action,
-.team-accounts-money-fold {
+.team-empty-action {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -2181,8 +2180,7 @@
 }
 .team-agent-run-add:hover:not(:disabled),
 .team-accounts-fold-all:hover:not(:disabled),
-.team-empty-action:hover,
-.team-accounts-money-fold:hover:not(:disabled) {
+.team-empty-action:hover {
   border-color: var(--color-secondary-solid);
   background: var(--color-secondary-softer);
 }

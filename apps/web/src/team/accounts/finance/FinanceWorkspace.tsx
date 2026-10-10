@@ -209,6 +209,30 @@ export function FinanceWorkspace({
   );
   const fail = (cause?: unknown) =>
     push({ tone: 'error', text: cause ? teamErrorMessageFor(cause, t) : t('financeError') });
+  /**
+   * The day's top-ups as made, copied out under the social account each agent
+   * sat in that day or under its tags (FR-031). Copying never clears anything.
+   */
+  const copyTopups = (grouping: 'account' | 'label') => {
+    if (!finance.snapshot) return;
+    const contents = buildFinanceTopupCopy(
+      finance.snapshot,
+      grouping,
+      Object.fromEntries(agents.map(agent => [agent.id, agent.labels.map(label => label.name)])),
+      t('teamAgentLabelsUntagged'),
+      date
+    );
+    if (!contents.count) {
+      push({ tone: 'info', text: t('financeCopyEmpty', { date }) });
+      return;
+    }
+    void copyText(contents.text)
+      .then(ok => {
+        if (ok) push({ tone: 'success', text: t('teamAccountsCopied', { count: contents.count }) });
+        else fail();
+      })
+      .catch(fail);
+  };
   const beginClear = (metric: 'balance' | 'topup') => {
     const fields =
       finance.snapshot?.fields
@@ -330,39 +354,17 @@ export function FinanceWorkspace({
               ]}
             />
           )}
-          <Button
-            size="sm"
-            variant="soft"
-            trailing={<Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-            onClick={() => {
-              if (!finance.snapshot) return;
-              const contents = buildFinanceTopupCopy(
-                finance.snapshot,
-                'label',
-                Object.fromEntries(
-                  agents.map(agent => [agent.id, agent.labels.map(label => label.name)])
-                ),
-                t('teamAgentLabelsUntagged'),
-                date
-              );
-              if (!contents.count) {
-                push({ tone: 'info', text: t('financeEmpty') });
-                return;
-              }
-              void copyText(contents.text)
-                .then(ok => {
-                  if (ok)
-                    push({
-                      tone: 'success',
-                      text: t('teamAccountsCopied', { count: contents.count })
-                    });
-                  else fail();
-                })
-                .catch(fail);
-            }}
-          >
-            {t('financeCopy')}
-          </Button>
+          {(['account', 'label'] as const).map(grouping => (
+            <Button
+              key={grouping}
+              size="sm"
+              variant="soft"
+              trailing={<Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+              onClick={() => copyTopups(grouping)}
+            >
+              {t(grouping === 'account' ? 'financeCopyByAccount' : 'financeCopyByLabel')}
+            </Button>
+          ))}
         </div>
       )}
       {finance.loading && <LoadingState label={t('financeTitle')} />}
