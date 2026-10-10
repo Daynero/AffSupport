@@ -1037,17 +1037,25 @@ export class JobQueue {
    * nothing about it broke. Interrupted is the state that already means exactly this, and
    * the row's re-run affordance follows from it.
    *
+   * An encode that carried on has its elapsed clock corrected instead: the time the
+   * machine was away is booked like a pause, because nothing ran during it, and a row that
+   * read "8 h 12 min" the morning after an overnight sleep would be as wrong as one that
+   * read "compressing" about a process that is gone.
+   *
    * Returns whether anything was actually interrupted, which is what its test asserts.
    */
-  handleWake(): boolean {
+  handleWake(wake?: { sleptMs: number }): boolean {
     const activity = this.activity;
     if (activity.kind !== 'encoding' && activity.kind !== 'encoding-held') return false;
+    const job = this.jobs.find(candidate => candidate.id === activity.jobId);
+    if (!job || job.status !== 'processing') return false;
     const child = activity.child;
     // No child yet means the work is still in this process — image preparation — and a
     // suspend does not interrupt that any more than a busy moment does.
-    if (!child || !encoderVanished(child)) return false;
-    const job = this.jobs.find(candidate => candidate.id === activity.jobId);
-    if (!job || job.status !== 'processing') return false;
+    if (!child || !encoderVanished(child)) {
+      if (wake && this.bookSleepAsPause(job, wake.sleptMs)) this.notify();
+      return false;
+    }
 
     this.transition(job, 'interrupted');
     job.error = 'Compression was interrupted while the computer was asleep.';
@@ -1064,6 +1072,21 @@ export class JobQueue {
     this.setActivity({ kind: 'idle' });
     queueMicrotask(() => void this.pump());
     this.notify();
+    return true;
+  }
+
+  /**
+   * Excludes a suspend from a running job's elapsed reading. A job paused by the person
+   * already has its clock stopped from `pausedAt`, so the sleep is inside that pause and is
+   * not counted twice. Never books more than the job has actually been open for, so a
+   * wall-clock estimate that overshoots cannot drive the reading below zero.
+   */
+  private bookSleepAsPause(job: CompressionJob, sleptMs: number): boolean {
+    if (job.paused || job.startedAt === null || !(sleptMs > 0)) return false;
+    const open = Date.now() - job.startedAt - (job.pausedTotalMs ?? 0);
+    const booked = Math.min(Math.round(sleptMs), Math.max(0, open));
+    if (booked <= 0) return false;
+    job.pausedTotalMs = (job.pausedTotalMs ?? 0) + booked;
     return true;
   }
 

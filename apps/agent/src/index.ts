@@ -435,7 +435,7 @@ await queue.removeMissingSources();
 // The governor is what notices the machine slept; the queue is what knows whether the
 // encode it had running is still there (FR-009a).
 // It broadcasts on its own when it finds something to interrupt.
-powerGovernor.setWakeListener(() => queue.handleWake());
+powerGovernor.setWakeListener(wake => queue.handleWake(wake));
 // Conversions started from the file manager ride the compressor's channel rather than
 // opening an eighth one (FR-009b), so they reach the interface wherever its state does.
 if (hasCapability('finder-image-conversion')) {

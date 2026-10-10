@@ -20,6 +20,7 @@ import {
   type ProcessTableRow
 } from '../platform/platform.js';
 import { descendantsByRoot } from './process-tree.js';
+import { SleepWakeDetector, type SleepWakeClocks, type WakeEvent } from './sleep-wake.js';
 
 /**
  * The single authority over how much of the machine Soty's local tools may use.
@@ -103,6 +104,15 @@ const WAKE_PROBE_MS = 5_000;
 const WAKE_GAP_MS = 30_000;
 
 /**
+ * How far the wall clock may run ahead of the monotonic one before that means a suspend.
+ *
+ * Far tighter than the gap, because lateness cannot produce drift — both clocks advance
+ * through a busy event loop alike — so the only thing it has to stay clear of is a clock
+ * correction stepping the wall time by a second or two.
+ */
+const WAKE_DRIFT_MS = 10_000;
+
+/**
  * The on/off split for a duty fraction.
  *
  * The period stretches rather than the on-window shrinking below
@@ -171,6 +181,8 @@ export interface PowerGovernorOptions {
   pauseSupported?: boolean;
   /** Injectable clock, so tests can age a termination pin without waiting. */
   now?: () => number;
+  /** Injectable for tests; the clocks the sleep/wake probe compares (see `sleep-wake.ts`). */
+  wakeClocks?: SleepWakeClocks;
   /** Injectable for tests, which must never read the real process table. */
   probeProcessTable?: () => Promise<ProcessTableRow[]>;
   /** Injectable for tests; the real signals, keyed by PID, for descendants. */
@@ -201,12 +213,10 @@ export class PowerGovernor {
   private readonly busy: () => boolean;
   private readonly onError: (error: unknown, message: string) => void;
   private onChange: (() => void) | null;
-  private onWake: (() => void) | null = null;
+  private onWake: ((event: WakeEvent) => void) | null = null;
   private readonly persist: ((limitPercent: number) => Promise<void>) | null;
   private cycleTimer: NodeJS.Timeout | null = null;
-  private wakeProbe: NodeJS.Timeout | null = null;
-  /** When the wake probe last ran; a much larger gap than its period means a suspend. */
-  private lastProbeAt = 0;
+  private readonly wakeProbe: SleepWakeDetector;
   private latestSample: PowerSample | null = null;
   private readonly probeProcessTable: () => Promise<ProcessTableRow[]>;
   private readonly descendantSignals: NonNullable<PowerGovernorOptions['descendantSignals']>;
@@ -228,6 +238,13 @@ export class PowerGovernor {
         this.refreshPauseSupport();
       });
     }
+    this.wakeProbe = new SleepWakeDetector({
+      periodMs: WAKE_PROBE_MS,
+      driftMs: WAKE_DRIFT_MS,
+      gapMs: WAKE_GAP_MS,
+      clocks: options.wakeClocks,
+      onWake: event => this.wake(event)
+    });
     this.busy = options.busy ?? (() => false);
     this.onError = options.onError ?? (() => {});
     this.onChange = options.onChange ?? null;
@@ -242,7 +259,7 @@ export class PowerGovernor {
 
   /** Wired after construction, once the SSE channel exists. */
   /** Called once each time the machine is found to have slept and woken (FR-009a). */
-  setWakeListener(listener: (() => void) | null) {
+  setWakeListener(listener: ((event: WakeEvent) => void) | null) {
     this.onWake = listener;
   }
 
@@ -534,6 +551,7 @@ export class PowerGovernor {
     this.unsubscribePauseSupport?.();
     this.unsubscribePauseSupport = null;
     this.stopCycle();
+    this.stopWakeProbe();
     this.stopTreeTracking();
     this.treeWatchers = 0;
     for (const entry of this.children.values()) {
@@ -625,48 +643,37 @@ export class PowerGovernor {
   /**
    * Notices that the machine stopped running and started again (FR-009a).
    *
-   * There is no portable notification for this, so it is read off the wall clock: a probe
-   * that finds far more time gone than it slept for was not late, it was suspended along
-   * with everything else.
+   * There is no portable notification for this, so it is read off the clocks — see
+   * `sleep-wake.ts` for why, and for the two readings it combines.
    *
-   * Worth detecting because the duty cycler is built out of wall-clock timers, and a
-   * suspend lands in the middle of one of its windows — with a child stopped, waiting for
-   * a timer whose relationship to the cycle it belongs to no longer holds. Rather than
-   * reason about which window it was, the cycle is torn down and rebuilt from a known
-   * point, and anything stopped only on the cycler's account is resumed first.
+   * Worth detecting because the duty cycler is built out of timers, and a suspend lands in
+   * the middle of one of its windows — with a child stopped, waiting for a timer whose
+   * relationship to the cycle it belongs to no longer holds. Rather than reason about which
+   * window it was, the cycle is torn down and rebuilt from a known point, and anything
+   * stopped only on the cycler's account is resumed first.
    */
   private startWakeProbe(): void {
-    if (this.wakeProbe) return;
-    this.lastProbeAt = Date.now();
-    const timer = setInterval(() => {
-      const now = Date.now();
-      const elapsed = now - this.lastProbeAt;
-      this.lastProbeAt = now;
-      // Generously past the probe's own period, so ordinary event-loop lateness under a
-      // machine at its limit — which is the normal state here — is never read as a sleep.
-      if (elapsed < WAKE_PROBE_MS + WAKE_GAP_MS) return;
-      this.wake();
-    }, WAKE_PROBE_MS);
-    // Never hold the process open to watch for a wake.
-    timer.unref();
-    this.wakeProbe = timer;
+    this.wakeProbe.start();
   }
 
   private stopWakeProbe(): void {
-    if (!this.wakeProbe) return;
-    clearInterval(this.wakeProbe);
-    this.wakeProbe = null;
+    this.wakeProbe.stop();
   }
 
-  private wake(): void {
+  private wake(event: WakeEvent): void {
     this.stopCycle();
     for (const entry of this.children.values()) {
       if (this.isStopped(entry) && entry.holds.size === 0) this.resume(entry);
     }
     this.retune();
     // Told, not inferred: the governor knows the machine slept, and the queue knows
-    // whether what it had running is still there.
-    this.onWake?.();
+    // whether what it had running is still there. A listener that throws must not leave
+    // the interface without the change broadcast that follows.
+    try {
+      this.onWake?.(event);
+    } catch (error) {
+      this.onError(error, 'Failed to handle a wake from sleep');
+    }
     this.onChange?.();
   }
 
