@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.2.5",
-  "buildNumber": "70",
-  "buildId": "1.2.5+70",
+  "version": "1.2.6",
+  "buildNumber": "71",
+  "buildId": "1.2.6+71",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-10-06T00:00:00.000Z",
+  "publishedAt": "2026-10-10T00:00:00.000Z",
   "summary": {
-    "en": "Fixed some bugs and improved performance.",
-    "uk": "Виправлені деякі баги, покращена продуктивність"
+    "en": "Improved workspace speed and usability; bug fixes and better stability.",
+    "uk": "Покращено швидкість і зручність роботи; виправлено помилки та підвищено стабільність."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.5/Soty-v1.2.5-macOS-arm64.dmg",
-      "sha256": "231ead50fa420fd34fdfeaa7c59fb561655833ff62095f0727476cdafcabe4c9"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.6/Soty-v1.2.6-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.5/Soty-v1.2.5-Windows-x64.exe",
-      "sha256": "a9f18764e843f66fd810e99a52d006bd655a960b17a43aac03dad377c51e084d"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.6/Soty-v1.2.6-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -43,5 +43,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "c5rPN-Hu51IM6Z8wLhYoi7k6GxW-trSGpN1DcYsacUr1G_H_EfKff3qjj--VMqpPeC3Dkv-WVAuR8blax71YFQ"
+  "signature": "svP91BIT6rvQuRboy-mgntQegtPC9IFroSW9TBzn3VD1zUrkvPY5u1C1m0lpDDzkriDZTwv_7smjm1VMQUU9zg"
 }
