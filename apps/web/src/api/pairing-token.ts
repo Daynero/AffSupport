@@ -204,6 +204,10 @@ export function hasPendingPairingToken(): boolean {
  * The same adoption the fragment path performs, minus the URL cleanup it has no
  * URL to do — and it broadcasts, so the tabs that waited for the election get
  * the result rather than each starting a handshake of their own.
+ *
+ * Returns whether the token changed, and with it whether the listeners were
+ * told. A caller whose attempt failed needs exactly that: an unchanged token
+ * starts nothing on its own, so it is the caller's to retry.
  */
 export function storePairingToken(value: string): boolean {
   if (!TOKEN_PATTERN.test(value)) return false;
@@ -211,7 +215,7 @@ export function storePairingToken(value: string): boolean {
   localStorage.removeItem(INSTALL_STARTED_KEY);
   channel?.postMessage(value);
   if (changed) for (const listener of [...listeners]) listener();
-  return true;
+  return changed;
 }
 
 export function markAgentInstallStarted() {

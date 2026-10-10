@@ -254,6 +254,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   connectionRef.current = connection;
   /** The attempt in flight, readable without a render. */
   const attemptRef = useRef<LinkAttempt | null>(null);
+  /** A new token arrived while an attempt was running; check again when it ends. */
+  const rerunAfterAttempt = useRef(false);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accountRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accountRetryDelay = useRef(ACCOUNT_RETRY_MIN_MS);
@@ -332,6 +334,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           running.joined = true;
           setAttempt({ ...running });
         }
+        // A token that arrived mid-attempt was not the one that attempt read. Joining
+        // would let it fail on the old token, and a handshake that hands back the
+        // token this browser already holds changes nothing, so nobody would ever ask
+        // again — "Looking for Soty…" for good. Run once more when it is over.
+        if (trigger === 'token_changed') rerunAfterAttempt.current = true;
         return;
       }
       if (retryTimer.current) clearTimeout(retryTimer.current);
@@ -532,8 +539,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
                 trackPairing('completed', { flowId: current.id, method: 'handshake' });
                 // Storing notifies the token listener, which restarts the stream and
                 // re-establishes with `token_changed`. The same token coming back means
-                // the agent did not reject it for being stale — a retry later, not now.
-                if (!storePairingToken(handshakeToken)) {
+                // the agent did not reject it for being stale — a retry later, not now —
+                // unless a run that started meanwhile has already connected on it.
+                if (!storePairingToken(handshakeToken) && connectionRef.current !== 'connected') {
                   scheduleRetry(t => void establishRef.current(t));
                 }
                 return;
@@ -586,6 +594,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         window.clearTimeout(deadline);
         attemptRef.current = null;
         if (mounted.current) setAttempt(null);
+        if (rerunAfterAttempt.current) {
+          rerunAfterAttempt.current = false;
+          if (mounted.current) void establishRef.current('token_changed');
+        }
       }
     },
     [applyState, scheduleRetry, setConnectionAndReason]

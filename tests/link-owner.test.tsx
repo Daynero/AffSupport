@@ -301,6 +301,38 @@ describe('the owner of the connection state', () => {
     expect(text('instance')).toBe('run-3');
   });
 
+  it('checks again when a token arrives during an attempt that read none (beta cold start)', async () => {
+    // The first attempt reads no token and is answered with PAIRING_REQUIRED only
+    // after the fragment token has been proven and stored mid-flight. The handshake
+    // then hands back that same token, which changes nothing — before the fix nobody
+    // asked again and the page said "Looking for Soty…" for good.
+    fake.pairing.token = '';
+    let release: () => void = () => {};
+    fake.connect = () =>
+      new Promise((_resolve, reject) => {
+        release = () => reject(new PairingRequired());
+      });
+    fake.handshake = async () => 'c'.repeat(64);
+    render(
+      <AgentProvider>
+        <Probe />
+      </AgentProvider>
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(text('attempt')).toBe('boot:solo');
+    await act(async () => {
+      fake.pairing.token = 'c'.repeat(64);
+      fake.connect = async () => healthy({ instanceId: 'run-cold' });
+      for (const listener of fake.pairing.listeners) listener();
+      release();
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(text('connection')).toBe('connected');
+    expect(text('instance')).toBe('run-cold');
+  });
+
   it('never lets an attempt hang, and lets a second press join the first', async () => {
     fake.connect = () => new Promise(() => {});
     render(
