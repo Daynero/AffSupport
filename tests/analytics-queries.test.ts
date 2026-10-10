@@ -77,6 +77,9 @@ beforeAll(async () => {
       architecture text,
       error_fingerprint text,
       outcome text,
+      attempt_id text,
+      agent_instance_id uuid,
+      agent_platform text,
       created_at timestamptz not null default now()
     );
     create table public.analytics_team_workspace (

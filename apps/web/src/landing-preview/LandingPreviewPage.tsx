@@ -3,6 +3,7 @@ import { useOptionalAgent } from '../AgentContext';
 import { Button } from '../components/ui';
 import { useI18n } from '../i18n';
 import { analytics, trackTeamLandingRender } from '../analytics/service';
+import { trackToolError } from '../analytics/errors';
 import { teamApi } from '../api/team';
 import { landingGalleryOpenTeamSpace, renderTeamLanding } from '../api/client';
 import { useOptionalTeam } from '../team/TeamContext';
@@ -26,7 +27,7 @@ export default function LandingPreviewPage() {
   const source = useMemo(() => agentLandingSource(multiplexed), [multiplexed]);
   // Without a provider (tests, fixtures) there is nothing to wait for.
   const ready = !agent || agent.connection === 'connected';
-  const viewer = useLandingViewer({ source, enabled: ready });
+  const viewer = useLandingViewer({ source, enabled: ready, readinessTool: 'landing-preview' });
   const { pushState, setMessage, loaded, selected, activeCatalog, state } = viewer;
 
   const [openingTeamId, setOpeningTeamId] = useState<string | null>(null);
@@ -87,6 +88,12 @@ export default function LandingPreviewPage() {
             success: false,
             outcome: 'failure'
           });
+          trackToolError({
+            tool: 'landing-preview',
+            stage: 'refresh',
+            code: state.error,
+            flowId: crypto.randomUUID()
+          });
         }
       }
     }
@@ -112,8 +119,14 @@ export default function LandingPreviewPage() {
           client: teamApi
         });
         pushState(await landingGalleryOpenTeamSpace(snapshot));
-      } catch {
+      } catch (error) {
         setMessage(t('landingGalleryTeamOpenFailed'));
+        trackToolError({
+          tool: 'landing-preview',
+          stage: 'open',
+          code: error,
+          flowId: crypto.randomUUID()
+        });
       } finally {
         setOpeningTeamId(null);
       }
@@ -153,8 +166,14 @@ export default function LandingPreviewPage() {
       await renderTeamLanding(job);
       trackTeamLandingRender({ outcome: 'ready', durationMs: Date.now() - startedAt });
       await openTeamSpace(activeCatalog.teamId);
-    } catch {
+    } catch (error) {
       trackTeamLandingRender({ outcome: 'failed', durationMs: Date.now() - startedAt });
+      trackToolError({
+        tool: 'landing-preview',
+        stage: 'render',
+        code: error,
+        flowId: crypto.randomUUID()
+      });
       setMessage(t('landingGalleryTeamRenderFailed'));
     } finally {
       setRenderingTeamMaterialId(null);

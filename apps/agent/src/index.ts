@@ -42,6 +42,12 @@ import { PowerSampler } from './power/sampler.js';
 import { activeThreadBudget, setActiveGovernor } from './power/spawn.js';
 import { buildServer } from './server/app.js';
 import { hasCapability } from './server/capabilities.js';
+import {
+  DIAGNOSTICS_FILE_NAME,
+  DiagnosticsLog,
+  setActiveDiagnosticsLog
+} from './server/diagnostics-log.js';
+import { currentPlatform } from './platform/platform.js';
 import { resolveSessionToken } from './server/session-token.js';
 import { ChannelHub, EventChannel, type ShutdownReason } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
@@ -82,6 +88,25 @@ const entitlementGate = new EntitlementGate({
 await entitlementGate.load();
 const instanceId = randomBytes(12).toString('hex');
 const startedAt = new Date().toISOString();
+// The bounded local journal (031 FR-054). Loaded before anything else can write to it, so
+// the sequence continues from the previous boot and its shutdown reason is still on the page;
+// installed process-wide so the deep seams (spawn, pickers, drop resolver, streams) reach it.
+const diagnosticsLog = new DiagnosticsLog({
+  file: path.join(applicationSupportRoot(), DIAGNOSTICS_FILE_NAME)
+});
+await diagnosticsLog.load();
+setActiveDiagnosticsLog(diagnosticsLog);
+diagnosticsLog.record('boot', 'started', {
+  version: config.version,
+  buildId: config.buildId,
+  instanceId,
+  platform: currentPlatform(),
+  environment: config.environment,
+  // Whether the port is the one every client assumes, or one somebody configured.
+  portRole: process.env.AGENT_PORT ? 'configured' : 'default',
+  packaged: process.env.PACKAGED_APP === '1',
+  entitlementEnforced: entitlementGate.enforced
+});
 const bootProbes = {
   ffmpeg: await probeMediaTool(ffmpegPath),
   ffprobe: await probeMediaTool(ffprobePath)
@@ -102,6 +127,11 @@ const transcriptionTools = {
   ffmpeg: tools.ffmpeg,
   whisper: await whisperAvailable()
 };
+diagnosticsLog.record('boot', 'tools_probed', {
+  ffmpeg: tools.ffmpeg,
+  ffprobe: tools.ffprobe,
+  whisper: transcriptionTools.whisper
+});
 const imageStore = new ImageAssetStore();
 const mediaActions = new MediaActionQueue(() => broadcast());
 const teamPreviewBridge = new TeamPreviewBridge();
@@ -574,7 +604,8 @@ const app = await buildServer({
   power: powerGovernor,
   powerSampler,
   channelHub,
-  webRoot: path.resolve(here, '../../web/dist')
+  webRoot: path.resolve(here, '../../web/dist'),
+  diagnostics: diagnosticsLog
 });
 logError = (error, message) => app.log.error(error, message);
 
@@ -613,6 +644,7 @@ const CLOSE_DEADLINE_MS = 3000;
 async function shutdown(code: number, reason: ShutdownReason) {
   if (shuttingDown) return;
   shuttingDown = true;
+  diagnosticsLog.record('shutdown', 'requested', { reason, code });
   if (mediaToolsTimer) clearInterval(mediaToolsTimer);
   if (installedReleaseTimer) clearInterval(installedReleaseTimer);
   if (updateDrainTimer) clearInterval(updateDrainTimer);
@@ -634,18 +666,37 @@ async function shutdown(code: number, reason: ShutdownReason) {
     channelHub.closeAll(reason);
     EventChannel.closeAll(reason);
     await app.close();
+    diagnosticsLog.record('shutdown', 'completed', { reason, code });
   } catch (error) {
     logError(error, 'Shutdown failed');
+    diagnosticsLog.record('shutdown', 'failed', { reason, code });
   }
+  // The last thing before exit, so the reason is on disk for the next boot to serve.
+  await diagnosticsLog.close();
   process.exit(code);
 }
 
 try {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Soty Agent: http://${config.host}:${config.port}`);
+  diagnosticsLog.record('boot', 'listening');
 } catch (error) {
   app.log.error(error);
+  // The port is the usual reason, and it is a category, not a secret.
+  diagnosticsLog.record('shutdown', 'listen_failed', {
+    reason: 'error',
+    code: 1,
+    cause: errorCodeClass(error)
+  });
+  await diagnosticsLog.close();
   process.exit(1);
+}
+
+/** `EADDRINUSE`, `EACCES` or `other`: a closed vocabulary for the journal, never the message. */
+function errorCodeClass(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === 'EADDRINUSE' || code === 'EACCES') return code.toLowerCase();
+  return 'other';
 }
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {

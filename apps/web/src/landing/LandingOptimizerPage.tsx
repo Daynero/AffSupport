@@ -59,7 +59,8 @@ import { compactPath } from '../format';
 import { landingCountKey, useI18n } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
-import { toolJobActivityEvents } from '../analytics/tools';
+import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
+import { toolErrorProperties, trackToolError, type ToolErrorStage } from '../analytics/errors';
 import { LandingJobCard } from './LandingJobCard';
 import { RadioGroup } from '../components/ui/index';
 
@@ -119,7 +120,9 @@ export default function LandingOptimizerPage() {
   }, []);
 
   // Read again after every recovery, and said out loud when it fails (032 W12).
-  const { stateError } = useToolStateRead(readLandingState, applyState);
+  const { stateError } = useToolStateRead(readLandingState, applyState, {
+    tool: 'landing-optimizer'
+  });
 
   // Through the shared hook rather than a socket of this page's own. Three pages each
   // opening their own `EventSource` is three of the seven connections the multiplexed
@@ -145,10 +148,22 @@ export default function LandingOptimizerPage() {
     toastTimers.current.add(timer);
   };
 
-  const handleError = (error: unknown) => {
+  const handleError = (
+    error: unknown,
+    stage: ToolErrorStage<'landing-optimizer'> = 'optimize',
+    runId?: string
+  ) => {
     const message = error instanceof Error ? error.message : '';
     if (['CONNECTION_FAILED', 'TIMEOUT', 'PAIRING_REQUIRED'].includes(message)) reconnect();
     addToast(message && message.length < 120 ? message : t('landingResultFailedTitle'), 'error');
+    // 031 FR-052: the code and the stage, never the message the toast just showed.
+    const run = analyticsRunId(runId);
+    trackToolError({
+      tool: 'landing-optimizer',
+      stage,
+      code: error,
+      ...(run ? { runId: run } : { flowId: crypto.randomUUID() })
+    });
   };
 
   const { ref: toolbarRow, compactActions, compactChips } = useCompactToolbar();
@@ -166,9 +181,30 @@ export default function LandingOptimizerPage() {
         completed: ['completed'],
         failed: ['failed'],
         cancelled: ['cancelled']
-      }
+      },
+      (job, runId) =>
+        toolErrorProperties({
+          tool: 'landing-optimizer',
+          stage: 'optimize',
+          code: job.error,
+          ...(runId ? { runId } : {})
+        })
     )) {
       analytics.track(event.name, event.properties);
+      // The optimizer's own terminal beside the generic one, on the same `run_id` as its
+      // `landing_optimization_started` (031 FR-050).
+      if (event.name === 'operation_completed' || event.name === 'operation_failed') {
+        analytics.track(
+          event.name === 'operation_completed'
+            ? 'landing_optimization_completed'
+            : 'landing_optimization_failed',
+          {
+            tool_identifier: 'landing-optimizer',
+            file_count: 1,
+            ...(event.properties.run_id ? { run_id: event.properties.run_id } : {})
+          }
+        );
+      }
     }
     previousAnalyticsJobs.current = jobs;
   }, [jobs]);
@@ -254,7 +290,7 @@ export default function LandingOptimizerPage() {
             loaded += 1;
           }
         } catch (error) {
-          handleError(error);
+          handleError(error, 'upload');
         }
       }
     } finally {
@@ -271,7 +307,7 @@ export default function LandingOptimizerPage() {
     try {
       applyState(await request<LandingState>(endpoint, 'POST'));
     } catch (error) {
-      handleError(error);
+      handleError(error, 'upload');
     } finally {
       setImporting(false);
     }
@@ -282,9 +318,14 @@ export default function LandingOptimizerPage() {
       applyState(
         await request<LandingState>(`/api/landing/jobs/${encodeURIComponent(jobId)}/start`, 'POST')
       );
-      analytics.track('landing_optimization_started', { tool_identifier: 'landing-optimizer' });
+      const runId = analyticsRunId(jobId);
+      analytics.track('landing_optimization_started', {
+        tool_identifier: 'landing-optimizer',
+        file_count: 1,
+        ...(runId ? { run_id: runId } : {})
+      });
     } catch (error) {
-      handleError(error);
+      handleError(error, 'optimize', jobId);
     }
   };
 
@@ -326,10 +367,15 @@ export default function LandingOptimizerPage() {
     if (!ids.length) return;
     try {
       applyState(await requestBody<LandingState>('/api/landing/start', { ids }));
-      analytics.track('landing_optimization_started', {
-        tool_identifier: 'landing-optimizer',
-        file_count: ids.length
-      });
+      // One start per landing, each on the id its terminal will carry (031 FR-050).
+      for (const id of ids) {
+        const runId = analyticsRunId(id);
+        analytics.track('landing_optimization_started', {
+          tool_identifier: 'landing-optimizer',
+          file_count: 1,
+          ...(runId ? { run_id: runId } : {})
+        });
+      }
     } catch (error) {
       handleError(error);
     }

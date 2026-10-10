@@ -1,5 +1,70 @@
 # Rollback notes
 
+## 20261117110000_analytics_envelope_v3.sql
+
+Restore `public.ingest_analytics_events(jsonb)` verbatim from
+`20260721113000_fix_analytics_ingestion.sql` (including its `revoke`/`grant`
+lines), then drop the index `analytics_events_attempt_created_idx`, the
+constraints `analytics_agent_platform_v3_check` and
+`analytics_attempt_id_v3_check`, and finally the columns `attempt_id`,
+`agent_platform` and `agent_instance_id` from `public.analytics_events` — in
+that order, because the function's INSERT names the columns. Rows ingested in
+between lose their Agent identity and the attempt correlation with the columns;
+the older function puts a client-sent `attempt_id` back inside `properties`,
+where the guard still accepts it, so no 031 web build is refused by the
+rollback. A client that only sends `attempt_id` in the envelope (the 031 web)
+has that id silently dropped by the restored function; roll the web back with
+it if attempt correlation of team events matters for the period. Regenerate
+`apps/web/src/lib/database.types.ts` afterwards.
+
+## 20261117100000_analytics_guard_contract.sql
+
+Restore `public.analytics_properties_are_safe_v2(jsonb)` verbatim from
+`20261110100000_link_analytics_keys.sql`. The function is immutable and sits in
+the check constraint of `public.analytics_events`, so `create or replace` is
+the whole rollback: no table, grant or type changes. Rows already ingested with
+the keys this file added stay as they are — a check constraint is not
+re-evaluated on existing rows and analytics rows are never updated — but every
+further `power_limit_changed`, `team_storage_*`, `team_index_completed`,
+`team_previews_ready`, `team_landing_*`, `team_library_*`,
+`team_task_completed`, `tool_ready`, `analytics_delivery_report` and every
+`error_occurred` carrying one of the new `error_stage` words is refused at
+ingestion as "Unsafe event properties", and the 031 client counts and reports
+each refusal — which the older guard refuses too, so the losses go dark as
+well. `tests/analytics-guard-contract.test.ts` fails for as long as the
+rollback stands, by design: the client allowlist and the guard disagree again.
+Roll the web build back with it, or accept the dark period.
+
+## 20261120100000_analytics_retention.sql
+
+Roll back the analytics CLI first if a build of it already reads
+`analytics_daily_events` / `analytics_daily_tool_outcomes` for periods longer
+than 90 days. Then stop the schedule, drop the trigger, the two private
+functions and the three tables, in this order:
+
+```sql
+select cron.unschedule(job.jobid) from cron.job as job
+where job.jobname = 'analytics-retention';
+drop trigger analytics_events_anonymise_on_user_null on public.analytics_events;
+drop function private.anonymise_analytics_event();
+drop function private.purge_analytics_events(integer);
+drop function private.materialize_analytics_daily(date);
+drop table public.analytics_daily_tool_outcomes;
+drop table public.analytics_daily_events;
+drop table private.analytics_daily_materialized;
+notify pgrst, 'reload schema';
+```
+
+Two things this does not undo. Events older than 90 days that the purge has
+already deleted are gone; only their daily aggregates remain, so consider
+keeping the two public tables (drop only the schedule, trigger and functions)
+if that history still matters. Rows anonymised by an account deletion keep
+`installation_id` and `session_id` as null; that is the FR-057 guarantee and is
+not reversible either. `public.ingest_analytics_events(jsonb)`, the event table
+itself and its grants are untouched by this migration. If rolling back while
+the 03:15 UTC job is running, wait for that invocation to finish before dropping
+the functions.
+
 ## 20261110100000_link_analytics_keys.sql
 
 Restore `public.analytics_properties_are_safe_v2(jsonb)` verbatim from

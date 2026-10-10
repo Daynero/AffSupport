@@ -3,16 +3,35 @@ import { readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { indexedFileSearch, userContentFolders } from '../platform/platform.js';
+import { diagnostics } from '../server/diagnostics-log.js';
 
 const MAX_COMMON_FOLDER_ENTRIES = 5_000;
 const MAX_COMMON_FOLDER_DEPTH = 4;
+
+/**
+ * Where a dropped original was found, as a class (031 FR-054): one of the usual content
+ * folders, the OS file index, or nowhere. Never the folder, and never the name — the record
+ * is copied into support threads, and "not found" against "found by the index" is the whole
+ * distinction a report about a drop that imported a copy needs.
+ */
+type DropLocation = 'common_folder' | 'index' | 'none';
+
+function journalDrop(code: 'resolve_file' | 'resolve_folder', location: DropLocation): void {
+  diagnostics.record('drop', code, {
+    location,
+    outcome: location === 'none' ? 'not_found' : 'found'
+  });
+}
 
 export async function findDroppedSource(
   fileName: string,
   expectedSize: number,
   expectedModifiedAt: number
 ): Promise<string | null> {
-  if (!Number.isFinite(expectedSize)) return null;
+  if (!Number.isFinite(expectedSize)) {
+    diagnostics.record('drop', 'resolve_file', { location: 'none', outcome: 'invalid' });
+    return null;
+  }
 
   const inCommonFolder = await findDroppedSourceInDirectories(
     await userContentFolders(),
@@ -20,12 +39,19 @@ export async function findDroppedSource(
     expectedSize,
     expectedModifiedAt
   );
-  if (inCommonFolder) return inCommonFolder;
+  if (inCommonFolder) {
+    journalDrop('resolve_file', 'common_folder');
+    return inCommonFolder;
+  }
 
   const candidates = await indexedFileSearch(os.homedir(), fileName);
   for (const candidate of candidates) {
-    if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) return candidate;
+    if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) {
+      journalDrop('resolve_file', 'index');
+      return candidate;
+    }
   }
+  journalDrop('resolve_file', 'none');
   return null;
 }
 
@@ -106,12 +132,16 @@ export async function findDroppedFolder(sample: DroppedFolderSample): Promise<st
     relSegments.some(segment => segment === '..' || segment === '.') ||
     !Number.isFinite(sample.size)
   ) {
+    diagnostics.record('drop', 'resolve_folder', { location: 'none', outcome: 'invalid' });
     return null;
   }
 
   for (const folder of await userContentFolders()) {
     const root = path.join(folder, sample.folderName);
-    if (await folderMatches(root, relSegments, sample)) return root;
+    if (await folderMatches(root, relSegments, sample)) {
+      journalDrop('resolve_folder', 'common_folder');
+      return root;
+    }
   }
 
   const hits = await indexedFileSearch(os.homedir(), sample.fileName);
@@ -119,8 +149,12 @@ export async function findDroppedFolder(sample: DroppedFolderSample): Promise<st
     let root = hit;
     for (let index = 0; index < relSegments.length; index += 1) root = path.dirname(root);
     if (path.basename(root) !== sample.folderName) continue;
-    if (await folderMatches(root, relSegments, sample)) return root;
+    if (await folderMatches(root, relSegments, sample)) {
+      journalDrop('resolve_folder', 'index');
+      return root;
+    }
   }
+  journalDrop('resolve_folder', 'none');
   return null;
 }
 

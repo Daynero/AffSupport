@@ -1,8 +1,11 @@
 import type { AgentSettings, CompressionJob } from '@video-compressor/shared';
+import { safeErrorCode, toolErrorProperties, type ToolErrorStage } from './errors';
+import type { AnalyticsProperties } from './events';
 
 export type JobTransitionEventName =
   | 'estimate_started'
   | 'estimate_completed'
+  | 'estimate_failed'
   | 'compression_started'
   | 'compression_completed'
   | 'compression_failed'
@@ -20,6 +23,8 @@ export function jobTransitionEventNames(
     events.push('estimate_started');
   if (previous.estimateStatus !== 'estimated' && current.estimateStatus === 'estimated')
     events.push('estimate_completed');
+  if (previous.estimateStatus !== 'unavailable' && current.estimateStatus === 'unavailable')
+    events.push('estimate_failed');
   if (previous.status !== 'processing' && current.status === 'processing')
     events.push('compression_started');
   if (previous.status !== 'completed' && current.status === 'completed')
@@ -86,4 +91,58 @@ export function compressionErrorCategory(error: string | null) {
   if (/validat|mp4/.test(value)) return 'output_validation';
   if (/connect|agent/.test(value)) return 'agent_unavailable';
   return 'unknown';
+}
+
+/**
+ * 031 FR-052 — the agent's own code for a failed compression (`CompressionJob.errorCode`),
+ * never a reading of the sentence beside it. An agent older than the field gives `unknown`.
+ */
+export function compressionErrorCode(job: Pick<CompressionJob, 'errorCode'>): string {
+  return safeErrorCode(job.errorCode ?? null);
+}
+
+const COMPRESSION_CODE_STAGES: Readonly<Record<string, ToolErrorStage<'compressor'>>> = {
+  UNSUPPORTED_MEDIA: 'input',
+  SOURCE_NOT_FOUND: 'input',
+  DISK_FULL: 'output',
+  DESTINATION_NOT_WRITABLE: 'output',
+  OUTPUT_VALIDATION_FAILED: 'output',
+  IMAGE_DAMAGED: 'image_embedding',
+  IMAGE_UNAVAILABLE: 'image_embedding',
+  IMAGE_FILTER_GRAPH_INVALID: 'image_embedding',
+  IMAGE_ADAPT_FAILED: 'image_embedding'
+};
+
+/** Which part of the compressor a code belongs to; anything unnamed failed in the encode. */
+export function compressionErrorStage(code: string): ToolErrorStage<'compressor'> {
+  return COMPRESSION_CODE_STAGES[code] ?? 'encode';
+}
+
+/** `error_occurred` for a compression that just failed, correlated by its `run_id`. */
+export function compressionFailureError(job: CompressionJob): AnalyticsProperties {
+  const code = compressionErrorCode(job);
+  return toolErrorProperties({
+    tool: 'compressor',
+    stage: compressionErrorStage(code),
+    code,
+    runId: job.id
+  });
+}
+
+/**
+ * The estimate's code. The agent keeps only a message for a failed estimate, so this is a code
+ * only when that message already is one, and `unknown` otherwise.
+ */
+export function estimateErrorCode(job: Pick<CompressionJob, 'estimateError'>): string {
+  return safeErrorCode(job.estimateError);
+}
+
+/** `error_occurred` for an estimate that just failed, correlated by its `run_id`. */
+export function estimateFailureError(job: CompressionJob): AnalyticsProperties {
+  return toolErrorProperties({
+    tool: 'compressor',
+    stage: 'estimate',
+    code: estimateErrorCode(job),
+    runId: job.id
+  });
 }

@@ -2,12 +2,12 @@
 
 ## Envelope v3 (`public.analytics_events`, аддитивно)
 
-| Колонка | Тип | Джерело | Примітка |
-| --- | --- | --- | --- |
-| `agent_instance_id` | uuid null | health `instanceId` | per-boot, не PII |
-| `agent_platform` | text null (`macos|windows`) | health `capabilities`/нове поле `platform` | авторитетна платформа; `platform` (браузер) лишається |
-| `attempt_id` | text null (opaque id regex) | властивість → колонка | як `flow_id`/`run_id` |
-| `event_version` | 2 для подій із новим envelope | клієнт | старі клієнти шлють 1 |
+| Колонка             | Тип                           | Джерело               | Примітка                                   |
+| ------------------- | ----------------------------- | --------------------- | ------------------------------------------ |
+| `agent_instance_id` | uuid null                     | health `instanceId`   | per-boot, не PII                           |
+| `agent_platform`    | text null (`macos             | windows`)             | health `capabilities`/нове поле `platform` | авторитетна платформа; `platform` (браузер) лишається |
+| `attempt_id`        | text null (opaque id regex)   | властивість → колонка | як `flow_id`/`run_id`                      |
+| `event_version`     | 2 для подій із новим envelope | клієнт                | старі клієнти шлють 1                      |
 
 ## Delivery report (подія `analytics_delivery_report`)
 

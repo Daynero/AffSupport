@@ -145,7 +145,7 @@ describe('landing gallery contract', () => {
       ready_count: 42,
       tile_state: 'ready',
       had_agent: true,
-      outcome: 'failed',
+      outcome: 'failure',
       reason: 'protected',
       duration_ms: 1200,
       // forbidden / bogus fields must be dropped
@@ -159,7 +159,7 @@ describe('landing gallery contract', () => {
       ready_count: 42,
       tile_state: 'ready',
       had_agent: true,
-      outcome: 'failed',
+      outcome: 'failure',
       reason: 'protected',
       duration_ms: 1200
     });

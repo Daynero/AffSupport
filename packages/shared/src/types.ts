@@ -408,6 +408,26 @@ export function expectedFrameRate(
   return requestedFrameRate ?? sourceFrameRate ?? null;
 }
 
+/**
+ * Why a compression stopped, as a code rather than a sentence (031 FR-052). Closed: the web
+ * client maps each to an analytics `error_stage`, and nothing outside this list is ever sent.
+ */
+export const COMPRESSION_ERROR_CODES = [
+  'UNSUPPORTED_MEDIA',
+  'SOURCE_NOT_FOUND',
+  'MEDIA_TOOL_UNAVAILABLE',
+  'DISK_FULL',
+  'DESTINATION_NOT_WRITABLE',
+  'OUTPUT_VALIDATION_FAILED',
+  'IMAGE_DAMAGED',
+  'IMAGE_UNAVAILABLE',
+  'IMAGE_FILTER_GRAPH_INVALID',
+  'IMAGE_ADAPT_FAILED',
+  'FFMPEG_FAILED',
+  'PROCESSING_FAILED'
+] as const;
+export type CompressionErrorCode = (typeof COMPRESSION_ERROR_CODES)[number];
+
 export interface CompressionJob {
   id: string;
   /**
@@ -475,6 +495,12 @@ export interface CompressionJob {
   processingStage: ProcessingStage | null;
   status: JobStatus;
   error: string | null;
+  /**
+   * The stable machine code behind `error` (031 FR-052), one of `COMPRESSION_ERROR_CODES`.
+   * `error` is the sentence for a person; this is what analytics and support read. Absent on
+   * agents older than 031 and on jobs that never failed.
+   */
+  errorCode?: CompressionErrorCode | null;
   errorDetails: string | null;
   encoding: EncodingSettings;
   imageEmbedding: JobImageEmbedding | null;
@@ -560,9 +586,17 @@ export interface AgentEntitlementStatus {
   graceUntil: string | null;
 }
 
+/** The host operating system as the agent itself reports it (031 FR-053). */
+export type AgentHostPlatform = 'macos' | 'windows' | 'linux';
+
 export interface HealthResponse {
   /** Identifies this run of the agent; changes on every restart. */
   instanceId?: string;
+  /**
+   * The host operating system, authoritative where the browser's user agent is a guess.
+   * Absent on agents older than 031 and on hosts outside the three named.
+   */
+  platform?: AgentHostPlatform;
   ok: boolean;
   tools: QueueState['tools'];
   version: string;
@@ -612,6 +646,59 @@ export const AGENT_CAPABILITIES = [
   'transcription'
 ] as const;
 export type AgentCapability = (typeof AGENT_CAPABILITIES)[number];
+
+/**
+ * The closed set of things the agent's local diagnostics journal may speak about (031 FR-054).
+ *
+ * A category is a subsystem, never a free-form tag: the journal is meant to be copied into a
+ * support thread by the user, so every axis of it is a vocabulary rather than text.
+ */
+export const DIAGNOSTIC_CATEGORIES = [
+  'boot',
+  'shutdown',
+  'stream',
+  'auth',
+  'entitlement',
+  'spawn',
+  'picker',
+  'drop',
+  'update',
+  'power',
+  'team'
+] as const;
+export type DiagnosticCategory = (typeof DIAGNOSTIC_CATEGORIES)[number];
+
+/** A property value on a diagnostic record. Strings come only from closed vocabularies. */
+export type DiagnosticPropValue = number | boolean | string;
+
+/**
+ * One fact in the agent's bounded local journal.
+ *
+ * `code` is a stable machine code (`^[a-z][a-z0-9_]{1,63}$`); `props` carry buckets, counts and
+ * enum values only — never a path, a file name, a URL, a command line or a token. The agent
+ * refuses a record that would, so the absence of such things is a property of the type, not of
+ * the writers' discipline.
+ */
+export interface DiagnosticRecord {
+  /** Monotonic within the journal; continues across restarts when the file was readable. */
+  seq: number;
+  /** Epoch milliseconds. */
+  at: number;
+  category: DiagnosticCategory;
+  code: string;
+  props?: Record<string, DiagnosticPropValue>;
+}
+
+/** The journal page `GET /api/diagnostics?since=<seq>&limit=<n>` adds to its envelope. */
+export interface DiagnosticsLogPage {
+  /** Oldest first; every record has `seq > since`. */
+  log: DiagnosticRecord[];
+  /** The cursor to pass as `since` on the next poll. */
+  nextSeq: number;
+  /** Records the journal refused because a writer handed it something it may not keep. */
+  logRejected: number;
+}
+
 export interface SessionResponse {
   token: string;
 }

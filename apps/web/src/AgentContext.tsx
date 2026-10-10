@@ -64,6 +64,7 @@ import {
   type ReconnectSurface
 } from './analytics/link';
 import { servedByAgent } from './lib/config';
+import { platformFromAgentCapabilities } from './lib/platform';
 import {
   installedReleaseStatus,
   loadStableReleaseManifest,
@@ -452,12 +453,18 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           toolContracts: result.toolContracts,
           seenAt: Date.now()
         });
+        // 031 FR-053: the Agent's per-boot id and its own word on the host OS; an agent
+        // older than the `platform` field is placed by its capabilities, which only ever
+        // establish macOS — anything else stays unknown rather than guessed.
+        const agentPlatform = result.platform ?? platformFromAgentCapabilities(result.capabilities);
         analytics.setAgentContext({
           version: result.version || null,
           buildId: result.buildId || null,
           channel: result.channel || null,
           apiVersion: result.apiVersion,
-          toolContracts: result.toolContracts
+          toolContracts: result.toolContracts,
+          instanceId: result.instanceId || null,
+          platform: agentPlatform === 'macos' || agentPlatform === 'windows' ? agentPlatform : null
         });
         consecutiveFailures.current = 0;
         if (next !== 'connected') {

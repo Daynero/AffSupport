@@ -68,7 +68,9 @@ export function StitcherProvider({ children }: { children: ReactNode }) {
     ({ state: next }: { state: StitcherState }) => applyState(next),
     [applyState]
   );
-  const { stateError } = useToolStateRead(fetchStitcherState, applyRead);
+  const { stateError } = useToolStateRead(fetchStitcherState, applyRead, {
+    tool: 'stitcher'
+  });
 
   useAgentEventStream<{ state: StitcherState }>({
     url: connected ? toolEventUrl('stitcher') : null,

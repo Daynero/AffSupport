@@ -28,15 +28,15 @@
 
 ## Constitution Check
 
-| Принцип | Як дотримано |
-| --- | --- |
-| I | enum-и подій — string-literal unions; guard-контракт генерується з них; `unknown` з агента narrowed |
-| II | `AGENT_API_VERSION` незмінний; `/api/diagnostics?since=` і `tool_ready` — аддитивні |
-| III | CLI лишається SELECT-only; нові таблиці — RLS + column grants; журнал агента без шляхів/секретів; bundle показується користувачу до копіювання |
-| IV | журнал агента пише з існуючих spawn-seam-ів (`power/spawn.ts`), без нових child-process шляхів |
-| V | `error_code` з агента — стабільні коди; `/api/diagnostics` зберігає envelope |
-| VI | один typed seam `analytics.track`; без polling; `tool_ready` емітиться з наявних initial-read ефектів |
-| Verify | контрактний тест guard-а і реєстру — у `npm run verify` |
+| Принцип | Як дотримано                                                                                                                                   |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| I       | enum-и подій — string-literal unions; guard-контракт генерується з них; `unknown` з агента narrowed                                            |
+| II      | `AGENT_API_VERSION` незмінний; `/api/diagnostics?since=` і `tool_ready` — аддитивні                                                            |
+| III     | CLI лишається SELECT-only; нові таблиці — RLS + column grants; журнал агента без шляхів/секретів; bundle показується користувачу до копіювання |
+| IV      | журнал агента пише з існуючих spawn-seam-ів (`power/spawn.ts`), без нових child-process шляхів                                                 |
+| V       | `error_code` з агента — стабільні коди; `/api/diagnostics` зберігає envelope                                                                   |
+| VI      | один typed seam `analytics.track`; без polling; `tool_ready` емітиться з наявних initial-read ефектів                                          |
+| Verify  | контрактний тест guard-а і реєстру — у `npm run verify`                                                                                        |
 
 Порушень немає.
 

@@ -71,6 +71,7 @@
     "packages/shared/src/team/transcript.ts": 89,
     "packages/shared/src/team/transport.ts": 85,
     "packages/shared/src/types.ts": 63,
-    "packages/shared/src/totp.ts": 50
+    "packages/shared/src/totp.ts": 50,
+    "apps/agent/src/server/diagnostics-log.ts": 95
   }
 }

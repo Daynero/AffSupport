@@ -17,6 +17,7 @@ import {
   isSettled,
   type AgentEventType,
   type AgentSettings,
+  type CompressionErrorCode,
   type CompressionJob,
   type ImageAsset,
   type ImageSlot,
@@ -71,6 +72,7 @@ export interface QueuePowerGovernor extends ManagedSpawnGovernor {
 }
 import { selectionWarning } from './shared.js';
 import { decideTransition } from './transitions.js';
+import { diagnostics } from '../server/diagnostics-log.js';
 
 /**
  * How often the drain watchdog looks for a stranded batch. Slow on purpose:
@@ -629,6 +631,9 @@ export class JobQueue {
       state: this.workActive() ? 'draining' : 'pending',
       targetBuildId
     };
+    // The state, not the build: "it went to draining and never reached pending" is the
+    // support question, and the build id is already on the health page.
+    diagnostics.record('update', 'drain_requested', { state: this.updateState.state });
     this.notify();
   }
 
@@ -804,6 +809,7 @@ export class JobQueue {
           if (!validSourceMedia(media)) {
             this.transition(job, 'failed');
             job.error = 'This video format is not supported or the file is damaged.';
+            job.errorCode = 'UNSUPPORTED_MEDIA';
             job.errorDetails = null;
             job.finishedAt = finishTimestamp(job);
             continue;
@@ -811,6 +817,7 @@ export class JobQueue {
           applySourceMedia(job, media);
           this.transition(job, 'ready');
           job.error = null;
+          job.errorCode = null;
           job.errorDetails = null;
           job.finishedAt = null;
           this.estimateHooks?.schedule();
@@ -826,6 +833,7 @@ export class JobQueue {
 
         this.transition(job, 'interrupted');
         job.error = 'Compression was interrupted when the media engine stopped.';
+        job.errorCode = 'MEDIA_TOOL_UNAVAILABLE';
         job.errorDetails = null;
         job.processingStage = null;
         job.finishedAt = finishTimestamp(job);
@@ -836,6 +844,7 @@ export class JobQueue {
         }
         this.transition(job, 'failed');
         job.error = processingError(error);
+        job.errorCode = processingErrorCode(error);
         job.errorDetails = error instanceof Error ? error.message : null;
         job.processingStage = null;
         job.finishedAt = finishTimestamp(job);
@@ -1003,6 +1012,7 @@ export class JobQueue {
       this.transition(job, 'queued');
       job.batchId = batch.id;
       job.error = null;
+      job.errorCode = null;
       job.errorDetails = null;
       job.progress = outputDurationSeconds(job) ? 0 : null;
       job.processingStage = null;
@@ -1041,6 +1051,7 @@ export class JobQueue {
 
     this.transition(job, 'interrupted');
     job.error = 'Compression was interrupted while the computer was asleep.';
+    job.errorCode = null;
     job.errorDetails = null;
     job.processingStage = null;
     job.finishedAt = finishTimestamp(job);
@@ -1136,6 +1147,7 @@ export class JobQueue {
       job.estimateKey = previous.estimateKey;
       job.progress = 100;
       job.error = null;
+      job.errorCode = null;
       job.errorDetails = null;
       job.processingStage = null;
       job.estimatePriorityOrder = null;
@@ -1151,6 +1163,7 @@ export class JobQueue {
     // something that went wrong.
     this.transition(job, 'cancelled');
     job.error = null;
+    job.errorCode = null;
     job.finishedAt = finishTimestamp(job);
     job.processingStage = null;
     job.estimatePriorityOrder = null;
@@ -1606,6 +1619,7 @@ export class JobQueue {
       if (!validSourceMedia(media)) {
         this.transition(job, 'failed');
         job.error = 'This video format is not supported or the file is damaged.';
+        job.errorCode = 'UNSUPPORTED_MEDIA';
         this.notify();
         return null;
       }
@@ -1652,6 +1666,7 @@ export class JobQueue {
     );
     this.transition(job, 'ready');
     job.error = null;
+    job.errorCode = null;
     job.errorDetails = null;
     job.progress = job.durationSeconds ? 0 : null;
     job.processingStage = null;
@@ -1883,7 +1898,10 @@ export class JobQueue {
     if (!job) {
       if (!this.batch.finishedAt) this.batch.finishedAt = Date.now();
       this.stopDrainWatchdog();
-      if (this.updateState.state === 'draining') this.updateState.state = 'pending';
+      if (this.updateState.state === 'draining') {
+        this.updateState.state = 'pending';
+        diagnostics.record('update', 'drain_idle', { state: 'pending' });
+      }
       this.notify();
       this.estimateHooks?.resume();
       return;
@@ -1904,6 +1922,7 @@ export class JobQueue {
       });
       this.transition(job, 'processing');
       job.error = null;
+      job.errorCode = null;
       job.errorDetails = null;
       job.estimatePriorityOrder = null;
       job.startedAt = Date.now();
@@ -1950,6 +1969,7 @@ export class JobQueue {
       } else {
         this.transition(job, 'failed');
         job.error = friendlyError(result.stderr);
+        job.errorCode = friendlyErrorCode(result.stderr);
         job.errorDetails = result.stderr || null;
         job.processingStage = null;
         job.finishedAt = finishTimestamp(job);
@@ -1971,6 +1991,7 @@ export class JobQueue {
       }
       this.transition(job, 'failed');
       job.error = processingError(error);
+      job.errorCode = processingErrorCode(error);
       job.errorDetails = error instanceof Error ? error.message : null;
       job.processingStage = null;
       job.finishedAt = finishTimestamp(job);
@@ -2036,6 +2057,7 @@ export class JobQueue {
     job.finalDurationSeconds = media.duration;
     job.finalCodec = media.codec;
     job.error = null;
+    job.errorCode = null;
     job.errorDetails = null;
     job.estimateStatus = 'cancelled';
     job.estimateProgress = null;
@@ -2051,6 +2073,7 @@ export class JobQueue {
     this.warning = RUNTIME_WARNING;
     this.transition(job, phase === 'input-analysis' ? 'analyzing' : 'interrupted');
     job.error = RUNTIME_JOB_ERROR;
+    job.errorCode = 'MEDIA_TOOL_UNAVAILABLE';
     job.errorDetails = runtimeRecoveryDetails(error, phase);
     job.processingStage = null;
     job.finishedAt = phase === 'input-analysis' ? null : finishTimestamp(job);
@@ -2267,6 +2290,26 @@ function resetEstimate(job: CompressionJob) {
   job.estimateBreakdown = null;
 }
 
+/** The code behind `friendlyError`'s sentence (031 FR-052): same branches, same order. */
+export function friendlyErrorCode(stderr: string): CompressionErrorCode {
+  if (/no space left on device/i.test(stderr)) return 'DISK_FULL';
+  if (/permission denied|read-only file system/i.test(stderr)) return 'DESTINATION_NOT_WRITABLE';
+  if (/invalid data found|could not find codec parameters/i.test(stderr)) {
+    return 'UNSUPPORTED_MEDIA';
+  }
+  if (
+    /concat input.*parameters do not match|failed to configure output pad|pixel format/i.test(
+      stderr
+    )
+  ) {
+    return 'IMAGE_ADAPT_FAILED';
+  }
+  if (/error initializing complex filters|invalid argument/i.test(stderr)) {
+    return 'IMAGE_FILTER_GRAPH_INVALID';
+  }
+  return 'FFMPEG_FAILED';
+}
+
 function friendlyError(stderr: string) {
   if (/no space left on device/i.test(stderr)) return 'There is not enough free disk space.';
   if (/permission denied|read-only file system/i.test(stderr)) {
@@ -2383,6 +2426,21 @@ function processingError(error: unknown) {
     return 'The source file is no longer available.';
   }
   return 'The file could not be processed.';
+}
+
+/** The code behind `processingError`'s sentence (031 FR-052): same branches, same order. */
+export function processingErrorCode(error: unknown): CompressionErrorCode {
+  if (error instanceof ImageAssetError) {
+    return error.code === 'IMAGE_DAMAGED' ? 'IMAGE_DAMAGED' : 'IMAGE_UNAVAILABLE';
+  }
+  if (error instanceof OutputValidationError) return 'OUTPUT_VALIDATION_FAILED';
+  if (error instanceof Error && /IMAGE_FILTER_GRAPH_INVALID/.test(error.message)) {
+    return 'IMAGE_FILTER_GRAPH_INVALID';
+  }
+  if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+    return 'SOURCE_NOT_FOUND';
+  }
+  return 'PROCESSING_FAILED';
 }
 
 class OutputValidationError extends Error {}

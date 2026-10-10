@@ -8,6 +8,32 @@ import { useOptionalAgent } from '../../AgentContext';
 import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { getSupabaseClient } from '../../lib/supabase';
 import type { LocalTeamProgress } from './OperationStatus';
+import { teamOperationErrorStage, trackToolError } from '../../analytics/errors';
+
+/**
+ * Operations whose failure was already reported. Two surfaces can watch the same operation
+ * (the process flow and the queue), and a failure is one event however many people looked.
+ */
+const reportedFailures = new Set<string>();
+const REPORTED_FAILURES_MAX = 200;
+
+/** `error_occurred` once per failed operation, with the server's code and the operation id. */
+export function reportTeamOperationFailure(
+  operation: TeamOperationSnapshot,
+  workflowId?: string
+): void {
+  if (operation.state !== 'failed' || reportedFailures.has(operation.id)) return;
+  if (reportedFailures.size >= REPORTED_FAILURES_MAX) reportedFailures.clear();
+  reportedFailures.add(operation.id);
+  trackToolError({
+    tool: 'team',
+    stage: teamOperationErrorStage(operation.kind),
+    code: operation.errorCode,
+    flowId: operation.id,
+    ...(workflowId ? { workflowId } : {}),
+    retryable: operation.retryable
+  });
+}
 
 interface TeamOperationSseEvent {
   type: 'team:operations';
@@ -26,8 +52,10 @@ export function useTeamOperation(input: {
   operationId: string | null;
   agentEnabled?: boolean;
   client?: Pick<typeof teamApi, 'getOperation' | 'cancelOperation'>;
+  /** The analytics workflow this operation belongs to, so its failure correlates (031). */
+  workflowId?: string;
 }) {
-  const { teamId, operationId, agentEnabled = true, client = teamApi } = input;
+  const { teamId, operationId, agentEnabled = true, client = teamApi, workflowId } = input;
   const [operation, setOperation] = useState<TeamOperationSnapshot | null>(null);
   const [localProgress, setLocalProgress] = useState<LocalTeamProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,11 +66,12 @@ export function useTeamOperation(input: {
       const value = await client.getOperation(teamId, operationId);
       setOperation(value);
       setError(null);
+      reportTeamOperationFailure(value, workflowId);
       if (!['pending', 'running'].includes(value.state)) setLocalProgress(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'INVALID_RESPONSE');
     }
-  }, [client, operationId, teamId]);
+  }, [client, operationId, teamId, workflowId]);
 
   useEffect(() => {
     setOperation(null);

@@ -60,7 +60,8 @@ import { useI18n } from '../i18n';
 import { describeError } from './errors';
 import { usePageEntrance } from '../lib/navigation';
 import { analytics } from '../analytics/service';
-import { toolJobActivityEvents } from '../analytics/tools';
+import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
+import { toolErrorProperties, trackToolError, type ToolErrorStage } from '../analytics/errors';
 import { languageDisplayName } from './language';
 import { TranscriptTextModal } from './TranscriptTextModal';
 import {
@@ -233,7 +234,9 @@ export default function TranscriptionPage() {
   }, []);
 
   // Read again after every recovery, and said out loud when it fails (032 W12).
-  const { stateError } = useToolStateRead(readTranscriptionState, applyState);
+  const { stateError } = useToolStateRead(readTranscriptionState, applyState, {
+    tool: 'transcription'
+  });
 
   useAgentEventStream<{ state: TranscriptionState }>({
     url: connection === 'connected' ? toolEventUrl('transcription') : null,
@@ -254,10 +257,18 @@ export default function TranscriptionPage() {
   }, []);
 
   const handleError = useCallback(
-    (error: unknown) => {
+    (error: unknown, stage: ToolErrorStage<'transcription'> = 'transcribe', runId?: string) => {
       const message = error instanceof Error ? error.message : '';
       if (['CONNECTION_FAILED', 'TIMEOUT', 'PAIRING_REQUIRED'].includes(message)) reconnect();
       addToast(describeError(error, t), 'error');
+      // 031 FR-052: the code and the stage, never the sentence that was shown.
+      const run = analyticsRunId(runId);
+      trackToolError({
+        tool: 'transcription',
+        stage,
+        code: error,
+        ...(run ? { runId: run } : { flowId: crypto.randomUUID() })
+      });
     },
     [addToast, reconnect, t]
   );
@@ -280,7 +291,14 @@ export default function TranscriptionPage() {
         completed: ['completed'],
         failed: ['failed', 'interrupted'],
         cancelled: ['cancelled']
-      }
+      },
+      (job, runId) =>
+        toolErrorProperties({
+          tool: 'transcription',
+          stage: transcriptionErrorStage(job),
+          code: job.status === 'interrupted' ? 'INTERRUPTED' : job.error,
+          ...(runId ? { runId } : {})
+        })
     )) {
       analytics.track(event.name, event.properties);
     }
@@ -410,7 +428,7 @@ export default function TranscriptionPage() {
     try {
       applySelection(await transcriptionSelect());
     } catch (error) {
-      handleError(error);
+      handleError(error, 'input');
     } finally {
       setImporting(false);
     }
@@ -421,7 +439,7 @@ export default function TranscriptionPage() {
     try {
       for (const file of files) applySelection(await transcriptionUpload(file));
     } catch (error) {
-      handleError(error);
+      handleError(error, 'input');
     } finally {
       setImporting(false);
     }
@@ -432,7 +450,7 @@ export default function TranscriptionPage() {
     try {
       applySelection(await transcriptionAddLocalFiles(paths));
     } catch (error) {
-      handleError(error);
+      handleError(error, 'input');
     } finally {
       setImporting(false);
     }
@@ -511,7 +529,7 @@ export default function TranscriptionPage() {
       const speechModel = pendingQuality ? (state?.models?.[pendingQuality] ?? model) : model;
       if (speechModel.present) startPending();
     } catch (error) {
-      handleError(error);
+      handleError(error, 'model');
     }
   };
   const continueWithoutTranslation = async () => {
@@ -599,7 +617,7 @@ export default function TranscriptionPage() {
       try {
         await transcriptionTranslate(jobId, targetLanguage);
       } catch (error) {
-        handleError(error);
+        handleError(error, 'translate', jobId);
         throw error;
       }
     },
@@ -1170,4 +1188,11 @@ function ToastRegion({ toasts }: { toasts: ToastMessage[] }) {
       ))}
     </div>
   );
+}
+
+/** Where in the pipeline a transcription stopped, from the phase it last reported. */
+function transcriptionErrorStage(job: TranscriptionJob): ToolErrorStage<'transcription'> {
+  if (job.phase === 'extract') return 'input';
+  if (job.phase === 'save') return 'save';
+  return 'transcribe';
 }

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import { analytics } from '../analytics/service';
 import { activeCryptoWallets, hasDonationOptions, monobankUrl, supportEmail } from '../lib/support';
@@ -11,6 +11,15 @@ import {
 } from '../support/goals';
 import { Modal } from './Modal';
 import { Badge, Button, Card, FormField, Progress, Textarea, uiClasses } from './ui/index';
+
+/**
+ * Loaded on demand. The bundle reads the local app's journal, so it needs the agent client
+ * and context; the support dialog is mounted on every page, including ones that never
+ * talk to the local app, and must not pull that graph in with it.
+ */
+const DiagnosticsBundle = lazy(() =>
+  import('../support/DiagnosticsBundle').then(module => ({ default: module.DiagnosticsBundle }))
+);
 
 /** Header trigger that opens the "Support the project" dialog. */
 export function SupportButton() {
@@ -219,6 +228,10 @@ export function SupportDialog({
           <p className="support-note">{t('supportFeedbackSoon')}</p>
         )}
       </section>
+
+      <Suspense fallback={null}>
+        <DiagnosticsBundle />
+      </Suspense>
     </Modal>
   );
 }

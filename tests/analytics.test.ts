@@ -122,8 +122,9 @@ describe('privacy-minimized analytics', () => {
       'team_workflow_started',
       'team_workflow_completed'
     ]);
+    // 031 — `attempt_id` rides in the envelope column, like flow_id/run_id.
+    expect(delivered[1].attempt_id).toBe(fileAttempt.attemptId);
     expect(delivered[1].properties).toEqual({
-      attempt_id: fileAttempt.attemptId,
       action: 'download',
       storage_kind: 'shared_drive',
       size_bucket: 'agent',
@@ -295,7 +296,7 @@ describe('privacy-minimized analytics', () => {
     expect(service.pendingCount()).toBe(0);
   });
 
-  it('removes accepted events without losing rejected siblings', async () => {
+  it('removes accepted events and counts a rejected sibling instead of retrying it', async () => {
     const storage = new MemoryStorage();
     const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
       acceptedEventIds: [events[0].event_id]
@@ -307,9 +308,13 @@ describe('privacy-minimized analytics', () => {
 
     await service.flush();
 
+    // 031 FR-049 — a server rejection is deterministic: the event is dropped,
+    // counted by name, and the loss is queued as a report in the same flush.
     expect(service.pendingCount()).toBe(1);
     const queued = JSON.parse(storage.getItem('wishly.analytics.queue.v2') ?? '[]');
-    expect(queued).toMatchObject([{ event_name: 'tool_opened', attempts: 1 }]);
+    expect(queued).toMatchObject([
+      { event_name: 'analytics_delivery_report', properties: { rejected_count: 1 } }
+    ]);
   });
 
   it('routes flow and run UUIDs in the event envelope instead of properties', async () => {
@@ -338,7 +343,7 @@ describe('privacy-minimized analytics', () => {
     const service = new ProductAnalytics(vi.fn().mockResolvedValue(true), new MemoryStorage());
     service.setUser('11111111-1111-4111-8111-111111111111');
     for (let index = 0; index < 80; index += 1) service.track('home_viewed', {});
-    expect(service.pendingCount()).toBeLessThanOrEqual(40);
+    expect(service.pendingCount()).toBeLessThanOrEqual(60);
   });
 
   it('re-sanitizes browser-queued records before they can be retried', () => {

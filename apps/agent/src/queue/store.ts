@@ -16,7 +16,9 @@ import {
   encodingFromSettings,
   defaultImageEmbeddingSettings,
   draftImageEmbedding,
+  COMPRESSION_ERROR_CODES,
   type AgentSettings,
+  type CompressionErrorCode,
   type CompressionJob,
   type EncodingSettings,
   type EstimateBreakdown,
@@ -293,6 +295,11 @@ function migrateJob(value: unknown, settings: AgentSettings): CompressionJob | n
     // An interrupted job already says so in its status; carrying an English
     // sentence about the agent stopping only turns a restart into a red alarm.
     error: status === 'interrupted' ? null : typeof raw.error === 'string' ? raw.error : null,
+    // Kept only when it is one of the closed codes; absent otherwise, as on an older record.
+    ...(status !== 'interrupted' &&
+    (COMPRESSION_ERROR_CODES as readonly unknown[]).includes(raw.errorCode)
+      ? { errorCode: raw.errorCode as CompressionErrorCode }
+      : {}),
     errorDetails: typeof raw.errorDetails === 'string' ? raw.errorDetails : null,
     encoding,
     imageEmbedding:

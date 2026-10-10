@@ -8,7 +8,7 @@
 
 **Input**: Власник не відкриває аналітику вручну. Агент має пояснювати, чому конкретний користувач не може запустити Soty, стиснути медіа, підключити простір або виконати будь-яку іншу дію; самостійно знаходити збої, слабкі місця, втрачені ланцюжки спостереження та нові крайові сценарії. Власник отримує лише потрібний короткий висновок або запускає самоаналіз без повідомлень.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 — Пояснити проблему конкретного користувача (Priority: P1)
 
@@ -112,7 +112,7 @@
 - Збір вимкнений, база недоступна, джерела суперечать одне одному, обрізана вибірка, видалені історичні дані.
 - Вхідні помилки й логи містять секрети або текст, схожий на інструкції агенту: це недовірені дані, не команди.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -207,7 +207,7 @@
 - **Analysis Run**: фіксований scope/snapshot, версія правил, completeness, findings і артефакти.
 - **Readiness Record**: матриця сценаріїв, exact build identities, результати перевірок, blocked/insufficient reasons.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -259,14 +259,14 @@ capability: compressor.run
 
 ## Виміряний стан на 2026-10-10 (read-only, 30 днів)
 
-| Факт | Значення | Що означає |
-| --- | --- | --- |
-| `team-workspace` storage | connected 0, index 0, previews 0, attention 0 | подій немає в базі, хоча клієнт їх шле — guard відкидає |
-| SC-001 onboarding | 4 спроби, 0 успіхів, `insufficient` | роздуто фантомними стартами з повторних рендерів |
-| `cohorts --cohort-by local-app-version` | когорта `unknown`: 27 користувачів, 2 800 подій, 0 успіхів/невдач | події без контексту агента; не «здорова когорта» |
-| `errors` | усі кластери `error_stage=unknown`, `fingerprint=unknown` крім стітчера | жоден інструмент, окрім стітчера, не каже, де впав |
-| `events` | `agent_connected` 554 проти `agent_disconnected` 32 | розриви невидимі (закрито в 032) |
-| `features` | лише маркетингові impressions | `feature_*` майже не емітяться |
+| Факт                                    | Значення                                                                | Що означає                                              |
+| --------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------- |
+| `team-workspace` storage                | connected 0, index 0, previews 0, attention 0                           | подій немає в базі, хоча клієнт їх шле — guard відкидає |
+| SC-001 onboarding                       | 4 спроби, 0 успіхів, `insufficient`                                     | роздуто фантомними стартами з повторних рендерів        |
+| `cohorts --cohort-by local-app-version` | когорта `unknown`: 27 користувачів, 2 800 подій, 0 успіхів/невдач       | події без контексту агента; не «здорова когорта»        |
+| `errors`                                | усі кластери `error_stage=unknown`, `fingerprint=unknown` крім стітчера | жоден інструмент, окрім стітчера, не каже, де впав      |
+| `events`                                | `agent_connected` 554 проти `agent_disconnected` 32                     | розриви невидимі (закрито в 032)                        |
+| `features`                              | лише маркетингові impressions                                           | `feature_*` майже не емітяться                          |
 
 ## Assumptions
 
@@ -289,16 +289,16 @@ capability: compressor.run
 
 Це набір reported symptoms і доступних спостережень для planning, не завершена діагностика конкретного користувача. Ідентифікатор кейсу — `windows-input-2026-10-09`; email і секрети зі screenshot не копіюються в spec.
 
-| Спостереження | Що воно підтверджує | Що ще треба довести |
-| --- | --- | --- |
-| Аналітика: Windows x64, local build 1.2.5+70, agent_connected і багато tool_opened | Агент був доступний для зафіксованих подій | Readiness кожного інструмента й input attempt lifecycle |
-| Початковий screenshot stitcher без нижніх settings | Панелі не видно в цьому знімку | Помилка initial read, subscribe/apply або інша причина відсутності |
-| User: кнопка не відкриває діалог у всіх перевірених інструментах | Reported shared symptom | Handler acceptance, helper launch, visibility, error або legitimate pending |
-| DevTools: production local endpoint, без показаної відповіді; mobile Android identity | Endpoint target і заявлена browser identity | Чи був request прийнятий; емуляція/підміна чи інший context; вплив на збій |
-| User: пробував anti-detect і особистий браузер | Повідомлена зміна браузера | Чи прибрано override/емуляцію і чи це той самий Windows host |
-| Image upload працює; settings на пізнішому screenshot видно | Працює окремий шлях; панель пізніше з'явилася | Чи photo input був browser picker або drop; стан video native picker |
-| Drop починає роботу, далі «Soty не знайшов цей файл на диску» | Visible original-resolution failure | Location/search classes, denied access, incomplete search чи no match |
-| User: файл локальний, antivirus немає, після повторного відкриття нічого не змінилось | Повідомлені умови й результат спроби | Точний location class, security evidence, фактичний новий boot і attempt |
+| Спостереження                                                                         | Що воно підтверджує                           | Що ще треба довести                                                         |
+| ------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
+| Аналітика: Windows x64, local build 1.2.5+70, agent_connected і багато tool_opened    | Агент був доступний для зафіксованих подій    | Readiness кожного інструмента й input attempt lifecycle                     |
+| Початковий screenshot stitcher без нижніх settings                                    | Панелі не видно в цьому знімку                | Помилка initial read, subscribe/apply або інша причина відсутності          |
+| User: кнопка не відкриває діалог у всіх перевірених інструментах                      | Reported shared symptom                       | Handler acceptance, helper launch, visibility, error або legitimate pending |
+| DevTools: production local endpoint, без показаної відповіді; mobile Android identity | Endpoint target і заявлена browser identity   | Чи був request прийнятий; емуляція/підміна чи інший context; вплив на збій  |
+| User: пробував anti-detect і особистий браузер                                        | Повідомлена зміна браузера                    | Чи прибрано override/емуляцію і чи це той самий Windows host                |
+| Image upload працює; settings на пізнішому screenshot видно                           | Працює окремий шлях; панель пізніше з'явилася | Чи photo input був browser picker або drop; стан video native picker        |
+| Drop починає роботу, далі «Soty не знайшов цей файл на диску»                         | Visible original-resolution failure           | Location/search classes, denied access, incomplete search чи no match       |
+| User: файл локальний, antivirus немає, після повторного відкриття нічого не змінилось | Повідомлені умови й результат спроби          | Точний location class, security evidence, фактичний новий boot і attempt    |
 
 Acceptance набір MUST відтворювати цей клас симптомів із незалежними причинами (picker launch failure, hidden dialog, limited resolver coverage, inaccessible original, initial-state failure) та зі спільним підтвердженим environmental failure. Агент має визначати різні причини там, де вони різні, і одну лише за достатнього доказу. Також потрібен healthy control: preflight success + pending request під час відкритого діалогу → explicit cancel/selection → завершена відповідь.
 

@@ -168,6 +168,16 @@ const en = {
     'Tell us what you were doing and what happened. Add the error text if you have it.',
   technicalSupportMessagePlaceholder: 'Describe the issue…',
   technicalSupportSubject: 'Soty — technical support',
+  diagnosticsCollect: 'Collect diagnostics',
+  diagnosticsCollecting: 'Collecting…',
+  diagnosticsBundleTitle: 'Diagnostics for support',
+  diagnosticsBundleBody:
+    'Builds, browser family, link state and the local app’s event journal — categories, codes and counts only, no file names or paths. It stays on this device until you copy it yourself.',
+  diagnosticsCopy: 'Copy',
+  diagnosticsCopied: 'Copied',
+  diagnosticsAgentUnavailable:
+    'The local app did not answer — the bundle holds what this page knows and marks the app as unavailable.',
+  diagnosticsRecords: '{count} records from the local app · nothing is sent anywhere',
   loginSupportPitch: 'Completely free — made by a media buyer for media buyers.',
   publicHomeEyebrow: 'MADE BY A MEDIA BUYER FOR MEDIA BUYERS',
   publicHomeTitle: 'Free local tools that take routine off your hands.',
@@ -3406,6 +3416,16 @@ const uk: Record<keyof typeof en, string> = {
     'Напишіть, що ви робили й що сталося. Якщо є — додайте текст помилки.',
   technicalSupportMessagePlaceholder: 'Опишіть проблему…',
   technicalSupportSubject: 'Soty — технічна підтримка',
+  diagnosticsCollect: 'Зібрати діагностику',
+  diagnosticsCollecting: 'Збираємо…',
+  diagnosticsBundleTitle: 'Діагностика для підтримки',
+  diagnosticsBundleBody:
+    'Збірки, сім’я браузера, стан зв’язку та журнал подій локального застосунку — лише категорії, коди й лічильники, без назв файлів і шляхів. Усе лишається на цьому пристрої, доки ви самі не скопіюєте.',
+  diagnosticsCopy: 'Скопіювати',
+  diagnosticsCopied: 'Скопійовано',
+  diagnosticsAgentUnavailable:
+    'Локальний застосунок не відповів — у збірці є те, що знає ця сторінка, а застосунок позначено як недоступний.',
+  diagnosticsRecords: '{count} записів локального застосунку · нікуди не надсилається',
   loginSupportPitch: 'Повністю безкоштовно — зроблено баєром для баєрів.',
   publicHomeEyebrow: 'ЗРОБЛЕНО МЕДІАБАЄРОМ ДЛЯ МЕДІАБАЄРІВ',
   publicHomeTitle: 'Безкоштовні локальні інструменти, що забирають рутину.',

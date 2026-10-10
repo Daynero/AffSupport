@@ -9,6 +9,10 @@ import { ImageAssetStore } from '../../apps/agent/src/images/store.js';
 import { PowerGovernor } from '../../apps/agent/src/power/governor.js';
 import { JobQueue } from '../../apps/agent/src/queue/queue.js';
 import { buildServer, type ServerConfig } from '../../apps/agent/src/server/app.js';
+import {
+  DiagnosticsLog,
+  setActiveDiagnosticsLog
+} from '../../apps/agent/src/server/diagnostics-log.js';
 import { ChannelHub, EventChannel } from '../../apps/agent/src/server/sse.js';
 import { optimalSettings } from '../helpers.js';
 import { removeTemporaryDirectory } from './temp-dir.js';
@@ -34,6 +38,8 @@ export interface MinimalAgent {
   config: ServerConfig;
   allowedOrigins: Set<string>;
   token: string;
+  /** The in-memory journal `/api/diagnostics` pages out; also installed process-wide. */
+  diagnostics: DiagnosticsLog;
   /** `http://127.0.0.1:<port>` once listening; throws before. */
   readonly origin: string;
   /** Closes the app (idempotent) and removes the temporary directory. */
@@ -45,6 +51,8 @@ export interface MinimalAgentOptions {
   allowedOrigins?: Iterable<string>;
   /** Bind a real port on 127.0.0.1 rather than only serving `inject`. */
   listen?: boolean;
+  /** Enforce entitlement against this key; absent means the gate is not enforced. */
+  entitlementPublicKey?: string;
 }
 
 const DEFAULT_CONFIG: ServerConfig = {
@@ -89,6 +97,10 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
     new ImageAssetStore(path.join(dir, 'images'))
   );
 
+  // In memory only: the route and the writers are what these tests drive, not the file.
+  const diagnostics = new DiagnosticsLog();
+  setActiveDiagnosticsLog(diagnostics);
+
   const app = await buildServer({
     logger: false,
     token: MINIMAL_AGENT_TOKEN,
@@ -96,7 +108,10 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
     updateHandoffToken: null,
     requestUpdateDrain: () => undefined,
     allowedOrigins,
-    entitlementGate: new EntitlementGate({ stateFile: path.join(dir, 'entitlement.json') }),
+    entitlementGate: new EntitlementGate({
+      publicKeyBase64: options.entitlementPublicKey ?? null,
+      stateFile: path.join(dir, 'entitlement.json')
+    }),
     config,
     instanceId: 'minimal-instance',
     startedAt: new Date().toISOString(),
@@ -105,7 +120,8 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
     modules: [],
     channelHub: hub,
     power: new PowerGovernor({ pauseSupported: false }),
-    webRoot
+    webRoot,
+    diagnostics
   });
 
   // Registered on an endpoint of its own as well, the way every tool's channel is, so a
@@ -129,6 +145,7 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
     config,
     allowedOrigins,
     token: MINIMAL_AGENT_TOKEN,
+    diagnostics,
     get origin() {
       if (!origin) throw new Error('The minimal agent is not listening; pass { listen: true }.');
       return origin;
@@ -139,6 +156,7 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
       hub.closeAll();
       channel.close();
       await app.close();
+      setActiveDiagnosticsLog(null);
       await removeTemporaryDirectory(dir);
     }
   };

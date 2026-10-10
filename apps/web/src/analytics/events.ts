@@ -1,7 +1,20 @@
 import type { Json } from '../lib/database.types';
 import type { BrowserFamily } from '../lib/browser';
 import {
+  CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS,
+  CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES,
+  MATERIAL_CATEGORIES,
+  TEAM_ANALYTICS_ACTIONS,
+  TEAM_ANALYTICS_CACHE_STATES,
+  TEAM_ANALYTICS_COUNT_MAX,
+  TEAM_ANALYTICS_CUES,
   TEAM_ANALYTICS_EVENT_NAMES,
+  TEAM_ANALYTICS_OUTCOMES,
+  TEAM_ANALYTICS_PROPERTY_ENUMS,
+  TEAM_ANALYTICS_SIZE_BUCKETS,
+  TEAM_ANALYTICS_STAGES,
+  TEAM_ANALYTICS_STORAGES,
+  TEAM_STORAGE_ATTENTION_REASONS,
   sanitizeTeamAnalyticsProperties,
   type MaterialCategory,
   type TeamAnalyticsAction,
@@ -80,8 +93,11 @@ export const analyticsEventNames = [
   'estimate_completed',
   'estimate_failed',
   'compression_batch_started',
-  // The stitcher's one run event: a job accepted by the local app (014).
+  // The stitcher's run lifecycle: a job accepted by the local app (014) and
+  // its terminal, both carrying the same `run_id` (031 FR-050).
   'stitch_started',
+  'stitch_completed',
+  'stitch_failed',
   'compression_started',
   'compression_completed',
   'compression_failed',
@@ -111,6 +127,10 @@ export const analyticsEventNames = [
   'power_panel_opened',
   'power_limit_changed',
   'error_occurred',
+  // 031 — readiness after `tool_opened` (FR-051) and the client's own delivery
+  // losses, counted and reported rather than silently dropped (FR-049).
+  'tool_ready',
+  'analytics_delivery_report',
   ...TEAM_ANALYTICS_EVENT_NAMES
 ] as const;
 
@@ -211,6 +231,53 @@ export type PairingMethod = (typeof PAIRING_METHODS)[number];
 /** One day: the longest break the link analytics will describe as a duration. */
 export const LINK_DURATION_MAX_MS = 86_400_000;
 
+export const ANALYTICS_TOOLS = [
+  'compressor',
+  'landing-optimizer',
+  'landing-preview',
+  'transcription',
+  'stitcher',
+  'two-factor'
+] as const satisfies readonly AnalyticsTool[];
+
+/* ---------------------------------------------------------------------------
+ * 031 — `error_stage` is a closed vocabulary per tool (FR-052), so an
+ * `error_fingerprint = <tool>:<stage>:<code>` never carries a free string. The
+ * readiness stages belong to `tool_ready` (FR-051); the link stages are 032's.
+ * The database guard repeats the flattened union.
+ * ------------------------------------------------------------------------- */
+
+export const READINESS_STAGES = ['initial_read', 'subscribe'] as const;
+export type ReadinessStage = (typeof READINESS_STAGES)[number];
+
+export const ERROR_STAGES_BY_TOOL = {
+  compressor: ['input', 'estimate', 'encode', 'output', 'image_embedding'],
+  transcription: ['input', 'model', 'transcribe', 'translate', 'save'],
+  'landing-optimizer': ['upload', 'optimize', 'package'],
+  'landing-preview': ['open', 'render', 'refresh'],
+  team: ['transfer', 'process', 'download', 'library'],
+  stitcher: ['picker', 'drop_resolve', 'input_probe', 'settings_read', 'stitch', 'output'],
+  readiness: READINESS_STAGES,
+  link: LINK_STAGES
+} as const;
+
+export type ErrorStage = (typeof ERROR_STAGES_BY_TOOL)[keyof typeof ERROR_STAGES_BY_TOOL][number];
+export const ERROR_STAGES: readonly ErrorStage[] = Object.freeze([
+  ...new Set(Object.values(ERROR_STAGES_BY_TOOL).flatMap((stages): ErrorStage[] => [...stages]))
+]);
+
+/* ---------------------------------------------------------------------------
+ * 031 — the client's own delivery losses (FR-049). Counters are bounded, and
+ * the two event-name lists are comma-joined names from the allowlist above,
+ * never free text.
+ * ------------------------------------------------------------------------- */
+
+export const DELIVERY_REPORT_COUNT_MAX = 100_000;
+export const DELIVERY_REPORT_EVENT_LIST_MAX = 10;
+export const DELIVERY_REPORT_WINDOW_MAX_MS = 86_400_000;
+/** The database guard refuses any property value longer than this. */
+const PROPERTY_VALUE_MAX_LENGTH = 128;
+
 export type AnalyticsProperties = {
   flow_id?: string;
   run_id?: string;
@@ -219,7 +286,7 @@ export type AnalyticsProperties = {
   screen_identifier?: string;
   action_identifier?: string;
   flow_step?: string;
-  outcome?: 'success' | 'failure' | 'cancelled' | 'blocked' | 'skipped';
+  outcome?: TeamAnalyticsOutcome;
   source_kind?: string;
   input_method?: string;
   format?: string;
@@ -231,7 +298,7 @@ export type AnalyticsProperties = {
   setting_value?: string | number | boolean;
   error_category?: string;
   error_code?: string;
-  error_stage?: string;
+  error_stage?: ErrorStage;
   error_fingerprint?: string;
   retryable?: boolean;
   recovered?: boolean;
@@ -271,6 +338,13 @@ export type AnalyticsProperties = {
   token_changed?: boolean;
   pairing_method?: PairingMethod;
   link_stream_open?: boolean;
+  // 031 — `analytics_delivery_report` (FR-049).
+  rejected_count?: number;
+  evicted_count?: number;
+  expired_count?: number;
+  rejected_events?: string;
+  evicted_events?: string;
+  report_window_ms?: number;
 } & TeamAnalyticsProperties;
 
 export interface TeamFileAttemptStartedProperties {
@@ -333,6 +407,25 @@ export interface CreativeLibraryContributionEventProperties {
   item_count?: number;
 }
 
+/** `tool_ready` — readiness after `tool_opened` (031 FR-051). */
+export interface ToolReadyProperties {
+  tool_identifier: AnalyticsTool;
+  outcome: 'success' | 'failure' | 'skipped';
+  duration_ms: number;
+  error_stage?: ReadinessStage;
+  error_code?: string;
+}
+
+/** `analytics_delivery_report` — the client's own losses, counted (031 FR-049). */
+export interface AnalyticsDeliveryReportProperties {
+  rejected_count: number;
+  evicted_count: number;
+  expired_count: number;
+  rejected_events?: string;
+  evicted_events?: string;
+  report_window_ms: number;
+}
+
 type TeamEventProperties<Event extends TeamAnalyticsEventName> =
   Event extends 'team_file_attempt_started'
     ? TeamFileAttemptStartedProperties
@@ -360,139 +453,223 @@ type TeamEventProperties<Event extends TeamAnalyticsEventName> =
 export type AnalyticsEventProperties = {
   [Event in AnalyticsEventName]: Event extends TeamAnalyticsEventName
     ? TeamEventProperties<Event>
-    : AnalyticsProperties;
+    : Event extends 'tool_ready'
+      ? ToolReadyProperties
+      : Event extends 'analytics_delivery_report'
+        ? AnalyticsDeliveryReportProperties
+        : AnalyticsProperties;
 };
 
-const allowedPropertyKeys = new Set<keyof AnalyticsProperties>([
-  'flow_id',
-  'run_id',
-  'tool_identifier',
-  'feature_identifier',
-  'screen_identifier',
-  'action_identifier',
-  'flow_step',
-  'outcome',
-  'source_kind',
-  'input_method',
-  'format',
-  'video_codec',
-  'audio_codec',
-  'image_codec',
-  'pixel_format',
-  'setting_name',
-  'setting_value',
-  'error_category',
-  'error_code',
-  'error_stage',
-  'error_fingerprint',
-  'retryable',
-  'recovered',
-  'success',
-  'video_count',
-  'file_count',
-  'total_input_bytes',
-  'total_output_bytes',
-  'saving_percent',
-  'processing_duration_ms',
-  'duration_ms',
-  'queue_wait_ms',
-  'attempt_number',
-  'width',
-  'height',
-  'mode',
-  'crf',
-  'limit_percent',
-  'rate_control',
-  'output_fps',
-  'target_resolution',
-  'image_embedding',
-  'has_audio',
-  'language',
-  'marketing_consent',
-  'study_run_id',
-  'attempt_id',
-  'workflow_id',
-  'category',
-  'cue_category',
-  'action',
-  'storage_kind',
-  'size_bucket',
-  'cache_state',
-  'assisted',
-  'invite_persisted',
-  'root_confirmed',
-  'sync_queued',
-  'workspace_session',
-  'discovery_completed',
-  'production_completed',
-  'window_index',
-  'stage',
-  'link_trigger',
-  'link_origin',
-  'browser_family',
-  'link_reason',
-  'link_stage',
-  'link_transport',
-  'recovery_mode',
-  'surface',
-  'instance_changed',
-  'token_changed',
-  'pairing_method',
-  'link_stream_open'
-]);
+/* ---------------------------------------------------------------------------
+ * The allowlist. One rule per property; `sanitizeAnalyticsProperties` reads
+ * this table and nothing else, and the four exported views below are derived
+ * from it, so the database guard (`analytics_properties_are_safe_v2`) is tested
+ * against a single client source (031 FR-048, tests/analytics-guard-contract).
+ *
+ * - `token`: a short safe string, `^[a-z0-9][a-z0-9._:-]{0,95}$` (case-insensitive).
+ * - `id`: an opaque identifier, the database's `^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$`.
+ * - `boolean`: a boolean or nothing — never the string "true".
+ * - `number`: finite and inside the closed range, rounded to an integer.
+ * - `enum`: a value outside the vocabulary is dropped, never passed through.
+ * - `setting_value`: a token, a number or a boolean.
+ * - `event_list`: comma-joined event names from `analyticsEventNames`, at most
+ *   `DELIVERY_REPORT_EVENT_LIST_MAX` of them and never longer than the guard's
+ *   128-character value limit.
+ * ------------------------------------------------------------------------- */
 
-/**
- * Closed vocabularies: a value outside its list is dropped, never passed
- * through as a free string. Mirrored by the database guard.
- */
-const enumValues: Partial<Record<keyof AnalyticsProperties, readonly string[]>> = {
-  link_trigger: LINK_TRIGGERS,
-  link_origin: LINK_ORIGINS,
-  browser_family: BROWSER_FAMILIES,
-  link_reason: LINK_REASONS,
-  link_stage: LINK_STAGES,
-  link_transport: LINK_TRANSPORTS,
-  recovery_mode: RECOVERY_MODES,
-  surface: RECONNECT_SURFACES,
-  pairing_method: PAIRING_METHODS
+export type AnalyticsPropertyRule =
+  | { kind: 'token' }
+  | { kind: 'id' }
+  | { kind: 'boolean' }
+  | { kind: 'number'; range: readonly [number, number] }
+  | { kind: 'enum'; values: readonly string[] }
+  | { kind: 'setting_value' }
+  | { kind: 'event_list' };
+
+const ONE_YEAR_MS = 31_536_000_000;
+
+export const ANALYTICS_PROPERTY_RULES: Readonly<
+  Record<keyof AnalyticsProperties, AnalyticsPropertyRule>
+> = {
+  flow_id: { kind: 'id' },
+  run_id: { kind: 'id' },
+  tool_identifier: { kind: 'enum', values: ANALYTICS_TOOLS },
+  feature_identifier: { kind: 'token' },
+  screen_identifier: { kind: 'token' },
+  action_identifier: { kind: 'token' },
+  flow_step: { kind: 'token' },
+  outcome: { kind: 'enum', values: TEAM_ANALYTICS_OUTCOMES },
+  source_kind: { kind: 'token' },
+  input_method: { kind: 'token' },
+  format: { kind: 'token' },
+  video_codec: { kind: 'token' },
+  audio_codec: { kind: 'token' },
+  image_codec: { kind: 'token' },
+  pixel_format: { kind: 'token' },
+  setting_name: { kind: 'token' },
+  setting_value: { kind: 'setting_value' },
+  error_category: { kind: 'token' },
+  error_code: { kind: 'token' },
+  error_stage: { kind: 'enum', values: ERROR_STAGES },
+  error_fingerprint: { kind: 'token' },
+  retryable: { kind: 'boolean' },
+  recovered: { kind: 'boolean' },
+  success: { kind: 'boolean' },
+  video_count: { kind: 'number', range: [0, 10_000] },
+  file_count: { kind: 'number', range: [0, 1_000_000] },
+  total_input_bytes: { kind: 'number', range: [0, Number.MAX_SAFE_INTEGER] },
+  total_output_bytes: { kind: 'number', range: [0, Number.MAX_SAFE_INTEGER] },
+  saving_percent: { kind: 'number', range: [-10_000, 100] },
+  processing_duration_ms: { kind: 'number', range: [0, ONE_YEAR_MS] },
+  // The link lifecycle clamps a break to one day (032); the team sanitizer and
+  // the database guard allow a year. A larger value is dropped here so the
+  // event still arrives without it, instead of being refused at ingestion.
+  duration_ms: { kind: 'number', range: [0, LINK_DURATION_MAX_MS] },
+  queue_wait_ms: { kind: 'number', range: [0, ONE_YEAR_MS] },
+  attempt_number: { kind: 'number', range: [1, 10_000] },
+  width: { kind: 'number', range: [0, 131_072] },
+  height: { kind: 'number', range: [0, 131_072] },
+  mode: { kind: 'enum', values: ['optimal', 'custom'] },
+  crf: { kind: 'number', range: [0, 63] },
+  limit_percent: { kind: 'number', range: [20, 100] },
+  rate_control: { kind: 'enum', values: ['crf', 'bitrate'] },
+  output_fps: { kind: 'number', range: [1, 1000] },
+  target_resolution: { kind: 'number', range: [16, 32_768] },
+  image_embedding: { kind: 'boolean' },
+  has_audio: { kind: 'boolean' },
+  language: { kind: 'enum', values: ['en', 'uk'] },
+  marketing_consent: { kind: 'boolean' },
+  // Team keys a non-team event may carry: the same closed sets the shared
+  // sanitizer applies, so a value the guard would refuse never leaves here.
+  study_run_id: { kind: 'id' },
+  attempt_id: { kind: 'id' },
+  workflow_id: { kind: 'id' },
+  category: { kind: 'enum', values: MATERIAL_CATEGORIES },
+  cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
+  action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
+  storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
+  size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
+  cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },
+  stage: { kind: 'enum', values: TEAM_ANALYTICS_STAGES },
+  assisted: { kind: 'boolean' },
+  invite_persisted: { kind: 'boolean' },
+  root_confirmed: { kind: 'boolean' },
+  sync_queued: { kind: 'boolean' },
+  workspace_session: { kind: 'boolean' },
+  discovery_completed: { kind: 'boolean' },
+  production_completed: { kind: 'boolean' },
+  window_index: { kind: 'number', range: [1, 4] },
+  item_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX] },
+  ready_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX] },
+  tile_state: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.tile_state },
+  had_agent: { kind: 'boolean' },
+  reason: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.reason },
+  contribution_category: { kind: 'enum', values: CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES },
+  contribution_action: { kind: 'enum', values: CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS },
+  selection_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX] },
+  folder_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX] },
+  unavailable_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX] },
+  attention_reason: { kind: 'enum', values: TEAM_STORAGE_ATTENTION_REASONS },
+  // 032 — link lifecycle.
+  link_trigger: { kind: 'enum', values: LINK_TRIGGERS },
+  link_origin: { kind: 'enum', values: LINK_ORIGINS },
+  browser_family: { kind: 'enum', values: BROWSER_FAMILIES },
+  link_reason: { kind: 'enum', values: LINK_REASONS },
+  link_stage: { kind: 'enum', values: LINK_STAGES },
+  link_transport: { kind: 'enum', values: LINK_TRANSPORTS },
+  recovery_mode: { kind: 'enum', values: RECOVERY_MODES },
+  surface: { kind: 'enum', values: RECONNECT_SURFACES },
+  instance_changed: { kind: 'boolean' },
+  token_changed: { kind: 'boolean' },
+  pairing_method: { kind: 'enum', values: PAIRING_METHODS },
+  link_stream_open: { kind: 'boolean' },
+  // 031 — delivery report.
+  rejected_count: { kind: 'number', range: [0, DELIVERY_REPORT_COUNT_MAX] },
+  evicted_count: { kind: 'number', range: [0, DELIVERY_REPORT_COUNT_MAX] },
+  expired_count: { kind: 'number', range: [0, DELIVERY_REPORT_COUNT_MAX] },
+  rejected_events: { kind: 'event_list' },
+  evicted_events: { kind: 'event_list' },
+  report_window_ms: { kind: 'number', range: [0, DELIVERY_REPORT_WINDOW_MAX_MS] }
 };
 
-const numericRanges: Partial<Record<keyof AnalyticsProperties, readonly [number, number]>> = {
-  video_count: [0, 10_000],
-  file_count: [0, 1_000_000],
-  total_input_bytes: [0, Number.MAX_SAFE_INTEGER],
-  total_output_bytes: [0, Number.MAX_SAFE_INTEGER],
-  saving_percent: [-10_000, 100],
-  processing_duration_ms: [0, 31_536_000_000],
-  // The database guard bounds `duration_ms` to one day (032); a larger value is
-  // dropped here so the event still arrives without it, instead of the whole
-  // event being refused at ingestion.
-  duration_ms: [0, LINK_DURATION_MAX_MS],
-  queue_wait_ms: [0, 31_536_000_000],
-  attempt_number: [0, 10_000],
-  width: [0, 131_072],
-  height: [0, 131_072],
-  crf: [0, 63],
-  limit_percent: [20, 100],
-  output_fps: [1, 1000],
-  target_resolution: [16, 32_768]
-};
+type AnalyticsPropertyKey = keyof AnalyticsProperties;
+
+const ruleEntries = Object.entries(ANALYTICS_PROPERTY_RULES) as [
+  AnalyticsPropertyKey,
+  AnalyticsPropertyRule
+][];
+
+export const ANALYTICS_PROPERTY_KEYS: readonly string[] = Object.freeze(
+  ruleEntries.map(([key]) => key)
+);
+export const ANALYTICS_PROPERTY_ENUMS: Readonly<Record<string, readonly string[]>> = Object.freeze(
+  Object.fromEntries(
+    ruleEntries.flatMap(([key, rule]) => (rule.kind === 'enum' ? [[key, rule.values]] : []))
+  )
+);
+export const ANALYTICS_BOOLEAN_KEYS: readonly string[] = Object.freeze(
+  ruleEntries.flatMap(([key, rule]) => (rule.kind === 'boolean' ? [key] : []))
+);
+export const ANALYTICS_NUMERIC_RANGES: Readonly<Record<string, [number, number]>> = Object.freeze(
+  Object.fromEntries(
+    ruleEntries.flatMap(([key, rule]): [string, [number, number]][] =>
+      rule.kind === 'number' ? [[key, [rule.range[0], rule.range[1]]]] : []
+    )
+  )
+);
 
 const safeToken = /^[a-z0-9][a-z0-9._:-]{0,95}$/i;
-const booleans = new Set<keyof AnalyticsProperties>([
-  'retryable',
-  'recovered',
-  'success',
-  'image_embedding',
-  'has_audio',
-  'marketing_consent',
-  'instance_changed',
-  'token_changed',
-  'link_stream_open'
-]);
+const safeOpaqueId = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export function isAnalyticsEventName(value: string): value is AnalyticsEventName {
   return (analyticsEventNames as readonly string[]).includes(value);
+}
+
+function isAnalyticsPropertyKey(key: string): key is AnalyticsPropertyKey {
+  return Object.prototype.hasOwnProperty.call(ANALYTICS_PROPERTY_RULES, key);
+}
+
+/**
+ * Keeps the known event names of a comma-joined list, in order and without
+ * repeats, up to the list limit and the guard's value length.
+ */
+export function sanitizeAnalyticsEventList(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const names: string[] = [];
+  for (const part of value.split(',')) {
+    const name = part.trim();
+    if (!isAnalyticsEventName(name) || names.includes(name)) continue;
+    if (names.length >= DELIVERY_REPORT_EVENT_LIST_MAX) break;
+    if ([...names, name].join(',').length > PROPERTY_VALUE_MAX_LENGTH) break;
+    names.push(name);
+  }
+  return names.length ? names.join(',') : undefined;
+}
+
+function sanitizeAnalyticsValue(rule: AnalyticsPropertyRule, raw: unknown): Json | undefined {
+  switch (rule.kind) {
+    case 'token':
+      return typeof raw === 'string' && safeToken.test(raw) ? raw : undefined;
+    case 'id':
+      return typeof raw === 'string' && safeOpaqueId.test(raw) ? raw : undefined;
+    case 'boolean':
+      return typeof raw === 'boolean' ? raw : undefined;
+    case 'number':
+      return typeof raw === 'number' &&
+        Number.isFinite(raw) &&
+        raw >= rule.range[0] &&
+        raw <= rule.range[1]
+        ? Math.round(raw)
+        : undefined;
+    case 'enum':
+      return typeof raw === 'string' && rule.values.includes(raw) ? raw : undefined;
+    case 'setting_value':
+      if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+      if (typeof raw === 'boolean') return raw;
+      return typeof raw === 'string' && safeToken.test(raw) ? raw : undefined;
+    case 'event_list':
+      return sanitizeAnalyticsEventList(raw);
+  }
 }
 
 export function sanitizeAnalyticsProperties(
@@ -505,54 +682,9 @@ export function sanitizeAnalyticsProperties(
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const output: Record<string, Json> = {};
   for (const [key, raw] of Object.entries(input as Record<string, unknown>)) {
-    const typedKey = key as keyof AnalyticsProperties;
-    if (!allowedPropertyKeys.has(typedKey)) continue;
-    const range = numericRanges[typedKey];
-    if (
-      range &&
-      typeof raw === 'number' &&
-      Number.isFinite(raw) &&
-      raw >= range[0] &&
-      raw <= range[1]
-    ) {
-      output[key] = Math.round(raw);
-      continue;
-    }
-    if (booleans.has(typedKey)) {
-      // A boolean slot takes a boolean or nothing — never the string "true".
-      if (typeof raw === 'boolean') output[key] = raw;
-      continue;
-    }
-    const vocabulary = enumValues[typedKey];
-    if (vocabulary) {
-      if (typeof raw === 'string' && vocabulary.includes(raw)) output[key] = raw;
-      continue;
-    }
-    if (typedKey === 'setting_value' && (typeof raw === 'number' || typeof raw === 'boolean')) {
-      output[key] = raw;
-      continue;
-    }
-    if (typedKey === 'mode' && (raw === 'optimal' || raw === 'custom')) output[key] = raw;
-    else if (typedKey === 'rate_control' && (raw === 'crf' || raw === 'bitrate')) output[key] = raw;
-    else if (typedKey === 'language' && (raw === 'en' || raw === 'uk')) output[key] = raw;
-    else if (
-      typedKey === 'outcome' &&
-      ['success', 'failure', 'cancelled', 'blocked', 'skipped', 'unsupported'].includes(String(raw))
-    )
-      output[key] = raw as Json;
-    else if (
-      typedKey === 'tool_identifier' &&
-      [
-        'compressor',
-        'landing-optimizer',
-        'landing-preview',
-        'transcription',
-        'stitcher',
-        'two-factor'
-      ].includes(String(raw))
-    )
-      output[key] = raw as Json;
-    else if (typeof raw === 'string' && safeToken.test(raw)) output[key] = raw;
+    if (!isAnalyticsPropertyKey(key)) continue;
+    const clean = sanitizeAnalyticsValue(ANALYTICS_PROPERTY_RULES[key], raw);
+    if (clean !== undefined) output[key] = clean;
   }
   return output;
 }

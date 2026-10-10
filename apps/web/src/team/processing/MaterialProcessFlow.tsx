@@ -164,7 +164,12 @@ export function ActiveOperation({
   onProgress?: (info: { progress: number; state: string }) => void;
 }) {
   const { t } = useI18n();
-  const state = useTeamOperation({ teamId, operationId, agentEnabled });
+  const state = useTeamOperation({
+    teamId,
+    operationId,
+    agentEnabled,
+    workflowId: workflow.workflowId
+  });
   useEffect(() => {
     const operation = state.operation;
     if (!operation || !['succeeded', 'failed', 'canceled'].includes(operation.state)) return;

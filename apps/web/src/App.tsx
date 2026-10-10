@@ -51,10 +51,15 @@ import { SupportButton } from './components/SupportDialog';
 import { analytics } from './analytics/service';
 import {
   compressionErrorCategory,
+  compressionErrorCode,
+  compressionFailureError,
+  estimateErrorCode,
+  estimateFailureError,
   jobTransitionEventNames,
   safeBatchProperties,
   safeCompressionProperties
 } from './analytics/compression';
+import { trackToolReady } from './analytics/readiness';
 import {
   Alert,
   Button,
@@ -154,6 +159,29 @@ export default function CompressorPage() {
     analytics.track('tool_opened', { tool_identifier: 'compressor' });
   }, []);
 
+  /*
+   * 031 FR-051 — `tool_ready` for the compressor. Its first read is not this page's: the
+   * provider reads `/api/queue` as part of connecting and applies that snapshot before it
+   * reports `connected`, so the first render that sees `connected` already holds the queue.
+   * One verdict per connected period, timed from the page opening or the link coming back.
+   */
+  const readySince = useRef(Date.now());
+  const readyReported = useRef(false);
+  useEffect(() => {
+    if (connection !== 'connected') {
+      readyReported.current = false;
+      readySince.current = Date.now();
+      return;
+    }
+    if (readyReported.current) return;
+    readyReported.current = true;
+    trackToolReady({
+      tool: 'compressor',
+      outcome: 'success',
+      durationMs: Date.now() - readySince.current
+    });
+  }, [connection]);
+
   useEffect(() => {
     if (!previousJobs.current) {
       previousJobs.current = new Map(state.jobs.map(job => [job.id, job]));
@@ -174,12 +202,24 @@ export default function CompressorPage() {
             ...(started ? { processing_duration_ms: now - started } : {})
           });
           estimateStartedAt.current.delete(job.id);
+        } else if (event === 'estimate_failed') {
+          const started = estimateStartedAt.current.get(job.id);
+          analytics.track(event, {
+            ...properties,
+            success: false,
+            error_code: estimateErrorCode(job),
+            ...(started ? { processing_duration_ms: now - started } : {})
+          });
+          analytics.track('error_occurred', estimateFailureError(job));
+          estimateStartedAt.current.delete(job.id);
         } else if (event === 'compression_failed') {
           analytics.track(event, {
             ...properties,
             success: false,
+            error_code: compressionErrorCode(job),
             error_category: compressionErrorCategory(job.error)
           });
+          analytics.track('error_occurred', compressionFailureError(job));
         } else if (event === 'compression_completed') {
           analytics.track(event, { ...properties, success: true });
         } else if (event === 'operation_cancelled') {

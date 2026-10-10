@@ -2,6 +2,7 @@ import { createPublicKey, verify as verifySignature, type KeyObject } from 'node
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentEntitlementStatus } from '@video-compressor/shared';
+import { diagnostics, skewBucket } from '../server/diagnostics-log.js';
 
 /**
  * Offline verification of server-issued entitlement tokens.
@@ -48,6 +49,8 @@ export class EntitlementGate {
   private readonly stateFile: string;
   private readonly now: () => number;
   private current: PersistedEntitlement | null = null;
+  /** The last decision written to the journal, so a status read only speaks when it changes. */
+  private lastDecision: string | null = null;
 
   constructor(options: { publicKeyBase64?: string | null; stateFile: string; now?: () => number }) {
     this.stateFile = options.stateFile;
@@ -82,7 +85,15 @@ export class EntitlementGate {
    */
   async acceptToken(token: string): Promise<EntitlementStatus> {
     if (!this.publicKey) return this.status();
-    const payload = this.verify(token);
+    let payload: EntitlementTokenPayload;
+    try {
+      payload = this.verify(token);
+    } catch (error) {
+      // Which check failed is not recorded — a refused token is a refused token — and nothing
+      // of the token is. The decision alone tells support that sign-in reached the agent.
+      diagnostics.record('entitlement', 'decision', { decision: 'invalid', skew: 'unknown' });
+      throw error;
+    }
     if (!this.current || payload.exp > this.current.exp) {
       this.current = {
         sub: payload.sub,
@@ -92,10 +103,21 @@ export class EntitlementGate {
       };
       await this.persist();
     }
+    // Every accepted token is journaled, even when the decision is unchanged: the skew bucket
+    // — how far the issuer's clock sits from this machine's — is the one fact that explains
+    // a later "not yet valid" refusal nobody can otherwise see.
+    this.lastDecision = null;
+    this.observe(this.evaluate().reason, skewBucket(payload.iat * 1000 - this.now()));
     return this.status();
   }
 
   status(): EntitlementStatus {
+    const status = this.evaluate();
+    this.observe(status.reason);
+    return status;
+  }
+
+  private evaluate(): EntitlementStatus {
     if (!this.publicKey) {
       return { enforced: false, entitled: true, reason: 'not-enforced', graceUntil: null };
     }
@@ -122,6 +144,20 @@ export class EntitlementGate {
       };
     }
     return { enforced: true, entitled: false, reason: 'expired', graceUntil: null };
+  }
+
+  /**
+   * Writes the decision to the journal when it differs from the last one written.
+   *
+   * `status()` runs on every authenticated request, so recording each call would fill the
+   * journal with one fact repeated; recording transitions gives the sequence that matters —
+   * active, then grace, then expired — with the time each was first seen.
+   */
+  private observe(reason: EntitlementStatus['reason'], skew: string = 'unknown'): void {
+    const decision = reason === 'not-enforced' ? 'not_enforced' : reason;
+    if (decision === this.lastDecision) return;
+    this.lastDecision = decision;
+    diagnostics.record('entitlement', 'decision', { decision, skew });
   }
 
   private verify(token: string): EntitlementTokenPayload {

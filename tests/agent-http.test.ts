@@ -43,6 +43,7 @@ import { TeamProcessBridge } from '../apps/agent/src/team-bridge/process.js';
 import { TeamPosterBridge } from '../apps/agent/src/team-bridge/poster.js';
 import { TeamTransferClient } from '../apps/agent/src/team-bridge/transfer.js';
 import { optimalSettings } from './helpers.js';
+import { startMinimalAgent, type MinimalAgent } from './support/minimal-agent.js';
 import { waitFor } from './support/wait.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
@@ -278,6 +279,22 @@ describe('agent HTTP surface', () => {
       payload: {}
     });
     expect(invalid.statusCode).toBe(supported ? 400 : 501);
+  });
+
+  it('reports the host platform on both health routes (031 FR-053)', async () => {
+    const app = await makeServer();
+    const expected =
+      process.platform === 'darwin'
+        ? 'macos'
+        : process.platform === 'win32'
+          ? 'windows'
+          : process.platform === 'linux'
+            ? 'linux'
+            : undefined;
+    const api = await app.inject({ url: '/api/health', headers: { 'x-session-token': TOKEN } });
+    const open = await app.inject({ url: '/health' });
+    expect(api.json().platform).toBe(expected);
+    expect(open.json().platform).toBe(expected);
   });
 
   it('advertises and guards the registered team workspace preview bridge', async () => {
@@ -1051,5 +1068,140 @@ describe('ticket issuing', () => {
       url: `/api/images/two/content?ticket=${encodeURIComponent(ticket)}`
     });
     expect(used.statusCode).toBe(401);
+  });
+});
+
+/**
+ * The journal page on `/api/diagnostics` (031 FR-054): session token required, entitlement
+ * exempt, `since`/`limit` validated, records oldest first with a cursor — and the auth and
+ * handshake writers, which have no seam other than a request.
+ */
+describe('the diagnostics journal page', () => {
+  let agent: MinimalAgent | null = null;
+  afterEach(async () => {
+    await agent?.stop();
+    agent = null;
+  });
+
+  async function read(query = '', token: string | null = agent!.token) {
+    return agent!.app.inject({
+      method: 'GET',
+      url: `/api/diagnostics${query}`,
+      headers: token === null ? {} : { 'x-session-token': token }
+    });
+  }
+
+  it('requires the session token, and the refusal itself lands in the journal', async () => {
+    agent = await startMinimalAgent();
+    expect((await read('', null)).statusCode).toBe(401);
+    expect((await read('', 'wrong-token')).statusCode).toBe(401);
+
+    const response = await read();
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    // The existing envelope is untouched; the page is added beside it.
+    expect(body).toMatchObject({
+      version: agent.config.version,
+      buildId: agent.config.buildId,
+      instanceId: 'minimal-instance',
+      logRejected: 0
+    });
+    const auth = (body.log as Array<{ category: string; code: string; props: unknown }>).filter(
+      record => record.category === 'auth'
+    );
+    expect(auth.map(record => [record.code, record.props])).toEqual([
+      ['token_mismatch', { presented: 'none', failures: 'one' }],
+      ['token_mismatch', { presented: 'wrong', failures: 'one' }]
+    ]);
+    expect(JSON.stringify(body.log)).not.toContain('wrong-token');
+  });
+
+  it('records the limiter tripping, without the token that tripped it', async () => {
+    agent = await startMinimalAgent();
+    for (let attempt = 0; attempt < 21; attempt += 1) await read('', 'stale-token');
+    const log = agent.diagnostics.since(0, 500).filter(record => record.category === 'auth');
+    expect(log.filter(record => record.code === 'token_mismatch')).toHaveLength(20);
+    expect(log.at(-1)).toMatchObject({
+      code: 'limiter_hit',
+      props: { presented: 'wrong', failures: 'under_100' }
+    });
+    expect(JSON.stringify(log)).not.toContain('stale-token');
+  });
+
+  it('pages oldest first from since, with the cursor to pass next', async () => {
+    agent = await startMinimalAgent();
+    for (let index = 0; index < 6; index += 1) {
+      agent.diagnostics.record('stream', 'subscribe', { channels: index });
+    }
+    const first = (await read('?limit=4')).json();
+    expect(first.log.map((record: { seq: number }) => record.seq)).toEqual([1, 2, 3, 4]);
+    expect(first.nextSeq).toBe(4);
+
+    const second = (await read(`?since=${first.nextSeq}&limit=4`)).json();
+    expect(second.log.map((record: { seq: number }) => record.seq)).toEqual([5, 6]);
+    expect(second.nextSeq).toBe(6);
+
+    const third = (await read(`?since=${second.nextSeq}`)).json();
+    expect(third.log).toEqual([]);
+    // An empty page still hands back the journal head, so a stale cursor self-corrects.
+    expect(third.nextSeq).toBe(agent.diagnostics.latestSeq());
+  });
+
+  it.each(['?since=abc', '?since=-1', '?since=1.5', '?limit=0', '?limit=501', '?limit=x'])(
+    'answers 400 to %s',
+    async query => {
+      agent = await startMinimalAgent();
+      const response = await read(query);
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: 'INVALID_INPUT' });
+    }
+  );
+
+  it('stays reachable while entitlement refuses every tool route', async () => {
+    const { publicKeyBase64 } = entitlementKit();
+    agent = await startMinimalAgent({ entitlementPublicKey: publicKeyBase64 });
+    const gated = await agent.app.inject({
+      method: 'GET',
+      url: '/api/power',
+      headers: { 'x-session-token': agent.token }
+    });
+    expect(gated.statusCode).toBe(403);
+    const page = await read();
+    expect(page.statusCode).toBe(200);
+    expect(page.json().log).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'entitlement',
+          props: { decision: 'missing', skew: 'unknown' }
+        })
+      ])
+    );
+  });
+
+  it('classifies the pairing handshake origin, never recording the origin itself', async () => {
+    agent = await startMinimalAgent();
+    const handshake = (origin?: string) =>
+      agent!.app.inject({
+        method: 'GET',
+        url: '/pair/handshake?nonce=abcdefgh12345678',
+        headers: origin ? { origin } : {}
+      });
+    expect((await handshake(agent.config.publicOrigin as string)).statusCode).toBe(200);
+    expect((await handshake(`http://localhost:${agent.config.port}`)).statusCode).toBe(200);
+    expect((await handshake(`http://127.0.0.1:${agent.config.port}`)).statusCode).toBe(200);
+    expect((await handshake('https://evil.example')).statusCode).toBe(200);
+    expect((await handshake()).statusCode).toBe(200);
+
+    const handshakes = agent.diagnostics
+      .since(0, 500)
+      .filter(record => record.category === 'auth' && record.code === 'handshake');
+    expect(handshakes.map(record => record.props)).toEqual([
+      { origin: 'hosted' },
+      { origin: 'localhost' },
+      { origin: 'local' },
+      { origin: 'refused' },
+      { origin: 'refused' }
+    ]);
+    expect(JSON.stringify(handshakes)).not.toContain('soty.example');
   });
 });

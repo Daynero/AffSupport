@@ -54,7 +54,10 @@ export function CreateSpaceWizard({
   const [step, setStep] = useState<Step>(
     resumeTeamId ? { kind: 'folder', teamId: resumeTeamId } : { kind: 'name' }
   );
-  const onboarding = useRef<TeamOnboardingFlow>(startTeamOnboardingFlow());
+  // Started once per mount, never per render: `useRef(start())` evaluated its argument on
+  // every render and emitted a fresh `team_onboarding_started` each time (031 US6-4).
+  const onboarding = useRef<TeamOnboardingFlow | null>(null);
+  if (onboarding.current === null) onboarding.current = startTeamOnboardingFlow();
   // The draft this flow created, so Back can restore what was typed and a
   // corrected name can replace it instead of piling up abandoned spaces.
   const [draft, setDraft] = useState<TeamContextSnapshot | null>(null);
@@ -114,12 +117,14 @@ export function CreateSpaceWizard({
         team.id === teamId ? { ...team, name, connectionState: 'connected' as const } : team
       )
     );
-    completeTeamOnboardingFlow(onboarding.current, {
-      invitePersisted: false,
-      rootConfirmed: true,
-      syncQueued: true,
-      outcome: 'success'
-    });
+    if (onboarding.current) {
+      completeTeamOnboardingFlow(onboarding.current, {
+        invitePersisted: false,
+        rootConfirmed: true,
+        syncQueued: true,
+        outcome: 'success'
+      });
+    }
     onCreated(teamId);
   };
 

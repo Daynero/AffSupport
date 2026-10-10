@@ -20,9 +20,13 @@ import { getSupabaseClient } from '../lib/supabase';
 import type { Json } from '../lib/database.types';
 import { currentBrowserPlatform } from '../lib/platform';
 import {
+  DELIVERY_REPORT_COUNT_MAX,
+  DELIVERY_REPORT_EVENT_LIST_MAX,
+  DELIVERY_REPORT_WINDOW_MAX_MS,
   analyticsTool,
   isAnalyticsEventName,
   sanitizeAnalyticsProperties,
+  type AnalyticsDeliveryReportProperties,
   type AnalyticsEventName,
   type AnalyticsEventProperties
 } from './events';
@@ -31,9 +35,16 @@ import { productSessionId } from './session';
 const QUEUE_KEY = 'wishly.analytics.queue.v2';
 const LEGACY_QUEUE_KEY = 'wishly.analytics.queue.v1';
 const INSTALLATION_KEY = 'wishly.analytics.installation.v1';
-const MAX_QUEUE_SIZE = 40;
+/** 031 FR-049 — the delivery-loss counters survive a reload, so a session that
+ * lost events and then closed still reports them at the next start. */
+export const DELIVERY_COUNTERS_KEY = 'wishly.analytics.delivery.v1';
+export const MAX_QUEUE_SIZE = 60;
 const BATCH_SIZE = 25;
 const MAX_ATTEMPTS = 3;
+/** 031 FR-013/FR-030 — an event older than this by `occurred_at` is expired, not sent. */
+export const EVENT_TTL_MS = 7 * 86_400_000;
+/** Envelope v3 (031 FR-053): `agent_instance_id`, `agent_platform`, `attempt_id` columns. */
+const ENVELOPE_VERSION = 2;
 const WEB_BUILD_ID = import.meta.env.VITE_WEB_BUILD_ID || PRODUCT_VERSION;
 /**
  * Telemetry is off in beta by construction, not by configuration.
@@ -53,6 +64,9 @@ export function analyticsEnabled(
 }
 
 const ANALYTICS_ENABLED = analyticsEnabled(import.meta.env);
+
+export const AGENT_ANALYTICS_PLATFORMS = ['macos', 'windows'] as const;
+export type AgentAnalyticsPlatform = (typeof AGENT_ANALYTICS_PLATFORMS)[number];
 
 export type PendingAnalyticsEvent = {
   event_id: string;
@@ -77,6 +91,12 @@ export type PendingAnalyticsEvent = {
   event_source: 'web';
   flow_id: string | null;
   run_id: string | null;
+  /** 031 — an opaque per-attempt id, lifted out of properties like `flow_id` (FR-006). */
+  attempt_id: string | null;
+  /** 031 FR-053 — the connected Agent's per-boot UUID; never PII. */
+  agent_instance_id: string | null;
+  /** 031 FR-053 — the Agent's authoritative platform; `platform` stays the browser's. */
+  agent_platform: AgentAnalyticsPlatform | null;
   feature: string | null;
   screen: string | null;
   action: string | null;
@@ -94,6 +114,113 @@ export type AnalyticsDeliveryResult =
     };
 
 type AnalyticsSender = (events: PendingAnalyticsEvent[]) => Promise<AnalyticsDeliveryResult>;
+
+/**
+ * 031 FR-049 — what the queue drops when it must. `terminal` events carry the
+ * outcome of an operation and go last; `progress` events are the cheap,
+ * repeated ones and go first; everything else is `informational`. The report
+ * of these losses is itself terminal and is never evicted at all.
+ */
+export type AnalyticsEventClass = 'progress' | 'informational' | 'terminal';
+
+const PROGRESS_EVENT_NAMES = new Set<string>([
+  'tool_impression',
+  'feature_impression',
+  'home_viewed',
+  'screen_viewed'
+]);
+const TERMINAL_EVENT_NAMES = new Set<string>([
+  'operation_cancelled',
+  'error_occurred',
+  'link_lost',
+  'link_recovered',
+  'analytics_delivery_report'
+]);
+
+export function analyticsEventClass(name: string): AnalyticsEventClass {
+  if (TERMINAL_EVENT_NAMES.has(name)) return 'terminal';
+  // The prefix rules win over the generic suffix: `estimate_completed` and
+  // `operation_stage_completed` are repeated progress, not an operation's end.
+  if (
+    PROGRESS_EVENT_NAMES.has(name) ||
+    name.startsWith('estimate_') ||
+    name.startsWith('operation_stage_') ||
+    name.endsWith('_impression')
+  )
+    return 'progress';
+  if (name.endsWith('_completed') || name.endsWith('_failed')) return 'terminal';
+  return 'informational';
+}
+
+export type DeliveryLossReason = 'rejected' | 'evicted' | 'expired';
+
+/** Per-event-name counters of the three ways an event is lost before delivery. */
+export type DeliveryCounters = {
+  since: string;
+  rejected: Record<string, number>;
+  evicted: Record<string, number>;
+  expired: Record<string, number>;
+};
+
+function emptyCounters(now: number): DeliveryCounters {
+  return { since: new Date(now).toISOString(), rejected: {}, evicted: {}, expired: {} };
+}
+
+function countTotal(counts: Record<string, number>): number {
+  return Object.values(counts).reduce((sum, value) => sum + value, 0);
+}
+
+function hasLosses(counters: DeliveryCounters): boolean {
+  return (
+    countTotal(counters.rejected) + countTotal(counters.evicted) + countTotal(counters.expired) > 0
+  );
+}
+
+function readCounts(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const counts: Record<string, number> = {};
+  for (const [name, count] of Object.entries(value as Record<string, unknown>)) {
+    if (!isAnalyticsEventName(name)) continue;
+    if (typeof count !== 'number' || !Number.isInteger(count) || count <= 0) continue;
+    counts[name] = Math.min(count, DELIVERY_REPORT_COUNT_MAX);
+  }
+  return counts;
+}
+
+function readCounters(storage: Storage | null, now: number): DeliveryCounters {
+  try {
+    const parsed = JSON.parse(storage?.getItem(DELIVERY_COUNTERS_KEY) ?? 'null') as unknown;
+    if (!parsed || typeof parsed !== 'object') return emptyCounters(now);
+    const value = parsed as Record<string, unknown>;
+    const since =
+      typeof value.since === 'string' && Number.isFinite(Date.parse(value.since))
+        ? value.since
+        : new Date(now).toISOString();
+    return {
+      since,
+      rejected: readCounts(value.rejected),
+      evicted: readCounts(value.evicted),
+      expired: readCounts(value.expired)
+    };
+  } catch {
+    return emptyCounters(now);
+  }
+}
+
+function mergeCounts(into: Record<string, number>, from: Record<string, number>) {
+  for (const [name, count] of Object.entries(from)) {
+    into[name] = Math.min((into[name] ?? 0) + count, DELIVERY_REPORT_COUNT_MAX);
+  }
+}
+
+/** The most frequently lost names first, as the comma-joined list the report carries. */
+function topEventNames(counts: Record<string, number>): string {
+  return Object.entries(counts)
+    .sort(([nameA, countA], [nameB, countB]) => countB - countA || nameA.localeCompare(nameB))
+    .slice(0, DELIVERY_REPORT_EVENT_LIST_MAX)
+    .map(([name]) => name)
+    .join(',');
+}
 
 function uuid() {
   return (
@@ -121,7 +248,11 @@ function readQueue(storage: Storage): PendingAnalyticsEvent[] {
       })
       .map(event => ({
         ...event,
-        properties: sanitizeAnalyticsProperties(event.properties, event.event_name)
+        properties: sanitizeAnalyticsProperties(event.properties, event.event_name),
+        // Records queued by a pre-031 build carry none of the envelope v3 fields.
+        attempt_id: safeOpaqueId(event.attempt_id),
+        agent_instance_id: safeUuid(event.agent_instance_id),
+        agent_platform: safeAgentPlatform(event.agent_platform)
       }))
       .slice(-MAX_QUEUE_SIZE);
   } catch {
@@ -177,6 +308,10 @@ type AgentAnalyticsContext = {
   channel: string | null;
   apiVersion: number | null;
   toolContracts: ToolContracts;
+  /** The Agent's per-boot `instanceId` from `/health` (031 FR-053). */
+  instanceId?: string | null;
+  /** The Agent's authoritative platform, not the browser's guess (031 FR-053). */
+  platform?: AgentAnalyticsPlatform | null;
 };
 
 export class ProductAnalytics {
@@ -187,12 +322,19 @@ export class ProductAnalytics {
     buildId: null,
     channel: null,
     apiVersion: null,
-    toolContracts: {}
+    toolContracts: {},
+    instanceId: null,
+    platform: null
   };
   private queue: PendingAnalyticsEvent[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
   private flushing = false;
   private sequence = 0;
+  private counters: DeliveryCounters;
+  /** A queued report and the counters it carries, restored if it is never delivered. */
+  private inFlightReport: { eventId: string; counters: DeliveryCounters } | null = null;
+  /** Counters persisted by an earlier session are reported once this one has a user. */
+  private startReportDue: boolean;
   private readonly storage: Storage | null;
   private readonly installationId: string;
 
@@ -202,7 +344,10 @@ export class ProductAnalytics {
   ) {
     this.storage = storage;
     this.installationId = installationId(storage);
+    this.counters = readCounters(storage, Date.now());
+    this.startReportDue = hasLosses(this.counters);
     if (storage) this.queue = readQueue(storage);
+    this.expire();
     // Old queue records do not contain the v2 identity envelope. Do not retry
     // them, but remove the legacy copy so unsafe/tampered properties cannot
     // linger indefinitely in browser storage.
@@ -214,6 +359,10 @@ export class ProductAnalytics {
     else if (this.userId) this.queue = [];
     this.userId = userId;
     this.persist();
+    if (userId && this.startReportDue) {
+      this.startReportDue = false;
+      this.queueDeliveryReport();
+    }
   }
 
   setLocale(locale: string | null) {
@@ -225,23 +374,79 @@ export class ProductAnalytics {
       ...context,
       version: context.version?.slice(0, 64) || null,
       buildId: context.buildId?.slice(0, 96) || null,
-      channel: context.channel?.slice(0, 32) || null
+      channel: context.channel?.slice(0, 32) || null,
+      instanceId: safeUuid(context.instanceId ?? null),
+      platform: safeAgentPlatform(context.platform ?? null)
     };
   }
 
   track<E extends AnalyticsEventName>(name: E, properties: AnalyticsEventProperties[E]) {
     if (!ANALYTICS_ENABLED || !this.userId || typeof window === 'undefined') return;
-    const sanitized = sanitizeAnalyticsProperties(properties, name);
+    this.enqueue(this.buildEvent(name, sanitizeAnalyticsProperties(properties, name)));
+  }
+
+  async flush() {
+    if (this.flushing || !this.userId) return;
+    this.expire();
+    if (!this.queue.length) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    this.flushing = true;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    const batch = this.queue.slice(0, BATCH_SIZE).filter(event => event.user_id === this.userId);
+    try {
+      const result = batch.length > 0 ? await this.sender(batch) : false;
+      if (result === true) {
+        this.remove(batch);
+        this.afterAccepted(batch);
+      } else if (result === false) {
+        this.retry(batch);
+      } else {
+        const accepted = new Set(result.acceptedEventIds);
+        const acceptedEvents = batch.filter(event => accepted.has(event.event_id));
+        this.remove(acceptedEvents);
+        this.reject(batch.filter(event => !accepted.has(event.event_id)));
+        this.afterAccepted(acceptedEvents);
+      }
+      this.persist();
+    } catch {
+      this.retry(batch);
+      this.persist();
+    } finally {
+      this.flushing = false;
+    }
+  }
+
+  pendingCount() {
+    return this.queue.length;
+  }
+
+  /** The losses counted since the last accepted report (031 FR-049). */
+  deliveryCounters(): Readonly<DeliveryCounters> {
+    return {
+      since: this.counters.since,
+      rejected: { ...this.counters.rejected },
+      evicted: { ...this.counters.evicted },
+      expired: { ...this.counters.expired }
+    };
+  }
+
+  private buildEvent(
+    name: AnalyticsEventName,
+    sanitized: Record<string, Json>
+  ): PendingAnalyticsEvent {
     const eventProperties = { ...sanitized };
     delete eventProperties.flow_id;
     delete eventProperties.run_id;
-    const event: PendingAnalyticsEvent = {
+    const attemptId = safeOpaqueId(sanitized.attempt_id);
+    if (attemptId) delete eventProperties.attempt_id;
+    return {
       event_id: uuid(),
       event_name: name,
-      event_version: 1,
+      event_version: ENVELOPE_VERSION,
       occurred_at: new Date().toISOString(),
       session_sequence: ++this.sequence,
-      user_id: this.userId,
+      user_id: this.userId ?? '',
       session_id: productSessionId(),
       installation_id: this.installationId,
       tool: analyticsTool(name, sanitized),
@@ -258,6 +463,9 @@ export class ProductAnalytics {
       event_source: 'web',
       flow_id: safeUuid(sanitized.flow_id),
       run_id: safeUuid(sanitized.run_id),
+      attempt_id: attemptId,
+      agent_instance_id: this.context.instanceId ?? null,
+      agent_platform: this.context.platform ?? null,
       feature: safeString(sanitized.feature_identifier),
       screen: safeString(sanitized.screen_identifier),
       action: safeString(sanitized.action_identifier),
@@ -267,50 +475,150 @@ export class ProductAnalytics {
       error_fingerprint: safeString(sanitized.error_fingerprint),
       attempts: 0
     };
-    this.queue = [...this.queue, event].slice(-MAX_QUEUE_SIZE);
+  }
+
+  private enqueue(event: PendingAnalyticsEvent) {
+    this.queue = [...this.queue, event];
+    this.evictOverflow();
     this.persist();
     if (this.queue.length >= BATCH_SIZE) void this.flush();
     else this.scheduleFlush();
   }
 
-  async flush() {
-    if (this.flushing || !this.queue.length || !this.userId) return;
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-    this.flushing = true;
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-    const batch = this.queue.slice(0, BATCH_SIZE).filter(event => event.user_id === this.userId);
-    try {
-      const result = batch.length > 0 ? await this.sender(batch) : false;
-      if (result === true) {
-        this.remove(batch);
-      } else if (result === false) {
-        this.retry(batch);
-      } else {
-        const accepted = new Set(result.acceptedEventIds);
-        this.remove(batch.filter(event => accepted.has(event.event_id)));
-        this.retry(batch.filter(event => !accepted.has(event.event_id)));
-      }
-      this.persist();
-    } catch {
-      this.retry(batch);
-      this.persist();
-    } finally {
-      this.flushing = false;
+  /**
+   * Over the bound, the oldest `progress` event goes first, then the oldest
+   * `informational` one, and a `terminal` event only when nothing else is left.
+   * The delivery report is never a victim, whatever the queue holds.
+   */
+  private evictOverflow() {
+    while (this.queue.length > MAX_QUEUE_SIZE) {
+      const victim = this.evictionVictim();
+      if (!victim) return;
+      this.queue = this.queue.filter(event => event !== victim);
+      this.count('evicted', victim.event_name);
     }
   }
 
-  pendingCount() {
-    return this.queue.length;
+  private evictionVictim(): PendingAnalyticsEvent | null {
+    const candidates = this.queue.filter(event => event.event_name !== 'analytics_delivery_report');
+    for (const eventClass of ['progress', 'informational', 'terminal'] as const) {
+      const victim = candidates.find(event => analyticsEventClass(event.event_name) === eventClass);
+      if (victim) return victim;
+    }
+    return null;
   }
 
+  /** Drops what is older than the delivery window and counts it (never the report). */
+  private expire(now = Date.now()) {
+    const cutoff = now - EVENT_TTL_MS;
+    const kept: PendingAnalyticsEvent[] = [];
+    for (const event of this.queue) {
+      const occurredAt = Date.parse(event.occurred_at);
+      if (
+        event.event_name !== 'analytics_delivery_report' &&
+        Number.isFinite(occurredAt) &&
+        occurredAt < cutoff
+      ) {
+        this.count('expired', event.event_name);
+      } else kept.push(event);
+    }
+    if (kept.length !== this.queue.length) {
+      this.queue = kept;
+      this.persist();
+    }
+  }
+
+  private count(reason: DeliveryLossReason, name: AnalyticsEventName) {
+    const counts = this.counters[reason];
+    counts[name] = Math.min((counts[name] ?? 0) + 1, DELIVERY_REPORT_COUNT_MAX);
+    this.persistCounters();
+  }
+
+  /** A server rejection (`accepted=false`) is final: the guard is deterministic. */
+  private reject(events: PendingAnalyticsEvent[]) {
+    if (!events.length) return;
+    this.remove(events);
+    for (const event of events) {
+      if (event.event_name === 'analytics_delivery_report') {
+        // A refused report would only be refused again; the losses it carried
+        // are let go rather than re-counted into an endless report of reports.
+        if (this.inFlightReport?.eventId === event.event_id) this.inFlightReport = null;
+        console.warn('Soty analytics delivery report was refused.');
+        continue;
+      }
+      this.count('rejected', event.event_name);
+    }
+  }
+
+  private afterAccepted(events: PendingAnalyticsEvent[]) {
+    if (!events.length) return;
+    if (events.some(event => event.event_id === this.inFlightReport?.eventId)) {
+      this.inFlightReport = null;
+    }
+    this.queueDeliveryReport();
+  }
+
+  /**
+   * 031 FR-049 — one report of everything lost since the last accepted one,
+   * queued when losses exist and no report is already waiting. Its counters are
+   * moved into the event at once; they come back only if the report itself is
+   * dropped undelivered.
+   */
+  private queueDeliveryReport(now = Date.now()) {
+    if (!ANALYTICS_ENABLED || !this.userId || typeof window === 'undefined') return;
+    if (!hasLosses(this.counters)) return;
+    if (this.queue.some(event => event.event_name === 'analytics_delivery_report')) return;
+    const since = Date.parse(this.counters.since);
+    const properties: AnalyticsDeliveryReportProperties = {
+      rejected_count: Math.min(countTotal(this.counters.rejected), DELIVERY_REPORT_COUNT_MAX),
+      evicted_count: Math.min(countTotal(this.counters.evicted), DELIVERY_REPORT_COUNT_MAX),
+      expired_count: Math.min(countTotal(this.counters.expired), DELIVERY_REPORT_COUNT_MAX),
+      rejected_events: topEventNames(this.counters.rejected),
+      evicted_events: topEventNames(this.counters.evicted),
+      report_window_ms: Math.min(
+        Math.max(Number.isFinite(since) ? now - since : 0, 0),
+        DELIVERY_REPORT_WINDOW_MAX_MS
+      )
+    };
+    const event = this.buildEvent(
+      'analytics_delivery_report',
+      sanitizeAnalyticsProperties(properties, 'analytics_delivery_report')
+    );
+    this.inFlightReport = { eventId: event.event_id, counters: this.counters };
+    this.counters = emptyCounters(now);
+    this.persistCounters();
+    this.enqueue(event);
+  }
+
+  /**
+   * A transport failure is retried a bounded number of times; an event that
+   * exhausts the budget is counted as expired — the retry budget is the other
+   * way an event's delivery window closes.
+   */
   private retry(batch: PendingAnalyticsEvent[]) {
     const attempted = new Set(batch.map(event => event.event_id));
-    this.queue = this.queue
-      .map(event =>
-        attempted.has(event.event_id) ? { ...event, attempts: event.attempts + 1 } : event
-      )
-      .filter(event => event.attempts < MAX_ATTEMPTS);
+    const kept: PendingAnalyticsEvent[] = [];
+    for (const event of this.queue) {
+      const next = attempted.has(event.event_id)
+        ? { ...event, attempts: event.attempts + 1 }
+        : event;
+      if (next.attempts < MAX_ATTEMPTS) {
+        kept.push(next);
+        continue;
+      }
+      if (next.event_name === 'analytics_delivery_report') {
+        if (this.inFlightReport?.eventId === next.event_id) {
+          mergeCounts(this.counters.rejected, this.inFlightReport.counters.rejected);
+          mergeCounts(this.counters.evicted, this.inFlightReport.counters.evicted);
+          mergeCounts(this.counters.expired, this.inFlightReport.counters.expired);
+          this.inFlightReport = null;
+          this.persistCounters();
+        }
+        continue;
+      }
+      this.count('expired', next.event_name);
+    }
+    this.queue = kept;
   }
 
   private remove(batch: PendingAnalyticsEvent[]) {
@@ -324,6 +632,10 @@ export class ProductAnalytics {
 
   private persist() {
     this.storage?.setItem(QUEUE_KEY, JSON.stringify(this.queue.slice(-MAX_QUEUE_SIZE)));
+  }
+
+  private persistCounters() {
+    this.storage?.setItem(DELIVERY_COUNTERS_KEY, JSON.stringify(this.counters));
   }
 }
 
@@ -340,10 +652,21 @@ function safeString(value: Json | undefined): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function safeUuid(value: Json | undefined): string | null {
+function safeUuid(value: unknown): string | null {
   return typeof value === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
     ? value
+    : null;
+}
+
+/** The database's opaque-id shape for `attempt_id`, shared with `flow_id`-style ids. */
+function safeOpaqueId(value: unknown): string | null {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9_-]{0,95}$/i.test(value) ? value : null;
+}
+
+function safeAgentPlatform(value: unknown): AgentAnalyticsPlatform | null {
+  return (AGENT_ANALYTICS_PLATFORMS as readonly string[]).includes(String(value))
+    ? (value as AgentAnalyticsPlatform)
     : null;
 }
 
@@ -422,9 +745,14 @@ export function trackTeamLandingOpen(
   });
 }
 
+/**
+ * The page reports `ready`/`failed`; the event says `success`/`failure`, the
+ * database guard's vocabulary. The old words were refused at ingestion, so no
+ * render ever reached analytics (031 FR-048).
+ */
 export function trackTeamLandingRender(
   properties: {
-    outcome: 'ready' | 'failed';
+    outcome: 'ready' | 'failed' | 'success' | 'failure';
     durationMs: number;
     reason?: LandingRenderFailureReason;
   },
@@ -432,7 +760,8 @@ export function trackTeamLandingRender(
 ): void {
   tracker.track('team_landing_render', {
     attempt_id: uuid(),
-    outcome: properties.outcome,
+    outcome:
+      properties.outcome === 'ready' || properties.outcome === 'success' ? 'success' : 'failure',
     duration_ms: properties.durationMs,
     ...(properties.reason ? { reason: properties.reason } : {})
   });
@@ -610,11 +939,7 @@ export function trackCreativeLibraryContribution(
   const parsed = parseCreativeLibraryContribution(contribution);
   if (!parsed) return false;
   const outcome: TeamAnalyticsOutcome =
-    parsed.outcome === 'canceled'
-      ? 'cancelled'
-      : parsed.outcome === 'skipped'
-        ? 'ready'
-        : parsed.outcome;
+    parsed.outcome === 'canceled' ? 'cancelled' : parsed.outcome;
   const itemCount =
     typeof options.itemCount === 'number' &&
     Number.isInteger(options.itemCount) &&

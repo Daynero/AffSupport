@@ -12,6 +12,7 @@ import {
   type AppEnvironment
 } from '@video-compressor/shared';
 import { advertisedCapabilities } from './capabilities.js';
+import { hostPlatform } from '../platform/platform.js';
 import { registerStreamRoutes } from './stream.js';
 import { HEARTBEAT_MS, type ChannelHub } from './sse.js';
 import type { EntitlementGate } from '../entitlement/entitlement.js';
@@ -22,6 +23,12 @@ import type { ToolContext, ToolModule } from './tools.js';
 import { DEFAULT_UPLOAD_BYTES } from './upload-limits.js';
 import { TICKET_TTL_MS, issueTicket, ticketAuthorises } from './tickets.js';
 import { pathGrants } from '../files/path-grants.js';
+import {
+  DIAGNOSTICS_PAGE_DEFAULT,
+  DIAGNOSTICS_PAGE_LIMIT,
+  countBucket,
+  type DiagnosticsLog
+} from './diagnostics-log.js';
 
 /**
  * The only paths a ticket may be minted for.
@@ -102,6 +109,13 @@ export interface ServerDeps {
   powerSampler?: PowerSamplerHandle;
   /** Directory with the built web bundle served as the local fallback UI. */
   webRoot: string;
+  /**
+   * The bounded local journal `/api/diagnostics` pages out (031 FR-054).
+   *
+   * Optional so a bare assembly can omit it: the route then serves an empty page, which is
+   * what a client talking to an agent from before the journal would see as well.
+   */
+  diagnostics?: DiagnosticsLog;
 }
 
 // Account entitlement gates every tool route; health stays reachable so the
@@ -149,6 +163,13 @@ class FixedWindowBudget {
     }
     entry.count += 1;
     return entry.count <= this.limit;
+  }
+
+  /** How many hits the current window has seen for this key; 0 when none or expired. */
+  pressure(key: string): number {
+    const entry = this.#hits.get(key);
+    if (!entry || this.now() - entry.since >= this.windowMs) return 0;
+    return entry.count;
   }
 }
 
@@ -229,7 +250,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     config,
     tools,
     queue,
-    modules
+    modules,
+    diagnostics
   } = deps;
   const app = Fastify({
     // The default logger prints `req.url`, which carries `?token=<64 hex>` on roughly a
@@ -357,6 +379,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
     const caller = request.ip || 'local';
     if (!routeBudget.take(`${caller}:${route}`)) {
+      diagnostics?.record('auth', 'route_budget_exceeded');
       return reply.code(429).send({ error: 'RATE_LIMITED' });
     }
     const supplied =
@@ -367,7 +390,15 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       // carries the right token is never counted and never refused by it. Something that
       // has failed twenty times in a minute with the same wrong token is not a stale tab,
       // and answering it at all is what makes the attempt worth repeating.
-      if (!authFailures.take(authFailureKey(caller, presented))) {
+      const failureKey = authFailureKey(caller, presented);
+      const admitted = authFailures.take(failureKey);
+      // The journal learns that a token was wrong and roughly how often, never which one:
+      // the presented value is not even hashed into the record.
+      diagnostics?.record('auth', admitted ? 'token_mismatch' : 'limiter_hit', {
+        presented: presented === null ? 'none' : 'wrong',
+        failures: countBucket(authFailures.pressure(failureKey))
+      });
+      if (!admitted) {
         return reply.code(429).send({ error: 'TOO_MANY_ATTEMPTS' });
       }
       return reply.code(401).send({ error: 'Invalid session token.' });
@@ -413,6 +444,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     buildNumber: config.buildNumber,
     buildId: config.buildId,
     instanceId: deps.instanceId,
+    platform: hostPlatform(),
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
@@ -435,6 +467,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     buildNumber: config.buildNumber,
     buildId: config.buildId,
     instanceId: deps.instanceId,
+    platform: hostPlatform(),
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
@@ -449,33 +482,49 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     busy: modules.some(module => module.busy()),
     heartbeatMs: HEARTBEAT_MS
   }));
-  app.get('/api/diagnostics', async () => ({
-    environment: config.environment,
-    version: config.version,
-    buildNumber: config.buildNumber,
-    buildId: config.buildId,
-    instanceId: deps.instanceId,
-    apiVersion: AGENT_API_VERSION,
-    channel: config.channel,
-    sourceRevision: config.sourceRevision,
-    startedAt: deps.startedAt,
-    system: `${os.platform()} ${os.release()}`,
-    architecture: os.arch(),
-    ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable',
-    lastError: queue.warningMessage(),
-    // Enough to answer "the button says busy and the panel says nothing is
-    // happening" without reading the source. Counts and ids only — no file
-    // names, no paths — because this page is meant to be sent to us.
-    queue: queue.liveness(),
-    // How often the path ledger would have refused a request, and whether it
-    // actually does. Observe mode is only useful if the number it produces is
-    // somewhere a person can read it (T176).
-    pathGrants: {
-      enforcing: pathGrants.enforcing(),
-      wouldRefuse: pathGrants.wouldRefuseCount(),
-      live: pathGrants.all().length
+  app.get('/api/diagnostics', async (request, reply) => {
+    const query = request.query as { since?: unknown; limit?: unknown };
+    const since = diagnosticsCursor(query.since, 0);
+    const limit = diagnosticsCursor(query.limit, DIAGNOSTICS_PAGE_DEFAULT);
+    if (since === null || limit === null || limit < 1 || limit > DIAGNOSTICS_PAGE_LIMIT) {
+      return reply.code(400).send({ error: 'INVALID_INPUT' });
     }
-  }));
+    const log = diagnostics?.since(since, limit) ?? [];
+    const last = log[log.length - 1];
+    return {
+      environment: config.environment,
+      version: config.version,
+      buildNumber: config.buildNumber,
+      buildId: config.buildId,
+      instanceId: deps.instanceId,
+      apiVersion: AGENT_API_VERSION,
+      channel: config.channel,
+      sourceRevision: config.sourceRevision,
+      startedAt: deps.startedAt,
+      system: `${os.platform()} ${os.release()}`,
+      architecture: os.arch(),
+      ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable',
+      lastError: queue.warningMessage(),
+      // Enough to answer "the button says busy and the panel says nothing is
+      // happening" without reading the source. Counts and ids only — no file
+      // names, no paths — because this page is meant to be sent to us.
+      queue: queue.liveness(),
+      // How often the path ledger would have refused a request, and whether it
+      // actually does. Observe mode is only useful if the number it produces is
+      // somewhere a person can read it (T176).
+      pathGrants: {
+        enforcing: pathGrants.enforcing(),
+        wouldRefuse: pathGrants.wouldRefuseCount(),
+        live: pathGrants.all().length
+      },
+      // The journal page (031 FR-054): categories and buckets only, oldest first. The cursor
+      // is the last record served, or the journal's head when the page is empty, so a client
+      // polling with it never re-reads a record and never skips one.
+      log,
+      nextSeq: last ? last.seq : (diagnostics?.latestSeq() ?? 0),
+      logRejected: diagnostics?.rejectedCount() ?? 0
+    };
+  });
 
   // The power throttle is server-wide infrastructure, not a tool: it is passed
   // through ToolContext rather than added to the module list, so it never shows
@@ -572,9 +621,17 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/pair/handshake', async (request, reply) => {
     const nonce = handshakeNonce((request.query as { nonce?: unknown }).nonce);
     if (!nonce) return reply.code(400).send({ error: 'A handshake nonce is required.' });
-    const frameOrigin =
-      allowedRequestOrigin(request.headers.origin, request.headers.referer, allowedOrigins) ??
-      pairOrigin;
+    const requestOrigin = allowedRequestOrigin(
+      request.headers.origin,
+      request.headers.referer,
+      allowedOrigins
+    );
+    const frameOrigin = requestOrigin ?? pairOrigin;
+    // The class of page that paired, never the origin itself: "hosted" against "the local
+    // copy" is the whole distinction a support thread about Safari needs.
+    diagnostics?.record('auth', 'handshake', {
+      origin: handshakeOriginClass(requestOrigin, config)
+    });
     reply.header('Content-Type', 'text/html; charset=utf-8');
     reply.header('Cache-Control', 'no-store');
     // No framing by anyone but the origin the token is being posted to. The CSP directive
@@ -628,6 +685,35 @@ const LOCAL_REDIRECT_PATH = /^\/[A-Za-z0-9\-._~/]*(?:\?[A-Za-z0-9\-._~/=&%]*)?$/
 function handshakeNonce(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   return /^[A-Za-z0-9_-]{8,128}$/u.test(value) ? value : null;
+}
+
+/**
+ * A `since`/`limit` query value: absent means the default, anything else must be a plain
+ * non-negative integer. A client that sends "abc" or "-1" gets a 400 rather than a page
+ * computed from NaN.
+ */
+function diagnosticsCursor(value: unknown, fallback: number): number | null {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'string' || !/^\d{1,15}$/u.test(value)) return null;
+  return Number(value);
+}
+
+/**
+ * Which kind of page is pairing: the hosted site, the agent's own local copy by loopback
+ * address or by `localhost`, or one the allowlist did not admit (which falls back to the
+ * pairing origin and is recorded as refused).
+ */
+function handshakeOriginClass(
+  origin: string | null,
+  config: Pick<ServerConfig, 'publicOrigin' | 'host' | 'port'>
+): 'hosted' | 'local' | 'localhost' | 'refused' {
+  if (origin === null) return 'refused';
+  if (config.publicOrigin !== null && origin === config.publicOrigin) return 'hosted';
+  if (origin.startsWith('http://localhost:')) return 'localhost';
+  if (origin === `http://${config.host}:${config.port}` || origin.startsWith('http://127.0.0.1:')) {
+    return 'local';
+  }
+  return 'hosted';
 }
 
 function localRedirectPath(value: unknown) {

@@ -196,7 +196,7 @@ Supabase автоматично надає функції її server-side proje
 3. Увійдіть тестовим користувачем, підтвердьте видалення й перевірте, що:
    - current user зник з **Authentication → Users**;
    - його profile видалено каскадно;
-   - його analytics events стали анонімними (`user_id = null`);
+   - його analytics events стали анонімними (`user_id`, `installation_id` і `session_id` = `null`; останні два nullить тригер з міграції `20261120100000_analytics_retention.sql`, див. розділ 12);
    - Soty повернувся на `/login`.
 
 Функція приймає поточний Supabase JWT, перевіряє його на сервері й видаляє тільки цього користувача. JWT не передається Soty Agent і не логуються.
@@ -301,9 +301,74 @@ npx supabase test db
 npx supabase stop
 ```
 
-Тести лежать у `supabase/tests/database/rls.test.sql`. Вони перевіряють ізоляцію профілів, заборону зміни plan/status, ownership analytics, admin membership і доступ до aggregates.
+Тести лежать у `supabase/tests/database/rls.test.sql`. Вони перевіряють ізоляцію профілів, заборону зміни plan/status, ownership analytics, admin membership і доступ до aggregates. `supabase/tests/database/analytics-retention.test.sql` перевіряє retention з розділу 12: матеріалізацію одного дня, purge старіших за 90 днів, читання агрегатів ролью `wishly_analytics_ro` та анонімізацію після видалення акаунта.
 
-## 12. Що Soty навмисно не робить
+## 12. Retention аналітики: 90 днів подій, агрегати безстроково
+
+Міграція `supabase/migrations/20261120100000_analytics_retention.sql` реалізує FR-057 (feature 031). Детальні рядки `public.analytics_events` живуть 90 днів; щоденні агрегати живуть безстроково.
+
+### Що створює міграція
+
+| Обʼєкт                                           | Призначення                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `public.analytics_daily_events`                  | На кожен UTC-день і `event_name`: `count` та `users` (distinct `user_id`).                                                                                                                                                                                                                                                 |
+| `public.analytics_daily_tool_outcomes`           | На кожен UTC-день, `tool`, `local_app_version`, `platform`: `starts` (`*_started`), `completions` (`*_completed`), `failures` (`*_failed`), `cancellations` (`operation_cancelled`) та `users`. Події `operation_stage_*` не рахуються; рядки без `tool` сюди не потрапляють; порожні version/platform стають `'unknown'`. |
+| `private.analytics_daily_materialized`           | Реєстр днів, які вже є остаточними. Записаний день більше не перераховується, тому його події можна видаляти.                                                                                                                                                                                                              |
+| `private.materialize_analytics_daily(date)`      | Upsert обох таблиць за один UTC-день `created_at`. Минулий день записує в реєстр; сьогоднішній залишає відкритим; записаний день пропускає.                                                                                                                                                                                |
+| `private.purge_analytics_events(integer)`        | Матеріалізує всі повні дні, старші за `keep_days` (типово 90) і ще не записані, потім видаляє події записаних днів. Повертає JSON із `materialized_days` і `deleted_events`.                                                                                                                                               |
+| Тригер `analytics_events_anonymise_on_user_null` | Коли FK `on delete set null` обнуляє `user_id` під час видалення акаунта, той самий запис обнуляє `installation_id` і `session_id`.                                                                                                                                                                                        |
+
+Обидві публічні таблиці мають RLS, `revoke all`, `grant select` лише для `wishly_analytics_ro` (policy `using (true)`) і для адміністраторів через `public.is_admin()`. Браузерні ролі не можуть викликати жодну з функцій. `public.ingest_analytics_events` не змінюється.
+
+Retention рахується цілими UTC-днями: рядок видаляється на першому запуску після того, як день його `created_at` став старшим за 90 днів, тобто рядок живе щонайбільше 91 день. Видалення відбувається лише для днів, агрегати яких уже записані; якщо матеріалізація впаде, транзакція відкотиться і нічого не буде втрачено.
+
+### Розклад
+
+Якщо на момент застосування міграції в проєкті є розширення `pg_cron` (на hosted Supabase воно є; його вже використовує каталог-синк із розділу 9), міграція сама створює щоденну задачу `analytics-retention` о 03:15 UTC:
+
+```sql
+select jobname, schedule, command, active
+  from cron.job where jobname = 'analytics-retention';
+-- 15 3 * * *  select private.purge_analytics_events(90)
+
+select start_time, status, return_message
+  from cron.job_run_details
+  where jobid = (select jobid from cron.job where jobname = 'analytics-retention')
+  order by start_time desc limit 5;
+```
+
+Якщо `pg_cron` увімкнули пізніше за міграцію, створіть задачу тим самим викликом (повторний виклик із тим самим імʼям лише оновлює її):
+
+```sql
+select cron.schedule('analytics-retention', '15 3 * * *',
+  $$select private.purge_analytics_events(90)$$);
+```
+
+Fallback без `pg_cron` (локальний stack, PGlite, інший хостинг): блок із розкладом у міграції пропускається, таблиці й функції створюються як завжди. Функцію тоді викликають вручну з SQL Editor або `psql` під роллю `postgres` — хоча б раз на тиждень; вона ідемпотентна і за один виклик наздоганяє всі пропущені дні:
+
+```sql
+select private.purge_analytics_events(90);
+-- {"keep_days": 90, "cutoff": "...", "materialized_days": 7, "deleted_events": 12345}
+```
+
+Окремий день (наприклад, учорашній, щоб агрегати були свіжими раніше за purge) матеріалізують вручну; записаний день функція пропустить із `"skipped": true`:
+
+```sql
+select private.materialize_analytics_daily(current_date - 1);
+```
+
+### Перевірка
+
+```sql
+select min(created_at) from public.analytics_events;              -- не старше ~91 дня після першого запуску
+select count(*), min(day), max(day) from private.analytics_daily_materialized;
+select * from public.analytics_daily_tool_outcomes
+  order by day desc, starts desc limit 20;
+```
+
+Rollback описаний у `supabase/migrations/ROLLBACK.md`: видалені purge-ом події не відновлюються, залишаються лише агрегати. Перед першим запуском у production зробіть backup.
+
+## 13. Що Soty навмисно не робить
 
 - не має власних паролів;
 - не зберігає Google access/refresh tokens;

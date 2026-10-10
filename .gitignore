@@ -40,3 +40,7 @@ verification-progress.log
 
 # Session-local drivers and probes (beta screenshots, one-off scripts).
 scratchpad/
+
+# `npm run analytics -- audit --write` artifacts: local snapshots, never committed. The
+# README beside them documents the shape and stays tracked.
+specs/031-platform-autoanalytics/analysis/*.json

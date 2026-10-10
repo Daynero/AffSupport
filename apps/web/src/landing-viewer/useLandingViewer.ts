@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LandingPreviewRenderSettings, LandingPreviewState } from '@video-compressor/shared';
+import type { AnalyticsTool } from '../analytics/events';
+import { safeErrorCode, trackToolError } from '../analytics/errors';
+import { trackToolReady } from '../analytics/readiness';
 import { useI18n } from '../i18n';
 import { emptyState, type LandingViewerSource } from './types';
 import { readViewerPreferences } from './viewerPreferences';
@@ -24,6 +27,11 @@ export interface UseLandingViewerInput {
    * retry, and a live stream opened without a token.
    */
   enabled?: boolean;
+  /**
+   * 031 FR-051 — the tool whose `tool_ready` the first state read decides, once per period of
+   * `enabled`. Absent, nothing is tracked.
+   */
+  readinessTool?: AnalyticsTool;
 }
 
 /**
@@ -32,8 +40,28 @@ export interface UseLandingViewerInput {
  * action returns a full state that simply replaces the current one — the hook never patches state
  * locally. It is transport-agnostic: give it any {@link LandingViewerSource}.
  */
-export function useLandingViewer({ source, enabled = true }: UseLandingViewerInput) {
+export function useLandingViewer({ source, enabled = true, readinessTool }: UseLandingViewerInput) {
   const { t } = useI18n();
+  // One readiness verdict per period of `enabled`: when it began, and whether it was given.
+  const readiness = useRef<{ since: number; reported: boolean } | null>(null);
+  if (!enabled) readiness.current = null;
+  else if (readiness.current === null) readiness.current = { since: Date.now(), reported: false };
+  const toolRef = useRef(readinessTool);
+  toolRef.current = readinessTool;
+  const reportReady = useRef((outcome: 'success' | 'failure', error?: unknown) => {
+    const current = readiness.current;
+    const tool = toolRef.current;
+    if (!tool || !current || current.reported) return;
+    current.reported = true;
+    trackToolReady({
+      tool,
+      outcome,
+      durationMs: Date.now() - current.since,
+      ...(outcome === 'failure'
+        ? { stage: 'initial_read' as const, errorCode: safeErrorCode(error) }
+        : {})
+    });
+  }).current;
   const [state, setState] = useState<LandingPreviewState>(emptyState);
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -70,6 +98,7 @@ export function useLandingViewer({ source, enabled = true }: UseLandingViewerInp
         if (!active) return;
         setState(next);
         setLoaded(true);
+        reportReady('success');
         // A failure from an earlier source (the page opened before pairing) is over.
         setMessage(null);
         const fresh = next.updatedAt !== null && Date.now() - next.updatedAt < AUTO_RESCAN_STALE_MS;
@@ -82,10 +111,11 @@ export function useLandingViewer({ source, enabled = true }: UseLandingViewerInp
             .catch(() => {});
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!active) return;
         setMessage(t('landingGalleryActionFailed'));
         setLoaded(true);
+        reportReady('failure', error);
       });
     const unsubscribe = source.subscribe({
       onState: next => {
@@ -126,8 +156,17 @@ export function useLandingViewer({ source, enabled = true }: UseLandingViewerInp
       setMessage(null);
       try {
         setState(await operation());
-      } catch {
+      } catch (error) {
         setMessage(t('landingGalleryActionFailed'));
+        // 031 FR-052: an action on the gallery (scan, refresh, open, settings) that failed.
+        if (toolRef.current === 'landing-preview') {
+          trackToolError({
+            tool: 'landing-preview',
+            stage: 'refresh',
+            code: error,
+            flowId: crypto.randomUUID()
+          });
+        }
       }
     },
     [t]

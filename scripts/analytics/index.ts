@@ -5,186 +5,17 @@
  * Usage:
  *   npm run analytics -- <command> [options]
  *
- * Commands:
- *   overview            High-level product metrics for the period.
- *   compressor          Detailed compressor funnel and size/ratio metrics.
- *   users               User totals + most recently active users.
- *   top-users           Ranking by activity or compressions (--by).
- *   user <email>        Everything about a single user (all-time).
- *   tools               Per-tool opens / users / starts / completions.
- *   events              Event-name breakdown with unique users.
- *   funnel              Compressor conversion funnel by unique users.
- *   connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage.
- *
- * Options:
- *   --period <token>    today | 7d | 30d | 90d | all   (default: 7d)
- *   --days <n>          Rolling window of N days (overrides --period).
- *   --by <field>        top-users: activity | compressions (default: compressions)
- *   --limit <n>         Row limit for list commands (default: 10, user: 20).
- *   --json              Emit stable machine-readable JSON only.
- *   -h, --help          Show this help.
+ * The command list and options live in `cli.ts` (`HELP`); this file only
+ * parses the process arguments, runs one command and prints the envelope.
  *
  * Everything is read-only: the CLI connects as a dedicated SELECT-only role in a
- * forced read-only session and refuses any non-SELECT SQL. It never writes.
+ * forced read-only session and refuses any non-SELECT SQL. It never writes to
+ * the database. The one file it can write is the `audit --write` artifact under
+ * `specs/031-platform-autoanalytics/analysis/`.
  */
+import { CommandError, HELP, executeCommand, parseArgs, type ParsedArgs } from './cli.js';
 import { closePool } from './db.js';
-import {
-  formatCompressor,
-  formatConnection,
-  formatEvents,
-  formatFunnel,
-  formatCohorts,
-  formatErrors,
-  formatFeatures,
-  formatFriction,
-  formatJourney,
-  formatRetention,
-  formatStages,
-  formatOverview,
-  formatTools,
-  formatTopUsers,
-  formatSyncJobs,
-  formatTeamWorkspace,
-  formatUserDetail,
-  formatUsers
-} from './format.js';
-import { resolvePeriod } from './periods.js';
-import { syncOutputIsPrivate } from './types.js';
-import {
-  getCompressor,
-  getConnection,
-  getEvents,
-  getFunnel,
-  getCohorts,
-  getErrors,
-  getFeatures,
-  getFriction,
-  getJourney,
-  getOnboarding,
-  getRetention,
-  getRun,
-  getSyncJobs,
-  getUpdates,
-  diagnoseFingerprint,
-  getOverview,
-  getTools,
-  getTopUsers,
-  getTeamWorkspace,
-  getUserDetail,
-  getUsers
-} from './queries.js';
-import {
-  buildCommandEnvelope,
-  teamWorkspaceOutputIsPrivate,
-  type CommandEnvelope,
-  type ErrorEnvelope
-} from './types.js';
-
-interface ParsedArgs {
-  command: string;
-  positional: string[];
-  period?: string;
-  days?: number;
-  by?: string;
-  limit?: number;
-  cohortBy?: string;
-  json: boolean;
-  help: boolean;
-}
-
-const HELP = `Soty analytics CLI (read-only)
-
-Usage: npm run analytics -- <command> [options]
-
-Commands:
-  overview            High-level product metrics
-  compressor          Compressor funnel + size/ratio metrics
-  users               User totals + recently active
-  top-users           Ranking (--by activity|compressions)
-  user <email>        Full detail for one user (all-time)
-  tools               Per-tool usage
-  events              Event-name breakdown
-  funnel              Compressor conversion funnel
-  onboarding          First-run and pairing funnel
-  updates             Update discovery and completion funnel
-  errors              Error clusters by stage/build/fingerprint
-  friction            Sessions where users became stuck
-  features            Feature discovery and use
-  journey <email>     Ordered diagnostic timeline for one user
-  run <uuid>          Timeline for one operation
-  diagnose <id>       Events matching an error fingerprint
-  cohorts             Compare versions/platforms/builds
-  retention           Return activity after registration
-  team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
-  sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
-  connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage
-
-Options:
-  --period <t>   today | 7d | 30d | 90d | all  (default 7d)
-  --days <n>     rolling N-day window (overrides --period)
-  --by <field>   top-users: activity | compressions (default compressions)
-  --limit <n>    row limit (default 10)
-  --cohort-by <v> local-app-version | platform | web-build
-  --json         machine-readable JSON only
-  -h, --help     this help
-
-Examples:
-  npm run analytics -- overview --period all
-  npm run analytics -- compressor --days 7 --json
-  npm run analytics -- top-users --by compressions --period 30d
-  npm run analytics -- user someone@example.com --json`;
-
-function parseArgs(argv: string[]): ParsedArgs {
-  const parsed: ParsedArgs = { command: '', positional: [], json: false, help: false };
-  const rest = [...argv];
-  while (rest.length) {
-    const token = rest.shift() as string;
-    switch (token) {
-      case '--json':
-        parsed.json = true;
-        break;
-      case '-h':
-      case '--help':
-        parsed.help = true;
-        break;
-      case '--period':
-        parsed.period = rest.shift();
-        break;
-      case '--days':
-        parsed.days = Number(rest.shift());
-        break;
-      case '--by':
-        parsed.by = rest.shift();
-        break;
-      case '--limit':
-        parsed.limit = Number(rest.shift());
-        break;
-      case '--cohort-by':
-        parsed.cohortBy = rest.shift();
-        break;
-      default:
-        if (token.startsWith('--')) throw new Error(`Unknown option: ${token}`);
-        if (!parsed.command) parsed.command = token;
-        else parsed.positional.push(token);
-    }
-  }
-  return parsed;
-}
-
-function emit<T>(
-  args: ParsedArgs,
-  command: string,
-  period: CommandEnvelope<T>['period'],
-  data: T,
-  human: string
-): void {
-  if (args.json) {
-    const envelope = buildCommandEnvelope(command, period, data);
-    process.stdout.write(JSON.stringify(envelope, null, 2) + '\n');
-  } else {
-    process.stdout.write(human + '\n');
-  }
-}
+import { buildCommandEnvelope, type ErrorEnvelope } from './types.js';
 
 function writeError(json: boolean, command: string, error: string, hint?: string): void {
   if (json) {
@@ -194,151 +25,6 @@ function writeError(json: boolean, command: string, error: string, hint?: string
     process.stderr.write(`Error: ${error}\n${hint ? hint + '\n' : ''}`);
   }
   process.exitCode = 1;
-}
-
-function fail(args: { json?: boolean }, command: string, error: string, hint?: string): never {
-  writeError(Boolean(args.json), command, error, hint);
-  throw new ExitSignal();
-}
-
-class ExitSignal extends Error {}
-
-async function run(args: ParsedArgs): Promise<void> {
-  const command = args.command;
-  const period = resolvePeriod(args.period, args.days);
-
-  switch (command) {
-    case 'overview': {
-      const data = await getOverview(period);
-      emit(args, command, period, data, formatOverview(data, period));
-      break;
-    }
-    case 'compressor': {
-      const data = await getCompressor(period);
-      emit(args, command, period, data, formatCompressor(data, period));
-      break;
-    }
-    case 'users': {
-      const data = await getUsers(period, args.limit ?? 10);
-      emit(args, command, period, data, formatUsers(data, period));
-      break;
-    }
-    case 'top-users': {
-      const by = args.by === 'activity' ? 'activity' : 'compressions';
-      const data = await getTopUsers(period, by, args.limit ?? 10);
-      emit(args, command, period, data, formatTopUsers(data, period));
-      break;
-    }
-    case 'user': {
-      const email = args.positional[0];
-      if (!email) fail(args, command, 'Missing email. Usage: user <email>');
-      const data = await getUserDetail(email, args.limit ?? 20);
-      if (!data) fail(args, command, `No user found for "${email}".`);
-      emit(args, command, period, data, formatUserDetail(data));
-      break;
-    }
-    case 'tools': {
-      const data = await getTools(period);
-      emit(args, command, period, data, formatTools(data, period));
-      break;
-    }
-    case 'events': {
-      const data = await getEvents(period);
-      emit(args, command, period, data, formatEvents(data, period));
-      break;
-    }
-    case 'funnel': {
-      const data = await getFunnel(period);
-      emit(args, command, period, data, formatFunnel(data, period));
-      break;
-    }
-    case 'onboarding': {
-      const data = await getOnboarding(period);
-      emit(args, command, period, data, formatStages('Onboarding', data, period));
-      break;
-    }
-    case 'updates': {
-      const data = await getUpdates(period);
-      emit(args, command, period, data, formatStages('Updates', data, period));
-      break;
-    }
-    case 'errors': {
-      const data = await getErrors(period, args.limit ?? 50);
-      emit(args, command, period, data, formatErrors(data, period));
-      break;
-    }
-    case 'friction': {
-      const data = await getFriction(period);
-      emit(args, command, period, data, formatFriction(data, period));
-      break;
-    }
-    case 'features': {
-      const data = await getFeatures(period);
-      emit(args, command, period, data, formatFeatures(data, period));
-      break;
-    }
-    case 'journey': {
-      const email = args.positional[0];
-      if (!email) fail(args, command, 'Missing email. Usage: journey <email>');
-      const data = await getJourney(email, args.limit ?? 200);
-      emit(args, command, period, data, formatJourney(`Journey · ${email}`, data));
-      break;
-    }
-    case 'run': {
-      const runId = args.positional[0];
-      if (!runId) fail(args, command, 'Missing run id. Usage: run <uuid>');
-      const data = await getRun(runId, args.limit ?? 500);
-      emit(args, command, period, data, formatJourney(`Run · ${runId}`, data));
-      break;
-    }
-    case 'diagnose': {
-      const fingerprint = args.positional[0];
-      if (!fingerprint) fail(args, command, 'Missing fingerprint. Usage: diagnose <fingerprint>');
-      const data = await diagnoseFingerprint(fingerprint, args.limit ?? 200);
-      emit(args, command, period, data, formatJourney(`Error · ${fingerprint}`, data));
-      break;
-    }
-    case 'cohorts': {
-      const cohortBy =
-        args.cohortBy === 'platform' || args.cohortBy === 'web-build'
-          ? args.cohortBy
-          : 'local-app-version';
-      const data = await getCohorts(period, cohortBy);
-      emit(args, command, period, data, formatCohorts(data, period));
-      break;
-    }
-    case 'retention': {
-      const data = await getRetention(period);
-      emit(args, command, period, data, formatRetention(data, period));
-      break;
-    }
-    case 'sync': {
-      const target = args.positional[0];
-      if (!target) fail(args, command, 'Missing target. Usage: sync <team-id | owner-email>');
-      const data = await getSyncJobs(target, args.limit ?? 50);
-      if (!data) fail(args, command, `No sync jobs found for "${target}".`);
-      if (!syncOutputIsPrivate(data)) {
-        fail(args, command, 'Sync diagnostics failed their privacy guard.');
-      }
-      emit(args, command, period, data, formatSyncJobs(data, period));
-      break;
-    }
-    case 'connection': {
-      const data = await getConnection(period);
-      emit(args, command, period, data, formatConnection(data, period));
-      break;
-    }
-    case 'team-workspace': {
-      const data = await getTeamWorkspace(period);
-      if (!teamWorkspaceOutputIsPrivate(data)) {
-        fail(args, command, 'Team workspace aggregate failed its privacy guard.');
-      }
-      emit(args, command, period, data, formatTeamWorkspace(data, period));
-      break;
-    }
-    default:
-      fail(args, command || 'unknown', `Unknown command "${command || '(none)'}"`, HELP);
-  }
 }
 
 async function main(): Promise<void> {
@@ -357,11 +43,16 @@ async function main(): Promise<void> {
   }
 
   try {
-    await run(args);
-  } catch (error) {
-    if (!(error instanceof ExitSignal)) {
-      writeError(args.json, args.command, (error as Error).message);
+    const result = await executeCommand(args);
+    if (args.json) {
+      const envelope = buildCommandEnvelope(args.command, result.period, result.data);
+      process.stdout.write(JSON.stringify(envelope, null, 2) + '\n');
+    } else {
+      process.stdout.write(result.human + '\n');
     }
+  } catch (error) {
+    const hint = error instanceof CommandError ? error.hint : undefined;
+    writeError(args.json, args.command || 'unknown', (error as Error).message, hint);
   } finally {
     await closePool().catch(() => undefined);
   }

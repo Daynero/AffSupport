@@ -3,6 +3,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { TRANSCRIBE_EXTENSIONS } from '@video-compressor/shared';
 import { powerShellQuote as psQuote, windowsPowerShell } from '../platform/platform.js';
 import { pathGrants, type GrantAccess } from './path-grants.js';
+import { diagnostics } from '../server/diagnostics-log.js';
 
 /**
  * Native pickers per platform: osascript `choose file/folder` on macOS,
@@ -38,12 +39,13 @@ export async function selectVideos(): Promise<string[]> {
   if (process.platform === 'win32') {
     return runWindowsPicker(
       windowsOpenFileScript('Select videos to compress', windowsFilter('Videos', VIDEO_EXTENSIONS)),
-      'Could not open the native file picker.'
+      'Could not open the native file picker.',
+      'videos'
     );
   }
   const script =
     'set chosenFiles to choose file with prompt "Select videos to compress" with multiple selections allowed\nset out to ""\nrepeat with f in chosenFiles\nset out to out & POSIX path of f & linefeed\nend repeat\nreturn out';
-  return runMultiplePicker(script, 'Could not open the native file picker.');
+  return runMultiplePicker(script, 'Could not open the native file picker.', 'videos');
 }
 
 export async function selectTranscribeMedia(): Promise<string[]> {
@@ -53,24 +55,26 @@ export async function selectTranscribeMedia(): Promise<string[]> {
         'Select audio or video to transcribe',
         windowsFilter('Audio and video', TRANSCRIBE_EXTENSIONS)
       ),
-      'Could not open the native file picker.'
+      'Could not open the native file picker.',
+      'media'
     );
   }
   const script =
     'set chosenFiles to choose file with prompt "Select audio or video to transcribe" with multiple selections allowed\nset out to ""\nrepeat with f in chosenFiles\nset out to out & POSIX path of f & linefeed\nend repeat\nreturn out';
-  return runMultiplePicker(script, 'Could not open the native file picker.');
+  return runMultiplePicker(script, 'Could not open the native file picker.', 'media');
 }
 
 export async function selectLandingZips(): Promise<string[]> {
   if (process.platform === 'win32') {
     return runWindowsPicker(
       windowsOpenFileScript('Select landing ZIP archives', windowsFilter('ZIP archives', ['.zip'])),
-      'Could not open the archive picker.'
+      'Could not open the archive picker.',
+      'archives'
     );
   }
   const script =
     'set chosenFiles to choose file with prompt "Select landing ZIP archives" of type {"zip", "public.zip-archive"} with multiple selections allowed\nset out to ""\nrepeat with f in chosenFiles\nset out to out & POSIX path of f & linefeed\nend repeat\nreturn out';
-  return runMultiplePicker(script, 'Could not open the archive picker.');
+  return runMultiplePicker(script, 'Could not open the archive picker.', 'archives');
 }
 
 export async function selectLandingFolders(): Promise<string[]> {
@@ -79,13 +83,14 @@ export async function selectLandingFolders(): Promise<string[]> {
     // still a working flow because the landing routes accept a single folder.
     const folders = await runWindowsPicker(
       windowsFolderScript('Choose a landing folder'),
-      'Could not open the folder picker.'
+      'Could not open the folder picker.',
+      'landing_folders'
     );
     return folders.slice(0, 1);
   }
   const script =
     'set chosenFolders to choose folder with prompt "Choose landing folders" with multiple selections allowed\nset out to ""\nrepeat with f in chosenFolders\nset out to out & POSIX path of f & linefeed\nend repeat\nreturn out';
-  return runMultiplePicker(script, 'Could not open the folder picker.');
+  return runMultiplePicker(script, 'Could not open the folder picker.', 'landing_folders');
 }
 
 /** Selects one catalogue root whose descendant folders/ZIPs contain landings. */
@@ -93,13 +98,14 @@ export async function selectLandingPreviewFolder(): Promise<string | null> {
   if (process.platform === 'win32') {
     const folders = await runWindowsPicker(
       windowsFolderScript('Choose a folder that contains landings'),
-      'Could not open the folder picker.'
+      'Could not open the folder picker.',
+      'landing_preview_folder'
     );
     return folders[0] ?? null;
   }
   const script =
     'POSIX path of (choose folder with prompt "Choose a folder that contains landings")';
-  return runFolderScript(script, 'Could not open the folder picker.');
+  return runFolderScript(script, 'Could not open the folder picker.', 'landing_preview_folder');
 }
 
 /** Folder intake never receives a caller-provided path: this dialog is the authority. */
@@ -107,13 +113,14 @@ export async function selectDirectoryIntakeFolder(): Promise<string | null> {
   if (process.platform === 'win32') {
     const folders = await runWindowsPicker(
       windowsFolderScript('Choose a folder to add to the team workspace'),
-      'Could not open the folder picker.'
+      'Could not open the folder picker.',
+      'intake_folder'
     );
     return folders[0] ?? null;
   }
   const script =
     'POSIX path of (choose folder with prompt "Choose a folder to add to the team workspace")';
-  return runFolderScript(script, 'Could not open the folder picker.');
+  return runFolderScript(script, 'Could not open the folder picker.', 'intake_folder');
 }
 
 // Rapid repeat clicks on the folder button must not stack native dialogs:
@@ -132,12 +139,13 @@ async function selectOutputFolderNative(): Promise<string | null> {
   if (process.platform === 'win32') {
     const folders = await runWindowsPicker(
       windowsFolderScript('Choose output folder'),
-      'Could not choose an output folder.'
+      'Could not choose an output folder.',
+      'output_folder'
     );
     return folders[0] ?? null;
   }
   const script = 'POSIX path of (choose folder with prompt "Choose output folder")';
-  return runFolderScript(script, 'Could not choose an output folder.');
+  return runFolderScript(script, 'Could not choose an output folder.', 'output_folder');
 }
 
 /** `Videos (*.mp4;*.mov)|*.mp4;*.mov|All files (*.*)|*.*` — WinForms filter syntax. */
@@ -236,8 +244,43 @@ function grantChosen(paths: readonly string[], access: GrantAccess = 'read'): st
   return [...paths];
 }
 
-function runWindowsPicker(script: string, failure: string): Promise<string[]> {
+/**
+ * Which dialog this is, for the diagnostics journal (031 FR-054): a closed vocabulary so a
+ * support thread can say "the output-folder picker never came back" without the journal
+ * ever holding what was chosen in it.
+ */
+type PickerKind =
+  | 'videos'
+  | 'media'
+  | 'archives'
+  | 'landing_folders'
+  | 'landing_preview_folder'
+  | 'intake_folder'
+  | 'output_folder';
+
+type PickerOutcome = 'chosen' | 'cancelled' | 'failed' | 'unavailable' | 'timeout';
+
+function journalPickerLaunch(kind: PickerKind, platform: 'windows' | 'macos'): void {
+  diagnostics.record('picker', 'launch', { kind, platform });
+}
+
+/**
+ * One exit record per dialog run. `error` and `close` can both fire for the same child, and
+ * the journal should say how the dialog ended once, not twice.
+ */
+function pickerExitJournal(kind: PickerKind): (outcome: PickerOutcome, chosen?: number) => void {
+  let reported = false;
+  return (outcome, chosen = 0) => {
+    if (reported) return;
+    reported = true;
+    diagnostics.record('picker', 'exit', { kind, outcome, chosen });
+  };
+}
+
+function runWindowsPicker(script: string, failure: string, kind: PickerKind): Promise<string[]> {
   return new Promise((resolve, reject) => {
+    journalPickerLaunch(kind, 'windows');
+    const exited = pickerExitJournal(kind);
     let child;
     try {
       child = spawn(
@@ -246,6 +289,7 @@ function runWindowsPicker(script: string, failure: string): Promise<string[]> {
         { shell: false, windowsHide: true }
       );
     } catch {
+      exited('unavailable');
       reject(new Error('NATIVE_PICKER_UNAVAILABLE'));
       return;
     }
@@ -257,8 +301,14 @@ function runWindowsPicker(script: string, failure: string): Promise<string[]> {
       callback();
     };
     const timer = setTimeout(() => {
+      // PowerShell started and never came back: the dialog may have opened behind every
+      // window or never opened at all, and from here the two are the same fact.
+      diagnostics.record('picker', 'visibility_unknown', { kind });
       child.kill();
-      finish(() => reject(new Error('NATIVE_PICKER_TIMEOUT')));
+      finish(() => {
+        exited('timeout');
+        reject(new Error('NATIVE_PICKER_TIMEOUT'));
+      });
     }, WINDOWS_PICKER_TIMEOUT_MS);
     timer.unref();
     let out = '',
@@ -271,28 +321,39 @@ function runWindowsPicker(script: string, failure: string): Promise<string[]> {
     child.stderr.on('data', d => {
       err = (err + (typeof d === 'string' ? d : errorDecoder.write(d))).slice(-4000);
     });
-    child.on('error', () => finish(() => reject(new Error('NATIVE_PICKER_UNAVAILABLE'))));
+    child.on('error', () =>
+      finish(() => {
+        exited('unavailable');
+        reject(new Error('NATIVE_PICKER_UNAVAILABLE'));
+      })
+    );
     child.on('close', code => {
       out += outputDecoder.end();
       err = (err + errorDecoder.end()).slice(-4000);
       finish(() => {
         if (code === 0) {
-          resolve(
-            grantChosen(
-              out
-                .split(/\r?\n/u)
-                .map(value => value.trim())
-                .filter(Boolean)
-            )
+          const chosen = grantChosen(
+            out
+              .split(/\r?\n/u)
+              .map(value => value.trim())
+              .filter(Boolean)
           );
-        } else reject(new Error('NATIVE_PICKER_UNAVAILABLE', { cause: err.trim() || failure }));
+          // Cancel prints nothing and exits 0, so an empty selection is the cancel.
+          exited(chosen.length ? 'chosen' : 'cancelled', chosen.length);
+          resolve(chosen);
+        } else {
+          exited('failed');
+          reject(new Error('NATIVE_PICKER_UNAVAILABLE', { cause: err.trim() || failure }));
+        }
       });
     });
   });
 }
 
-function runMultiplePicker(script: string, failure: string): Promise<string[]> {
+function runMultiplePicker(script: string, failure: string, kind: PickerKind): Promise<string[]> {
   return new Promise((resolve, reject) => {
+    journalPickerLaunch(kind, 'macos');
+    const exited = pickerExitJournal(kind);
     const child = spawn('/usr/bin/osascript', ['-e', script], { shell: false });
     let out = '',
       err = '';
@@ -302,19 +363,27 @@ function runMultiplePicker(script: string, failure: string): Promise<string[]> {
     child.stderr.on('data', d => {
       err += d;
     });
-    child.on('error', reject);
+    child.on('error', error => {
+      exited('unavailable');
+      reject(error);
+    });
     child.on('close', code => {
       if (code === 0) {
-        resolve(
-          grantChosen(
-            out
-              .split('\n')
-              .map(value => value.trim().replace(/\/$/, ''))
-              .filter(Boolean)
-          )
+        const chosen = grantChosen(
+          out
+            .split('\n')
+            .map(value => value.trim().replace(/\/$/, ''))
+            .filter(Boolean)
         );
-      } else if (canceledByUser(err)) resolve([]);
-      else reject(new Error(failure));
+        exited('chosen', chosen.length);
+        resolve(chosen);
+      } else if (canceledByUser(err)) {
+        exited('cancelled');
+        resolve([]);
+      } else {
+        exited('failed');
+        reject(new Error(failure));
+      }
     });
   });
 }
@@ -329,8 +398,14 @@ function canceledByUser(stderr: string): boolean {
   return stderr.includes('-128') || stderr.includes('User canceled');
 }
 
-function runFolderScript(script: string, failure: string): Promise<string | null> {
+function runFolderScript(
+  script: string,
+  failure: string,
+  kind: PickerKind
+): Promise<string | null> {
   return new Promise((resolve, reject) => {
+    journalPickerLaunch(kind, 'macos');
+    const exited = pickerExitJournal(kind);
     const child = spawn('/usr/bin/osascript', ['-e', script], { shell: false });
     let out = '',
       err = '';
@@ -340,16 +415,25 @@ function runFolderScript(script: string, failure: string): Promise<string | null
     child.stderr.on('data', d => {
       err += d;
     });
-    child.on('close', code =>
-      code === 0
-        ? // A folder is chosen to write into as often as to read from, so the
-          // grant covers both; a read-only grant here would refuse the output
-          // directory the user just picked.
-          resolve(grantChosen([out.trim().replace(/\/$/, '')], 'write')[0] ?? null)
-        : canceledByUser(err)
-          ? resolve(null)
-          : reject(new Error(failure))
-    );
-    child.on('error', reject);
+    child.on('close', code => {
+      if (code === 0) {
+        // A folder is chosen to write into as often as to read from, so the
+        // grant covers both; a read-only grant here would refuse the output
+        // directory the user just picked.
+        const chosen = grantChosen([out.trim().replace(/\/$/, '')], 'write')[0] ?? null;
+        exited('chosen', chosen ? 1 : 0);
+        resolve(chosen);
+      } else if (canceledByUser(err)) {
+        exited('cancelled');
+        resolve(null);
+      } else {
+        exited('failed');
+        reject(new Error(failure));
+      }
+    });
+    child.on('error', error => {
+      exited('unavailable');
+      reject(error);
+    });
   });
 }

@@ -11,8 +11,10 @@ import type {
 import {
   completeTeamFileAttempt,
   startTeamFileAttempt,
-  teamAnalyticsSizeBucket
+  teamAnalyticsSizeBucket,
+  type TeamFileAttemptFlow
 } from '../../analytics/service';
+import { trackToolError } from '../../analytics/errors';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessage } from '../errors';
@@ -166,6 +168,7 @@ export function useMaterialActions(input: {
             outcome: analyticsOutcome(caught),
             retryable: retryableError(caught)
           });
+          reportFileAttemptError(attempt, caught);
         }
         const code = errorCodeOf(caught);
         setErrorCode(code);
@@ -213,6 +216,7 @@ export function useMaterialActions(input: {
             outcome: analyticsOutcome(caught),
             retryable: retryableError(caught)
           });
+          reportFileAttemptError(attempt, caught);
         }
         const code = errorCodeOf(caught);
         // A name clash is a question for the person, not a failure: hold the
@@ -375,6 +379,28 @@ export function useMaterialActions(input: {
 
 function errorCodeOf(error: unknown) {
   return error instanceof Error ? error.message : 'PROCESS_FAILED';
+}
+
+/**
+ * 031 FR-052 — `error_occurred` for a file action that failed, on the attempt's id. A cancel or
+ * a question put to the person (a name clash, a permission they lack) is an outcome of the
+ * attempt, not an error, and stays in `team_file_attempt_completed` alone.
+ */
+function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unknown): void {
+  const outcome = analyticsOutcome(error);
+  if (outcome !== 'failure' && outcome !== 'unsupported') return;
+  trackToolError({
+    tool: 'team',
+    stage:
+      attempt.action === 'upload'
+        ? 'transfer'
+        : attempt.action === 'download'
+          ? 'download'
+          : 'library',
+    code: errorCodeOf(error),
+    attemptId: attempt.attemptId,
+    retryable: retryableError(error)
+  });
 }
 
 function retryableError(error: unknown): boolean {

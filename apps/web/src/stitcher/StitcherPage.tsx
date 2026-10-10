@@ -40,7 +40,8 @@ import { useAgent } from '../AgentContext';
 import { useI18n, type Language } from '../i18n';
 import { analytics } from '../analytics/service';
 import { observeStitchInput, recordStitchInputFailure } from './input-diagnostics';
-import { toolJobActivityEvents } from '../analytics/tools';
+import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
+import { toolErrorProperties } from '../analytics/errors';
 import { compactPath, formatCodec, formatDuration, formatFps, formatSize } from '../format';
 import { DropZone } from '../components/DropZone';
 import { ImageEmbeddingSection } from '../components/ImageEmbeddingSection';
@@ -108,13 +109,37 @@ export function Stitcher() {
   const previousAnalyticsJobs = useRef<StitchJob[] | null>(null);
 
   useEffect(() => {
-    for (const event of toolJobActivityEvents('stitcher', previousAnalyticsJobs.current, jobs, {
-      started: ['queued', 'running'],
-      completed: ['done'],
-      failed: ['failed'],
-      cancelled: ['cancelled']
-    })) {
+    for (const event of toolJobActivityEvents(
+      'stitcher',
+      previousAnalyticsJobs.current,
+      jobs,
+      {
+        started: ['queued', 'running'],
+        completed: ['done'],
+        failed: ['failed'],
+        cancelled: ['cancelled']
+      },
+      (job, runId) =>
+        toolErrorProperties({
+          tool: 'stitcher',
+          stage: 'stitch',
+          code: job.error,
+          ...(runId ? { runId } : {})
+        })
+    )) {
       analytics.track(event.name, event.properties);
+      // The stitcher's own terminal beside the generic one, on the same `run_id` as its
+      // `stitch_started` (031 FR-050).
+      if (event.name === 'operation_completed' || event.name === 'operation_failed') {
+        analytics.track(
+          event.name === 'operation_completed' ? 'stitch_completed' : 'stitch_failed',
+          {
+            tool_identifier: 'stitcher',
+            file_count: 1,
+            ...(event.properties.run_id ? { run_id: event.properties.run_id } : {})
+          }
+        );
+      }
     }
     previousAnalyticsJobs.current = jobs;
   }, [jobs]);
@@ -242,7 +267,16 @@ export function Stitcher() {
       const { state: next, failures } = await startStitchJobs(ids, operation);
       applyState(next);
       if (failures.length) setMessage(planFailureMessage(failures[0]!.error, t));
-      analytics.track('stitch_started', { tool_identifier: 'stitcher' });
+      // One start per accepted job, carrying the id its terminal will carry (031 FR-050).
+      const refused = new Set(failures.map(failure => failure.id));
+      for (const id of ids.filter(one => !refused.has(one))) {
+        const runId = analyticsRunId(id);
+        analytics.track('stitch_started', {
+          tool_identifier: 'stitcher',
+          file_count: 1,
+          ...(runId ? { run_id: runId } : {})
+        });
+      }
     } catch (error) {
       handleError(error);
     } finally {

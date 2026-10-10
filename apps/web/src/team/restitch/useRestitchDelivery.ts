@@ -25,6 +25,7 @@ import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamApi } from '../../api/team';
 import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
+import { trackToolError } from '../../analytics/errors';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { ensureRestitchImages } from './images';
@@ -284,7 +285,16 @@ export function useRestitchDelivery(teamId: string) {
             kind: 'failed',
             message: t('teamRestitchAgentTooOldForSources')
           });
-          if (flow) completeTeamWorkflow(flow, { outcome: 'failure', retryable: false });
+          if (flow) {
+            completeTeamWorkflow(flow, { outcome: 'failure', retryable: false });
+            trackToolError({
+              tool: 'team',
+              stage: 'process',
+              code: 'AGENT_UPDATE_REQUIRED',
+              workflowId: flow.workflowId,
+              retryable: false
+            });
+          }
           return;
         }
         if (drawn.kind === 'legacy') await ensureRestitchImages(teamId, known);
@@ -356,6 +366,17 @@ export function useRestitchDelivery(teamId: string) {
             outcome: canceled ? 'cancelled' : 'failure',
             retryable: !canceled
           });
+          // 031 FR-052: a stopped delivery is not an error; anything else is, by its code.
+          if (!canceled && !(error instanceof Error && error.message === 'DOWNLOAD_CANCELED')) {
+            trackToolError({
+              tool: 'team',
+              stage: 'download',
+              // A refusal's reason (`video-codec`) is a closed set; spelled as a code here.
+              code: refusal ? refusal.toUpperCase().replace(/-/g, '_') : error,
+              workflowId: flow.workflowId,
+              retryable: true
+            });
+          }
         }
       }
     },

@@ -6,6 +6,7 @@ import {
   type SpawnOptions
 } from 'node:child_process';
 import type { CpuBudget } from './governor.js';
+import { diagnostics, durationBucket } from '../server/diagnostics-log.js';
 
 /**
  * The single seam every heavy child process passes through.
@@ -86,6 +87,7 @@ export function spawnManaged(
   // `shell: false` is not negotiable: a filename interpolated into a shell
   // string is a command-injection hole.
   const child = spawn(command, args as string[], { ...spawnOptions, shell: false });
+  journalLifecycle(toolId, child);
 
   // Before the governor check, and deliberately so. Escalation is about *stopping*, not
   // about throttling, and tying it to whether a resource budget happens to be attached made
@@ -109,6 +111,34 @@ export function spawnManaged(
   child.once('error', release);
 
   return child;
+}
+
+/**
+ * Tells the diagnostics journal that a tool's child started and how it ended (031 FR-054).
+ *
+ * The tool id and the shape of the exit — clean, non-zero, by signal, or never started — plus
+ * a duration bucket. Not the command, not the arguments, not the exit code's meaning, not a
+ * byte of stderr: the journal is copied into support threads, and the command line carries
+ * the file name. One exit record per child, whichever of `close` and `error` arrives first.
+ */
+function journalLifecycle(toolId: string, child: ChildProcess): void {
+  const startedAt = Date.now();
+  diagnostics.record('spawn', 'started', { tool: toolId });
+  let reported = false;
+  const report = (outcome: 'ok' | 'nonzero' | 'signal' | 'spawn_error') => {
+    if (reported) return;
+    reported = true;
+    diagnostics.record('spawn', 'exited', {
+      tool: toolId,
+      outcome,
+      duration: durationBucket(Date.now() - startedAt)
+    });
+  };
+  child.once('error', () => report('spawn_error'));
+  child.once('close', (code, signal) => {
+    if (signal) report('signal');
+    else report(code === 0 ? 'ok' : 'nonzero');
+  });
 }
 
 /**

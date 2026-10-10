@@ -38,15 +38,54 @@ export const TEAM_ANALYTICS_EVENT_NAMES = [
 ] as const;
 export type TeamAnalyticsEventName = (typeof TEAM_ANALYTICS_EVENT_NAMES)[number];
 
-export type TeamAnalyticsOutcome =
-  'success' | 'failure' | 'cancelled' | 'blocked' | 'unsupported' | 'ready' | 'failed';
-export type TeamAnalyticsCue = 'geo' | 'offer' | 'language' | 'category';
-export type TeamAnalyticsAction = 'upload' | 'download' | 'rename' | 'move' | 'trash';
-export type TeamAnalyticsStorage = 'my_drive' | 'shared_drive';
-export type TeamAnalyticsSizeBucket = 'tiny' | 'small' | 'medium' | 'large' | 'agent';
-export type TeamAnalyticsCacheState = 'cold' | 'warm' | 'unknown';
-export type TeamAnalyticsStage =
-  'finding' | 'previewing' | 'downloading' | 'processing' | 'uploading' | 'finalizing';
+/**
+ * The outcome vocabulary is the database guard's, verbatim. `ready`/`failed`
+ * used to be accepted here and refused there, so every `team_landing_render`
+ * was lost at ingestion (031 FR-048); the client now says `success`/`failure`.
+ */
+export const TEAM_ANALYTICS_OUTCOMES = [
+  'success',
+  'failure',
+  'cancelled',
+  'blocked',
+  'skipped',
+  'unsupported'
+] as const;
+export type TeamAnalyticsOutcome = (typeof TEAM_ANALYTICS_OUTCOMES)[number];
+export const TEAM_ANALYTICS_CUES = ['geo', 'offer', 'language', 'category'] as const;
+export type TeamAnalyticsCue = (typeof TEAM_ANALYTICS_CUES)[number];
+export const TEAM_ANALYTICS_ACTIONS = ['upload', 'download', 'rename', 'move', 'trash'] as const;
+export type TeamAnalyticsAction = (typeof TEAM_ANALYTICS_ACTIONS)[number];
+export const TEAM_ANALYTICS_STORAGES = ['my_drive', 'shared_drive'] as const;
+export type TeamAnalyticsStorage = (typeof TEAM_ANALYTICS_STORAGES)[number];
+export const TEAM_ANALYTICS_SIZE_BUCKETS = ['tiny', 'small', 'medium', 'large', 'agent'] as const;
+export type TeamAnalyticsSizeBucket = (typeof TEAM_ANALYTICS_SIZE_BUCKETS)[number];
+export const TEAM_ANALYTICS_CACHE_STATES = ['cold', 'warm', 'unknown'] as const;
+export type TeamAnalyticsCacheState = (typeof TEAM_ANALYTICS_CACHE_STATES)[number];
+export const TEAM_ANALYTICS_STAGES = [
+  'finding',
+  'previewing',
+  'downloading',
+  'processing',
+  'uploading',
+  'finalizing'
+] as const;
+export type TeamAnalyticsStage = (typeof TEAM_ANALYTICS_STAGES)[number];
+const LANDING_TILE_STATES = [
+  'ready',
+  'candidate',
+  'rendering',
+  'needs_agent',
+  'agent_outdated',
+  'error'
+] as const satisfies readonly LandingTileState[];
+const LANDING_RENDER_FAILURE_REASONS = [
+  'unsupported',
+  'corrupt',
+  'protected',
+  'too_large',
+  'render_error'
+] as const satisfies readonly LandingRenderFailureReason[];
 
 export interface TeamAnalyticsProperties {
   flow_id?: string;
@@ -86,77 +125,97 @@ export interface TeamAnalyticsProperties {
   attention_reason?: TeamStorageAttentionReason;
 }
 
-const ID_KEYS = new Set(['flow_id', 'study_run_id', 'attempt_id', 'workflow_id']);
-const BOOLEAN_KEYS = new Set([
-  'retryable',
-  'assisted',
-  'invite_persisted',
-  'root_confirmed',
-  'sync_queued',
-  'workspace_session',
-  'discovery_completed',
-  'production_completed',
-  'had_agent'
-]);
+/**
+ * One rule per property. `sanitizeTeamAnalyticsProperties` reads this table and
+ * nothing else, and the four exported views below are derived from it, so the
+ * client allowlist the database guard is tested against has a single source
+ * (031 FR-048).
+ *
+ * - `id`: an opaque identifier, the database's `^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$`.
+ * - `boolean`: a boolean or nothing — never the string "true".
+ * - `number`: finite, inside the closed range; `integer` refuses fractions,
+ *   otherwise the value is rounded.
+ * - `enum`: a value outside the vocabulary is dropped, never passed through.
+ */
+export type TeamAnalyticsPropertyRule =
+  | { kind: 'id' }
+  | { kind: 'boolean' }
+  | { kind: 'number'; range: readonly [number, number]; integer?: boolean }
+  | { kind: 'enum'; values: readonly string[] };
+
+const ONE_YEAR_MS = 31_536_000_000;
+/** The bound the database guard puts on every `*_count` of the team events. */
+export const TEAM_ANALYTICS_COUNT_MAX = 100_000;
+
+export const TEAM_ANALYTICS_PROPERTY_RULES: Readonly<
+  Record<keyof TeamAnalyticsProperties, TeamAnalyticsPropertyRule>
+> = {
+  flow_id: { kind: 'id' },
+  study_run_id: { kind: 'id' },
+  attempt_id: { kind: 'id' },
+  workflow_id: { kind: 'id' },
+  duration_ms: { kind: 'number', range: [0, ONE_YEAR_MS] },
+  category: { kind: 'enum', values: MATERIAL_CATEGORIES },
+  cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
+  action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
+  storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
+  size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
+  cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },
+  attempt_number: { kind: 'number', range: [1, 10_000], integer: true },
+  stage: { kind: 'enum', values: TEAM_ANALYTICS_STAGES },
+  outcome: { kind: 'enum', values: TEAM_ANALYTICS_OUTCOMES },
+  retryable: { kind: 'boolean' },
+  assisted: { kind: 'boolean' },
+  invite_persisted: { kind: 'boolean' },
+  root_confirmed: { kind: 'boolean' },
+  sync_queued: { kind: 'boolean' },
+  workspace_session: { kind: 'boolean' },
+  discovery_completed: { kind: 'boolean' },
+  production_completed: { kind: 'boolean' },
+  window_index: { kind: 'number', range: [1, 4], integer: true },
+  item_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX], integer: true },
+  ready_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX], integer: true },
+  tile_state: { kind: 'enum', values: LANDING_TILE_STATES },
+  had_agent: { kind: 'boolean' },
+  reason: { kind: 'enum', values: LANDING_RENDER_FAILURE_REASONS },
+  contribution_category: { kind: 'enum', values: CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES },
+  contribution_action: { kind: 'enum', values: CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS },
+  selection_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX], integer: true },
+  folder_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX], integer: true },
+  file_count: { kind: 'number', range: [0, 1_000_000], integer: true },
+  unavailable_count: { kind: 'number', range: [0, TEAM_ANALYTICS_COUNT_MAX], integer: true },
+  attention_reason: { kind: 'enum', values: TEAM_STORAGE_ATTENTION_REASONS }
+};
+
+type TeamAnalyticsPropertyKey = keyof TeamAnalyticsProperties;
+
+const ruleEntries = Object.entries(TEAM_ANALYTICS_PROPERTY_RULES) as [
+  TeamAnalyticsPropertyKey,
+  TeamAnalyticsPropertyRule
+][];
+
+export const TEAM_ANALYTICS_PROPERTY_KEYS: readonly string[] = Object.freeze(
+  ruleEntries.map(([key]) => key)
+);
+export const TEAM_ANALYTICS_PROPERTY_ENUMS: Readonly<Record<string, readonly string[]>> =
+  Object.freeze(
+    Object.fromEntries(
+      ruleEntries.flatMap(([key, rule]) => (rule.kind === 'enum' ? [[key, rule.values]] : []))
+    )
+  );
+export const TEAM_ANALYTICS_BOOLEAN_KEYS: readonly string[] = Object.freeze(
+  ruleEntries.flatMap(([key, rule]) => (rule.kind === 'boolean' ? [key] : []))
+);
+export const TEAM_ANALYTICS_NUMERIC_RANGES: Readonly<Record<string, [number, number]>> =
+  Object.freeze(
+    Object.fromEntries(
+      ruleEntries.flatMap(([key, rule]): [string, [number, number]][] =>
+        rule.kind === 'number' ? [[key, [rule.range[0], rule.range[1]]]] : []
+      )
+    )
+  );
+
 const safeOpaqueId = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
-const OUTCOMES = new Set<TeamAnalyticsOutcome>([
-  'success',
-  'failure',
-  'cancelled',
-  'blocked',
-  'unsupported',
-  'ready',
-  'failed'
-]);
-const CUES = new Set<TeamAnalyticsCue>(['geo', 'offer', 'language', 'category']);
-const ACTIONS = new Set<TeamAnalyticsAction>(['upload', 'download', 'rename', 'move', 'trash']);
-const STORAGE = new Set<TeamAnalyticsStorage>(['my_drive', 'shared_drive']);
-const SIZE_BUCKETS = new Set<TeamAnalyticsSizeBucket>([
-  'tiny',
-  'small',
-  'medium',
-  'large',
-  'agent'
-]);
-const CACHE_STATES = new Set<TeamAnalyticsCacheState>(['cold', 'warm', 'unknown']);
-const STAGES = new Set<TeamAnalyticsStage>([
-  'finding',
-  'previewing',
-  'downloading',
-  'processing',
-  'uploading',
-  'finalizing'
-]);
-const TILE_STATES = new Set<LandingTileState>([
-  'ready',
-  'candidate',
-  'rendering',
-  'needs_agent',
-  'agent_outdated',
-  'error'
-]);
-const LANDING_FAILURE_REASONS = new Set<LandingRenderFailureReason>([
-  'unsupported',
-  'corrupt',
-  'protected',
-  'too_large',
-  'render_error'
-]);
-const COUNT_KEYS = new Set([
-  'item_count',
-  'ready_count',
-  'selection_count',
-  'folder_count',
-  'file_count',
-  'unavailable_count'
-]);
-const ATTENTION_REASONS = new Set<TeamStorageAttentionReason>(TEAM_STORAGE_ATTENTION_REASONS);
-const CONTRIBUTION_CATEGORIES = new Set<CreativeLibraryContributionCategory>(
-  CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES
-);
-const CONTRIBUTION_ACTIONS = new Set<CreativeLibraryContributionAction>(
-  CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS
-);
 
 export const TEAM_ANALYTICS_FORBIDDEN_FIELDS = Object.freeze([
   'email',
@@ -186,91 +245,39 @@ export const TEAM_ANALYTICS_FORBIDDEN_FIELDS = Object.freeze([
   'language'
 ]);
 
+function isTeamAnalyticsPropertyKey(key: string): key is TeamAnalyticsPropertyKey {
+  return Object.prototype.hasOwnProperty.call(TEAM_ANALYTICS_PROPERTY_RULES, key);
+}
+
+function sanitizeTeamAnalyticsValue(
+  rule: TeamAnalyticsPropertyRule,
+  value: unknown
+): string | number | boolean | undefined {
+  switch (rule.kind) {
+    case 'id':
+      return typeof value === 'string' && safeOpaqueId.test(value) ? value : undefined;
+    case 'boolean':
+      return typeof value === 'boolean' ? value : undefined;
+    case 'number': {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+      if (rule.integer && !Number.isInteger(value)) return undefined;
+      if (value < rule.range[0] || value > rule.range[1]) return undefined;
+      return rule.integer ? value : Math.round(value);
+    }
+    case 'enum':
+      return typeof value === 'string' && rule.values.includes(value) ? value : undefined;
+  }
+}
+
 export function sanitizeTeamAnalyticsProperties(input: unknown): TeamAnalyticsProperties {
   if (!isRecord(input)) return {};
-  const output: TeamAnalyticsProperties = {};
+  const output: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (ID_KEYS.has(key) && typeof value === 'string' && safeOpaqueId.test(value)) {
-      output[key as 'flow_id'] = value;
-    } else if (BOOLEAN_KEYS.has(key) && typeof value === 'boolean') {
-      output[key as 'retryable'] = value;
-    } else if (
-      key === 'duration_ms' &&
-      typeof value === 'number' &&
-      Number.isFinite(value) &&
-      value >= 0 &&
-      value <= 31_536_000_000
-    ) {
-      output.duration_ms = Math.round(value);
-    } else if (
-      key === 'attempt_number' &&
-      typeof value === 'number' &&
-      Number.isInteger(value) &&
-      value >= 1 &&
-      value <= 10_000
-    ) {
-      output.attempt_number = value;
-    } else if (
-      key === 'window_index' &&
-      typeof value === 'number' &&
-      Number.isInteger(value) &&
-      value >= 1 &&
-      value <= 4
-    ) {
-      output.window_index = value;
-    } else if (
-      key === 'category' &&
-      typeof value === 'string' &&
-      (MATERIAL_CATEGORIES as readonly string[]).includes(value)
-    ) {
-      output.category = value as MaterialCategory;
-    } else if (key === 'cue_category' && CUES.has(value as TeamAnalyticsCue)) {
-      output.cue_category = value as TeamAnalyticsCue;
-    } else if (key === 'action' && ACTIONS.has(value as TeamAnalyticsAction)) {
-      output.action = value as TeamAnalyticsAction;
-    } else if (key === 'storage_kind' && STORAGE.has(value as TeamAnalyticsStorage)) {
-      output.storage_kind = value as TeamAnalyticsStorage;
-    } else if (key === 'size_bucket' && SIZE_BUCKETS.has(value as TeamAnalyticsSizeBucket)) {
-      output.size_bucket = value as TeamAnalyticsSizeBucket;
-    } else if (key === 'cache_state' && CACHE_STATES.has(value as TeamAnalyticsCacheState)) {
-      output.cache_state = value as TeamAnalyticsCacheState;
-    } else if (key === 'stage' && STAGES.has(value as TeamAnalyticsStage)) {
-      output.stage = value as TeamAnalyticsStage;
-    } else if (key === 'outcome' && OUTCOMES.has(value as TeamAnalyticsOutcome)) {
-      output.outcome = value as TeamAnalyticsOutcome;
-    } else if (
-      COUNT_KEYS.has(key) &&
-      typeof value === 'number' &&
-      Number.isInteger(value) &&
-      value >= 0 &&
-      value <= 1_000_000
-    ) {
-      output[key as 'item_count'] = value;
-    } else if (
-      key === 'attention_reason' &&
-      ATTENTION_REASONS.has(value as TeamStorageAttentionReason)
-    ) {
-      output.attention_reason = value as TeamStorageAttentionReason;
-    } else if (key === 'tile_state' && TILE_STATES.has(value as LandingTileState)) {
-      output.tile_state = value as LandingTileState;
-    } else if (
-      key === 'reason' &&
-      LANDING_FAILURE_REASONS.has(value as LandingRenderFailureReason)
-    ) {
-      output.reason = value as LandingRenderFailureReason;
-    } else if (
-      key === 'contribution_category' &&
-      CONTRIBUTION_CATEGORIES.has(value as CreativeLibraryContributionCategory)
-    ) {
-      output.contribution_category = value as CreativeLibraryContributionCategory;
-    } else if (
-      key === 'contribution_action' &&
-      CONTRIBUTION_ACTIONS.has(value as CreativeLibraryContributionAction)
-    ) {
-      output.contribution_action = value as CreativeLibraryContributionAction;
-    }
+    if (!isTeamAnalyticsPropertyKey(key)) continue;
+    const clean = sanitizeTeamAnalyticsValue(TEAM_ANALYTICS_PROPERTY_RULES[key], value);
+    if (clean !== undefined) output[key] = clean;
   }
-  return output;
+  return output as TeamAnalyticsProperties;
 }
 
 export function containsForbiddenTeamAnalyticsField(input: unknown): boolean {

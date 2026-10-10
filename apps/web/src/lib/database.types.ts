@@ -32,9 +32,12 @@ export type GeneratedDatabase = {
       analytics_events: {
         Row: {
           action: string | null;
+          agent_instance_id: string | null;
+          agent_platform: string | null;
           agent_version: string | null;
           app_version: string | null;
           architecture: string | null;
+          attempt_id: string | null;
           core_api_version: number | null;
           created_at: string;
           error_code: string | null;
@@ -67,9 +70,12 @@ export type GeneratedDatabase = {
         };
         Insert: {
           action?: string | null;
+          agent_instance_id?: string | null;
+          agent_platform?: string | null;
           agent_version?: string | null;
           app_version?: string | null;
           architecture?: string | null;
+          attempt_id?: string | null;
           core_api_version?: number | null;
           created_at?: string;
           error_code?: string | null;
@@ -102,9 +108,12 @@ export type GeneratedDatabase = {
         };
         Update: {
           action?: string | null;
+          agent_instance_id?: string | null;
+          agent_platform?: string | null;
           agent_version?: string | null;
           app_version?: string | null;
           architecture?: string | null;
+          attempt_id?: string | null;
           core_api_version?: number | null;
           created_at?: string;
           error_code?: string | null;

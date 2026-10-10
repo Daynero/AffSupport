@@ -1,5 +1,31 @@
+import { createHash } from 'node:crypto';
 import { query, queryOne } from './db.js';
+import {
+  COVERAGE_REGISTRY,
+  capabilitySignals,
+  emittedOnly,
+  notEmitted,
+  registryEventStatuses,
+  signalStatus,
+  type Capability,
+  type CapabilitySignal,
+  type ProducerStatus
+} from './coverage-registry.js';
+import { sanitizeEventProperties } from './sanitize.js';
 import type {
+  AuditCapability,
+  AuditData,
+  AuditDelivery,
+  AuditFinding,
+  AuditStatus,
+  AuditUnknownCode,
+  DeliveryLag,
+  FindingSeverity,
+  FrictionRow,
+  InspectData,
+  InspectFound,
+  StageRow,
+  UnsupportedSignal,
   CompressorData,
   EventRow,
   FunnelStage,
@@ -29,15 +55,246 @@ import type {
   ConnectionOriginRow,
   ConnectionReasonRow
 } from './types.js';
-import { CONNECTION_COVERAGE_NOTE } from './types.js';
+import {
+  CONNECTION_COVERAGE_NOTE,
+  INSPECT_AGENT_NOTE,
+  NO_AGENT_CONTEXT_COHORT,
+  UNSUPPORTED_BY_PRODUCER
+} from './types.js';
 
 /** Range params are always $1 = start (nullable), $2 = end. */
 function rangeParams(period: ResolvedPeriod): [string | null, string] {
   return [period.start, period.end];
 }
 
-/** Range predicate for the analytics_events table (alias `e`). */
-const EVENTS_RANGE = `($1::timestamptz is null or e.created_at >= $1::timestamptz) and e.created_at < $2::timestamptz`;
+/**
+ * Range predicate for the analytics_events table (alias `e`). The end bound is
+ * inclusive so a window fixed with `--as-of X` reads `created_at <= X` (031
+ * FR-055); `created_at` is the server clock, which is what a repeatable
+ * snapshot has to be pinned to.
+ */
+const EVENTS_RANGE = `($1::timestamptz is null or e.created_at >= $1::timestamptz) and e.created_at <= $2::timestamptz`;
+
+/* ---------------------------------------------------------------------------
+ * 031 — which event names the aggregate commands compute from. Every list is
+ * derived from the coverage registry so a signal without a producer never
+ * reaches SQL as a number; it is reported as `unsupported_by_producer` instead.
+ * ------------------------------------------------------------------------- */
+
+const COMPRESSOR_EVENTS = [
+  'tool_opened',
+  'videos_added',
+  'compression_batch_started',
+  'compression_started',
+  'compression_completed',
+  'compression_failed'
+] as const;
+
+const GENERIC_LIFECYCLE_EVENTS = [
+  'input_add_completed',
+  'operation_started',
+  'operation_completed',
+  'operation_failed',
+  'operation_cancelled'
+] as const;
+
+/** Terminal outcomes across tools, as the registry says a producer emits them today. */
+const SUCCESS_EVENTS = emittedOnly([
+  'operation_completed',
+  'compression_completed',
+  'landing_optimization_completed',
+  'stitch_completed'
+] as const);
+const FAILURE_EVENTS = emittedOnly([
+  'operation_failed',
+  'compression_failed',
+  'landing_optimization_failed',
+  'stitch_failed'
+] as const);
+/** A start counts toward "started without outcome" only when its terminal has a producer. */
+const START_EVENTS = (
+  [
+    ['operation_started', 'operation_completed'],
+    ['compression_started', 'compression_completed'],
+    ['landing_optimization_started', 'landing_optimization_completed'],
+    ['stitch_started', 'stitch_completed']
+  ] as const
+)
+  .filter(([start, terminal]) => emittedOnly([start, terminal]).length === 2)
+  .map(([start]) => start);
+const INPUT_EVENTS = ['input_add_completed', 'videos_added'] as const;
+const BLOCKED_EVENTS = emittedOnly([
+  'validation_message_shown',
+  'blocked_action_attempted'
+] as const);
+const UPDATE_PROMPT_EVENTS = emittedOnly(['update_prompt_shown', 'agent_update_required'] as const);
+const UPDATE_DONE_EVENTS = emittedOnly(['update_completed'] as const);
+const FEATURE_INTERACTION_CANDIDATES = [
+  'feature_enabled',
+  'feature_help_opened',
+  'feature_disabled',
+  'setting_changed'
+] as const;
+const FEATURE_INTERACTION_EVENTS = emittedOnly(FEATURE_INTERACTION_CANDIDATES);
+
+function stageEventsOf(capabilityIds: string[]): string[] {
+  const names = new Set<string>();
+  for (const capability of COVERAGE_REGISTRY) {
+    if (!capabilityIds.includes(capability.id)) continue;
+    for (const events of Object.values(capability.stageEvents)) {
+      for (const event of events ?? []) names.add(event);
+    }
+  }
+  return [...names];
+}
+
+const ONBOARDING_STAGE_EVENTS = stageEventsOf(['onboarding.local_app', 'onboarding.legacy']);
+const UPDATE_STAGE_EVENTS = stageEventsOf(['update.run']);
+const LINK_EVENT_NAMES = [
+  'link_check_started',
+  'link_check_completed',
+  'link_lost',
+  'link_recovered',
+  'reconnect_clicked',
+  'blocked_by_browser_detected',
+  'link_inconsistency'
+] as const;
+
+const LINK_EVENT_LIST = LINK_EVENT_NAMES.map(name => `'${name}'`).join(',');
+
+const TEAM_WORKSPACE_EVENTS = [
+  'team_onboarding_started',
+  'team_onboarding_completed',
+  'team_find_started',
+  'team_find_completed',
+  'team_workspace_session',
+  'team_preview_completed',
+  'team_file_attempt_completed',
+  'team_workflow_completed',
+  'team_storage_connected',
+  'team_index_completed',
+  'team_previews_ready',
+  'team_storage_attention'
+] as const;
+
+/**
+ * Every event name an aggregate command computes a number from. `audit` marks
+ * a registry signal `declared_but_never_emitted` when it is here without a
+ * producer (SC-014). Probes the audit itself runs are listed separately.
+ */
+export const QUERY_EVENT_NAMES: readonly string[] = Object.freeze(
+  [
+    ...new Set<string>([
+      ...COMPRESSOR_EVENTS,
+      ...GENERIC_LIFECYCLE_EVENTS,
+      ...SUCCESS_EVENTS,
+      ...FAILURE_EVENTS,
+      ...START_EVENTS,
+      ...INPUT_EVENTS,
+      ...BLOCKED_EVENTS,
+      ...UPDATE_PROMPT_EVENTS,
+      ...UPDATE_DONE_EVENTS,
+      ...FEATURE_INTERACTION_EVENTS,
+      'feature_impression',
+      'error_occurred',
+      ...emittedOnly(ONBOARDING_STAGE_EVENTS),
+      ...emittedOnly(UPDATE_STAGE_EVENTS),
+      ...TEAM_WORKSPACE_EVENTS,
+      ...LINK_EVENT_NAMES
+    ])
+  ].sort()
+);
+
+/** Events `audit` reads to detect emission; they are probes, never metrics. */
+export const AUDIT_PROBE_EVENT_NAMES: readonly string[] = Object.freeze([
+  'analytics_delivery_report',
+  'error_occurred'
+]);
+
+/**
+ * Emitted starts the CLI deliberately leaves out of its metrics because their
+ * terminal has no producer yet (FR-050): counting them would report every run
+ * as "started without outcome". They return to `QUERY_EVENT_NAMES` by
+ * themselves once the registry marks the terminal emitted.
+ */
+export const DEFERRED_EVENT_NAMES: readonly string[] = Object.freeze(
+  emittedOnly([
+    'landing_optimization_started',
+    'stitch_started',
+    'estimate_started'
+  ] as const).filter(event => !QUERY_EVENT_NAMES.includes(event))
+);
+
+/** Signals the registry declares for a command but no producer emits, as rows. */
+function unsupportedRows<K extends string>(
+  key: K,
+  events: readonly string[],
+  note?: string
+): Array<UnsupportedSignal & Record<K, string>> {
+  return notEmitted(events)
+    .sort()
+    .map(event => ({
+      ...({ [key]: event } as Record<K, string>),
+      status: UNSUPPORTED_BY_PRODUCER,
+      events: [event],
+      ...(note ? { note } : {})
+    }));
+}
+
+/* ---------------------------------------------------------------------------
+ * 031 FR-055 — delivery lag: how long an event waited between happening in the
+ * browser (`occurred_at`) and landing in the table (`created_at`).
+ * ------------------------------------------------------------------------- */
+
+const LAG_MS = `extract(epoch from (e.created_at - e.occurred_at)) * 1000`;
+
+export async function getDeliveryLag(period: ResolvedPeriod): Promise<DeliveryLag> {
+  const row = await queryOne<{ samples: number; p50: number | null; p95: number | null }>(
+    `select
+       count(*) filter (where e.occurred_at is not null)::int as samples,
+       percentile_cont(0.5) within group (order by ${LAG_MS})
+         filter (where e.occurred_at is not null) as p50,
+       percentile_cont(0.95) within group (order by ${LAG_MS})
+         filter (where e.occurred_at is not null) as p95
+     from public.analytics_events e
+     where ${EVENTS_RANGE}`,
+    rangeParams(period)
+  );
+  return {
+    p50: toMs(row?.p50),
+    p95: toMs(row?.p95),
+    samples: row?.samples ?? 0
+  };
+}
+
+function toMs(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
+}
+
+/** The same statistic over rows already in memory (one attempt in `inspect`). */
+export function deliveryLagOf(
+  rows: Array<{ occurred_at: string; created_at: string }>
+): DeliveryLag {
+  const lags = rows
+    .map(row => Date.parse(row.created_at) - Date.parse(row.occurred_at))
+    .filter(value => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  return {
+    p50: percentile(lags, 0.5),
+    p95: percentile(lags, 0.95),
+    samples: lags.length
+  };
+}
+
+/** `percentile_cont` semantics: linear interpolation between the two nearest ranks. */
+function percentile(sorted: number[], fraction: number): number | null {
+  if (sorted.length === 0) return null;
+  const position = (sorted.length - 1) * fraction;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  const value = sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+  return Math.round(value);
+}
 
 async function topList(
   period: ResolvedPeriod,
@@ -69,12 +326,12 @@ export async function getOverview(period: ResolvedPeriod): Promise<OverviewData>
        count(*) filter (
          where account_status <> 'deleted'
            and ($1::timestamptz is null or registered_at >= $1::timestamptz)
-           and registered_at < $2::timestamptz
+           and registered_at <= $2::timestamptz
        )::int as new_users,
        count(*) filter (
          where account_status <> 'deleted'
            and ($1::timestamptz is null or last_seen_at >= $1::timestamptz)
-           and last_seen_at < $2::timestamptz
+           and last_seen_at <= $2::timestamptz
        )::int as active_users
      from public.analytics_users`,
     params
@@ -225,12 +482,12 @@ export async function getUsers(period: ResolvedPeriod, limit = 10): Promise<User
        count(*) filter (
          where account_status <> 'deleted'
            and ($1::timestamptz is null or registered_at >= $1::timestamptz)
-           and registered_at < $2::timestamptz
+           and registered_at <= $2::timestamptz
        )::int as new_users,
        count(*) filter (
          where account_status <> 'deleted'
            and ($1::timestamptz is null or last_seen_at >= $1::timestamptz)
-           and last_seen_at < $2::timestamptz
+           and last_seen_at <= $2::timestamptz
        )::int as active_users
      from public.analytics_users`,
     params
@@ -465,30 +722,39 @@ function round(value: number, digits: number): number {
   return Math.round(value * factor) / factor;
 }
 
-export async function getOnboarding(period: ResolvedPeriod): Promise<StageMetric[]> {
-  return query<StageMetric>(
-    `select event_name as stage, count(*)::int as events, count(distinct user_id)::int as users
+/**
+ * Stage counts for the events a producer emits, followed by one
+ * `unsupported_by_producer` row per declared stage nobody emits (031 T007).
+ * The stage list comes from the coverage registry, never from this file.
+ */
+async function stageRows(
+  period: ResolvedPeriod,
+  stageEvents: readonly string[],
+  note: string
+): Promise<StageRow[]> {
+  const observed = await query<StageMetric>(
+    `select e.event_name as stage, count(*)::int as events, count(distinct e.user_id)::int as users
      from public.analytics_events e
-     where ${EVENTS_RANGE} and event_name in (
-       'setup_prompt_shown','install_download_clicked','install_detected','pairing_started',
-       'pairing_completed','tool_opened','onboarding_started','onboarding_completed','onboarding_skipped'
-     )
-     group by event_name order by min(occurred_at)`,
-    rangeParams(period)
+     where ${EVENTS_RANGE} and e.event_name = any($3::text[])
+     group by e.event_name order by min(e.occurred_at), e.event_name`,
+    [...rangeParams(period), emittedOnly(stageEvents)]
+  );
+  return [...observed, ...unsupportedRows('stage', stageEvents, note)];
+}
+
+export async function getOnboarding(period: ResolvedPeriod): Promise<StageRow[]> {
+  return stageRows(
+    period,
+    ONBOARDING_STAGE_EVENTS,
+    'legacy onboarding name without a producer; installation is proven by a later agent_connected'
   );
 }
 
-export async function getUpdates(period: ResolvedPeriod): Promise<StageMetric[]> {
-  return query<StageMetric>(
-    `select event_name as stage, count(*)::int as events, count(distinct user_id)::int as users
-     from public.analytics_events e
-     where ${EVENTS_RANGE} and event_name in (
-       'update_available','update_prompt_shown','agent_update_required','update_started',
-       'update_download_completed','update_verification_failed','update_deferred_busy',
-       'update_draining_started','update_restart_started','update_completed','update_failed','update_dismissed'
-     )
-     group by event_name order by min(occurred_at)`,
-    rangeParams(period)
+export async function getUpdates(period: ResolvedPeriod): Promise<StageRow[]> {
+  return stageRows(
+    period,
+    UPDATE_STAGE_EVENTS,
+    'the Agent performs this stage and has no analytics client; completion is proven by agent_connected with a newer local_app_version'
   );
 }
 
@@ -511,20 +777,26 @@ export async function getErrors(period: ResolvedPeriod, limit = 50): Promise<Err
   );
 }
 
-export async function getFriction(period: ResolvedPeriod): Promise<FrictionSignal[]> {
-  return query<FrictionSignal>(
+/**
+ * Friction signals computed only from events with a producer. A signal whose
+ * evidence nobody emits (`update_not_completed` needs `update_completed`) is
+ * returned as `unsupported_by_producer` instead of a misleading count.
+ */
+export async function getFriction(period: ResolvedPeriod): Promise<FrictionRow[]> {
+  const updateObservable = UPDATE_PROMPT_EVENTS.length > 0 && UPDATE_DONE_EVENTS.length > 0;
+  const rows = await query<FrictionSignal>(
     `with sessions as (
-       select user_id, session_id,
-         bool_or(event_name = 'tool_opened') as opened,
-         bool_or(event_name in ('input_add_completed','videos_added')) as added,
-         bool_or(event_name in ('operation_started','compression_started','landing_optimization_started')) as started,
-         bool_or(event_name in ('operation_completed','compression_completed','landing_optimization_completed')) as completed,
-         bool_or(event_name in ('operation_failed','compression_failed','landing_optimization_failed')) as failed,
-         count(*) filter (where event_name in ('validation_message_shown','blocked_action_attempted')) as blocked,
-         bool_or(event_name in ('update_prompt_shown','agent_update_required')) as update_prompt,
-         bool_or(event_name = 'update_completed') as updated
+       select e.user_id, e.session_id,
+         bool_or(e.event_name = 'tool_opened') as opened,
+         bool_or(e.event_name = any($3::text[])) as added,
+         bool_or(e.event_name = any($4::text[])) as started,
+         bool_or(e.event_name = any($5::text[])) as completed,
+         bool_or(e.event_name = any($6::text[])) as failed,
+         count(*) filter (where e.event_name = any($7::text[])) as blocked,
+         bool_or(e.event_name = any($8::text[])) as update_prompt,
+         bool_or(e.event_name = any($9::text[])) as updated
        from public.analytics_events e where ${EVENTS_RANGE}
-       group by user_id, session_id
+       group by e.user_id, e.session_id
      ), signals as (
        select user_id, session_id, unnest(array[
          case when opened and not added then 'opened_without_input' end,
@@ -532,87 +804,156 @@ export async function getFriction(period: ResolvedPeriod): Promise<FrictionSigna
          case when started and not completed and not failed then 'started_without_outcome' end,
          case when failed and not completed then 'failure_without_recovery' end,
          case when blocked >= 2 then 'repeated_blocked_action' end,
-         case when update_prompt and not updated then 'update_not_completed' end
+         case when $10::boolean and update_prompt and not updated then 'update_not_completed' end
        ]) as signal from sessions
      )
      select signal, count(distinct user_id)::int as users, count(distinct session_id)::int as sessions
-     from signals where signal is not null group by signal order by users desc, sessions desc`,
-    rangeParams(period)
+     from signals where signal is not null group by signal order by users desc, sessions desc, signal`,
+    [
+      ...rangeParams(period),
+      [...INPUT_EVENTS],
+      START_EVENTS,
+      SUCCESS_EVENTS,
+      FAILURE_EVENTS,
+      BLOCKED_EVENTS,
+      UPDATE_PROMPT_EVENTS,
+      UPDATE_DONE_EVENTS,
+      updateObservable
+    ]
   );
+  const unsupported: FrictionRow[] = updateObservable
+    ? []
+    : [
+        {
+          signal: 'update_not_completed',
+          status: UNSUPPORTED_BY_PRODUCER,
+          events: notEmitted(['update_prompt_shown', 'agent_update_required', 'update_completed']),
+          note: 'update_completed has no producer (the Agent restarts without the browser); use agent_connected with a newer local_app_version'
+        }
+      ];
+  return [...rows, ...unsupported];
 }
 
 export async function getFeatures(period: ResolvedPeriod): Promise<FeatureMetric[]> {
   return query<FeatureMetric>(
     `select
-       coalesce(feature, properties ->> 'feature_identifier', 'unknown') as feature,
-       count(*) filter (where event_name = 'feature_impression')::int as impressions,
-       count(*) filter (where event_name in ('feature_enabled','feature_help_opened','setting_changed'))::int as interactions,
-       count(*) filter (where event_name in ('operation_completed','compression_completed','landing_optimization_completed'))::int as successful_operations,
-       count(distinct user_id)::int as unique_users
+       coalesce(e.feature, e.properties ->> 'feature_identifier', 'unknown') as feature,
+       count(*) filter (where e.event_name = 'feature_impression')::int as impressions,
+       count(*) filter (where e.event_name = any($3::text[]))::int as interactions,
+       count(*) filter (where e.event_name = any($4::text[]))::int as successful_operations,
+       count(distinct e.user_id)::int as unique_users
      from public.analytics_events e
-     where ${EVENTS_RANGE} and (feature is not null or properties ? 'feature_identifier')
+     where ${EVENTS_RANGE} and (e.feature is not null or e.properties ? 'feature_identifier')
      group by 1 order by unique_users desc, feature`,
-    rangeParams(period)
+    [...rangeParams(period), FEATURE_INTERACTION_EVENTS, SUCCESS_EVENTS]
   );
 }
 
-export async function getJourney(email: string, limit = 200): Promise<JourneyEvent[]> {
-  return query<JourneyEvent>(
-    `select e.event_id::text, e.occurred_at::text, e.session_sequence, e.session_id::text,
+/** Interaction signals `features` declares but cannot count — nothing emits them. */
+export function featureUnsupportedSignals(): Array<UnsupportedSignal & { signal: string }> {
+  return unsupportedRows(
+    'signal',
+    FEATURE_INTERACTION_CANDIDATES,
+    'declared in the event contract; no call site emits it'
+  );
+}
+
+const JOURNEY_COLUMNS = `e.event_id::text, e.occurred_at::text, e.created_at::text, e.session_sequence, e.session_id::text,
        e.installation_id::text, e.flow_id::text, e.run_id::text, e.event_name, e.tool,
-       e.local_app_version, e.local_app_build, e.web_build_id, e.platform, e.architecture, e.properties
+       e.local_app_version, e.local_app_build, e.web_build_id, e.platform, e.architecture, e.properties`;
+
+type JourneyRow = JourneyEvent & { created_at: string };
+/** `inspect` reads the envelope v3 columns beside the journey's; they never reach `events`. */
+type InspectRow = JourneyRow & {
+  attempt_id: string | null;
+  agent_instance_id: string | null;
+  agent_platform: string | null;
+};
+
+/** FR-055: properties leave the CLI only through the client's own allowlist. */
+function sanitizeJourney(rows: JourneyRow[]): JourneyEvent[] {
+  return rows.map(({ created_at: _created, ...row }) => ({
+    ...row,
+    properties: sanitizeEventProperties(row.properties)
+  }));
+}
+
+/**
+ * One person's events, newest first. `period` bounds the read (the CLI passes
+ * 30 days by default and `all` for the previous unbounded behaviour); omitted,
+ * the read is unbounded.
+ */
+export async function getJourney(
+  email: string,
+  limit = 200,
+  period?: ResolvedPeriod
+): Promise<JourneyEvent[]> {
+  const rows = await query<JourneyRow>(
+    `select ${JOURNEY_COLUMNS}
      from public.analytics_events e
      join public.analytics_users u on u.id = e.user_id
-     where u.email_normalized = lower($1)
-     order by e.occurred_at desc, e.session_sequence desc nulls last limit $2`,
-    [email, limit]
+     where u.email_normalized = lower($3) and ${EVENTS_RANGE}
+     order by e.occurred_at desc, e.session_sequence desc nulls last limit $4`,
+    [...(period ? rangeParams(period) : [null, FAR_FUTURE]), email, limit]
   );
+  return sanitizeJourney(rows);
 }
 
-export async function getRun(runId: string, limit = 500): Promise<JourneyEvent[]> {
-  return query<JourneyEvent>(
-    `select event_id::text, occurred_at::text, session_sequence, session_id::text,
-       installation_id::text, flow_id::text, run_id::text, event_name, tool,
-       local_app_version, local_app_build, web_build_id, platform, architecture, properties
-     from public.analytics_events where run_id = $1::uuid
-     order by occurred_at, session_sequence nulls last limit $2`,
-    [runId, limit]
+/** Upper bound used when a read is not pinned with `--as-of`. */
+const FAR_FUTURE = '9999-12-31T00:00:00.000Z';
+
+export async function getRun(runId: string, limit = 500, asOf?: string): Promise<JourneyEvent[]> {
+  const rows = await query<JourneyRow>(
+    `select ${JOURNEY_COLUMNS}
+     from public.analytics_events e
+     where e.run_id = $1::uuid and e.created_at <= $3::timestamptz
+     order by e.occurred_at, e.session_sequence nulls last limit $2`,
+    [runId, limit, asOf ?? FAR_FUTURE]
   );
+  return sanitizeJourney(rows);
 }
 
 export async function diagnoseFingerprint(
   fingerprint: string,
-  limit = 200
+  limit = 200,
+  asOf?: string
 ): Promise<JourneyEvent[]> {
-  return query<JourneyEvent>(
-    `select event_id::text, occurred_at::text, session_sequence, session_id::text,
-       installation_id::text, flow_id::text, run_id::text, event_name, tool,
-       local_app_version, local_app_build, web_build_id, platform, architecture, properties
-     from public.analytics_events
-     where error_fingerprint = $1 or properties ->> 'error_fingerprint' = $1
-     order by occurred_at desc limit $2`,
-    [fingerprint, limit]
+  const rows = await query<JourneyRow>(
+    `select ${JOURNEY_COLUMNS}
+     from public.analytics_events e
+     where (e.error_fingerprint = $1 or e.properties ->> 'error_fingerprint' = $1)
+       and e.created_at <= $3::timestamptz
+     order by e.occurred_at desc limit $2`,
+    [fingerprint, limit, asOf ?? FAR_FUTURE]
   );
+  return sanitizeJourney(rows);
 }
 
+/**
+ * Cohorts by build or platform. For `local-app-version` the rows with no local
+ * app version are the browser-only context (no Agent connected), so that cohort
+ * is named `no_agent_context`, never `unknown` (031 T007). Success and failure
+ * count only terminal events a producer emits today.
+ */
 export async function getCohorts(
   period: ResolvedPeriod,
   by: 'local-app-version' | 'platform' | 'web-build'
 ): Promise<CohortMetric[]> {
   const dimension =
     by === 'platform'
-      ? 'platform'
+      ? 'e.platform'
       : by === 'web-build'
-        ? 'web_build_id'
-        : 'coalesce(local_app_version, agent_version)';
+        ? 'e.web_build_id'
+        : 'coalesce(e.local_app_version, e.agent_version)';
+  const fallback = by === 'local-app-version' ? NO_AGENT_CONTEXT_COHORT : 'unknown';
   return query<CohortMetric>(
-    `select coalesce(${dimension}, 'unknown') as cohort,
-       count(distinct user_id)::int as users, count(*)::int as events,
-       count(*) filter (where event_name in ('operation_completed','compression_completed','landing_optimization_completed'))::int as successes,
-       count(*) filter (where event_name in ('operation_failed','compression_failed','landing_optimization_failed'))::int as failures
+    `select coalesce(${dimension}, $5::text) as cohort,
+       count(distinct e.user_id)::int as users, count(*)::int as events,
+       count(*) filter (where e.event_name = any($3::text[]))::int as successes,
+       count(*) filter (where e.event_name = any($4::text[]))::int as failures
      from public.analytics_events e where ${EVENTS_RANGE}
-     group by 1 order by users desc, events desc`,
-    rangeParams(period)
+     group by 1 order by users desc, events desc, cohort`,
+    [...rangeParams(period), SUCCESS_EVENTS, FAILURE_EVENTS, fallback]
   );
 }
 
@@ -623,7 +964,7 @@ export async function getRetention(period: ResolvedPeriod): Promise<RetentionMet
        count(*) filter (where exists (select 1 from public.analytics_events e where e.user_id = u.id and e.occurred_at >= u.registered_at + interval '7 days'))::int as active_after_7d,
        count(*) filter (where exists (select 1 from public.analytics_events e where e.user_id = u.id and e.occurred_at >= u.registered_at + interval '30 days'))::int as active_after_30d
      from public.analytics_users u
-     where ($1::timestamptz is null or u.registered_at >= $1::timestamptz) and u.registered_at < $2::timestamptz`,
+     where ($1::timestamptz is null or u.registered_at >= $1::timestamptz) and u.registered_at <= $2::timestamptz`,
     rangeParams(period)
   );
   return (
@@ -670,17 +1011,17 @@ export async function getTeamWorkspace(period: ResolvedPeriod): Promise<TeamWork
     `with started as (
        select distinct
          e.properties ->> 'study_run_id' as study_run_id,
-         e.properties ->> 'attempt_id' as attempt_id,
+         coalesce(e.attempt_id, e.properties ->> 'attempt_id') as attempt_id,
          e.properties ->> 'cue_category' as cue
        from public.analytics_events e
        where ${EVENTS_RANGE}
          and e.event_name = 'team_find_started'
          and e.properties ->> 'study_run_id' is not null
-         and e.properties ->> 'attempt_id' is not null
+         and coalesce(e.attempt_id, e.properties ->> 'attempt_id') is not null
          and e.properties ->> 'cue_category' in ('geo','offer','language','category')
      ), completed as (
        select e.properties ->> 'study_run_id' as study_run_id,
-         e.properties ->> 'attempt_id' as attempt_id,
+         coalesce(e.attempt_id, e.properties ->> 'attempt_id') as attempt_id,
          bool_or(
            coalesce(e.outcome, e.properties ->> 'outcome') = 'success'
            and e.properties ->> 'assisted' = 'false'
@@ -691,7 +1032,7 @@ export async function getTeamWorkspace(period: ResolvedPeriod): Promise<TeamWork
        where ${EVENTS_RANGE}
          and e.event_name = 'team_find_completed'
          and e.properties ->> 'study_run_id' is not null
-         and e.properties ->> 'attempt_id' is not null
+         and coalesce(e.attempt_id, e.properties ->> 'attempt_id') is not null
        group by 1, 2
      )
      select started.cue,
@@ -714,7 +1055,7 @@ export async function getTeamWorkspace(period: ResolvedPeriod): Promise<TeamWork
          pilot_enrolled_at, pilot_exited_at
        from public.analytics_team_workspace
        where root_state <> 'detached'
-         and root_connected_at < $2::timestamptz
+         and root_connected_at <= $2::timestamptz
          and ($1::timestamptz is null or root_connected_at >= $1::timestamptz)
      ), windows as (
        select roots.workspace_key, series.window_index,
@@ -929,18 +1270,6 @@ export async function getSyncJobs(teamOrEmail: string, limit = 50): Promise<Sync
  * uncovered rather than silently counted as healthy.
  * ------------------------------------------------------------------------- */
 
-const LINK_EVENT_NAMES = [
-  'link_check_started',
-  'link_check_completed',
-  'link_lost',
-  'link_recovered',
-  'reconnect_clicked',
-  'blocked_by_browser_detected',
-  'link_inconsistency'
-] as const;
-
-const LINK_EVENT_LIST = LINK_EVENT_NAMES.map(name => `'${name}'`).join(',');
-
 export async function getConnection(period: ResolvedPeriod): Promise<ConnectionData> {
   const params = rangeParams(period);
   const totals = await queryOne<{
@@ -1066,4 +1395,612 @@ export async function getConnection(period: ResolvedPeriod): Promise<ConnectionD
       note: CONNECTION_COVERAGE_NOTE
     }
   };
+}
+
+/* ---------------------------------------------------------------------------
+ * 031 FR-056 — `audit`: the coverage registry against what the period holds.
+ * Every number is an aggregate; the only lists returned are event names,
+ * capability ids and web build ids.
+ * ------------------------------------------------------------------------- */
+
+type SignalRole = 'start' | 'terminal' | 'readiness' | 'error';
+
+interface RegistryTuple {
+  capability: string;
+  event: string;
+  role: SignalRole;
+  correlate: string;
+  tool: string | null;
+}
+
+function registryTuples(): RegistryTuple[] {
+  const tuples: RegistryTuple[] = [];
+  for (const capability of COVERAGE_REGISTRY) {
+    const push = (signal: CapabilitySignal, role: SignalRole) =>
+      tuples.push({
+        capability: capability.id,
+        event: signal.event,
+        role,
+        correlate: signal.correlate,
+        tool: capability.toolColumn ?? null
+      });
+    capability.start.forEach(signal => push(signal, 'start'));
+    capability.terminal.forEach(signal => push(signal, 'terminal'));
+    if (capability.readiness) push(capability.readiness, 'readiness');
+    if (capability.error) push(capability.error, 'error');
+  }
+  return tuples;
+}
+
+/** `$1/$2` range, `$3..$7` the registry as parallel arrays. */
+const AUDIT_EVENTS_CTE = `with reg as (
+       select * from unnest($3::text[], $4::text[], $5::text[], $6::text[], $7::text[])
+         as r(capability, event_name, role, correlate, tool)
+     ), ev as (
+       select r.capability, r.role, r.event_name, e.user_id,
+         case r.correlate
+           when 'run_id' then coalesce(e.run_id::text, e.properties ->> 'run_id')
+           when 'flow_id' then coalesce(e.flow_id::text, e.properties ->> 'flow_id')
+           when 'attempt_id' then coalesce(e.attempt_id, e.properties ->> 'attempt_id')
+           when 'workflow_id' then e.properties ->> 'workflow_id'
+           else null
+         end as cid
+       from public.analytics_events e
+       join reg r on r.event_name = e.event_name and (r.tool is null or e.tool = r.tool)
+       where ${EVENTS_RANGE}
+     )`;
+
+export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
+  const tuples = registryTuples();
+  const params = [
+    ...rangeParams(period),
+    tuples.map(t => t.capability),
+    tuples.map(t => t.event),
+    tuples.map(t => t.role),
+    tuples.map(t => t.correlate),
+    tuples.map(t => t.tool)
+  ];
+
+  const observed = await query<{
+    capability: string;
+    role: SignalRole;
+    event_name: string;
+    events: number;
+    users: number;
+    correlated: number;
+  }>(
+    `${AUDIT_EVENTS_CTE}
+     select capability, role, event_name, count(*)::int as events,
+       count(distinct user_id)::int as users, count(cid)::int as correlated
+     from ev group by 1, 2, 3 order by 1, 2, 3`,
+    params
+  );
+
+  const pairs = await query<{
+    capability: string;
+    orphan_starts: number;
+    correlated_pairs: number;
+  }>(
+    `${AUDIT_EVENTS_CTE}, starts as (
+       select distinct capability, cid from ev where role = 'start' and cid is not null
+     ), terms as (
+       select distinct capability, cid from ev where role = 'terminal' and cid is not null
+     )
+     select s.capability,
+       count(*) filter (where t.cid is null)::int as orphan_starts,
+       count(*) filter (where t.cid is not null)::int as correlated_pairs
+     from starts s left join terms t on t.capability = s.capability and t.cid = s.cid
+     group by 1 order by 1`,
+    params
+  );
+
+  const syncJobs = await queryOne<{ jobs: number }>(
+    `select count(*)::int as jobs
+     from public.analytics_catalog_sync_jobs j
+     where ($1::timestamptz is null or j.created_at >= $1::timestamptz)
+       and j.created_at <= $2::timestamptz`,
+    rangeParams(period)
+  );
+
+  const unknownCodes = await query<AuditUnknownCode>(
+    `select coalesce(e.tool, 'unknown') as tool,
+       count(*) filter (
+         where coalesce(e.error_code, e.properties ->> 'error_code', 'unknown') = 'unknown'
+       )::int as unknown_code,
+       count(*) filter (
+         where coalesce(e.error_stage, e.properties ->> 'error_stage', 'unknown') = 'unknown'
+       )::int as unknown_stage,
+       count(*)::int as errors
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and (e.event_name like '%failed' or e.event_name = 'error_occurred')
+     group by 1 order by 1`,
+    rangeParams(period)
+  );
+
+  const deliveryTotals = await queryOne<{
+    reports: number;
+    rejected: number;
+    evicted: number;
+    expired: number;
+  }>(
+    `select count(*)::int as reports,
+       coalesce(sum(case when jsonb_typeof(e.properties -> 'rejected_count') = 'number'
+         then (e.properties ->> 'rejected_count')::numeric else 0 end), 0)::int as rejected,
+       coalesce(sum(case when jsonb_typeof(e.properties -> 'evicted_count') = 'number'
+         then (e.properties ->> 'evicted_count')::numeric else 0 end), 0)::int as evicted,
+       coalesce(sum(case when jsonb_typeof(e.properties -> 'expired_count') = 'number'
+         then (e.properties ->> 'expired_count')::numeric else 0 end), 0)::int as expired
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.event_name = 'analytics_delivery_report'`,
+    rangeParams(period)
+  );
+
+  const deliveryByEvent = await query<{
+    event_name: string;
+    rejected_reports: number;
+    evicted_reports: number;
+  }>(
+    `with reports as (
+       select e.properties from public.analytics_events e
+       where ${EVENTS_RANGE} and e.event_name = 'analytics_delivery_report'
+     ), names as (
+       select trim(n) as event_name, 'rejected' as kind
+       from reports, unnest(string_to_array(coalesce(properties ->> 'rejected_events', ''), ',')) as n
+       union all
+       select trim(n), 'evicted'
+       from reports, unnest(string_to_array(coalesce(properties ->> 'evicted_events', ''), ',')) as n
+     )
+     select event_name,
+       count(*) filter (where kind = 'rejected')::int as rejected_reports,
+       count(*) filter (where kind = 'evicted')::int as evicted_reports
+     from names where event_name <> '' group by 1 order by 1`,
+    rangeParams(period)
+  );
+
+  const builds = await query<{ web_build_id: string; covered: boolean }>(
+    `select e.web_build_id,
+       bool_or(e.event_name in (${LINK_EVENT_LIST})) as covered
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.web_build_id is not null
+     group by e.web_build_id
+     order by e.web_build_id asc`,
+    rangeParams(period)
+  );
+
+  const deliveryLag = await getDeliveryLag(period);
+
+  const observedBy = new Map<string, typeof observed>();
+  for (const row of observed) {
+    const list = observedBy.get(row.capability) ?? [];
+    list.push(row);
+    observedBy.set(row.capability, list);
+  }
+  const pairsBy = new Map(pairs.map(row => [row.capability, row]));
+
+  const eventStatuses = registryEventStatuses();
+  const capabilities = COVERAGE_REGISTRY.map(capability =>
+    auditCapability(
+      capability,
+      eventStatuses,
+      observedBy.get(capability.id) ?? [],
+      pairsBy.get(capability.id),
+      syncJobs?.jobs ?? 0
+    )
+  );
+
+  const delivery: AuditDelivery = {
+    reports: deliveryTotals?.reports ?? 0,
+    rejected: deliveryTotals?.rejected ?? 0,
+    evicted: deliveryTotals?.evicted ?? 0,
+    expired: deliveryTotals?.expired ?? 0,
+    by_event: deliveryByEvent,
+    note:
+      (deliveryTotals?.reports ?? 0) === 0
+        ? 'no analytics_delivery_report in the period: losses are unknown, not zero'
+        : 'sums of the client-side counters carried by analytics_delivery_report'
+  };
+  const uncoveredBuilds = builds.filter(build => !build.covered).map(build => build.web_build_id);
+
+  const summary: Record<AuditStatus, number> = {
+    covered: 0,
+    partial: 0,
+    uncovered: 0,
+    declared_but_never_emitted: 0
+  };
+  for (const capability of capabilities) summary[capability.status] += 1;
+
+  return {
+    registry_size: COVERAGE_REGISTRY.length,
+    capabilities,
+    unknown_codes: unknownCodes,
+    delivery,
+    uncovered_builds: uncoveredBuilds,
+    delivery_lag_ms: deliveryLag,
+    findings: auditFindings(capabilities, unknownCodes, delivery, uncoveredBuilds),
+    summary
+  };
+}
+
+function auditCapability(
+  capability: Capability,
+  eventStatuses: Map<string, ProducerStatus>,
+  observed: Array<{
+    role: SignalRole;
+    event_name: string;
+    events: number;
+    users: number;
+    correlated: number;
+  }>,
+  pairs: { orphan_starts: number; correlated_pairs: number } | undefined,
+  syncJobs: number
+): AuditCapability {
+  const base = {
+    id: capability.id,
+    tool: capability.tool,
+    producer_status: capability.producerStatus,
+    source: capability.source,
+    observed: observed.map(row => ({
+      event: row.event_name,
+      role: row.role,
+      events: row.events,
+      users: row.users,
+      correlated: row.correlated
+    })),
+    orphan_starts: pairs?.orphan_starts ?? 0,
+    correlated_pairs: pairs?.correlated_pairs ?? 0,
+    unobservable: capability.unobservable,
+    ...(capability.note ? { note: capability.note } : {})
+  };
+
+  if (capability.source === 'authoritative_table') {
+    return { ...base, status: 'covered', missing: [], samples: syncJobs };
+  }
+
+  const status = (signal: CapabilitySignal): ProducerStatus => signalStatus(capability, signal);
+  // An event is "declared but never emitted" when no capability at all has a
+  // producer for it and a metric still computes from it; `error_occurred`
+  // pending for one tool but emitted by another is not that.
+  const declared = capabilitySignals(capability)
+    .filter(
+      signal =>
+        status(signal) !== 'emitted' &&
+        eventStatuses.get(signal.event) !== 'emitted' &&
+        QUERY_EVENT_NAMES.includes(signal.event)
+    )
+    .map(signal => signal.event);
+  const samples = observed
+    .filter(row => row.role === 'start')
+    .reduce((total, row) => total + row.events, 0);
+
+  if (declared.length > 0) {
+    return {
+      ...base,
+      status: 'declared_but_never_emitted',
+      missing: [...new Set(declared)].sort(),
+      samples
+    };
+  }
+
+  const startExpected = capability.start.some(signal => status(signal) === 'emitted');
+  const terminalExpected = capability.terminal.some(signal => status(signal) === 'emitted');
+  const readinessExpected =
+    capability.readiness !== undefined && status(capability.readiness) === 'emitted';
+
+  const observedRoles = new Set(observed.map(row => row.role));
+  const totalObserved = observed.reduce((total, row) => total + row.events, 0);
+
+  if (totalObserved === 0) {
+    const missing = [
+      ...(startExpected ? ['start'] : []),
+      ...(terminalExpected ? ['terminal'] : []),
+      ...(readinessExpected ? ['readiness'] : [])
+    ];
+    return { ...base, status: 'uncovered', missing, samples: 0 };
+  }
+
+  const missing: string[] = [];
+  if (startExpected && !observedRoles.has('start')) missing.push('start');
+  if (!observedRoles.has('terminal')) missing.push('terminal');
+  if (readinessExpected && !observedRoles.has('readiness')) missing.push('readiness');
+
+  const correlates = capability.start.some(signal => signal.correlate !== 'none');
+  if (correlates) {
+    const startCorrelated = observed.some(row => row.role === 'start' && row.correlated > 0);
+    const terminalCorrelated = observed.some(row => row.role === 'terminal' && row.correlated > 0);
+    if (observedRoles.has('start') && !startCorrelated) missing.push('start_correlation');
+    if (observedRoles.has('terminal') && !terminalCorrelated) missing.push('terminal_correlation');
+    if (
+      startCorrelated &&
+      terminalCorrelated &&
+      (pairs?.correlated_pairs ?? 0) === 0 &&
+      !sameEventStartAndTerminal(capability)
+    ) {
+      missing.push('correlated_pair');
+    }
+  }
+
+  return { ...base, status: missing.length ? 'partial' : 'covered', missing, samples };
+}
+
+function sameEventStartAndTerminal(capability: Capability): boolean {
+  return (
+    capability.start.length > 0 &&
+    capability.start.every(start => capability.terminal.some(t => t.event === start.event))
+  );
+}
+
+/** sha256 of `${capability}|${status}|${missing.sort().join(',')}` — the same finding gets the same id on every run. */
+export function findingId(capability: string, status: string, missing: readonly string[]): string {
+  return createHash('sha256')
+    .update(`${capability}|${status}|${[...missing].sort().join(',')}`)
+    .digest('hex');
+}
+
+const SEVERITY_RANK: Record<FindingSeverity, number> = { high: 0, medium: 1, low: 2, info: 3 };
+
+function auditFindings(
+  capabilities: AuditCapability[],
+  unknownCodes: AuditUnknownCode[],
+  delivery: AuditDelivery,
+  uncoveredBuilds: string[]
+): AuditFinding[] {
+  const findings: AuditFinding[] = [];
+  const add = (
+    capability: string,
+    status: AuditFinding['status'],
+    severity: FindingSeverity,
+    missing: string[],
+    evidence: string[]
+  ) => {
+    findings.push({
+      id: findingId(capability, status, missing),
+      capability,
+      status,
+      severity,
+      missing: [...missing].sort(),
+      evidence
+    });
+  };
+
+  for (const capability of capabilities) {
+    const evidence = capability.observed.map(
+      row =>
+        `${row.role} ${row.event}: ${row.events} events, ${row.users} users, ${row.correlated} with id`
+    );
+    if (capability.status === 'declared_but_never_emitted') {
+      add(capability.id, capability.status, 'high', capability.missing, [
+        ...evidence,
+        'a CLI metric computes from an event with no producer'
+      ]);
+    } else if (capability.status === 'uncovered') {
+      add(
+        capability.id,
+        capability.status,
+        capability.producer_status === 'emitted' ? 'medium' : 'info',
+        capability.missing,
+        [
+          ...evidence,
+          capability.producer_status === 'emitted'
+            ? 'a producer exists but nothing arrived in the period'
+            : `producer status: ${capability.producer_status}`
+        ]
+      );
+    } else if (capability.status === 'partial') {
+      add(
+        capability.id,
+        capability.status,
+        capability.missing.includes('terminal') ? 'medium' : 'low',
+        capability.missing,
+        evidence
+      );
+    }
+    if (capability.orphan_starts > 0) {
+      add(
+        capability.id,
+        'orphan_starts',
+        capability.orphan_starts > capability.correlated_pairs ? 'medium' : 'low',
+        [],
+        [
+          `${capability.orphan_starts} start id(s) without a terminal in the period`,
+          `${capability.correlated_pairs} start id(s) met a terminal`
+        ]
+      );
+    }
+  }
+
+  for (const row of unknownCodes) {
+    const missing = [
+      ...(row.unknown_code > 0 ? ['error_code'] : []),
+      ...(row.unknown_stage > 0 ? ['error_stage'] : [])
+    ];
+    if (missing.length === 0) continue;
+    add(row.tool, 'unknown_codes', 'medium', missing, [
+      `${row.errors} error rows; ${row.unknown_code} without a code, ${row.unknown_stage} without a stage`
+    ]);
+  }
+
+  if (uncoveredBuilds.length > 0) {
+    add('link', 'uncovered_builds', 'low', uncoveredBuilds, [
+      'web builds seen in the period that emitted no link event (predate 032 or lost analytics)'
+    ]);
+  }
+
+  const lost = [
+    ...(delivery.rejected > 0 ? ['rejected'] : []),
+    ...(delivery.evicted > 0 ? ['evicted'] : []),
+    ...(delivery.expired > 0 ? ['expired'] : [])
+  ];
+  if (lost.length > 0) {
+    add('analytics.delivery', 'delivery_losses', delivery.rejected > 0 ? 'high' : 'medium', lost, [
+      `rejected ${delivery.rejected}, evicted ${delivery.evicted}, expired ${delivery.expired} across ${delivery.reports} report(s)`
+    ]);
+  }
+
+  return findings.sort(
+    (a, b) =>
+      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+      a.capability.localeCompare(b.capability) ||
+      a.id.localeCompare(b.id)
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * 031 FR-056 — `inspect <id>`: every event of one attempt, oldest first, with
+ * the stages the registry expected for it.
+ *
+ * `attempt_id` is read as `coalesce(e.attempt_id, e.properties ->> 'attempt_id')`:
+ * envelope v3 (migration 20261117110000) moves it into its own column on ingest,
+ * and rows written before it keep it inside `properties`. The audit CTE and the
+ * SC-005 find study read it the same way. `workflow_id` stays a property.
+ * ------------------------------------------------------------------------- */
+
+const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
+
+export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  if (!OPAQUE_ID.test(id)) return { found: false, id };
+  // The uuid columns need a uuid-typed parameter; a non-uuid id binds null there
+  // and can only match the opaque ids kept in `properties`.
+  const asUuid = UUID.test(id) ? id : null;
+  const rows = await query<InspectRow>(
+    `select ${JOURNEY_COLUMNS},
+       coalesce(e.attempt_id, e.properties ->> 'attempt_id') as attempt_id,
+       e.agent_instance_id::text as agent_instance_id, e.agent_platform
+     from public.analytics_events e
+     where (
+         e.run_id = $3::uuid
+         or e.flow_id = $3::uuid
+         or e.properties ->> 'run_id' = $1::text
+         or e.properties ->> 'flow_id' = $1::text
+         or coalesce(e.attempt_id, e.properties ->> 'attempt_id') = $1::text
+         or e.properties ->> 'workflow_id' = $1::text
+       )
+       and e.created_at <= $4::timestamptz
+     order by e.occurred_at asc, e.session_sequence asc nulls last, e.created_at asc
+     limit $2`,
+    [id, limit, asUuid, asOf ?? FAR_FUTURE]
+  );
+  if (rows.length === 0) return { found: false, id };
+
+  const matchedBy = new Set<InspectFound['matched_by'][number]>();
+  for (const row of rows) {
+    if (row.run_id === id) matchedBy.add('run_id');
+    if (row.flow_id === id) matchedBy.add('flow_id');
+    const props = row.properties ?? {};
+    if (row.attempt_id === id) matchedBy.add('attempt_id');
+    if (props.workflow_id === id) matchedBy.add('workflow_id');
+    if (props.run_id === id || props.flow_id === id) matchedBy.add('properties');
+  }
+
+  const capability = inferCapability(rows);
+  const events = sanitizeJourney(
+    rows.map(
+      ({ attempt_id: _attempt, agent_instance_id: _instance, agent_platform: _platform, ...row }) =>
+        row
+    )
+  );
+  const stageOf = new Map<string, string>();
+  if (capability) {
+    for (const stage of capability.stages) {
+      for (const event of capability.stageEvents[stage] ?? []) {
+        if (!stageOf.has(event)) stageOf.set(event, stage as string);
+      }
+    }
+  }
+  const observedStages = capability
+    ? capability.stages.filter(stage => rows.some(row => stageOf.get(row.event_name) === stage))
+    : [];
+  const expected = capability
+    ? capability.stages.filter(stage => (capability.stageEvents[stage] ?? []).length > 0)
+    : [];
+  const terminalEvents = new Set<string>(capability?.terminal.map(signal => signal.event) ?? []);
+  const terminalRow = [...rows].reverse().find(row => terminalEvents.has(row.event_name)) ?? null;
+
+  // Build numbers arrive as text from Postgres; `String()` keeps them text if a
+  // driver ever coerces them, so the JSON shape never flips type.
+  const distinct = (pick: (row: InspectRow) => string | null) =>
+    [
+      ...new Set(
+        rows
+          .map(pick)
+          .filter((value): value is string => value !== null && value !== undefined)
+          .map(value => String(value))
+      )
+    ].sort();
+
+  return {
+    found: true,
+    id,
+    matched_by: [...matchedBy].sort(),
+    capability: capability?.id ?? null,
+    tool: capability?.toolColumn ?? rows.find(row => row.tool)?.tool ?? null,
+    stages: {
+      expected,
+      observed: observedStages,
+      missing: expected.filter(stage => !observedStages.includes(stage))
+    },
+    terminal: terminalRow
+      ? {
+          event: terminalRow.event_name,
+          outcome: outcomeOf(terminalRow),
+          occurred_at: isoUtc(terminalRow.occurred_at) ?? terminalRow.occurred_at
+        }
+      : null,
+    last_proven_stage: observedStages.length ? observedStages[observedStages.length - 1] : null,
+    first_seen_at: isoUtc(rows[0]?.occurred_at),
+    last_seen_at: isoUtc(rows[rows.length - 1]?.occurred_at),
+    delivery_lag_ms: deliveryLagOf(rows),
+    agent: {
+      local_app_versions: distinct(row => row.local_app_version),
+      local_app_builds: distinct(row => row.local_app_build),
+      web_build_ids: distinct(row => row.web_build_id),
+      platforms: distinct(row => row.platform),
+      architectures: distinct(row => row.architecture),
+      // The Agent run that saw the attempt last: a restart mid-attempt shows as a change here.
+      agent_instance_id:
+        [...rows].reverse().find(row => row.agent_instance_id)?.agent_instance_id ?? null,
+      agent_instance_ids: distinct(row => row.agent_instance_id),
+      agent_platforms: distinct(row => row.agent_platform),
+      note: INSPECT_AGENT_NOTE
+    },
+    events
+  };
+}
+
+/** The registry capability whose start/terminal events (and tool) the rows match best. */
+function inferCapability(rows: JourneyRow[]): Capability | null {
+  let best: { capability: Capability; score: number } | null = null;
+  for (const capability of COVERAGE_REGISTRY) {
+    if (capability.source !== 'events') continue;
+    const signals = new Set<string>(
+      [...capability.start, ...capability.terminal].map(signal => signal.event)
+    );
+    const matching = rows.filter(
+      row =>
+        signals.has(row.event_name) &&
+        (!capability.toolColumn || row.tool === null || row.tool === capability.toolColumn)
+    );
+    if (matching.length === 0) continue;
+    // Prefer a tool-specific capability when the rows carry that tool.
+    const toolBonus =
+      capability.toolColumn && matching.some(row => row.tool === capability.toolColumn) ? 1 : 0;
+    const score = matching.length * 2 + toolBonus;
+    if (!best || score > best.score) best = { capability, score };
+  }
+  return best?.capability ?? null;
+}
+
+/** Postgres renders `timestamptz::text` in the session zone; the envelope speaks UTC ISO-8601. */
+function isoUtc(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? value : new Date(parsed).toISOString();
+}
+
+function outcomeOf(row: JourneyRow): string {
+  const props = row.properties ?? {};
+  if (typeof props.outcome === 'string') return props.outcome;
+  if (row.event_name.endsWith('_completed')) return 'success';
+  if (row.event_name.endsWith('_failed')) return 'failure';
+  if (row.event_name.endsWith('_cancelled')) return 'cancelled';
+  return 'unknown';
 }

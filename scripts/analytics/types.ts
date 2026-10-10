@@ -8,11 +8,229 @@ export interface ResolvedPeriod {
   token: string;
   /** ISO start of the window, or null for "all time" (no lower bound). */
   start: string | null;
-  /** ISO end of the window (exclusive upper bound). */
+  /** ISO end of the window (inclusive upper bound; equals `as_of` when fixed). */
   end: string;
   /** Short human description, e.g. "last 7 days". */
   label: string;
+  /** 031 — present when the caller fixed the window's end with `--as-of`. */
+  as_of?: string;
 }
+
+/* ---------------------------------------------------------------------------
+ * 031 — shapes shared by every aggregating command.
+ * ------------------------------------------------------------------------- */
+
+/** `created_at − occurred_at` over the period, in milliseconds (FR-055). */
+export interface DeliveryLag {
+  p50: number | null;
+  p95: number | null;
+  samples: number;
+}
+
+/**
+ * A signal the CLI knows about but no client emits today. It replaces a number
+ * so a zero is never read as "it never happened" (FR-056, SC-014). `events`
+ * names the event(s) that would prove the signal.
+ */
+export interface UnsupportedSignal {
+  status: 'unsupported_by_producer';
+  events: string[];
+  note?: string;
+}
+
+export const UNSUPPORTED_BY_PRODUCER = 'unsupported_by_producer' as const;
+
+export type StageRow = StageMetric | (UnsupportedSignal & { stage: string });
+export type FrictionRow = FrictionSignal | (UnsupportedSignal & { signal: string });
+
+export function isUnsupported(value: unknown): value is UnsupportedSignal {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { status?: unknown }).status === UNSUPPORTED_BY_PRODUCER
+  );
+}
+
+/** Aggregating list commands wrap their rows so `delivery_lag_ms` has a home. */
+export interface ToolsData {
+  tools: ToolRow[];
+  delivery_lag_ms: DeliveryLag;
+}
+export interface EventsData {
+  events: EventRow[];
+  delivery_lag_ms: DeliveryLag;
+}
+export interface FunnelData {
+  stages: FunnelStage[];
+  delivery_lag_ms: DeliveryLag;
+}
+export interface StagesData {
+  stages: StageRow[];
+  delivery_lag_ms: DeliveryLag;
+}
+export interface ErrorsData {
+  clusters: ErrorCluster[];
+  delivery_lag_ms: DeliveryLag;
+}
+export interface FrictionData {
+  signals: FrictionRow[];
+  delivery_lag_ms: DeliveryLag;
+}
+export interface FeaturesData {
+  features: FeatureMetric[];
+  /** Interaction signals the registry declares but nothing emits. */
+  unsupported: Array<UnsupportedSignal & { signal: string }>;
+  delivery_lag_ms: DeliveryLag;
+}
+export interface CohortsData {
+  cohort_by: 'local-app-version' | 'platform' | 'web-build';
+  cohorts: CohortMetric[];
+  /** Explains the `no_agent_context` cohort (events sent while no Agent was connected). */
+  note: string;
+  delivery_lag_ms: DeliveryLag;
+}
+export interface JourneyData {
+  events: JourneyEvent[];
+  delivery_lag_ms: DeliveryLag;
+}
+
+export const NO_AGENT_CONTEXT_COHORT = 'no_agent_context';
+export const NO_AGENT_CONTEXT_NOTE =
+  'no_agent_context: events sent while no Agent was connected (browser-only screens or before pairing); not an unknown build.';
+
+/* ---------------------------------------------------------------------------
+ * 031 — `audit` (FR-056): the coverage registry against the observed period.
+ * ------------------------------------------------------------------------- */
+
+export type AuditStatus = 'covered' | 'partial' | 'uncovered' | 'declared_but_never_emitted';
+
+export interface AuditCapability {
+  id: string;
+  tool: string;
+  status: AuditStatus;
+  producer_status: 'emitted' | 'pending_producer' | 'unsupported_by_producer';
+  source: 'events' | 'authoritative_table';
+  /** Expected signals (and `correlation`) not observed in the period. */
+  missing: string[];
+  /** Start events observed; `0` with `status: uncovered` means nothing arrived. */
+  samples: number;
+  /** Start ids with no terminal carrying the same id inside the period. */
+  orphan_starts: number;
+  /** Start ids that do meet a terminal with the same id. */
+  correlated_pairs: number;
+  observed: Array<{
+    event: string;
+    role: 'start' | 'terminal' | 'readiness' | 'error';
+    events: number;
+    users: number;
+    correlated: number;
+  }>;
+  unobservable: string[];
+  note?: string;
+}
+
+export interface AuditUnknownCode {
+  tool: string;
+  /** Error rows whose `error_code` resolved to `unknown` (or was absent). */
+  unknown_code: number;
+  /** Error rows whose `error_stage` resolved to `unknown` (or was absent). */
+  unknown_stage: number;
+  errors: number;
+}
+
+export interface AuditDelivery {
+  reports: number;
+  rejected: number;
+  evicted: number;
+  expired: number;
+  by_event: Array<{ event_name: string; rejected_reports: number; evicted_reports: number }>;
+  note: string;
+}
+
+export type FindingSeverity = 'high' | 'medium' | 'low' | 'info';
+
+export interface AuditFinding {
+  /** sha256 of `${capability}|${status}|${missing.sort().join(',')}` — stable across runs. */
+  id: string;
+  capability: string;
+  status: AuditStatus | 'orphan_starts' | 'unknown_codes' | 'uncovered_builds' | 'delivery_losses';
+  severity: FindingSeverity;
+  missing: string[];
+  evidence: string[];
+}
+
+export interface AuditData {
+  registry_size: number;
+  capabilities: AuditCapability[];
+  unknown_codes: AuditUnknownCode[];
+  delivery: AuditDelivery;
+  /** Web builds seen in the period that emitted no link event (032 coverage). */
+  uncovered_builds: string[];
+  delivery_lag_ms: DeliveryLag;
+  findings: AuditFinding[];
+  summary: Record<AuditStatus, number>;
+}
+
+/** What `audit --write` saves: the envelope without `generated_at`, so an unchanged snapshot yields identical bytes (SC-017). */
+export interface AuditArtifact {
+  ok: true;
+  command: 'audit';
+  as_of: string;
+  period: ResolvedPeriod;
+  data: AuditData;
+}
+
+/* ---------------------------------------------------------------------------
+ * 031 — `inspect <id>` (FR-056): one attempt across every tool.
+ * ------------------------------------------------------------------------- */
+
+export interface InspectStages {
+  expected: string[];
+  observed: string[];
+  missing: string[];
+}
+
+export interface InspectAgentIdentity {
+  local_app_versions: string[];
+  local_app_builds: string[];
+  web_build_ids: string[];
+  platforms: string[];
+  architectures: string[];
+  /** The latest Agent run (`/health` instanceId) that emitted an event of this attempt. */
+  agent_instance_id: string | null;
+  /** Every Agent run seen; more than one means the Agent restarted during the attempt. */
+  agent_instance_ids: string[];
+  /** The Agent's own platform (envelope v3), beside the browser's `platforms`. */
+  agent_platforms: string[];
+  note: string;
+}
+
+export interface InspectFound {
+  found: true;
+  id: string;
+  /** Which column or property carried the id. */
+  matched_by: Array<'run_id' | 'flow_id' | 'attempt_id' | 'workflow_id' | 'properties'>;
+  capability: string | null;
+  tool: string | null;
+  stages: InspectStages;
+  terminal: { event: string; outcome: string; occurred_at: string } | null;
+  last_proven_stage: string | null;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  delivery_lag_ms: DeliveryLag;
+  agent: InspectAgentIdentity;
+  events: JourneyEvent[];
+}
+
+export interface InspectNotFound {
+  found: false;
+  id: string;
+}
+
+export type InspectData = InspectFound | InspectNotFound;
+
+export const INSPECT_AGENT_NOTE =
+  'agent_instance_id/agent_platforms come from the Agent (envelope v3) and are empty for events from web builds before 031; platforms/architectures come from the browser.';
 
 export interface CommandEnvelope<T> {
   ok: true;

@@ -111,6 +111,24 @@ export function currentPlatform(): NodeJS.Platform {
   return process.platform;
 }
 
+/**
+ * The host operating system in the vocabulary `/health` reports it in (031 FR-053), from the
+ * same source the boot diagnostics record. `undefined` on any other host, so the field is
+ * simply absent there rather than a guess.
+ */
+export function hostPlatform(): 'macos' | 'windows' | 'linux' | undefined {
+  switch (currentPlatform()) {
+    case 'darwin':
+      return 'macos';
+    case 'win32':
+      return 'windows';
+    case 'linux':
+      return 'linux';
+    default:
+      return undefined;
+  }
+}
+
 export function currentArch(): string {
   return process.arch;
 }

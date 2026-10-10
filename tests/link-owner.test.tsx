@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -109,6 +109,7 @@ vi.mock('../apps/web/src/release-manifest.js', () => ({
 }));
 
 import { AgentProvider, useAgent } from '../apps/web/src/AgentContext.js';
+import { analytics } from '../apps/web/src/analytics/service.js';
 
 class PairingRequired extends Error {
   readonly agentAlive = true;
@@ -123,6 +124,7 @@ function healthy(overrides: Record<string, unknown> = {}) {
     version: '1.2.5',
     buildId: 'b1',
     instanceId: 'run-1',
+    platform: 'macos',
     channel: 'stable',
     apiVersion: 5,
     capabilities: ['event-stream'],
@@ -193,6 +195,39 @@ describe('the owner of the connection state', () => {
     expect(text('connection')).toBe('connected');
     streamStatus({ open: true });
   }
+
+  it('gives analytics the agent instance and its own platform after a health read (031 FR-053)', async () => {
+    const setAgentContext = vi.spyOn(analytics, 'setAgentContext');
+    try {
+      await boot();
+      expect(setAgentContext).toHaveBeenLastCalledWith(
+        expect.objectContaining({ instanceId: 'run-1', platform: 'macos', version: '1.2.5' })
+      );
+    } finally {
+      setAgentContext.mockRestore();
+    }
+  });
+
+  it('places an agent without a platform field by its capabilities, or not at all', async () => {
+    const setAgentContext = vi.spyOn(analytics, 'setAgentContext');
+    try {
+      fake.connect = async () =>
+        healthy({ platform: undefined, capabilities: ['event-stream', 'finder-image-conversion'] });
+      await boot();
+      expect(setAgentContext).toHaveBeenLastCalledWith(
+        expect.objectContaining({ instanceId: 'run-1', platform: 'macos' })
+      );
+      cleanup();
+      setAgentContext.mockClear();
+      fake.connect = async () => healthy({ platform: undefined });
+      await boot();
+      expect(setAgentContext).toHaveBeenLastCalledWith(
+        expect.objectContaining({ instanceId: 'run-1', platform: null })
+      );
+    } finally {
+      setAgentContext.mockRestore();
+    }
+  });
 
   it('hands the stream a token it reads at every connection', async () => {
     await boot();

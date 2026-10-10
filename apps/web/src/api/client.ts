@@ -1,6 +1,7 @@
 import {
   AGENT_TOOL_CONTRACTS,
   type AgentEntitlementStatus,
+  type AgentHostPlatform,
   type HealthResponse,
   type ImageSlot,
   type LandingPreviewRenderSettings,
@@ -45,6 +46,7 @@ import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../con
 import { configuredAgentOrigin, publicConfig, servedByAgent } from '../lib/config';
 import { pairingToken } from './pairing-token';
 import type { DroppedFolderSample } from '../components/DropZone';
+import type { AgentDiagnosticsResponse } from '../support/diagnostics-bundle';
 import {
   imageContentPath,
   landingPreviewPath,
@@ -162,6 +164,8 @@ export async function connect(signal?: AbortSignal): Promise<{
   buildId: string;
   /** Identifies this run of the agent; changes on every restart. */
   instanceId: string;
+  /** The host OS as the agent reports it (031 FR-053); null from an agent older than 031. */
+  platform: AgentHostPlatform | null;
   channel: string;
   apiVersion: number;
   capabilities: string[];
@@ -205,6 +209,10 @@ export async function connect(signal?: AbortSignal): Promise<{
     version: health.version,
     buildId: health.buildId ?? '',
     instanceId: health.instanceId ?? health.buildId ?? '',
+    platform:
+      health.platform === 'macos' || health.platform === 'windows' || health.platform === 'linux'
+        ? health.platform
+        : null,
     channel: health.channel ?? 'unknown',
     apiVersion,
     capabilities,
@@ -258,6 +266,22 @@ export function fetchPowerState(signal?: AbortSignal): Promise<PowerState> {
  */
 export function setPowerLimit(limitPercent: number): Promise<PowerState> {
   return requestBody<PowerState>('/api/power/limit', { limitPercent });
+}
+
+/* ── Diagnostics journal (031 FR-054) ─────────────────────────────────────── */
+
+/**
+ * One page of the agent's bounded journal, `since` a cursor and at most `limit`
+ * records. The caller reads the answer defensively: an older agent answers
+ * without the `log` fields at all.
+ */
+export function fetchAgentDiagnostics(
+  since: number,
+  limit: number,
+  signal?: AbortSignal
+): Promise<AgentDiagnosticsResponse> {
+  const query = new URLSearchParams({ since: String(since), limit: String(limit) });
+  return request<AgentDiagnosticsResponse>(`/api/diagnostics?${query}`, 'GET', signal);
 }
 
 export async function request<T>(url: string, method = 'GET', signal?: AbortSignal): Promise<T> {

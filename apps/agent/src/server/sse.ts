@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { eventStreamHeaders } from '../http.js';
+import { diagnostics } from './diagnostics-log.js';
 
 /**
  * What a fan-out needs from a socket. The real one is an `http.ServerResponse`; the tests
@@ -84,6 +85,7 @@ export class EventChannel<TEvent> {
    * so a registry that is never pruned holds nothing that would otherwise be collected.
    */
   static closeAll(reason: string = 'shutdown'): void {
+    diagnostics.record('stream', 'close_all', { transport: 'legacy', reason });
     for (const channel of channels) channel.close(reason);
   }
 
@@ -252,6 +254,8 @@ export class ChannelHub {
   subscribe(socket: Subscriber['socket'], names: readonly string[]): () => void {
     const channels = new Set(names.filter(name => this.sources.has(name)));
     const subscriber: Subscriber = { socket, channels, joinedAt: this.nextJoin++ };
+    // How many channels, not which: the count is what distinguishes a page from a probe.
+    diagnostics.record('stream', 'subscribe', { channels: channels.size });
 
     this.evictForCapacity(channels);
     // Read *before* joining, or the new subscriber counts itself and a channel is never seen
@@ -278,6 +282,11 @@ export class ChannelHub {
    * it no longer answers, heartbeating "connected" at an interface showing frozen state.
    */
   closeAll(reason: string = 'shutdown'): void {
+    diagnostics.record('stream', 'close_all', {
+      transport: 'stream',
+      reason,
+      subscribers: this.subscribers.size
+    });
     for (const subscriber of [...this.subscribers]) {
       this.detach(subscriber);
       sayGoodbye(subscriber.socket, reason);
@@ -315,6 +324,7 @@ export class ChannelHub {
   }
 
   private replace(subscriber: Subscriber): void {
+    diagnostics.record('stream', 'evict', { reason: 'capacity' });
     try {
       subscriber.socket.write(`event: replaced\ndata: {}\n\n`);
     } catch {
@@ -328,12 +338,16 @@ export class ChannelHub {
     try {
       subscriber.socket.write(payload);
     } catch {
+      if (this.subscribers.has(subscriber)) {
+        diagnostics.record('stream', 'evict', { reason: 'write_failed' });
+      }
       this.detach(subscriber);
       return;
     }
     // A reader that has stopped draining does not stop the writes arriving. Dropping it is
     // the only way the buffer stops growing, and it reconnects on its own.
     if ((subscriber.socket.writableLength ?? 0) > STALLED_BYTES) {
+      diagnostics.record('stream', 'evict', { reason: 'stalled' });
       this.detach(subscriber);
       subscriber.socket.destroy?.();
     }
