@@ -281,7 +281,7 @@
       "required": ["production"],
       "secret": true,
       "format": "non-empty",
-      "note": "Invitation delivery. Absent, team-invitations returns the link instead of sending it — which is correct in beta and silently broken in production."
+      "note": "Invitation and tariff-letter delivery. Absent, team-invitations returns the link instead of sending it and tariff-notices refuses to claim — which is correct in beta and silently broken in production."
     },
     {
       "name": "INVITE_EMAIL_FROM",
@@ -289,7 +289,7 @@
       "required": ["production"],
       "secret": false,
       "format": "non-empty",
-      "note": "The verified sender address invitations come from."
+      "note": "The verified sender address invitations and tariff letters come from."
     },
     {
       "name": "CATALOG_SYNC_SECRET",

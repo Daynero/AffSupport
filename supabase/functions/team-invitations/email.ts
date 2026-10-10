@@ -1,8 +1,6 @@
-export interface InvitationEmailMessage {
-  subject: string;
-  html: string;
-  text: string;
-}
+import { escapeHtml, safePlainText, sendEmail, type EmailMessage } from '../_shared/email.ts';
+
+export type InvitationEmailMessage = EmailMessage;
 
 export interface InvitationEmailInput {
   teamName: string;
@@ -20,31 +18,6 @@ export interface InvitationDeliveryInput {
 export interface InvitationDeliveryResult {
   state: 'sent' | 'failed';
   errorCode: 'DELIVERY_UNAVAILABLE' | null;
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, character => {
-    switch (character) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case "'":
-        return '&#39;';
-      default:
-        return '&quot;';
-    }
-  });
-}
-
-function safePlainText(value: string): string {
-  return value
-    .normalize('NFC')
-    .replace(/[<>\u0000-\u001f\u007f]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function safeInviteUrl(value: string): string {
@@ -93,48 +66,13 @@ export function buildInvitationEmail(input: InvitationEmailInput): InvitationEma
   };
 }
 
+/** The invitation contract stays content-free: any failure is one code, whatever the reason. */
 export async function sendInvitationEmail(
   input: InvitationDeliveryInput,
   fetchImpl: typeof fetch = fetch
 ): Promise<InvitationDeliveryResult> {
-  if (
-    input.apiKey.length < 12 ||
-    input.from.length < 3 ||
-    input.from.length > 320 ||
-    input.to.length < 3 ||
-    input.to.length > 320
-  ) {
-    return { state: 'failed', errorCode: 'DELIVERY_UNAVAILABLE' };
-  }
-
-  try {
-    const response = await fetchImpl('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${input.apiKey}`,
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: input.from,
-        to: [input.to],
-        subject: input.message.subject,
-        html: input.message.html,
-        text: input.message.text
-      }),
-      signal: AbortSignal.timeout(10_000)
-    });
-    if (!response.ok) return { state: 'failed', errorCode: 'DELIVERY_UNAVAILABLE' };
-    const payload: unknown = await response.json().catch(() => null);
-    if (
-      !payload ||
-      typeof payload !== 'object' ||
-      Array.isArray(payload) ||
-      typeof (payload as Record<string, unknown>).id !== 'string'
-    ) {
-      return { state: 'failed', errorCode: 'DELIVERY_UNAVAILABLE' };
-    }
-    return { state: 'sent', errorCode: null };
-  } catch {
-    return { state: 'failed', errorCode: 'DELIVERY_UNAVAILABLE' };
-  }
+  const result = await sendEmail(input, fetchImpl);
+  return result.state === 'sent'
+    ? { state: 'sent', errorCode: null }
+    : { state: 'failed', errorCode: 'DELIVERY_UNAVAILABLE' };
 }

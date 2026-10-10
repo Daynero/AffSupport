@@ -40,6 +40,10 @@ verify_jwt = false
 [functions.catalog-updater]
 verify_jwt = false
 
+# Tariff letters (034): called by the database worker with the catalog-sync secret.
+[functions.tariff-notices]
+verify_jwt = false
+
 [functions.drive-transfer]
 verify_jwt = false
 
