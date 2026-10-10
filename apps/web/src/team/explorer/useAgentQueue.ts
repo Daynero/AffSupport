@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { teamApi } from '../../api/team';
 import {
   cancelTeamAgentProcess,
+  cancelTeamDownload,
   downloadTeamFileWithAgent,
   pauseTeamAgentProcess,
-  startTeamAgentProcess
+  startTeamAgentProcess,
+  toolEventUrl
 } from '../../api/client';
+import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { useOptionalAgent } from '../../AgentContext';
@@ -13,6 +16,7 @@ import { teamErrorMessageFor } from '../errors';
 import { useTeamOperation } from '../processing/useTeamOperation';
 import { announceTaskAttachmentsChanged } from '../tasks/taskAttachmentEvents';
 import type { MaterialActionsClient } from '../catalog/useMaterialActions';
+import { rememberLocalFolder } from './TeamCompressorDialog';
 
 /**
  * The explorer's one queue for work that runs on the local app (024, FR-095).
@@ -38,8 +42,12 @@ export type AgentQueueItem = {
   outputName: string;
   /** Overwrite-the-original: upload as a new version of this material. */
   versionOf?: string;
-  /** 013 (B5): compress on the agent and save to a locally chosen folder. */
-  local?: { embed: boolean; suffix: string };
+  /**
+   * 013 (B5): compress on the agent and save to a folder on this computer — no team
+   * operation, nothing written to the space. `folder` null asks the app's picker once; the
+   * rest of the batch follows the answer.
+   */
+  local?: { embed: boolean; suffix: string; folder?: string | null };
   /**
    * The task this run was started from (024, FR-078). What it writes is put on
    * that task when it finishes, so a performer never has to go and find the
@@ -68,7 +76,7 @@ export interface AgentQueue {
   enqueueTranscriptions: (
     items: { id: string; name: string; folderId: string | null; attachTo?: { taskId: string } }[]
   ) => void;
-  active: (AgentQueueItem & { operationId: string | null }) | null;
+  active: ActiveAgentQueueItem | null;
   queued: readonly AgentQueueItem[];
   done: number;
   total: number;
@@ -92,6 +100,32 @@ export function queueDoneMessages(tools: ReadonlySet<AgentQueueItem['tool']>) {
   return ['teamProcessQueueDone', 'teamProcessQueueDoneSome'] as const;
 }
 
+/**
+ * One bar for a local compression's three waits (013 B5).
+ *
+ * The app reports each stage from zero — the download, then the encode, then the copy into
+ * the folder — and a bar that runs to the end and starts over twice reads as the work being
+ * redone. The encode is most of the wait, so it gets most of the bar.
+ */
+export function localCompressProgress(stage: string, progress: number): number {
+  const share = Math.max(0, Math.min(100, progress)) / 100;
+  if (stage === 'downloading') return Math.round(share * 15);
+  if (stage === 'processing') return Math.round(15 + share * 80);
+  if (stage === 'finalizing' || stage === 'completed') return Math.max(95, Math.round(progress));
+  return 0;
+}
+
+interface TeamOperationsEvent {
+  type: 'team:operations';
+  operations: Array<{ operationId: string; stage: string; progress: number }>;
+}
+
+type ActiveAgentQueueItem = AgentQueueItem & {
+  operationId: string | null;
+  /** The app's own id for a local run (B5), which is what stops it. */
+  localOperationId?: string;
+};
+
 export function useAgentQueue({
   teamId,
   actionsClient,
@@ -107,12 +141,12 @@ export function useAgentQueue({
   const agentCtx = useOptionalAgent();
   const changed = onChanged;
   const [tQueue, setTQueue] = useState<AgentQueueItem[]>([]);
-  const [tActive, setTActive] = useState<(AgentQueueItem & { operationId: string | null }) | null>(
-    null
-  );
+  const [tActive, setTActive] = useState<ActiveAgentQueueItem | null>(null);
   const [tDone, setTDone] = useState(0);
   /** How many of them did not come out (024): a failure is not a transcript. */
   const [tFailed, setTFailed] = useState(0);
+  /** Stopped on purpose (B5): neither made nor failed, so neither toast counts them. */
+  const [tStopped, setTStopped] = useState(0);
   const [tTotal, setTTotal] = useState(0);
   // The batch is held: nothing new starts, and the file already in flight is
   // suspended too when the local app can do that (`tHeld`). Both are needed —
@@ -124,6 +158,16 @@ export function useAgentQueue({
   const heldAsked = useRef<string | null>(null);
   /** Which tools this run carried, so its closing toast names what was done. */
   const runTools = useRef(new Set<AgentQueueItem['tool']>());
+  /**
+   * Where this batch's local compressions go (B5), once the first one has landed: the
+   * picker is asked once per batch, and the file manager is shown once, not per file.
+   */
+  const localBatch = useRef<{ folder: string | null; revealed: boolean }>({
+    folder: null,
+    revealed: false
+  });
+  const queueRef = useRef(tQueue);
+  queueRef.current = tQueue;
 
   const enqueueJobs = (items: AgentQueueItem[]) => {
     const known = new Set(
@@ -160,15 +204,28 @@ export function useAgentQueue({
       try {
         if (next.local) {
           // 013 (B5): no team operation — the agent downloads the source,
-          // compresses it locally and saves into a natively chosen folder.
+          // compresses it locally and saves into a folder on this computer.
           const grant = await teamApi.requestDownload(teamId, next.id, 'agent');
           if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
+          const localOperationId = crypto.randomUUID();
+          setTActive(current =>
+            current && current.id === next.id ? { ...current, localOperationId } : current
+          );
+          const batch = localBatch.current;
           const saved = await downloadTeamFileWithAgent({
+            operationId: localOperationId,
             transferUrl: grant.transferUrl,
             transferGrant: grant.grant,
             fileName: next.name,
-            compress: next.local
+            destination: batch.folder ?? next.local.folder ?? null,
+            compress: { embed: next.local.embed, suffix: next.local.suffix },
+            reveal: !batch.revealed
           });
+          batch.revealed = true;
+          if (saved.destination) {
+            batch.folder = saved.destination;
+            rememberLocalFolder(teamId, saved.destination);
+          }
           push({ tone: 'success', text: t('teamCompressLocalSaved', { name: saved.fileName }) });
           return;
         }
@@ -235,7 +292,21 @@ export function useAgentQueue({
         // A run somebody stopped on purpose is not a failure, and saying so in red is how a
         // deliberate act starts looking like a fault. Everything below still happens — the
         // space is told the run is over either way.
-        if (!deliberateStop(cause)) {
+        if (deliberateStop(cause)) {
+          setTStopped(current => current + 1);
+          // A local run refused at the folder picker (or stopped) takes the rest of its
+          // batch with it: each of them would open the same picker again.
+          if (next.local) {
+            const dropped = queueRef.current.slice(1).filter(job => job.local).length;
+            if (dropped > 0) {
+              setTQueue(current => [
+                ...current.slice(0, 1),
+                ...current.slice(1).filter(job => !job.local)
+              ]);
+              setTTotal(current => current - dropped);
+            }
+          }
+        } else {
           /* Named for what it was trying to do: "this file could not be processed" says
              nothing a person can act on, and this queue is always transcribing. */
           const ranAndFailed = cause instanceof Error && cause.message === 'PROCESS_FAILED';
@@ -273,7 +344,7 @@ export function useAgentQueue({
      * answers to the same question, and the cheerful one was wrong. A run that failed says
      * nothing here: the error toast has already spoken.
      */
-    const made = Math.max(0, tDone - tFailed);
+    const made = Math.max(0, tDone - tFailed - tStopped);
     // Compression shares this queue (013); "transcriptions finished" after two
     // compressed videos named work that never happened.
     const done = queueDoneMessages(runTools.current);
@@ -285,12 +356,14 @@ export function useAgentQueue({
       });
     }
     runTools.current = new Set();
+    localBatch.current = { folder: null, revealed: false };
     setTDone(0);
     setTFailed(0);
+    setTStopped(0);
     setTTotal(0);
     setTPaused(false);
     setTHeld(false);
-  }, [push, t, tActive, tDone, tFailed, tQueue.length, tTotal]);
+  }, [push, t, tActive, tDone, tFailed, tQueue.length, tStopped, tTotal]);
 
   /**
    * Holds the batch, and the running file with it where that is possible.
@@ -356,20 +429,43 @@ export function useAgentQueue({
    */
   const stopNow = useCallback(async () => {
     const operationId = tActive?.operationId ?? null;
+    const localOperationId = tActive?.localOperationId ?? null;
     setTQueue([]);
     if (tPaused) pauseQueue(false);
+    // A local run (B5) is the app's download, stopped through its own door.
+    if (localOperationId) await cancelTeamDownload(localOperationId).catch(() => false);
     if (!operationId) return;
     await cancelTeamAgentProcess(operationId).catch(() => false);
-  }, [pauseQueue, tActive?.operationId, tPaused]);
+  }, [pauseQueue, tActive?.localOperationId, tActive?.operationId, tPaused]);
 
   const activeOperation = useTeamOperation({
     teamId,
     operationId: tActive?.operationId ?? null
   });
-  const activeProgress = Math.max(
-    activeOperation.operation?.progress ?? 0,
-    activeOperation.localProgress?.progress ?? 0
-  );
+  // A local run (B5) has no operation in the space; its progress comes straight from the app.
+  const localOperationId = tActive?.localOperationId ?? null;
+  const [localProgress, setLocalProgress] = useState(0);
+  useEffect(() => setLocalProgress(0), [localOperationId]);
+  useAgentEventStream<TeamOperationsEvent>({
+    url: localOperationId ? toolEventUrl('team') : null,
+    channel: 'team',
+    multiplexed: Boolean(agentCtx?.capabilities?.includes('event-stream')),
+    enabled: Boolean(localOperationId),
+    onMessage: event => {
+      if (event.type !== 'team:operations' || !localOperationId) return;
+      const local = event.operations.find(item => item.operationId === localOperationId);
+      if (!local) return;
+      const next = localCompressProgress(local.stage, local.progress);
+      // Forwards only: a late event from an earlier stage must not pull the bar back.
+      setLocalProgress(current => Math.max(current, next));
+    }
+  });
+  const activeProgress = localOperationId
+    ? localProgress
+    : Math.max(
+        activeOperation.operation?.progress ?? 0,
+        activeOperation.localProgress?.progress ?? 0
+      );
 
   return {
     enqueue: enqueueJobs,

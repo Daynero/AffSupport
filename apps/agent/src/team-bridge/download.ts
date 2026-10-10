@@ -46,6 +46,12 @@ export interface TeamAgentDownloadRequest {
   process?: TeamAgentDownloadProcess | null;
   /** 013 (B5)'s spelling, still accepted so a web and an agent build may differ by one step. */
   compress?: { embed: boolean; suffix: string } | null;
+  /**
+   * Whether to show the saved file in the file manager. On unless the caller says otherwise:
+   * a batch of twenty compressed videos asks for it once, not twenty times, because every
+   * reveal brings the file manager to the front over whatever the person went back to.
+   */
+  reveal?: boolean;
 }
 
 export interface TeamDownloadTransfer {
@@ -123,7 +129,10 @@ export class TeamDownloadBridge {
     const fileName = safeDownloadName(request.fileName);
     if (this.#active.has(request.operationId)) throw new Error('WRONG_STATE');
     const step = normalizeProcess(request);
-    const destination = request.destination ?? (await this.#chooseDestination());
+    // A remembered folder that has since been moved or deleted asks again instead of failing:
+    // the caller only stored it to save a dialog, never to promise the folder still exists.
+    const remembered = request.destination ? await existingDirectory(request.destination) : null;
+    const destination = remembered ?? (await this.#chooseDestination());
     if (!destination) throw new Error('DOWNLOAD_CANCELED');
     const destinationRoot = await realpath(destination);
     if (!(await lstat(destinationRoot)).isDirectory()) throw new Error('INVALID_INPUT');
@@ -187,7 +196,7 @@ export class TeamDownloadBridge {
           progress: 100
         });
         const target = await copyWithoutOverwrite(produced, destinationRoot, finalName);
-        this.#reveal(target);
+        if (request.reveal !== false) this.#reveal(target);
         const written = await lstat(target);
         this.#events?.update(request.operationId, { state: 'succeeded', stage: 'completed' });
         return {
@@ -233,6 +242,15 @@ export class TeamDownloadBridge {
 
   async shutdown(): Promise<void> {
     for (const controller of this.#active.values()) controller.abort();
+  }
+}
+
+async function existingDirectory(candidate: string): Promise<string | null> {
+  try {
+    const resolved = await realpath(candidate);
+    return (await lstat(resolved)).isDirectory() ? resolved : null;
+  } catch {
+    return null;
   }
 }
 

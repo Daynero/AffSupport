@@ -603,6 +603,8 @@ export async function downloadTeamFileWithAgent(input: {
   destination?: string | null;
   /** 013 (B5): compress after downloading, before saving locally. */
   compress?: { embed: boolean; suffix: string };
+  /** Show the saved file in the file manager; a batch asks for it once. Defaults to yes. */
+  reveal?: boolean;
   /** 015: re-stitch after downloading, with the space's defaults. */
   process?:
     | { tool: 'compressor'; embed: boolean; suffix: string }
@@ -635,6 +637,14 @@ export async function downloadTeamFileWithAgent(input: {
   ) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
+  if (
+    (input.compress || input.process?.tool === 'compressor') &&
+    !localCompressSupported(health.toolContracts ?? {})
+  ) {
+    // An app that predates the step ignores it and saves the untouched original under the
+    // original's name — a "compressed" file that is not. Refused here instead.
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
   const value = await requestBody<{
     saved?: unknown;
     fileName?: unknown;
@@ -648,7 +658,8 @@ export async function downloadTeamFileWithAgent(input: {
     fileName: input.fileName,
     ...(input.destination ? { destination: input.destination } : {}),
     ...(input.process ? { process: input.process } : {}),
-    ...(input.compress ? { compress: input.compress } : {})
+    ...(input.compress ? { compress: input.compress } : {}),
+    ...(input.reveal === false ? { reveal: false } : {})
   });
   if (
     value.saved !== true ||
@@ -821,6 +832,17 @@ export async function agentCanRestitchFromSpace(): Promise<RestitchCapability> {
   } catch {
     return 'unreachable';
   }
+}
+
+/**
+ * Whether the app compresses a downloaded file before saving it (013 B5).
+ *
+ * No contract of its own: the step shipped in 1.1.0, the same release that first declared
+ * the stitcher contract, and every app since carries both. An app before that would ignore
+ * the step and save the original untouched, so the stitcher contract is the honest marker.
+ */
+export function localCompressSupported(contracts: ToolContracts): boolean {
+  return toolContractCompatible('teamWorkspace', contracts) && (contracts.stitcher ?? 0) >= 1;
 }
 
 export async function agentCanRestitch(): Promise<RestitchCapability> {

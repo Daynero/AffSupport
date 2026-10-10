@@ -36,9 +36,19 @@ vitest single-worker, live-verify each phase in the beta browser.
   `name+suffix` → rename in the same commit), modified date updates;
   the original is untouched until the upload finalizes. Server work in
   `drive-ops/process/*` to accept a `versionOfMaterialId`.
-- [ ] B5 Destination «Локально на компʼютері»: the agent also writes the
+- [x] B5 Destination «Локально на компʼютері»: the agent also writes the
       result into its chosen local folder (reuse `outputMode: 'chosen-folder'`
       plumbing) — surfaced as a checkbox/choice in the dialog.
+      Done 2026-10-11: no team operation; the folder is the one this space last
+      saved into, else the compressor's chosen folder, else the app's picker —
+      asked once per batch, the rest follow (a vanished folder asks again, a
+      cancelled picker drops the batch's other local jobs and counts as
+      stopped, not made). Finder reveals once per batch (`reveal: false` after
+      the first), the corner panel shows one forward-only bar over
+      download/encode/copy, Stop cancels the app's download, and an app older
+      than 1.1.0 (no `stitcher` contract — it would save the untouched
+      original) is refused up front: option disabled in the dialog,
+      AGENT_UPDATE_REQUIRED in the client. Owner click-through stays in C1.
 
 ## Phase C — verify
 

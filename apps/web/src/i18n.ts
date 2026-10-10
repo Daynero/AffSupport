@@ -1648,6 +1648,9 @@ const en = {
   teamCompressToFolder: 'Into a folder',
   teamCompressLocal: 'Locally on this computer',
   teamCompressLocalSaved: 'Saved locally: {name}',
+  teamCompressLocalAsk: 'Soty asks for a folder once, as the compression starts',
+  teamCompressLocalChange: 'Choose another folder',
+  teamCompressLocalTooOld: 'Needs a newer Soty app on this computer',
   teamCompressOverwrite: 'Overwrite the original',
   teamCompressOverwriteHint:
     'Replaced only after a successful compression; transcripts stay attached, the modified date updates.',
@@ -4890,6 +4893,9 @@ const uk: Record<keyof typeof en, string> = {
   teamCompressToFolder: 'У папку',
   teamCompressLocal: 'Локально на компʼютері',
   teamCompressLocalSaved: 'Збережено локально: {name}',
+  teamCompressLocalAsk: 'Soty спитає папку один раз — на початку стиснення',
+  teamCompressLocalChange: 'Вибрати іншу папку',
+  teamCompressLocalTooOld: 'Потрібна новіша версія Soty на цьому компʼютері',
   teamCompressOverwrite: 'Перезаписати оригінал',
   teamCompressOverwriteHint:
     'Заміна лише після успішного стиснення; транскрипції лишаються привʼязані, дата зміни оновлюється.',

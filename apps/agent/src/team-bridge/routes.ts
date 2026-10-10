@@ -435,6 +435,9 @@ function downloadRequest(value: unknown): TeamAgentDownloadRequest | null {
         tool: 'restitch',
         defaults: value.process.defaults,
         prepared: record(value.process.prepared) ? value.process.prepared : null,
+        // The space's drawn pictures (030) and whose they are; the delegate narrows both.
+        ...(Array.isArray(value.process.screens) ? { screens: value.process.screens } : {}),
+        ...(typeof value.process.teamId === 'string' ? { teamId: value.process.teamId } : {}),
         suffix
       };
     } else if (value.process.tool === 'compressor') {
@@ -458,7 +461,8 @@ function downloadRequest(value: unknown): TeamAgentDownloadRequest | null {
     fileName: value.fileName,
     destination,
     process: step,
-    compress
+    compress,
+    ...(value.reveal === false ? { reveal: false } : {})
   };
 }
 
@@ -611,6 +615,9 @@ function safeErrorCode(
     'PROCESS_TIMEOUT',
     'PROCESS_FAILED',
     'AGENT_UPDATE_REQUIRED',
+    // Stitching asked for with no pictures in the library: the person can fix that, and
+    // "the download failed" would send them looking at the network instead.
+    'EMBED_IMAGES_REQUIRED',
     'UNSUPPORTED_MEDIA',
     'DRIVE_UNAVAILABLE',
     'SOURCE_CHANGED',

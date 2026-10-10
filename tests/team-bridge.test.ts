@@ -82,6 +82,71 @@ describe('team cloud/local transfer bridge', () => {
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
+  it('compresses locally (013 B5): a vanished remembered folder asks again, a batch reveals once', async () => {
+    const root = await temporaryRoot();
+    const destination = path.join(root, 'chosen');
+    await import('node:fs/promises').then(fs => fs.mkdir(destination));
+    const source = path.join(root, 'source.bin');
+    await writeFile(source, 'original');
+    const compressed = path.join(root, 'compressed.mp4');
+    await writeFile(compressed, 'compressed');
+    const transfer = {
+      downloadSource: vi.fn().mockResolvedValue({
+        workspace: root,
+        file: source,
+        sizeBytes: 8,
+        sourceVersion: '1',
+        sourceChecksum: null,
+        cleanup: vi.fn().mockResolvedValue(undefined)
+      })
+    };
+    const delegate = vi.fn<TeamProcessDelegate>().mockResolvedValue({
+      file: compressed,
+      mimeType: 'video/mp4',
+      sizeBytes: 10
+    });
+    const chooseDestination = vi.fn().mockResolvedValue(destination);
+    const reveal = vi.fn();
+    const bridge = new TeamDownloadBridge({
+      transfer,
+      chooseDestination,
+      reveal,
+      delegates: { compressor: delegate }
+    });
+
+    const saved = await bridge.download({
+      operationId: 'local-compress',
+      transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
+      transferGrant: grant('download_range'),
+      fileName: 'clip.mov',
+      destination: path.join(root, 'moved-away'),
+      compress: { embed: false, suffix: '_small' },
+      reveal: false
+    });
+
+    expect(chooseDestination).toHaveBeenCalledOnce();
+    expect(delegate).toHaveBeenCalledOnce();
+    expect(reveal).not.toHaveBeenCalled();
+    expect(saved).toMatchObject({
+      fileName: 'clip_small.mp4',
+      destination: await realpath(destination)
+    });
+    expect(await readFile(path.join(destination, 'clip_small.mp4'), 'utf8')).toBe('compressed');
+
+    // The next file of the batch goes straight to the folder the first one landed in.
+    await bridge.download({
+      operationId: 'local-compress-2',
+      transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
+      transferGrant: grant('download_range'),
+      fileName: 'clip.mov',
+      destination: saved.destination,
+      compress: { embed: false, suffix: '_small' }
+    });
+    expect(chooseDestination).toHaveBeenCalledOnce();
+    expect(reveal).toHaveBeenCalledOnce();
+    expect(await readdir(destination)).toEqual(['clip_small (1).mp4', 'clip_small.mp4']);
+  });
+
   it('downloads repeated bounded ranges, preserves source identity, and exposes no provider token', async () => {
     const root = await temporaryRoot();
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {

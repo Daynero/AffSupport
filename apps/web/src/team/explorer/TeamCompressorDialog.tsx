@@ -3,6 +3,9 @@ import { Modal } from '../../components/Modal';
 import { Button, Checkbox, FormField, Input, RadioGroup } from '../../components/ui/index';
 import type { RadioOption } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { useOptionalAgent } from '../../AgentContext';
+import { localCompressSupported } from '../../api/client';
+import { compactPath } from '../../format';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import type { AgentQueueItem } from './useAgentQueue';
 
@@ -11,8 +14,9 @@ import type { AgentQueueItem } from './useAgentQueue';
  * compressor settings. Quality and the embedding images come from the
  * compressor page (cached on the agent); here the person only decides the
  * embedding on/off, the name ending, and where the results land — beside the
- * originals, in a chosen Drive folder, or overwriting the originals in place
- * (same file id, transcripts stay attached, only after a successful run).
+ * originals, in a chosen Drive folder, overwriting the originals in place
+ * (same file id, transcripts stay attached, only after a successful run), or
+ * on this computer only (B5: nothing is written to the space).
  */
 export interface CompressPlanItem {
   id: string;
@@ -27,8 +31,31 @@ export interface CompressPlan {
   destination:
     | { kind: 'beside' }
     | { kind: 'folder'; folderId: string | null; folderName: string }
-    | { kind: 'local' }
+    /** The folder on this computer; null asks once, as the first file starts. */
+    | { kind: 'local'; folder: string | null }
     | { kind: 'overwrite' };
+}
+
+/** Where this member's locally saved compressions land, per space, in their own browser. */
+function localFolderKey(teamId: string): string {
+  return `wishly.team-compress-folder.v1:${teamId}`;
+}
+
+export function rememberedLocalFolder(teamId: string): string | null {
+  try {
+    return localStorage.getItem(localFolderKey(teamId));
+  } catch {
+    // A browser that refuses storage asks for the folder once per batch instead.
+    return null;
+  }
+}
+
+export function rememberLocalFolder(teamId: string, folder: string): void {
+  try {
+    localStorage.setItem(localFolderKey(teamId), folder);
+  } catch {
+    // Remembering is a convenience; the next batch simply asks again.
+  }
 }
 
 /**
@@ -55,7 +82,9 @@ export function compressJobs(plan: CompressPlan, attachTo?: { taskId: string }):
       tool: 'compressor' as const,
       outputName,
       ...(overwrite ? { versionOf: item.id } : {}),
-      ...(plan.destination.kind === 'local' ? { local: { embed: plan.embed, suffix } } : {}),
+      ...(plan.destination.kind === 'local'
+        ? { local: { embed: plan.embed, suffix, folder: plan.destination.folder } }
+        : {}),
       options: plan.embed ? { imageEmbedding: { enabled: true } } : {},
       ...(attachTo ? { attachTo } : {})
     };
@@ -76,6 +105,7 @@ export function TeamCompressorDialog({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const agent = useOptionalAgent();
   const titleId = useId();
   const [embed, setEmbed] = useState(false);
   const [suffix, setSuffix] = useState('');
@@ -83,6 +113,23 @@ export function TeamCompressorDialog({
   const [folder, setFolder] = useState<{ id: string | null; name: string } | null>(null);
   const [picking, setPicking] = useState(false);
   const suffixId = useId();
+  /*
+   * The local folder: the one this space last saved into, else the compressor's own chosen
+   * folder (its "Separate folder" setting) — the place this person already told Soty that
+   * compressed videos go. Neither: the app asks once, as the first file starts, and the
+   * rest of the batch follows it there.
+   */
+  const [localFolder, setLocalFolder] = useState<string | null>(() => {
+    const settings = agent?.state.settings;
+    return (
+      rememberedLocalFolder(teamId) ??
+      (settings?.outputMode === 'chosen-folder' ? settings.outputFolder : null)
+    );
+  });
+  // Only an app that answered and is too old is refused here; an unknown one is tried, and
+  // the run says what it found.
+  const contracts = agent?.toolContracts ?? {};
+  const localTooOld = Object.keys(contracts).length > 0 && !localCompressSupported(contracts);
 
   type Destination = 'beside' | 'folder' | 'local' | 'overwrite';
   const destinations: ReadonlyArray<RadioOption<Destination>> = [
@@ -92,7 +139,18 @@ export function TeamCompressorDialog({
       label: t('teamCompressToFolder'),
       description: mode === 'folder' && folder ? folder.name : undefined
     },
-    { value: 'local', label: t('teamCompressLocal') },
+    {
+      value: 'local',
+      label: t('teamCompressLocal'),
+      disabled: localTooOld,
+      description: localTooOld ? (
+        t('teamCompressLocalTooOld')
+      ) : mode !== 'local' ? undefined : localFolder ? (
+        <span title={localFolder}>{compactPath(localFolder)}</span>
+      ) : (
+        t('teamCompressLocalAsk')
+      )
+    },
     {
       value: 'overwrite',
       label: t('teamCompressOverwrite'),
@@ -112,7 +170,9 @@ export function TeamCompressorDialog({
               folderId: folder?.id === 'root' ? null : (folder?.id ?? null),
               folderName: folder?.name ?? t('teamFolderPickerRoot')
             }
-          : { kind: mode }
+          : mode === 'local'
+            ? { kind: 'local', folder: localFolder }
+            : { kind: mode }
     });
     onClose();
   };
@@ -158,6 +218,13 @@ export function TeamCompressorDialog({
         {mode === 'folder' && (
           <Button color="neutral" variant="ghost" size="sm" onClick={() => setPicking(true)}>
             {t('teamFileMove')}…
+          </Button>
+        )}
+        {/* Clearing the folder is how another one is chosen: the app's own picker opens when
+            the first file starts, which is the only picker that hands back a real path. */}
+        {mode === 'local' && localFolder && (
+          <Button color="neutral" variant="ghost" size="sm" onClick={() => setLocalFolder(null)}>
+            {t('teamCompressLocalChange')}
           </Button>
         )}
       </div>

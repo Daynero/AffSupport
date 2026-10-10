@@ -156,7 +156,9 @@ export function teamErrorMessageFor(error: unknown, t: (key: TranslationKey) => 
  */
 const LOCAL_RUN: Record<string, TranslationKey> = {
   PROCESS_FAILED: 'teamErrorProcessFailed',
-  PROCESS_CANCELED: 'teamErrorProcessCanceled'
+  PROCESS_CANCELED: 'teamErrorProcessCanceled',
+  // Stitching was asked for and the compressor's library has no pictures (013 B5).
+  EMBED_IMAGES_REQUIRED: 'embeddingNeedsImage'
 };
 
 /**

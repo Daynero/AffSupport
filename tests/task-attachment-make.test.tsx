@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { teamApi } from '../apps/web/src/api/team';
 import type { ActionContext, MaterialRef } from '../apps/web/src/team/materials/actions';
 import { resolveMaterialActions } from '../apps/web/src/team/materials/useMaterialActionList';
-import { attachResultToTask } from '../apps/web/src/team/explorer/useAgentQueue';
+import {
+  attachResultToTask,
+  localCompressProgress
+} from '../apps/web/src/team/explorer/useAgentQueue';
+import { localCompressSupported } from '../apps/web/src/api/client';
 import { compressJobs } from '../apps/web/src/team/explorer/TeamCompressorDialog';
 import { spaceRouteFor } from '../apps/web/src/team/SpaceSettingsLink';
 import { buildTeamRoute, parseTeamRoute } from '../apps/web/src/team/routes';
@@ -101,6 +105,32 @@ describe('a video on a task', () => {
       destination: { kind: 'beside' }
     });
     expect(plain).not.toHaveProperty('attachTo');
+  });
+
+  it('keeps a local compression off the space and carries its folder (013 B5)', () => {
+    const [job] = compressJobs({
+      items: [{ id: 'm1', name: 'clip.mp4', folderId: 'f1' }],
+      embed: true,
+      suffix: '_s',
+      destination: { kind: 'local', folder: '/Users/me/Out' }
+    });
+    expect(job).toMatchObject({
+      tool: 'compressor',
+      local: { embed: true, suffix: '_s', folder: '/Users/me/Out' }
+    });
+    expect(job).not.toHaveProperty('versionOf');
+  });
+
+  it('runs a local compression as one bar that only goes forwards (013 B5)', () => {
+    expect(localCompressProgress('downloading', 100)).toBe(15);
+    expect(localCompressProgress('processing', 0)).toBe(15);
+    expect(localCompressProgress('processing', 50)).toBe(55);
+    expect(localCompressProgress('finalizing', 100)).toBe(100);
+  });
+
+  it('refuses a local compression on an app that would save the original untouched', () => {
+    expect(localCompressSupported({ teamWorkspace: 2 })).toBe(false);
+    expect(localCompressSupported({ teamWorkspace: 2, stitcher: 1 })).toBe(true);
   });
 });
 
