@@ -1504,3 +1504,14 @@ Disable clipboard pasting in the web client before dropping
 `public.copy_team_tasks(uuid, uuid[])`. Preserve already-created task copies,
 their labels, attachments and audit records. The RPC copies attachment
 references, never Drive files, and its batch is atomic.
+
+## 20261128100000_media_companion_projection.sql
+
+Feature 012 (T003/T004/T007). Re-apply `public.list_team_folder_page` from
+`20260918160000_folder_page_companions.sql`, `public.search_materials` from
+`20260918100000_search_by_word_start.sql` and `public.service_link_transcript_companion` from
+`20260902090000_retired_companion_leaves_drive.sql`; then drop
+`public.find_reusable_transcript(uuid, uuid)`, `private.has_readable_transcript(uuid, uuid)` and
+the index `team_materials_active_checksum_idx`. A web build that calls
+`find_reusable_transcript` treats a missing function as "nothing to reuse" and transcribes as
+before. Fingerprints already stamped on videos stay; they are harmless data.

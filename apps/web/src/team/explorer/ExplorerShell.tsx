@@ -2122,12 +2122,13 @@ function ExplorerBody({
           onDelete={permissions?.delete ? row => void trashRows([row]) : undefined}
           onTranscribe={
             permissions?.process
-              ? row =>
+              ? (row, options) =>
                   queue.enqueueTranscriptions([
                     {
                       id: row.id,
                       name: row.name,
-                      folderId: row.parentFolderId ?? currentFolderId ?? null
+                      folderId: row.parentFolderId ?? currentFolderId ?? null,
+                      ...(options?.fresh ? { fresh: true } : {})
                     }
                   ])
               : undefined

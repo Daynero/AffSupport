@@ -62,7 +62,8 @@ export function PreviewPane({
   onChanged: () => void;
   onOpen?: (material: TeamMaterialSummary) => void;
   /** Start (re-)transcribing a video from its card. */
-  onTranscribe?: (row: TeamMaterialRow) => void;
+  /** `fresh` is a re-transcribe (012, T007): never reuse an identical transcript. */
+  onTranscribe?: (row: TeamMaterialRow, options?: { fresh?: boolean }) => void;
   /** The video currently being transcribed and how far along, if any. */
   transcribing?: { videoId: string; progress: number } | null;
   /** Create a task from this material (shown on a file's card). */
@@ -274,7 +275,7 @@ export function PreviewPane({
               teamId={teamId}
               videoId={row.id}
               onTranscribe={() => onTranscribe(row)}
-              onRetranscribe={() => onTranscribe(row)}
+              onRetranscribe={() => onTranscribe(row, { fresh: true })}
               onCopied={() => push({ tone: 'success', text: t('teamTranscriptCopied') })}
               compact
             />

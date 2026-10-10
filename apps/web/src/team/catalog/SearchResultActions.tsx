@@ -68,7 +68,13 @@ export function SearchResultActions({
     parentFolderId: material.parentFolderId ?? null,
     availability: 'ready',
     transcriptReady: material.transcriptIngestState === 'full',
-    hasLineage: lineage.hasSource || lineage.hasDerivatives || lineage.isVersion
+    hasLineage: lineage.hasSource || lineage.hasDerivatives || lineage.isVersion,
+    // 012 (T003): the search row says whether the video's text is there, so "Copy text" is
+    // offered here without a request per result. An older server sends nothing, and the
+    // action simply stays away as it did before.
+    ...(material.category === 'video' && material.hasTranscriptCompanion !== undefined
+      ? { companions: { transcript: material.hasTranscriptCompanion ? { ready: true } : null } }
+      : {})
   };
 
   const context: ActionContext = {

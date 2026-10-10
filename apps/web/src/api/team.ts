@@ -1971,6 +1971,28 @@ export const teamApi = {
     );
   },
 
+  /**
+   * A transcript another video in the space already holds for the same bytes or the same
+   * decoded audio (012, FR-T2), or null. A server without the function answers "nothing to
+   * reuse", so the caller transcribes as it always did.
+   */
+  async findReusableTranscript(
+    teamId: string,
+    videoId: string
+  ): Promise<{ id: string; name: string; videoId: string } | null> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('find_reusable_transcript', {
+        p_team: teamId,
+        p_video: videoId
+      })
+    );
+    if (error) return null;
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
+    const row = data as Record<string, unknown>;
+    if (typeof row.id !== 'string' || typeof row.videoId !== 'string') return null;
+    return { id: row.id, name: typeof row.name === 'string' ? row.name : '', videoId: row.videoId };
+  },
+
   async getTranscriptCompanion(
     teamId: string,
     materialId: string

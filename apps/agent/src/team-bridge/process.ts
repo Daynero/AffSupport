@@ -17,6 +17,7 @@ import type { LandingOptimizer } from '../landing/optimizer.js';
 import type { JobQueue } from '../queue/queue.js';
 import { activeGovernorOrNull } from '../power/spawn.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
+import { audioFingerprint } from './audio-fingerprint.js';
 import type { TeamOperationEvents } from './events.js';
 import type {
   DownloadedTeamSource,
@@ -85,6 +86,11 @@ export interface TeamProcessDelegateResult {
    * passes it to the caller with the result; it writes nothing itself.
    */
   sourceLanguage?: string;
+  /**
+   * 012 (T004): the decoded-audio fingerprint of the source, for a transcription. The bridge
+   * hands it to the finalize call, which records it on the transcript companion and the video.
+   */
+  audioFingerprint?: string;
 }
 
 export type TeamProcessDelegate = (
@@ -354,6 +360,7 @@ export class TeamProcessBridge {
           file: output.file,
           mimeType: output.mimeType,
           sizeBytes: output.sizeBytes,
+          ...(output.audioFingerprint ? { audioFingerprint: output.audioFingerprint } : {}),
           onProgress: (completed, total) => {
             const ratio = total > 0 ? completed / total : 0;
             this.#events.update(request.operationId, {
@@ -576,11 +583,21 @@ function transcriptionDelegate(queue: TranscriptionQueue, translate = false): Te
        * is still in the source one — which is what the space records.
        */
       const heard = job.detectedLanguage ?? (language === 'auto' ? null : language);
+      /*
+       * 012 (T004): what the video sounds like, so the space can recognise the same speech in
+       * another file and reuse this text. Only for the transcript itself — a translation is not
+       * the video's companion. Decoding audio is a small fraction of the whisper run it follows,
+       * and a failure costs nothing but the fingerprint.
+       */
+      const fingerprint = translate
+        ? null
+        : await audioFingerprint({ file: input.sourceFile, signal: input.signal });
       return {
         file: outputPath,
         mimeType: 'text/plain',
         sizeBytes: output.size,
         ...(heard ? { sourceLanguage: heard } : {}),
+        ...(fingerprint ? { audioFingerprint: fingerprint } : {}),
         cleanup: async () => {
           await queue.remove(job!.id);
         }

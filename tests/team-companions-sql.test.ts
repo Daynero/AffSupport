@@ -418,3 +418,162 @@ describe('the thumbnail warm pass', () => {
     expect(ids).not.toContain(old[0]!.id);
   }, 60_000);
 });
+
+describe('the companion in the listings, the fingerprint, and reuse (012, T003/T004/T007)', () => {
+  async function video(name: string, checksum: string | null) {
+    const rows = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type,
+          checksum)
+       values ($1, $2, $3, 'root', $3, 'file', 'video', 'video/mp4', $4)
+       returning id`,
+      [teamId, connectionId, name, checksum]
+    );
+    return rows[0]!.id;
+  }
+
+  async function transcriptOf(videoId: string, name: string, state = 'full') {
+    const rows = await harness.root<{ id: string }>(
+      `insert into public.team_materials
+         (team_id, connection_id, drive_file_id, parent_folder_id, name, kind, category, mime_type,
+          companion_of, companion_kind, transcript_ingest_state, transcript_text)
+       values ($1, $2, $3, 'root', $3, 'file', 'transcript', 'text/plain', $4, 'transcript', $5,
+               case when $5 = 'full' then 'spoken words' else null end)
+       returning id`,
+      [teamId, connectionId, name, videoId, state]
+    );
+    return rows[0]!.id;
+  }
+
+  async function folderRows() {
+    const page = await harness.asUser<{ page: { rows: Array<Record<string, unknown>> } }>(
+      OWNER,
+      'select public.list_team_folder_page($1, null, null, null, null, 200) as page',
+      [teamId]
+    );
+    return new Map(page[0]!.page.rows.map(row => [row.id as string, row]));
+  }
+
+  it('says on each folder row whether a video has its text ready', async () => {
+    const withText = await video('proj-a.mp4', null);
+    const pending = await video('proj-b.mp4', null);
+    const bare = await video('proj-c.mp4', null);
+    const txt = await transcriptOf(withText, 'proj-a.txt');
+    await transcriptOf(pending, 'proj-b.txt', 'pending');
+
+    const rows = await folderRows();
+    expect(rows.get(withText)).toMatchObject({ hasTranscriptCompanion: true });
+    // A transcript still being read is not text anyone can copy yet.
+    expect(rows.get(pending)).toMatchObject({ hasTranscriptCompanion: false });
+    expect(rows.get(bare)).toMatchObject({ hasTranscriptCompanion: false });
+    // Only a video can own one, so nothing else carries the key.
+    expect(rows.get(txt)).not.toHaveProperty('hasTranscriptCompanion');
+    expect(rows.get(txt)).toMatchObject({ companionOf: withText, companionKind: 'transcript' });
+  }, 60_000);
+
+  it('carries the companion fields on search results', async () => {
+    const owner = await video('searchable-clip.mp4', null);
+    const txt = await transcriptOf(owner, 'searchable-clip.txt');
+    const result = await harness.asUser<{ result: { items: Array<Record<string, unknown>> } }>(
+      OWNER,
+      `select public.search_materials($1, 'searchable', '{}'::jsonb, 1, 50) as result`,
+      [teamId]
+    );
+    const items = new Map(result[0]!.result.items.map(item => [item.id as string, item]));
+    expect(items.get(owner)).toMatchObject({
+      companionOf: null,
+      companionKind: null,
+      hasTranscriptCompanion: true
+    });
+    expect(items.get(txt)).toMatchObject({
+      companionOf: owner,
+      companionKind: 'transcript',
+      hasTranscriptCompanion: false
+    });
+  }, 60_000);
+
+  it('stamps the audio fingerprint on the video and lets a link without one inherit it', async () => {
+    const FP = 'e'.repeat(64);
+    const owner = await video('fp-clip.mp4', null);
+    const first = await material('fp-clip.txt', 'file', 'transcript');
+    await harness.root('select public.service_link_transcript_companion($1, $2, $3, $4, null)', [
+      teamId,
+      owner,
+      first,
+      FP
+    ]);
+    const stamped = await harness.root<{ id: string; audio_fingerprint: string | null }>(
+      'select id, audio_fingerprint from public.team_materials where id = any($1::uuid[])',
+      [[owner, first]]
+    );
+    expect(stamped.map(row => row.audio_fingerprint)).toEqual([FP, FP]);
+
+    // A re-link without a fingerprint (a copy, an older agent) keeps what is known.
+    const second = await material('fp-clip-2.txt', 'file', 'transcript');
+    await harness.root('select public.service_link_transcript_companion($1, $2, $3, null, null)', [
+      teamId,
+      owner,
+      second
+    ]);
+    const inherited = await harness.root<{ audio_fingerprint: string | null }>(
+      'select audio_fingerprint from public.team_materials where id = $1',
+      [second]
+    );
+    expect(inherited[0]!.audio_fingerprint).toBe(FP);
+  }, 60_000);
+
+  it('offers another video’s transcript for the same bytes or the same audio, never its own', async () => {
+    const original = await video('reuse-original.mp4', 'md5-same-bytes');
+    const sameBytes = await video('reuse-copy.mp4', 'md5-same-bytes');
+    const otherBytes = await video('reuse-other.mp4', 'md5-other');
+    const txt = await transcriptOf(original, 'reuse-original.txt');
+
+    const byChecksum = await harness.asUser<{ found: Record<string, unknown> | null }>(
+      OWNER,
+      'select public.find_reusable_transcript($1, $2) as found',
+      [teamId, sameBytes]
+    );
+    expect(byChecksum[0]!.found).toMatchObject({ id: txt, videoId: original, match: 'checksum' });
+
+    const none = await harness.asUser<{ found: unknown }>(
+      OWNER,
+      'select public.find_reusable_transcript($1, $2) as found',
+      [teamId, otherBytes]
+    );
+    expect(none[0]!.found).toBeNull();
+
+    // Re-encoded bytes, same decoded audio: found through the fingerprint.
+    const FP = 'f'.repeat(64);
+    await harness.root('update public.team_materials set audio_fingerprint = $2 where id = $1', [
+      original,
+      FP
+    ]);
+    await harness.root('update public.team_materials set audio_fingerprint = $2 where id = $1', [
+      otherBytes,
+      FP
+    ]);
+    const byAudio = await harness.asUser<{ found: Record<string, unknown> | null }>(
+      OWNER,
+      'select public.find_reusable_transcript($1, $2) as found',
+      [teamId, otherBytes]
+    );
+    expect(byAudio[0]!.found).toMatchObject({ id: txt, match: 'fingerprint' });
+
+    // The video that owns the text has nothing to reuse: asking again is a re-transcribe.
+    const own = await harness.asUser<{ found: unknown }>(
+      OWNER,
+      'select public.find_reusable_transcript($1, $2) as found',
+      [teamId, original]
+    );
+    expect(own[0]!.found).toBeNull();
+
+    // A stranger to the space is refused.
+    await expect(
+      harness.asUser(
+        '27000000-0000-4000-8000-0000000000ff',
+        'select public.find_reusable_transcript($1, $2)',
+        [teamId, sameBytes]
+      )
+    ).rejects.toThrow(/PERMISSION_DENIED/);
+  }, 60_000);
+});

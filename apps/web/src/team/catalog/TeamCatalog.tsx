@@ -36,6 +36,7 @@ import { uploadTeamFile } from './material-actions-client';
 import type { ThumbnailSession } from '@video-compressor/shared';
 import { ProcessMaterialDialog } from '../processing/ProcessMaterialDialog';
 import { ActiveOperation } from '../processing/MaterialProcessFlow';
+import { carryTranscriptAfterProcess, defaultTailClient } from '../materials/tail';
 import { ProvenancePanel } from './ProvenancePanel';
 
 export interface TeamCatalogClient {
@@ -187,19 +188,34 @@ export function TeamCatalog({
       options: {},
       sourceGrant: result.sourceGrant,
       finalizeGrant: result.finalizeGrant
-    }).catch(async (cause: unknown) => {
-      const code = cause instanceof Error ? cause.message : 'PROCESS_FAILED';
-      // The server-side operation is released either way, but the person is
-      // told it failed — not that it was canceled, which is what the release
-      // used to be mistaken for (finding S6).
-      setOverlay(current =>
-        current?.kind === 'operation' && current.id === result.operationId
-          ? { ...current, failureCode: code }
-          : current
-      );
-      push({ tone: 'error', text: teamErrorMessage(code, t) });
-      await teamApi.cancelOperation(teamId, result.operationId).catch(() => undefined);
-    });
+    })
+      // 012 (T010): a compressed or embedded copy takes the source's transcript along.
+      .then(outcome =>
+        outcome.state === 'succeeded'
+          ? carryTranscriptAfterProcess({
+              teamId,
+              toolId: input.toolId,
+              source: { id: source.id, name: source.name, category: source.category },
+              result: { materialId: outcome.materialId, name: input.outputName },
+              versionOf: input.versionOfMaterialId,
+              destinationFolderId: input.destinationFolderId,
+              client: defaultTailClient
+            })
+          : null
+      )
+      .catch(async (cause: unknown) => {
+        const code = cause instanceof Error ? cause.message : 'PROCESS_FAILED';
+        // The server-side operation is released either way, but the person is
+        // told it failed — not that it was canceled, which is what the release
+        // used to be mistaken for (finding S6).
+        setOverlay(current =>
+          current?.kind === 'operation' && current.id === result.operationId
+            ? { ...current, failureCode: code }
+            : current
+        );
+        push({ tone: 'error', text: teamErrorMessage(code, t) });
+        await teamApi.cancelOperation(teamId, result.operationId).catch(() => undefined);
+      });
   };
 
   return (

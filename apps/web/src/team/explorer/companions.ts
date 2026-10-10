@@ -12,11 +12,11 @@ import type { TeamMaterialRow } from '@video-compressor/shared';
  * out, on a later page, or deleted stands on its own, because a file that cannot be reached any
  * other way must never be hidden.
  *
- * The field is not in the shared package's row type yet (it cannot change without a desktop
- * release), so it is read from the row as the server sends it.
+ * The field is optional on the row type (012, T003): a server that predates it sends nothing,
+ * and such a row simply stands on its own.
  */
 export const companionOf = (row: TeamMaterialRow): string | null => {
-  const value = (row as { companionOf?: unknown }).companionOf;
+  const value: unknown = row.companionOf;
   return typeof value === 'string' && value.length > 0 ? value : null;
 };
 

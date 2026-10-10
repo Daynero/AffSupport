@@ -1136,6 +1136,14 @@ export interface TeamMaterialRow extends TeamMaterialSummary {
   previewReason?: string;
   thumbnailReady: boolean;
   landingRender?: { state: TeamLandingTileRenderState };
+  /** The video this file belongs to (024, US25): a transcript or a catalog. */
+  companionOf?: string | null;
+  companionKind?: string | null;
+  /**
+   * A video's linked transcript has text to read (012, T003). Sent for video rows only, and
+   * absent from servers that predate it — read absence as "unknown", not as "none".
+   */
+  hasTranscriptCompanion?: boolean;
 }
 
 export interface FolderPageCursor {

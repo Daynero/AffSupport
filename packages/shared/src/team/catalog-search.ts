@@ -100,6 +100,11 @@ export interface CatalogMaterialItem {
   /** The file's tag (011), set by the space's owner; null when it carries none. */
   tagColor?: TeamMaterialTagColor | null;
   lineage: CatalogLineageSummary;
+  /** The video this result belongs to, when it is a companion (012, T003). */
+  companionOf?: string | null;
+  companionKind?: string | null;
+  /** A video whose linked transcript has text to read; absent from older servers. */
+  hasTranscriptCompanion?: boolean;
 }
 
 export interface CatalogFacetValue {
@@ -373,6 +378,12 @@ export function decodeCatalogMaterial(
       value.tagColor === undefined ||
       value.tagColor === null ||
       isTeamMaterialTagColor(value.tagColor)
+    ) ||
+    !(value.companionOf === undefined || optionalString(value.companionOf)) ||
+    !(value.companionKind === undefined || optionalString(value.companionKind)) ||
+    !(
+      value.hasTranscriptCompanion === undefined ||
+      typeof value.hasTranscriptCompanion === 'boolean'
     ) ||
     !lineage ||
     typeof lineage.hasSource !== 'boolean' ||

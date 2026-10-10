@@ -37,6 +37,8 @@ export interface TeamResultUploadRequest {
   file: string;
   mimeType: string;
   sizeBytes: number;
+  /** 012 (T004): the source's decoded-audio fingerprint, reported with the finalize. */
+  audioFingerprint?: string;
   onProgress?: (completed: number, total: number) => void;
 }
 
@@ -254,7 +256,11 @@ export class TeamTransferClient {
       {
         operationId: request.operationId,
         ticket: request.finalizeGrant.ticket,
-        driveFileId
+        driveFileId,
+        // A server that predates it ignores the field; one that knows it records it.
+        ...(request.audioFingerprint && /^[a-f0-9]{64}$/u.test(request.audioFingerprint)
+          ? { audioFingerprint: request.audioFingerprint }
+          : {})
       },
       signal
     );

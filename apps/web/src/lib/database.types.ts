@@ -3571,6 +3571,10 @@ export type GeneratedDatabase = {
           request_outcome: string;
         }[];
       };
+      find_reusable_transcript: {
+        Args: { p_team: string; p_video: string };
+        Returns: Json;
+      };
       find_team_folder_sync_request_by_key: {
         Args: { p_request_key: string; p_team: string };
         Returns: {

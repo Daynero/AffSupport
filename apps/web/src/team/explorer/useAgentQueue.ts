@@ -17,6 +17,7 @@ import { useTeamOperation } from '../processing/useTeamOperation';
 import { announceTaskAttachmentsChanged } from '../tasks/taskAttachmentEvents';
 import type { MaterialActionsClient } from '../catalog/useMaterialActions';
 import { rememberLocalFolder } from './TeamCompressorDialog';
+import { carryTranscriptAfterProcess, reuseTranscriptFor } from '../materials/tail';
 
 /**
  * The explorer's one queue for work that runs on the local app (024, FR-095).
@@ -54,6 +55,11 @@ export type AgentQueueItem = {
    * transcript they just asked for.
    */
   attachTo?: { taskId: string };
+  /**
+   * 012 (T007): a re-transcribe. Skips the reuse of another video's identical transcript,
+   * because the person asked for a new one.
+   */
+  fresh?: boolean;
   options?: Record<string, unknown>;
 };
 
@@ -74,7 +80,13 @@ export interface AgentQueue {
   enqueue: (items: AgentQueueItem[]) => void;
   /** The convenience the explorer's Transcribe uses. */
   enqueueTranscriptions: (
-    items: { id: string; name: string; folderId: string | null; attachTo?: { taskId: string } }[]
+    items: {
+      id: string;
+      name: string;
+      folderId: string | null;
+      attachTo?: { taskId: string };
+      fresh?: boolean;
+    }[]
   ) => void;
   active: ActiveAgentQueueItem | null;
   queued: readonly AgentQueueItem[];
@@ -184,7 +196,13 @@ export function useAgentQueue({
   };
 
   const enqueueTranscriptions = (
-    items: { id: string; name: string; folderId: string | null; attachTo?: { taskId: string } }[]
+    items: {
+      id: string;
+      name: string;
+      folderId: string | null;
+      attachTo?: { taskId: string };
+      fresh?: boolean;
+    }[]
   ) =>
     enqueueJobs(
       items.map(item => ({
@@ -199,6 +217,12 @@ export function useAgentQueue({
     if (tActive || tQueue.length === 0 || tPaused) return;
     const next = tQueue[0];
     setTActive({ ...next, operationId: null });
+    // What a transcript copy needs (012): the copy itself, and the rename this queue already uses.
+    const tailClient = {
+      copyMaterial: (input: Parameters<typeof teamApi.copyMaterial>[0]) =>
+        teamApi.copyMaterial(input),
+      renameMaterial: actionsClient.renameMaterial
+    };
     void (async () => {
       let started: string | null = null;
       try {
@@ -228,6 +252,30 @@ export function useAgentQueue({
           }
           push({ tone: 'success', text: t('teamCompressLocalSaved', { name: saved.fileName }) });
           return;
+        }
+        // 012 (FR-T2): the same audio was already transcribed in this space — copy that text
+        // instead of a whisper run. A re-transcribe (`fresh`) always runs.
+        if (next.tool === 'transcription' && !next.fresh) {
+          const reused = await reuseTranscriptFor({
+            teamId,
+            video: { id: next.id, name: next.name },
+            destinationFolderId: next.folderId,
+            client: tailClient
+          });
+          if (reused) {
+            if (next.attachTo) {
+              await attachResultToTask({
+                teamId,
+                taskId: next.attachTo.taskId,
+                materialId: reused,
+                name: next.outputName,
+                push,
+                t
+              });
+            }
+            push({ tone: 'success', text: t('teamTranscriptReused', { name: next.name }) });
+            return;
+          }
         }
         const result = await teamApi.startProcess({
           teamId,
@@ -288,6 +336,17 @@ export function useAgentQueue({
             })
             .catch(() => undefined);
         }
+        // 012 (T010): a compressed copy takes the source's transcript along, named after it.
+        // An overwrite keeps the same material, whose companion never left.
+        await carryTranscriptAfterProcess({
+          teamId,
+          toolId: next.tool,
+          source: { id: next.id, name: next.name, category: 'video' },
+          result: { materialId: finished.materialId, name: next.outputName },
+          versionOf: next.versionOf,
+          destinationFolderId: next.folderId,
+          client: tailClient
+        });
       } catch (cause) {
         // A run somebody stopped on purpose is not a failure, and saying so in red is how a
         // deliberate act starts looking like a fault. Everything below still happens — the

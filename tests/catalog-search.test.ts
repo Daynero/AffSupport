@@ -136,6 +136,34 @@ describe('closed search response decoding', () => {
     ).toBeNull();
   });
 
+  it('carries the companion fields (012, T003), and refuses a malformed one', () => {
+    const decoded = decodeCatalogSearchResponse(
+      {
+        ...response,
+        items: [
+          {
+            ...response.items[0],
+            companionOf: null,
+            companionKind: null,
+            hasTranscriptCompanion: true
+          }
+        ]
+      },
+      teamId
+    );
+    expect(decoded?.items[0]).toMatchObject({ companionOf: null, hasTranscriptCompanion: true });
+    // An older server sends none of them, and that is still a valid page.
+    expect(decodeCatalogSearchResponse(response, teamId)?.items[0]).not.toHaveProperty(
+      'hasTranscriptCompanion'
+    );
+    expect(
+      decodeCatalogSearchResponse(
+        { ...response, items: [{ ...response.items[0], hasTranscriptCompanion: 'yes' }] },
+        teamId
+      )
+    ).toBeNull();
+  });
+
   it('fails closed if a hidden-team row appears in an otherwise valid payload', () => {
     expect(
       decodeCatalogSearchResponse(

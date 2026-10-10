@@ -156,6 +156,136 @@ export async function copyMaterialWithTail(input: {
   return result;
 }
 
+/**
+ * Gives a video its own copy of a transcript, named after it and linked to it.
+ *
+ * The one primitive behind two journeys (012): a compressed or re-encoded result carries the
+ * source's text (T010), and a video whose audio was already transcribed elsewhere in the space
+ * reuses that text instead of running whisper again (FR-T2). Either way the copy is the video's
+ * own — re-transcribing it later replaces this copy and leaves the original alone.
+ *
+ * Returns the linked copy's id, or null when the video did not end up with one. Never throws:
+ * the video exists either way, and a video without text is one press from getting it.
+ */
+export async function carryTranscript(input: {
+  teamId: string;
+  transcriptId: string;
+  video: { id: string; name: string };
+  destinationFolderId: string | null;
+  client: CopyTailClient & RenameTailClient;
+}): Promise<string | null> {
+  const { teamId, transcriptId, video, destinationFolderId, client } = input;
+  try {
+    const copied = await client.copyMaterial({
+      teamId,
+      materialId: transcriptId,
+      destinationFolderId,
+      idempotencyKey: key()
+    });
+    const copyId = copied.materialId;
+    if (!copyId) return null;
+    // The copy lands under the source transcript's name ("clip.txt", or "clip (2).txt" beside
+    // it); the video it now belongs to is called something else ("clip_1.mp4").
+    await client
+      .renameMaterial({
+        teamId,
+        materialId: copyId,
+        newName: transcriptNameFor(video.name),
+        conflictMode: 'keep_both',
+        idempotencyKey: key()
+      })
+      .catch(() => undefined);
+    return (await teamApi.linkTranscriptCompanion(teamId, video.id, copyId)) ? copyId : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A file made *from* a video — a compression, an embed — takes the source's transcript along
+ * (012, T010). An overwrite is not one: the result is the same material, and its companion
+ * never left.
+ */
+export async function carryTranscriptToDerivative(input: {
+  teamId: string;
+  source: TailMaterial;
+  derivative: { id: string; name: string };
+  destinationFolderId: string | null;
+  client: CopyTailClient & RenameTailClient;
+}): Promise<string | null> {
+  const { teamId, source, derivative, destinationFolderId, client } = input;
+  if (derivative.id === source.id) return null;
+  const tail = await tailOf(teamId, source);
+  if (!tail.transcript) return null;
+  return carryTranscript({
+    teamId,
+    transcriptId: tail.transcript.id,
+    video: derivative,
+    destinationFolderId,
+    client
+  });
+}
+
+/** The tools whose result is a new video made from the source, so it takes the text along. */
+const DERIVING_TOOLS = new Set(['compressor', 'imageEmbedding']);
+
+/**
+ * What every surface that runs a tool does once the run has written its result (012, T010):
+ * a compression or an embed into a new file gives that file the source's transcript. The
+ * same rule for the queue, the process dialog and a search result, so no path forgets it.
+ */
+export async function carryTranscriptAfterProcess(input: {
+  teamId: string;
+  toolId: string;
+  source: TailMaterial;
+  result: { materialId: string | null; name: string };
+  versionOf?: string | null;
+  destinationFolderId: string | null;
+  client: CopyTailClient & RenameTailClient;
+}): Promise<string | null> {
+  const { teamId, toolId, source, result, versionOf, destinationFolderId, client } = input;
+  if (!DERIVING_TOOLS.has(toolId) || versionOf || !result.materialId) return null;
+  return carryTranscriptToDerivative({
+    teamId,
+    source,
+    derivative: { id: result.materialId, name: result.name },
+    destinationFolderId,
+    client
+  });
+}
+
+/** The client a surface without its own copy/rename seam uses. */
+export const defaultTailClient: CopyTailClient & RenameTailClient = {
+  copyMaterial: input => teamApi.copyMaterial(input),
+  renameMaterial: input => teamApi.renameMaterial(input)
+};
+
+/**
+ * Compute-time dedup (012, FR-T2): when another video in the space already has text for the
+ * same bytes or the same decoded audio, this video gets its own copy of it instead of a whisper
+ * run. Returns the new transcript's id, or null when there was nothing to reuse (or reusing it
+ * failed) and the caller should transcribe as usual.
+ *
+ * Re-transcribe (T007) never calls this: a person who asks for a fresh transcript gets one.
+ */
+export async function reuseTranscriptFor(input: {
+  teamId: string;
+  video: { id: string; name: string };
+  destinationFolderId: string | null;
+  client: CopyTailClient & RenameTailClient;
+}): Promise<string | null> {
+  const { teamId, video, destinationFolderId, client } = input;
+  const reusable = await teamApi.findReusableTranscript(teamId, video.id).catch(() => null);
+  if (!reusable) return null;
+  return carryTranscript({
+    teamId,
+    transcriptId: reusable.id,
+    video,
+    destinationFolderId,
+    client
+  });
+}
+
 /** Moves companions first, then their video. The source keeps showing one complete
  * video until the move finishes, instead of exposing orphan catalog folders. */
 export async function moveMaterialWithTail(input: {

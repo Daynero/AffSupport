@@ -1065,19 +1065,23 @@ async function handleUploadFinalize(
     }
     // 012 (T006): a transcription result is the video's transcript companion —
     // link it so it follows the video and the card reflects it. Best-effort:
-    // the .txt is committed regardless, and the text/fingerprint are filled by
-    // ingestion (and T004) later.
+    // the .txt is committed regardless, and the text is filled by ingestion.
+    // The fingerprint (T004) comes from the agent's finalize, when it sent one.
     if (
       resultMaterialId &&
       operation.kind === 'process' &&
       operation.toolId === 'transcription' &&
       operation.sourceMaterialId
     ) {
+      const fingerprint =
+        typeof body.audioFingerprint === 'string' && /^[a-f0-9]{64}$/u.test(body.audioFingerprint)
+          ? body.audioFingerprint
+          : null;
       const linked = await rpcValue(service, 'service_link_transcript_companion', {
         p_team: operation.teamId,
         p_video: operation.sourceMaterialId,
         p_companion: resultMaterialId,
-        p_fingerprint: null,
+        p_fingerprint: fingerprint,
         p_text: null
       }).catch(() => null);
       // The transcript this one replaces leaves Drive as well as the catalog.
@@ -2127,10 +2131,20 @@ async function handleProcessOutputFinalize(
   if (grant.operationId !== operationId) {
     throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
   }
+  // 012 (T004): the agent reports the source's decoded-audio fingerprint with a transcription.
+  // Only this agent-ticketed path may carry it; a malformed one is dropped, never trusted.
+  const audioFingerprint =
+    typeof body.audioFingerprint === 'string' && /^[a-f0-9]{64}$/u.test(body.audioFingerprint)
+      ? body.audioFingerprint
+      : undefined;
   return handleUploadFinalize(
     request,
     operationId,
-    { driveFileId: body.driveFileId, idempotencyKey: `agent:${operationId}` },
+    {
+      driveFileId: body.driveFileId,
+      idempotencyKey: `agent:${operationId}`,
+      ...(audioFingerprint ? { audioFingerprint } : {})
+    },
     service,
     grant.actorId
   );
@@ -2940,10 +2954,13 @@ Deno.serve(async request => {
       value = await handleUploadStart(request, body, configured.service, userId);
       status = 202;
     } else if (finalize) {
+      // A browser finalize never speaks for the audio: that is the agent's measurement (012).
+      const browserBody = { ...body };
+      delete browserBody.audioFingerprint;
       value = await handleUploadFinalize(
         request,
         requireUuid(finalize[1]),
-        body,
+        browserBody,
         configured.service,
         userId
       );

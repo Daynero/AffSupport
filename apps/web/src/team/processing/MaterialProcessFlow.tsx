@@ -13,6 +13,7 @@ import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { teamErrorMessage } from '../errors';
+import { carryTranscriptAfterProcess, defaultTailClient } from '../materials/tail';
 import { OperationStatus } from './OperationStatus';
 import { ProcessMaterialDialog, type ProcessableMaterial } from './ProcessMaterialDialog';
 import { useTeamOperation } from './useTeamOperation';
@@ -78,6 +79,18 @@ export function MaterialProcessFlow({
     })
       .then(async outcome => {
         if (outcome.state === 'succeeded' && outcome.materialId) onFinished?.(outcome.materialId);
+        // 012 (T010): a compressed or embedded copy takes the source's transcript along.
+        if (outcome.state === 'succeeded') {
+          await carryTranscriptAfterProcess({
+            teamId,
+            toolId: input.toolId,
+            source: { id: material.id, name: material.name, category: material.category },
+            result: { materialId: outcome.materialId, name: input.outputName },
+            versionOf: input.versionOfMaterialId,
+            destinationFolderId: input.destinationFolderId,
+            client: defaultTailClient
+          });
+        }
         /*
          * A transcription is the one run that learns what language the file is
          * in, and language is a field nobody was ever going to fill five

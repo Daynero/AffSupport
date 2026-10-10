@@ -153,3 +153,38 @@ Intelligence indexing storm (load 144, AppleNeuralEngine + Virtualization)
 hit mid-run; whisper was killed as a precaution, yet both finished jobs were
 already committed. Queue survives per-item failure; page reload clears it
 (session-local by design).
+
+## T003 / T004 / T005 / T007 / T010 closed (2026-10-11)
+
+Production 2026-10-10: compressing `claude-test-speech-video.mp4` into
+`claude-test-speech-video_1.mp4` left the result without its transcript. Copy carried the
+text (`copyMaterialWithTail`); compression did not — no run surface knew about the tail.
+
+- **T010** `carryTranscriptAfterProcess` in `apps/web/src/team/materials/tail.ts` is the one rule
+  every run surface calls after a successful run (explorer queue, process dialog, catalog search):
+  for `compressor` / `imageEmbedding` into a new file, the source transcript is copied beside the
+  result (Drive `files.copy` through `drive-ops/copy`), renamed `<result-stem>.txt`, linked. An
+  overwrite keeps its companion. Chosen client-side, like the rest of the tail, because the
+  drive-ops finalize cannot be type-checked here without Deno and the copy/rename/link primitives
+  already exist and are proven; the cost is that a run whose page was closed before it finished
+  does not carry the text (re-transcribing it is one press).
+- **T004** the agent hashes the decoded audio (16 kHz mono s16le, SHA-256) after whisper and
+  sends it with the finalize; `service_link_transcript_companion` stamps it on the transcript and
+  the video. Only the agent-ticketed finalize may carry it; the browser finalize strips it.
+- **T005 / FR-T2 dedup** `find_reusable_transcript(team, video)` finds another video in the space
+  with the same Drive checksum (identical bytes) or the same fingerprint that has readable text.
+  The queue's Transcribe asks first and, on a hit, copies that text instead of running whisper
+  (toast "the same audio already had a transcript"). Fingerprint matches need the second video to
+  have been fingerprinted, so in practice the checksum catches re-uploads and copies, and the
+  fingerprint catches re-wraps once both have been through the agent.
+- **T007** Re-transcribe from the card enqueues `fresh`, which never reuses.
+- **T003** the folder page and the search carry `hasTranscriptCompanion` (search also
+  `companionOf` / `companionKind`); search results now show "Copy text" without a request per row.
+
+Not covered by analytics yet: a reused or carried transcript emits no event of its own (the
+copy and rename go through `drive-ops` like any other copy), so "was this text reused" is
+answerable only from the catalog (`audio_fingerprint`, the companion link), not from the CLI.
+
+Release: migration `20261128100000` + drive-ops (edge function) + web + agent. Each half
+degrades alone: a web without the migration sees `find_reusable_transcript` fail and transcribes
+as before; an old agent sends no fingerprint; an old drive-ops ignores it.
