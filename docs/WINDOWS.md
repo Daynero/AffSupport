@@ -92,19 +92,29 @@ then points there. That keeps a released commit rebuildable years later. Mirror
 releases are never edited: bundling different bytes means minting a new
 `windows-inputs-<n+1>`.
 
+**State (2026-10-10):** the `windows-inputs-1` release does not exist yet and
+every `mirrorUrl` is `null`, so CI builds fetch from upstream (still pinned by
+sha256/size or git commit). Before it can be dispatched, the workflow needs one
+fix: its download loop takes every `status: "pinned"` input, which includes the
+`git` source `x264-source` (`sizeBytes: 0`), so the run would refuse on it. The
+loop must skip `archiveKind: "git"` and a separate step must clone x264 at
+`gitRevision` and `git archive` it into the mirror, the same way
+`release-windows.yml` already does. The input most worth mirroring is the VAD
+model: its upstream URL is Hugging Face `resolve/main`, which is mutable.
+
 ## Release gating
 
 `REQUIRED_RELEASE_PLATFORMS` in `packages/shared/src/release.ts` is the single
-list of platforms a stable release must ship. It currently contains
-`macos-arm64` only. Adding `'windows-x64'`:
+list of platforms a stable release must ship. It contains both `macos-arm64`
+and `windows-x64` (flipped once the pipeline reliably produced an installer;
+every stable release since then has shipped both). Listing `'windows-x64'`:
 
 - makes `scripts/verify-release.mjs` demand the Windows artifact in
   `apps/web/public/.well-known/wishly/stable.json`, and
 - makes `scripts/verify-published-release.mjs` demand it be downloadable.
 
 From that moment a missing or broken Windows build blocks the macOS release and
-the web deploy too. That is the intended end state — **flip it last**, once the
-pipeline reliably produces an installer.
+the web deploy too. That is the intended end state, and it is the current one.
 
 Note the manifest path is `.well-known/wishly/`, not `soty/`.
 
@@ -112,8 +122,10 @@ Note the manifest path is `.well-known/wishly/`, not `soty/`.
 
 `scripts/sign-release-manifest.mjs` reads the private key from
 `config/keys/release-manifest.private.pem`. That key **must never enter CI**.
-After the workflow attaches the installer to the release tag, download it and,
-on the maintainer's Mac:
+The release runner (spec 020, `scripts/lib/release/step-adapter.mjs`) does this
+step itself on the maintainer's Mac: it downloads the installer the workflow
+attached, records its sha256 with `--platform windows-x64` and re-signs. Done
+by hand, it is:
 
 ```sh
 node scripts/sign-release-manifest.mjs --dmg <installer path> --platform windows-x64
@@ -137,3 +149,71 @@ rented cloud Windows desktop:
 
 The list is closed: anything else discovered to be unverifiable must be added
 here rather than left implicit.
+
+## Перевірка людиною на Windows (T073, T076)
+
+Ці два пункти не можна зробити з Mac чи CI: потрібна людина за справжнім
+Windows-комп'ютером. Станом на 2026-10-10 вони **не виконані**, усі клітинки
+`Checked by` вище — `_pending_`.
+
+Важливо: інсталятор Windows уже опублікований (щонайменше з 1.2.0, зараз 1.2.6), а сайт
+показує кнопку «Windows» кожному відвідувачу з Windows, бо в маніфесті є запис
+`windows-x64`. Тобто вимога FR-042 «спершу обмежена перевірка, потім усім» уже
+формально обійдена. Поки сайт не показують стороннім людям, це не шкодить, але
+перевірку нижче треба пройти до того, як посилання піде назовні.
+
+### Що потрібно
+
+- Комп'ютер з Windows 10 або 11, 64-біт (Intel/AMD, не ARM). Підійде власний,
+  орендований хмарний робочий стіл (наприклад, Azure Virtual Desktop чи
+  Shadow) або тестувальник зі списку очікування Windows (адмін-сторінка,
+  розділ списку очікування).
+- Звичайний антивірус, який там уже стоїть (Windows Defender теж рахується).
+- Акаунт Soty для входу.
+
+### Чекліст першого проходу (T073)
+
+Кожен пункт — це одна перевірка з таблиці «What CI cannot verify». Що бачите,
+те й записуйте, бажано зі скріншотом.
+
+1. **SmartScreen** (`smartscreen-flow`). Відкрийте сайт, натисніть «Windows»,
+   запустіть завантажений `Soty-v<версія>-Windows-x64.exe`. Має з'явитися синє
+   вікно «Windows захистив ваш ПК». Натисніть «Докладніше» → «Усе одно
+   запустити». Встановлення має дійти до кінця. Запишіть точний текст вікна.
+2. **Антивірус** (`antivirus-quarantine`). Під час завантаження й
+   встановлення: чи браузер або антивірус блокував файл, видаляв його, просив
+   підтвердження? Через 10 хвилин після встановлення перевірте, що програма
+   досі на місці й працює. Запишіть назву антивіруса та що він зробив.
+3. **Брандмауер** (`firewall-prompt`). Під час першого запуску не має бути
+   вікна «Брандмауер Windows заблокував деякі функції». Якщо воно з'явилося —
+   скріншот, і натисніть «Скасувати», не «Дозволити».
+4. **Вибір файлів** (`native-chooser-dialog`). У Soty увійдіть, з'єднайте
+   програму з сайтом і в компресорі натисніть вибір файлів. Вікно вибору має
+   з'явитися **поверх** браузера, а не сховатися за ним. Виберіть кілька файлів
+   одразу (Ctrl+клік). Окремо виберіть файл і папку з кириличною назвою,
+   наприклад `Відео тест\кліп.mp4`. Стисніть одне відео до кінця.
+5. **Перезавантаження** (`reboot-survival`). Перезавантажте комп'ютер, нічого
+   не запускаючи вручну відкрийте сайт: він має бачити програму як підключену.
+
+Після проходу впишіть у колонку `Checked by` таблиці вище, хто й коли
+перевіряв і результат, наприклад `Роман, 2026-10-12, Win 11 23H2, ок` або
+`… — Defender видалив файл, див. скрін`. Будь-яке «не так» — окрема задача до
+виправлення, а не позначка «перевірено».
+
+### Обмежений пре-реліз (T076)
+
+1. Запросіть 3–5 людей зі списку очікування Windows, у яких різні комп'ютери
+   (бажано і Windows 10, і 11, різні антивіруси).
+2. Попросіть кожного пройти пункти 1–5 вище й стиснути хоча б одне своє відео.
+   Для зворотного зв'язку вистачить короткого повідомлення: що встановилось,
+   що ні, скріншоти помилок.
+3. Подивіться в аналітиці, чи були в них помилки завдань:
+   `npm run analytics -- errors --period 7d` і
+   `npm run analytics -- cohorts --cohort-by platform`.
+4. Запишіть підсумок сюди, у розділ «Результати пре-релізу» нижче: дата,
+   версія, скільки людей, на яких Windows, що зламалося, що виправили.
+5. Лише після цього посилання на Windows-версію можна давати назовні.
+
+### Результати пре-релізу
+
+_Ще не проводився._
