@@ -91,7 +91,7 @@ jobs:
             test "$(git -C "work-$id" rev-parse HEAD)" = "$revision"
             # Same name and prefix the Windows release archives as GPL corresponding source.
             name="${id%-source}-$revision"
-            git -C "work-$id" archive --format=tar.gz --prefix="$name/" HEAD -o "mirror/$name.tar.gz"
+            git -C "work-$id" archive --format=tar.gz --prefix="$name/" HEAD -o "$PWD/mirror/$name.tar.gz"
             echo "mirrored $id -> $name.tar.gz ($(sha256sum "mirror/$name.tar.gz" | cut -d' ' -f1))"
           done
 
