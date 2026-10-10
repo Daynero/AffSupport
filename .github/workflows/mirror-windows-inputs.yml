@@ -51,7 +51,10 @@ jobs:
             process.stderr.write(`Manifest invalid: ${parsed.error}\n`);
             process.exit(1);
           }
-          for (const entry of parsed.value.inputs.filter(i => i.status === 'pinned')) {
+          // A git pin has no bytes to fetch by URL; the next step archives its checkout.
+          for (const entry of parsed.value.inputs.filter(
+            i => i.status === 'pinned' && i.archiveKind !== 'git'
+          )) {
             const url = entry.upstreamUrl;
             const response = await fetch(url, { redirect: 'follow' });
             if (!response.ok) {
@@ -72,6 +75,25 @@ jobs:
             process.stdout.write(`mirrored ${entry.id} -> ${name} (${digest})\n`);
           }
           NODE
+
+      - name: Archive the pinned git sources
+        run: |
+          set -euo pipefail
+          node -e '
+            const inputs = require("./packaging/windows/inputs.json");
+            for (const i of inputs.inputs ?? inputs)
+              if (i.status === "pinned" && i.archiveKind === "git")
+                console.log(`${i.id} ${i.upstreamUrl} ${i.gitRevision}`);
+          ' | while read -r id url revision; do
+            git clone --quiet "$url" "work-$id"
+            git -C "work-$id" checkout --quiet --detach "$revision"
+            # The commit hash is the pin; refuse anything else.
+            test "$(git -C "work-$id" rev-parse HEAD)" = "$revision"
+            # Same name and prefix the Windows release archives as GPL corresponding source.
+            name="${id%-source}-$revision"
+            git -C "work-$id" archive --format=tar.gz --prefix="$name/" HEAD -o "mirror/$name.tar.gz"
+            echo "mirrored $id -> $name.tar.gz ($(sha256sum "mirror/$name.tar.gz" | cut -d' ' -f1))"
+          done
 
       - name: Publish the immutable mirror release
         env:
