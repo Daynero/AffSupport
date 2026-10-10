@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
@@ -9,7 +9,15 @@ import { selectOutputFolder, selectLandingFolders, selectLandingZips } from '../
 import { uploadIntakeMeta } from '../files/upload-intake.js';
 import { showInFileManager, capabilities } from '../platform/platform.js';
 import type { EventChannel } from '../server/sse.js';
-import { MAX_LANDING_ARCHIVE_BYTES, MAX_LANDING_ASSET_BYTES } from '../server/upload-limits.js';
+import {
+  FOLDER_UPLOAD_LIMITS,
+  FolderUploadBudget,
+  MAX_LANDING_ARCHIVE_BYTES,
+  MAX_LANDING_ASSET_BYTES,
+  UPLOAD_BUDGET_EXCEEDED,
+  withinPathBounds,
+  type FolderUploadLimits
+} from '../server/upload-limits.js';
 import type { LandingOptimizer } from './optimizer.js';
 import { sanitizeRelPath } from './workspace.js';
 import { failureCode } from '../server/failure-codes.js';
@@ -18,10 +26,31 @@ interface LandingDeps {
   optimizer: LandingOptimizer;
   events: EventChannel<LandingEvent>;
   acceptingNewTasks: () => boolean;
+  /** The folder-upload session budget; the contract's values unless a test narrows them. */
+  folderUploadLimits?: Readonly<FolderUploadLimits>;
+  /** The budget's wall clock. */
+  clock?: () => number;
 }
 
 export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   const { optimizer, events, acceptingNewTasks } = deps;
+  const folderUploadLimits = deps.folderUploadLimits ?? FOLDER_UPLOAD_LIMITS;
+  const clock = deps.clock ?? Date.now;
+
+  /*
+   * The budget of the folder upload in progress, tied to the directory it writes into. A file
+   * that arrives for any other directory — a ZIP upload's, or one from a session that has since
+   * ended — has no budget and is refused, so the per-session limits cannot be sidestepped by
+   * never calling `begin`.
+   */
+  let folderSession: { inputDir: string; budget: FolderUploadBudget } | null = null;
+
+  /** Ends the session the budget belonged to: temporary directory removed, nothing half-kept. */
+  async function exceedBudget(reply: any) {
+    folderSession = null;
+    await optimizer.abortUpload().catch(() => {});
+    return reply.code(413).send({ error: UPLOAD_BUDGET_EXCEEDED });
+  }
 
   app.get('/api/landing/state', async () => optimizer.state());
 
@@ -187,7 +216,8 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
     async (request, reply) => {
       const name = typeof request.body?.name === 'string' ? request.body.name : 'landing';
       try {
-        await optimizer.beginUpload('folder', name);
+        const inputDir = await optimizer.beginUpload('folder', name);
+        folderSession = { inputDir, budget: new FolderUploadBudget(folderUploadLimits, clock) };
         return optimizer.state();
       } catch (error) {
         /* An upload already in progress used to reach the browser as a bare 500, and the one
@@ -198,7 +228,23 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   );
 
   app.post('/api/landing/upload/folder/file', async (request, reply) => {
-    const part = await request.file({ limits: { fileSize: MAX_LANDING_ASSET_BYTES } });
+    // Looked up before the body is read, so the file's ceiling can be the smaller of its own
+    // and what the session has left.
+    let currentDir: string | null;
+    try {
+      currentDir = optimizer.currentInputDir();
+    } catch {
+      currentDir = null;
+    }
+    const budget =
+      folderSession && currentDir !== null && folderSession.inputDir === currentDir
+        ? folderSession.budget
+        : null;
+    const budgetCapsFile = budget !== null && budget.remainingBytes() < MAX_LANDING_ASSET_BYTES;
+    const fileSize = budget
+      ? Math.min(MAX_LANDING_ASSET_BYTES, budget.remainingBytes())
+      : MAX_LANDING_ASSET_BYTES;
+    const part = await request.file({ limits: { fileSize } });
     if (!part) return reply.code(400).send({ error: 'No file was provided.' });
     const relField = part.fields.relPath;
     const rawRel =
@@ -210,12 +256,14 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       part.file.resume();
       return reply.code(400).send({ error: 'Invalid file path.' });
     }
-    let inputDir: string;
-    try {
-      inputDir = optimizer.currentInputDir();
-    } catch {
+    if (currentDir === null || budget === null) {
       part.file.resume();
       return reply.code(409).send({ error: 'No landing upload is in progress.' });
+    }
+    const inputDir = currentDir;
+    if (!withinPathBounds(safeRel, folderUploadLimits) || !budget.admitFile()) {
+      part.file.resume();
+      return exceedBudget(reply);
     }
     const target = path.join(inputDir, safeRel);
     if (!target.startsWith(inputDir + path.sep)) {
@@ -228,9 +276,19 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
       /* The ZIP route has always checked this; the folder route never did, so a file over the
          limit was written at half its length and answered `ok`, and the run went on to ship a
          corrupt image without a word. */
-      if (part.file.truncated) throw new Error('That file is too large.');
+      if (part.file.truncated) {
+        if (budgetCapsFile) return exceedBudget(reply);
+        throw new Error('That file is too large.');
+      }
+      if (!budget.addBytes((await stat(target)).size)) return exceedBudget(reply);
       return { ok: true };
     } catch (error) {
+      if (
+        budgetCapsFile &&
+        (error as { code?: unknown } | null)?.code === 'FST_REQ_FILE_TOO_LARGE'
+      ) {
+        return exceedBudget(reply);
+      }
       /* One failed file used to leave the upload open for ever: nothing cleared
          `activeUpload`, so every later drop answered "another upload is still in progress"
          and the only way out was restarting the local app. A file that cannot be written
@@ -241,6 +299,9 @@ export function registerLandingRoutes(app: FastifyInstance, deps: LandingDeps) {
   });
 
   app.post('/api/landing/upload/folder/finish', async (_request, reply) => {
+    const session = folderSession;
+    folderSession = null;
+    if (session?.budget.expired()) return exceedBudget(reply);
     try {
       await optimizer.finishFolderUpload();
       return optimizer.state();

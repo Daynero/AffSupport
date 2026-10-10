@@ -69,11 +69,11 @@ describe('release identity', () => {
       ...manifest,
       artifacts: {
         ...manifest.artifacts,
-        'windows-x64': { url: 'https://example.com/Soty-Agent-Windows-x64.exe', sha256: null }
+        'windows-x64': { url: RELEASE_DOWNLOAD_URL_WINDOWS, sha256: 'c'.repeat(64) }
       }
     };
     expect(downloadUrlForPlatform(withWindows, 'windows-x64')).toEqual({
-      url: 'https://example.com/Soty-Agent-Windows-x64.exe',
+      url: RELEASE_DOWNLOAD_URL_WINDOWS,
       available: true
     });
 

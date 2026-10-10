@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { sanitizeFileName } from '../apps/agent/src/platform/platform.js';
+import { runAttempt } from './support/adversarial.js';
+import { HOSTILE_NAMES, hostileFilenameSuite } from './support/adversarial/hostile-filenames.js';
 
 /**
  * One fixed adversarial name set, driven through everything that accepts a
@@ -9,33 +11,10 @@ import { sanitizeFileName } from '../apps/agent/src/platform/platform.js';
  * Filenames are the most reliably hostile input this application takes, because
  * they arrive from a drop, an upload, a Drive listing or a picker, and every one
  * of those paths eventually joins them onto a directory the user did not choose.
- * The set is kept in one place so a new sink can be pointed at the same names
- * rather than growing its own half of them.
+ * The set is kept in one place — `tests/support/adversarial/hostile-filenames.ts` — so a
+ * new sink can be pointed at the same names rather than growing its own half of them, and
+ * so SC-008's count (`tests/adversarial-suite-size.test.ts`) counts exactly these.
  */
-
-/** Each entry is a name and what specifically makes it dangerous. */
-const HOSTILE_NAMES: readonly { name: string; why: string }[] = [
-  { name: '../../etc/passwd', why: 'traversal through a parent directory' },
-  { name: '..\\..\\windows\\system32', why: 'traversal with Windows separators' },
-  { name: '/etc/shadow', why: 'an absolute POSIX path' },
-  { name: 'C:\\Windows\\System32\\drivers', why: 'an absolute Windows path' },
-  { name: 'video".mov', why: 'a quotation mark, which used to close a query literal' },
-  { name: "video'.mov", why: 'a single quote' },
-  { name: 'video`whoami`.mov', why: 'shell command substitution' },
-  { name: 'video$(whoami).mov', why: 'shell command substitution, POSIX form' },
-  { name: 'video;rm -rf ~.mov', why: 'a command separator' },
-  { name: 'video|tee.mov', why: 'a pipe' },
-  { name: 'video\u0000.mov', why: 'a NUL byte, which truncates a C string' },
-  { name: 'video\n.mov', why: 'a newline, which splits a line-oriented protocol' },
-  { name: 'video\r\n.mov', why: 'a CRLF, which splits a header' },
-  { name: 'CON', why: 'a Windows reserved device name' },
-  { name: 'con.txt', why: 'a reserved device name with an extension' },
-  { name: 'video .', why: 'a trailing dot and space, which Windows silently strips' },
-  { name: '.', why: 'the current directory' },
-  { name: '..', why: 'the parent directory' },
-  { name: '\u202Egnp.exe', why: 'a right-to-left override, which disguises an extension' },
-  { name: 'a'.repeat(500), why: 'a name longer than most filesystems accept' }
-];
 
 describe('the sanitiser', () => {
   it.each(HOSTILE_NAMES)('never returns a path separator for $why', ({ name }) => {
@@ -80,4 +59,14 @@ describe('the sanitiser', () => {
     expect(sanitizeFileName('Літній відпочинок 2026.mov')).toBe('Літній відпочинок 2026.mov');
     expect(sanitizeFileName('report (final) v2.pdf')).toBe('report (final) v2.pdf');
   });
+});
+
+describe('the shared adversarial table', () => {
+  it.each(hostileFilenameSuite.attempts.map(attempt => [attempt.name, attempt] as const))(
+    '%s is neutralised',
+    async (_name, attempt) => {
+      const result = await runAttempt(hostileFilenameSuite, attempt);
+      expect(result.refused, result.evidence).toBe(true);
+    }
+  );
 });

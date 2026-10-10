@@ -21,7 +21,14 @@ function baseManifest(): StableReleaseManifest {
     apiVersion: 5,
     minimumSupportedVersion: '0.4.0',
     publishedAt: '2026-07-28T20:36:44.000Z',
-    artifacts: { 'macos-arm64': { url: 'https://example.com/wishly.dmg', sha256: 'a'.repeat(64) } },
+    // The pinned release origin (C11): an unpinned URL is refused before the signature is
+    // even checked, which would make every test below about the wrong thing.
+    artifacts: {
+      'macos-arm64': {
+        url: 'https://github.com/Daynero/AffSupport/releases/download/v0.8.4/Soty-v0.8.4-macOS-arm64.dmg',
+        sha256: 'a'.repeat(64)
+      }
+    },
     toolRequirements: {
       compressor: { compressor: 3, imageEmbedding: 2 },
       landingOptimizer: { landingOptimizer: 2 },
@@ -77,7 +84,11 @@ describe('release manifest signature', () => {
     const tampered = {
       ...manifest,
       artifacts: {
-        'macos-arm64': { url: 'https://evil.example/wishly.dmg', sha256: 'b'.repeat(64) }
+        // Still on the pinned origin, so it is the signature that refuses it.
+        'macos-arm64': {
+          url: 'https://github.com/Daynero/AffSupport/releases/download/v0.8.5/Soty-v0.8.5-macOS-arm64.dmg',
+          sha256: 'b'.repeat(64)
+        }
       }
     };
     await expect(loadStableReleaseManifest(fetcherFor(tampered), publicKeyBase64)).rejects.toThrow(

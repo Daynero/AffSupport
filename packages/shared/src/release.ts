@@ -142,6 +142,55 @@ export interface ReleaseArtifact {
 }
 
 /**
+ * Where a release artifact may be downloaded from — the one origin and repository path every
+ * published build has ever used (C11, FR-028).
+ *
+ * The manifest signature proves who wrote stable.json; it did not constrain what they wrote.
+ * A signed manifest naming any https URL was trusted verbatim, so one misused signing key was
+ * enough to send every user to an arbitrary download origin. Pinning the origin here makes a
+ * key compromise *and* a repository compromise necessary, rather than either one.
+ */
+export const RELEASE_ARTIFACT_ORIGIN = 'https://github.com';
+export const RELEASE_ARTIFACT_PATH_PREFIX = '/Daynero/AffSupport/releases/download/';
+
+const RELEASE_ARTIFACT_SHA256 = /^[0-9a-f]{64}$/;
+
+/**
+ * True when an artifact names a pinned download URL and a well-formed sha256.
+ *
+ * Parsed, not prefix-matched: `https://github.com.evil.example/…`, `https://user@github.com/…`,
+ * an explicit port, and a path that climbs out of the release directory with `..` or its
+ * encoded form are all refused. The digest must be exactly 64 lowercase hex characters — the
+ * shape `sign-release-manifest.mjs` writes and the release gates check.
+ */
+export function isPinnedReleaseArtifact(
+  artifact: unknown
+): artifact is ReleaseArtifact & { sha256: string } {
+  if (!artifact || typeof artifact !== 'object' || Array.isArray(artifact)) return false;
+  const { url, sha256 } = artifact as Partial<ReleaseArtifact>;
+  if (typeof sha256 !== 'string' || !RELEASE_ARTIFACT_SHA256.test(sha256)) return false;
+  if (typeof url !== 'string' || /[\\\s%]/.test(url)) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.origin !== RELEASE_ARTIFACT_ORIGIN || parsed.username || parsed.password) return false;
+  if (parsed.search || parsed.hash) return false;
+  // `new URL` resolves dot segments, so the parsed path is compared, and it must also be what
+  // was written: a URL that only becomes pinned after normalisation was not written honestly.
+  if (!parsed.pathname.startsWith(RELEASE_ARTIFACT_PATH_PREFIX)) return false;
+  if (`${parsed.origin}${parsed.pathname}` !== url) return false;
+  const rest = parsed.pathname.slice(RELEASE_ARTIFACT_PATH_PREFIX.length).split('/');
+  // `<tag>/<file>` and nothing else.
+  return (
+    rest.length === 2 &&
+    rest.every(segment => /^[A-Za-z0-9._+-]+$/.test(segment) && !/^\.+$/.test(segment))
+  );
+}
+
+/**
  * Public half of the release-manifest signing keypair (ECDSA P-256, SPKI DER,
  * base64). The private key lives only on the release machine
  * (config/keys/release-manifest.private.pem, gitignored); the web client

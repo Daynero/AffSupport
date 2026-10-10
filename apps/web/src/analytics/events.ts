@@ -620,6 +620,20 @@ export const ANALYTICS_NUMERIC_RANGES: Readonly<Record<string, [number, number]>
 
 const safeToken = /^[a-z0-9][a-z0-9._:-]{0,95}$/i;
 const safeOpaqueId = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
+/**
+ * A value ending in a file extension — `holiday.mov`, `contract.pdf`, `clip.mp4.part`.
+ *
+ * `safeToken` allows `.` so that versions and dotted vocabulary survive, which also let a bare
+ * file name through any free-form slot (`format`, `source_kind`, `error_code`, …): a caller
+ * that passed `file.name` where a token belonged shipped the user's file name to analytics
+ * (SC-009, FR-029). No vocabulary value ends in a lettered extension, so the shape is refused;
+ * `1.2.6` still passes, because an extension needs a letter.
+ */
+const fileNameShaped = /\.[a-z0-9]*[a-z][a-z0-9]*$/i;
+
+function safeTokenValue(raw: unknown): raw is string {
+  return typeof raw === 'string' && safeToken.test(raw) && !fileNameShaped.test(raw);
+}
 
 export function isAnalyticsEventName(value: string): value is AnalyticsEventName {
   return (analyticsEventNames as readonly string[]).includes(value);
@@ -649,7 +663,7 @@ export function sanitizeAnalyticsEventList(value: unknown): string | undefined {
 function sanitizeAnalyticsValue(rule: AnalyticsPropertyRule, raw: unknown): Json | undefined {
   switch (rule.kind) {
     case 'token':
-      return typeof raw === 'string' && safeToken.test(raw) ? raw : undefined;
+      return safeTokenValue(raw) ? raw : undefined;
     case 'id':
       return typeof raw === 'string' && safeOpaqueId.test(raw) ? raw : undefined;
     case 'boolean':
@@ -666,7 +680,7 @@ function sanitizeAnalyticsValue(rule: AnalyticsPropertyRule, raw: unknown): Json
     case 'setting_value':
       if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
       if (typeof raw === 'boolean') return raw;
-      return typeof raw === 'string' && safeToken.test(raw) ? raw : undefined;
+      return safeTokenValue(raw) ? raw : undefined;
     case 'event_list':
       return sanitizeAnalyticsEventList(raw);
   }

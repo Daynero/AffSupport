@@ -4,6 +4,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PathGrantLedger, IDLE_GRANT_TTL_MS } from '../apps/agent/src/files/path-grants.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { runAttempt } from './support/adversarial.js';
+import { pathGrantSuite } from './support/adversarial/path-grants.js';
 
 /**
  * C3. The ledger exists so the session token stops being a key to the whole
@@ -258,4 +260,16 @@ describe('observe mode', () => {
     // hand out credential directories in the meantime.
     expect(ledger.authorises(path.join(os.homedir(), '.ssh', 'id_rsa'), 'read')).toBe(false);
   });
+});
+
+describe('the shared adversarial table, enforcing', () => {
+  // The same cases as a table, so SC-008's count (`tests/adversarial-suite-size.test.ts`)
+  // includes them — run here with the ledger enforcing, where each must be refused.
+  it.each(pathGrantSuite.attempts.map(attempt => [attempt.name, attempt] as const))(
+    'refuses %s',
+    async (_name, attempt) => {
+      const result = await runAttempt(pathGrantSuite, attempt);
+      expect(result.refused, result.evidence).toBe(true);
+    }
+  );
 });

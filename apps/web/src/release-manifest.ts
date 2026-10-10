@@ -4,6 +4,7 @@ import {
   RELEASE_DOWNLOAD_URL_WINDOWS,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   compareProductVersions,
+  isPinnedReleaseArtifact,
   releaseManifestSigningPayload,
   type ReleaseSummaryLanguage,
   type AppEnvironment,
@@ -120,7 +121,9 @@ export function downloadUrlForPlatform(
   platform: DownloadPlatform
 ): { url: string; available: boolean } {
   const artifact = manifest?.artifacts[platform];
-  if (artifact?.url) return { url: artifact.url, available: true };
+  // Checked again here, not only at load: a manifest can reach this function from somewhere
+  // other than `loadStableReleaseManifest`, and an unpinned URL must never become a link.
+  if (isPinnedReleaseArtifact(artifact)) return { url: artifact.url, available: true };
   return platform === 'windows-x64'
     ? { url: RELEASE_DOWNLOAD_URL_WINDOWS, available: false }
     : { url: RELEASE_DOWNLOAD_URL, available: true };
@@ -175,9 +178,21 @@ function validManifest(value: unknown): value is StableReleaseManifest {
     typeof source.minimumSupportedVersion === 'string' &&
     typeof source.publishedAt === 'string' &&
     validSummary(source.summary) &&
-    Boolean(source.artifacts && typeof source.artifacts === 'object') &&
+    validArtifacts(source.artifacts) &&
     Boolean(source.toolRequirements && typeof source.toolRequirements === 'object')
   );
+}
+
+/**
+ * Every artifact must name the pinned download origin and a well-formed sha256 (C11).
+ *
+ * One bad entry refuses the whole manifest rather than just that platform: a correctly signed
+ * manifest pointing anywhere else means the signing key was misused, and nothing else that
+ * manifest says can be trusted either.
+ */
+function validArtifacts(value: StableReleaseManifest['artifacts'] | undefined) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value).every(isPinnedReleaseArtifact);
 }
 
 function validSummary(value: StableReleaseManifest['summary'] | undefined) {

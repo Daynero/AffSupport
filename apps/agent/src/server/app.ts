@@ -20,6 +20,7 @@ import type { JobQueue } from '../queue/queue.js';
 import type { PowerGovernor } from '../power/governor.js';
 import { registerPowerRoutes, type PowerSamplerHandle } from '../power/routes.js';
 import type { ToolContext, ToolModule } from './tools.js';
+import { failureCode } from './failure-codes.js';
 import { DEFAULT_UPLOAD_BYTES } from './upload-limits.js';
 import { TICKET_TTL_MS, issueTicket, ticketAuthorises } from './tickets.js';
 import { pathGrants } from '../files/path-grants.js';
@@ -69,7 +70,11 @@ export interface ServerConfig {
 }
 
 export interface ServerDeps {
-  logger?: boolean;
+  /**
+   * `true` (the default) logs with SAFE_LOGGER to stdout; an object keeps SAFE_LOGGER and
+   * sends its lines to the given stream, so a test can read exactly what production writes.
+   */
+  logger?: boolean | { stream: { write(line: string): void }; level?: string };
   /**
    * Session token the web app obtains through /pair (or /local). It outlives
    * a restart, so an already-paired browser stays paired.
@@ -204,6 +209,53 @@ function authFailureKey(caller: string, presented: string | null): string {
 }
 
 /**
+ * The path request admission decides on: the pattern of the route that will run.
+ *
+ * Every guard used to test the raw URL — `request.url.startsWith('/api/')` — while the router
+ * matches a *decoded* path. So `/%61pi/diagnostics` was routed to `/api/diagnostics` and
+ * skipped the token check, the origin check and the entitlement gate all at once; the same
+ * spelling trick turned `/native/*` into a route that needed no native token. Deciding on
+ * the matched route's pattern closes that for every encoding at once, because the pattern is
+ * what the router chose rather than what the client wrote. A request that matched no route
+ * falls back to the raw path; it reaches only the not-found handler.
+ */
+function admissionPath(request: { routeOptions?: { url?: string }; url: string }): string {
+  const pattern = request.routeOptions?.url;
+  if (typeof pattern === 'string' && pattern.length > 0) return pattern;
+  return request.url.split('?')[0] ?? '';
+}
+
+/**
+ * How many Host headers arrived, counted on the raw header list.
+ *
+ * Over a real socket Node keeps the *first* Host and silently drops the rest, so the parsed
+ * header never shows the comma-joined pair `isLoopbackHost` looks for — that only happens
+ * through `inject`. `127.0.0.1` followed by `evil.example` was therefore admitted, and /pair
+ * answered it with the token. Two Host headers are never legitimate; any count above one is
+ * refused.
+ */
+function hostHeaderCount(raw: { rawHeaders?: string[] }): number {
+  const headers = raw.rawHeaders ?? [];
+  let count = 0;
+  for (let index = 0; index < headers.length; index += 2) {
+    if (headers[index]?.toLowerCase() === 'host') count += 1;
+  }
+  return count;
+}
+
+/**
+ * Whether a guarded prefix applies: by the route that will run *or* by the raw path. Either
+ * one is enough, so an unknown `/api/…` path still meets the token check (and answers 401,
+ * as it always has) even though the router hands it to the catch-all.
+ */
+function admittedUnder(
+  request: { routeOptions?: { url?: string }; url: string },
+  prefix: string
+): boolean {
+  return admissionPath(request).startsWith(prefix) || request.url.startsWith(prefix);
+}
+
+/**
  * The logger configuration, exported so a test can assert on the real one.
  *
  * A log is what a user attaches to a bug report or pastes into a support
@@ -223,6 +275,22 @@ export const SAFE_LOGGER = {
         // Never `request.url`: it carries the query string and every id.
         route: request.routeOptions?.url ?? '(unrouted)'
       };
+    },
+    // `app.log.error(error, …)` is where the agent's crash reporting ends up — every unhandled
+    // rejection and failed state save goes through it — and pino's default serializer writes
+    // the error's message and stack. For a filesystem or FFmpeg failure the message is
+    // `ENOENT: no such file or directory, open '/Users/name/Movies/private.mov'`. The kind of
+    // failure is kept; the sentence is not.
+    err(error: unknown) {
+      const value = (error ?? {}) as { name?: unknown; code?: unknown; syscall?: unknown };
+      const word = (candidate: unknown) =>
+        typeof candidate === 'string' && /^[A-Za-z0-9_]{1,64}$/u.test(candidate)
+          ? candidate
+          : undefined;
+      const type = word(value.name) ?? 'Error';
+      const code = word(value.code);
+      // pino's error shape requires a message and a stack; both carry the kind, nothing more.
+      return { type, message: code ?? type, stack: '', code, syscall: word(value.syscall) };
     }
   },
   redact: {
@@ -259,7 +327,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     // instead removes both in one change, and a pattern is more useful for diagnostics
     // than a raw URL anyway. Redaction covers the headers and — the one that matters for
     // /pair — the redirect Location, which carries the session token.
-    logger: deps.logger === undefined || deps.logger === true ? SAFE_LOGGER : deps.logger,
+    logger:
+      deps.logger === undefined || deps.logger === true
+        ? SAFE_LOGGER
+        : deps.logger === false
+          ? false
+          : { level: 'info', ...SAFE_LOGGER, ...deps.logger },
     bodyLimit: 16_384,
     // On close, idle keep-alive connections are dropped and in-flight requests finish. Not
     // `true`: that would cut an upload mid-body with no reply, and the client would retry
@@ -280,6 +353,30 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     limits: { files: 1, fields: 4, fileSize: DEFAULT_UPLOAD_BYTES }
   });
 
+  // FR-029a, for every route at once — registered before any route, because a route keeps
+  // the error handler that was current when it was added. Without this, an error a handler
+  // did not catch reached Fastify's default handler, which answers `{ statusCode, error,
+  // message }` with the error's own message — and for a filesystem or FFmpeg failure that
+  // message carries the absolute path of the user's file — and logs the same message with its
+  // stack. The answer is now one code from the closed list, the log gets the code and the
+  // errno, and nothing else.
+  app.setErrorHandler((error, request, reply) => {
+    const declared = (error as { statusCode?: unknown }).statusCode;
+    const status =
+      typeof declared === 'number' && declared >= 400 && declared < 600 ? declared : 500;
+    const code = responseErrorCode(error, status);
+    const errno = (error as { code?: unknown }).code;
+    if (status >= 500) {
+      request.log.error(
+        {
+          code,
+          errno: typeof errno === 'string' && /^[A-Z0-9_]{1,64}$/u.test(errno) ? errno : null
+        },
+        'request failed'
+      );
+    }
+    return reply.code(status).send({ error: code });
+  });
   const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 
   /**
@@ -313,12 +410,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     // Running in `onRequest` matters: it is before body parsing, so a rejected request
     // never causes a byte of a multipart upload to be read.
     const host = request.headers.host;
-    if (typeof host !== 'string' || !isLoopbackHost(host)) {
+    if (typeof host !== 'string' || !isLoopbackHost(host) || hostHeaderCount(request.raw) > 1) {
       return reply.code(403).send({ error: 'HOST_NOT_ALLOWED' });
     }
 
     const origin = request.headers.origin;
-    if (request.url.startsWith('/api/') && origin && !allowedOrigins.has(origin)) {
+    if (admittedUnder(request, '/api/') && origin && !allowedOrigins.has(origin)) {
       return reply.code(403).send({ error: 'Origin is not allowed.' });
     }
   });
@@ -343,8 +440,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const routeBudget = new FixedWindowBudget(ROUTE_BUDGET_LIMIT, ROUTE_BUDGET_WINDOW_MS);
   const authFailures = new FixedWindowBudget(AUTH_FAILURE_LIMIT, AUTH_FAILURE_WINDOW_MS);
   app.addHook('preHandler', async (request, reply) => {
-    const route = request.url.split('?')[0];
-    if (route === '/native/update/drain') {
+    // Which guard applies is decided by the route that will actually run, not by how the
+    // URL happened to be spelled — see `admissionPath`. The raw path is kept for what is
+    // bound to a concrete URL: a capability ticket and the per-path request budget.
+    const route = admissionPath(request);
+    const rawPath = request.url.split('?')[0] ?? '';
+    if (route === '/native/update/drain' || rawPath === '/native/update/drain') {
       const supplied = request.headers['x-wishly-update-token'];
       if (
         !updateHandoffToken ||
@@ -355,14 +456,14 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       }
       return;
     }
-    if (request.url.startsWith('/native/')) {
+    if (admittedUnder(request, '/native/')) {
       const supplied = request.headers['x-wishly-native-token'];
       if (!nativeToken || typeof supplied !== 'string' || !tokensMatch(nativeToken, supplied)) {
         return reply.code(401).send({ error: 'Invalid native session token.' });
       }
       return;
     }
-    if (!request.url.startsWith('/api/')) return;
+    if (!admittedUnder(request, '/api/')) return;
     // `!==` here was both timing-unsafe and type-unsafe. Fastify parses a repeated
     // `?token=a&token=b` into an array, which reached the raw comparison as a non-string;
     // the guard rejects that before it can be compared. /native/* twelve lines above has
@@ -373,12 +474,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     // without the session token being in that URL, where it would reach
     // referrers, access logs and proxy caches (C4).
     const ticket = (request.query as { ticket?: unknown }).ticket;
-    if (ticket !== undefined && ticketAuthorises(token, request.method, route, ticket)) {
+    if (ticket !== undefined && ticketAuthorises(token, request.method, rawPath, ticket)) {
       return;
     }
 
     const caller = request.ip || 'local';
-    if (!routeBudget.take(`${caller}:${route}`)) {
+    if (!routeBudget.take(`${caller}:${rawPath}`)) {
       diagnostics?.record('auth', 'route_budget_exceeded');
       return reply.code(429).send({ error: 'RATE_LIMITED' });
     }
@@ -657,6 +758,22 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   );
 
   return app;
+}
+
+/** A message that is itself a code: it cannot carry a path, so it may be answered as-is. */
+const MACHINE_CODE = /^[A-Z][A-Z0-9_]{1,63}$/u;
+
+/**
+ * The one code an uncaught error is answered with (FR-029a). Never the message, unless the
+ * message already *is* a code — several layers throw them deliberately.
+ */
+function responseErrorCode(error: unknown, status: number): string {
+  const message = error instanceof Error ? error.message : null;
+  if (message && MACHINE_CODE.test(message)) return message;
+  if (status === 413) return 'FILE_TOO_LARGE';
+  if (status === 404) return 'NOT_FOUND';
+  if (status >= 400 && status < 500) return 'INVALID_INPUT';
+  return failureCode(error);
 }
 
 /**

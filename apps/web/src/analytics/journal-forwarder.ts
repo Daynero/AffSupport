@@ -36,8 +36,13 @@ const PROP_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,31}$/u;
 const MAX_PROPS = 16;
 const MAX_STRING_LENGTH = 64;
 const MAX_FUTURE_MS = 86_400_000;
-/** The server's list (`ingest_agent_journal`): the agent's, plus `@`. */
+/** The server's list (`ingest_agent_journal`), which the agent's now matches. */
 const FORBIDDEN_FRAGMENTS = ['/', '\\', '://', 'token', 'bearer', '@'];
+/**
+ * The agent's file-name shapes (`diagnostics-log.ts`), repeated so a record from an agent
+ * older than that fence still never carries `holiday.mov` off the machine (SC-009).
+ */
+const FILE_NAME_SHAPES = [/\s/u, /\.[a-z0-9]*[a-z][a-z0-9]*$/iu];
 const CATEGORIES: ReadonlySet<string> = new Set(DIAGNOSTIC_CATEGORIES);
 
 export interface JournalForwarderContext {
@@ -106,7 +111,8 @@ function isSafeValue(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   if (value.length === 0 || value.length > MAX_STRING_LENGTH) return false;
   const lowered = value.toLowerCase();
-  return !FORBIDDEN_FRAGMENTS.some(fragment => lowered.includes(fragment));
+  if (FORBIDDEN_FRAGMENTS.some(fragment => lowered.includes(fragment))) return false;
+  return !FILE_NAME_SHAPES.some(shape => shape.test(value));
 }
 
 /**

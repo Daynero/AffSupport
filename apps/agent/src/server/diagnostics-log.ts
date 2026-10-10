@@ -38,8 +38,14 @@ const CODE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/u;
 const PROP_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,31}$/u;
 const MAX_PROPS = 16;
 const MAX_STRING_LENGTH = 64;
-/** Substrings no vocabulary word contains, and every path, URL or credential does. */
-const FORBIDDEN_FRAGMENTS = ['/', '\\', '://', 'token', 'bearer'];
+/** Substrings no vocabulary word contains, and every path, URL, address or credential does. */
+const FORBIDDEN_FRAGMENTS = ['/', '\\', '://', 'token', 'bearer', '@'];
+/**
+ * Shapes no vocabulary word has and every file name does: whitespace (`Holiday 2026`) or a
+ * lettered extension at the end (`holiday.mov`). The separators above catch a *path*; a bare
+ * file name has none, and used to be kept (SC-009). `1.2.6` still passes.
+ */
+const FILE_NAME_SHAPES = [/\s/u, /\.[a-z0-9]*[a-z][a-z0-9]*$/iu];
 
 const CATEGORIES: ReadonlySet<string> = new Set(DIAGNOSTIC_CATEGORIES);
 
@@ -58,7 +64,8 @@ export function isSafeDiagnosticValue(value: unknown): value is DiagnosticPropVa
   if (typeof value !== 'string') return false;
   if (value.length === 0 || value.length > MAX_STRING_LENGTH) return false;
   const lowered = value.toLowerCase();
-  return !FORBIDDEN_FRAGMENTS.some(fragment => lowered.includes(fragment));
+  if (FORBIDDEN_FRAGMENTS.some(fragment => lowered.includes(fragment))) return false;
+  return !FILE_NAME_SHAPES.some(shape => shape.test(value));
 }
 
 /** Validates props as a whole; null when anything in them is refused. */

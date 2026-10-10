@@ -14,6 +14,7 @@ import {
   setActiveDiagnosticsLog
 } from '../../apps/agent/src/server/diagnostics-log.js';
 import { ChannelHub, EventChannel } from '../../apps/agent/src/server/sse.js';
+import type { ToolModule } from '../../apps/agent/src/server/tools.js';
 import { optimalSettings } from '../helpers.js';
 import { removeTemporaryDirectory } from './temp-dir.js';
 
@@ -53,6 +54,10 @@ export interface MinimalAgentOptions {
   listen?: boolean;
   /** Enforce entitlement against this key; absent means the gate is not enforced. */
   entitlementPublicKey?: string;
+  /** Tool modules to register; none by default. */
+  modules?: ToolModule[];
+  /** Fastify's logger option; off by default. */
+  logger?: Parameters<typeof buildServer>[0]['logger'];
 }
 
 const DEFAULT_CONFIG: ServerConfig = {
@@ -102,7 +107,7 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
   setActiveDiagnosticsLog(diagnostics);
 
   const app = await buildServer({
-    logger: false,
+    logger: options.logger ?? false,
     token: MINIMAL_AGENT_TOKEN,
     nativeToken: null,
     updateHandoffToken: null,
@@ -117,7 +122,7 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
     startedAt: new Date().toISOString(),
     tools,
     queue,
-    modules: [],
+    modules: options.modules ?? [],
     channelHub: hub,
     power: new PowerGovernor({ pauseSupported: false }),
     webRoot,
