@@ -1,5 +1,96 @@
 # Rollback notes
 
+## 20261130120000_space_tariff_notices.sql
+
+Unschedule `wishly-tariff-notices-queue` and `wishly-tariff-notices`
+(`select cron.unschedule(jobid) from cron.job where jobname in (...)`), then drop
+`public.service_claim_tariff_notices(integer)`,
+`public.service_finish_tariff_notice(uuid, boolean, text, boolean)`,
+`private.invoke_tariff_notices()`, `private.tariff_notices_endpoint(text)`,
+`private.queue_tariff_notices(timestamptz)`,
+`private.tariff_notice_still_due(public.space_tariff_notices)` and
+`private.tariff_notice_kind(text, integer)`. The `tariff-notices` edge function
+then has nothing to claim and answers `{ claimed: 0 }`. Rows already in
+`public.space_tariff_notices` stay (the table belongs to the first migration).
+
+## 20261130110000_space_tariffs_background.sql
+
+First give every paused catalog its schedule back, or the old functions will
+delete the rows on the next sync:
+
+```sql
+update public.team_catalog_updater_items
+   set update_interval = paused_interval, next_run_at = now(), paused_interval = null
+ where paused_interval is not null;
+update public.team_catalog_updaters set paused_by_tariff_at = null;
+select private.sync_catalog_updater(team_id) from public.team_catalog_updaters;
+```
+
+Unschedule `wishly-tariff-pauses`, drop `public.resume_team_catalog_updater(uuid)`,
+`private.apply_tariff_pauses(uuid)`, `private.clear_tariff_pause_mark(uuid)` and
+`private.resume_space_sync(uuid)`, and re-apply the bodies this file replaced
+from their latest earlier definitions: `private.sync_catalog_updater`,
+`private.forget_unscheduled_catalog_item` and `private.claim_catalog_updater_items`
+(`20260928120000_catalog_update_now_restitch.sql`),
+`public.set_team_catalog_update_interval` and `public.stop_team_catalog_updater`
+(`20260920100000_catalog_updater_cancel.sql`), `public.run_team_catalog_update_now`
+and `public.service_open_catalog_updater_rounds`
+(`20260916170000_catalog_updater_per_catalog.sql`), `private.claim_catalog_sync_jobs`
+(`20261022100000_sync_replay_fencing.sql`), `private.invoke_catalog_sync_worker` and
+`private.sweep_catalog_sync_orphans` (`20261008100000_sync_orphan_recovery.sql`),
+`public.service_claim_preview_warm` (`20260902130000_retry_missing_provider_thumbnail.sql`),
+`public.service_claim_archive_inspections` (`20260829170000_team_archive_inspection.sql`),
+`public.service_claim_retired_restitch_copies`
+(`20260916120000_catalog_updater_restitch_web.sql`) and
+`public.service_claim_orphan_cleanups` (`20260918140000_orphan_cleanup.sql`).
+Signatures are unchanged, so `create or replace` is enough. Do this only together
+with the first file's rollback: on its own, suspended spaces would start
+background work again.
+
+## 20261130100000_space_tariffs.sql
+
+Roll the web build back first (the previous build calls none of the new RPCs;
+its `join_team_workspace_waitlist()` call keeps working until the step below).
+While the legacy rule is still on and no tariff has been granted, nothing has
+changed for anybody, and the file can be reversed by re-applying from
+`20260809150000_team_workspace_access_gate.sql` the bodies of
+`private.team_workspace_allowed`, `public.can_access_team_workspace` (it was
+`language sql stable`), `public.list_my_teams` and `public.accept_invitation`;
+`private.team_role` from `20260801094000_team_security_foundation.sql`;
+`public.create_team` from `20260809120000_team_workspace_waitlist.sql`;
+`public.create_invitation` and `public.resend_invitation` from
+`20260801095000_team_invitation_drive_actions.sql`; and
+`public.service_direct_add_registered_member` from
+`20260802100000_team_direct_member_testing.sql`. Then:
+
+```sql
+drop trigger teams_tariff_bound_owner on public.teams;
+drop function public.join_team_workspace_waitlist(text, text);
+-- re-create the zero-argument join_team_workspace_waitlist() from
+-- 20260809120000_team_workspace_waitlist.sql, with its revoke/grant lines
+drop function public.get_my_space_access(), public.get_team_tariff(uuid),
+  public.ack_space_tariff_toast(uuid), public.request_space_owner_nudge(uuid);
+-- every public.admin_*tariff*/admin_*space* function this file creates, then
+-- the private helpers it creates (kyiv_today, kyiv_day_end, space_tariff_state,
+-- team_seat_*, claim_space_tariffs, ...)
+alter table public.team_catalog_updaters drop column paused_by_tariff_at;
+alter table public.team_catalog_updater_items drop column paused_interval;
+alter table public.team_workspace_waitlist
+  drop column plan_interest, drop column channel, drop column last_contact_at,
+  drop column handled_at, drop column admin_note;
+drop table public.space_tariff_notices, public.tariff_settings_events,
+  public.tariff_settings, public.space_tariff_events, public.space_tariffs,
+  public.tariff_plans;
+notify pgrst, 'reload schema';
+```
+
+Once tariffs have been granted, dropping `public.space_tariffs` loses who holds
+what until when; export it first (`copy public.space_tariffs to stdout csv
+header`). Once the legacy rule has been switched off, re-applying the old gate
+reopens every space that has an admin member and closes every space that only a
+tariff opened — forward-fix instead (grant the missing tariffs, or switch the
+legacy rule back on with `admin_set_tariff_settings`).
+
 ## 20261126100000_sync_status_running_between_slices.sql
 
 Display-only. Re-applying the `get_team_folder_sync_status` body from

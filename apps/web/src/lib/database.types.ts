@@ -1004,6 +1004,7 @@ export type GeneratedDatabase = {
           lease_owner: string | null;
           next_attempt_at: string;
           next_run_at: string | null;
+          paused_interval: string | null;
           round_due_at: string | null;
           team_id: string;
           update_interval: string | null;
@@ -1016,6 +1017,7 @@ export type GeneratedDatabase = {
           lease_owner?: string | null;
           next_attempt_at?: string;
           next_run_at?: string | null;
+          paused_interval?: string | null;
           round_due_at?: string | null;
           team_id: string;
           update_interval?: string | null;
@@ -1028,6 +1030,7 @@ export type GeneratedDatabase = {
           lease_owner?: string | null;
           next_attempt_at?: string;
           next_run_at?: string | null;
+          paused_interval?: string | null;
           round_due_at?: string | null;
           team_id?: string;
           update_interval?: string | null;
@@ -1051,6 +1054,7 @@ export type GeneratedDatabase = {
       };
       team_catalog_updaters: {
         Row: {
+          paused_by_tariff_at: string | null;
           random_link_variation: boolean | null;
           grow_products: boolean;
           next_run_at: string | null;
@@ -1066,6 +1070,7 @@ export type GeneratedDatabase = {
           updated_by: string | null;
         };
         Insert: {
+          paused_by_tariff_at?: string | null;
           random_link_variation?: boolean | null;
           grow_products?: boolean;
           next_run_at?: string | null;
@@ -1081,6 +1086,7 @@ export type GeneratedDatabase = {
           updated_by?: string | null;
         };
         Update: {
+          paused_by_tariff_at?: string | null;
           random_link_variation?: boolean | null;
           grow_products?: boolean;
           next_run_at?: string | null;
@@ -2969,18 +2975,33 @@ export type GeneratedDatabase = {
       };
       team_workspace_waitlist: {
         Row: {
+          admin_note: string | null;
+          channel: string | null;
           created_at: string;
           email: string;
+          handled_at: string | null;
+          last_contact_at: string | null;
+          plan_interest: string | null;
           user_id: string;
         };
         Insert: {
+          admin_note?: string | null;
+          channel?: string | null;
           created_at?: string;
           email: string;
+          handled_at?: string | null;
+          last_contact_at?: string | null;
+          plan_interest?: string | null;
           user_id: string;
         };
         Update: {
+          admin_note?: string | null;
+          channel?: string | null;
           created_at?: string;
           email?: string;
+          handled_at?: string | null;
+          last_contact_at?: string | null;
+          plan_interest?: string | null;
           user_id?: string;
         };
         Relationships: [
@@ -3106,6 +3127,7 @@ export type GeneratedDatabase = {
           role: string;
         }[];
       };
+      ack_space_tariff_toast: { Args: { p_event: string }; Returns: boolean };
       add_team_account_agent: {
         Args: {
           p_account: string;
@@ -3173,6 +3195,33 @@ export type GeneratedDatabase = {
           event_count: number;
         }[];
       };
+      admin_end_space_tariff: { Args: { p_id: string; p_now: boolean }; Returns: Json };
+      admin_extend_space_tariff: {
+        Args: { p_id: string; p_months: number; p_notify?: boolean };
+        Returns: Json;
+      };
+      admin_get_tariff_settings: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_grant_space_tariff: {
+        Args: {
+          p_email: string;
+          p_ends_on: string;
+          p_external_ref?: string;
+          p_extra_seats: number;
+          p_note?: string;
+          p_notify?: boolean;
+          p_plan: string;
+          p_source?: string;
+          p_team?: string;
+        };
+        Returns: Json;
+      };
+      admin_list_legacy_spaces: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_list_owner_spaces: { Args: { p_email: string }; Returns: Json };
+      admin_list_space_requests: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_list_space_tariff_events: { Args: { p_id: string | null }; Returns: Json };
+      admin_list_space_tariffs: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_list_tariff_plans: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_list_tariff_seats: { Args: { p_team: string }; Returns: Json };
       admin_list_team_workspace_waitlist: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -3211,6 +3260,10 @@ export type GeneratedDatabase = {
           user_id: string;
         }[];
       };
+      admin_mark_space_request: {
+        Args: { p_handled: boolean; p_note?: string; p_user: string };
+        Returns: boolean;
+      };
       admin_marketing_export: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -3221,9 +3274,21 @@ export type GeneratedDatabase = {
         }[];
       };
       admin_overview: { Args: { p_end_date: string; p_start_date: string }; Returns: Json };
+      admin_preview_space_tariff: { Args: { p_email: string; p_team?: string }; Returns: Json };
+      admin_remove_tariff_member: { Args: { p_team: string; p_user: string }; Returns: boolean };
+      admin_revoke_tariff_invitation: { Args: { p_invitation: string }; Returns: boolean };
       admin_set_account_status: {
         Args: { p_account_status: string; p_user_id: string };
         Returns: boolean;
+      };
+      admin_set_tariff_settings: {
+        Args: {
+          p_confirm?: boolean;
+          p_email: string | null;
+          p_legacy_rule_enabled: boolean;
+          p_telegram: string | null;
+        };
+        Returns: Json;
       };
       admin_tool_usage: {
         Args: { p_end_date: string; p_start_date: string };
@@ -3232,6 +3297,18 @@ export type GeneratedDatabase = {
           label: string;
           total: number;
         }[];
+      };
+      admin_undo_space_tariff_event: { Args: { p_event: string }; Returns: Json };
+      admin_update_space_tariff: {
+        Args: {
+          p_ends_on: string | null;
+          p_external_ref: string | null;
+          p_extra_seats: number | null;
+          p_id: string;
+          p_note: string | null;
+          p_plan: string | null;
+        };
+        Returns: Json;
       };
       admin_update_support_goal: {
         Args: {
@@ -3694,6 +3771,7 @@ export type GeneratedDatabase = {
         }[];
       };
       get_member_restitch_preference: { Args: { p_team: string }; Returns: Json };
+      get_my_space_access: { Args: Record<PropertyKey, never>; Returns: Json };
       get_operation: {
         Args: { p_operation: string; p_team: string };
         Returns: {
@@ -3749,6 +3827,14 @@ export type GeneratedDatabase = {
       get_team_catalog_updater_refresh_texts: { Args: { p_team: string }; Returns: boolean };
       get_team_catalog_updater_random_link_variation: {
         Args: { p_team: string };
+        Returns: boolean;
+      };
+      get_team_tariff: { Args: { p_team: string }; Returns: Json };
+      request_space_owner_nudge: { Args: { p_team: string }; Returns: Json };
+      resume_team_catalog_updater: { Args: { p_team: string }; Returns: boolean };
+      service_claim_tariff_notices: { Args: { p_limit?: number }; Returns: Json };
+      service_finish_tariff_notice: {
+        Args: { p_error?: string; p_id: string; p_sent: boolean; p_skipped?: boolean };
         Returns: boolean;
       };
       set_team_catalog_updater_random_link_variation: {
@@ -3854,7 +3940,10 @@ export type GeneratedDatabase = {
         };
         Returns: string;
       };
-      join_team_workspace_waitlist: { Args: Record<PropertyKey, never>; Returns: boolean };
+      join_team_workspace_waitlist: {
+        Args: { p_channel?: string; p_plan?: string };
+        Returns: boolean;
+      };
       join_windows_app_waitlist: { Args: Record<PropertyKey, never>; Returns: boolean };
       leave_team: {
         Args: { p_team: string };
