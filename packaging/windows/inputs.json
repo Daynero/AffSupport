@@ -6,7 +6,7 @@
     {
       "id": "node",
       "status": "pinned",
-      "mirrorUrl": null,
+      "mirrorUrl": "https://github.com/Daynero/AffSupport/releases/download/windows-inputs-1/node-v24.13.0-win-x64.zip",
       "upstreamUrl": "https://nodejs.org/dist/v24.13.0/node-v24.13.0-win-x64.zip",
       "sha256": "ca2742695be8de44027d71b3f53a4bdb36009b95575fe1ae6f7f0b5ce091cb88",
       "sizeBytes": 36363905,
@@ -24,7 +24,7 @@
     {
       "id": "whisper",
       "status": "pinned",
-      "mirrorUrl": null,
+      "mirrorUrl": "https://github.com/Daynero/AffSupport/releases/download/windows-inputs-1/whisper-bin-x64.zip",
       "upstreamUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
       "sha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
       "sizeBytes": 7982101,
@@ -47,7 +47,7 @@
     {
       "id": "whisper-vad-model",
       "status": "pinned",
-      "mirrorUrl": null,
+      "mirrorUrl": "https://github.com/Daynero/AffSupport/releases/download/windows-inputs-1/ggml-silero-v5.1.2.bin",
       "upstreamUrl": "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin",
       "sha256": "29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf",
       "sizeBytes": 885098,
@@ -65,10 +65,7 @@
     {
       "id": "ffmpeg",
       "status": "built",
-      "builtFrom": [
-        "ffmpeg-source",
-        "x264-source"
-      ],
+      "builtFrom": ["ffmpeg-source", "x264-source"],
       "mirrorUrl": null,
       "upstreamUrl": null,
       "sha256": null,
@@ -91,7 +88,7 @@
     {
       "id": "ffmpeg-source",
       "status": "pinned",
-      "mirrorUrl": null,
+      "mirrorUrl": "https://github.com/Daynero/AffSupport/releases/download/windows-inputs-1/ffmpeg-7.1.1.tar.xz",
       "upstreamUrl": "https://ffmpeg.org/releases/ffmpeg-7.1.1.tar.xz",
       "sha256": "733984395e0dbbe5c046abda2dc49a5544e7e0e1e2366bba849222ae9e3a03b1",
       "sizeBytes": 11019500,
