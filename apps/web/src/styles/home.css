@@ -436,7 +436,10 @@
   font-weight: var(--weight-label);
 }
 
+/* Decoration over the tile's stretched link: "Open →" said it and swallowed the
+   click, so pressing the very words that promise to open the space did nothing. */
 .home-tile-trailing {
+  pointer-events: none;
   display: inline-flex;
   flex: none;
   align-items: center;

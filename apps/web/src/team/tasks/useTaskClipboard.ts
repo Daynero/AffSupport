@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import type { TeamTaskSummary } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
@@ -29,8 +29,12 @@ export function useTaskClipboard({
   selected,
   canEdit,
   client,
-  onPasted
+  onPasted,
+  anchor
 }: {
+  /** An element inside the task board: while the board is hidden (another
+      section is showing) copy and paste are not the board's to answer. */
+  anchor?: RefObject<HTMLElement | null>;
   teamId: string;
   selected: readonly TeamTaskSummary[];
   canEdit: boolean;
@@ -43,6 +47,7 @@ export function useTaskClipboard({
   useEffect(() => {
     if (!canEdit || !client.copyTasks) return;
     const blocked = (event: ClipboardEvent) =>
+      Boolean(anchor && (!anchor.current || anchor.current.closest('[hidden]'))) ||
       editing(event.target) ||
       Boolean(document.querySelector('[role="dialog"][aria-modal="true"]'));
     const copy = (event: ClipboardEvent) => {

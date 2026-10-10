@@ -70,3 +70,35 @@ it('ignores read-only boards and prevents cross-space pastes', async () => {
   await act(async () => fireEvent.paste(document, { clipboardData: data }));
   expect(client.copyTasks).not.toHaveBeenCalled();
 });
+it('leaves copy and paste alone while the board is hidden behind another section', async () => {
+  const client = { copyTasks: vi.fn().mockResolvedValue(['copy-1']) };
+  const section = document.createElement('div');
+  const inside = document.createElement('input');
+  section.append(inside);
+  document.body.append(section);
+  const anchor = { current: inside };
+  renderHook(
+    () =>
+      useTaskClipboard({
+        anchor,
+        teamId: TEAM,
+        selected: IDS.map(id => ({ id }) as TeamTaskSummary),
+        canEdit: true,
+        client,
+        onPasted: vi.fn()
+      }),
+    { wrapper }
+  );
+  section.hidden = true;
+  const data = clipboard();
+  fireEvent.copy(document, { clipboardData: data });
+  expect(data.getData()).toBe('');
+  data.setData('text/plain', 'SOTY_TASKS_V1:' + JSON.stringify({ teamId: TEAM, taskIds: IDS }));
+  await act(async () => fireEvent.paste(document, { clipboardData: data }));
+  expect(client.copyTasks).not.toHaveBeenCalled();
+  // Back on screen, the board answers again.
+  section.hidden = false;
+  fireEvent.copy(document, { clipboardData: data });
+  expect(data.getData()).toContain(IDS[0]);
+  section.remove();
+});

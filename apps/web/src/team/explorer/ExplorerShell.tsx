@@ -1509,6 +1509,15 @@ function ExplorerBody({
       </Button>
     ) : undefined;
 
+  /* The explorer stays mounted while another section is showing, hidden. Its
+     document-level shortcuts must not act from there: Cmd+C on a task card copied
+     the explorer's focused file, Cmd+V pasted a duplicate into the open folder,
+     and the copy event Tasks listens for never fired. */
+  const onScreen = () => {
+    const surface = explorerSurfaceRef.current;
+    return Boolean(surface && !surface.closest('[hidden]'));
+  };
+
   // `/` opens the search from anywhere on the folder screen (FR-027). The
   // search bar binds the same key once it is mounted; before that there was
   // nothing listening, so the shortcut only worked when it was not needed.
@@ -1516,6 +1525,7 @@ function ExplorerBody({
     if (searching || trash) return;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!onScreen()) return;
       if (isEditableTarget(event.target instanceof HTMLElement ? event.target : null)) return;
       event.preventDefault();
       onQueryChange({ scope: 'space' });
@@ -1531,6 +1541,7 @@ function ExplorerBody({
     if (searching || trash || readOnly) return;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if (!onScreen()) return;
       if (isEditableTarget(event.target instanceof HTMLElement ? event.target : null)) return;
       const key = event.key.toLowerCase();
       if (key === 'c' || key === 'x') {

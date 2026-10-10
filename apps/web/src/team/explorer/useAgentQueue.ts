@@ -113,6 +113,8 @@ export function useAgentQueue({
   const [tHeld, setTHeld] = useState(false);
   /** The operation this browser has already asked the local app to hold. */
   const heldAsked = useRef<string | null>(null);
+  /** Which tools this run carried, so its closing toast names what was done. */
+  const runTools = useRef(new Set<AgentQueueItem['tool']>());
 
   const enqueueJobs = (items: AgentQueueItem[]) => {
     const known = new Set(
@@ -120,6 +122,7 @@ export function useAgentQueue({
     );
     const fresh = items.filter(item => !known.has(`${item.tool}:${item.id}`));
     if (fresh.length === 0) return;
+    for (const item of fresh) runTools.current.add(item.tool);
     setTQueue(current => [...current, ...fresh]);
     setTTotal(current => current + fresh.length);
     if (tActive || tQueue.length > 0) {
@@ -230,7 +233,9 @@ export function useAgentQueue({
           push({
             tone: 'error',
             text: ranAndFailed
-              ? t('teamTranscribeFailedFile', { name: next.name })
+              ? next.tool === 'compressor'
+                ? t('teamErrorProcessFailed')
+                : t('teamTranscribeFailedFile', { name: next.name })
               : teamErrorMessageFor(cause, t)
           });
           setTFailed(current => current + 1);
@@ -260,15 +265,23 @@ export function useAgentQueue({
      * nothing here: the error toast has already spoken.
      */
     const made = Math.max(0, tDone - tFailed);
+    // Compression shares this queue (013); "transcriptions finished" after two
+    // compressed videos named work that never happened.
+    const tools = runTools.current;
+    const done =
+      tools.size === 1 && tools.has('compressor')
+        ? (['teamCompressQueueDone', 'teamCompressQueueDoneSome'] as const)
+        : tools.size === 1
+          ? (['teamTranscribeQueueDone', 'teamTranscribeQueueDoneSome'] as const)
+          : (['teamProcessQueueDone', 'teamProcessQueueDoneSome'] as const);
     if (made > 0) {
       push({
         tone: 'success',
         text:
-          tFailed > 0
-            ? t('teamTranscribeQueueDoneSome', { count: made, failed: tFailed })
-            : t('teamTranscribeQueueDone', { count: made })
+          tFailed > 0 ? t(done[1], { count: made, failed: tFailed }) : t(done[0], { count: made })
       });
     }
+    runTools.current = new Set();
     setTDone(0);
     setTFailed(0);
     setTTotal(0);

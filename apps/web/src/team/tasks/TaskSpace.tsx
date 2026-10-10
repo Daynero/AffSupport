@@ -350,6 +350,7 @@ export function TaskSpace({
   );
 
   useTaskClipboard({
+    anchor: quickAddInput,
     teamId,
     selected,
     canEdit: can('edit') && !effectiveOpenId,
