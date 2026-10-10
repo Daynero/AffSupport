@@ -85,6 +85,47 @@ describe('team landing full view', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
   });
 
+  it('keeps the loaded render when the space re-renders with a fresh pointer object', async () => {
+    const artifact: RenderArtifactRef = {
+      materialId: material.id,
+      sourceVersion: '7',
+      fingerprint: 'b'.repeat(64),
+      preset: 'default',
+      segmentCount: 1,
+      artifactToken: 'segment-zero-token-with-enough-entropy',
+      segmentTokens: ['segment-zero-token-with-enough-entropy']
+    };
+    const artifactClient = {
+      getLandingRenderArtifact: vi.fn().mockResolvedValue(artifact),
+      landingRenderImageUrl: vi.fn(() => 'https://example.test/render/0')
+    };
+    // The workspace passes `{ preset: 'default' }` inline: a new object on every render.
+    const view = render(
+      <LandingFullView
+        teamId="team-1"
+        material={material}
+        artifact={{ preset: 'default' }}
+        artifactClient={artifactClient}
+        onClose={vi.fn()}
+      />
+    );
+    await waitFor(() =>
+      expect(document.body.querySelectorAll('.team-landing-cached img')).toHaveLength(1)
+    );
+    for (let index = 0; index < 3; index += 1)
+      view.rerender(
+        <LandingFullView
+          teamId="team-1"
+          material={{ ...material }}
+          artifact={{ preset: 'default' }}
+          artifactClient={artifactClient}
+          onClose={vi.fn()}
+        />
+      );
+    expect(document.body.querySelectorAll('.team-landing-cached img')).toHaveLength(1);
+    expect(artifactClient.getLandingRenderArtifact).toHaveBeenCalledTimes(1);
+  });
+
   it('persists and applies the device and zoom controls', async () => {
     const previewClient = client({
       kind: 'media',

@@ -18433,9 +18433,12 @@ a.history-subject {
   z-index: calc(var(--layer-header) + 2);
   display: grid;
   gap: var(--space-4);
-  /* Cancels the explorer's row gap and leaves a tight step to the list. */
-  padding-bottom: var(--space-2);
-  margin-bottom: calc(-1 * var(--space-4));
+  /* Cancels the explorer's row gap and leaves a tight step to the list — half of it
+     painted, half clear: a selected tile lifts 2px on hover and wears a 1px ring, and
+     with the header's opaque band ending exactly at the first row the ring's top edge
+     went under it. */
+  padding-bottom: var(--space-1);
+  margin-bottom: calc(var(--space-1) - var(--space-4));
   background: var(--color-surface);
 }
 /* Nothing to say above the list (no selection, no read-only note): no empty band. */

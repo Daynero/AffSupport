@@ -331,6 +331,9 @@
   color: inherit;
   padding: 0 10px;
   white-space: nowrap;
+  /* The chip sits before "Вчора"/"Сьогодні": equal-width figures keep them in place
+     when a press swaps one day for the next. */
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 

@@ -134,36 +134,6 @@ export function TaskDateFilterControl({
 
   return (
     <div className="task-date-filter" aria-label={t('teamTasksDateFilter')}>
-      {/* Before the calendar, not after it: the calendar's chip grows with the chosen date,
-          and placed first it pushed these two away from under the pointer between presses. */}
-      {inlineDays && (
-        <div className="task-date-filter-days">
-          {quickRanges
-            .filter(
-              (option): option is typeof option & { range: 'yesterday' | 'today' } =>
-                option.range === 'yesterday' || option.range === 'today'
-            )
-            .reverse()
-            .map(option => (
-              <button
-                key={option.range}
-                type="button"
-                className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
-                aria-pressed={quick === option.range}
-                disabled={disabled}
-                onClick={() =>
-                  onChange(
-                    quick === option.range && allowAll
-                      ? { kind: 'all' }
-                      : quickRangeValue(option.range, new Date())
-                  )
-                }
-              >
-                {option.label}
-              </button>
-            ))}
-        </div>
-      )}
       {/*
        * One pill, two buttons (024): the wrapper draws the chip — outline,
        * fill, the selected accent — and the trigger and the × inside it draw
@@ -266,6 +236,37 @@ export function TaskDateFilterControl({
           />
         </Popover>
       </div>
+      {/* After the calendar, the way the owner reads the row: the date first, then the two
+          shortcuts. The chip's label is set in tabular figures and "Вчора"/"Сьогодні" only ever
+          swap one day for its neighbour, so the buttons stay under the pointer between presses. */}
+      {inlineDays && (
+        <div className="task-date-filter-days">
+          {quickRanges
+            .filter(
+              (option): option is typeof option & { range: 'yesterday' | 'today' } =>
+                option.range === 'yesterday' || option.range === 'today'
+            )
+            .reverse()
+            .map(option => (
+              <button
+                key={option.range}
+                type="button"
+                className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
+                aria-pressed={quick === option.range}
+                disabled={disabled}
+                onClick={() =>
+                  onChange(
+                    quick === option.range && allowAll
+                      ? { kind: 'all' }
+                      : quickRangeValue(option.range, new Date())
+                  )
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+        </div>
+      )}
       {children}
       {showStatus && (
         <div className="task-status-filter" aria-label={t('teamTaskStatus')}>

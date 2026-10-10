@@ -58,13 +58,18 @@ export function LandingFullView({
     window.localStorage.setItem(LANDING_VIEWER_PRESET_STORAGE_KEY, JSON.stringify(next));
   };
 
+  /* The preset's name, not the pointer object: callers pass `{ preset: 'default' }` inline,
+     a new object on every render of the space — and the space re-renders every few seconds
+     while it polls. Keyed on the object, each render threw the answer away and asked again,
+     so "Preparing the preview" never ended (or ended on a stale failure). */
+  const artifactPreset = artifact?.preset ?? null;
   useEffect(() => {
     let active = true;
-    if (!artifact || !artifactClient) return;
+    if (!artifactPreset || !artifactClient) return;
     setCachedArtifact(null);
     setCachedError(false);
     void artifactClient
-      .getLandingRenderArtifact(teamId, material.id, artifact.preset)
+      .getLandingRenderArtifact(teamId, material.id, artifactPreset)
       .then(value => {
         if (!active) return;
         if (!value?.segmentTokens) setCachedError(true);
@@ -76,7 +81,7 @@ export function LandingFullView({
     return () => {
       active = false;
     };
-  }, [artifact, artifactClient, material.id, teamId]);
+  }, [artifactPreset, artifactClient, material.id, teamId]);
 
   if (artifact && artifactClient) {
     return (
