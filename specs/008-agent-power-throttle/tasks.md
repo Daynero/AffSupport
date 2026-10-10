@@ -198,10 +198,10 @@ Monorepo (npm workspaces), per [plan.md](./plan.md#source-code-repository-root):
 - [x] T081 [P] Emit both events from `apps/web/src/components/PowerThrottle.tsx` and `apps/web/src/lib/power.tsx` via `analytics.track`
 - [x] T082 [P] Document the feature in `AGENTS.md`: what the governor is, why every heavy spawn must go through `spawnManaged`, why the governor is the only thing allowed to suspend a child, and what the ESLint rule is protecting — so the next contributor adding a local tool inherits the budget knowingly
 - [x] T083 Run the full gate set: `npm run format:check`, `npm run lint`, `npm test`, plus `npm run build -w @video-compressor/agent` and `npm run build -w @video-compressor/web` (CI never builds the agent, so this gate is carried manually)
-- [ ] T084 Walk [quickstart.md](./quickstart.md) sections 3–6 on macOS and record the measured numbers against SC-001, SC-002, SC-003, SC-006, SC-007, SC-009 and SC-010
-- [ ] T085 Run the SC-005 trial from [quickstart.md](./quickstart.md) section 3a: with a limit in force and a job running, carry out ordinary work (browsing, editing, a video call) across several sessions and record whether system-wide slowdown was perceived
-- [ ] T086 Walk [quickstart.md](./quickstart.md) section 7 on Windows, including the kill-the-agent-mid-job check for orphaned suspended processes — the most consequential failure mode in the design
-- [ ] T087 Walk [quickstart.md](./quickstart.md) section 8 edge cases and section 9 time-to-task, and tick the Definition of Done
+- [ ] T084 (open 2026-10-10: never measured; the governor ships and `tests/power-*.test.ts` cover its logic, but SC numbers need a real macOS walk) Walk [quickstart.md](./quickstart.md) sections 3–6 on macOS and record the measured numbers against SC-001, SC-002, SC-003, SC-006, SC-007, SC-009 and SC-010
+- [ ] T085 (open 2026-10-10: the subjective SC-005 trial was never recorded; the owner can do it in everyday use) Run the SC-005 trial from [quickstart.md](./quickstart.md) section 3a: with a limit in force and a job running, carry out ordinary work (browsing, editing, a video call) across several sessions and record whether system-wide slowdown was perceived
+- [ ] T086 (open 2026-10-10: no Windows walk yet; orphaned suspended processes are covered only by `tests/power-windows-suspend.test.ts`, which does not replace a real kill-mid-job check) Walk [quickstart.md](./quickstart.md) section 7 on Windows, including the kill-the-agent-mid-job check for orphaned suspended processes — the most consequential failure mode in the design
+- [ ] T087 (open 2026-10-10: waits for T084–T086) Walk [quickstart.md](./quickstart.md) section 8 edge cases and section 9 time-to-task, and tick the Definition of Done
 
 ---
 

@@ -324,7 +324,7 @@ built by US1.
       `npx vitest run tests/team-restitch-*.test.ts tests/stitch-*.test.ts --maxWorkers=1
 --minWorkers=1 --no-file-parallelism` — plus `supabase test db`, and confirm no
       pre-existing failure was made worse
-- [ ] T063 (deliberately open) Add the team surface's `stitcher` requirement to
+- [x] T063 (closed 2026-10-10: gate met — `stitcher: { stitcher: 1, imageEmbedding: 2 }` is in `WEB_TOOL_REQUIREMENTS` and shipped in v1.1.0 together with the agent contract `stitcher: 1`; `verify-release.mjs` byte-compares this map with the signed manifest, and every release since (v1.1.0–v1.2.6) has passed it. The team surface needs no extra key: capabilities that are not tool pages stay out of the map by design (comments in `packages/shared/src/release.ts`)) (deliberately open) Add the team surface's `stitcher` requirement to
       `WEB_TOOL_REQUIREMENTS` in `packages/shared/src/release.ts` **only** in the release that
       also ships the agent contract, and confirm `node scripts/verify-release.mjs` passes with
       the signed manifest that carries the same map

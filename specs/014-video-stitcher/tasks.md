@@ -192,7 +192,7 @@ that was stitched to within one frame (quickstart check 5).
 - [x] T057 Run `npm run format`, then `npm run lint`, then the focused stitcher tests, then the full `npm test` — sequentially, one heavy process at a time
 - [x] T058 Build the agent (`npm run build -w @video-compressor/agent`) — CI never does, so its type errors surface only here
 - [x] T059 Walk `quickstart.md` end to end on real files and record the measured times against SC-001, SC-002 and SC-005
-- [ ] T060 (deliberately open) Flip `videoStitcher` to `protected: false` in `apps/web/src/lib/feature-flags.ts` only once T059 passes, and only in the release that also ships the agent contract (T003, T010)
+- [x] T060 (closed 2026-10-10: done — `videoStitcher: { protected: false }` since `f3a5d621` (first released in v1.1.0, the release that ships the agent contract `stitcher: 1`); the stitcher is on the home page through `apps/web/src/lib/tool-registry.ts` (`/stitcher`)) (deliberately open) Flip `videoStitcher` to `protected: false` in `apps/web/src/lib/feature-flags.ts` only once T059 passes, and only in the release that also ships the agent contract (T003, T010)
 
 ---
 

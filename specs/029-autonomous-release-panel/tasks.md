@@ -67,7 +67,7 @@ Independent test: access/scope/budget failure produces one concrete decision and
 ## Phase 9 — Verification and separate commit
 
 - [x] T025 Document setup, limits and actual commands in docs/RELEASE_AUTOMATION.md and specs/029-autonomous-release-panel/quickstart.md.
-- [ ] T026 Run focused tests, type/build/design checks and npm run verify; record actual results in specs/029-autonomous-release-panel/implementation.md.
+- [x] T026 (closed 2026-10-10: done — the actual results are recorded in `implementation.md` ("Final verification checkpoint"): focused 70/70 in 16 files, lint/typechecks/panel build pass, full suite 4317 passed / 4 failed in other features' paths, which is stated rather than hidden) Run focused tests, type/build/design checks and npm run verify; record actual results in specs/029-autonomous-release-panel/implementation.md.
 - [ ] T027 Run full isolated acceptance/provider/restart/overhead checks and npm run verify:release; record remaining external gates honestly in specs/029-autonomous-release-panel/implementation.md.
 - [x] T028 Stage only feature-owned paths and commit separately, preserving parallel fixes; record SHA in final handoff.
 
