@@ -110,3 +110,58 @@ describe('a shortcut in the tree', () => {
     expect(client.getFile).toHaveBeenCalledWith('folder');
   });
 });
+
+/**
+ * Drive leaves `parents` out of My Drive's own root. A change to any file
+ * outside the space's root walks up to it, and reading it as malformed failed
+ * every incremental job with INVALID_RESPONSE after ten attempts.
+ */
+describe('the top of a member’s drive', () => {
+  const MY_DRIVE_ROOT = {
+    id: '0AAmyDriveRoot',
+    name: 'My Drive',
+    mimeType: 'application/vnd.google-apps.folder',
+    trashed: false,
+    version: '1',
+    modifiedTime: '2026-10-10T00:00:00.000Z',
+    capabilities: { canListChildren: true, canAddChildren: true }
+  };
+
+  it('reads as a folder with no parents, not as an invalid response', async () => {
+    const root = await driveWith(200, MY_DRIVE_ROOT).getFile(MY_DRIVE_ROOT.id);
+    expect(root.id).toBe(MY_DRIVE_ROOT.id);
+    expect(root.parents).toEqual([]);
+  });
+
+  it('still refuses a parents field that is not a list of ids', async () => {
+    const error = await failure(() =>
+      driveWith(200, { ...MY_DRIVE_ROOT, parents: 'nope' }).getFile(MY_DRIVE_ROOT.id)
+    );
+    expect(error.code).toBe('INVALID_RESPONSE');
+  });
+
+  it('ends an ancestry walk outside the space as ROOT_ESCAPE', async () => {
+    const answers: Record<string, unknown> = {
+      outside: {
+        ...MY_DRIVE_ROOT,
+        id: 'outside',
+        name: 'notes.txt',
+        mimeType: 'text/plain',
+        parents: [MY_DRIVE_ROOT.id]
+      },
+      [MY_DRIVE_ROOT.id]: MY_DRIVE_ROOT
+    };
+    const fetchImpl = vi.fn(async (url: URL) => {
+      const id = decodeURIComponent(new URL(url).pathname.split('/').pop()!);
+      return new Response(JSON.stringify(answers[id]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    });
+    const drive = new GoogleDriveClient(TOKEN, fetchImpl as unknown as typeof fetch);
+    const error = await failure(() =>
+      proveLiveAncestry({ client: drive, fileId: 'outside', rootFolderId: 'space-root' })
+    );
+    expect(error.code).toBe('ROOT_ESCAPE');
+  });
+});

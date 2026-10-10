@@ -139,12 +139,18 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
     value.name.length > 1024 ||
     typeof value.mimeType !== 'string' ||
     value.mimeType.length === 0 ||
-    !Array.isArray(value.parents) ||
-    !value.parents.every(parent => typeof parent === 'string' && parent.length > 0) ||
+    (value.parents !== undefined &&
+      (!Array.isArray(value.parents) ||
+        !value.parents.every(parent => typeof parent === 'string' && parent.length > 0))) ||
     typeof value.trashed !== 'boolean'
   ) {
     return null;
   }
+  // Drive omits `parents` on a tree's top — My Drive's own root, a shared
+  // drive's root, an item shared with the member but kept nowhere of theirs.
+  // That is the end of an ancestry walk, not a malformed answer: read as a
+  // file with no parents, the walk stops there and proves ROOT_ESCAPE.
+  const parents: string[] = Array.isArray(value.parents) ? value.parents : [];
   const capabilities = parseCapabilities(value.capabilities);
   if (!capabilities) return null;
   const shortcut = isRecord(value.shortcutDetails) ? value.shortcutDetails : null;
@@ -154,7 +160,7 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
     id: value.id,
     name: value.name,
     mimeType: value.mimeType,
-    parents: value.parents,
+    parents,
     trashed: value.trashed,
     driveId: typeof value.driveId === 'string' ? value.driveId : null,
     resourceKey: typeof value.resourceKey === 'string' ? value.resourceKey : null,
