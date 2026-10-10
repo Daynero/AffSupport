@@ -34,7 +34,8 @@ it('allows deleting a transferred agent with no financial history', async () => 
         [f.task]
       )
     )[0]!.tags[0]!.account_name
-  ).toBe('X');
+    // The tag moved with the ad account, so deleting the former social account leaves it whole.
+  ).toBe('Y');
   await f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account_agent($1,$2)', [
     f.team,
     f.agent
@@ -232,7 +233,7 @@ it('preserves the same agent through X → Y → X and counts backdated money wh
   expect(new Set(seen).size).toBe(3);
 });
 
-it('rejects a stale empty draft after a transfer and retains historical task tags', async () => {
+it('rejects a stale empty draft after a transfer, and its task tags follow the ad account', async () => {
   const p = (
     await f.db.root<{ id: string; version: string }>(
       'select id,version::text from public.team_agent_placements where agent_row_id=$1 and ends_on is null',
@@ -271,29 +272,39 @@ it('rejects a stale empty draft after a transfer and retains historical task tag
       [f.task]
     )
   )[0]!.tags;
-  expect(tags[0]).toMatchObject({ account_id: f.accounts[0], account_name: 'X' });
+  // The owner's rule (2026-10-11): a tag names the ad account wherever it is now.
+  expect(tags[0]).toMatchObject({ account_id: f.accounts[1], account_name: 'Y' });
   const summaries = await f.db.asUser<{
     id: string;
     task_count: number;
     agents: { task_count: number; account_task_count: number }[];
   }>(FINANCE_OWNER, 'select * from public.list_team_accounts($1)', [f.team]);
-  expect(summaries.find(account => account.id === f.accounts[0])!.task_count).toBe(1);
+  expect(summaries.find(account => account.id === f.accounts[0])!.task_count).toBe(0);
   const destination = summaries.find(account => account.id === f.accounts[1])!;
-  expect(destination.task_count).toBe(0);
-  expect(destination.agents[0]).toMatchObject({ task_count: 1, account_task_count: 0 });
+  expect(destination.task_count).toBe(1);
+  expect(destination.agents[0]).toMatchObject({ task_count: 1, account_task_count: 1 });
   const oldTasks = await f.db.asUser(
     FINANCE_OWNER,
     'select id from public.list_team_tasks(p_team:=$1,p_account:=$2)',
     [f.team, f.accounts[0]]
   );
-  expect(oldTasks).toEqual([{ id: f.task }]);
+  expect(oldTasks).toHaveLength(0);
   expect(
     await f.db.asUser(
       FINANCE_OWNER,
       'select id from public.list_team_tasks(p_team:=$1,p_account:=$2)',
       [f.team, f.accounts[1]]
     )
-  ).toHaveLength(0);
+  ).toEqual([{ id: f.task }]);
+  // Clients still cannot re-point a tag themselves.
+  const link = (
+    await f.db.root<{ id: string }>('select id from public.team_task_agents where task_id=$1', [
+      f.task
+    ])
+  )[0]!.id;
+  await expect(
+    f.db.root('update public.team_task_agents set account_id=$1 where id=$2', [f.accounts[0], link])
+  ).rejects.toThrow(/INVALID_INPUT/);
   // The old setter is not an authenticated escape hatch around the CAS.
   expect(
     (
