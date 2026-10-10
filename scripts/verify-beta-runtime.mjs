@@ -127,13 +127,28 @@ function betaEntitlementToken(subject) {
 }
 
 async function main() {
-  const app = path.resolve('release/beta/Soty Beta.app');
-  for (const required of [app, BETA_ENTITLEMENT_KEY]) {
+  const packaged = path.resolve('release/beta/Soty Beta.app');
+  for (const required of [packaged, BETA_ENTITLEMENT_KEY]) {
     try {
       statSync(required);
     } catch {
       fail(`${required} is missing; package beta first and keep the beta entitlement key local`);
     }
+  }
+  /*
+   * A freshly built app reading its own files from an external volume waits for
+   * macOS to ask the person whether it may access a removable volume — and the
+   * grant is tied to that build's signature, so every release asked again and the
+   * agent hung in open() until somebody clicked. The release worktree lives on an
+   * external disk here; the journey runs a copy on the internal disk instead.
+   */
+  let copied = null;
+  let app = packaged;
+  if (packaged.startsWith('/Volumes/')) {
+    copied = mkdtempSync('/private/tmp/soty-beta-app-');
+    app = path.join(copied, 'Soty Beta.app');
+    const copy = spawnSync('/usr/bin/ditto', [packaged, app], { stdio: 'inherit', shell: false });
+    if (copy.status !== 0) fail(`could not copy ${packaged} to the internal disk for the journey`);
   }
 
   // Somebody else's beta is not this journey's to drive, and certainly not to
@@ -257,6 +272,7 @@ async function main() {
       }
     }
     rmSync(work, { recursive: true, force: true });
+    if (copied) rmSync(copied, { recursive: true, force: true });
   };
 
   let launched = [];
