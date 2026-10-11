@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useI18n } from '../../i18n';
 import { History, Search } from 'lucide-react';
 import { Button, Chip, Input } from '../../components/ui/index';
@@ -43,7 +43,12 @@ export function CatalogSearchBar({
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const historyRef = useRef<HTMLDivElement | null>(null);
-  const showHistory = value.trim() === '' && history.length > 0 && Boolean(onApplyHistory);
+  /* Recent searches open under the field while it has the focus, over the results rather than
+     between the field and them: shown in the flow, they vanished at the first letter typed and
+     the whole list jumped up by their height. */
+  const [focused, setFocused] = useState(false);
+  const showHistory =
+    focused && value.trim() === '' && history.length > 0 && Boolean(onApplyHistory);
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
@@ -119,7 +124,13 @@ export function CatalogSearchBar({
   };
 
   return (
-    <div className="team-catalog-search-block">
+    <div
+      className="team-catalog-search-block"
+      onFocus={() => setFocused(true)}
+      onBlur={event => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+      }}
+    >
       <label className="team-catalog-search">
         <span>{t('teamCatalogSearch')}</span>
         {/* The inventory's field, with the glass that says what it is for

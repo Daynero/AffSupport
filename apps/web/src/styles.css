@@ -8711,16 +8711,28 @@ button,
 }
 /* Search rework (2026-10): the field, the searches used lately under it, and where it looks. */
 .team-catalog-search-block {
+  position: relative;
   display: grid;
   gap: var(--space-2);
   min-width: 0;
 }
+/* A panel over the results, not a row between the field and them (see CatalogSearchBar). */
 .team-catalog-history {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  left: 0;
+  z-index: var(--layer-dropdown);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-md);
 }
 .team-catalog-history-label {
   display: inline-flex;
