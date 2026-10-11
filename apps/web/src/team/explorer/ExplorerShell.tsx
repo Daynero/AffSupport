@@ -1592,10 +1592,24 @@ function ExplorerBody({
   useEffect(() => {
     if (searching || trash) return;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      /* Escape lets go of a selection from anywhere on the folder screen, as ⌘A makes one
+         from anywhere: after ⌘A the focus is on the page, not the list, and the list's own
+         Escape never heard it. The list still handles it first when it has the focus. */
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        selectedRows.length > 0 &&
+        onScreen() &&
+        !isEditableTarget(target) &&
+        !target?.closest('[role="dialog"], [role="menu"], .team-explorer-content-keys')
+      ) {
+        explorer.clearSelection();
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
       if (event.key.toLowerCase() !== 'a') return;
       if (!onScreen()) return;
-      const target = event.target instanceof HTMLElement ? event.target : null;
       if (isEditableTarget(target) || target?.closest('[role="dialog"], [role="menu"]')) return;
       if (sortedRows.length === 0) return;
       event.preventDefault();
@@ -1603,7 +1617,7 @@ function ExplorerBody({
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [explorer, searching, sortedRows, trash]);
+  }, [explorer, searching, selectedRows.length, sortedRows, trash]);
 
   return (
     /* `team-panel`, like Accounts and Tasks: this was the one tab in the space
