@@ -1829,7 +1829,7 @@ select ok(
 -- pinning the argument list it had on the day US3 shipped.
 select has_function(
   'public', 'search_materials',
-  array['uuid', 'text', 'jsonb', 'integer', 'integer', 'text', 'text[]'],
+  array['uuid', 'text', 'jsonb', 'integer', 'integer', 'text', 'text[]', 'boolean'],
   'US3 caller-checked catalog search RPC exists'
 );
 select has_function(
@@ -1863,7 +1863,8 @@ select is_empty(
     from (values
       -- 011 widened this to the open folder and the row kinds; the grant check
       -- has to name the signature that exists, not the one it had in US3.
-      ('public.search_materials(uuid,text,jsonb,integer,integer,text,text[])'),
+      -- 20261201100000 added the recursive folder scope (p_recursive).
+      ('public.search_materials(uuid,text,jsonb,integer,integer,text,text[],boolean)'),
       ('public.get_team_vocab_and_facets(uuid)'),
       ('public.update_material_metadata(uuid,uuid,jsonb)')
     ) as expected(signature)

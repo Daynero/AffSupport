@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { PGlite } from '@electric-sql/pglite';
+import { PGlite, type Extensions } from '@electric-sql/pglite';
 
 /**
  * A real Postgres (PGlite/wasm) with the repository's migrations applied, for
@@ -125,9 +125,13 @@ export interface TeamTestDb {
 }
 
 export async function createTeamTestDb(
-  options: { throughMigration?: string } = {}
+  options: {
+    throughMigration?: string;
+    /** PGlite contrib extensions to load (e.g. pg_trgm), so a migration can create them. */
+    extensions?: Extensions;
+  } = {}
 ): Promise<TeamTestDb> {
-  const db = await PGlite.create();
+  const db = await PGlite.create(options.extensions ? { extensions: options.extensions } : {});
   await db.exec(SUPABASE_STUBS);
 
   const files = readdirSync(MIGRATIONS_DIR)

@@ -4470,6 +4470,7 @@ export type GeneratedDatabase = {
           p_page_size?: number;
           p_parent_folder_id?: string;
           p_query?: string;
+          p_recursive?: boolean;
           p_team: string;
         };
         Returns: Json;

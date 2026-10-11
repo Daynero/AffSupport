@@ -1606,3 +1606,24 @@ Feature 012 (T003/T004/T007). Re-apply `public.list_team_folder_page` from
 the index `team_materials_active_checksum_idx`. A web build that calls
 `find_reusable_transcript` treats a missing function as "nothing to reuse" and transcribes as
 before. Fingerprints already stamped on videos stay; they are harmless data.
+
+## 20261201100000_smarter_material_search.sql
+
+Space search rework (weighted document, name-first ranking, infix and typo tolerance,
+`p_recursive`, `matchedIn`/`snippet`). To roll back:
+
+1. `drop function public.search_materials(uuid, text, jsonb, integer, integer, text, text[], boolean);`
+   then re-apply `public.search_materials` from `20261128100000_media_companion_projection.sql`
+   together with its revoke/grant (`revoke all … from public, anon, authenticated, service_role;
+   grant execute … to authenticated`) and the comment from `20260827108000_team_search_scope.sql`.
+   A web build that asks for `p_recursive` gets PGRST202 and retries without it (direct-children
+   scope); rows simply lack `matchedIn`/`snippet`.
+2. Re-apply `private.refresh_team_material_search()` from `20260916220000_material_notes.sql` and
+   backfill the unweighted vector with the same trigger-silencing DO block this migration uses
+   (disable `team_materials_set_updated_at`, `team_materials_thumbnail_state`,
+   `catalog_material_mutation`; `update … set search_tsv = <old expression>`; re-enable). Leaving
+   the weighted vector in place is also harmless: the old search ignores weights.
+3. Optional cleanup: `drop function private.material_search_document(text, text[], text, text,
+   text, text, text)`, `private.name_fuzzy_match(text, text)`, `private.name_similarity(text,
+   text)` and `drop index if exists public.team_materials_name_trgm_idx`. Keep the `pg_trgm`
+   extension; other objects may come to depend on it.
