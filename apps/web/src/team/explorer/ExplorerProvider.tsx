@@ -50,6 +50,8 @@ export interface ExplorerContextValue {
   selectedRows: ReadonlyMap<string, TeamMaterialRow>;
   toggleSelected: (row: TeamMaterialRow) => void;
   selectRows: (rows: readonly TeamMaterialRow[]) => void;
+  /** Makes these rows the whole multi-selection — a plain press or a drawn rectangle. */
+  replaceSelection: (rows: readonly TeamMaterialRow[]) => void;
   clearSelection: () => void;
 }
 
@@ -243,6 +245,8 @@ export function ExplorerProvider({
           for (const row of rows) next.set(row.id, row);
           return next;
         }),
+      replaceSelection: (rows: readonly TeamMaterialRow[]) =>
+        setSelectedRows(new Map(rows.map(row => [row.id, row]))),
       clearSelection: () => setSelectedRows(new Map())
     }),
     [

@@ -23,6 +23,8 @@ import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
 import { companionOf } from './companions';
 import { useMaterialDrag } from './materialDrag';
+import { suppressShiftTextSelection, useRowPress } from './useSelectionGestures';
+import type { Modifiers } from './selectionGestures';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { TagDot } from './TagDot';
 
@@ -87,8 +89,9 @@ export function ContentList({
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
 }) {
   const { t } = useI18n();
-  const { openFolder, selectedId, select, selectedIds, toggleSelected } = useExplorer();
+  const { openFolder, selectedId, selectedIds, toggleSelected } = useExplorer();
   const drag = useMaterialDrag({ selectedIds, rows, onDropMaterials });
+  const press = useRowPress(rows);
   /*
    * The page comes from the shell, which is the only place that can hold it:
    * this component used to run its own `useFolderPage` with the same arguments,
@@ -169,7 +172,7 @@ export function ContentList({
               checked={selectedIds.has(row.id)}
               drag={drag.dragProps(row)}
               dropTarget={drag.dropTarget === row.id}
-              onSelect={select}
+              onPress={press}
               onToggle={toggleSelected}
               onOpenFolder={openFolder}
               onPreview={onPreview}
@@ -196,7 +199,7 @@ function Row({
   row,
   selected,
   checked,
-  onSelect,
+  onPress,
   onToggle,
   onOpenFolder,
   onPreview,
@@ -214,7 +217,8 @@ function Row({
   dropTarget: boolean;
   selected: boolean;
   checked: boolean;
-  onSelect: (materialId: string | null) => void;
+  /** A press in the file manager's grammar: plain focuses, ⌘/Ctrl toggles, Shift takes a run. */
+  onPress: (row: TeamMaterialRow, modifiers: Modifiers) => void;
   onToggle: (row: TeamMaterialRow) => void;
   onOpenFolder: (folderId: string) => void;
   onPreview?: (material: TeamMaterialSummary) => void;
@@ -261,7 +265,8 @@ function Row({
        * selects, a second press opens — a folder too. Enter opens from the
        * keyboard (the shell's handler).
        */
-      onClick={() => onSelect(row.id)}
+      onMouseDown={suppressShiftTextSelection}
+      onClick={event => onPress(row, event)}
       onDoubleClick={open}
     >
       <TableCell className="team-explorer-row-check">
@@ -311,7 +316,7 @@ function Row({
              press landed. */
           onClick={event => {
             event.stopPropagation();
-            onSelect(row.id);
+            onPress(row, event);
           }}
           onDoubleClick={event => {
             event.stopPropagation();

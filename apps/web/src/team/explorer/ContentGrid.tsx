@@ -16,6 +16,8 @@ import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
 import { useMaterialDrag } from './materialDrag';
+import { suppressShiftTextSelection, useRowPress } from './useSelectionGestures';
+import type { Modifiers } from './selectionGestures';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { useExplorer } from './ExplorerProvider';
 import { MorePages } from './MorePages';
@@ -97,6 +99,7 @@ export function ContentGrid({
   const { t } = useI18n();
   const { teamId, openFolder, selectedId, select, selectedIds, toggleSelected } = useExplorer();
   const drag = useMaterialDrag({ selectedIds, rows, onDropMaterials });
+  const press = useRowPress(rows);
   /*
    * The page comes from the shell, which is the only place that can hold it:
    * this component used to run its own `useFolderPage` with the same arguments,
@@ -186,6 +189,7 @@ export function ContentGrid({
             dropTarget={drag.dropTarget === row.id}
             onOpenFolder={openFolder}
             onSelect={select}
+            onPress={press}
             onToggle={toggleSelected}
             onPreview={onPreview}
             actions={actions}
@@ -215,6 +219,7 @@ function Tile({
   checked,
   onOpenFolder,
   onSelect,
+  onPress,
   onToggle,
   onPreview,
   actions,
@@ -234,6 +239,8 @@ function Tile({
   checked: boolean;
   onOpenFolder: (folderId: string) => void;
   onSelect: (materialId: string | null) => void;
+  /** A press in the file manager's grammar: plain focuses, ⌘/Ctrl toggles, Shift takes a run. */
+  onPress: (row: TeamMaterialRow, modifiers: Modifiers) => void;
   onToggle: (row: TeamMaterialRow) => void;
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
@@ -277,7 +284,8 @@ function Tile({
       data-material-id={row.id}
       aria-selected={selected}
       {...drag}
-      onClick={() => onSelect(row.id)}
+      onMouseDown={suppressShiftTextSelection}
+      onClick={event => onPress(row, event)}
       onDoubleClick={open}
     >
       <button
@@ -292,7 +300,7 @@ function Tile({
          */
         onClick={event => {
           event.stopPropagation();
-          onSelect(row.id);
+          onPress(row, event);
         }}
         onDoubleClick={event => {
           event.stopPropagation();
