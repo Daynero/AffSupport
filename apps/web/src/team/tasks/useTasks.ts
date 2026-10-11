@@ -2,6 +2,7 @@ import { realtimeTopic } from '../../lib/realtimeTopic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
+  filterBySearchQuery,
   isTeamTaskSort,
   localTaskDayBounds,
   TEAM_TASK_STATUSES,
@@ -556,7 +557,7 @@ export function useTasks({
     setTasks(current => current.map(item => (item.id === taskId ? { ...item, agents } : item)));
   }, []);
 
-  const term = query.normalize('NFC').trim().toLocaleLowerCase();
+  const term = query.normalize('NFC').trim();
   /*
    * Done goes to the end (024): before a launch the board is read for what is still open, and
    * finished cards mixed in between pushed it down. Where a card sits is decided when the board
@@ -572,14 +573,10 @@ export function useTasks({
     placedDone.current = new Map();
   }
   const shown = useMemo(() => {
+    /* Every word, in any order, and the other keyboard layout when the words as
+       typed find nothing — the way files are found (search rework, 2026-10). */
     const matching =
-      term === ''
-        ? tasks
-        : tasks.filter(
-            task =>
-              task.title.toLocaleLowerCase().includes(term) ||
-              (task.note ?? '').toLocaleLowerCase().includes(term)
-          );
+      term === '' ? tasks : filterBySearchQuery(tasks, term, task => [task.title, task.note]).items;
     const placed = placedDone.current;
     for (const task of matching) {
       if (!placed.has(task.id)) placed.set(task.id, task.status === 'done');

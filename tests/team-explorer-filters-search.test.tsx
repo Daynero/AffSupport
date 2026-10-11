@@ -117,8 +117,10 @@ describe('search scope', () => {
       </TeamProvider>
     );
     await user.type(screen.getByLabelText('q'), 'ban');
+    // Called, not last called: "ban" finds nothing here, so the search asks once more for the
+    // same keys on the other keyboard layout ("ифт"), in the same scope.
     await waitFor(() =>
-      expect(searchCatalog).toHaveBeenLastCalledWith(
+      expect(searchCatalog).toHaveBeenCalledWith(
         'team-1',
         expect.objectContaining({ query: 'ban' }),
         { parentFolderId: 'f-1', kinds: ['image'] }
@@ -135,5 +137,18 @@ describe('search scope', () => {
         kinds: ['image']
       })
     );
+  });
+});
+
+describe('search scope in the address', () => {
+  it('keeps a folder search open with an empty field (search rework, 2026-10)', () => {
+    const route = buildTeamRoute({
+      spaceId: 's',
+      section: 'explorer',
+      query: { folderId: 'f-1', scope: 'subtree' }
+    });
+    expect(route).toContain('scope=subtree');
+    expect(parseTeamRoute(route)).toMatchObject({ query: { folderId: 'f-1', scope: 'subtree' } });
+    expect(parseTeamRoute('/team/s?scope=bogus')).toMatchObject({ query: { scope: 'folder' } });
   });
 });

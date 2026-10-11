@@ -8709,6 +8709,89 @@ button,
   background: none;
   color: inherit;
 }
+/* Search rework (2026-10): the field, the searches used lately under it, and where it looks. */
+.team-catalog-search-block {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.team-catalog-history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.team-catalog-history-label {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+.team-catalog-history-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+.team-catalog-history-list .ui-chip-label {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-catalog-scope {
+  width: fit-content;
+}
+.team-catalog-layout-swap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-catalog-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+/* The words a result matched: marked, never re-coloured into a link. */
+.search-hit {
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: inherit;
+  font-weight: 600;
+}
+.team-catalog-match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-catalog-match-label {
+  flex: none;
+  font-weight: 600;
+}
+.team-catalog-match-snippet {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+/* The keyboard's row while the caret stays in the search field. */
+.team-catalog-results > li.is-active {
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
 .team-catalog-filters {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -14349,6 +14432,25 @@ button.team-landing-tile:hover {
   outline: 2px dashed var(--color-accent);
   outline-offset: -2px;
   background: color-mix(in oklab, var(--color-accent) 12%, transparent);
+}
+/* The rubber band (2026-10): a rectangle drawn over empty space in the folder checks what it
+   touches. Drawn in the window's coordinates by the hook, clipped below the sticky header, and
+   never in the way of the pointer. */
+.team-explorer-marquee {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--layer-header);
+  pointer-events: none;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
+}
+/* While it is drawn the page's text is not selectable: a drag across the captions painted them. */
+.is-marquee-selecting,
+.is-marquee-selecting * {
+  user-select: none;
+  -webkit-user-select: none;
 }
 /* What is being dragged, in words: the browser's own ghost was the whole row, faded. Drawn once
    off screen for the drag image and removed at once. */

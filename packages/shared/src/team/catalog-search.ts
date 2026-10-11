@@ -105,7 +105,20 @@ export interface CatalogMaterialItem {
   companionKind?: string | null;
   /** A video whose linked transcript has text to read; absent from older servers. */
   hasTranscriptCompanion?: boolean;
+  /**
+   * What the query matched in (search rework, 2026-10); absent from older
+   * servers, null when the server does not say.
+   */
+  matchedIn?: CatalogMatchField | null;
+  /** A plain-text fragment around a transcript or note match, at most 160 characters. */
+  snippet?: string | null;
 }
+
+export const CATALOG_MATCH_FIELDS = ['name', 'tags', 'note', 'transcript', 'meta'] as const;
+export type CatalogMatchField = (typeof CATALOG_MATCH_FIELDS)[number];
+
+/** The longest snippet the client renders; the server promises the same. */
+export const CATALOG_SNIPPET_MAX = 160;
 
 export interface CatalogFacetValue {
   value: string;
@@ -391,6 +404,18 @@ export function decodeCatalogMaterial(
     typeof lineage.isVersion !== 'boolean'
   ) {
     return null;
+  }
+  /* Read tolerantly: these explain a match, they are not the match, so a value
+     this build does not know is dropped rather than failing the whole page. */
+  if ('matchedIn' in value || 'snippet' in value) {
+    const matchedIn = (CATALOG_MATCH_FIELDS as readonly unknown[]).includes(value.matchedIn)
+      ? (value.matchedIn as CatalogMatchField)
+      : null;
+    const snippet =
+      typeof value.snippet === 'string' && value.snippet.trim() !== ''
+        ? value.snippet.replace(/\s+/gu, ' ').trim().slice(0, CATALOG_SNIPPET_MAX)
+        : null;
+    return { ...(value as unknown as CatalogMaterialItem), matchedIn, snippet };
   }
   return value as unknown as CatalogMaterialItem;
 }

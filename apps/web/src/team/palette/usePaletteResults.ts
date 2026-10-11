@@ -4,7 +4,8 @@ import { teamApi } from '../../api/team';
 import type { PaletteResult } from './WorkspacePalette';
 import { folderPathLabel, indexFolders, type FolderPathNode } from '../explorer/folderPath';
 import { translate, type Language } from '../../i18n';
-import { readRecent, rememberRecent } from './recent';
+import { readRecent, readRecentQueries, rememberQuery, rememberRecent } from './recent';
+import { filterBySearchQuery } from '@video-compressor/shared';
 
 /**
  * What the palette finds, and how it avoids getting in the way (024, FR-098).
@@ -22,6 +23,13 @@ import { readRecent, rememberRecent } from './recent';
 
 const PAUSE_MS = 220;
 const PER_GROUP = 6;
+/**
+ * Rows asked of the server for the file group. More than are shown, because
+ * the server's order is a relevance order over everything a file carries and
+ * the palette re-ranks by name: the best name match is often seventh or ninth
+ * (search rework, 2026-10).
+ */
+const REMOTE_PAGE = 12;
 
 export interface PaletteSources {
   teamId: string;
@@ -52,10 +60,6 @@ export function isCatalogSheet(name: string, mimeType: string | null | undefined
     mimeType === 'application/vnd.google-apps.spreadsheet' &&
     /(?:_v\d+_catalog| catalog)(?: \(\d+\))?$/iu.test(name)
   );
-}
-
-function matchesTerm(value: string, term: string): boolean {
-  return value.toLocaleLowerCase().includes(term);
 }
 
 /**
@@ -93,6 +97,11 @@ export function usePaletteResults(
   const latest = useRef(0);
   const at = useRef(sources);
   at.current = sources;
+  /* What is in the field when a result is chosen: that is the query worth keeping. */
+  const queryRef = useRef(query);
+  queryRef.current = query;
+  const keepQuery = () =>
+    rememberQuery(at.current.teamId, { query: queryRef.current, scope: 'space' });
   const foldersRef = useRef<ReadonlyMap<string, FolderPathNode>>(new Map());
   const languageRef = useRef<Language>(sources.language ?? 'en');
   languageRef.current = sources.language ?? 'en';
@@ -153,40 +162,43 @@ export function usePaletteResults(
     const token = ++latest.current;
     const timer = window.setTimeout(() => {
       void teamApi
-        .searchCatalog(at.current.teamId, { query: term, page: 1, pageSize: PER_GROUP })
+        .searchCatalog(at.current.teamId, { query: term, page: 1, pageSize: REMOTE_PAGE })
         .then(found => {
           // A late answer to a question nobody is asking any more.
           if (token !== latest.current) return;
           setRemote(
-            rankByName(found.items, term, item => item.name).map(item => ({
-              id: `material:${item.id}`,
-              kind: 'material' as const,
-              name: item.name,
-              facts: {
-                // The folder first: it is what tells same-named files apart (024).
-                path: folderPathLabel(
-                  item.parentFolderId,
-                  foldersRef.current,
-                  translate(languageRef.current, 'teamExplorerRootLabel')
-                ),
-                category: item.category,
-                sizeBytes: item.sizeBytes,
-                catalog: isCatalogSheet(item.name, item.mimeType)
-              },
-              run: () => {
-                rememberRecent(at.current.teamId, {
-                  kind: 'material',
-                  id: item.id,
-                  name: item.name,
-                  parentFolderId: item.parentFolderId ?? null
-                });
-                at.current.openMaterial({
-                  id: item.id,
-                  name: item.name,
-                  parentFolderId: item.parentFolderId ?? null
-                });
-              }
-            }))
+            rankByName(found.items, term, item => item.name)
+              .slice(0, PER_GROUP)
+              .map(item => ({
+                id: `material:${item.id}`,
+                kind: 'material' as const,
+                name: item.name,
+                facts: {
+                  // The folder first: it is what tells same-named files apart (024).
+                  path: folderPathLabel(
+                    item.parentFolderId,
+                    foldersRef.current,
+                    translate(languageRef.current, 'teamExplorerRootLabel')
+                  ),
+                  category: item.category,
+                  sizeBytes: item.sizeBytes,
+                  catalog: isCatalogSheet(item.name, item.mimeType)
+                },
+                run: () => {
+                  keepQuery();
+                  rememberRecent(at.current.teamId, {
+                    kind: 'material',
+                    id: item.id,
+                    name: item.name,
+                    parentFolderId: item.parentFolderId ?? null
+                  });
+                  at.current.openMaterial({
+                    id: item.id,
+                    name: item.name,
+                    parentFolderId: item.parentFolderId ?? null
+                  });
+                }
+              }))
           );
         })
         .catch(() => {
@@ -202,46 +214,64 @@ export function usePaletteResults(
   if (term === '') {
     // An empty field is where you left off (024): the last things opened, most recent first.
     const rootLabel = translate(languageRef.current, 'teamExplorerRootLabel');
-    return {
-      results: readRecent(teamId).map(entry => ({
-        id: `recent:${entry.kind}:${entry.id}`,
-        kind: entry.kind,
+    // The searches used lately come first: choosing one puts its words back in the field.
+    const searches: PaletteResult[] = readRecentQueries(teamId)
+      .slice(0, PER_GROUP)
+      .map(entry => ({
+        id: `query:${entry.query}`,
+        kind: 'query' as const,
         recent: true,
-        name: entry.name,
-        ...(entry.kind === 'material'
-          ? {
-              facts: { path: folderPathLabel(entry.parentFolderId, foldersRef.current, rootLabel) }
-            }
-          : {}),
-        run: () => {
-          rememberRecent(teamId, entry);
-          if (entry.kind === 'task') at.current.openTask(entry.id);
-          else if (entry.kind === 'account') at.current.openAccount(entry.id);
-          else if (entry.kind === 'folder') at.current.openFolder(entry.driveFileId ?? entry.id);
-          else
-            at.current.openMaterial({
-              id: entry.id,
-              name: entry.name,
-              parentFolderId: entry.parentFolderId ?? null
-            });
-        }
-      })),
+        name: entry.query,
+        fill: entry.query,
+        run: () => undefined
+      }));
+    return {
+      results: [
+        ...searches,
+        ...readRecent(teamId).map(entry => ({
+          id: `recent:${entry.kind}:${entry.id}`,
+          kind: entry.kind,
+          recent: true,
+          name: entry.name,
+          ...(entry.kind === 'material'
+            ? {
+                facts: {
+                  path: folderPathLabel(entry.parentFolderId, foldersRef.current, rootLabel)
+                }
+              }
+            : {}),
+          run: () => {
+            rememberRecent(teamId, entry);
+            if (entry.kind === 'task') at.current.openTask(entry.id);
+            else if (entry.kind === 'account') at.current.openAccount(entry.id);
+            else if (entry.kind === 'folder') at.current.openFolder(entry.driveFileId ?? entry.id);
+            else
+              at.current.openMaterial({
+                id: entry.id,
+                name: entry.name,
+                parentFolderId: entry.parentFolderId ?? null
+              });
+          }
+        }))
+      ],
       loading: false
     };
   }
 
+  /* The in-memory lists answer like the rest of the space: every word, any order, and the other
+     keyboard layout when the words as typed find nothing. */
+  const folderHits = filterBySearchQuery(small.folders, term, folder => [folder.name]);
+  const taskHits = filterBySearchQuery(small.tasks, term, task => [task.title, task.note]);
+  const accountHits = filterBySearchQuery(small.accounts, term, account => [account.name]);
   const local: PaletteResult[] = [
-    ...rankByName(
-      small.folders.filter(folder => matchesTerm(folder.name, term)),
-      term,
-      folder => folder.name
-    )
+    ...rankByName(folderHits.items, folderHits.query, folder => folder.name)
       .slice(0, PER_GROUP)
       .map(folder => ({
         id: `folder:${folder.id}`,
         kind: 'folder' as const,
         name: folder.name,
         run: () => {
+          keepQuery();
           rememberRecent(teamId, {
             kind: 'folder',
             id: folder.id,
@@ -251,13 +281,7 @@ export function usePaletteResults(
           at.current.openFolder(folder.driveFileId);
         }
       })),
-    ...rankByName(
-      small.tasks.filter(
-        task => matchesTerm(task.title, term) || matchesTerm(task.note ?? '', term)
-      ),
-      term,
-      task => task.title
-    )
+    ...rankByName(taskHits.items, taskHits.query, task => task.title)
       .slice(0, PER_GROUP)
       .map(task => ({
         id: `task:${task.id}`,
@@ -265,21 +289,19 @@ export function usePaletteResults(
         name: task.title,
         facts: { status: task.status },
         run: () => {
+          keepQuery();
           rememberRecent(teamId, { kind: 'task', id: task.id, name: task.title });
           at.current.openTask(task.id);
         }
       })),
-    ...rankByName(
-      small.accounts.filter(account => matchesTerm(account.name, term)),
-      term,
-      account => account.name
-    )
+    ...rankByName(accountHits.items, accountHits.query, account => account.name)
       .slice(0, PER_GROUP)
       .map(account => ({
         id: `account:${account.id}`,
         kind: 'account' as const,
         name: account.name,
         run: () => {
+          keepQuery();
           rememberRecent(teamId, { kind: 'account', id: account.id, name: account.name });
           at.current.openAccount(account.id);
         }

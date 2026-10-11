@@ -1,5 +1,11 @@
 import { isRecord } from './contract.js';
 import { parseTeamTaskLabelRefs, type TeamTaskLabelRef } from './task-labels.js';
+import {
+  convertKeyboardLayout,
+  countSearchLetters,
+  matchesSearchTerms,
+  searchTerms
+} from './text-search.js';
 
 /**
  * Team accounts (017): the social accounts a space runs its campaigns from,
@@ -432,16 +438,27 @@ export function filterTeamAccounts(
     marker?: TeamAccountMarkerFilter;
   }
 ): TeamAccountSummary[] {
-  const term = input.search.normalize('NFC').trim().toLocaleLowerCase();
+  const kept = filterTeamAccountsBy(accounts, input, searchTerms(input.search));
+  /* Nothing for the words as typed: the same keys on the other keyboard layout
+     ("rtnj" for "кето") get one more try, the way the file search does. */
+  if (kept.length > 0 || countSearchLetters(input.search) < 3) return kept;
+  const swapped = convertKeyboardLayout(input.search);
+  return swapped ? filterTeamAccountsBy(accounts, input, searchTerms(swapped)) : kept;
+}
+
+function filterTeamAccountsBy(
+  accounts: readonly TeamAccountSummary[],
+  input: { occupancy: TeamAccountOccupancyFilter; marker?: TeamAccountMarkerFilter },
+  terms: readonly string[]
+): TeamAccountSummary[] {
   const kept: TeamAccountSummary[] = [];
   for (const account of accounts) {
-    const nameMatches = term === '' || account.name.toLocaleLowerCase().includes(term);
+    // Every word has to be found, in any order (search rework, 2026-10).
+    const nameMatches = matchesSearchTerms(account.name, terms);
     let agents = account.agents;
     if (!nameMatches) {
-      agents = agents.filter(
-        agent =>
-          agent.agentId.toLocaleLowerCase().includes(term) ||
-          agent.runs.some(run => run.note.toLocaleLowerCase().includes(term))
+      agents = agents.filter(agent =>
+        matchesSearchTerms([account.name, agent.agentId, ...agent.runs.map(run => run.note)], terms)
       );
       if (agents.length === 0) continue;
     }

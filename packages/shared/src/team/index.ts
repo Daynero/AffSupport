@@ -12,5 +12,6 @@ export * from './restitch.js';
 export * from './task-labels.js';
 export * from './tariffs.js';
 export * from './tasks.js';
+export * from './text-search.js';
 export * from './transcript.js';
 export * from './transport.js';

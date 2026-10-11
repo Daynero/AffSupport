@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  convertKeyboardLayout,
+  countSearchLetters,
   normalizeCatalogSearchRequest,
   type CatalogSearchFilters,
   type CatalogSearchRequestInput,
@@ -30,6 +32,32 @@ const EMPTY_FILTERS: CatalogSearchFilters = {
 export interface CatalogSearchScope {
   parentFolderId?: string | null;
   kinds?: TeamMaterialRowKind[];
+  /** With a folder: that folder and everything under it (search rework, 2026-10). */
+  recursive?: boolean;
+}
+
+/** Shorter than this, a typed query is a keystroke on the way somewhere, not a search. */
+export const MIN_SEARCH_LENGTH = 2;
+
+/**
+ * What the server is asked for a query as typed: a blank or a one-letter
+ * query asks for the unsearched list (every file in scope, as before), so
+ * "а" does not run a search that matches half the space.
+ */
+export function effectiveSearchQuery(query: string): string {
+  const trimmed = query.trim();
+  return [...trimmed].length < MIN_SEARCH_LENGTH ? '' : query;
+}
+
+/**
+ * The answer came from the query on the other keyboard layout: the field says
+ * "ghbdsn", the results are for "привіт" (search rework, 2026-10).
+ */
+export interface CatalogLayoutSwap {
+  /** What is in the field. */
+  original: string;
+  /** What the results are for. */
+  shown: string;
 }
 
 export interface CatalogSearchClient {
@@ -68,7 +96,7 @@ export function useCatalogSearch(input: {
     onSearched,
     scope
   } = input;
-  const scopeKey = `${scope?.parentFolderId ?? ''}|${(scope?.kinds ?? []).join(',')}`;
+  const scopeKey = `${scope?.parentFolderId ?? ''}|${(scope?.kinds ?? []).join(',')}|${scope?.recursive ? 'r' : ''}`;
   const { revision } = useTeam();
   const [query, setQuery] = useState(initialQuery);
   const [filters, setFilters] = useState<CatalogSearchFilters>(initialFilters ?? EMPTY_FILTERS);
@@ -82,6 +110,11 @@ export function useCatalogSearch(input: {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  /** The query the shown result answers: the converted one when the layout swap answered. */
+  const [answeredQuery, setAnsweredQuery] = useState(initialQuery);
+  const [layoutSwap, setLayoutSwap] = useState<CatalogLayoutSwap | null>(null);
+  /** A query the person asked to see as typed, even though it finds nothing. */
+  const [literalQuery, setLiteralQuery] = useState<string | null>(null);
   const requestSequence = useRef(0);
   // Held in a ref, not a dependency: an inline callback would change identity
   // every render and restart the debounced fetch forever.
@@ -101,6 +134,8 @@ export function useCatalogSearch(input: {
     setPage(1);
     setResult(null);
     setError(false);
+    setLayoutSwap(null);
+    setLiteralQuery(null);
     // Changing space is not a search: the address for the new space carries no
     // query, so the fields start empty rather than inheriting the old one's.
   }, [teamId]);
@@ -123,7 +158,7 @@ export function useCatalogSearch(input: {
   const request = useMemo(
     () =>
       normalizeCatalogSearchRequest({
-        query,
+        query: effectiveSearchQuery(query),
         filters: { ...filters, ...fixedFilters },
         page,
         pageSize: 50
@@ -143,10 +178,28 @@ export function useCatalogSearch(input: {
     setLoading(true);
     try {
       // Only pass a scope that exists: callers asserting on the call see two arguments as before.
-      const next = scope
-        ? await client.searchCatalog(teamId, request, scope)
-        : await client.searchCatalog(teamId, request);
+      const ask = (asked: typeof request) =>
+        scope ? client.searchCatalog(teamId, asked, scope) : client.searchCatalog(teamId, asked);
+      let next = await ask(request);
       if (sequence !== requestSequence.current) return;
+      /* Nothing for the words as typed, and they read as the other keyboard
+         layout: ask once more for those, and say so above the results. */
+      let swap: CatalogLayoutSwap | null = null;
+      const swapped =
+        next.items.length === 0 &&
+        countSearchLetters(request.query) >= 3 &&
+        literalQuery !== request.query
+          ? convertKeyboardLayout(request.query)
+          : null;
+      if (swapped) {
+        const second = normalizeCatalogSearchRequest({ ...request, query: swapped });
+        const retried = second ? await ask(second).catch(() => null) : null;
+        if (sequence !== requestSequence.current) return;
+        if (retried && retried.items.length > 0) {
+          next = retried;
+          swap = { original: request.query, shown: second!.query };
+        }
+      }
       // Reports the *user's* filters, not the merged request: a surface with
       // fixed filters (landings, library) must not write them into the address.
       onSearchedRef.current?.({ query: request.query, filters });
@@ -156,10 +209,16 @@ export function useCatalogSearch(input: {
         throw new Error('INVALID_RESPONSE');
       /* The listing hides an operating system's leftovers; search must hide
          the same ones, or `.DS_Store` comes back the moment somebody types. */
+      const items = next.items.filter(material => !isHousekeepingFile(material.name));
       setResult({
         ...next,
-        items: next.items.filter(material => !isHousekeepingFile(material.name))
+        items,
+        /* A server that already leaves them out of its count loses nothing
+           here; an older one counted the leftovers this page just hid. */
+        total: Math.max(items.length, next.total - (next.items.length - items.length))
       });
+      setAnsweredQuery(swap ? swap.shown : request.query);
+      setLayoutSwap(swap);
       setError(false);
       status.succeed();
       if (findFlow.current) {
@@ -173,6 +232,7 @@ export function useCatalogSearch(input: {
       status.fail();
       if (sequence !== requestSequence.current) return;
       setResult(null);
+      setLayoutSwap(null);
       setError(true);
       if (findFlow.current) {
         completeTeamFindFlow(findFlow.current, { outcome: 'failure', assisted: false });
@@ -182,7 +242,7 @@ export function useCatalogSearch(input: {
       if (sequence === requestSequence.current) setLoading(false);
     }
     // scopeKey stands in for the scope object's identity.
-  }, [client, filters, request, teamId, scopeKey, beginRead]);
+  }, [client, filters, request, teamId, scopeKey, beginRead, literalQuery]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refetch(), debounceMs);
@@ -202,6 +262,12 @@ export function useCatalogSearch(input: {
     }));
   }, []);
 
+  /** The facets only: the words in the field stay (the empty state's "reset filters"). */
+  const resetFacets = useCallback(() => {
+    setFilters(EMPTY_FILTERS);
+    setPage(1);
+  }, []);
+
   const clearFilters = useCallback(() => {
     setQuery('');
     setFilters(EMPTY_FILTERS);
@@ -214,10 +280,16 @@ export function useCatalogSearch(input: {
       setQuery(value);
       setPage(1);
     },
+    /** The query the result on screen answers — highlight by this, not by the field. */
+    answeredQuery,
+    layoutSwap,
+    /** Show what the query as typed finds, even if that is nothing. */
+    searchAsTyped: (value: string) => setLiteralQuery(value),
     filters,
     setFacet,
     removeFilter,
     clearFilters,
+    resetFacets,
     page,
     setPage,
     result,

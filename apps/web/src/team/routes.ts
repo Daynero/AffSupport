@@ -46,8 +46,13 @@ export interface TeamRouteQuery {
   kinds: TeamMaterialRowKind[];
   /** Tiles or rows; null leaves it to the remembered choice. */
   view: ExplorerView | null;
-  /** Whether a search looks in the open folder or the whole space. */
-  scope: 'folder' | 'space';
+  /**
+   * Whether a search looks in the open folder or the whole space. `folder` is
+   * also "no search open" when `q` is empty; `subtree` is the search opened on
+   * the open folder and its subfolders, kept open with an empty field
+   * (search rework, 2026-10).
+   */
+  scope: 'folder' | 'space' | 'subtree';
   /** The explorer shows the trash instead of a folder. */
   trash: boolean;
   /** The space settings dialog is open over the explorer. */
@@ -291,7 +296,12 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     folderId: trimmedParam(params, 'folder'),
     kinds: readKinds(params),
     view: rawView === 'grid' || rawView === 'list' ? rawView : null,
-    scope: params.get('scope') === 'space' ? 'space' : 'folder',
+    scope:
+      params.get('scope') === 'space'
+        ? 'space'
+        : params.get('scope') === 'subtree'
+          ? 'subtree'
+          : 'folder',
     trash: params.get('trash') === '1',
     settings: params.get('settings') === '1',
     settingsTab: readSettingsTab(params),
@@ -377,7 +387,7 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.folderId) params.set('folder', query.folderId);
     if (query.kinds && query.kinds.length > 0) params.set(KINDS_PARAM, query.kinds.join(','));
     if (query.view) params.set('view', query.view);
-    if (query.scope === 'space') params.set('scope', 'space');
+    if (query.scope === 'space' || query.scope === 'subtree') params.set('scope', query.scope);
     if (query.itemId) params.set('item', query.itemId);
     if (query.itemId && query.open) params.set('open', '1');
     if (query.back) params.set('back', query.back);

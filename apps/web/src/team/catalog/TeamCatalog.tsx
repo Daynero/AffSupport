@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type {
   CatalogMaterialItem,
   CatalogSearchFilters,
@@ -12,11 +12,12 @@ import type {
   TeamMaterialTagColor,
   TeamProcessStartResult
 } from '@video-compressor/shared';
+import { normalizeSearchText, TEAM_MATERIAL_ROW_KINDS } from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
 import type { TeamProcessStartInput } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { startTeamAgentProcess } from '../../api/client';
-import { Button } from '../../components/ui';
+import { Button, EmptyState, SegmentedControl } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { startTeamWorkflow, type TeamWorkflowFlow } from '../../analytics/service';
 import type { DriveConnectionStatus, TeamMaterialSummary } from '../../api/team';
@@ -29,7 +30,20 @@ import { Modal } from '../../components/Modal';
 import { FolderPicker, type FolderPickerClient } from './FolderPicker';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage, teamErrorMessageFor } from '../errors';
-import { useCatalogSearch } from './useCatalogSearch';
+import { effectiveSearchQuery, useCatalogSearch } from './useCatalogSearch';
+import {
+  clearRecentQueries,
+  forgetQuery,
+  readRecentQueries,
+  rememberQuery,
+  type RecentQuery
+} from '../palette/recent';
+
+/** How long an answered query sits untouched before it counts as used (search rework, 2026-10). */
+const IDLE_COMMIT_MS = 1500;
+
+/** Where the explorer's search looks: the open folder with its subfolders, or the whole space. */
+export type CatalogSearchPlace = 'subtree' | 'space';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { TeamTextEditor } from './TeamTextEditor';
 import { uploadTeamFile } from './material-actions-client';
@@ -76,7 +90,9 @@ export function TeamCatalog({
   scope = 'folder',
   kinds,
   pathFor,
-  tagging
+  tagging,
+  onScopeChange,
+  onClose
 }: {
   teamId: string;
   client: TeamCatalogClient;
@@ -91,8 +107,16 @@ export function TeamCatalog({
   autoFocusSearch?: boolean;
   /** The current folder for links that restore an existing folder-scoped search. */
   scopeFolderId?: string | null;
-  scope?: 'folder' | 'space';
+  /**
+   * `space` searches everywhere; `folder` and `subtree` search the open folder
+   * together with every folder under it (search rework, 2026-10).
+   */
+  scope?: 'folder' | 'space' | 'subtree';
   kinds?: TeamMaterialRowKind[];
+  /** Moves the search between the open folder and the whole space (and restores a kind filter). */
+  onScopeChange?: (next: { scope: CatalogSearchPlace; kinds?: TeamMaterialRowKind[] }) => void;
+  /** Escape on an empty field: the search is put away. */
+  onClose?: () => void;
   pathFor?: (material: CatalogMaterialItem) => string | null;
   /** Present only for the space's owner: the tag on a result (011). */
   tagging?: {
@@ -105,16 +129,19 @@ export function TeamCatalog({
   const { can, permissions } = useTeam();
   const agent = useOptionalAgent();
   const kindsKey = (kinds ?? []).join(',');
+  /** A folder is open and the search is narrowed to it (with what is under it). */
+  const inFolder = scope !== 'space' && Boolean(scopeFolderId);
   const searchScope = useMemo(
     () =>
       scopeFolderId === undefined && !kindsKey
         ? undefined
         : {
-            parentFolderId: scope === 'space' ? null : (scopeFolderId ?? null),
+            parentFolderId: inFolder ? (scopeFolderId ?? null) : null,
+            ...(inFolder ? { recursive: true } : {}),
             ...(kindsKey ? { kinds } : {})
           },
     // kindsKey stands in for the array's identity.
-    [kinds, kindsKey, scope, scopeFolderId]
+    [inFolder, kinds, kindsKey, scopeFolderId]
   );
   const catalog = useCatalogSearch({
     teamId,
@@ -125,6 +152,41 @@ export function TeamCatalog({
     scope: searchScope
   });
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
+  /* The searches used lately, shared with the palette (search rework, 2026-10). */
+  const [history, setHistory] = useState<RecentQuery[]>(() => readRecentQueries(teamId));
+  useEffect(() => setHistory(readRecentQueries(teamId)), [teamId]);
+  const typedQuery = effectiveSearchQuery(catalog.query).trim();
+  const commitRef = useRef<() => void>(() => undefined);
+  commitRef.current = () => {
+    if (typedQuery === '') return;
+    setHistory(
+      rememberQuery(teamId, {
+        query: catalog.layoutSwap?.shown ?? catalog.query,
+        scope: inFolder ? 'folder' : 'space',
+        kinds
+      })
+    );
+  };
+  const commitQuery = useCallback(() => commitRef.current(), []);
+  // A query that found something and was left alone has been read: it is worth keeping.
+  const answered = !catalog.loading && (catalog.result?.items.length ?? 0) > 0;
+  useEffect(() => {
+    if (!answered || typedQuery === '') return;
+    const timer = window.setTimeout(commitQuery, IDLE_COMMIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [answered, typedQuery, catalog.result, commitQuery]);
+
+  /* The keyboard's row in the results while the caret stays in the field. */
+  const [activeIndex, setActiveIndex] = useState(-1);
+  useEffect(() => setActiveIndex(-1), [catalog.result]);
+  /** Enter pressed before the answer to the query in the field arrived. */
+  const openWhenAnswered = useRef(false);
+  /* The results on screen answer an earlier query: the field changed and the pause before
+     asking has not run out yet. Enter then waits for the answer rather than opening a row of
+     the old one. */
+  const stale =
+    normalizeSearchText(catalog.layoutSwap?.original ?? catalog.answeredQuery) !==
+    normalizeSearchText(effectiveSearchQuery(catalog.query));
   /**
    * The one overlay this surface is showing, if any.
    *
@@ -218,6 +280,104 @@ export function TeamCatalog({
       });
   };
 
+  /** A file opens over the results, so Escape comes back to them; a folder is gone to. */
+  const openResult = (material: CatalogMaterialItem) => {
+    commitQuery();
+    if (material.kind === 'folder' && onReveal) onReveal(material);
+    else setOverlay({ kind: 'preview', material });
+  };
+
+  useEffect(() => {
+    if (!openWhenAnswered.current || catalog.loading || stale) return;
+    openWhenAnswered.current = false;
+    const first = catalog.result?.items[0];
+    if (first) openResult(first);
+    // Runs when an answer lands; openResult is rebuilt every render.
+  }, [catalog.loading, catalog.result, stale]);
+
+  const onFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const items = catalog.result?.items ?? [];
+    if (event.key === 'ArrowDown') {
+      if (items.length === 0) return;
+      event.preventDefault();
+      setActiveIndex(current => Math.min(items.length - 1, current + 1));
+    } else if (event.key === 'ArrowUp') {
+      if (activeIndex < 0) return;
+      event.preventDefault();
+      setActiveIndex(current => current - 1);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if ((catalog.loading || stale) && activeIndex < 0) {
+        commitQuery();
+        openWhenAnswered.current = typedQuery !== '';
+        return;
+      }
+      const target = items[activeIndex >= 0 ? activeIndex : 0];
+      if (target && (typedQuery !== '' || activeIndex >= 0)) openResult(target);
+    } else if (event.key === 'Escape') {
+      // First the words, then the search itself.
+      if (catalog.query !== '') {
+        event.preventDefault();
+        event.stopPropagation();
+        catalog.setQuery('');
+        setActiveIndex(-1);
+      } else if (onClose) {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    }
+  };
+
+  const validKinds = (values: readonly string[] | undefined): TeamMaterialRowKind[] =>
+    (values ?? []).filter((value): value is TeamMaterialRowKind =>
+      (TEAM_MATERIAL_ROW_KINDS as readonly string[]).includes(value)
+    );
+
+  const applyHistory = (entry: RecentQuery) => {
+    catalog.setQuery(entry.query);
+    setHistory(rememberQuery(teamId, entry));
+    if (!onScopeChange) return;
+    const place: CatalogSearchPlace =
+      entry.scope === 'folder' && scopeFolderId ? 'subtree' : 'space';
+    const wantedKinds = validKinds(entry.kinds);
+    if (place !== (inFolder ? 'subtree' : 'space') || wantedKinds.join(',') !== kindsKey) {
+      onScopeChange({ scope: place, kinds: wantedKinds });
+    }
+  };
+
+  const hasFacets = Object.values(catalog.filters).some(values => values.length > 0);
+  const emptyActions = [
+    inFolder && onScopeChange ? (
+      <Button
+        key="everywhere"
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={() => onScopeChange({ scope: 'space' })}
+      >
+        {t('searchEverywhere')}
+      </Button>
+    ) : null,
+    hasFacets ? (
+      <Button key="facets" type="button" variant="ghost" size="sm" onClick={catalog.resetFacets}>
+        {t('searchResetFilters')}
+      </Button>
+    ) : null
+  ].filter(Boolean);
+  const empty = (
+    <EmptyState
+      title={
+        typedQuery !== '' ? t('searchNothingFor', { query: typedQuery }) : t('teamCatalogEmpty')
+      }
+      action={
+        emptyActions.length > 0 ? (
+          <div className="team-catalog-empty-actions">{emptyActions}</div>
+        ) : undefined
+      }
+    />
+  );
+
   return (
     <section className="team-catalog" aria-labelledby="team-catalog-title">
       {/* The explorer is the page; this is its search, not a second product
@@ -233,7 +393,29 @@ export function TeamCatalog({
         value={catalog.query}
         onChange={catalog.setQuery}
         autoFocus={autoFocusSearch}
+        onFieldKeyDown={onFieldKeyDown}
+        history={history}
+        onApplyHistory={applyHistory}
+        onForgetHistory={entry => setHistory(forgetQuery(teamId, entry.query))}
+        onClearHistory={() => {
+          clearRecentQueries(teamId);
+          setHistory([]);
+        }}
       />
+      {/* Only with a folder open: at the root the folder is the space. */}
+      {scopeFolderId && onScopeChange && (
+        <SegmentedControl
+          size="sm"
+          className="team-catalog-scope"
+          label={t('searchScopeLabel')}
+          value={inFolder ? 'subtree' : 'space'}
+          options={[
+            { value: 'subtree', label: t('searchScopeFolder'), title: t('searchScopeFolderHint') },
+            { value: 'space', label: t('searchScopeSpace') }
+          ]}
+          onChange={place => onScopeChange({ scope: place })}
+        />
+      )}
       <CatalogFilters
         filters={catalog.filters}
         vocabulary={catalog.vocabulary}
@@ -243,7 +425,23 @@ export function TeamCatalog({
         onRemove={catalog.removeFilter}
         onClear={catalog.clearFilters}
       />
+      {catalog.layoutSwap && (
+        <p className="team-catalog-layout-swap" role="status">
+          <span>{t('searchLayoutShown', { query: catalog.layoutSwap.shown })}</span>
+          <Button
+            type="button"
+            variant="link"
+            size="xs"
+            onClick={() => catalog.searchAsTyped(catalog.layoutSwap!.original)}
+          >
+            {t('searchLayoutAsTyped', { query: catalog.layoutSwap.original })}
+          </Button>
+        </p>
+      )}
       <MaterialResults
+        query={typedQuery === '' ? '' : catalog.answeredQuery}
+        activeIndex={activeIndex}
+        empty={empty}
         thumbnails={
           client.mintThumbnailSession && client.thumbnailUrl
             ? {
@@ -260,7 +458,10 @@ export function TeamCatalog({
         permissions={permissions!}
         storageKind={storageKind}
         onEditMetadata={material => setOverlay({ kind: 'metadata', material })}
-        onPreview={material => setOverlay({ kind: 'preview', material })}
+        onPreview={material => {
+          commitQuery();
+          setOverlay({ kind: 'preview', material });
+        }}
         onEditText={material => void openTextEditor(material)}
         onProcess={material => setOverlay({ kind: 'process', material })}
         onShowProvenance={material => {
@@ -274,7 +475,14 @@ export function TeamCatalog({
             });
         }}
         onCreateTask={onCreateTask}
-        onReveal={onReveal}
+        onReveal={
+          onReveal
+            ? material => {
+                commitQuery();
+                onReveal(material);
+              }
+            : undefined
+        }
         onChanged={() => void catalog.refetch()}
         browseClient={client}
         page={catalog.page}

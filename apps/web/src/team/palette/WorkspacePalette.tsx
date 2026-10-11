@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { ClipboardList, FileText, FolderOpen, ListChecks, Search, UserRound } from 'lucide-react';
+import {
+  ClipboardList,
+  FileText,
+  FolderOpen,
+  History,
+  ListChecks,
+  Search,
+  UserRound
+} from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { EmptyState, Spinner } from '../../components/ui/index';
@@ -35,13 +43,19 @@ import { taskStatusLabel } from '../tasks/TaskStatusControl';
  * stop typing.
  */
 
-export type PaletteKind = 'material' | 'folder' | 'task' | 'account';
+/** `query` is a search used lately: choosing it puts its words back in the field. */
+export type PaletteKind = 'material' | 'folder' | 'task' | 'account' | 'query';
 
 export interface PaletteResult {
   id: string;
   kind: PaletteKind;
   /** Offered because it was opened lately, not because it matched (024). */
   recent?: boolean;
+  /**
+   * A remembered search (search rework, 2026-10): choosing it fills the field
+   * with these words instead of going anywhere.
+   */
+  fill?: string;
   name: string;
   /** Where it lives, or what it is about — one line, never two. */
   hint?: string;
@@ -67,14 +81,16 @@ const KIND_ICON: Record<PaletteKind, typeof FileText> = {
   folder: FolderOpen,
   // A task, not the act of making one: the plus belonged to "create".
   task: ListChecks,
-  account: UserRound
+  account: UserRound,
+  query: History
 };
 
 const KIND_HEADING: Record<PaletteKind, TranslationKey> = {
   material: 'paletteGroupMaterials',
   folder: 'paletteGroupFolders',
   task: 'paletteGroupTasks',
-  account: 'paletteGroupAccounts'
+  account: 'paletteGroupAccounts',
+  query: 'paletteGroupRecentSearches'
 };
 
 function rowKindOf(category: MaterialCategory): TeamMaterialRowKind {
@@ -126,9 +142,18 @@ export function WorkspacePalette({
   const listRef = useRef<HTMLDivElement>(null);
 
   const groups = useMemo(() => {
-    // Recent items keep the order they were opened in, under one heading of their own.
-    const recent = results.filter(result => result.recent);
-    if (recent.length > 0) return [{ kind: 'recent' as const, items: recent }];
+    // Recent items keep the order they were opened in, under one heading of their own —
+    // the searches used lately above them (search rework, 2026-10).
+    const searches = results.filter(result => result.kind === 'query');
+    const recent = results.filter(result => result.recent && result.kind !== 'query');
+    if (searches.length > 0 || recent.length > 0) {
+      return [
+        ...(searches.length > 0
+          ? [{ kind: 'query' as PaletteKind | 'recent', items: searches }]
+          : []),
+        ...(recent.length > 0 ? [{ kind: 'recent' as PaletteKind | 'recent', items: recent }] : [])
+      ];
+    }
     return ORDER.map(kind => ({
       kind: kind as PaletteKind | 'recent',
       items: results.filter(result => result.kind === kind)
@@ -177,6 +202,12 @@ export function WorkspacePalette({
    */
   const choose = (item: PaletteResult | undefined) => {
     if (!item) return;
+    if (item.fill !== undefined) {
+      // A remembered search is not a destination: its words go back in the field.
+      onQueryChange(item.fill);
+      input.current?.focus();
+      return;
+    }
     onClose();
     item.run();
   };

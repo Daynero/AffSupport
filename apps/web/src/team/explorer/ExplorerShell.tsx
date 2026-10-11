@@ -99,6 +99,7 @@ import { buildTeamRoute } from '../routes';
 import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
 import { useVisibleRowAnchor } from './useVisibleRowAnchor';
+import { useMarqueeSelection } from './useSelectionGestures';
 import { useFolderResync, type FolderResyncClient } from './useFolderResync';
 import { SyncStatusPanel } from './SyncStatusPanel';
 import { usePosterFrames } from './usePosterFrames';
@@ -420,7 +421,7 @@ function ExplorerBody({
    * outright; this is what keeps the dot from looking pressable to them.
    */
   const canTag = !readOnly && activeTeam?.role === 'owner' && Boolean(client.setMaterialTag);
-  const searching = query.q.length > 0 || query.scope === 'space';
+  const searching = query.q.length > 0 || query.scope !== 'folder';
   const contentRef = useRef<HTMLDivElement>(null);
   const explorerSurfaceRef = useRef<HTMLDivElement>(null);
   const explorerHeaderRef = useRef<HTMLDivElement>(null);
@@ -569,6 +570,12 @@ function ExplorerBody({
     rowIds,
     `${teamId}|${currentFolderId ?? ''}|${view}|${query.kinds.join(',')}`
   );
+  /* Drag a rectangle over empty space to check what it touches (Finder's rubber band). */
+  const marquee = useMarqueeSelection({
+    containerRef: contentRef,
+    rows: sortedRows,
+    resetKey: `${teamId}|${currentFolderId ?? ''}|${view}|${query.kinds.join(',')}`
+  });
   const toggleCompanions = useCallback((rowId: string) => {
     setOpenedCompanions(current => {
       const next = new Set(current);
@@ -1579,6 +1586,24 @@ function ExplorerBody({
        of those. */
   }, [clipboard, focused, push, readOnly, searching, selectedRows, t, trash]);
 
+  // Cmd/Ctrl+A checks every loaded row of the open folder, as the bar's Select all does — the
+  // page's own select-all would only have painted the text of the screen blue.
+  useEffect(() => {
+    if (searching || trash) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== 'a') return;
+      if (!onScreen()) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (isEditableTarget(target) || target?.closest('[role="dialog"], [role="menu"]')) return;
+      if (sortedRows.length === 0) return;
+      event.preventDefault();
+      explorer.selectRows(sortedRows);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [explorer, searching, sortedRows, trash]);
+
   return (
     /* `team-panel`, like Accounts and Tasks: this was the one tab in the space
        with no card under it, so the marketing honeycomb showed through every
@@ -2042,6 +2067,10 @@ function ExplorerBody({
             scopeFolderId={currentFolderId}
             scope={query.scope}
             kinds={query.kinds}
+            onScopeChange={next =>
+              onQueryChange({ scope: next.scope, ...(next.kinds ? { kinds: next.kinds } : {}) })
+            }
+            onClose={() => onQueryChange({ q: '', scope: 'folder', filters: undefined })}
             pathFor={pathFor}
             tagging={
               canTag && client.setMaterialTag
@@ -2072,6 +2101,7 @@ function ExplorerBody({
             data-rows={page.rows.length}
             data-selected={selectedId ?? ''}
             onKeyDown={onContentKeyDown}
+            onPointerDown={marquee.onPointerDown}
           >
             {view === 'grid' ? (
               <ContentGrid

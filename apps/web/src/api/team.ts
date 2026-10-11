@@ -150,7 +150,7 @@ import type {
 } from '@video-compressor/shared';
 import { parseFolderSyncStatus, type FolderSyncStatus } from '../team/syncStatus';
 import { parseUpdaterInterval, type UpdaterInterval } from '../team/catalog-updater/limits';
-import type { Json } from '../lib/database.types';
+import type { Database, Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
 
@@ -711,7 +711,17 @@ export type DriveRootResult =
 export interface CatalogSearchScope {
   parentFolderId?: string | null;
   kinds?: TeamMaterialRowKind[];
+  /** With a folder: that folder and every folder under it, not only its own rows. */
+  recursive?: boolean;
 }
+
+/**
+ * Whether this server's `search_materials` takes `p_recursive` (search rework,
+ * 2026-10). Unknown until the first recursive search; a server that predates
+ * the parameter answers PGRST202, and from then on the folder is searched on
+ * its own rather than failing every search in it.
+ */
+let searchTakesRecursive: boolean | null = null;
 
 export interface TeamMaterialSummary {
   id: string;
@@ -3023,18 +3033,35 @@ export const teamApi = {
   ): Promise<CatalogSearchResponse> {
     const normalized = normalizeCatalogSearchRequest(request);
     if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('search_materials', {
-        p_team: teamId,
-        p_query: normalized.query || undefined,
-        p_filters: normalized.filters as unknown as Json,
-        p_page: normalized.page,
-        p_page_size: normalized.pageSize,
-        // 011: the explorer narrows to the open folder and to row kinds.
-        ...(scope?.parentFolderId ? { p_parent_folder_id: scope.parentFolderId } : {}),
-        ...(scope?.kinds && scope.kinds.length > 0 ? { p_kind: scope.kinds } : {})
-      })
-    );
+    const base = {
+      p_team: teamId,
+      p_query: normalized.query || undefined,
+      p_filters: normalized.filters as unknown as Json,
+      p_page: normalized.page,
+      p_page_size: normalized.pageSize,
+      // 011: the explorer narrows to the open folder and to row kinds.
+      ...(scope?.parentFolderId ? { p_parent_folder_id: scope.parentFolderId } : {}),
+      ...(scope?.kinds && scope.kinds.length > 0 ? { p_kind: scope.kinds } : {})
+    };
+    type SearchArgs = Database['public']['Functions']['search_materials']['Args'];
+    const recursive =
+      Boolean(scope?.recursive && scope.parentFolderId) && searchTakesRecursive !== false;
+    const call = (withRecursive: boolean) =>
+      withFreshSession(() =>
+        requireSupabaseClient().rpc(
+          'search_materials',
+          // Asserted, not declared: the generated types learn the parameter
+          // when the migration that adds it is applied.
+          (withRecursive ? { ...base, p_recursive: true } : base) as SearchArgs
+        )
+      );
+    let { data, error } = await call(recursive);
+    if (recursive && error?.code === 'PGRST202') {
+      searchTakesRecursive = false;
+      ({ data, error } = await call(false));
+    } else if (recursive && !error) {
+      searchTakesRecursive = true;
+    }
     throwRpc(error);
     const result = decodeCatalogSearchResponse(data, teamId);
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);

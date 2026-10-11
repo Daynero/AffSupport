@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
+  CatalogMatchField,
   CatalogMaterialItem,
   CatalogSearchResponse,
   TeamAnalyticsStorage,
@@ -14,6 +15,15 @@ import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
 import { useThumbnailSession, type ThumbnailSessionClient } from '../explorer/useThumbnailSession';
 import { EmptyState, ErrorState, FadeImage } from '../../components/ui/index';
+import { Highlighted } from '../search/highlight';
+
+/** Said beside a result found by something other than its name (search rework, 2026-10). */
+const MATCHED_IN_COPY: Partial<Record<CatalogMatchField, TranslationKey>> = {
+  transcript: 'searchMatchedInTranscript',
+  note: 'searchMatchedInNote',
+  tags: 'searchMatchedInTags',
+  meta: 'searchMatchedInMeta'
+};
 
 /** Matches the page size `useCatalogSearch` requests. */
 const PAGE_SIZE = 50;
@@ -54,8 +64,17 @@ export function MaterialResults({
   onPageChange,
   pathFor,
   tagging,
-  thumbnails
+  thumbnails,
+  query = '',
+  activeIndex = -1,
+  empty
 }: {
+  /** The words the results answer, marked in each name and snippet. */
+  query?: string;
+  /** The row the keyboard is on in the search field (-1: none). */
+  activeIndex?: number;
+  /** What to say when nothing matched, in place of the plain sentence. */
+  empty?: ReactNode;
   /**
    * The picture a result was missing (024, FR-090).
    *
@@ -102,6 +121,13 @@ export function MaterialResults({
    * colour the moment React re-rendered the list.
    */
   const [justTagged, setJustTagged] = useState<Record<string, TeamMaterialTagColor | null>>({});
+  const listRef = useRef<HTMLUListElement | null>(null);
+  useEffect(() => {
+    if (activeIndex < 0) return;
+    const node = listRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    // Guarded: jsdom has no scrolling.
+    if (typeof node?.scrollIntoView === 'function') node.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex]);
   /*
    * Every result in a page belongs to the same space, so one session serves
    * them all — and the hook caches it per team, so paging does not mint a
@@ -122,7 +148,8 @@ export function MaterialResults({
   if (loading && !result) return <LabeledSkeleton label="teamCatalogLoadingResults" />;
   // Nothing matched. The search bar above is the control that changes that, so
   // the state says so rather than repeating it as a button.
-  if (!result || result.items.length === 0) return <EmptyState title={t('teamCatalogEmpty')} />;
+  if (!result || result.items.length === 0)
+    return <>{empty ?? <EmptyState title={t('teamCatalogEmpty')} />}</>;
 
   // The request always asks for fifty; the envelope carries the true total.
   const pageCount = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
@@ -137,15 +164,26 @@ export function MaterialResults({
         </strong>
         <small>{t(FRESHNESS_COPY[result.catalogFreshness.state])}</small>
       </div>
-      <ul className="team-catalog-results">
-        {result.items.map(material => {
+      <ul className="team-catalog-results" ref={listRef}>
+        {result.items.map((material, index) => {
           const typeLabel = catalogMaterialTypeLabel(material, t);
           const categoryGlyph = catalogMaterialGlyph(material);
           const hasMetadata = Boolean(
             material.geo || material.language || material.offer || material.tags.length
           );
+          const matchedIn = material.matchedIn ? MATCHED_IN_COPY[material.matchedIn] : undefined;
+          const snippet =
+            material.snippet &&
+            (material.matchedIn === 'transcript' || material.matchedIn === 'note')
+              ? material.snippet
+              : null;
+          const active = index === activeIndex;
           return (
-            <li key={material.id} className="team-catalog-result-card">
+            <li
+              key={material.id}
+              className={active ? 'team-catalog-result-card is-active' : 'team-catalog-result-card'}
+              data-active={active}
+            >
               <div className="team-catalog-material-main">
                 <div className="team-catalog-material-heading">
                   <span className="team-catalog-material-glyph" aria-hidden="true">
@@ -162,7 +200,9 @@ export function MaterialResults({
                   </span>
                   <div>
                     <strong className="team-catalog-material-name">
-                      <span title={material.name}>{material.name}</span>
+                      <span title={material.name}>
+                        <Highlighted text={material.name} query={query} />
+                      </span>
                       {/* Beside the name, as in the explorer (024): beside the size it
                         read as part of the size and sat on its last letter. */}
                       <TagDot
@@ -179,6 +219,16 @@ export function MaterialResults({
                         }}
                       />
                     </strong>
+                    {matchedIn && (
+                      <span className="team-catalog-match">
+                        <span className="team-catalog-match-label">{t(matchedIn)}</span>
+                        {snippet && (
+                          <span className="team-catalog-match-snippet">
+                            <Highlighted text={snippet} query={query} />
+                          </span>
+                        )}
+                      </span>
+                    )}
                     {pathFor?.(material) && (
                       <span className="team-catalog-material-path">{pathFor(material)}</span>
                     )}
@@ -213,9 +263,11 @@ export function MaterialResults({
                   )}
                 </div>
                 {/* The note (024): a file found by a word of it should say so. */}
-                {material.note && (
+                {material.note && !(material.matchedIn === 'note' && snippet) && (
                   <p className="team-catalog-material-note" title={material.note}>
-                    <span>{material.note.replace(/\n\s*\n+/gu, '\n')}</span>
+                    <span>
+                      <Highlighted text={material.note.replace(/\n\s*\n+/gu, '\n')} query={query} />
+                    </span>
                   </p>
                 )}
                 <div className="team-catalog-markers team-catalog-material-statuses">
