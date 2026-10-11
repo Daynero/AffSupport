@@ -192,6 +192,11 @@ export function TariffHistoryDrawer({
       size="lg"
       onClose={onClose}
       title={row.teamName ? `${row.ownerEmail} · ${row.teamName}` : row.ownerEmail}
+      footer={
+        <Button color="neutral" variant="outline" onClick={onClose}>
+          {t('teamClose')}
+        </Button>
+      }
     >
       <div className="flex flex-col gap-6">
         {row.teamId && (

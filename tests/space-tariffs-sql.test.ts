@@ -477,6 +477,10 @@ describe('ownership and binding (R3, R12)', () => {
       [row.id]
     );
     expect(events.map(event => event.kind)).toEqual(['bound', 'granted']);
+    // The history reads as sentences: names come with the codes and ids.
+    const named = events as unknown as Array<{ after: Record<string, unknown> }>;
+    expect(named[0]!.after).toMatchObject({ teamName: 'Mine' });
+    expect(named[1]!.after).toMatchObject({ planNameUk: expect.any(String) });
     expect((await access(owner.id)).canCreate).toBe(false);
     await expect(
       harness.asUser(owner.id, 'select * from public.create_team($1)', ['Second'])

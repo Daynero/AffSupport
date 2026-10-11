@@ -489,9 +489,14 @@ function TariffRow({
       <TableCell>{row.teamName ?? '—'}</TableCell>
       <TableCell>{plan}</TableCell>
       <TableCell>
-        <span className="numeric">
-          {t('adminTariffSeatsValue', { used: row.seatsUsed, total: row.seatsTotal })}
-        </span>
+        {/* No space yet, so nobody can hold a seat: the plan's size is the useful number. */}
+        {row.teamId ? (
+          <span className="numeric">
+            {t('adminTariffSeatsValue', { used: row.seatsUsed, total: row.seatsTotal })}
+          </span>
+        ) : (
+          <span className="numeric text-ink-muted">{row.seatsTotal}</span>
+        )}
       </TableCell>
       <TableCell>{formatTariffShortDay(row.endsOn, language)}</TableCell>
       <TableCell>{daysLabel(row, t, language)}</TableCell>
@@ -518,11 +523,11 @@ function TariffRow({
       </TableCell>
       <TableCell>
         <span className="flex items-center justify-end gap-1">
-          {!waiting && (
-            <Button size="sm" color="neutral" variant="outline" loading={busy} onClick={onExtend}>
-              {t('adminTariffExtendTo', { date: formatTariffShortDay(nextEnd, language) })}
-            </Button>
-          )}
+          {/* A grant still waiting for its first sign-in is extended the same way: the deal
+              was made, the person is just late to log in. */}
+          <Button size="sm" color="neutral" variant="outline" loading={busy} onClick={onExtend}>
+            {t('adminTariffExtendTo', { date: formatTariffShortDay(nextEnd, language) })}
+          </Button>
           <IconButton
             ref={menuAnchor}
             label={t('adminTariffActionsFor', { email: row.ownerEmail })}

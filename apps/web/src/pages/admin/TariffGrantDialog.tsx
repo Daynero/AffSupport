@@ -73,6 +73,7 @@ export function TariffGrantDialog({
   const seatsId = useId();
   const spaceId = useId();
   const [email, setEmail] = useState(prefill.email ?? '');
+  const [details, setDetails] = useState(false);
   const [plan, setPlan] = useState<string | null>(
     () =>
       plans.find(item => item.code === prefill.plan)?.code ??
@@ -250,7 +251,7 @@ export function TariffGrantDialog({
       }
     >
       <div className="flex flex-col gap-4">
-        <FormField label={t('email')} htmlFor={emailId}>
+        <FormField label={t('adminTariffEmail')} htmlFor={emailId}>
           <Input
             id={emailId}
             type="email"
@@ -345,23 +346,33 @@ export function TariffGrantDialog({
           </p>
         )}
 
-        <FormField label={t('adminTariffNote')} htmlFor={noteId}>
-          <Textarea
-            id={noteId}
-            rows={2}
-            value={note}
-            maxLength={500}
-            onChange={event => setNote(event.target.value)}
-          />
-        </FormField>
-        <FormField label={t('adminTariffExternalRef')} htmlFor={refId}>
-          <Input
-            id={refId}
-            value={externalRef}
-            maxLength={500}
-            onChange={event => setExternalRef(event.target.value)}
-          />
-        </FormField>
+        {/* The note and the payment link are the admin's own bookkeeping: folded away so a
+            grant fits on one screen in three actions, open when they already hold something. */}
+        {details ? (
+          <>
+            <FormField label={t('adminTariffNote')} htmlFor={noteId}>
+              <Textarea
+                id={noteId}
+                rows={2}
+                value={note}
+                maxLength={500}
+                onChange={event => setNote(event.target.value)}
+              />
+            </FormField>
+            <FormField label={t('adminTariffExternalRef')} htmlFor={refId}>
+              <Input
+                id={refId}
+                value={externalRef}
+                maxLength={500}
+                onChange={event => setExternalRef(event.target.value)}
+              />
+            </FormField>
+          </>
+        ) : (
+          <Button variant="ghost" size="sm" className="self-start" onClick={() => setDetails(true)}>
+            {t('adminTariffAddDetails')}
+          </Button>
+        )}
         <Checkbox label={t('adminTariffNotify')} checked={notify} onChange={setNotify} />
 
         {error && (
