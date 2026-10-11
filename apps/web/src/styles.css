@@ -7949,6 +7949,62 @@ body:has(.public-home) {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+/* One line, always, above phone width. The status chips come and go — local operations
+   start and finish, an index runs, the updater counts down every second — and with both rows
+   allowed to wrap, each arrival pushed the utilities onto a second line: the header doubled
+   in height and the whole explorer jumped down and back up. Now the chips give way instead —
+   they shrink and end in an ellipsis (the full text is one press away) — while "Find" and
+   the space menu never shrink, and figures keep one width so a ticking timer cannot nudge
+   the row. */
+@media (min-width: 561px) {
+  .team-space-shell-header {
+    flex-wrap: nowrap;
+    /* A grid item sizes to its content unless told otherwise; the row could not give way
+       while the header grew to fit every chip. */
+    min-width: 0;
+  }
+  .team-space-shell-header h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  /* The space's name gives way last: chips are status, the name is where you are. */
+  .team-space-shell-header > .team-space-shell-identity {
+    min-width: min(14rem, 40%);
+  }
+  .team-space-shell-utilities {
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .team-space-shell-utilities > .team-space-shell-utility-link {
+    flex-shrink: 0;
+  }
+  /* A chip may come wrapped (an anchor for its popover); either way it is what gives. */
+  .team-space-shell-utilities > :not(.team-space-shell-utility-link) {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
+    display: flex;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .team-space-shell-utilities .ui-chip {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .team-space-shell-utilities .ui-chip > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 /* On the chips' own surface (024). The header sits on the live hexagon field,
    and a bare muted link over a lit cell was unreadable; the chip beside it
    never was, because it carries its own ground. One row, one ground. */
@@ -18482,6 +18538,37 @@ a.history-subject {
 }
 .team-sync-panel-reason {
   margin: 0;
+}
+/* The panel lives inside the explorer's sticky header, so every change of its height moved
+   the whole list. A scan changes what it says every few seconds — the phase appears, Stop comes
+   and goes, the counts grow — and with the head and the line free to wrap, the list jumped up
+   and down with them. Above phone width the head and the line keep one row each and end in an
+   ellipsis; "More" still opens everything. */
+@media (min-width: 561px) {
+  .team-sync-panel-head {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .team-sync-panel-head > * {
+    flex-shrink: 0;
+  }
+  .team-sync-panel-scope,
+  .team-sync-panel-phase {
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  .team-sync-panel-actions {
+    flex-wrap: nowrap;
+  }
+  .team-sync-panel-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
 }
 .team-sync-panel-details {
   display: grid;
