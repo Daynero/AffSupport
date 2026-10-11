@@ -27,9 +27,14 @@ export function RestitchDeliveryNotices({
   // One live notice per material, so a second delivery does not stack a second toast on the
   // first and a finished one replaces its own progress rather than appearing beside it.
   const notices = useRef(new Map<string, number>());
+  const reported = useRef(new Map<string, RestitchDeliveryState>());
 
   useEffect(() => {
     for (const [materialId, state] of Object.entries(states)) {
+      // Provider updates and the shell's inline callback re-run this effect. A terminal
+      // state must publish once, or updating its toast causes another provider update.
+      if (reported.current.get(materialId) === state) continue;
+      reported.current.set(materialId, state);
       const existing = notices.current.get(materialId);
       const notice = describe(state);
       if (!notice) continue;

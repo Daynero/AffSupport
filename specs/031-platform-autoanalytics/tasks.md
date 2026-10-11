@@ -57,3 +57,7 @@
 - [x] T022 (зелене все, крім двох відомих нестабільних тестів поза обсягом — див. findings.md) `npm run format`, `npm run lint`, `npm run verify` (один процес); виправити падіння.
 - [ ] T023 Quickstart §1–§4 на беті; `findings.md` з датою/білдом; `audit --write` перший артефакт; ISC/SC-012…017 відмічені з доказами.
 - [x] T024 Оновити `specs/031-platform-autoanalytics/checklists/requirements.md` (зведена версія), закрити T-пункти; коміт.
+
+## Restitch incident follow-up (2026-10-12)
+
+- [ ] T025 Перевірити на packaged beta та після релізу передачу журналу агента для завантаження з перезашивкою: прод 1.2.6 має `team:download:NO_SCREENS`, але `investigate` не отримав жодного agent journal record. Зв'язати workflow із локальною операцією та перевірити втрату/затримку журналу без збирання контенту, шляхів чи transfer grants; відсутність записів залишати явною сліпою зоною. Після релізу повторити `investigate --as-of` і `audit --as-of`, підтвердити відсутність `NO_SCREENS` та нових unknown-кодів.

@@ -16,6 +16,7 @@ import {
   RELEASE_TAG,
   WEB_TOOL_REQUIREMENTS,
   compareProductVersions,
+  restitchSourcesSupported,
   toolContractCompatible
 } from '../packages/shared/src/release';
 import { DEV_PROFILE, PRODUCTION_PROFILE } from '../packages/shared/src/environment.js';
@@ -28,6 +29,10 @@ import {
 } from '../apps/web/src/release-manifest';
 
 describe('release identity', () => {
+  it('refuses the Drive-screen contract that dropped screens during downloads', () => {
+    expect(restitchSourcesSupported({ teamRestitchSources: 1 })).toBe(false);
+    expect(restitchSourcesSupported(AGENT_TOOL_CONTRACTS)).toBe(true);
+  });
   it('uses valid, monotonically sortable release identifiers', () => {
     expect(PRODUCT_VERSION).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
     expect(BUNDLE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);

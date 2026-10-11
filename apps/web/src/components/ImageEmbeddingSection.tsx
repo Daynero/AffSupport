@@ -369,7 +369,7 @@ export function ImageEmbeddingSection({
             </ImageColumn>
           </div>
 
-          {!settings.startImages.length && !settings.endImages.length && (
+          {!slotContent && !settings.startImages.length && !settings.endImages.length && (
             <Alert className="embedding-empty-warning" color="warning" variant="soft" live="alert">
               {t('embeddingNeedsImage')}
             </Alert>

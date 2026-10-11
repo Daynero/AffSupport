@@ -747,11 +747,14 @@ function build(): Record<string, CodeLocation> {
     [
       'team:download',
       [
+        'apps/agent/src/team-bridge/routes.ts',
         'apps/agent/src/team-bridge/download.ts',
+        'apps/agent/src/team-bridge/restitch.ts',
         'apps/web/src/team/catalog/useMaterialActions.ts',
-        'apps/web/src/team/restitch/useRestitchDelivery.ts'
+        'apps/web/src/team/restitch/useRestitchDelivery.ts',
+        'apps/web/src/team/restitch/RestitchDeliveryNotices.tsx'
       ],
-      'The download of a team material to this machine.'
+      'The download of a team material: for NO_SCREENS check that the HTTP route preserves the space screens and grants; for a blank page check terminal delivery notices.'
     ],
     [
       'team:library',

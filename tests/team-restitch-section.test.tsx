@@ -155,6 +155,9 @@ describe('a space’s re-stitching settings', () => {
     const value = client();
     renderSection(value);
     expect(await screen.findByText('Openers')).toBeTruthy();
+    expect(
+      screen.queryByText('Add at least one image or turn this option off before starting.')
+    ).toBeNull();
     expect(screen.getByText(/3 pictures ready to draw from/)).toBeTruthy();
     expect(screen.getByText(/this slot is off/)).toBeTruthy();
     expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'owner');

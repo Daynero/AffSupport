@@ -104,7 +104,9 @@ export const AGENT_TOOL_CONTRACTS = {
   // cache, not in the compressor's library. A capability, not a tool page, for the
   // same reason as the three above: an older agent is told it is too old for Drive
   // pools by the interface, and keeps serving the legacy id lists.
-  teamRestitchSources: 1,
+  // Revision 1 (1.2.6) advertised this but its download route dropped screens.
+  // Revision 2 preserves them end to end, including ordinary re-stitched downloads.
+  teamRestitchSources: 2,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power

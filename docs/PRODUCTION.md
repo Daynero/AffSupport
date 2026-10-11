@@ -20,6 +20,10 @@
 
 ## Before you release: beta verification
 
+For the pending Drive-pool re-stitch download fix, also complete
+[the re-stitch release handoff](RESTITCH_RELEASE_HANDOFF.md): it requires a new
+agent and web release, plus the recorded verification blockers and smoke checks.
+
 Every production package and web deploy now runs `scripts/verify-beta-promotion.mjs`, which refuses
 the release unless the commit is contained in the `beta` branch **and** a packaged-beta verification
 record exists for that exact revision. Run `npm run beta:package && npm run beta:verify` on the beta

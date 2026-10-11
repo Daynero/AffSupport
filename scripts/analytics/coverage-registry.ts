@@ -455,7 +455,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: [],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'Shares the workflow lifecycle with team.process; `category` tells them apart.'
+    note: 'Shares the workflow lifecycle with team.process; `category` tells them apart. Drive-screen downloads require teamRestitchSources revision 2: revision 1 dropped screens in the HTTP route. For historical 1.2.6 failures without a forwarded agent journal, intermediate transfer/cache stages remain unknown.'
   },
   {
     id: 'team.find',
