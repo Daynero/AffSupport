@@ -90,6 +90,9 @@ const NOT_EMPTY_SPACE = [
   '[data-no-marquee]'
 ].join(',');
 
+/** Parts of the panel that are not the file area: the tree, the header, the detail pane. */
+const OUTSIDE_CONTENT = '.team-explorer-tree, .team-explorer-header, .team-explorer-pane';
+
 const ITEM_SELECTOR = '.team-explorer-tile[data-material-id], .team-explorer-row[data-material-id]';
 
 /** The sticky bands a rectangle must stay below: the explorer header, the bar under it, the list's column heads. */
@@ -135,10 +138,13 @@ interface Session {
  */
 export function useMarqueeSelection({
   containerRef,
+  zoneRef,
   rows,
   resetKey
 }: {
   containerRef: RefObject<HTMLElement | null>;
+  /** Where a press may start a rectangle; the content area when absent. */
+  zoneRef?: RefObject<HTMLElement | null>;
   rows: readonly TeamMaterialRow[];
   /** A new folder, view or filter: a rectangle in progress ends there. */
   resetKey: string;
@@ -171,7 +177,15 @@ export function useMarqueeSelection({
       // Ctrl+press on a Mac is the context menu.
       if (apple && event.ctrlKey && !event.metaKey) return;
       const target = event.target instanceof Element ? event.target : null;
-      if (!target || !container.contains(target) || target.closest(NOT_EMPTY_SPACE)) return;
+      const zone = zoneRef?.current ?? container;
+      if (
+        !target ||
+        !zone.contains(target) ||
+        target.closest(NOT_EMPTY_SPACE) ||
+        target.closest(OUTSIDE_CONTENT)
+      ) {
+        return;
+      }
       if (onScrollbar(target, event.nativeEvent)) return;
 
       const rect = container.getBoundingClientRect();
@@ -283,7 +297,7 @@ export function useMarqueeSelection({
       // Keys (arrows, Escape, ⌘A) keep working after a press on empty space.
       container.focus({ preventScroll: true });
     },
-    [containerRef, finish]
+    [containerRef, zoneRef, finish]
   );
 
   return { onPointerDown };

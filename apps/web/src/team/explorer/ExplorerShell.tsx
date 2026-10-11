@@ -573,6 +573,7 @@ function ExplorerBody({
   /* Drag a rectangle over empty space to check what it touches (Finder's rubber band). */
   const marquee = useMarqueeSelection({
     containerRef: contentRef,
+    zoneRef: explorerSurfaceRef,
     rows: sortedRows,
     resetKey: `${teamId}|${currentFolderId ?? ''}|${view}|${query.kinds.join(',')}`
   });
@@ -1612,6 +1613,9 @@ function ExplorerBody({
        views inside it no longer carry their own. */
     <div
       ref={explorerSurfaceRef}
+      /* A rectangle starts anywhere in the panel's empty space — the gutters around the tiles
+         and below them are where people start one, not the few pixels between two tiles. */
+      onPointerDown={marquee.onPointerDown}
       /*
        * The selected-file pane belongs to a folder listing. In a search or the
        * trash nothing feeds it, so it stood there saying "Оберіть файл, щоб
@@ -1817,55 +1821,6 @@ function ExplorerBody({
               />
             )}
           </div>
-        </div>
-        {folderResync.status && (
-          <SyncStatusPanel
-            status={folderResync.status}
-            scopeName={syncScopeName}
-            onCancel={canResync ? () => void folderResync.cancel() : undefined}
-            onRetry={canResync ? () => void folderResync.start() : undefined}
-            onDismiss={folderResync.dismiss}
-          />
-        )}
-        {retryGroupId && (
-          <div role="status">
-            {t('teamWorkspaceReselect')}{' '}
-            <Button type="button" variant="secondary" onClick={onRetryComplete}>
-              {t('teamOperationClose')}
-            </Button>
-          </div>
-        )}
-      </div>
-      <div
-        className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}${
-          uploading > 0 ? ' is-uploading' : ''
-        }`}
-        aria-busy={uploading > 0 || undefined}
-        onDragOver={event => {
-          if (!permissions?.upload || !event.dataTransfer.types.includes('Files')) return;
-          event.preventDefault();
-          setDropping(true);
-        }}
-        /* Only when the pointer actually leaves the zone: moving over a tile inside it fired
-           this and the outline blinked all the way across the folder. */
-        onDragLeave={event => {
-          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-          setDropping(false);
-        }}
-        onDrop={event => {
-          if (!event.dataTransfer.types.includes('Files')) return;
-          event.preventDefault();
-          setDropping(false);
-          if (workspaceOperations) void uploadDrop(sourcesFromDrop(event.dataTransfer));
-          else void filesFromDrop(event.dataTransfer).then(files => upload(files));
-        }}
-      >
-        <div ref={explorerListHeaderRef} className="team-explorer-list-header">
-          {readOnly && (
-            <p className="team-explorer-readonly" role="status">
-              {t('teamStorageReadOnly')}
-            </p>
-          )}
           {selectedRows.length > 0 && !trash && (
             /*
              * What to do with a selection, in the compressor's idiom.
@@ -2051,6 +2006,55 @@ function ExplorerBody({
             </div>
           )}
         </div>
+        {folderResync.status && (
+          <SyncStatusPanel
+            status={folderResync.status}
+            scopeName={syncScopeName}
+            onCancel={canResync ? () => void folderResync.cancel() : undefined}
+            onRetry={canResync ? () => void folderResync.start() : undefined}
+            onDismiss={folderResync.dismiss}
+          />
+        )}
+        {retryGroupId && (
+          <div role="status">
+            {t('teamWorkspaceReselect')}{' '}
+            <Button type="button" variant="secondary" onClick={onRetryComplete}>
+              {t('teamOperationClose')}
+            </Button>
+          </div>
+        )}
+      </div>
+      <div
+        className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}${
+          uploading > 0 ? ' is-uploading' : ''
+        }`}
+        aria-busy={uploading > 0 || undefined}
+        onDragOver={event => {
+          if (!permissions?.upload || !event.dataTransfer.types.includes('Files')) return;
+          event.preventDefault();
+          setDropping(true);
+        }}
+        /* Only when the pointer actually leaves the zone: moving over a tile inside it fired
+           this and the outline blinked all the way across the folder. */
+        onDragLeave={event => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+          setDropping(false);
+        }}
+        onDrop={event => {
+          if (!event.dataTransfer.types.includes('Files')) return;
+          event.preventDefault();
+          setDropping(false);
+          if (workspaceOperations) void uploadDrop(sourcesFromDrop(event.dataTransfer));
+          else void filesFromDrop(event.dataTransfer).then(files => upload(files));
+        }}
+      >
+        <div ref={explorerListHeaderRef} className="team-explorer-list-header">
+          {readOnly && (
+            <p className="team-explorer-readonly" role="status">
+              {t('teamStorageReadOnly')}
+            </p>
+          )}
+        </div>
         {trash ? (
           <TrashView key={`trash:${teamId}`} teamId={teamId} />
         ) : searching ? (
@@ -2101,7 +2105,6 @@ function ExplorerBody({
             data-rows={page.rows.length}
             data-selected={selectedId ?? ''}
             onKeyDown={onContentKeyDown}
-            onPointerDown={marquee.onPointerDown}
           >
             {view === 'grid' ? (
               <ContentGrid

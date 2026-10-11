@@ -18594,8 +18594,17 @@ a.history-subject {
   margin-bottom: calc(-1 * var(--space-3));
   background: var(--color-surface);
 }
-.team-explorer-list-header > .team-explorer-selection-bar {
-  position: static;
+.team-explorer-toolbar {
+  position: relative;
+}
+.team-explorer-toolbar > .team-explorer-selection-bar {
+  /* Over the toolbar, the way Drive swaps its toolbar for the selection: the bar used to
+     open above the files and push the whole list down by its height — the list jumped on
+     the first check and back on the last, and a rubber band in progress suddenly lay over
+     different files. Laid over the toolbar it moves nothing; the toolbar returns with ✕. */
+  position: absolute;
+  inset: 0;
+  z-index: 1;
 }
 .team-explorer .team-explorer-rows .ui-table-header {
   top: calc(
