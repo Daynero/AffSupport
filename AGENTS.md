@@ -5,6 +5,20 @@ Instructions for coding agents working in this repository. Claude Code loads
 to this one, so the two must not drift — anything that belongs to a subject
 below belongs _here_, not there.
 
+## Task complexity screening and model choice
+
+Before detailed planning for a non-trivial programming task, do a brief
+complexity screen: identify likely code areas, dependencies, uncertainty,
+failure impact, and whether the work crosses subsystem or platform boundaries.
+For a small, well-scoped change, proceed with the current efficient model. If
+the screen finds broad architectural work, unclear requirements, security or
+data-integrity risk, complex recovery/concurrency, or several interacting
+subsystems, tell the user early that a stronger reasoning model is advisable
+and why, before spending effort on a detailed plan. Keep this screening short;
+do not invoke an expensive model just to classify routine questions. The agent
+cannot switch the active model unless the runtime provides that capability, so
+state the recommendation rather than implying an automatic handoff occurred.
+
 ## Soty Analytics
 
 When the user asks about statistics, analytics, users, or usage of Soty —
