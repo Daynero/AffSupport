@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(19);
+select plan(21);
 
 insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data) values
 ('bb370000-0000-4000-8000-000000000001','authenticated','authenticated','bulk-owner@example.test','{}','{}'),
@@ -78,6 +78,9 @@ select is((public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')->
  'unknown','operation success without trashed material is not confirmed');
 update public.team_materials set lifecycle='trashed',trashed_at=now()
 where id='bb370000-0000-4000-8000-000000000021';
+select is((select count(*) from public.team_catalog_events where event_kind='bulk_trash_changed'
+ and team_id='bb370000-0000-4000-8000-000000000010'),4::bigint,
+ 'operation and lifecycle each wake the connected receipt reader');
 select is((public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')->0->'items'->0->>'state'),
  'confirmed','provider result and hosted lifecycle prove trash');
 insert into public.team_operations
@@ -86,6 +89,9 @@ select 'bb370000-0000-4000-8000-000000000042', team_id,
  'bb370000-0000-4000-8000-000000000001','trash','failed',material_id,
  idempotency_key::text,'bulk-nonce-b','PROVIDER_FAILURE',now()
 from private.team_bulk_trash_items where material_id='bb370000-0000-4000-8000-000000000022';
+select is((select count(*) from public.team_catalog_events where event_kind='bulk_trash_changed'
+ and team_id='bb370000-0000-4000-8000-000000000010'),5::bigint,
+ 'failed operation also wakes the connected receipt reader');
 select is((public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')->0->'items'->1->>'state'),
  'failed','one failed item does not hide confirmed siblings');
 select is((select confirmed_count from public.analytics_bulk_trash_receipts

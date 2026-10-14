@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { dedupeTrashTargets, executeBulkTrash } from '../apps/web/src/team/explorer/bulkTrash';
 import {
@@ -9,7 +18,7 @@ import {
   type TeamMaterialRow
 } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast';
-import { TeamProvider } from '../apps/web/src/team/TeamContext';
+import { TeamProvider, useTeam } from '../apps/web/src/team/TeamContext';
 import {
   ExplorerShell,
   type ExplorerShellClient
@@ -17,7 +26,10 @@ import {
 import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client';
 import { makeTeam } from './team-space-fixtures';
-import { WorkspaceOperationsProvider } from '../apps/web/src/team/explorer/WorkspaceOperationsProvider';
+import {
+  WorkspaceOperationsProvider,
+  useWorkspaceOperations
+} from '../apps/web/src/team/explorer/WorkspaceOperationsProvider';
 
 const team = makeTeam({ permissions: DEFAULT_ROLE_PERMISSIONS.admin, role: 'admin' });
 
@@ -78,6 +90,61 @@ describe('50-file bulk trash dispatch', () => {
     expect(calls).toContain('material-49:stable-key-49');
     expect(settled).toHaveBeenCalledTimes(50);
   });
+});
+
+it('refreshes all 50 hosted receipts on a connected invalidation within one second', async () => {
+  const items = Array.from({ length: 50 }, (_, index) => ({
+    materialId: `material-${index}`,
+    idempotencyKey: `key-${index}`,
+    operationId: null,
+    state: 'queued' as 'queued' | 'confirmed',
+    errorCode: null
+  }));
+  const listBulkTrash = vi.fn(async () => [
+    {
+      id: 'group',
+      requestId: 'request',
+      createdAt: '2026-10-09T10:00:00Z',
+      items: items.map(item => ({ ...item }))
+    }
+  ]);
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <TeamProvider realtime={false} initialTeams={[team]}>
+      <WorkspaceOperationsProvider
+        teamId={team.id}
+        client={{
+          ensureFolder: vi.fn(),
+          uploadFile: vi.fn(),
+          listBulkTrash
+        }}
+      >
+        {children}
+      </WorkspaceOperationsProvider>
+    </TeamProvider>
+  );
+  const { result, unmount } = renderHook(
+    () => ({
+      team: useTeam(),
+      operations: useWorkspaceOperations()
+    }),
+    { wrapper }
+  );
+  await waitFor(() =>
+    expect(result.current.operations.bulkTrashGroups?.[0]?.items).toHaveLength(50)
+  );
+  const deliveredAt = Date.now();
+  for (const item of items) item.state = 'confirmed';
+  act(() => result.current.team.notifyStateChanged());
+  await waitFor(() =>
+    expect(
+      result.current.operations.bulkTrashGroups?.[0]?.items.filter(
+        item => item.state === 'confirmed'
+      )
+    ).toHaveLength(50)
+  );
+  expect(Date.now() - deliveredAt).toBeLessThan(1_000);
+  expect(listBulkTrash).toHaveBeenCalledTimes(2);
+  unmount();
 });
 
 it('keeps the 50-item selection responsive and reports a partial hosted result', async () => {
