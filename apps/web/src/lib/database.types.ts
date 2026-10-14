@@ -4064,6 +4064,14 @@ export type GeneratedDatabase = {
           parent_folder_id: string;
         }[];
       };
+      begin_team_bulk_trash: {
+        Args: { p_team: string; p_request: string; p_materials: string[] };
+        Returns: Json;
+      };
+      list_team_bulk_trash: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
       list_team_account_two_factor_seeds: {
         Args: { p_team: string };
         Returns: {

@@ -32,6 +32,8 @@ import {
   parseTeamAccountAgent,
   parseTeamAccountOrderSnapshot,
   parseTeamAccountReorderResult,
+  parseTeamBulkTrashIntent,
+  parseTeamBulkTrashGroups,
   parseTeamAgentRunMarkerSnapshots,
   parseTeamTaskAgentTags,
   parseTeamTaskLabel,
@@ -56,6 +58,8 @@ import {
   type TeamAccountSummary,
   type TeamAccountOrderSnapshot,
   type TeamAccountReorderResult,
+  type TeamBulkTrashIntent,
+  type TeamBulkTrashGroup,
   type TeamAgentRunMarker,
   type TeamAgentRunMarkerSnapshot,
   parseUploadBatchRequest,
@@ -3457,6 +3461,34 @@ export const teamApi = {
       fileOperationGuard
     );
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
+  },
+
+  async beginBulkTrash(input: {
+    teamId: string;
+    requestId: string;
+    materialIds: string[];
+  }): Promise<TeamBulkTrashIntent> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('begin_team_bulk_trash', {
+        p_team: input.teamId,
+        p_request: input.requestId,
+        p_materials: input.materialIds
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamBulkTrashIntent(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async listBulkTrash(teamId: string): Promise<TeamBulkTrashGroup[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_bulk_trash', { p_team: teamId })
+    );
+    throwRpc(error);
+    const result = parseTeamBulkTrashGroups(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
   },
 
   async restoreMaterial(input: {

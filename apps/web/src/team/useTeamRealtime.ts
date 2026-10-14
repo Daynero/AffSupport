@@ -50,21 +50,25 @@ export function useTeamRealtime(input: {
         if (dirty) schedule();
       }
     };
-    const schedule = () => {
-      if (!active || refetchTimer !== null) return;
-      refetchTimer = window.setTimeout(() => void flush(), 1_000);
+    const schedule = (urgent = false) => {
+      if (!active) return;
+      if (refetchTimer !== null) {
+        if (!urgent) return;
+        window.clearTimeout(refetchTimer);
+      }
+      refetchTimer = window.setTimeout(() => void flush(), urgent ? 0 : 1_000);
     };
-    const refetch = () => {
+    const refetch = (urgent = false) => {
       if (!active) return;
       dirty = true;
-      if (!refreshing) schedule();
+      if (!refreshing) schedule(urgent);
     };
     const channel: RealtimeChannel = supabase
       .channel(realtimeTopic(`team-workspace:${teamId}`))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'team_operations', filter: `team_id=eq.${teamId}` },
-        refetch
+        () => refetch()
       )
       .on(
         'postgres_changes',
@@ -74,7 +78,10 @@ export function useTeamRealtime(input: {
           table: 'team_catalog_events',
           filter: `team_id=eq.${teamId}`
         },
-        refetch
+        (payload: unknown) => {
+          const event = payload as { new?: { event_kind?: string } } | null;
+          refetch(event?.new?.event_kind === 'bulk_trash_changed');
+        }
       )
       .subscribe(status => {
         if (!active) return;

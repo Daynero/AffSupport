@@ -1,4 +1,5 @@
 export * from './accounts.js';
+export * from './bulk-trash.js';
 export * from './agent-finance.js';
 export * from './agent-finance-report.js';
 export * from './analytics.js';

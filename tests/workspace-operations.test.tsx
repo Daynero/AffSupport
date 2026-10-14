@@ -31,6 +31,42 @@ function mount(client: WorkspaceOperationsClient, journal?: WorkspaceOperationJo
 }
 
 describe('workspace upload coordinator', () => {
+  it('uses hosted bulk trash receipts for another session and refreshes after invalidation', async () => {
+    const id = 'bb370000-0000-4000-8000-000000000031';
+    const materialId = 'bb370000-0000-4000-8000-000000000021';
+    const key = 'bb370000-0000-4000-8000-000000000041';
+    const group = {
+      id,
+      requestId: id,
+      createdAt: '2026-10-09T10:00:00Z',
+      items: [
+        {
+          materialId,
+          idempotencyKey: key,
+          operationId: null,
+          state: 'queued' as const,
+          errorCode: null
+        }
+      ]
+    };
+    const listBulkTrash = vi
+      .fn()
+      .mockResolvedValueOnce([group])
+      .mockResolvedValueOnce([
+        {
+          ...group,
+          items: [{ ...group.items[0], state: 'confirmed' }]
+        }
+      ]);
+    const view = mount({ ensureFolder: vi.fn(), uploadFile: vi.fn(), listBulkTrash });
+    await waitFor(() =>
+      expect(view.result.current.bulkTrashGroups?.[0]?.items[0]?.state).toBe('queued')
+    );
+    await act(async () => {
+      await view.result.current.refreshBulkTrash?.();
+    });
+    expect(view.result.current.bulkTrashGroups?.[0]?.items[0]?.state).toBe('confirmed');
+  });
   it('asks again when a name appears after the initial conflict snapshot', async () => {
     const uploadFile = vi
       .fn<WorkspaceOperationsClient['uploadFile']>()
