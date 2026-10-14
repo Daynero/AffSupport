@@ -25,8 +25,12 @@ const U_STITCH = '0a000000-0000-4000-8000-000000000003';
 const U_STALE = '0a000000-0000-4000-8000-000000000004';
 const U_EMPTY = '0a000000-0000-4000-8000-000000000005';
 const U_COPY = '0a000000-0000-4000-8000-000000000006';
+const U_ORDER = '0a000000-0000-4000-8000-000000000007';
 const COPY_CONFIRMED = '6a000000-0000-4000-8000-000000000001';
 const COPY_UNKNOWN = '6a000000-0000-4000-8000-000000000002';
+const ORDER_CONFIRMED = '6b000000-0000-4000-8000-000000000001';
+const ORDER_UNKNOWN = '6b000000-0000-4000-8000-000000000002';
+const ORDER_CONFLICT = '6b000000-0000-4000-8000-000000000003';
 
 const INST_T = '1b000000-0000-4000-8000-000000000001';
 const INST_L = '1b000000-0000-4000-8000-000000000002';
@@ -137,7 +141,8 @@ beforeAll(async () => {
       ('${U_STITCH}', 'stitch@example.test', 'stitch@example.test', '2026-10-07T10:00:00Z', null),
       ('${U_STALE}', 'stale@example.test', 'stale@example.test', '2026-10-07T10:00:00Z', null),
       ('${U_EMPTY}', 'empty@example.test', 'empty@example.test', '2026-10-08T10:00:00Z', null),
-      ('${U_COPY}', 'copy@example.test', 'copy@example.test', '2026-10-08T10:00:00Z', null);
+      ('${U_COPY}', 'copy@example.test', 'copy@example.test', '2026-10-08T10:00:00Z', null),
+      ('${U_ORDER}', 'order@example.test', 'order@example.test', '2026-10-08T10:00:00Z', null);
   `);
 
   const T = {
@@ -375,6 +380,16 @@ beforeAll(async () => {
   await db.exec(`insert into public.analytics_task_copy_receipts
     (actor_id, request_id, result_count, created_at) values
     ('${U_COPY}', '${COPY_CONFIRMED}', 2, '2026-10-08T10:00:01Z')`);
+  await db.exec(insertEvents([
+    { user: U_ORDER, name: 'team_workflow_started', at: '2026-10-08T11:00:00Z', props: { action: 'reorder', workflow_id: ORDER_CONFIRMED } },
+    { user: U_ORDER, name: 'team_workflow_completed', at: '2026-10-08T11:00:01Z', outcome: 'success', props: { action: 'reorder', workflow_id: ORDER_CONFIRMED } },
+    { user: U_ORDER, name: 'team_workflow_started', at: '2026-10-08T11:01:00Z', props: { action: 'reorder', workflow_id: ORDER_UNKNOWN } },
+    { user: U_ORDER, name: 'team_workflow_started', at: '2026-10-08T11:02:00Z', props: { action: 'reorder', workflow_id: ORDER_CONFLICT } },
+    { user: U_ORDER, name: 'team_workflow_completed', at: '2026-10-08T11:02:01Z', outcome: 'blocked', props: { action: 'reorder', workflow_id: ORDER_CONFLICT } }
+  ]));
+  await db.exec(`insert into public.analytics_account_order_receipts
+    (actor_id, request_id, scope_kind, result_version, created_at) values
+    ('${U_ORDER}', '${ORDER_CONFIRMED}', 'socials', 5, '2026-10-08T11:00:01Z')`);
 }, 60_000);
 
 afterAll(async () => {
@@ -418,6 +433,20 @@ describe('investigate · task copy receipt', () => {
       }
     ]);
     expect(finding(data, 'task_copy_unconfirmed').kind).toBe('insufficient');
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
+
+describe('investigate · account order receipt', () => {
+  it('distinguishes a confirmed write, server conflict and unknown delivery without IDs', async () => {
+    const data = await investigate('order@example.test');
+    expect(data.account_orders.map(row => [row.request_id, row.status])).toEqual([
+      [ORDER_CONFLICT, 'conflict'],
+      [ORDER_UNKNOWN, 'unknown'],
+      [ORDER_CONFIRMED, 'confirmed']
+    ]);
+    expect(data.account_orders[2]).toMatchObject({ scope_kind: 'socials', result_version: 5 });
+    expect(finding(data, 'account_order_unconfirmed').kind).toBe('insufficient');
     expect(investigateOutputIsPrivate(data)).toBe(true);
   });
 });

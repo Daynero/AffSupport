@@ -853,6 +853,7 @@ export interface InvestigateBlindSpot {
     | 'agent_journal_missing'
     | 'image_selection_signal_missing'
     | 'task_copy_receipts_unavailable'
+    | 'account_order_receipts_unavailable'
     | 'analytics_disabled'
     | 'analytics_delivery_losses'
     | 'sync_unavailable'
@@ -887,6 +888,14 @@ export interface InvestigateData {
     request_id: string;
     status: 'confirmed' | 'unknown' | 'receipt_unavailable';
     result_count: number | null;
+    attempted_at: string | null;
+    confirmed_at: string | null;
+  }>;
+  account_orders: Array<{
+    request_id: string;
+    status: 'confirmed' | 'conflict' | 'unknown' | 'receipt_unavailable';
+    scope_kind: string | null;
+    result_version: number | null;
     attempted_at: string | null;
     confirmed_at: string | null;
   }>;

@@ -60,7 +60,8 @@ export const TEAM_ANALYTICS_ACTIONS = [
   'rename',
   'move',
   'trash',
-  'copy'
+  'copy',
+  'reorder'
 ] as const;
 export type TeamAnalyticsAction = (typeof TEAM_ANALYTICS_ACTIONS)[number];
 export const TEAM_ANALYTICS_STORAGES = ['my_drive', 'shared_drive'] as const;

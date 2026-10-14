@@ -11,6 +11,7 @@ import {
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { getSupabaseClient } from '../../lib/supabase';
+import { analytics } from '../../analytics/service';
 
 /**
  * The client seam for the accounts section: what `AccountSpace` needs of the
@@ -441,15 +442,54 @@ export function useAccounts({
       const expectedVersion =
         scopeId === teamId ? snapshot.socialsVersion : snapshot.agents[scopeId]?.version;
       if (expectedVersion === undefined) throw new Error('INVALID_RESPONSE');
-      const result = await client.reorderAccounts({
-        teamId,
-        scopeId,
-        ids,
-        expectedVersion,
-        requestId: crypto.randomUUID()
+      const requestId = crypto.randomUUID();
+      const startedAt = Date.now();
+      analytics.track('team_workflow_started', {
+        workflow_id: requestId,
+        action: 'reorder',
+        category: 'other',
+        cache_state: 'unknown',
+        attempt_number: 1,
+        stage: 'processing'
       });
-      await refetch();
-      return result;
+      try {
+        const result = await client.reorderAccounts({
+          teamId,
+          scopeId,
+          ids,
+          expectedVersion,
+          requestId
+        });
+        writes.current += 1;
+        await refetch();
+        analytics.track('team_workflow_completed', {
+          workflow_id: requestId,
+          action: 'reorder',
+          category: 'other',
+          cache_state: 'unknown',
+          attempt_number: 1,
+          stage: 'finalizing',
+          duration_ms: Date.now() - startedAt,
+          outcome: result.status === 'applied' ? 'success' : 'blocked',
+          retryable: result.status === 'conflict',
+          production_completed: result.status === 'applied'
+        });
+        return result;
+      } catch (error) {
+        analytics.track('team_workflow_completed', {
+          workflow_id: requestId,
+          action: 'reorder',
+          category: 'other',
+          cache_state: 'unknown',
+          attempt_number: 1,
+          stage: 'finalizing',
+          duration_ms: Date.now() - startedAt,
+          outcome: 'failure',
+          retryable: true,
+          production_completed: false
+        });
+        throw error;
+      }
     },
     [client, orderSnapshot, refetch, teamId]
   );
