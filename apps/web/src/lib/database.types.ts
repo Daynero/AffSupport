@@ -3520,7 +3520,7 @@ export type GeneratedDatabase = {
         };
       };
       copy_team_tasks: {
-        Args: { p_team: string; p_tasks: string[] };
+        Args: { p_team: string; p_tasks: string[]; p_request_id: string };
         Returns: string[];
       };
       create_team_task: {

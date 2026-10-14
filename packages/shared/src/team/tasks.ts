@@ -12,6 +12,13 @@ export const TEAM_TASK_PROGRESS_MAX = 10_000;
 export const LIBRARY_ATTACH_MUTATION_BATCH_MAX = 100;
 export const TEAM_TASK_PAGE_SIZE_MAX = 100;
 
+/** One paste attempt; retries reuse requestId until a result is confirmed. */
+export interface TeamTaskCopyRequest {
+  teamId: string;
+  taskIds: string[];
+  requestId: string;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 function isUuid(value: unknown): value is string {

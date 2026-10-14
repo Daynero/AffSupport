@@ -42,13 +42,47 @@ it('copies selected tasks through native events and pastes a single batch, ignor
   });
   fireEvent.paste(document, { clipboardData: data });
   await waitFor(() => expect(onPasted).toHaveBeenCalledWith(['copy-1', 'copy-2']));
-  expect(client.copyTasks).toHaveBeenCalledWith({ teamId: TEAM, taskIds: IDS });
+  expect(client.copyTasks).toHaveBeenCalledWith({
+    teamId: TEAM,
+    taskIds: IDS,
+    requestId: expect.any(String)
+  });
   const input = document.createElement('textarea');
   document.body.append(input);
   fireEvent.paste(input, { clipboardData: data });
   fireEvent.paste(document, { clipboardData: { getData: () => 'ordinary text' } });
   expect(client.copyTasks).toHaveBeenCalledTimes(1);
   input.remove();
+});
+it('reuses an unconfirmed request after remount and starts a new one after confirmation', async () => {
+  sessionStorage.clear();
+  const data = clipboard();
+  data.setData('text/plain', 'SOTY_TASKS_V1:' + JSON.stringify({ teamId: TEAM, taskIds: IDS }));
+  const client = { copyTasks: vi.fn().mockRejectedValueOnce(new Error('NETWORK')) };
+  const props = {
+    teamId: TEAM,
+    selected: [] as TeamTaskSummary[],
+    canEdit: true,
+    client,
+    onPasted: vi.fn()
+  };
+  const first = renderHook(() => useTaskClipboard(props), { wrapper });
+  fireEvent.paste(document, { clipboardData: data });
+  await waitFor(() => expect(client.copyTasks).toHaveBeenCalledTimes(1));
+  const firstId = client.copyTasks.mock.calls[0]?.[0].requestId;
+  await waitFor(() => expect(sessionStorage.length).toBe(1));
+  first.unmount();
+
+  client.copyTasks.mockResolvedValue(['copy-1']);
+  renderHook(() => useTaskClipboard(props), { wrapper });
+  fireEvent.paste(document, { clipboardData: data });
+  await waitFor(() => expect(props.onPasted).toHaveBeenCalledWith(['copy-1']));
+  expect(client.copyTasks.mock.calls[1]?.[0].requestId).toBe(firstId);
+  await waitFor(() => expect(sessionStorage.length).toBe(0));
+
+  fireEvent.paste(document, { clipboardData: data });
+  await waitFor(() => expect(client.copyTasks).toHaveBeenCalledTimes(3));
+  expect(client.copyTasks.mock.calls[2]?.[0].requestId).not.toBe(firstId);
 });
 it('ignores read-only boards and prevents cross-space pastes', async () => {
   const client = { copyTasks: vi.fn().mockResolvedValue([]) };

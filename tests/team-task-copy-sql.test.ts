@@ -51,11 +51,27 @@ it('copies a batch atomically with fresh workflow/date and preserved content, as
     const copies = (
       await f.db.asUser<{ ids: string[] }>(
         FINANCE_OWNER,
-        'select public.copy_team_tasks($1,$2) as ids',
-        [f.team, [f.task, second]]
+        'select public.copy_team_tasks($1,$2,$3) as ids',
+        [f.team, [f.task, second], '31000000-0000-4000-8000-000000000041']
       )
     )[0]!.ids;
     expect(copies).toHaveLength(2);
+    expect(
+      (
+        await f.db.asUser<{ ids: string[] }>(
+          FINANCE_OWNER,
+          'select public.copy_team_tasks($1,$2,$3) as ids',
+          [f.team, [f.task, second], '31000000-0000-4000-8000-000000000041']
+        )
+      )[0]!.ids
+    ).toEqual(copies);
+    await expect(
+      f.db.asUser(FINANCE_OWNER, 'select public.copy_team_tasks($1,$2,$3)', [
+        f.team,
+        [second, f.task],
+        '31000000-0000-4000-8000-000000000041'
+      ])
+    ).rejects.toThrow(/REQUEST_REUSE_CONFLICT/);
     const row = (
       await f.db.root<Record<string, unknown>>(
         'select *,created_at::date=current_date as today from public.team_tasks where id=$1',
@@ -94,17 +110,26 @@ it('copies a batch atomically with fresh workflow/date and preserved content, as
     );
     const before = await f.db.root('select id from public.team_tasks');
     await expect(
-      f.db.asUser(FINANCE_OWNER, 'select public.copy_team_tasks($1,$2)', [
+      f.db.asUser(FINANCE_OWNER, 'select public.copy_team_tasks($1,$2,$3)', [
         f.team,
-        [f.task, '00000000-0000-4000-8000-000000000001']
+        [f.task, '00000000-0000-4000-8000-000000000001'],
+        '31000000-0000-4000-8000-000000000042'
       ])
     ).rejects.toThrow(/NOT_FOUND/);
     expect(await f.db.root('select id from public.team_tasks')).toEqual(before);
     await expect(
-      f.db.asUser(FINANCE_VIEWER, 'select public.copy_team_tasks($1,$2)', [f.team, [f.task]])
+      f.db.asUser(FINANCE_VIEWER, 'select public.copy_team_tasks($1,$2,$3)', [
+        f.team,
+        [f.task],
+        '31000000-0000-4000-8000-000000000043'
+      ])
     ).rejects.toThrow(/PERMISSION_DENIED/);
     await expect(
-      f.db.asUser(FINANCE_OWNER, 'select public.copy_team_tasks($1,$2)', [f.otherTeam, [f.task]])
+      f.db.asUser(FINANCE_OWNER, 'select public.copy_team_tasks($1,$2,$3)', [
+        f.otherTeam,
+        [f.task],
+        '31000000-0000-4000-8000-000000000044'
+      ])
     ).rejects.toThrow(/NOT_FOUND/);
   } finally {
     await f.db.close();

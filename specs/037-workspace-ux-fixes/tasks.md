@@ -39,7 +39,7 @@
 - [ ] T007 [US1] Add a failing user-flow regression for filter isolation, first-click selection and duplicate-paste recovery in `tests/creative-library-tasks.test.tsx` and a timezone boundary case in `tests/task-dates-one-calendar.test.tsx`.
 - [ ] T008 [US1] Move status controls right and the yesterday/today actions beside the calendar in `apps/web/src/team/tasks/TaskFilterBar.tsx` and `apps/web/src/team/tasks/TaskDateFilter.tsx`; use the space timezone and preserve keyboard/compact access.
 - [x] T009 [US1] Correct paste completion and selection cleanup in `apps/web/src/team/tasks/useTaskClipboard.ts` and `apps/web/src/team/tasks/TaskSpace.tsx`; reset filters that hide the copy and clear selection after success or failure. The focused success, failure and duplicate-paste regressions pass.
-- [ ] T010 [US1] Add idempotent copy attempt/receipt handling while preserving existing copy semantics in `supabase/migrations/20261203100000_task_copy_idempotency.sql`, `apps/web/src/api/team.ts` and `packages/shared/src/team/tasks.ts`.
+- [x] T010 [US1] Add idempotent copy attempt/receipt handling while preserving existing copy semantics and the legacy RPC overload in `supabase/migrations/20261203100000_task_copy_idempotency.sql`, `apps/web/src/api/team.ts` and `packages/shared/src/team/tasks.ts`; retry the same request after an unconfirmed response, including after a tab reload.
 - [ ] T011 [US1] Prove server copy replay and cross-team rejection in `supabase/tests/database/`, and link the confirmed/unknown outcome to agent-readable diagnosis in `scripts/analytics/queries.ts` and `tests/analytics-investigate-command.test.ts`.
 
 **Checkpoint**: FR-001–004 and SC-001 pass without changing the copied task's existing fresh date/status rule.

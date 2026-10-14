@@ -45,6 +45,7 @@ import {
   type TeamTaskLabelColor,
   type TeamTaskLabelRef,
   type TeamTaskSort,
+  type TeamTaskCopyRequest,
   normalizeTeamAccountName,
   normalizeTeamAgentId,
   validFinanceTimezone,
@@ -3743,11 +3744,12 @@ export const teamApi = {
     );
   },
 
-  async copyTasks(input: { teamId: string; taskIds: string[] }): Promise<string[]> {
+  async copyTasks(input: TeamTaskCopyRequest): Promise<string[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('copy_team_tasks', {
         p_team: input.teamId,
-        p_tasks: input.taskIds
+        p_tasks: input.taskIds,
+        p_request_id: input.requestId
       })
     );
     throwRpc(error);
