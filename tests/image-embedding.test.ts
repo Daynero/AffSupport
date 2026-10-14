@@ -56,7 +56,7 @@ describe('final image duration configuration', () => {
   it('loads older settings in random mode', async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-legacy-settings-'));
     const imageEmbedding = { ...defaultImageEmbeddingSettings(), startImages: [asset('start')] };
-    const legacy = { ...imageEmbedding };
+    const legacy: Partial<typeof imageEmbedding> = { ...imageEmbedding };
     delete legacy.selectedStartImageId;
     delete legacy.selectedEndImageId;
     const file = path.join(directory, 'state.json');
