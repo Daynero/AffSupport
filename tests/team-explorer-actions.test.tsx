@@ -112,6 +112,11 @@ describe('a video’s card', () => {
       expect(screen.getByRole('menuitem', { name })).toBeTruthy();
     }
     expect(screen.getByRole('menu', { name: /Actions for/ })).toBeTruthy();
+    const menu = screen.getByRole('menu', { name: /Actions for/ });
+    menu.focus();
+    await user.keyboard('{End}');
+    const menuItems = within(menu).getAllByRole('menuitem');
+    expect(document.activeElement).toBe(menuItems.at(-1));
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     expect(
