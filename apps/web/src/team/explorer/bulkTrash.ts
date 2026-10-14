@@ -1,4 +1,18 @@
-import type { TeamBulkTrashIntent } from '@video-compressor/shared';
+import type { TeamBulkTrashIntent, TeamMaterialRow } from '@video-compressor/shared';
+
+export function dedupeTrashTargets(
+  rows: readonly TeamMaterialRow[],
+  ancestors: (parentFolderId: string) => readonly { driveFileId: string }[]
+): TeamMaterialRow[] {
+  const selectedFolders = new Set(
+    rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
+  );
+  return rows.filter(
+    row =>
+      !row.parentFolderId ||
+      !ancestors(row.parentFolderId).some(folder => selectedFolders.has(folder.driveFileId))
+  );
+}
 
 /** Dispatch a hosted group without letting one provider failure block the rest. */
 export async function executeBulkTrash(input: {

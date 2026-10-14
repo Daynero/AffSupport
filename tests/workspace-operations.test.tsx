@@ -33,31 +33,23 @@ function mount(client: WorkspaceOperationsClient, journal?: WorkspaceOperationJo
 describe('workspace upload coordinator', () => {
   it('uses hosted bulk trash receipts for another session and refreshes after invalidation', async () => {
     const id = 'bb370000-0000-4000-8000-000000000031';
-    const materialId = 'bb370000-0000-4000-8000-000000000021';
-    const key = 'bb370000-0000-4000-8000-000000000041';
     const group = {
       id,
       requestId: id,
       createdAt: '2026-10-09T10:00:00Z',
-      items: [
-        {
-          materialId,
-          idempotencyKey: key,
-          operationId: null,
-          state: 'queued' as const,
-          errorCode: null
-        }
-      ]
+      items: Array.from({ length: 50 }, (_, index) => ({
+        materialId: `material-${index}`,
+        idempotencyKey: `key-${index}`,
+        operationId: null,
+        state: 'queued' as const,
+        errorCode: null
+      }))
     };
-    const listBulkTrash = vi
-      .fn()
-      .mockResolvedValueOnce([group])
-      .mockResolvedValueOnce([
-        {
-          ...group,
-          items: [{ ...group.items[0], state: 'confirmed' }]
-        }
-      ]);
+    const confirmed = {
+      ...group,
+      items: group.items.map(item => ({ ...item, state: 'confirmed' as const }))
+    };
+    const listBulkTrash = vi.fn().mockResolvedValueOnce([group]).mockResolvedValue([confirmed]);
     const view = mount({ ensureFolder: vi.fn(), uploadFile: vi.fn(), listBulkTrash });
     await waitFor(() =>
       expect(view.result.current.bulkTrashGroups?.[0]?.items[0]?.state).toBe('queued')
@@ -66,6 +58,16 @@ describe('workspace upload coordinator', () => {
       await view.result.current.refreshBulkTrash?.();
     });
     expect(view.result.current.bulkTrashGroups?.[0]?.items[0]?.state).toBe('confirmed');
+    view.unmount();
+    const secondSession = mount({ ensureFolder: vi.fn(), uploadFile: vi.fn(), listBulkTrash });
+    await waitFor(() =>
+      expect(secondSession.result.current.bulkTrashGroups?.[0]?.items).toHaveLength(50)
+    );
+    expect(
+      secondSession.result.current.bulkTrashGroups?.[0]?.items.every(
+        item => item.state === 'confirmed'
+      )
+    ).toBe(true);
   });
   it('asks again when a name appears after the initial conflict snapshot', async () => {
     const uploadFile = vi

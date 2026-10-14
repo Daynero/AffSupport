@@ -40,7 +40,7 @@ import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { trashMaterialWithTail, type TailClient } from '../materials/tail';
-import { executeBulkTrash } from './bulkTrash';
+import { dedupeTrashTargets, executeBulkTrash } from './bulkTrash';
 import { moveWorkspaceMaterials } from './moveCoordinator';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
@@ -1368,16 +1368,7 @@ function ExplorerBody({
   const trashRows = useCallback(
     async (rows: TeamMaterialRow[]) => {
       if (!permissions?.delete) return;
-      const selectedFolders = new Set(
-        rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
-      );
-      const targets = rows.filter(
-        row =>
-          !(
-            row.parentFolderId &&
-            pathTo(row.parentFolderId).some(folder => selectedFolders.has(folder.driveFileId))
-          )
-      );
+      const targets = dedupeTrashTargets(rows, pathTo);
       if (targets.length > 1) {
         try {
           const intent = await (client.beginBulkTrash ?? teamApi.beginBulkTrash)({

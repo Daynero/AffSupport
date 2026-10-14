@@ -2,7 +2,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { executeBulkTrash } from '../apps/web/src/team/explorer/bulkTrash';
+import { dedupeTrashTargets, executeBulkTrash } from '../apps/web/src/team/explorer/bulkTrash';
 import {
   DEFAULT_ROLE_PERMISSIONS,
   type FolderPage,
@@ -22,6 +22,32 @@ import { WorkspaceOperationsProvider } from '../apps/web/src/team/explorer/Works
 const team = makeTeam({ permissions: DEFAULT_ROLE_PERMISSIONS.admin, role: 'admin' });
 
 describe('50-file bulk trash dispatch', () => {
+  it('drops a selected folder once and excludes its selected descendants', () => {
+    const folder = {
+      id: 'folder',
+      kind: 'folder',
+      driveFileId: 'drive-folder',
+      parentFolderId: 'root'
+    };
+    const child = {
+      id: 'child',
+      kind: 'other',
+      driveFileId: 'drive-child',
+      parentFolderId: 'drive-folder'
+    };
+    const sibling = {
+      id: 'sibling',
+      kind: 'other',
+      driveFileId: 'drive-sibling',
+      parentFolderId: 'root'
+    };
+    const selected = [folder, child, sibling] as TeamMaterialRow[];
+    expect(
+      dedupeTrashTargets(selected, parent =>
+        parent === 'drive-folder' ? [{ driveFileId: 'drive-folder' }] : []
+      ).map(row => row.id)
+    ).toEqual(['folder', 'sibling']);
+  });
   it('bounds concurrency, preserves per-item retry keys and continues after a failure', async () => {
     const items = Array.from({ length: 50 }, (_, index) => ({
       materialId: `material-${index}`,
