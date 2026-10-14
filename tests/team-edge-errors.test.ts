@@ -110,3 +110,20 @@ describe('re-stitch source edge statuses', () => {
     expect(await response.json()).toMatchObject({ ok: false, error: { code, retryable: false } });
   });
 });
+
+describe('space tariff edge statuses', () => {
+  it.each([
+    ['SEATS_FULL', 409],
+    ['SEATS_IN_USE', 409],
+    ['SPACE_BLOCKED', 403],
+    ['TARIFF_BOUND', 409],
+    ['LEGACY_SPACES_REMAIN', 409],
+    ['TARIFF_DATE_INVALID', 400]
+  ] as const)('returns the status for %s', async (code, status) => {
+    const { TeamFunctionError, errorResponse } =
+      await import('../supabase/functions/_shared/errors');
+    const response = errorResponse(new TeamFunctionError(code));
+    expect(response.status).toBe(status);
+    expect(await response.json()).toMatchObject({ ok: false, error: { code, retryable: false } });
+  });
+});
