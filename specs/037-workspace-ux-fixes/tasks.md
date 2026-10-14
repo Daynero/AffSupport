@@ -89,7 +89,7 @@
 
 - [x] T025 [P] [US4] Cap the shared `DropdownMenu` surface to the visible viewport in `apps/web/src/styles/components.css`; `RowActions.tsx` and `PaneActions.tsx` already use the shared React Aria menu with flip placement, portal, scrolling and keyboard focus.
 - [x] T026 [P] [US4] Derive busy animation only from active operations, keeping quiet history and warning details available, in `apps/web/src/team/workspace/BackgroundWorkChip.tsx` and `apps/web/src/team/workspace/WorkspaceChip.tsx`.
-- [ ] T027 [US4] Verify edge placement, keyboard navigation and settled chip behavior in `tests/team-explorer-actions.test.tsx` and `tests/team-background-work-chip.test.tsx` (create if absent); perform the visual check in `specs/037-workspace-ux-fixes/quickstart.md`.
+- [x] T027 [US4] Verify edge placement, keyboard navigation and settled chip behavior in `tests/team-explorer-actions.test.tsx` and `tests/team-background-work-chip.test.tsx` (create if absent); perform the visual check in `specs/037-workspace-ux-fixes/quickstart.md`.
 
 **Checkpoint**: FR-008–009 pass without hiding history.
 
