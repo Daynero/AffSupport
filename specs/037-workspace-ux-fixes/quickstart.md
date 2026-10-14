@@ -22,3 +22,10 @@
 - `npm run verify` before marking each slice complete; `npm run verify:release` plus database tests for slices with migrations or agent contract changes.
 - Design token and Tailwind checks are included in verify; visually inspect the affected screens against `docs/DESIGN.md`.
 - If a production release is later requested, follow `docs/PRODUCTION.md` and its beta promotion gate. This guide itself does not authorize deployment.
+
+## Observed validation in isolated 037 worktree
+
+- The finance month matrix regression preserves horizontal and vertical scroll after switching tabs at a simulated narrow width; its sticky offset updates on resize (`tests/team-finance-workspace.test.tsx`, passed).
+- Browser visual inspection remains open. The local Vite server started on 127.0.0.1:5179, but Computer Use reported no in-app browser and rejected access to Safari. No 200% zoom or edge-placement observation is claimed.
+- The Launches 035 schema and code are uncommitted in the separate original worktree. Combined launch/finance and archive scenarios must wait for a committed dependency; no Launches files were copied into 037.
+- Task orphan receipts, 30-second deadlines, external-origin retention and Undo were verified locally. The provider trash worker and five-minute recovery scenario remain open; current diagnostics report waiting or `cleanup_unverified`, never reclaimed storage.
