@@ -128,6 +128,8 @@ export function spaceScreens(
       // The space's lists are already the enabled set; a second exclusion list here would
       // silently subtract one member's local preferences from everyone else's space.
       disabledImageIds: [],
+      selectedStartImageId: null,
+      selectedEndImageId: null,
       startEnabled: wantsScreens && defaults.startEnabled !== false,
       endEnabled: wantsScreens && defaults.endEnabled !== false,
       fitMode: defaults.fitMode,
@@ -172,6 +174,8 @@ export function screensFromResolved(
       startImages: start ? [asset(start)] : [],
       endImages: end ? [asset(end)] : [],
       disabledImageIds: [],
+      selectedStartImageId: null,
+      selectedEndImageId: null,
       startEnabled: wantsScreens && defaults.startEnabled !== false && start !== null,
       endEnabled: wantsScreens && defaults.endEnabled !== false && end !== null,
       fitMode: defaults.fitMode,

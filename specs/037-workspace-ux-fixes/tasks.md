@@ -145,10 +145,10 @@
 
 **Independent Test**: Choose one of several start and end images, enqueue videos, remove a selected image, and verify a clear failure rather than silent substitution.
 
-- [ ] T039 [US9] Add queue/settings regressions for explicit selection, removed/disabled asset, frozen queued jobs and old settings in `tests/image-embedding-selection.test.ts` (create if absent).
-- [ ] T040 [US9] Extend validated settings and migration defaults with nullable selected start/end IDs in `packages/shared/src/types.ts` and `apps/agent/src/queue/store.ts`; null retains current random behavior.
-- [ ] T041 [US9] Validate selected asset at enqueue/start and freeze it into `JobImageEmbedding` in `apps/agent/src/queue/queue.ts`, without changing the cross-platform managed spawn path.
-- [ ] T042 [US9] Add explicit single-choice controls and clear selection/error state in `apps/web/src/components/ImageEmbeddingSection.tsx` and relevant labels in `apps/web/src/i18n.ts`; distinguish explicit from random mode.
+- [x] T039 [US9] Add queue/settings regressions for explicit selection, removed/disabled asset, frozen queued jobs and old settings in the existing `tests/image-embedding.test.ts`, `tests/settings-validation.test.ts` and `tests/image-embedding-ui.test.tsx`.
+- [x] T040 [US9] Extend validated settings and migration defaults with nullable selected start/end IDs in `packages/shared/src/types.ts` and `apps/agent/src/queue/store.ts`; null retains current random behavior.
+- [x] T041 [US9] Validate selected asset at queue start and freeze it into `JobImageEmbedding` in `apps/agent/src/queue/queue.ts`, without changing the cross-platform managed spawn path.
+- [x] T042 [US9] Add explicit single-choice controls and clear selection/error state in `apps/web/src/components/ImageEmbeddingSection.tsx` and relevant labels in `apps/web/src/i18n.ts`; distinguish explicit from random mode.
 - [ ] T043 [US9] Add privacy-safe selected-image outcome and missing-signal diagnosis in `apps/agent/src/queue/queue.ts`, `scripts/analytics/coverage-registry.ts` and `tests/analytics-investigate-command.test.ts`; run macOS/Windows contract verification.
 
 **Checkpoint**: FR-016 passes without changing previously queued jobs.

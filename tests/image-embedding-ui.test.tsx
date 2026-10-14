@@ -448,6 +448,59 @@ function asset(fileName: string, id = 'asset-1'): ImageAsset {
 }
 
 describe('embedding image activity toggle (013 A2)', () => {
+  it('lets the user choose one start image or return to random selection', async () => {
+    const update = vi.fn();
+    const images = ['first', 'second'].map((name, index) => ({
+      id: `11111111-1111-4111-8111-11111111111${index}`,
+      fileName: `${name}.png`,
+      width: 10,
+      height: 10,
+      size: 100,
+      mimeType: 'image/png' as const,
+      extension: '.png' as const
+    }));
+    render(
+      <ImageEmbeddingSection
+        settings={{ ...defaultImageEmbeddingSettings(), enabled: true, startImages: images }}
+        disabled={false}
+        update={update}
+        uploadImages={vi.fn()}
+        removeImage={vi.fn()}
+        onValidityChange={vi.fn()}
+        t={key => key}
+      />
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: /startImageTitle: imageSelectionMode/ })
+    );
+    await userEvent.click(screen.getByRole('option', { name: 'second.png' }));
+    expect(update).toHaveBeenCalledWith({ selectedStartImageId: images[1]?.id });
+  });
+
+  it('shows a missing explicit image and blocks an invalid run', () => {
+    const onValidityChange = vi.fn();
+    render(
+      <ImageEmbeddingSection
+        settings={{
+          ...defaultImageEmbeddingSettings(),
+          enabled: true,
+          startImages: [],
+          selectedStartImageId: '11111111-1111-4111-8111-111111111111'
+        }}
+        disabled={false}
+        update={vi.fn()}
+        uploadImages={vi.fn()}
+        removeImage={vi.fn()}
+        onValidityChange={onValidityChange}
+        t={key => key}
+      />
+    );
+    expect(
+      screen.getAllByRole('alert').some(alert => alert.textContent === 'imageSelectionUnavailable')
+    ).toBe(true);
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+  });
+
   it('clicking a tile disables it and patches disabledImageIds', async () => {
     const update = vi.fn();
     const asset = {
@@ -468,6 +521,8 @@ describe('embedding image activity toggle (013 A2)', () => {
           startImages: [asset],
           endImages: [],
           disabledImageIds: [],
+          selectedStartImageId: null,
+          selectedEndImageId: null,
           replaceExisting: false,
           finalDurationMode: 'random-40-50',
           customFinalDurationSeconds: 2400,

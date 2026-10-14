@@ -364,6 +364,9 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
           (id): id is string => typeof id === 'string'
         )
       : [],
+    selectedStartImageId:
+      typeof raw.selectedStartImageId === 'string' ? raw.selectedStartImageId : null,
+    selectedEndImageId: typeof raw.selectedEndImageId === 'string' ? raw.selectedEndImageId : null,
     finalDurationMode:
       raw.finalDurationMode === 'random-30-40' ||
       raw.finalDurationMode === 'random-40-50' ||

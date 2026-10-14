@@ -142,6 +142,22 @@ export function parseSettingsPatch(
       }
       imageEmbedding.disabledImageIds = [...new Set(ids)];
     }
+    for (const [key, assets] of [
+      ['selectedStartImageId', imageEmbedding.startImages],
+      ['selectedEndImageId', imageEmbedding.endImages]
+    ] as const) {
+      const selected = body.imageEmbedding[key];
+      if (selected === undefined) continue;
+      if (
+        selected !== null &&
+        (typeof selected !== 'string' ||
+          !assets.some(asset => asset.id === selected) ||
+          imageEmbedding.disabledImageIds.includes(selected))
+      ) {
+        return { ok: false, error: 'IMAGE_UNAVAILABLE' };
+      }
+      imageEmbedding[key] = selected;
+    }
     if (body.imageEmbedding.replaceExisting !== undefined) {
       if (typeof body.imageEmbedding.replaceExisting !== 'boolean') {
         return { ok: false, error: 'Invalid replace-existing setting.' };

@@ -71,6 +71,8 @@ const library = {
     }
   ],
   disabledImageIds: [],
+  selectedStartImageId: null,
+  selectedEndImageId: null,
   replaceExisting: true,
   finalDurationMode: 'custom' as const,
   customFinalDurationSeconds: 6,

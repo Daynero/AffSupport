@@ -130,6 +130,9 @@ export interface ImageEmbeddingSettings {
   endImages: ImageAsset[];
   /** Images excluded from the random pick (toggled off by clicking the tile). */
   disabledImageIds: string[];
+  /** Null keeps the historical random pick from active images. */
+  selectedStartImageId: string | null;
+  selectedEndImageId: string | null;
   replaceExisting: boolean;
   finalDurationMode: FinalImageDurationMode;
   customFinalDurationSeconds: number;
@@ -204,6 +207,8 @@ export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
     startImages: [],
     endImages: [],
     disabledImageIds: [],
+    selectedStartImageId: null,
+    selectedEndImageId: null,
     replaceExisting: true,
     finalDurationMode: 'random-40-50',
     customFinalDurationSeconds: DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
@@ -330,7 +335,10 @@ export function activeEmbeddingImages(settings: ImageEmbeddingSettings, slot: 's
   }
   const disabled = new Set(settings.disabledImageIds ?? []);
   const assets = slot === 'start' ? settings.startImages : settings.endImages;
-  return assets.filter(asset => !disabled.has(asset.id));
+  const selectedId = slot === 'start' ? settings.selectedStartImageId : settings.selectedEndImageId;
+  return assets.filter(
+    asset => !disabled.has(asset.id) && (!selectedId || asset.id === selectedId)
+  );
 }
 
 export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageEmbedding | null {
