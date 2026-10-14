@@ -401,6 +401,41 @@
   --team-account-colour: var(--team-account-colour-dark);
 }
 
+.team-account.is-order-before,
+.team-account.is-order-after {
+  position: relative;
+}
+
+.team-account.is-order-before::before,
+.team-account.is-order-after::after,
+.team-agent-row.is-order-before::before,
+.team-agent-row.is-order-after::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  height: 2px;
+  background: var(--color-accent);
+  z-index: 1;
+}
+
+.team-account.is-order-before::before,
+.team-agent-row.is-order-before::before {
+  top: 0;
+}
+
+.team-account.is-order-after::after,
+.team-agent-row.is-order-after::after {
+  bottom: 0;
+}
+
+.team-order-handle {
+  cursor: grab;
+}
+
+.team-order-handle:active {
+  cursor: grabbing;
+}
+
 /* The head's surface: one clear step off the panel in either theme — up on
    dark, down on light — and far enough from the rows' 5% band that the two
    are never taken for one another. */

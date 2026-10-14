@@ -2,6 +2,7 @@
 import React from 'react';
 import {
   cleanup,
+  createEvent,
   fireEvent,
   render as renderRaw,
   screen,
@@ -271,6 +272,96 @@ describe('reading the list', () => {
 });
 
 describe('shared account order', () => {
+  it('moves both levels with keys and a pointer, then cancels a released drag', async () => {
+    const initial = fixture();
+    let serverRows = initial;
+    let socialsVersion = 4;
+    let agentsVersion = 2;
+    const api = client(initial);
+    api.listAccounts = vi.fn(async () => serverRows);
+    api.getAccountOrder = vi.fn(async () => ({
+      socialsVersion,
+      socialIds: serverRows.map(account => account.id),
+      agents: Object.fromEntries(
+        serverRows.map(account => [
+          account.id,
+          {
+            version: account.id === V31 ? agentsVersion : 0,
+            ids: account.agents.map(agent => agent.id)
+          }
+        ])
+      )
+    }));
+    api.reorderAccounts = vi.fn(async input => {
+      if (input.scopeId === TEAM_ID) {
+        serverRows = input.ids.map((id: string) => serverRows.find(account => account.id === id)!);
+        socialsVersion += 1;
+        return { status: 'applied' as const, version: socialsVersion, ids: input.ids };
+      }
+      serverRows = serverRows.map(account =>
+        account.id === input.scopeId
+          ? {
+              ...account,
+              agents: input.ids.map((id: string) => account.agents.find(agent => agent.id === id)!)
+            }
+          : account
+      );
+      agentsVersion += 1;
+      return { status: 'applied' as const, version: agentsVersion, ids: input.ids };
+    });
+    render(api);
+    const user = userEvent.setup();
+    const socialGrip = await screen.findByRole('button', { name: /Reorder social account v31/ });
+    await user.click(socialGrip);
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(groupNames()).toEqual(['v3', 'v31', 'v12']));
+    expect(api.reorderAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopeId: TEAM_ID,
+        expectedVersion: 4,
+        ids: [V3, V31, V12]
+      })
+    );
+
+    const target = screen.getByRole('region', { name: 'v3' });
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({ top: 0, height: 100 } as DOMRect);
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' };
+    fireEvent.dragStart(socialGrip, { dataTransfer });
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', V31);
+    const over = createEvent.dragOver(target, { dataTransfer });
+    Object.defineProperty(over, 'clientY', { value: 10 });
+    expect(fireEvent(target, over)).toBe(false);
+    const dropTarget = screen.getByRole('region', { name: 'v3' });
+    const drop = createEvent.drop(dropTarget, { dataTransfer });
+    Object.defineProperty(drop, 'clientY', { value: 10 });
+    fireEvent(dropTarget, drop);
+    expect(api.reorderAccounts).toHaveBeenCalledTimes(2);
+    expect(api.reorderAccounts).toHaveBeenLastCalledWith(expect.objectContaining({ ids: [V31, V3, V12] }));
+    await waitFor(() => expect(groupNames()).toEqual(['v31', 'v3', 'v12']));
+
+    fireEvent.dragStart(socialGrip, { dataTransfer });
+    fireEvent.dragEnd(socialGrip, { dataTransfer });
+    expect(api.reorderAccounts).toHaveBeenCalledTimes(2);
+
+    const agentGrip = screen.getByRole('button', { name: /Reorder ad account v31-434/ });
+    await user.click(agentGrip);
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() =>
+      expect(
+        rows()
+          .filter(row => row.closest('[data-account-id]')?.getAttribute('data-account-id') === V31)
+          .map(row => row.getAttribute('data-agent-row-id'))
+      ).toEqual([initial[0]!.agents[1]!.id, initial[0]!.agents[0]!.id])
+    );
+    expect(api.reorderAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopeId: V31,
+        expectedVersion: 2,
+        ids: [initial[0]!.agents[1]!.id, initial[0]!.agents[0]!.id]
+      })
+    );
+  }, 20_000);
+
   it('sends the version and shows the canonical order after a conflict', async () => {
     const first = fixture();
     let serverRows = first;

@@ -45,6 +45,7 @@ import { teamErrorMessageFor } from '../errors';
 import { copyText } from '../../two-factor/clipboard';
 import { buildTeamRoute } from '../routes';
 import { AgentEditRow, AgentRow, EditField } from './AgentRow';
+import { OrderHandle, type OrderInteraction } from './OrderHandle';
 import { Marked } from './Marked';
 import { agentCountKey, busyCountKey, freeCountKey, taskCountKey } from './plural';
 
@@ -135,6 +136,8 @@ export function AccountGroup({
   onUpdateAgent,
   onDeleteAgent,
   onMoveAgent,
+  accountOrder,
+  agentOrder,
   onAddRun,
   onUpdateRun,
   onDeleteRun,
@@ -166,6 +169,8 @@ export function AccountGroup({
   onDeleteAgent: (agent: TeamAccountAgentSummary) => Promise<void>;
   /** Opens the transfer of an agent to another social account. */
   onMoveAgent?: (agent: TeamAccountAgentSummary) => void;
+  accountOrder?: OrderInteraction;
+  agentOrder?: (agent: TeamAccountAgentSummary) => OrderInteraction;
   onAddRun: (agent: TeamAccountAgentSummary, note: string) => Promise<void>;
   onUpdateRun: (agent: TeamAccountAgentSummary, runId: string, note: string) => Promise<void>;
   onDeleteRun: (agent: TeamAccountAgentSummary, run: TeamAgentRun) => Promise<void>;
@@ -334,10 +339,12 @@ export function AccountGroup({
   return (
     <section
       ref={root}
-      className={`team-account${open ? '' : ' is-collapsed'}`}
+      className={`team-account${open ? '' : ' is-collapsed'}${accountOrder?.targetPosition ? ` is-order-${accountOrder.targetPosition}` : ''}`}
       aria-labelledby={nameId}
       data-account-id={account.id}
       style={{ '--team-account-hue': teamAccountHue(account.id) } as CSSProperties}
+      onDragOver={accountOrder?.onDragOver}
+      onDrop={accountOrder?.onDrop}
     >
       {renaming ? (
         <AccountNameRow
@@ -447,6 +454,7 @@ export function AccountGroup({
           {/* Nothing here folds the account: each of these is its own action,
               and the press stops before it reaches the strip. */}
           <div className="team-account-actions" onClick={event => event.stopPropagation()}>
+            {accountOrder && <OrderHandle interaction={accountOrder} />}
             {account.twoFactorSeed && (
               <button
                 type="button"
@@ -556,6 +564,7 @@ export function AccountGroup({
                     onToggleLabel={(labelId, next) => onToggleLabel(agent, labelId, next)}
                     onRelease={() => onRelease(agent)}
                     onMove={onMoveAgent ? () => onMoveAgent(agent) : undefined}
+                    order={agentOrder?.(agent)}
                     onDelete={() => onDeleteAgent(agent)}
                   />
                 )

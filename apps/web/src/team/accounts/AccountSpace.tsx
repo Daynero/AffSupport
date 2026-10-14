@@ -14,7 +14,16 @@
  * agents are different numbers, and the chips have only ever meant agents.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent
+} from 'react';
 import { ChevronsDownUp, ChevronsUpDown, Plus, Search, UserRound, X } from 'lucide-react';
 import {
   countTeamAccounts,
@@ -40,6 +49,8 @@ import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
 import { FinanceWorkspace } from './finance/FinanceWorkspace';
 import { MoveAgentDialog } from './finance/MoveAgentDialog';
+import { moveOrderedId } from './order';
+import type { OrderInteraction } from './OrderHandle';
 import { financeToday } from '@video-compressor/shared';
 
 export type AccountSpaceClient = AccountsClient & TaskLabelsClient;
@@ -115,6 +126,96 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   const [hold, setHold] = useState(false);
   /** The agent whose transfer dialog is open, from its row's "…" menu. */
   const [moving, setMoving] = useState<string | null>(null);
+  const [draggingOrder, setDraggingOrder] = useState<{ scopeId: string; id: string } | null>(null);
+  const [orderTarget, setOrderTarget] = useState<{
+    scopeId: string;
+    id: string;
+    position: 'before' | 'after';
+  } | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const orderEnabled =
+    canEdit &&
+    occupancy === 'all' &&
+    marker === 'all' &&
+    search.trim() === '' &&
+    editor === null &&
+    accounts.orderSnapshot !== null;
+
+  const scopeIds = (scopeId: string): string[] =>
+    scopeId === teamId
+      ? (accounts.orderSnapshot?.socialIds ?? [])
+      : (accounts.orderSnapshot?.agents[scopeId]?.ids ?? []);
+
+  const commitOrder = async (
+    scopeId: string,
+    sourceId: string,
+    targetId: string,
+    position: 'before' | 'after'
+  ) => {
+    const next = moveOrderedId(scopeIds(scopeId), sourceId, targetId, position);
+    if (!next) return;
+    setReordering(true);
+    try {
+      const result = await accounts.reorderScope(scopeId, next);
+      if (result.status === 'conflict') push({ tone: 'warning', text: t('teamOrderConflict') });
+    } catch {
+      push({ tone: 'error', text: t('teamOrderFailed') });
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  const orderInteraction = (scopeId: string, id: string, label: string): OrderInteraction => ({
+    label,
+    targetPosition:
+      orderTarget?.scopeId === scopeId && orderTarget.id === id ? orderTarget.position : null,
+    onDragStart: (event: DragEvent<HTMLElement>) => {
+      if (reordering) {
+        event.preventDefault();
+        return;
+      }
+      event.stopPropagation();
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', id);
+      setDraggingOrder({ scopeId, id });
+    },
+    onDragOver: (event: DragEvent<HTMLElement>) => {
+      if (reordering || draggingOrder?.scopeId !== scopeId || draggingOrder.id === id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      setOrderTarget({
+        scopeId,
+        id,
+        position: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+      });
+    },
+    onDrop: (event: DragEvent<HTMLElement>) => {
+      if (draggingOrder?.scopeId !== scopeId || draggingOrder.id === id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const position = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+      setDraggingOrder(null);
+      setOrderTarget(null);
+      void commitOrder(scopeId, draggingOrder.id, id, position);
+    },
+    onDragEnd: () => {
+      setDraggingOrder(null);
+      setOrderTarget(null);
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (reordering) return;
+      const ids = scopeIds(scopeId);
+      const index = ids.indexOf(id);
+      const step = event.key === 'ArrowUp' ? -1 : 1;
+      const neighbor = ids[index + step];
+      if (neighbor) void commitOrder(scopeId, id, neighbor, step < 0 ? 'before' : 'after');
+    }
+  });
   // The transfer dialog only needs who is where; the list already knows.
   const moveSnapshot = useMemo(
     () => ({
@@ -630,6 +731,27 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                   account={accounts.accounts.find(item => item.id === account.id) ?? account}
                   visibleAgents={account.agents}
                   canEdit={canEdit}
+                  accountOrder={
+                    orderEnabled
+                      ? orderInteraction(
+                          teamId,
+                          account.id,
+                          t('teamAccountReorder', { name: account.name })
+                        )
+                      : undefined
+                  }
+                  agentOrder={
+                    orderEnabled
+                      ? agent =>
+                          orderInteraction(
+                            account.id,
+                            agent.id,
+                            t('teamAgentReorder', {
+                              name: teamAgentLabel(account.name, agent.agentId)
+                            })
+                          )
+                      : undefined
+                  }
                   collapsed={collapsed.has(account.id)}
                   onCollapsedChange={value => setAccountCollapsed(account.id, value)}
                   editing={

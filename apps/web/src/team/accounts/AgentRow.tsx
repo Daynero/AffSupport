@@ -62,6 +62,7 @@ import { useTeam } from '../TeamContext';
 import { copyText } from '../../two-factor/clipboard';
 import { runCountKey, taskCountKey } from './plural';
 import { Popover } from '../../components/ui/index';
+import { OrderHandle, type OrderInteraction } from './OrderHandle';
 
 const ICON = 18;
 
@@ -369,6 +370,7 @@ export function AgentRow({
   onToggleLabel,
   onRelease,
   onMove,
+  order,
   onDelete
 }: {
   agent: TeamAccountAgentSummary;
@@ -395,6 +397,7 @@ export function AgentRow({
   onRelease: () => Promise<void>;
   /** Opens the transfer to another social account; absent when there is none. */
   onMove?: () => void;
+  order?: OrderInteraction;
   onDelete: () => Promise<void>;
 }) {
   const { t, language } = useI18n();
@@ -529,10 +532,12 @@ export function AgentRow({
 
   return (
     <li
-      className={`team-agent-row${free ? ' is-free' : ''}${pending ? ' is-pending' : ''}`}
+      className={`team-agent-row${free ? ' is-free' : ''}${pending ? ' is-pending' : ''}${order?.targetPosition ? ` is-order-${order.targetPosition}` : ''}`}
       data-agent-row-id={agent.id}
       data-free={free ? 'true' : 'false'}
       aria-busy={pending || undefined}
+      onDragOver={order?.onDragOver}
+      onDrop={order?.onDrop}
     >
       <span className="team-agent-rail" aria-hidden="true" />
       {/* The agent's identity is `v31-434` — the account and the tail of the
@@ -542,6 +547,7 @@ export function AgentRow({
           thing, and the identity itself no longer spends the row's largest
           target on it. */}
       <div className="team-agent-id">
+        {order && <OrderHandle interaction={order} />}
         <span
           className={`team-agent-tag${free ? ' is-free' : ''}${revealed ? ' is-revealed' : ''}`}
           title={tooltip}
