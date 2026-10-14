@@ -1582,6 +1582,7 @@ export async function getInvestigation(
     });
   }
   for (const copy of taskCopies.filter(copy => copy.status !== 'confirmed')) {
+    const location = lookupCodeLocations('team:task_copy:unconfirmed');
     findings.push({
       id: hashId(['task_copy_unconfirmed', copy.request_id]),
       kind: 'insufficient',
@@ -1591,7 +1592,7 @@ export async function getInvestigation(
       evidence: attemptsById.get(copy.request_id)?.event_id
         ? [`event:${attemptsById.get(copy.request_id)!.event_id}`]
         : [],
-      code_locations: [],
+      code_locations: location ? [location] : [],
       next_step:
         'Retry the same request ID; the server will replay a committed copy instead of making another.'
     });
@@ -1650,6 +1651,7 @@ export async function getInvestigation(
   for (const order of accountOrders.filter(
     order => order.status === 'unknown' || order.status === 'receipt_unavailable'
   )) {
+    const location = lookupCodeLocations('team:account_order:unconfirmed');
     findings.push({
       id: hashId(['account_order_unconfirmed', order.request_id]),
       kind: 'insufficient',
@@ -1659,7 +1661,7 @@ export async function getInvestigation(
       evidence: orderAttemptsById.get(order.request_id)?.event_id
         ? [`event:${orderAttemptsById.get(order.request_id)!.event_id}`]
         : [],
-      code_locations: [],
+      code_locations: location ? [location] : [],
       next_step: 'Read the canonical order and version before retrying this request ID.'
     });
   }
@@ -1714,7 +1716,8 @@ export async function getInvestigation(
     });
   for (const group of bulkTrash.filter(
     group => group.status === 'unknown' || group.status === 'receipt_unavailable'
-  ))
+  )) {
+    const location = lookupCodeLocations('team:bulk_trash:unconfirmed');
     findings.push({
       id: hashId(['bulk_trash_unconfirmed', group.request_id]),
       kind: 'insufficient',
@@ -1724,9 +1727,10 @@ export async function getInvestigation(
       evidence: bulkAttemptsById.get(group.request_id)?.event_id
         ? [`event:${bulkAttemptsById.get(group.request_id)!.event_id}`]
         : [],
-      code_locations: [],
+      code_locations: location ? [location] : [],
       next_step: 'Read the hosted group receipt and retry only unresolved items.'
     });
+  }
 
   const taskOrphans: InvestigateData['task_orphans'] = (orphanReceipts ?? []).map(receipt => ({
     intent_id: receipt.intent_id,

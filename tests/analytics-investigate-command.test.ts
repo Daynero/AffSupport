@@ -494,6 +494,10 @@ describe('investigate · task copy receipt', () => {
       }
     ]);
     expect(finding(data, 'task_copy_unconfirmed').kind).toBe('insufficient');
+    expect(finding(data, 'task_copy_unconfirmed').code_locations[0]).toMatchObject({
+      matched: 'team:task_copy:unconfirmed',
+      files: expect.arrayContaining(['apps/web/src/team/tasks/useTaskClipboard.ts'])
+    });
     expect(investigateOutputIsPrivate(data)).toBe(true);
   });
 });
@@ -508,6 +512,10 @@ describe('investigate · account order receipt', () => {
     ]);
     expect(data.account_orders[2]).toMatchObject({ scope_kind: 'socials', result_version: 5 });
     expect(finding(data, 'account_order_unconfirmed').kind).toBe('insufficient');
+    expect(finding(data, 'account_order_unconfirmed').code_locations[0]).toMatchObject({
+      matched: 'team:account_order:unconfirmed',
+      files: expect.arrayContaining(['apps/web/src/team/accounts/useAccounts.ts'])
+    });
     expect(investigateOutputIsPrivate(data)).toBe(true);
   });
 });
@@ -527,6 +535,10 @@ describe('investigate · bulk trash receipt', () => {
       error_codes: ['PROVIDER_FAILURE']
     });
     expect(finding(data, 'bulk_trash_unconfirmed').kind).toBe('insufficient');
+    expect(finding(data, 'bulk_trash_unconfirmed').code_locations[0]).toMatchObject({
+      matched: 'team:bulk_trash:unconfirmed',
+      files: expect.arrayContaining(['apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx'])
+    });
     expect(investigateOutputIsPrivate(data)).toBe(true);
   });
 });

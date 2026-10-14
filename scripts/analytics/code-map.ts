@@ -840,6 +840,27 @@ function build(): Record<string, CodeLocation> {
     ],
     check: 'Check the verified upload marker, live references and server cleanup deadline.'
   };
+  map['team:task_copy:unconfirmed'] = {
+    files: [
+      'apps/web/src/team/tasks/useTaskClipboard.ts',
+      'supabase/migrations/20261203100000_task_copy_idempotency.sql'
+    ],
+    check: 'Compare the persisted request identifier with the hosted copy receipt before retrying.'
+  };
+  map['team:account_order:unconfirmed'] = {
+    files: [
+      'apps/web/src/team/accounts/useAccounts.ts',
+      'supabase/migrations/20261203102000_account_order.sql'
+    ],
+    check: 'Read the canonical order and version for the same request before retrying.'
+  };
+  map['team:bulk_trash:unconfirmed'] = {
+    files: [
+      'apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx',
+      'supabase/migrations/20261203101500_bulk_trash_receipts.sql'
+    ],
+    check: 'Read the hosted group and item receipts before retrying unresolved items.'
+  };
   return map;
 }
 

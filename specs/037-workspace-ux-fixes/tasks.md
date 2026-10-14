@@ -188,7 +188,7 @@
 
 **Goal**: Verify all stories together and close diagnostic coverage gaps.
 
-- [ ] T051 Reconcile capability inventory, closed failure codes and end-to-end read-only CLI diagnosis for all changed journeys in `scripts/analytics/coverage-registry.ts`, `scripts/analytics/code-map.ts`, `scripts/analytics/queries.ts` and `tests/analytics-code-map.test.ts`; mark genuinely unobservable stages as blind spots.
+- [x] T051 Reconcile capability inventory, closed failure codes and end-to-end read-only CLI diagnosis for all changed journeys in `scripts/analytics/coverage-registry.ts`, `scripts/analytics/code-map.ts`, `scripts/analytics/queries.ts` and `tests/analytics-code-map.test.ts`; mark genuinely unobservable stages as blind spots. The unconfirmed copy, order and bulk-trash findings now point to their client and hosted receipt code; archive remains explicitly unsupported until its dependency lands.
 - [ ] T052 Run focused tests for touched modules, `npm run verify`, and migration/agent release gates via `npm run verify:release`; record results and any unresolved limitation in `specs/037-workspace-ux-fixes/quickstart.md`.
 - [ ] T053 Execute the independent scenarios in `specs/037-workspace-ux-fixes/quickstart.md`, including two-user conflicts, timed 50-file partial trash with authoritative reconnect, 30-second Undo/worker recovery/concurrent references, keyboard/200% zoom and macOS/Windows image selection; record observed outcomes in that file.
 - [ ] T054 Check changed UI against `docs/DESIGN.md` and `docs/DESIGN-PRINCIPLES.md`, including token and Tailwind gates, and finish any required adjustments in `apps/web/src/team/` and `apps/web/src/components/`.
