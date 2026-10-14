@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(12);
+select plan(16);
 
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
 ('bd370000-0000-4000-8000-000000000001','authenticated','authenticated','orphan-owner@example.test','{}','{}'),
@@ -76,6 +76,26 @@ select is((select state from private.team_task_orphan_intents where material_id=
 select is((select state from private.team_task_orphan_intents where material_id=
  'bd370000-0000-4000-8000-000000000022'),'cleanup_unverified',
  'unknown provenance stays retained');
+select is(private.sweep_task_orphan_uncertainty(),0,
+ 'worker does not settle an intent before its server deadline');
+update private.team_task_orphan_intents set cleanup_not_before=clock_timestamp()-interval '1 second'
+ where material_id='bd370000-0000-4000-8000-000000000021';
+select is(private.sweep_task_orphan_uncertainty(),0,
+ 'cancelled Undo stays cancelled after the deadline');
+insert into public.team_task_attachments(team_id,task_id,material_id,position,attached_by) values
+('bd370000-0000-4000-8000-000000000010','bd370000-0000-4000-8000-000000000030',
+ 'bd370000-0000-4000-8000-000000000022',1,'bd370000-0000-4000-8000-000000000001');
+select public.detach_team_task_material_v2('bd370000-0000-4000-8000-000000000010',
+ 'bd370000-0000-4000-8000-000000000030','bd370000-0000-4000-8000-000000000021');
+update private.team_task_orphan_intents set cleanup_not_before=clock_timestamp()-interval '1 second'
+ where material_id='bd370000-0000-4000-8000-000000000021' and state='waiting';
+select private.invoke_catalog_updater_worker();
+select is((select state from private.team_task_orphan_intents where material_id=
+ 'bd370000-0000-4000-8000-000000000021' and state='cleanup_unverified'),
+ 'cleanup_unverified','minute-scheduled updater settles a due task orphan without provider trash');
+select is((select reason_code from private.team_task_orphan_intents where material_id=
+ 'bd370000-0000-4000-8000-000000000021' and state='cleanup_unverified'),
+ 'LAUNCH_REFERENCE_UNVERIFIED','unintegrated Launches references remain an explicit reason');
 select ok(position('orphan-b' in (select row_to_json(r)::text from public.analytics_task_orphan_receipts r
  where actor_id='bd370000-0000-4000-8000-000000000001' and state='cleanup_unverified'))=0,
  'diagnostic receipt contains no file identity');

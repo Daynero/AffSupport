@@ -58,7 +58,7 @@
 - [ ] T015 [US2] Wire due task-orphan claims into the existing minute-scheduled `supabase/functions/catalog-updater/index.ts` worker and recovery lease in `supabase/migrations/20261203101200_task_orphan_dispatch.sql`; test worker-off/restart, bounded retry and confirmation within five minutes after deadline in `supabase/tests/database/team-task-orphan-cleanup.test.sql` (create if absent).
 - [x] T016 [US2] Add a visible, accessible quick detach control and pending/error feedback in `apps/web/src/team/tasks/TaskAttachmentTile.tsx` and `apps/web/src/team/tasks/TaskEditor.tsx`; show the existing 14-second Undo action only if at least 20 seconds remain before the server deadline; after a late response, show status without a false Undo promise.
 - [x] T017 [US2] Update typed detach/cleanup results in `apps/web/src/api/team.ts` and `packages/shared/src/team/tasks.ts` so the UI receives the server Undo deadline and distinguishes detached, waiting, retained, confirmed-in-trash and failed without claiming reclaimed storage quota.
-- [ ] T018 [US2] Prove the postcondition and reason codes through read-only diagnosis in `scripts/analytics/queries.ts`, `scripts/analytics/code-map.ts` and `tests/analytics-investigate-command.test.ts`.
+- [x] T018 [US2] Prove the postcondition and reason codes through read-only diagnosis in `scripts/analytics/queries.ts`, `scripts/analytics/code-map.ts` and `tests/analytics-investigate-command.test.ts`.
 
 **Checkpoint**: FR-005–006, SC-002 and SC-007 pass; confirmed owned orphans reach trash, while unverified files and worker outages remain explicit.
 

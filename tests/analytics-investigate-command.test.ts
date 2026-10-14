@@ -447,7 +447,10 @@ beforeAll(async () => {
      attempt_count,updated_at,has_operation) values
     ('${U_ORDER}','6e000000-0000-4000-8000-000000000001',
      '2026-10-08T13:00:00Z','2026-10-08T13:00:30Z',
-     'cleanup_unverified','PROVENANCE_UNKNOWN',0,'2026-10-08T13:00:00Z',false)`);
+     'cleanup_unverified','PROVENANCE_UNKNOWN',0,'2026-10-08T13:00:00Z',false),
+    ('${U_ORDER}','6e000000-0000-4000-8000-000000000002',
+     '2026-10-08T13:01:00Z','2026-10-08T13:01:30Z',
+     'confirmed_in_trash',null,1,'2026-10-08T13:02:00Z',true)`);
 }, 60_000);
 
 afterAll(async () => {
@@ -531,9 +534,11 @@ describe('investigate · bulk trash receipt', () => {
 describe('investigate · task orphan receipt', () => {
   it('explains retained cleanup by stable reason without a task ID, material ID or path', async () => {
     const data = await investigate('order@example.test');
-    expect(data.task_orphans).toMatchObject([
-      { status: 'cleanup_unverified', reason_code: 'PROVENANCE_UNKNOWN', has_operation: false }
+    expect(data.task_orphans.map(row => [row.status, row.has_operation])).toEqual([
+      ['confirmed_in_trash', true],
+      ['cleanup_unverified', false]
     ]);
+    expect(data.task_orphans[1]?.reason_code).toBe('PROVENANCE_UNKNOWN');
     expect(finding(data, 'task_orphan_not_confirmed')).toMatchObject({
       kind: 'fact',
       fingerprint: 'task-orphan:PROVENANCE_UNKNOWN'
