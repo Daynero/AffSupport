@@ -5,13 +5,23 @@ import { query, queryOne } from './db.js';
 export async function getAccountOrderReceipts(
   userId: string | null,
   period: ResolvedPeriod
-): Promise<Array<{ request_id: string; scope_kind: string; result_version: number; created_at: string }> | null> {
+): Promise<Array<{
+  request_id: string;
+  scope_kind: string;
+  result_version: number;
+  created_at: string;
+}> | null> {
   if (!userId) return [];
   const available = await queryOne<{ present: boolean }>(
     "select to_regclass('public.analytics_account_order_receipts') is not null as present"
   );
   if (!available?.present) return null;
-  const rows = await query<{ request_id: string; scope_kind: string; result_version: number; created_at: string }>(
+  const rows = await query<{
+    request_id: string;
+    scope_kind: string;
+    result_version: number;
+    created_at: string;
+  }>(
     `select request_id::text as request_id, scope_kind, result_version, created_at::text as created_at
        from public.analytics_account_order_receipts
       where actor_id = $3::uuid

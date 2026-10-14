@@ -336,7 +336,9 @@ describe('shared account order', () => {
     Object.defineProperty(drop, 'clientY', { value: 10 });
     fireEvent(dropTarget, drop);
     expect(api.reorderAccounts).toHaveBeenCalledTimes(2);
-    expect(api.reorderAccounts).toHaveBeenLastCalledWith(expect.objectContaining({ ids: [V31, V3, V12] }));
+    expect(api.reorderAccounts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ids: [V31, V3, V12] })
+    );
     await waitFor(() => expect(groupNames()).toEqual(['v31', 'v3', 'v12']));
 
     fireEvent.dragStart(socialGrip, { dataTransfer });

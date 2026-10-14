@@ -22,7 +22,11 @@ export function OrderHandle({ interaction }: { interaction: OrderInteraction }) 
       onDragStart={interaction.onDragStart}
       onDragEnd={interaction.onDragEnd}
     >
-      <IconButton label={interaction.label} title={interaction.label} onKeyDown={interaction.onKeyDown}>
+      <IconButton
+        label={interaction.label}
+        title={interaction.label}
+        onKeyDown={interaction.onKeyDown}
+      >
         <GripVertical size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
       </IconButton>
     </span>

@@ -15,11 +15,23 @@ const G2 = '8a000000-0000-4000-8000-000000000006';
 
 function row(id: string, agentIds: string[] = []): TeamAccountSummary {
   return {
-    id, teamId: TEAM, name: id, createdAt: '2026-10-01', updatedAt: '2026-10-01',
+    id,
+    teamId: TEAM,
+    name: id,
+    createdAt: '2026-10-01',
+    updatedAt: '2026-10-01',
     agents: agentIds.map(agentId => ({
-      id: agentId, accountId: id, teamId: TEAM, agentId,
-      createdAt: '2026-10-01', updatedAt: '2026-10-01', runs: [], labels: [],
-      balance: null, topup: null, taskCount: 0
+      id: agentId,
+      accountId: id,
+      teamId: TEAM,
+      agentId,
+      createdAt: '2026-10-01',
+      updatedAt: '2026-10-01',
+      runs: [],
+      labels: [],
+      balance: null,
+      topup: null,
+      taskCount: 0
     }))
   };
 }
@@ -35,10 +47,13 @@ describe('saved account order across two clients', () => {
     const connection = {
       channel: vi.fn(() => {
         const channel = {
-          on: vi.fn((_kind: string, filter: { table: string }, callback: (event: unknown) => void) => {
-            if (filter.table === 'team_accounts' || filter.table === 'team_account_agents') listeners.push(callback);
-            return channel;
-          }),
+          on: vi.fn(
+            (_kind: string, filter: { table: string }, callback: (event: unknown) => void) => {
+              if (filter.table === 'team_accounts' || filter.table === 'team_account_agents')
+                listeners.push(callback);
+              return channel;
+            }
+          ),
           subscribe: vi.fn(() => channel)
         };
         return channel;
@@ -52,23 +67,36 @@ describe('saved account order across two clients', () => {
     vi.spyOn(teamApi, 'getAccountOrder').mockImplementation(async () => ({
       socialsVersion: socialVersion,
       socialIds: rows.map(item => item.id),
-      agents: Object.fromEntries(rows.map(item => [item.id, {
-        version: item.id === A ? agentVersion : 0,
-        ids: item.agents.map(agent => agent.id)
-      }]))
+      agents: Object.fromEntries(
+        rows.map(item => [
+          item.id,
+          {
+            version: item.id === A ? agentVersion : 0,
+            ids: item.agents.map(agent => agent.id)
+          }
+        ])
+      )
     }));
     const reorder = vi.spyOn(teamApi, 'reorderAccounts').mockImplementation(async input => {
       const version = input.scopeId === TEAM ? socialVersion : agentVersion;
-      const canonical = input.scopeId === TEAM ? rows.map(item => item.id) : rows.find(item => item.id === A)!.agents.map(agent => agent.id);
+      const canonical =
+        input.scopeId === TEAM
+          ? rows.map(item => item.id)
+          : rows.find(item => item.id === A)!.agents.map(agent => agent.id);
       if (input.expectedVersion !== version) return { status: 'conflict', version, ids: canonical };
       if (input.scopeId === TEAM) {
         rows = input.ids.map(id => rows.find(item => item.id === id)!);
         socialVersion += 1;
         return { status: 'applied', version: socialVersion, ids: input.ids };
       }
-      rows = rows.map(item => item.id === A ? {
-        ...item, agents: input.ids.map(id => item.agents.find(agent => agent.id === id)!)
-      } : item);
+      rows = rows.map(item =>
+        item.id === A
+          ? {
+              ...item,
+              agents: input.ids.map(id => item.agents.find(agent => agent.id === id)!)
+            }
+          : item
+      );
       agentVersion += 1;
       return { status: 'applied', version: agentVersion, ids: input.ids };
     });
@@ -77,22 +105,32 @@ describe('saved account order across two clients', () => {
     await waitFor(() => expect(second.result.current.orderSnapshot?.socialsVersion).toBe(0));
 
     await act(async () => {
-      expect(await first.result.current.reorderScope(TEAM, [C, A, B])).toMatchObject({ status: 'applied' });
+      expect(await first.result.current.reorderScope(TEAM, [C, A, B])).toMatchObject({
+        status: 'applied'
+      });
     });
     act(() => listeners.forEach(listener => listener({})));
-    await waitFor(() => expect(second.result.current.accounts.map(item => item.id)).toEqual([C, A, B]));
+    await waitFor(() =>
+      expect(second.result.current.accounts.map(item => item.id)).toEqual([C, A, B])
+    );
     expect(second.result.current.orderSnapshot?.socialsVersion).toBe(1);
 
     await act(async () => {
-      expect(await second.result.current.reorderScope(A, [G2, G1])).toMatchObject({ status: 'applied' });
+      expect(await second.result.current.reorderScope(A, [G2, G1])).toMatchObject({
+        status: 'applied'
+      });
     });
     act(() => listeners.forEach(listener => listener({})));
-    await waitFor(() => expect(first.result.current.orderSnapshot?.agents[A]?.ids).toEqual([G2, G1]));
+    await waitFor(() =>
+      expect(first.result.current.orderSnapshot?.agents[A]?.ids).toEqual([G2, G1])
+    );
 
     rows = [row(B), row(C), row(A, [G2, G1])];
     socialVersion = 2;
     await act(async () => {
-      expect(await first.result.current.reorderScope(TEAM, [A, B, C])).toMatchObject({ status: 'conflict' });
+      expect(await first.result.current.reorderScope(TEAM, [A, B, C])).toMatchObject({
+        status: 'conflict'
+      });
     });
     expect(first.result.current.accounts.map(item => item.id)).toEqual([B, C, A]);
     expect(reorder).toHaveBeenLastCalledWith(expect.objectContaining({ expectedVersion: 1 }));
@@ -106,13 +144,17 @@ describe('saved account order across two clients', () => {
     vi.spyOn(supabaseModule, 'getSupabaseClient').mockReturnValue(null);
     vi.spyOn(teamApi, 'listAccounts').mockResolvedValue(rows);
     vi.spyOn(teamApi, 'getAccountOrder').mockResolvedValue({
-      socialsVersion: 3, socialIds: [A, B], agents: { [A]: { version: 0, ids: [] }, [B]: { version: 0, ids: [] } }
+      socialsVersion: 3,
+      socialIds: [A, B],
+      agents: { [A]: { version: 0, ids: [] }, [B]: { version: 0, ids: [] } }
     });
     vi.spyOn(teamApi, 'reorderAccounts').mockRejectedValue(new Error('PERMISSION_DENIED'));
     const view = renderHook(() => useAccounts({ teamId: TEAM }));
     await waitFor(() => expect(view.result.current.orderSnapshot?.socialsVersion).toBe(3));
     await act(async () => {
-      await expect(view.result.current.reorderScope(TEAM, [B, A])).rejects.toThrow('PERMISSION_DENIED');
+      await expect(view.result.current.reorderScope(TEAM, [B, A])).rejects.toThrow(
+        'PERMISSION_DENIED'
+      );
     });
     expect(view.result.current.accounts.map(item => item.id)).toEqual([A, B]);
   });

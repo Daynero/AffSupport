@@ -380,13 +380,42 @@ beforeAll(async () => {
   await db.exec(`insert into public.analytics_task_copy_receipts
     (actor_id, request_id, result_count, created_at) values
     ('${U_COPY}', '${COPY_CONFIRMED}', 2, '2026-10-08T10:00:01Z')`);
-  await db.exec(insertEvents([
-    { user: U_ORDER, name: 'team_workflow_started', at: '2026-10-08T11:00:00Z', props: { action: 'reorder', workflow_id: ORDER_CONFIRMED } },
-    { user: U_ORDER, name: 'team_workflow_completed', at: '2026-10-08T11:00:01Z', outcome: 'success', props: { action: 'reorder', workflow_id: ORDER_CONFIRMED } },
-    { user: U_ORDER, name: 'team_workflow_started', at: '2026-10-08T11:01:00Z', props: { action: 'reorder', workflow_id: ORDER_UNKNOWN } },
-    { user: U_ORDER, name: 'team_workflow_started', at: '2026-10-08T11:02:00Z', props: { action: 'reorder', workflow_id: ORDER_CONFLICT } },
-    { user: U_ORDER, name: 'team_workflow_completed', at: '2026-10-08T11:02:01Z', outcome: 'blocked', props: { action: 'reorder', workflow_id: ORDER_CONFLICT } }
-  ]));
+  await db.exec(
+    insertEvents([
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:00:00Z',
+        props: { action: 'reorder', workflow_id: ORDER_CONFIRMED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_completed',
+        at: '2026-10-08T11:00:01Z',
+        outcome: 'success',
+        props: { action: 'reorder', workflow_id: ORDER_CONFIRMED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:01:00Z',
+        props: { action: 'reorder', workflow_id: ORDER_UNKNOWN }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:02:00Z',
+        props: { action: 'reorder', workflow_id: ORDER_CONFLICT }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_completed',
+        at: '2026-10-08T11:02:01Z',
+        outcome: 'blocked',
+        props: { action: 'reorder', workflow_id: ORDER_CONFLICT }
+      }
+    ])
+  );
   await db.exec(`insert into public.analytics_account_order_receipts
     (actor_id, request_id, scope_kind, result_version, created_at) values
     ('${U_ORDER}', '${ORDER_CONFIRMED}', 'socials', 5, '2026-10-08T11:00:01Z')`);

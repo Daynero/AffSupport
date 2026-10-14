@@ -17,7 +17,13 @@ import { createHash } from 'node:crypto';
 import { lookupCodeLocations } from './code-map.js';
 import { capabilityById } from './coverage-registry.js';
 import { query, queryOne } from './db.js';
-import { getAccountOrderReceipts, getInspect, getSyncJobs, getTaskCopyReceipts, isoUtc } from './queries.js';
+import {
+  getAccountOrderReceipts,
+  getInspect,
+  getSyncJobs,
+  getTaskCopyReceipts,
+  isoUtc
+} from './queries.js';
 import { eventColumnSql, getSchema, hasEnvelopeV3, schemaSummary } from './schema.js';
 import { sanitizeEventProperties, type SanitizedProperties } from './sanitize.js';
 import type {
@@ -1590,13 +1596,21 @@ export async function getInvestigation(
     row => row.event_name === 'team_workflow_started' && row.props.action === 'reorder'
   );
   const orderResults = new Map(
-    rows.filter(row => row.event_name === 'team_workflow_completed' && row.props.action === 'reorder' && row.workflow_id)
+    rows
+      .filter(
+        row =>
+          row.event_name === 'team_workflow_completed' &&
+          row.props.action === 'reorder' &&
+          row.workflow_id
+      )
       .map(row => [row.workflow_id!, row] as const)
   );
   const orderAttemptsById = new Map(
     orderAttempts.filter(row => row.workflow_id).map(row => [row.workflow_id!, row] as const)
   );
-  const orderReceiptsById = new Map(orderReceipts?.map(row => [row.request_id, row] as const) ?? []);
+  const orderReceiptsById = new Map(
+    orderReceipts?.map(row => [row.request_id, row] as const) ?? []
+  );
   const accountOrders = [...new Set([...orderAttemptsById.keys(), ...orderReceiptsById.keys()])]
     .map(requestId => {
       const attempt = orderAttemptsById.get(requestId);
@@ -1604,9 +1618,13 @@ export async function getInvestigation(
       const receipt = orderReceiptsById.get(requestId);
       return {
         request_id: requestId,
-        status: receipt ? ('confirmed' as const)
-          : result?.outcome === 'blocked' ? ('conflict' as const)
-          : orderReceipts === null ? ('receipt_unavailable' as const) : ('unknown' as const),
+        status: receipt
+          ? ('confirmed' as const)
+          : result?.outcome === 'blocked'
+            ? ('conflict' as const)
+            : orderReceipts === null
+              ? ('receipt_unavailable' as const)
+              : ('unknown' as const),
         scope_kind: receipt?.scope_kind ?? null,
         result_version: receipt?.result_version ?? null,
         attempted_at: attempt?.occurred_at ?? null,
@@ -1619,11 +1637,14 @@ export async function getInvestigation(
   if (orderReceipts === null && orderAttempts.length > 0) {
     blindSpots.push({
       kind: 'account_order_receipts_unavailable',
-      detail: 'The read-only account order receipt view is unavailable; order commits cannot be confirmed.',
+      detail:
+        'The read-only account order receipt view is unavailable; order commits cannot be confirmed.',
       values: []
     });
   }
-  for (const order of accountOrders.filter(order => order.status === 'unknown' || order.status === 'receipt_unavailable')) {
+  for (const order of accountOrders.filter(
+    order => order.status === 'unknown' || order.status === 'receipt_unavailable'
+  )) {
     findings.push({
       id: hashId(['account_order_unconfirmed', order.request_id]),
       kind: 'insufficient',
@@ -1631,7 +1652,8 @@ export async function getInvestigation(
       rule: 'account_order_unconfirmed',
       title: 'Account order outcome is unconfirmed',
       evidence: orderAttemptsById.get(order.request_id)?.event_id
-        ? [`event:${orderAttemptsById.get(order.request_id)!.event_id}`] : [],
+        ? [`event:${orderAttemptsById.get(order.request_id)!.event_id}`]
+        : [],
       code_locations: [],
       next_step: 'Read the canonical order and version before retrying this request ID.'
     });
