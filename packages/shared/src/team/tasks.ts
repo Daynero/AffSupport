@@ -15,6 +15,12 @@ export const TEAM_TASK_PAGE_SIZE_MAX = 100;
 export type TeamTaskCleanupState =
   'waiting' | 'cleanup_unverified' | 'claimed' | 'confirmed_in_trash' | 'failed' | 'cancelled';
 
+export const TEAM_TASK_ORPHAN_REASON_CODES = [
+  'PROVENANCE_UNKNOWN',
+  'LAUNCH_REFERENCE_UNVERIFIED'
+] as const;
+export type TeamTaskOrphanReasonCode = (typeof TEAM_TASK_ORPHAN_REASON_CODES)[number];
+
 export type TeamTaskDetachResult =
   | {
       detached: false;

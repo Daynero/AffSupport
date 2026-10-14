@@ -1,7 +1,9 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(18);
+select plan(19);
+select ok(exists(select 1 from public.team_error_codes where code='UNVERIFIED_UPLOAD'),
+ 'unverified upload rejection is in the hosted closed code list');
 
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
 ('bd370000-0000-4000-8000-000000000001','authenticated','authenticated','orphan-owner@example.test','{}','{}'),

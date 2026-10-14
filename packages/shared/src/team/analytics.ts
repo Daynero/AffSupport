@@ -38,6 +38,31 @@ export const TEAM_ANALYTICS_EVENT_NAMES = [
 ] as const;
 export type TeamAnalyticsEventName = (typeof TEAM_ANALYTICS_EVENT_NAMES)[number];
 
+/** Bounded diagnostic contract for the 037 journeys; unsupported stages stay explicit. */
+export const TEAM_WORKSPACE_DIAGNOSTIC_JOURNEYS = {
+  task_copy: { correlate: 'workflow_id', stages: ['attempted', 'committed', 'delivered'] },
+  task_detach: {
+    correlate: 'intent_id',
+    stages: ['detached', 'grace', 'reference_check', 'provider_trash', 'confirmed']
+  },
+  bulk_trash: {
+    correlate: 'workflow_id',
+    stages: ['intent', 'item_attempt', 'operation_receipt', 'lifecycle_confirmed']
+  },
+  account_order: {
+    correlate: 'workflow_id',
+    stages: ['attempted', 'version_checked', 'committed', 'delivered']
+  },
+  account_archive: {
+    correlate: 'workflow_id',
+    stages: ['attempted', 'active_launch_guard', 'committed', 'delivered']
+  },
+  image_choice: {
+    correlate: 'run_id',
+    stages: ['selected', 'validated', 'queued', 'embedded', 'delivered']
+  }
+} as const;
+
 /**
  * The outcome vocabulary is the database guard's, verbatim. `ready`/`failed`
  * used to be accepted here and refused there, so every `team_landing_render`

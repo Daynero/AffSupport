@@ -32,6 +32,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   NOT_FOUND: 'teamErrorNotFound',
   INVALID_INPUT: 'teamErrorInvalidInput',
   INVALID_RESPONSE: 'teamErrorInvalidResponse',
+  UNVERIFIED_UPLOAD: 'teamTaskCleanupUnverified',
   WRONG_STATE: 'teamErrorWrongState',
   UPLOAD_SESSION_UNAVAILABLE: 'teamErrorUploadSessionUnavailable',
   NAME_CONFLICT: 'teamErrorNameConflict',
