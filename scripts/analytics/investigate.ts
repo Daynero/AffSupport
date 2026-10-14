@@ -23,6 +23,7 @@ import {
   getInspect,
   getSyncJobs,
   getTaskCopyReceipts,
+  getTaskOrphanReceipts,
   isoUtc
 } from './queries.js';
 import { eventColumnSql, getSchema, hasEnvelopeV3, schemaSummary } from './schema.js';
@@ -1482,14 +1483,16 @@ export async function getInvestigation(
 ): Promise<InvestigateData> {
   const schema = await getSchema();
   const scope = await resolveSubject(input, period, schema);
-  const [rows, newest, activity, copyReceipts, orderReceipts, bulkReceipts] = await Promise.all([
-    readEvents(scope, period, schema),
-    newestVersionSeen(period),
-    userActivity(scope.userId, period),
-    getTaskCopyReceipts(scope.userId, period),
-    getAccountOrderReceipts(scope.userId, period),
-    getBulkTrashReceipts(scope.userId, period)
-  ]);
+  const [rows, newest, activity, copyReceipts, orderReceipts, bulkReceipts, orphanReceipts] =
+    await Promise.all([
+      readEvents(scope, period, schema),
+      newestVersionSeen(period),
+      userActivity(scope.userId, period),
+      getTaskCopyReceipts(scope.userId, period),
+      getAccountOrderReceipts(scope.userId, period),
+      getBulkTrashReceipts(scope.userId, period),
+      getTaskOrphanReceipts(scope.userId, period)
+    ]);
   const installations = sortedUnique([
     scope.installationId,
     ...rows.map(row => row.installation_id)
@@ -1725,6 +1728,53 @@ export async function getInvestigation(
       next_step: 'Read the hosted group receipt and retry only unresolved items.'
     });
 
+  const taskOrphans: InvestigateData['task_orphans'] = (orphanReceipts ?? []).map(receipt => ({
+    intent_id: receipt.intent_id,
+    status: [
+      'waiting',
+      'cleanup_unverified',
+      'claimed',
+      'confirmed_in_trash',
+      'failed',
+      'cancelled'
+    ].includes(receipt.state)
+      ? (receipt.state as InvestigateData['task_orphans'][number]['status'])
+      : 'unknown',
+    reason_code: receipt.reason_code,
+    attempt_count: receipt.attempt_count,
+    detached_at: receipt.detached_at,
+    cleanup_not_before: receipt.cleanup_not_before,
+    updated_at: receipt.updated_at,
+    has_operation: receipt.has_operation
+  }));
+  if (orphanReceipts === null)
+    blindSpots.push({
+      kind: 'task_orphan_receipts_unavailable',
+      detail:
+        'The read-only task orphan receipt view is unavailable; detach and cleanup outcomes cannot be confirmed.',
+      values: []
+    });
+  for (const orphan of taskOrphans) {
+    if (orphan.status === 'confirmed_in_trash' || orphan.status === 'cancelled') continue;
+    const overdue = Date.parse(period.end) - Date.parse(orphan.cleanup_not_before) > 5 * 60_000;
+    if (orphan.status === 'waiting' && !overdue) continue;
+    const fingerprint = `task-orphan:${orphan.reason_code ?? orphan.status.toUpperCase()}`;
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['task_orphan', orphan.intent_id, orphan.status]),
+      kind: orphan.status === 'unknown' ? 'insufficient' : 'fact',
+      severity: overdue ? 'high' : 'medium',
+      rule: 'task_orphan_not_confirmed',
+      title: overdue
+        ? 'Task attachment cleanup missed its expected window'
+        : 'Task attachment cleanup is retained or unresolved',
+      evidence: [`task_orphan:${orphan.intent_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step: 'Check provenance and all live material references before retrying cleanup.'
+    });
+  }
+
   const subject: InvestigateSubject = {
     kind: scope.kind,
     id: scope.id,
@@ -1740,6 +1790,7 @@ export async function getInvestigation(
     task_copies: taskCopies,
     account_orders: accountOrders,
     bulk_trash: bulkTrash,
+    task_orphans: taskOrphans,
     link,
     errors,
     journal_around_failures: journalAroundFailures,

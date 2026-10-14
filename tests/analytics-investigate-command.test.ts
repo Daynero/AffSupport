@@ -442,6 +442,12 @@ beforeAll(async () => {
      failed_count,unknown_count,error_codes,created_at,last_operation_at) values
     ('${U_ORDER}','${BULK_PARTIAL}','6d000000-0000-4000-8000-000000000001',
      3,0,0,1,1,1,array['PROVIDER_FAILURE'],'2026-10-08T12:00:00Z','2026-10-08T12:00:02Z')`);
+  await db.exec(`insert into public.analytics_task_orphan_receipts
+    (actor_id,intent_id,detached_at,cleanup_not_before,state,reason_code,
+     attempt_count,updated_at,has_operation) values
+    ('${U_ORDER}','6e000000-0000-4000-8000-000000000001',
+     '2026-10-08T13:00:00Z','2026-10-08T13:00:30Z',
+     'cleanup_unverified','PROVENANCE_UNKNOWN',0,'2026-10-08T13:00:00Z',false)`);
 }, 60_000);
 
 afterAll(async () => {
@@ -518,6 +524,20 @@ describe('investigate · bulk trash receipt', () => {
       error_codes: ['PROVIDER_FAILURE']
     });
     expect(finding(data, 'bulk_trash_unconfirmed').kind).toBe('insufficient');
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
+
+describe('investigate · task orphan receipt', () => {
+  it('explains retained cleanup by stable reason without a task ID, material ID or path', async () => {
+    const data = await investigate('order@example.test');
+    expect(data.task_orphans).toMatchObject([
+      { status: 'cleanup_unverified', reason_code: 'PROVENANCE_UNKNOWN', has_operation: false }
+    ]);
+    expect(finding(data, 'task_orphan_not_confirmed')).toMatchObject({
+      kind: 'fact',
+      fingerprint: 'task-orphan:PROVENANCE_UNKNOWN'
+    });
     expect(investigateOutputIsPrivate(data)).toBe(true);
   });
 });

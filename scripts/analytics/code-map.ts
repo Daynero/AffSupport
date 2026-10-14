@@ -833,6 +833,13 @@ function build(): Record<string, CodeLocation> {
   for (const [reason, spec] of Object.entries(LINK_REASON_CHECKS)) {
     map[`link:${reason}`] = { files: unique(spec.files), check: spec.check };
   }
+  map['task-orphan:*'] = {
+    files: [
+      'supabase/migrations/20261203101000_task_attachment_orphan_cleanup.sql',
+      'apps/web/src/team/tasks/TaskEditor.tsx'
+    ],
+    check: 'Check the verified upload marker, live references and server cleanup deadline.'
+  };
   return map;
 }
 

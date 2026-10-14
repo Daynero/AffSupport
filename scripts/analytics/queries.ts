@@ -1,6 +1,52 @@
 import { createHash } from 'node:crypto';
 import { query, queryOne } from './db.js';
 
+export async function getTaskOrphanReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{
+  intent_id: string;
+  detached_at: string;
+  cleanup_not_before: string;
+  state: string;
+  reason_code: string | null;
+  attempt_count: number;
+  updated_at: string;
+  has_operation: boolean;
+}> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_task_orphan_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{
+    intent_id: string;
+    detached_at: string;
+    cleanup_not_before: string;
+    state: string;
+    reason_code: string | null;
+    attempt_count: number;
+    updated_at: string;
+    has_operation: boolean;
+  }>(
+    `select intent_id::text, detached_at::text, cleanup_not_before::text,
+      state, reason_code, attempt_count, updated_at::text, has_operation
+    from public.analytics_task_orphan_receipts
+    where actor_id = $3::uuid
+      and ($1::timestamptz is null or detached_at >= $1::timestamptz)
+      and detached_at <= $2::timestamptz
+    order by detached_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    detached_at: isoUtc(row.detached_at) ?? row.detached_at,
+    cleanup_not_before: isoUtc(row.cleanup_not_before) ?? row.cleanup_not_before,
+    updated_at: isoUtc(row.updated_at) ?? row.updated_at,
+    attempt_count: Number(row.attempt_count)
+  }));
+}
+
 export async function getBulkTrashReceipts(
   userId: string | null,
   period: ResolvedPeriod

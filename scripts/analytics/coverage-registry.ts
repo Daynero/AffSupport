@@ -468,6 +468,35 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'action=trash; investigate correlates workflow_id with the content-free hosted group receipt. A client terminal event alone does not prove that each item reached trash.'
   },
   {
+    id: 'team.task_detach',
+    tool: 'team',
+    title: 'Team · task attachment detach and orphan cleanup',
+    stages: ['start', 'terminal'],
+    stageEvents: { start: ['team_workflow_started'], terminal: ['team_workflow_completed'] },
+    start: [
+      {
+        event: 'team_workflow_started',
+        correlate: 'workflow_id',
+        producerStatus: 'unsupported_by_producer'
+      }
+    ],
+    terminal: [
+      {
+        event: 'team_workflow_completed',
+        correlate: 'workflow_id',
+        producerStatus: 'unsupported_by_producer'
+      }
+    ],
+    platforms: BOTH,
+    unobservable: [
+      'client failure before the server persists a detach intent',
+      'provider cleanup until the worker confirms a hosted postcondition'
+    ],
+    producerStatus: 'unsupported_by_producer',
+    source: 'events',
+    note: 'investigate reads the private intent through a content-free receipt view. Detach and cleanup events are not emitted yet; server states and reason codes remain authoritative.'
+  },
+  {
     id: 'team.restitch',
     tool: 'team',
     title: 'Team · restitch delivery',

@@ -855,6 +855,7 @@ export interface InvestigateBlindSpot {
     | 'task_copy_receipts_unavailable'
     | 'account_order_receipts_unavailable'
     | 'bulk_trash_receipts_unavailable'
+    | 'task_orphan_receipts_unavailable'
     | 'analytics_disabled'
     | 'analytics_delivery_losses'
     | 'sync_unavailable'
@@ -911,6 +912,23 @@ export interface InvestigateData {
     error_codes: string[];
     attempted_at: string | null;
     last_operation_at: string | null;
+  }>;
+  task_orphans: Array<{
+    intent_id: string;
+    status:
+      | 'waiting'
+      | 'cleanup_unverified'
+      | 'claimed'
+      | 'confirmed_in_trash'
+      | 'failed'
+      | 'cancelled'
+      | 'unknown';
+    reason_code: string | null;
+    attempt_count: number;
+    detached_at: string;
+    cleanup_not_before: string;
+    updated_at: string;
+    has_operation: boolean;
   }>;
   link: InvestigateLink;
   errors: InvestigateErrorCluster[];

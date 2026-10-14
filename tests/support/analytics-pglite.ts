@@ -23,6 +23,12 @@ const ENVELOPE_V3_COLUMNS = `
 
 /** Retention (20261120100000) and the agent journal (20261124100000): absent before 031/033. */
 const POST_031_TABLES = `
+  create table public.analytics_task_orphan_receipts (
+    actor_id uuid not null, intent_id uuid not null, detached_at timestamptz not null,
+    cleanup_not_before timestamptz not null, state text not null, reason_code text,
+    attempt_count integer not null, updated_at timestamptz not null,
+    has_operation boolean not null
+  );
   create table public.analytics_bulk_trash_receipts (
     actor_id uuid not null, request_id uuid not null, group_id uuid not null,
     item_count integer not null, queued_count integer not null, active_count integer not null,

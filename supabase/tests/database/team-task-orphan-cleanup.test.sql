@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(11);
+select plan(12);
 
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
 ('bd370000-0000-4000-8000-000000000001','authenticated','authenticated','orphan-owner@example.test','{}','{}'),
@@ -76,6 +76,9 @@ select is((select state from private.team_task_orphan_intents where material_id=
 select is((select state from private.team_task_orphan_intents where material_id=
  'bd370000-0000-4000-8000-000000000022'),'cleanup_unverified',
  'unknown provenance stays retained');
+select ok(position('orphan-b' in (select row_to_json(r)::text from public.analytics_task_orphan_receipts r
+ where actor_id='bd370000-0000-4000-8000-000000000001' and state='cleanup_unverified'))=0,
+ 'diagnostic receipt contains no file identity');
 select ok(not has_table_privilege('authenticated','private.team_task_upload_markers','SELECT')
  and not has_table_privilege('authenticated','private.team_task_orphan_intents','SELECT'),
  'provenance and intents are private');
