@@ -39,6 +39,7 @@ import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { trashMaterialWithTail, type TailClient } from '../materials/tail';
+import { executeBulkTrash } from './bulkTrash';
 import { moveWorkspaceMaterials } from './moveCoordinator';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
@@ -137,6 +138,9 @@ export type ExplorerShellClient = ExplorerClient &
       materialId: string;
       color: TeamMaterialTagColor | null;
     }) => Promise<TeamMaterialTagColor | null>;
+    beginBulkTrash?: typeof teamApi.beginBulkTrash;
+    markBulkTrashAttempt?: typeof teamApi.markBulkTrashAttempt;
+    listBulkTrash?: typeof teamApi.listBulkTrash;
   };
 
 export type { ExplorerView };
@@ -1351,16 +1355,70 @@ function ExplorerBody({
   const trashRows = useCallback(
     async (rows: TeamMaterialRow[]) => {
       if (!permissions?.delete) return;
-      const trashed: string[] = [];
       const selectedFolders = new Set(
         rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
       );
-      for (const row of rows) {
-        if (
-          row.parentFolderId &&
-          pathTo(row.parentFolderId).some(folder => selectedFolders.has(folder.driveFileId))
-        )
-          continue;
+      const targets = rows.filter(
+        row =>
+          !(
+            row.parentFolderId &&
+            pathTo(row.parentFolderId).some(folder => selectedFolders.has(folder.driveFileId))
+          )
+      );
+      if (targets.length > 1) {
+        try {
+          const intent = await (client.beginBulkTrash ?? teamApi.beginBulkTrash)({
+            teamId,
+            requestId: crypto.randomUUID(),
+            materialIds: targets.map(row => row.id)
+          });
+          const byId = new Map(targets.map(row => [row.id, row]));
+          select(null);
+          clearSelection();
+          void workspaceOperations?.refreshBulkTrash?.();
+          void executeBulkTrash({
+            intent,
+            mark: materialId =>
+              (client.markBulkTrashAttempt ?? teamApi.markBulkTrashAttempt)({
+                teamId,
+                groupId: intent.id,
+                materialId
+              }),
+            trash: async (materialId, idempotencyKey) => {
+              const row = byId.get(materialId);
+              if (!row) throw new Error('INVALID_INPUT');
+              await trashMaterialWithTail({
+                teamId,
+                material: { id: row.id, name: row.name, category: row.category },
+                client: tailClient,
+                idempotencyKey
+              });
+            },
+            settled: async () => {
+              changed();
+              await workspaceOperations?.refreshBulkTrash?.();
+            }
+          })
+            .then(async () => {
+              const receipts = await (client.listBulkTrash ?? teamApi.listBulkTrash)(teamId);
+              const group = receipts.find(receipt => receipt.id === intent.id);
+              const confirmed = group?.items.filter(item => item.state === 'confirmed').length ?? 0;
+              push({
+                tone: confirmed === intent.items.length ? 'success' : 'warning',
+                text:
+                  confirmed === intent.items.length
+                    ? t('teamExplorerTrashedCount', { count: confirmed })
+                    : t('teamBulkTrashPartial', { confirmed, total: intent.items.length })
+              });
+            })
+            .catch(() => push({ tone: 'warning', text: t('teamBulkTrashAwaiting') }));
+        } catch (cause) {
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        }
+        return;
+      }
+      const trashed: string[] = [];
+      for (const row of targets) {
         try {
           // The transcript goes with its video, here as everywhere else.
           await trashMaterialWithTail({
@@ -1405,6 +1463,7 @@ function ExplorerBody({
     },
     [
       actionsClient,
+      client,
       changed,
       clearSelection,
       permissions?.delete,
@@ -1413,7 +1472,8 @@ function ExplorerBody({
       select,
       t,
       tailClient,
-      teamId
+      teamId,
+      workspaceOperations
     ]
   );
 

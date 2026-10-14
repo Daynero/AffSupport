@@ -3491,6 +3491,21 @@ export const teamApi = {
     return result;
   },
 
+  async markBulkTrashAttempt(input: {
+    teamId: string;
+    groupId: string;
+    materialId: string;
+  }): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('mark_team_bulk_trash_attempt', {
+        p_team: input.teamId,
+        p_group: input.groupId,
+        p_material: input.materialId
+      })
+    );
+    throwRpc(error);
+  },
+
   async restoreMaterial(input: {
     teamId: string;
     materialId: string;

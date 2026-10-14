@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(13);
+select plan(14);
 
 insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data) values
 ('bb370000-0000-4000-8000-000000000001','authenticated','authenticated','bulk-owner@example.test','{}','{}'),
@@ -63,6 +63,10 @@ select is((select count(*) from public.team_catalog_events where event_kind='bul
  'one content-free invalidation, including replay');
 select is((public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')->0->'items'->0->>'state'),
  'queued','without an operation the item is queued');
+select public.mark_team_bulk_trash_attempt('bb370000-0000-4000-8000-000000000010',
+ (select (result->>'id')::uuid from bulk_receipt),'bb370000-0000-4000-8000-000000000021');
+select is((public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')->0->'items'->0->>'state'),
+ 'unknown','a dispatched item with no operation receipt is unknown');
 
 insert into public.team_operations
   (id,team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce,finished_at)

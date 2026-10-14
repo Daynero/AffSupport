@@ -4072,6 +4072,10 @@ export type GeneratedDatabase = {
         Args: { p_team: string };
         Returns: Json;
       };
+      mark_team_bulk_trash_attempt: {
+        Args: { p_team: string; p_group: string; p_material: string };
+        Returns: undefined;
+      };
       list_team_account_two_factor_seeds: {
         Args: { p_team: string };
         Returns: {
