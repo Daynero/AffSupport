@@ -464,7 +464,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     platforms: BOTH,
     unobservable: ['provider state before the hosted operation receipt'],
     producerStatus: 'emitted',
-    source: 'events',
+    source: 'authoritative_table',
     note: 'action=trash; investigate correlates workflow_id with the content-free hosted group receipt. A client terminal event alone does not prove that each item reached trash.'
   },
   {
@@ -544,7 +544,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'provider cleanup until the worker confirms a hosted postcondition'
     ],
     producerStatus: 'unsupported_by_producer',
-    source: 'events',
+    source: 'authoritative_table',
     note: 'investigate reads the private intent through a content-free receipt view. Detach and cleanup events are not emitted yet; server states and reason codes remain authoritative.'
   },
   {

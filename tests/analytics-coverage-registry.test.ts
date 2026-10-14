@@ -125,6 +125,9 @@ describe('coverage registry · contract', () => {
       expect(capability?.producerStatus).toBe('emitted');
       expect(capability?.stages).toContain('delivered');
     }
+    for (const id of ['team.bulk_trash', 'team.task_detach']) {
+      expect(COVERAGE_REGISTRY.find(item => item.id === id)?.source).toBe('authoritative_table');
+    }
     const archive = COVERAGE_REGISTRY.find(item => item.id === 'team.account_archive');
     expect(archive?.producerStatus).toBe('unsupported_by_producer');
     expect(archive?.unobservable).toContain('archive and restore attempts have no producer yet');
