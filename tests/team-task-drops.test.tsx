@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskSummary } from '@video-compressor/shared';
+import {
+  DEFAULT_ROLE_PERMISSIONS,
+  type TeamTaskSummary,
+  type TeamTaskAttachmentSummary
+} from '@video-compressor/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -181,6 +186,73 @@ function drop(
 }
 
 describe('files dropped on a task', () => {
+  it('marks only a successfully attached upload with its exact operation receipt', async () => {
+    const materialId = '11000000-0000-4000-8000-000000000042';
+    const operationId = '11000000-0000-4000-8000-000000000043';
+    const api = client({
+      uploadFile: vi.fn(async () => ({ materialId, operationId })),
+      markTaskUpload: vi.fn(async () => true)
+    });
+    wrap(api);
+    await screen.findByRole('heading', { name: 'Files' });
+    drop(attachmentsSection(), [new File(['one'], 'brief.pdf', { type: 'application/pdf' })]);
+    await waitFor(() => expect(api.markTaskUpload).toHaveBeenCalledWith(
+      TEAM_ID, TASK_ID, materialId, operationId
+    ));
+    expect(api.attachTaskMaterials).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(api.attachTaskMaterials).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(api.markTaskUpload!).mock.invocationCallOrder[0]!
+    );
+  });
+  it.each([30_000, 19_000])(
+    'offers Undo only when the %i ms server deadline leaves the full action window',
+    async remaining => {
+      const attachment: TeamTaskAttachmentSummary = {
+        id: `${TASK_ID}:11000000-0000-4000-8000-000000000042`,
+        taskId: TASK_ID,
+        materialId: '11000000-0000-4000-8000-000000000042',
+        name: 'brief.pdf',
+        category: 'other',
+        kind: 'file',
+        availability: 'ready',
+        previewState: 'pending',
+        position: 0,
+        driveVersion: null
+      };
+      let finish!: (
+        value: Awaited<ReturnType<NonNullable<TaskEditorClient['detachTaskMaterialV2']>>>
+      ) => void;
+      const pending = new Promise<
+        Awaited<ReturnType<NonNullable<TaskEditorClient['detachTaskMaterialV2']>>>
+      >(resolve => {
+        finish = resolve;
+      });
+      const api = client({
+        getTask: vi.fn(async () => ({
+          task: { ...task(), attachmentCount: 1 },
+          attachments: [attachment]
+        })),
+        detachTaskMaterialV2: vi.fn(() => pending)
+      });
+      wrap(api);
+      const button = await screen.findByRole('button', { name: 'Detach' });
+      await userEvent.setup().click(button);
+      await waitFor(() => expect(
+        button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true'
+      ).toBe(true));
+      finish({
+        detached: true,
+        state: 'waiting',
+        intentId: 'bd370000-0000-4000-8000-000000000041',
+        detachedAt: new Date().toISOString(),
+        undoDeadline: new Date(Date.now() + remaining).toISOString()
+      });
+      await waitFor(() => expect(api.detachTaskMaterialV2).toHaveBeenCalledTimes(1));
+      if (remaining >= 20_000)
+        expect(await screen.findByRole('button', { name: 'Undo' })).toBeTruthy();
+      else await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull());
+    }
+  );
   it('sends them to the space’s one drop folder and attaches each as it lands', async () => {
     const api = client();
     wrap(api);

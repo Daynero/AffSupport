@@ -2553,7 +2553,10 @@ const en = {
   teamTaskDeleteConfirmBody:
     'The task and its notes are removed for everyone. The files attached to it are not deleted.',
   teamToastTaskDeleted: 'Task deleted',
-  teamToastAttachmentDetached: '“{name}” will be detached when you save',
+  teamToastAttachmentDetached:
+    '“{name}” detached from the task. The file remains in the space while cleanup is checked.',
+  teamTaskCleanupUnverified:
+    'The attachment remains in the space because automatic cleanup could not be verified.',
   teamDriveDetachConfirmTitle: 'Disconnect Google Drive?',
   teamDriveDetachConfirmBody:
     'Everyone in this space loses access to its files here. Nothing is deleted from Google Drive, and reconnecting the same folder restores the catalog.',
@@ -6049,7 +6052,10 @@ const uk: Record<keyof typeof en, string> = {
   teamTaskDeleteConfirmBody:
     'Завдання та його нотатки зникнуть для всіх. Прикріплені до нього файли не видаляються.',
   teamToastTaskDeleted: 'Завдання видалено',
-  teamToastAttachmentDetached: '«{name}» буде відкріплено після збереження',
+  teamToastAttachmentDetached:
+    '«{name}» відкріплено від задачі. Файл залишається у просторі, поки перевіряється очищення.',
+  teamTaskCleanupUnverified:
+    'Вкладення залишається у просторі, оскільки автоматичне очищення не вдалося перевірити.',
   teamDriveDetachConfirmTitle: 'Відключити Google Drive?',
   teamDriveDetachConfirmBody:
     'Усі учасники простору втратять доступ до його файлів тут. З Google Drive нічого не видаляється, а повторне підключення тієї ж теки поверне каталог.',
@@ -6314,7 +6320,8 @@ const uk: Record<keyof typeof en, string> = {
   teamExplorerUploadFailedFor: 'Не вдалося завантажити {name}. {reason}',
   teamExplorerTrashedCount: 'Переміщено в кошик файлів: {count}',
   teamBulkTrashPartial: 'Переміщено в кошик {confirmed} із {total} файлів. Перевірте решту.',
-  teamBulkTrashAwaiting: 'Результати переміщення в кошик очікують підтвердження. Перевірте локальні операції.',
+  teamBulkTrashAwaiting:
+    'Результати переміщення в кошик очікують підтвердження. Перевірте локальні операції.',
   teamBulkTrashTitle: 'Переміщення файлів у кошик',
   teamBulkTrashRetry: 'Повторити невирішені файли',
   teamBulkTrashProgress: 'У кошику {confirmed} із {total}',

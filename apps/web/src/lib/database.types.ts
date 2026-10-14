@@ -3636,6 +3636,10 @@ export type GeneratedDatabase = {
         Args: { p_material: string; p_task: string; p_team: string };
         Returns: boolean;
       };
+      detach_team_task_material_v2: {
+        Args: { p_material: string; p_task: string; p_team: string };
+        Returns: Json;
+      };
       expire_team_invitations: { Args: Record<PropertyKey, never>; Returns: number };
       fail_library_job: {
         Args: {
@@ -4075,6 +4079,10 @@ export type GeneratedDatabase = {
       mark_team_bulk_trash_attempt: {
         Args: { p_team: string; p_group: string; p_material: string };
         Returns: undefined;
+      };
+      mark_team_task_upload: {
+        Args: { p_team: string; p_task: string; p_material: string; p_operation: string };
+        Returns: boolean;
       };
       prepare_team_bulk_trash_retry: {
         Args: { p_team: string; p_group: string; p_material: string };

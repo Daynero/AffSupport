@@ -27,6 +27,7 @@ import {
   parseLibraryVideoTextVariants,
   parseTaskAttachmentMutation,
   parseTeamTaskAttachmentSummary,
+  parseTeamTaskDetachResult,
   parseTeamTaskPatch,
   parseTeamAccount,
   parseTeamAccountAgent,
@@ -62,6 +63,7 @@ import {
   type TeamBulkTrashIntent,
   type TeamBulkTrashGroup,
   type TeamBulkTrashRetry,
+  type TeamTaskDetachResult,
   type TeamAgentRunMarker,
   type TeamAgentRunMarkerSnapshot,
   parseUploadBatchRequest,
@@ -3993,6 +3995,43 @@ export const teamApi = {
         p_team: teamId,
         p_task: taskId,
         p_material: materialId
+      })
+    );
+    throwRpc(error);
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async detachTaskMaterialV2(
+    teamId: string,
+    taskId: string,
+    materialId: string
+  ): Promise<TeamTaskDetachResult> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('detach_team_task_material_v2', {
+        p_team: teamId,
+        p_task: taskId,
+        p_material: materialId
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamTaskDetachResult(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async markTaskUpload(
+    teamId: string,
+    taskId: string,
+    materialId: string,
+    operationId: string
+  ): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('mark_team_task_upload', {
+        p_team: teamId,
+        p_task: taskId,
+        p_material: materialId,
+        p_operation: operationId
       })
     );
     throwRpc(error);

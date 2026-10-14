@@ -41,7 +41,7 @@ function kindOfCategory(category: TeamTaskAttachmentSummary['category']): TeamMa
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
-import { FadeImage } from '../../components/ui/index';
+import { Button, FadeImage } from '../../components/ui/index';
 
 /* A member the space has not told us about may read and nothing more. */
 const NO_PERMISSIONS = DEFAULT_ROLE_PERMISSIONS.viewer;
@@ -107,7 +107,7 @@ export function TaskAttachmentTile({
   teamId: string;
   attachment: TeamTaskAttachmentSummary;
   client?: TaskAttachmentPreviewClient;
-  onDetach?: () => void;
+  onDetach?: () => void | Promise<void>;
   /** Open the explorer where the attached file lives, with it selected. */
   onReveal?: () => void;
   /**
@@ -173,6 +173,7 @@ export function TaskAttachmentTile({
   const [action, setAction] = useState<'download' | 'copy-link' | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
+  const [detaching, setDetaching] = useState(false);
 
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, teamId);
@@ -566,6 +567,21 @@ export function TaskAttachmentTile({
           worded={{ productCatalog: catalogActionWords(companions?.productCatalog?.count, t) }}
           className="team-task-attachment-actions"
         />
+        {onDetach && !isDraft && (
+          <Button
+            size="sm"
+            color="neutral"
+            variant="ghost"
+            disabled={detaching}
+            loading={detaching}
+            onClick={() => {
+              setDetaching(true);
+              void Promise.resolve(onDetach()).finally(() => setDetaching(false));
+            }}
+          >
+            {t('teamTaskDetach')}
+          </Button>
+        )}
         {actionFailed && (
           <small className="team-task-attachment-action-error">
             {t('teamTaskAttachmentActionFailed')}
