@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(10);
+select plan(11);
 
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
 ('bd370000-0000-4000-8000-000000000001','authenticated','authenticated','orphan-owner@example.test','{}','{}'),
@@ -66,11 +66,16 @@ select is(public.detach_team_task_material_v2('bd370000-0000-4000-8000-000000000
 select is(public.detach_team_task_material_v2('bd370000-0000-4000-8000-000000000010',
  'bd370000-0000-4000-8000-000000000030','bd370000-0000-4000-8000-000000000022')->>'state',
  'cleanup_unverified','external material is retained');
+update private.team_task_orphan_intents set state='claimed' where material_id=
+ 'bd370000-0000-4000-8000-000000000021';
 insert into public.team_task_attachments(team_id,task_id,material_id,position,attached_by) values
 ('bd370000-0000-4000-8000-000000000010','bd370000-0000-4000-8000-000000000030',
  'bd370000-0000-4000-8000-000000000021',0,'bd370000-0000-4000-8000-000000000001');
 select is((select state from private.team_task_orphan_intents where material_id=
- 'bd370000-0000-4000-8000-000000000021'),'cancelled','reattachment cancels cleanup intent');
+ 'bd370000-0000-4000-8000-000000000021'),'cancelled','reattachment cancels a concurrent claim');
+select is((select state from private.team_task_orphan_intents where material_id=
+ 'bd370000-0000-4000-8000-000000000022'),'cleanup_unverified',
+ 'unknown provenance stays retained');
 select ok(not has_table_privilege('authenticated','private.team_task_upload_markers','SELECT')
  and not has_table_privilege('authenticated','private.team_task_orphan_intents','SELECT'),
  'provenance and intents are private');

@@ -196,9 +196,9 @@ describe('files dropped on a task', () => {
     wrap(api);
     await screen.findByRole('heading', { name: 'Files' });
     drop(attachmentsSection(), [new File(['one'], 'brief.pdf', { type: 'application/pdf' })]);
-    await waitFor(() => expect(api.markTaskUpload).toHaveBeenCalledWith(
-      TEAM_ID, TASK_ID, materialId, operationId
-    ));
+    await waitFor(() =>
+      expect(api.markTaskUpload).toHaveBeenCalledWith(TEAM_ID, TASK_ID, materialId, operationId)
+    );
     expect(api.attachTaskMaterials).toHaveBeenCalledTimes(1);
     expect(vi.mocked(api.attachTaskMaterials).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(api.markTaskUpload!).mock.invocationCallOrder[0]!
@@ -237,9 +237,11 @@ describe('files dropped on a task', () => {
       wrap(api);
       const button = await screen.findByRole('button', { name: 'Detach' });
       await userEvent.setup().click(button);
-      await waitFor(() => expect(
-        button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true'
-      ).toBe(true));
+      await waitFor(() =>
+        expect(
+          button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true'
+        ).toBe(true)
+      );
       finish({
         detached: true,
         state: 'waiting',
@@ -248,9 +250,15 @@ describe('files dropped on a task', () => {
         undoDeadline: new Date(Date.now() + remaining).toISOString()
       });
       await waitFor(() => expect(api.detachTaskMaterialV2).toHaveBeenCalledTimes(1));
-      if (remaining >= 20_000)
-        expect(await screen.findByRole('button', { name: 'Undo' })).toBeTruthy();
-      else await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull());
+      if (remaining >= 20_000) {
+        const undo = await screen.findByRole('button', { name: 'Undo' });
+        await userEvent.setup().click(undo);
+        await waitFor(() =>
+          expect(api.attachTaskMaterials).toHaveBeenCalledWith(
+            expect.objectContaining({ materialIds: [attachment.materialId] })
+          )
+        );
+      } else await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull());
     }
   );
   it('sends them to the space’s one drop folder and attaches each as it lands', async () => {

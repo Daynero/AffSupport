@@ -616,6 +616,8 @@ export function TaskEditor({
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
     }
   };
+  const addAttachmentsRef = useRef(addAttachments);
+  addAttachmentsRef.current = addAttachments;
 
   /**
    * Files dropped on the attachment area.
@@ -884,7 +886,7 @@ export function TaskEditor({
             action: {
               label: t('teamUndo'),
               run: () =>
-                void addAttachments([
+                void addAttachmentsRef.current([
                   {
                     id: attachment.materialId,
                     name: attachment.name,
