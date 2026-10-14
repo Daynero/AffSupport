@@ -355,15 +355,18 @@ export function TaskSpace({
     selected,
     canEdit: can('edit') && !effectiveOpenId,
     client,
-    onPasted: async ids => {
+    onPasted: async () => {
       // Copies have today's date, todo status and no ad accounts. Reveal them
       // even when the source was selected under a historical/workflow filter.
       tasks.setFilter({ kind: 'all' });
       tasks.setStatusFilter('all');
+      tasks.setLabelIds([]);
+      tasks.setAssignee({ kind: 'all' });
+      tasks.setQuery('');
       setScope({ kind: 'all' });
-      setSelectedIds(new Set(ids));
       await tasks.refetch();
-    }
+    },
+    onPasteSettled: () => setSelectedIds(new Set())
   });
 
   /**

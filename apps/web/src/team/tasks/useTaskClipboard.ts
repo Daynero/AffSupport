@@ -30,6 +30,7 @@ export function useTaskClipboard({
   canEdit,
   client,
   onPasted,
+  onPasteSettled,
   anchor
 }: {
   /** An element inside the task board: while the board is hidden (another
@@ -40,6 +41,7 @@ export function useTaskClipboard({
   canEdit: boolean;
   client: TaskCopyClient;
   onPasted: (ids: string[]) => Promise<void> | void;
+  onPasteSettled?: () => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -99,6 +101,7 @@ export function useTaskClipboard({
         .catch(cause => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }))
         .finally(() => {
           pasting.current = false;
+          onPasteSettled?.();
         });
     };
     document.addEventListener('copy', copy);
@@ -107,5 +110,5 @@ export function useTaskClipboard({
       document.removeEventListener('copy', copy);
       document.removeEventListener('paste', paste);
     };
-  }, [canEdit, client, onPasted, push, selected, t, teamId]);
+  }, [canEdit, client, onPasted, onPasteSettled, push, selected, t, teamId]);
 }

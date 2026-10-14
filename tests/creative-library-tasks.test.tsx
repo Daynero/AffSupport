@@ -177,6 +177,35 @@ async function openTileMenu() {
 }
 
 describe('Creative Library task workflows', () => {
+  it('clears copied selection and board search so the next card selects on the first click', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const api = client();
+    const copiedId = '31000000-0000-4000-8000-000000000007';
+    let copied = false;
+    api.listTasks = vi.fn().mockImplementation(async () =>
+      copied ? [task(), { ...task(), id: copiedId, title: 'Copied task' }] : [task()]
+    );
+    api.copyTasks = vi.fn().mockImplementation(async () => {
+      copied = true;
+      return [copiedId];
+    });
+    render(<TaskSpace teamId={TEAM_ID} client={api} />);
+    const source = await screen.findByRole('checkbox', { name: /Select.*Task: launch.mp4/i });
+    await userEvent.click(source);
+    await userEvent.type(screen.getByRole('searchbox', { name: /Find a task/i }), 'launch');
+    fireEvent.paste(document, {
+      clipboardData: {
+        getData: () => `SOTY_TASKS_V1:${JSON.stringify({ teamId: TEAM_ID, taskIds: [TASK_ID] })}`
+      }
+    });
+
+    const next = await screen.findByRole('checkbox', { name: /Select.*Copied task/i });
+    await waitFor(() => expect((source as HTMLInputElement).checked).toBe(false));
+    await userEvent.click(next);
+    expect((next as HTMLInputElement).checked).toBe(true);
+    expect(api.copyTasks).toHaveBeenCalledOnce();
+  });
+
   it('chunks an unlimited UI attachment selection into idempotent batches of 100', async () => {
     const attachTaskMaterials = vi.fn(async ({ materialIds }: { materialIds: string[] }) => ({
       attached: materialIds,
