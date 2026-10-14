@@ -118,6 +118,18 @@ describe('coverage registry · contract', () => {
     }
   });
 
+  it('keeps 037 hosted receipts and the unbuilt archive journey explicit', () => {
+    for (const id of ['team.task_copy', 'team.account_order']) {
+      const capability = COVERAGE_REGISTRY.find(item => item.id === id);
+      expect(capability?.source).toBe('authoritative_table');
+      expect(capability?.producerStatus).toBe('emitted');
+      expect(capability?.stages).toContain('delivered');
+    }
+    const archive = COVERAGE_REGISTRY.find(item => item.id === 'team.account_archive');
+    expect(archive?.producerStatus).toBe('unsupported_by_producer');
+    expect(archive?.unobservable).toContain('archive and restore attempts have no producer yet');
+  });
+
   it('marks a signal `emitted` only when a call site in the web or shared source tracks it', () => {
     const emittedWithoutProducer: string[] = [];
     for (const capability of COVERAGE_REGISTRY) {

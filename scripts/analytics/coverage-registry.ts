@@ -468,6 +468,57 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'action=trash; investigate correlates workflow_id with the content-free hosted group receipt. A client terminal event alone does not prove that each item reached trash.'
   },
   {
+    id: 'team.task_copy',
+    tool: 'team',
+    title: 'Team · task copy',
+    stages: ['attempted', 'server_commit', 'delivered'],
+    stageEvents: {
+      attempted: ['team_workflow_started'],
+      delivered: ['team_workflow_completed']
+    },
+    start: [{ event: 'team_workflow_started', correlate: 'workflow_id' }],
+    terminal: [{ event: 'team_workflow_completed', correlate: 'workflow_id' }],
+    platforms: BOTH,
+    unobservable: ['client failure before a hosted receipt exists', 'task content'],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'action=copy; investigate joins workflow_id to the content-free task-copy receipt. A missing or delayed client completion does not undo a server commit.'
+  },
+  {
+    id: 'team.account_order',
+    tool: 'team',
+    title: 'Team · account order',
+    stages: ['attempted', 'version_checked', 'server_commit', 'delivered'],
+    stageEvents: {
+      attempted: ['team_workflow_started'],
+      delivered: ['team_workflow_completed']
+    },
+    start: [{ event: 'team_workflow_started', correlate: 'workflow_id' }],
+    terminal: [{ event: 'team_workflow_completed', correlate: 'workflow_id' }],
+    platforms: BOTH,
+    unobservable: ['order preference when no reorder is attempted'],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'action=reorder; investigate uses the versioned hosted receipt. A conflict is a blocked attempt, and a client completion alone does not prove the canonical order.'
+  },
+  {
+    id: 'team.account_archive',
+    tool: 'team',
+    title: 'Team · account archive and restore',
+    stages: ['attempted', 'active_launch_guard', 'server_commit', 'delivered'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    unobservable: [
+      'archive and restore attempts have no producer yet',
+      'active-launch guard has no committed schema yet'
+    ],
+    producerStatus: 'unsupported_by_producer',
+    source: 'authoritative_table',
+    note: 'The Launches dependency is uncommitted; audit must report this journey as unsupported until its schema and receipts land.'
+  },
+  {
     id: 'team.task_detach',
     tool: 'team',
     title: 'Team · task attachment detach and orphan cleanup',
