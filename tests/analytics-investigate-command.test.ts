@@ -31,6 +31,8 @@ const COPY_UNKNOWN = '6a000000-0000-4000-8000-000000000002';
 const ORDER_CONFIRMED = '6b000000-0000-4000-8000-000000000001';
 const ORDER_UNKNOWN = '6b000000-0000-4000-8000-000000000002';
 const ORDER_CONFLICT = '6b000000-0000-4000-8000-000000000003';
+const BULK_PARTIAL = '6c000000-0000-4000-8000-000000000001';
+const BULK_UNKNOWN = '6c000000-0000-4000-8000-000000000002';
 
 const INST_T = '1b000000-0000-4000-8000-000000000001';
 const INST_L = '1b000000-0000-4000-8000-000000000002';
@@ -419,6 +421,27 @@ beforeAll(async () => {
   await db.exec(`insert into public.analytics_account_order_receipts
     (actor_id, request_id, scope_kind, result_version, created_at) values
     ('${U_ORDER}', '${ORDER_CONFIRMED}', 'socials', 5, '2026-10-08T11:00:01Z')`);
+  await db.exec(
+    insertEvents([
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T12:00:00Z',
+        props: { action: 'trash', workflow_id: BULK_PARTIAL, item_count: 3 }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T12:01:00Z',
+        props: { action: 'trash', workflow_id: BULK_UNKNOWN, item_count: 2 }
+      }
+    ])
+  );
+  await db.exec(`insert into public.analytics_bulk_trash_receipts
+    (actor_id,request_id,group_id,item_count,queued_count,active_count,confirmed_count,
+     failed_count,unknown_count,error_codes,created_at,last_operation_at) values
+    ('${U_ORDER}','${BULK_PARTIAL}','6d000000-0000-4000-8000-000000000001',
+     3,0,0,1,1,1,array['PROVIDER_FAILURE'],'2026-10-08T12:00:00Z','2026-10-08T12:00:02Z')`);
 }, 60_000);
 
 afterAll(async () => {
@@ -476,6 +499,25 @@ describe('investigate · account order receipt', () => {
     ]);
     expect(data.account_orders[2]).toMatchObject({ scope_kind: 'socials', result_version: 5 });
     expect(finding(data, 'account_order_unconfirmed').kind).toBe('insufficient');
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
+
+describe('investigate · bulk trash receipt', () => {
+  it('shows per-group partial and unknown outcomes without material details', async () => {
+    const data = await investigate('order@example.test');
+    expect(data.bulk_trash.map(row => [row.request_id, row.status])).toEqual([
+      [BULK_UNKNOWN, 'unknown'],
+      [BULK_PARTIAL, 'partial']
+    ]);
+    expect(data.bulk_trash[1]).toMatchObject({
+      item_count: 3,
+      confirmed_count: 1,
+      failed_count: 1,
+      unknown_count: 1,
+      error_codes: ['PROVIDER_FAILURE']
+    });
+    expect(finding(data, 'bulk_trash_unconfirmed').kind).toBe('insufficient');
     expect(investigateOutputIsPrivate(data)).toBe(true);
   });
 });

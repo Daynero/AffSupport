@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(17);
+select plan(19);
 
 insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data) values
 ('bb370000-0000-4000-8000-000000000001','authenticated','authenticated','bulk-owner@example.test','{}','{}'),
@@ -88,6 +88,12 @@ select 'bb370000-0000-4000-8000-000000000042', team_id,
 from private.team_bulk_trash_items where material_id='bb370000-0000-4000-8000-000000000022';
 select is((public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')->0->'items'->1->>'state'),
  'failed','one failed item does not hide confirmed siblings');
+select is((select confirmed_count from public.analytics_bulk_trash_receipts
+ where request_id='bb370000-0000-4000-8000-000000000031'),1,
+ 'read-only receipt confirms one item');
+select ok(position('Secret A' in (select row_to_json(r)::text from public.analytics_bulk_trash_receipts r
+ where request_id='bb370000-0000-4000-8000-000000000031'))=0,
+ 'analytics receipt contains no private names');
 select ok(position('Secret A' in public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')::text)=0,
  'receipt contains no names');
 select is((public.prepare_team_bulk_trash_retry('bb370000-0000-4000-8000-000000000010',

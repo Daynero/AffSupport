@@ -454,6 +454,20 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     source: 'events'
   },
   {
+    id: 'team.bulk_trash',
+    tool: 'team',
+    title: 'Team · bulk trash with hosted item receipts',
+    stages: ['start', 'terminal'],
+    stageEvents: { start: ['team_workflow_started'], terminal: ['team_workflow_completed'] },
+    start: [{ event: 'team_workflow_started', correlate: 'workflow_id' }],
+    terminal: [{ event: 'team_workflow_completed', correlate: 'workflow_id' }],
+    platforms: BOTH,
+    unobservable: ['provider state before the hosted operation receipt'],
+    producerStatus: 'emitted',
+    source: 'events',
+    note: 'action=trash; investigate correlates workflow_id with the content-free hosted group receipt. A client terminal event alone does not prove that each item reached trash.'
+  },
+  {
     id: 'team.restitch',
     tool: 'team',
     title: 'Team · restitch delivery',

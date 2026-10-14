@@ -19,6 +19,7 @@ import { capabilityById } from './coverage-registry.js';
 import { query, queryOne } from './db.js';
 import {
   getAccountOrderReceipts,
+  getBulkTrashReceipts,
   getInspect,
   getSyncJobs,
   getTaskCopyReceipts,
@@ -1481,12 +1482,13 @@ export async function getInvestigation(
 ): Promise<InvestigateData> {
   const schema = await getSchema();
   const scope = await resolveSubject(input, period, schema);
-  const [rows, newest, activity, copyReceipts, orderReceipts] = await Promise.all([
+  const [rows, newest, activity, copyReceipts, orderReceipts, bulkReceipts] = await Promise.all([
     readEvents(scope, period, schema),
     newestVersionSeen(period),
     userActivity(scope.userId, period),
     getTaskCopyReceipts(scope.userId, period),
-    getAccountOrderReceipts(scope.userId, period)
+    getAccountOrderReceipts(scope.userId, period),
+    getBulkTrashReceipts(scope.userId, period)
   ]);
   const installations = sortedUnique([
     scope.installationId,
@@ -1659,6 +1661,70 @@ export async function getInvestigation(
     });
   }
 
+  const bulkAttempts = rows.filter(
+    row =>
+      row.event_name === 'team_workflow_started' && row.props.action === 'trash' && row.workflow_id
+  );
+  const bulkAttemptsById = new Map(bulkAttempts.map(row => [row.workflow_id!, row] as const));
+  const bulkReceiptsById = new Map(bulkReceipts?.map(row => [row.request_id, row] as const) ?? []);
+  const bulkTrash: InvestigateData['bulk_trash'] = [
+    ...new Set([...bulkAttemptsById.keys(), ...bulkReceiptsById.keys()])
+  ]
+    .map(requestId => {
+      const attempt = bulkAttemptsById.get(requestId);
+      const receipt = bulkReceiptsById.get(requestId);
+      const status: InvestigateData['bulk_trash'][number]['status'] = receipt
+        ? receipt.confirmed_count === receipt.item_count
+          ? 'confirmed'
+          : receipt.failed_count > 0 || receipt.confirmed_count > 0
+            ? 'partial'
+            : receipt.queued_count > 0 || receipt.active_count > 0
+              ? 'pending'
+              : 'unknown'
+        : bulkReceipts === null
+          ? 'receipt_unavailable'
+          : 'unknown';
+      return {
+        request_id: requestId,
+        group_id: receipt?.group_id ?? null,
+        status,
+        item_count: receipt?.item_count ?? null,
+        confirmed_count: receipt?.confirmed_count ?? 0,
+        failed_count: receipt?.failed_count ?? 0,
+        unknown_count: receipt?.unknown_count ?? 0,
+        error_codes: receipt?.error_codes ?? [],
+        attempted_at: attempt?.occurred_at ?? null,
+        last_operation_at: receipt?.last_operation_at ?? null
+      };
+    })
+    .sort((a, b) =>
+      (b.attempted_at ?? b.last_operation_at ?? '').localeCompare(
+        a.attempted_at ?? a.last_operation_at ?? ''
+      )
+    );
+  if (bulkReceipts === null && bulkAttempts.length > 0)
+    blindSpots.push({
+      kind: 'bulk_trash_receipts_unavailable',
+      detail:
+        'The read-only bulk trash receipt view is unavailable; item outcomes cannot be confirmed.',
+      values: []
+    });
+  for (const group of bulkTrash.filter(
+    group => group.status === 'unknown' || group.status === 'receipt_unavailable'
+  ))
+    findings.push({
+      id: hashId(['bulk_trash_unconfirmed', group.request_id]),
+      kind: 'insufficient',
+      severity: 'medium',
+      rule: 'bulk_trash_unconfirmed',
+      title: 'Bulk trash outcome is unconfirmed',
+      evidence: bulkAttemptsById.get(group.request_id)?.event_id
+        ? [`event:${bulkAttemptsById.get(group.request_id)!.event_id}`]
+        : [],
+      code_locations: [],
+      next_step: 'Read the hosted group receipt and retry only unresolved items.'
+    });
+
   const subject: InvestigateSubject = {
     kind: scope.kind,
     id: scope.id,
@@ -1673,6 +1739,7 @@ export async function getInvestigation(
     operations,
     task_copies: taskCopies,
     account_orders: accountOrders,
+    bulk_trash: bulkTrash,
     link,
     errors,
     journal_around_failures: journalAroundFailures,

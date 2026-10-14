@@ -854,6 +854,7 @@ export interface InvestigateBlindSpot {
     | 'image_selection_signal_missing'
     | 'task_copy_receipts_unavailable'
     | 'account_order_receipts_unavailable'
+    | 'bulk_trash_receipts_unavailable'
     | 'analytics_disabled'
     | 'analytics_delivery_losses'
     | 'sync_unavailable'
@@ -898,6 +899,18 @@ export interface InvestigateData {
     result_version: number | null;
     attempted_at: string | null;
     confirmed_at: string | null;
+  }>;
+  bulk_trash: Array<{
+    request_id: string;
+    group_id: string | null;
+    status: 'confirmed' | 'partial' | 'pending' | 'unknown' | 'receipt_unavailable';
+    item_count: number | null;
+    confirmed_count: number;
+    failed_count: number;
+    unknown_count: number;
+    error_codes: string[];
+    attempted_at: string | null;
+    last_operation_at: string | null;
   }>;
   link: InvestigateLink;
   errors: InvestigateErrorCluster[];

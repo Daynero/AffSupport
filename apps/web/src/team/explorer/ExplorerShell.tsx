@@ -46,6 +46,7 @@ import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamErrorMessageFor } from '../errors';
+import { analytics } from '../../analytics/service';
 import { TeamCatalog, type TeamCatalogClient } from '../catalog/TeamCatalog';
 import { TrashView } from '../catalog/TrashView';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
@@ -1370,10 +1371,35 @@ function ExplorerBody({
       if (!permissions?.delete) return;
       const targets = dedupeTrashTargets(rows, pathTo);
       if (targets.length > 1) {
+        const requestId = crypto.randomUUID();
+        const startedAt = Date.now();
+        analytics.track('team_workflow_started', {
+          workflow_id: requestId,
+          action: 'trash',
+          category: 'other',
+          cache_state: 'unknown',
+          attempt_number: 1,
+          stage: 'processing',
+          item_count: targets.length
+        });
+        const report = (confirmed: boolean) =>
+          analytics.track('team_workflow_completed', {
+            workflow_id: requestId,
+            action: 'trash',
+            category: 'other',
+            cache_state: 'unknown',
+            attempt_number: 1,
+            stage: 'finalizing',
+            item_count: targets.length,
+            duration_ms: Date.now() - startedAt,
+            outcome: confirmed ? 'success' : 'failure',
+            retryable: !confirmed,
+            production_completed: confirmed
+          });
         try {
           const intent = await (client.beginBulkTrash ?? teamApi.beginBulkTrash)({
             teamId,
-            requestId: crypto.randomUUID(),
+            requestId,
             materialIds: targets.map(row => row.id)
           });
           const byId = new Map(targets.map(row => [row.id, row]));
@@ -1407,6 +1433,7 @@ function ExplorerBody({
               const receipts = await (client.listBulkTrash ?? teamApi.listBulkTrash)(teamId);
               const group = receipts.find(receipt => receipt.id === intent.id);
               const confirmed = group?.items.filter(item => item.state === 'confirmed').length ?? 0;
+              report(confirmed === intent.items.length);
               push({
                 tone: confirmed === intent.items.length ? 'success' : 'warning',
                 text:
@@ -1415,8 +1442,12 @@ function ExplorerBody({
                     : t('teamBulkTrashPartial', { confirmed, total: intent.items.length })
               });
             })
-            .catch(() => push({ tone: 'warning', text: t('teamBulkTrashAwaiting') }));
+            .catch(() => {
+              report(false);
+              push({ tone: 'warning', text: t('teamBulkTrashAwaiting') });
+            });
         } catch (cause) {
+          report(false);
           push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
         }
         return;

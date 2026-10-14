@@ -1,6 +1,64 @@
 import { createHash } from 'node:crypto';
 import { query, queryOne } from './db.js';
 
+export async function getBulkTrashReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{
+  request_id: string;
+  group_id: string;
+  item_count: number;
+  queued_count: number;
+  active_count: number;
+  confirmed_count: number;
+  failed_count: number;
+  unknown_count: number;
+  error_codes: string[];
+  created_at: string;
+  last_operation_at: string | null;
+}> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_bulk_trash_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{
+    request_id: string;
+    group_id: string;
+    item_count: number;
+    queued_count: number;
+    active_count: number;
+    confirmed_count: number;
+    failed_count: number;
+    unknown_count: number;
+    error_codes: string[] | null;
+    created_at: string;
+    last_operation_at: string | null;
+  }>(
+    `select request_id::text, group_id::text, item_count, queued_count,
+      active_count, confirmed_count, failed_count, unknown_count,
+      error_codes, created_at::text, last_operation_at::text
+    from public.analytics_bulk_trash_receipts
+    where actor_id = $3::uuid
+      and ($1::timestamptz is null or created_at >= $1::timestamptz)
+      and created_at <= $2::timestamptz
+    order by created_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    item_count: Number(row.item_count),
+    queued_count: Number(row.queued_count),
+    active_count: Number(row.active_count),
+    confirmed_count: Number(row.confirmed_count),
+    failed_count: Number(row.failed_count),
+    unknown_count: Number(row.unknown_count),
+    error_codes: row.error_codes ?? [],
+    created_at: isoUtc(row.created_at) ?? row.created_at,
+    last_operation_at: isoUtc(row.last_operation_at) ?? row.last_operation_at
+  }));
+}
+
 /** Confirmed commits only; ordered IDs and account IDs remain in the private source table. */
 export async function getAccountOrderReceipts(
   userId: string | null,
