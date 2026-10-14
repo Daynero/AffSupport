@@ -1546,6 +1546,7 @@
   flex-direction: column;
   min-width: min(200px, calc(100vw - var(--space-6)));
   max-width: min(340px, calc(100vw - var(--space-4)));
+  max-height: calc(100dvh - var(--space-4));
   overflow: hidden;
 }
 .ui-menu-popover > .ui-menu {
