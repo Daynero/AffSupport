@@ -2678,9 +2678,18 @@
   --team-agent-columns: var(--team-agent-rail) var(--team-agent-id-width)
     repeat(3, minmax(var(--finance-date-column-width), 1fr)) var(--finance-row-actions-width);
 }
-.finance-daily-header {
+.finance-toolbar-sticky {
   position: sticky;
   top: calc(var(--topbar-h, 62px) + var(--team-accounts-sticky-height, 0px));
+  z-index: calc(var(--layer-sticky) + 1);
+  background: var(--color-surface);
+}
+.finance-daily-header {
+  position: sticky;
+  top: calc(
+    var(--topbar-h, 62px) + var(--team-accounts-sticky-height, 0px) +
+      var(--finance-toolbar-height, 0px)
+  );
   z-index: var(--layer-sticky);
   background: var(--color-surface);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   buildFinanceReport,
   buildFinanceTopupCopy,
@@ -85,6 +85,23 @@ export function FinanceWorkspace({
   );
   const dirty = Object.keys(drafts).length > 0;
   const pending = Object.values(drafts).includes('pending') || clearing || savingAll;
+  const financeSurface = useRef<HTMLElement>(null);
+  const financeToolbar = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const surface = financeSurface.current;
+    const toolbar = financeToolbar.current;
+    if (!surface || !toolbar) return;
+    const measure = () =>
+      surface.style.setProperty(
+        '--finance-toolbar-height',
+        `${toolbar.getBoundingClientRect().height}px`
+      );
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, []);
   const { date, setDate, today, timezone } = useFinancePeriod(dirty || clear !== null);
   const onStateChange = useCallback((key: string, state: 'clean' | 'dirty' | 'pending') => {
     setDrafts(old => {
@@ -285,34 +302,36 @@ export function FinanceWorkspace({
     else void saveAll(continueNavigation);
   };
   return (
-    <section className="flex flex-col gap-4" aria-label={t('financeTitle')}>
+    <section ref={financeSurface} className="flex flex-col gap-4" aria-label={t('financeTitle')}>
       <h3>{t('financeTitle')}</h3>
-      <FinanceToolbar
-        date={date}
-        today={today}
-        monthly={monthly}
-        from={from}
-        to={to}
-        timezone={timezone}
-        pending={pending}
-        exporting={exporting}
-        canExport={Boolean(finance.snapshot)}
-        navigate={navigate}
-        onRange={(start, end) => {
-          if (start > end || (Date.parse(end) - Date.parse(start)) / 86400000 > 365) {
-            push({ tone: 'info', text: t('financeRangeLimit') });
-            return;
-          }
-          navigate(start, start !== end, start === end ? undefined : [start, end]);
-        }}
-        onExport={() => {
-          setExporting(true);
-          void teamFinanceApi
-            .export(teamId, from, to, timezone)
-            .catch(fail)
-            .finally(() => setExporting(false));
-        }}
-      />
+      <div ref={financeToolbar} className="finance-toolbar-sticky">
+        <FinanceToolbar
+          date={date}
+          today={today}
+          monthly={monthly}
+          from={from}
+          to={to}
+          timezone={timezone}
+          pending={pending}
+          exporting={exporting}
+          canExport={Boolean(finance.snapshot)}
+          navigate={navigate}
+          onRange={(start, end) => {
+            if (start > end || (Date.parse(end) - Date.parse(start)) / 86400000 > 365) {
+              push({ tone: 'info', text: t('financeRangeLimit') });
+              return;
+            }
+            navigate(start, start !== end, start === end ? undefined : [start, end]);
+          }}
+          onExport={() => {
+            setExporting(true);
+            void teamFinanceApi
+              .export(teamId, from, to, timezone)
+              .catch(fail)
+              .finally(() => setExporting(false));
+          }}
+        />
+      </div>
       {!monthly && returnMonth && (
         <Button
           size="sm"

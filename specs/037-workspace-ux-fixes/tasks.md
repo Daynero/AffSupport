@@ -101,7 +101,7 @@
 
 **Independent Test**: Scroll a long finance table on desktop and narrow screens at 200% zoom without overlap or clipped controls.
 
-- [ ] T028 [US5] Make `FinanceToolbar` sticky in the actual scroll owner with workspace-header offset and wrapped controls in `apps/web/src/team/accounts/finance/FinanceWorkspace.tsx`, `apps/web/src/team/accounts/finance/FinanceToolbar.tsx` and token-based styles in `apps/web/src/styles/components.css`.
+- [x] T028 [US5] Make the existing wrapped `FinanceToolbar` sticky beneath the measured workspace header in `FinanceWorkspace.tsx` and token-based styles in `components.css`; measure its responsive height so the daily table header stays below it.
 - [ ] T029 [US5] Add a meaningful scroll/visibility regression in `tests/team-finance-workspace.test.tsx` (create if absent) and complete the narrow/zoom visual scenario from `specs/037-workspace-ux-fixes/quickstart.md`.
 
 **Checkpoint**: FR-010 and SC-004 pass.
