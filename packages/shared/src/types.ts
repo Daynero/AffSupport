@@ -520,6 +520,8 @@ export const STITCH_ERROR_CODES = [
   'BODY_HEAD_FAILED',
   'BODY_TAIL_FAILED',
   'BODY_AUDIO_MISMATCH',
+  'BODY_RECOVERY_FAILED',
+  'BODY_RECOVERY_VERIFICATION_FAILED',
   'BODY_TIMING_UNREADABLE',
   'BODY_JOIN_FAILED'
 ] as const;
@@ -795,6 +797,7 @@ export const DIAGNOSTIC_CATEGORIES = [
   'drop',
   'update',
   'power',
+  'stitcher',
   'team'
 ] as const;
 export type DiagnosticCategory = (typeof DIAGNOSTIC_CATEGORIES)[number];

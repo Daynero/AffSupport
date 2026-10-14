@@ -409,6 +409,7 @@ export class StitchQueue {
     this.patch(id, { detected: looked.value.detected, plan: looked.value.plan });
 
     const produced = await this.pipeline({
+      runId: id,
       request: {
         profile: looked.value.profile,
         plan: looked.value.plan,

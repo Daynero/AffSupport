@@ -43,6 +43,8 @@ export interface StitchPipelineRequest {
 }
 
 export interface PipelineContext {
+  /** Queue job id, shared with the web run_id and local recovery journal. */
+  runId?: string;
   request: StitchPipelineRequest;
   workDir: string;
   threads: number | null;
@@ -96,7 +98,13 @@ export const runStitchPipeline: StitchPipeline = async context => {
     silenceBankPath = bank.path;
   }
 
-  const body = await context.bodies.prepare({ profile, plan, threads, ...run });
+  const body = await context.bodies.prepare({
+    profile,
+    plan,
+    threads,
+    runId: context.runId,
+    ...run
+  });
   if (!body.ok) return { ok: false, error: body.error };
 
   // What the body actually is, not what it was predicted to be: see `measureSegment`.

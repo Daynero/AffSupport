@@ -172,17 +172,25 @@ export async function measureSegment(
   input: string,
   options: { signal?: AbortSignal } = {}
 ): Promise<{ durationSeconds: number; videoTrackSeconds: number; frameCount: number } | null> {
+  const measured = await measureOutput(input, options);
+  return measured
+    ? {
+        durationSeconds: measured.durationSeconds,
+        videoTrackSeconds: measured.videoTrackSeconds,
+        frameCount: measured.frameCount
+      }
+    : null;
+}
+
+/** Full track measurements for deciding whether a prepared body is safe to cache. */
+export async function measureOutput(
+  input: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<MeasuredOutput | null> {
   const probe = await runTool(ffprobePath, buildVerifyProbeArgs(input), options);
   if (!toolSucceeded(probe)) return null;
   try {
-    const measured = measurementFromProbe(JSON.parse(probe.stdout));
-    return measured
-      ? {
-          durationSeconds: measured.durationSeconds,
-          videoTrackSeconds: measured.videoTrackSeconds,
-          frameCount: measured.frameCount
-        }
-      : null;
+    return measurementFromProbe(JSON.parse(probe.stdout));
   } catch {
     return null;
   }

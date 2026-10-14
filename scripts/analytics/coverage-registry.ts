@@ -205,7 +205,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['stitched file opened outside Soty'],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'stitch_started is one per accepted job; stitch_* and operation_* share the job id as run_id (031 T008).'
+    note: 'stitch_started is one per accepted job; stitch_* and operation_* share the job id as run_id (031 T008). A copied-body timing or audio defect emits stitcher:body_recovery_* in the agent journal with the same runId and a bounded reason; older agents without journal delivery leave that cause unknown.'
   },
   {
     id: 'transcription.run',

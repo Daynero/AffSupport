@@ -397,6 +397,16 @@ export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
     agent: [AGENT_STITCH_BODY],
     check: 'Why the body pieces disagree on audio parameters.'
   },
+  BODY_RECOVERY_FAILED: {
+    stage: 'stitch',
+    agent: [AGENT_STITCH_BODY],
+    check: 'Why full-body recovery failed after copied tracks disagreed.'
+  },
+  BODY_RECOVERY_VERIFICATION_FAILED: {
+    stage: 'stitch',
+    agent: [AGENT_STITCH_BODY, AGENT_STITCH_PIPELINE],
+    check: 'Which recovered body track still disagreed with the planned duration.'
+  },
   BODY_TIMING_UNREADABLE: {
     stage: 'stitch',
     agent: [AGENT_STITCH_BODY, 'apps/agent/src/ffmpeg/encoder.ts'],
@@ -505,6 +515,18 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     files: [AGENT_SPAWN, AGENT_FFMPEG_TOOLS],
     check: 'The outcome prop: nonzero or spawn_error means the media tool itself failed to run.'
   },
+  'stitcher:body_recovery_started': {
+    files: [AGENT_STITCH_BODY],
+    check: 'The reason prop identifies the copied body defect that triggered a full re-encode.'
+  },
+  'stitcher:body_recovery_completed': {
+    files: [AGENT_STITCH_BODY],
+    check: 'The recovered body passed its track-length check; confirm the run later completed.'
+  },
+  'stitcher:body_recovery_failed': {
+    files: [AGENT_STITCH_BODY],
+    check: 'The reason and stage props identify why full-body recovery did not pass.'
+  },
   'auth:route_budget_exceeded': {
     files: [AGENT_APP],
     check: 'The per-route request budget refused the page; look for a retry loop in the web.'
@@ -583,6 +605,7 @@ const JOURNAL_CATEGORY_FILES: Readonly<Record<string, JournalSpec>> = {
     files: ['apps/agent/src/power/governor.ts'],
     check: 'The local resource budget governor.'
   },
+  stitcher: { files: [AGENT_STITCH_BODY], check: 'Prepared body recovery and verification.' },
   team: {
     files: ['apps/agent/src/team-bridge/routes.ts'],
     check: 'The team bridge of the local app.'

@@ -6,16 +6,17 @@ import { createTeamTestDb, type TeamTestDb } from './support/team-db.js';
 /**
  * 033 US2 / FR-001, FR-002, FR-004, FR-011 — the agent journal's server-side
  * fence, run against a real Postgres with every repository migration applied
- * (20261124100000_agent_journal.sql last). The browser that forwards records is
+ * including the latest category fence. The browser that forwards records is
  * not trusted, so everything the agent would refuse must be refused here too.
  */
 
-const MIGRATION = 'supabase/migrations/20261124100000_agent_journal.sql';
+const MIGRATION = 'supabase/migrations/20261202122000_stitcher_journal_category.sql';
 const USER = '33000000-0000-4000-8000-000000000001';
 const OTHER = '33000000-0000-4000-8000-000000000002';
 const INSTALLATION = '33000000-0000-4000-8000-0000000000a1';
 const INSTANCE = '33000000-0000-4000-8000-0000000000b1';
 const RESTARTED = '33000000-0000-4000-8000-0000000000b2';
+const RECOVERY_INSTANCE = '33000000-0000-4000-8000-0000000000b3';
 
 type IngestResult = {
   accepted: number;
@@ -91,6 +92,23 @@ describe('agent journal ingestion (PGlite, real migration)', () => {
     expect(rows[0]!.installation_id).toBe(INSTALLATION);
     expect(rows[0]!.props).toEqual({ duration: 'under_10s', exitCode: 1, killed: false });
     expect(new Date(rows[0]!.recorded_at).getTime()).toBe(at);
+  });
+
+  it('accepts a bounded stitcher recovery reason', async () => {
+    const result = await ingest(
+      [
+        record(1, {
+          category: 'stitcher',
+          code: 'body_recovery_completed',
+          props: {
+            reason: 'audio_profile_unknown',
+            runId: '00000000-0000-4000-8000-000000000031'
+          }
+        })
+      ],
+      { instance: RECOVERY_INSTANCE }
+    );
+    expect(result).toEqual({ accepted: 1, duplicates: 0, rejected: [] });
   });
 
   it('treats a record already stored as a no-op, and a restarted agent as new rows', async () => {
