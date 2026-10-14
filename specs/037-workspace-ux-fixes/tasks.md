@@ -149,7 +149,7 @@
 - [x] T040 [US9] Extend validated settings and migration defaults with nullable selected start/end IDs in `packages/shared/src/types.ts` and `apps/agent/src/queue/store.ts`; null retains current random behavior.
 - [x] T041 [US9] Validate selected asset at queue start and freeze it into `JobImageEmbedding` in `apps/agent/src/queue/queue.ts`, without changing the cross-platform managed spawn path.
 - [x] T042 [US9] Add explicit single-choice controls and clear selection/error state in `apps/web/src/components/ImageEmbeddingSection.tsx` and relevant labels in `apps/web/src/i18n.ts`; distinguish explicit from random mode.
-- [ ] T043 [US9] Add privacy-safe selected-image outcome and missing-signal diagnosis in `apps/agent/src/queue/queue.ts`, `scripts/analytics/coverage-registry.ts` and `tests/analytics-investigate-command.test.ts`; run macOS/Windows contract verification.
+- [x] T043 [US9] Add privacy-safe selected-image outcome and missing-signal diagnosis in `apps/agent/src/queue/queue.ts`, `scripts/analytics/coverage-registry.ts` and `tests/analytics-investigate-command.test.ts`; run macOS/Windows contract verification.
 
 **Checkpoint**: FR-016 passes without changing previously queued jobs.
 

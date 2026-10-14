@@ -407,6 +407,14 @@ function migrateJobImageEmbedding(value: unknown): JobImageEmbedding | null {
   return {
     startImage,
     endImage,
+    startSelectionMode:
+      startImage && raw.startSelectionMode === 'explicit'
+        ? 'explicit'
+        : startImage
+          ? 'random'
+          : 'off',
+    endSelectionMode:
+      endImage && raw.endSelectionMode === 'explicit' ? 'explicit' : endImage ? 'random' : 'off',
     startDurationMode: settings.startDurationMode,
     customStartDurationMs: settings.customStartDurationMs,
     finalDurationMode: settings.finalDurationMode,

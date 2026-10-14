@@ -102,12 +102,22 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     tool: 'compressor',
     toolColumn: 'compressor',
     title: 'Compressor · compress a batch',
-    stages: ['open', 'ready', 'input_add', 'estimate', 'start', 'terminal', 'result_visible'],
+    stages: [
+      'open',
+      'ready',
+      'input_add',
+      'estimate',
+      'image_choice',
+      'start',
+      'terminal',
+      'result_visible'
+    ],
     stageEvents: {
       open: ['tool_opened'],
       ready: ['tool_ready'],
       input_add: ['videos_added'],
       estimate: ['estimate_started', 'estimate_completed', 'estimate_failed'],
+      image_choice: ['compression_started'],
       start: ['compression_batch_started', 'compression_started'],
       terminal: ['compression_completed', 'compression_failed', 'operation_cancelled']
     },
@@ -120,9 +130,13 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     readiness: { event: 'tool_ready', correlate: 'none' },
     error: { event: 'error_occurred', correlate: 'run_id' },
     platforms: BOTH,
-    unobservable: ['result file opened outside Soty'],
+    unobservable: [
+      'result file opened outside Soty',
+      'invalid image choice while the start control is disabled (no run is accepted)'
+    ],
     producerStatus: 'emitted',
-    source: 'events'
+    source: 'events',
+    note: 'Accepted runs carry image_start_selection and image_end_selection as bounded modes; missing compression_started leaves image choice unknown.'
   },
   {
     id: 'compressor.estimate',

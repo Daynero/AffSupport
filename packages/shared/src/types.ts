@@ -144,6 +144,8 @@ export interface ImageEmbeddingSettings {
 export interface JobImageEmbedding {
   startImage: ImageAsset | null;
   endImage: ImageAsset | null;
+  startSelectionMode: 'off' | 'random' | 'explicit';
+  endSelectionMode: 'off' | 'random' | 'explicit';
   startDurationMode: StartImageDurationMode;
   customStartDurationMs: number;
   finalDurationMode: FinalImageDurationMode;
@@ -309,6 +311,8 @@ export function imageEmbeddingKey(settings: JobImageEmbedding | null): string {
   return JSON.stringify([
     settings.startImage?.id ?? null,
     settings.endImage?.id ?? null,
+    settings.startSelectionMode,
+    settings.endSelectionMode,
     settings.startDurationMode,
     settings.customStartDurationMs,
     settings.finalDurationMode,
@@ -348,6 +352,12 @@ export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageE
   return {
     startImage: startImage ? { ...startImage } : null,
     endImage: endImage ? { ...endImage } : null,
+    startSelectionMode: startImage
+      ? settings.selectedStartImageId
+        ? 'explicit'
+        : 'random'
+      : 'off',
+    endSelectionMode: endImage ? (settings.selectedEndImageId ? 'explicit' : 'random') : 'off',
     startDurationMode: settings.startDurationMode,
     customStartDurationMs: settings.customStartDurationMs,
     finalDurationMode: settings.finalDurationMode,

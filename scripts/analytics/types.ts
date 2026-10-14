@@ -851,6 +851,7 @@ export interface InvestigateBlindSpot {
     | 'web_build_without_link_events'
     | 'agent_version_without_journal'
     | 'agent_journal_missing'
+    | 'image_selection_signal_missing'
     | 'analytics_disabled'
     | 'analytics_delivery_losses'
     | 'sync_unavailable'

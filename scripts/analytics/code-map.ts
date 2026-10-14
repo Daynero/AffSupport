@@ -129,7 +129,8 @@ export const COMPRESSOR_CODES: Readonly<Record<string, CodeSpec>> = {
   IMAGE_UNAVAILABLE: {
     stage: 'image_embedding',
     agent: [AGENT_IMAGES, AGENT_QUEUE],
-    check: 'Whether the screen image referenced by the job still exists in the image library.'
+    check:
+      'Whether an explicitly selected image still belongs to its enabled slot and remains available in the image library; compare the accepted run’s bounded selection mode, never a file name or path.'
   },
   IMAGE_FILTER_GRAPH_INVALID: {
     stage: 'image_embedding',

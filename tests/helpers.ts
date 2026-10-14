@@ -119,6 +119,8 @@ export function makeEmbedding(patch: Partial<JobImageEmbedding> = {}): JobImageE
   return {
     startImage: null,
     endImage: null,
+    startSelectionMode: 'off',
+    endSelectionMode: 'off',
     startDurationMode: 'one-frame',
     customStartDurationMs: 100,
     finalDurationMode: 'random-40-50',

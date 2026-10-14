@@ -18,7 +18,7 @@ import {
   safeCompressionProperties
 } from '../apps/web/src/analytics/compression';
 import { toolJobActivityEvents } from '../apps/web/src/analytics/tools';
-import { makeJob } from './helpers';
+import { makeEmbedding, makeJob } from './helpers';
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -216,6 +216,28 @@ describe('privacy-minimized analytics', () => {
       processing_duration_ms: 500
     });
     expect(JSON.stringify(properties)).not.toMatch(/customer|private\.mov|\/Users/);
+  });
+
+  it('reports only the explicit image mode, never the selected asset identity', () => {
+    const properties = safeCompressionProperties(
+      makeJob('secret-file', 'completed', {
+        imageEmbedding: makeEmbedding({
+          startImage: {
+            id: '11111111-1111-4111-8111-111111111111',
+            fileName: 'private-screen.png',
+            width: 32,
+            height: 32,
+            size: 128,
+            mimeType: 'image/png',
+            extension: '.png'
+          },
+          startSelectionMode: 'explicit'
+        })
+      })
+    );
+    expect(properties.image_start_selection).toBe('explicit');
+    expect(properties.image_end_selection).toBe('off');
+    expect(JSON.stringify(properties)).not.toMatch(/private-screen|11111111/);
   });
 
   it('builds one privacy-safe lifecycle for non-team tool queues', () => {

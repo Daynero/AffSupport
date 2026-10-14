@@ -443,6 +443,9 @@ describe('investigate · (a) failed transcription with a code', () => {
       states: { failed: 1 },
       error_codes: ['DRIVE_FORBIDDEN']
     });
+    expect(data.coverage.blind_spots).toContainEqual(
+      expect.objectContaining({ kind: 'image_selection_signal_missing', values: ['1.2.6'] })
+    );
     expect(JSON.stringify(data)).not.toContain('secret detail');
   });
 });

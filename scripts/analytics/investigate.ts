@@ -1402,6 +1402,20 @@ function blindSpotsOf(input: {
       values: input.buildsWithoutLink
     });
   }
+  const imageChoiceMissing = rows.filter(
+    row =>
+      row.event_name === 'compression_started' &&
+      (typeof row.props.image_start_selection !== 'string' ||
+        typeof row.props.image_end_selection !== 'string')
+  );
+  if (imageChoiceMissing.length > 0) {
+    spots.push({
+      kind: 'image_selection_signal_missing',
+      detail:
+        'Compression started, but the image choice mode was not delivered. The selected image outcome is unknown; use the agent job receipt or a newer web build before diagnosing it.',
+      values: sortedUnique(imageChoiceMissing.map(row => row.web_build_id)).slice(0, 20)
+    });
+  }
   const journaled = new Set(journal.map(record => record.agent_instance_id));
   const versions = sortedUnique(rows.map(row => row.local_app_version)).sort(compareVersions);
   const silent = versions.filter(version => {
