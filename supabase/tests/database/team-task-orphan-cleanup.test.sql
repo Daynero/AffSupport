@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(16);
+select plan(18);
 
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
 ('bd370000-0000-4000-8000-000000000001','authenticated','authenticated','orphan-owner@example.test','{}','{}'),
@@ -23,7 +23,9 @@ insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,ki
 ('bd370000-0000-4000-8000-000000000021','bd370000-0000-4000-8000-000000000010',
  'bd370000-0000-4000-8000-000000000012','orphan-a','A','file'),
 ('bd370000-0000-4000-8000-000000000022','bd370000-0000-4000-8000-000000000010',
- 'bd370000-0000-4000-8000-000000000012','orphan-b','B','file');
+ 'bd370000-0000-4000-8000-000000000012','orphan-b','B','file'),
+('bd370000-0000-4000-8000-000000000023','bd370000-0000-4000-8000-000000000010',
+ 'bd370000-0000-4000-8000-000000000012','orphan-c','C','file');
 insert into public.team_tasks(id,team_id,created_by,title) values
 ('bd370000-0000-4000-8000-000000000030','bd370000-0000-4000-8000-000000000010',
  'bd370000-0000-4000-8000-000000000001','Task');
@@ -31,7 +33,9 @@ insert into public.team_task_attachments(team_id,task_id,material_id,position,at
 ('bd370000-0000-4000-8000-000000000010','bd370000-0000-4000-8000-000000000030',
  'bd370000-0000-4000-8000-000000000021',0,'bd370000-0000-4000-8000-000000000001'),
 ('bd370000-0000-4000-8000-000000000010','bd370000-0000-4000-8000-000000000030',
- 'bd370000-0000-4000-8000-000000000022',1,'bd370000-0000-4000-8000-000000000001');
+ 'bd370000-0000-4000-8000-000000000022',1,'bd370000-0000-4000-8000-000000000001'),
+('bd370000-0000-4000-8000-000000000010','bd370000-0000-4000-8000-000000000030',
+ 'bd370000-0000-4000-8000-000000000023',2,'bd370000-0000-4000-8000-000000000001');
 insert into public.team_operations(id,team_id,actor_id,kind,state,result_material_id,
  idempotency_key,request_nonce,finished_at) values
 ('bd370000-0000-4000-8000-000000000040','bd370000-0000-4000-8000-000000000010',
@@ -66,6 +70,12 @@ select is(public.detach_team_task_material_v2('bd370000-0000-4000-8000-000000000
 select is(public.detach_team_task_material_v2('bd370000-0000-4000-8000-000000000010',
  'bd370000-0000-4000-8000-000000000030','bd370000-0000-4000-8000-000000000022')->>'state',
  'cleanup_unverified','external material is retained');
+select ok(public.detach_team_task_material('bd370000-0000-4000-8000-000000000010',
+ 'bd370000-0000-4000-8000-000000000030','bd370000-0000-4000-8000-000000000023'),
+ 'legacy boolean detach still reports success');
+select is((select count(*) from private.team_task_orphan_intents where material_id=
+ 'bd370000-0000-4000-8000-000000000023'),1::bigint,
+ 'legacy boolean detach also creates a server intent');
 update private.team_task_orphan_intents set state='claimed' where material_id=
  'bd370000-0000-4000-8000-000000000021';
 insert into public.team_task_attachments(team_id,task_id,material_id,position,attached_by) values
@@ -96,7 +106,7 @@ select is((select state from private.team_task_orphan_intents where material_id=
 select is((select reason_code from private.team_task_orphan_intents where material_id=
  'bd370000-0000-4000-8000-000000000021' and state='cleanup_unverified'),
  'LAUNCH_REFERENCE_UNVERIFIED','unintegrated Launches references remain an explicit reason');
-select ok(position('orphan-b' in (select row_to_json(r)::text from public.analytics_task_orphan_receipts r
+select ok(position('orphan-b' in (select string_agg(row_to_json(r)::text,'') from public.analytics_task_orphan_receipts r
  where actor_id='bd370000-0000-4000-8000-000000000001' and state='cleanup_unverified'))=0,
  'diagnostic receipt contains no file identity');
 select ok(not has_table_privilege('authenticated','private.team_task_upload_markers','SELECT')
