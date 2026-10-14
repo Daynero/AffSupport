@@ -326,6 +326,7 @@ describeRequiring(ffmpegBinaries, 'encode fidelity against real media', () => {
         frameRate: 30,
         imageEmbedding: {
           startImage: null,
+          startSelectionMode: 'off',
           endImage: {
             id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             fileName: 'end.png',
@@ -335,6 +336,7 @@ describeRequiring(ffmpegBinaries, 'encode fidelity against real media', () => {
             mimeType: 'image/png',
             extension: '.png'
           },
+          endSelectionMode: 'explicit',
           startDurationMode: 'one-frame',
           customStartDurationMs: 100,
           finalDurationMode: 'custom',

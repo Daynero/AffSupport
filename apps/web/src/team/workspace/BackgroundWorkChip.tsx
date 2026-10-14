@@ -40,8 +40,7 @@ export function BackgroundWorkChip({
   const operations = useOptionalWorkspaceOperations();
   const active =
     operations?.groups.filter(
-      group =>
-        group.stage !== 'done' && (group.state === 'preparing' || group.state === 'running')
+      group => group.stage !== 'done' && (group.state === 'preparing' || group.state === 'running')
     ) ?? [];
   const reviewable =
     operations?.groups

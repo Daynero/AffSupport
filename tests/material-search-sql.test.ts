@@ -25,9 +25,11 @@ interface SearchResult {
 async function setupTeam(harness: TeamTestDb, label: string) {
   await createUser(harness, { id: OWNER, email: `owner@${label}.test`, displayName: 'Owner' });
   await harness.root(`insert into public.admin_users (user_id) values ($1)`, [OWNER]);
-  const team = await harness.asUser<{ id: string }>(OWNER, 'select id from public.create_team($1)', [
-    label
-  ]);
+  const team = await harness.asUser<{ id: string }>(
+    OWNER,
+    'select id from public.create_team($1)',
+    [label]
+  );
   const teamId = team[0]!.id;
   const credential = await harness.root<{ id: string }>(
     `insert into private.google_drive_credentials
@@ -81,7 +83,10 @@ function materialFactory(harness: TeamTestDb, teamId: string, connectionId: stri
         input.name,
         input.kind ?? 'file',
         input.kind === 'folder' ? null : (input.category ?? 'other'),
-        input.mime ?? (input.kind === 'folder' ? 'application/vnd.google-apps.folder' : 'application/octet-stream'),
+        input.mime ??
+          (input.kind === 'folder'
+            ? 'application/vnd.google-apps.folder'
+            : 'application/octet-stream'),
         input.tags ?? null,
         input.offer ?? null,
         input.geo ?? null,
@@ -137,10 +142,30 @@ describe('smarter material search (pg_trgm loaded)', () => {
     add = materialFactory(harness, teamId, team.connectionId);
 
     // Ranking fixtures — the transcript row is the newest, so only ranking can put it last.
-    await add({ name: 'Horses.png', category: 'image', mime: 'image/png', modifiedAt: '2026-01-01T00:00:00Z' });
-    await add({ name: 'Horses_running_v2.mp4', category: 'video', mime: 'video/mp4', modifiedAt: '2026-01-02T00:00:00Z' });
-    await add({ name: 'wild horses herd.mov', category: 'video', mime: 'video/quicktime', modifiedAt: '2026-01-03T00:00:00Z' });
-    await add({ name: 'Seahorses.jpg', category: 'image', mime: 'image/jpeg', modifiedAt: '2026-01-04T00:00:00Z' });
+    await add({
+      name: 'Horses.png',
+      category: 'image',
+      mime: 'image/png',
+      modifiedAt: '2026-01-01T00:00:00Z'
+    });
+    await add({
+      name: 'Horses_running_v2.mp4',
+      category: 'video',
+      mime: 'video/mp4',
+      modifiedAt: '2026-01-02T00:00:00Z'
+    });
+    await add({
+      name: 'wild horses herd.mov',
+      category: 'video',
+      mime: 'video/quicktime',
+      modifiedAt: '2026-01-03T00:00:00Z'
+    });
+    await add({
+      name: 'Seahorses.jpg',
+      category: 'image',
+      mime: 'image/jpeg',
+      modifiedAt: '2026-01-04T00:00:00Z'
+    });
     await add({
       name: 'interview.mp4',
       category: 'video',
@@ -156,7 +181,13 @@ describe('smarter material search (pg_trgm loaded)', () => {
       note: 'Client asked for a calmer palette and a clear call to action around the zebra banner only.',
       modifiedAt: '2026-05-01T00:00:00Z'
     });
-    await add({ name: 'tagged.png', category: 'image', mime: 'image/png', tags: ['gallop'], geo: 'UA' });
+    await add({
+      name: 'tagged.png',
+      category: 'image',
+      mime: 'image/png',
+      tags: ['gallop'],
+      geo: 'UA'
+    });
     await add({ name: 'Креатив_весна.mp4', category: 'video', mime: 'video/mp4', offer: 'Весна' });
     await add({ name: 'summer sale banner.png', category: 'image', mime: 'image/png', geo: 'DE' });
     await add({ name: 'promo_video_final.mp4', category: 'video', mime: 'video/mp4' });
@@ -173,7 +204,12 @@ describe('smarter material search (pg_trgm loaded)', () => {
     await add({ name: 'Archive C', kind: 'folder', driveId: 'fold-c', parent: 'fold-b' });
     await add({ name: 'stallion-top.png', parent: 'fold-a', category: 'image', mime: 'image/png' });
     await add({ name: 'stallion-mid.png', parent: 'fold-b', category: 'image', mime: 'image/png' });
-    await add({ name: 'stallion-deep.png', parent: 'fold-c', category: 'image', mime: 'image/png' });
+    await add({
+      name: 'stallion-deep.png',
+      parent: 'fold-c',
+      category: 'image',
+      mime: 'image/png'
+    });
     await add({ name: '.DS_Store', parent: 'fold-b', category: 'other', driveId: 'ds-b' });
   }, 120_000);
 
@@ -196,10 +232,11 @@ describe('smarter material search (pg_trgm loaded)', () => {
   }, 60_000);
 
   it('finds by prefix and by the start of any word of the name', async () => {
-    expect(names(await search('hors')).slice(0, 2).sort()).toEqual([
-      'Horses.png',
-      'Horses_running_v2.mp4'
-    ]);
+    expect(
+      names(await search('hors'))
+        .slice(0, 2)
+        .sort()
+    ).toEqual(['Horses.png', 'Horses_running_v2.mp4']);
     const herd = names(await search('herd'));
     expect(herd).toEqual(['wild horses herd.mov']);
     const running = names(await search('runn'));
@@ -231,7 +268,11 @@ describe('smarter material search (pg_trgm loaded)', () => {
     const direct = await search('stallion', { parent: 'fold-a' });
     expect(names(direct)).toEqual(['stallion-top.png']);
     const deep = await search('stallion', { parent: 'fold-a', recursive: true });
-    expect(names(deep).sort()).toEqual(['stallion-deep.png', 'stallion-mid.png', 'stallion-top.png']);
+    expect(names(deep).sort()).toEqual([
+      'stallion-deep.png',
+      'stallion-mid.png',
+      'stallion-top.png'
+    ]);
     expect(deep.total).toBe(3);
     const fromMiddle = await search('stallion', { parent: 'fold-b', recursive: true });
     expect(names(fromMiddle).sort()).toEqual(['stallion-deep.png', 'stallion-mid.png']);

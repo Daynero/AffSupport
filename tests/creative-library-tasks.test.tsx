@@ -182,9 +182,11 @@ describe('Creative Library task workflows', () => {
     const api = client();
     const copiedId = '31000000-0000-4000-8000-000000000007';
     let copied = false;
-    api.listTasks = vi.fn().mockImplementation(async () =>
-      copied ? [task(), { ...task(), id: copiedId, title: 'Copied task' }] : [task()]
-    );
+    api.listTasks = vi
+      .fn()
+      .mockImplementation(async () =>
+        copied ? [task(), { ...task(), id: copiedId, title: 'Copied task' }] : [task()]
+      );
     api.copyTasks = vi.fn().mockImplementation(async () => {
       copied = true;
       return [copiedId];
