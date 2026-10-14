@@ -10,6 +10,7 @@
 
 .team-account-space {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   /* A grid item refuses to shrink below its content by default, and on a
      320px phone that made the whole card wider than the screen — the page
      scrolled sideways while every row inside it fitted. */

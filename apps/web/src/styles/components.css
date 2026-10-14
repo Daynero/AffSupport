@@ -2620,6 +2620,8 @@
 /* Dense financial matrices fill the remaining viewport. The opaque sticky
    layers deliberately sit above the date rail, including its footer corner. */
 .finance-matrix-scroll {
+  min-width: 0;
+  max-width: 100%;
   height: max(
     var(--finance-table-min-height),
     calc(100dvh - var(--finance-table-top, 0px) - var(--space-6))
