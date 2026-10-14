@@ -2696,6 +2696,10 @@
 .finance-daily-header .finance-daily-columns {
   position: static;
 }
+.team-bulk-trash-receipts {
+  max-height: var(--bulk-trash-list-max-height);
+  overflow: auto;
+}
 .finance-daily-table .team-agent-row.finance-daily-row {
   display: grid;
   grid-template-columns: var(--team-agent-columns);

@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react';
-import type { TeamMaterialRow, TeamMaterialTagColor } from '@video-compressor/shared';
+import type {
+  TeamBulkTrashItem,
+  TeamMaterialRow,
+  TeamMaterialTagColor
+} from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
 import {
   EmptyState,
@@ -21,6 +25,7 @@ import { MorePages } from './MorePages';
 import type { FolderPageState } from './useFolderPage';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
+import { BulkTrashStatus } from './BulkTrashStatus';
 import { companionOf } from './companions';
 import { useMaterialDrag } from './materialDrag';
 import { suppressShiftTextSelection, useRowPress } from './useSelectionGestures';
@@ -50,7 +55,8 @@ export function ContentList({
   companionCounts,
   openedCompanions,
   onToggleCompanions,
-  onDropMaterials
+  onDropMaterials,
+  bulkTrashState
 }: {
   /** The folder's rows, held by the shell so one listing serves everything. */
   page: FolderPageState;
@@ -68,6 +74,7 @@ export function ContentList({
    * having to know what order the shell would have put them in.
    */
   rows?: readonly TeamMaterialRow[];
+  bulkTrashState?: ReadonlyMap<string, TeamBulkTrashItem['state']>;
   onPreview?: (material: TeamMaterialSummary) => void;
   /** Per-row file actions; absent when the member may do nothing (011, FR-025). */
   actions?: RowActionsProps;
@@ -168,6 +175,7 @@ export function ContentList({
             <Row
               key={row.id}
               row={row}
+              bulkTrashState={bulkTrashState?.get(row.id)}
               selected={selectedId === row.id}
               checked={selectedIds.has(row.id)}
               drag={drag.dragProps(row)}
@@ -197,6 +205,7 @@ export function ContentList({
 
 function Row({
   row,
+  bulkTrashState,
   selected,
   checked,
   onPress,
@@ -213,6 +222,7 @@ function Row({
   nested = false
 }: {
   row: TeamMaterialRow;
+  bulkTrashState?: TeamBulkTrashItem['state'];
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
   dropTarget: boolean;
   selected: boolean;
@@ -325,6 +335,7 @@ function Row({
         >
           {row.name}
         </button>
+        {bulkTrashState && <BulkTrashStatus state={bulkTrashState} />}
         {/* The colour mark belongs to the file, so it follows the file's name,
             as Finder's does (the owner, 024). Beside the size it read as part of
             the size. */}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { executeBulkTrash } from '../apps/web/src/team/explorer/bulkTrash';
 import {
@@ -17,6 +17,7 @@ import {
 import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client';
 import { makeTeam } from './team-space-fixtures';
+import { WorkspaceOperationsProvider } from '../apps/web/src/team/explorer/WorkspaceOperationsProvider';
 
 const team = makeTeam({ permissions: DEFAULT_ROLE_PERMISSIONS.admin, role: 'admin' });
 
@@ -113,20 +114,29 @@ it('keeps the 50-item selection responsive and reports a partial hosted result',
   render(
     <ToastProvider>
       <TeamProvider realtime={false} initialTeams={[team]}>
-        <ExplorerShell
+        <WorkspaceOperationsProvider
           teamId={team.id}
-          client={client}
-          query={{ ...emptyTeamRouteQuery(), view: 'list' }}
-          onQueryChange={vi.fn()}
-          onFolderChange={vi.fn()}
-          onSearched={vi.fn()}
-          onPreview={vi.fn()}
-          actionsClient={{ trashMaterial } as unknown as MaterialActionsClient}
-        />
+          client={{
+            ensureFolder: vi.fn(),
+            uploadFile: vi.fn(),
+            listBulkTrash: client.listBulkTrash!
+          }}
+        >
+          <ExplorerShell
+            teamId={team.id}
+            client={client}
+            query={{ ...emptyTeamRouteQuery(), view: 'list' }}
+            onQueryChange={vi.fn()}
+            onFolderChange={vi.fn()}
+            onSearched={vi.fn()}
+            onPreview={vi.fn()}
+            actionsClient={{ trashMaterial } as unknown as MaterialActionsClient}
+          />
+        </WorkspaceOperationsProvider>
       </TeamProvider>
     </ToastProvider>
   );
-  await screen.findByText('clip-49.txt');
+  await screen.findAllByText('clip-49.txt');
   const boxes = document.querySelectorAll<HTMLElement>('.team-explorer-row-check input');
   expect(boxes).toHaveLength(50);
   for (const box of boxes) fireEvent.click(box);
@@ -140,6 +150,9 @@ it('keeps the 50-item selection responsive and reports a partial hosted result',
     })
   );
   await screen.findByText(/Moved 49 of 50 files to trash/);
+  const receipts = screen.getByRole('list', { name: 'Moving files to trash' });
+  expect(within(receipts).getAllByText('In trash')).toHaveLength(49);
+  expect(within(receipts).getByText('Failed')).toBeTruthy();
   cleanup();
   localStorage.clear();
 }, 30_000);

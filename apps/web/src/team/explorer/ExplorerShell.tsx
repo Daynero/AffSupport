@@ -12,6 +12,7 @@ import { usablePrep } from '@video-compressor/shared';
 import type {
   CatalogMaterialItem,
   TeamAnalyticsStorage,
+  TeamBulkTrashItem,
   TeamMaterialRow,
   TeamMaterialTagColor,
   TeamPermissions
@@ -95,6 +96,7 @@ import {
   type UploadConflictRequest
 } from './UploadConflictDialog';
 import { ProcessPanel } from './ProcessPanel';
+import { BulkTrashStatus } from './BulkTrashStatus';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { foldCompanions } from './companions';
@@ -1283,6 +1285,16 @@ function ExplorerBody({
   // The batch spans folders, so it comes from the accumulated selection map
   // rather than only the rows on the current page.
   const selectedRows = useMemo(() => Array.from(selectedRowsMap.values()), [selectedRowsMap]);
+  const bulkGroup = workspaceOperations?.bulkTrashGroups?.[0] ?? null;
+  const bulkStatusById = useMemo(() => {
+    const statuses = new Map<string, TeamBulkTrashItem['state']>();
+    for (const group of workspaceOperations?.bulkTrashGroups ?? []) {
+      for (const item of group.items) {
+        if (!statuses.has(item.materialId)) statuses.set(item.materialId, item.state);
+      }
+    }
+    return statuses;
+  }, [workspaceOperations?.bulkTrashGroups]);
   /* The videos in the selection, once: three of the bar's actions ask for exactly this
      and one of them decides whether it is offered at all. */
   const selectedVideos = useMemo(
@@ -2188,6 +2200,7 @@ function ExplorerBody({
                 onPreview={onPreview}
                 actions={actions}
                 rows={sortedRows}
+                bulkTrashState={bulkStatusById}
                 companionRows={folded.children}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
@@ -2200,6 +2213,7 @@ function ExplorerBody({
                 onPreview={onPreview}
                 actions={actions}
                 rows={sortedRows}
+                bulkTrashState={bulkStatusById}
                 companionCounts={folded.counts}
                 openedCompanions={openedCompanions}
                 onToggleCompanions={toggleCompanions}
@@ -2301,6 +2315,34 @@ function ExplorerBody({
           selection, and pinned to the same pixel the second hid the first. */}
       {processStack(
         <>
+          {bulkGroup && (
+            <ProcessPanel
+              title={t('teamBulkTrashTitle')}
+              detail={t('teamBulkTrashProgress', {
+                confirmed: bulkGroup.items.filter(item => item.state === 'confirmed').length,
+                total: bulkGroup.items.length
+              })}
+              progress={Math.round(
+                (bulkGroup.items.filter(item => item.state === 'confirmed').length /
+                  Math.max(1, bulkGroup.items.length)) *
+                  100
+              )}
+              active={bulkGroup.items.some(
+                item => item.state === 'queued' || item.state === 'active'
+              )}
+              actions={[]}
+            >
+              <ul className="team-bulk-trash-receipts" aria-label={t('teamBulkTrashTitle')}>
+                {bulkGroup.items.map(item => (
+                  <li key={item.materialId}>
+                    {page.rows.find(row => row.id === item.materialId)?.name ??
+                      item.materialId.slice(-8)}{' '}
+                    <BulkTrashStatus state={item.state} />
+                  </li>
+                ))}
+              </ul>
+            </ProcessPanel>
+          )}
           {!space && (queue.active || queue.queued.length > 0) && (
             <AgentQueuePanel queue={queue} t={t} />
           )}
