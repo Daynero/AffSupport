@@ -206,6 +206,34 @@ describe('Creative Library task workflows', () => {
     expect(api.copyTasks).toHaveBeenCalledOnce();
   });
 
+  it('blocks duplicate paste and releases selection after a failed copy', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const other = { ...task(), id: '31000000-0000-4000-8000-000000000008', title: 'Other task' };
+    const api = client();
+    api.listTasks = vi.fn().mockResolvedValue([task(), other]);
+    let rejectCopy: (reason: Error) => void = () => {};
+    api.copyTasks = vi.fn().mockReturnValue(
+      new Promise<string[]>((_, reject) => {
+        rejectCopy = reject;
+      })
+    );
+    render(<TaskSpace teamId={TEAM_ID} client={api} />);
+    const source = await screen.findByRole('checkbox', { name: /Select.*Task: launch.mp4/i });
+    await userEvent.click(source);
+    const clipboardData = {
+      getData: () => `SOTY_TASKS_V1:${JSON.stringify({ teamId: TEAM_ID, taskIds: [TASK_ID] })}`
+    };
+    fireEvent.paste(document, { clipboardData });
+    fireEvent.paste(document, { clipboardData });
+    expect(api.copyTasks).toHaveBeenCalledOnce();
+    rejectCopy(new Error('CONNECTION_LOST'));
+    await waitFor(() => expect((source as HTMLInputElement).checked).toBe(false));
+
+    const next = screen.getByRole('checkbox', { name: /Select.*Other task/i });
+    await userEvent.click(next);
+    expect((next as HTMLInputElement).checked).toBe(true);
+  });
+
   it('chunks an unlimited UI attachment selection into idempotent batches of 100', async () => {
     const attachTaskMaterials = vi.fn(async ({ materialIds }: { materialIds: string[] }) => ({
       attached: materialIds,
