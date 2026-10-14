@@ -1,5 +1,31 @@
 import { createHash } from 'node:crypto';
 import { query, queryOne } from './db.js';
+
+/** Committed copy receipts contain counts only; task IDs and titles stay private. */
+export async function getTaskCopyReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{ request_id: string; result_count: number; created_at: string }> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_task_copy_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{ request_id: string; result_count: number; created_at: string }>(
+    `select request_id::text as request_id, result_count, created_at::text as created_at
+       from public.analytics_task_copy_receipts
+      where actor_id = $3::uuid
+        and ($1::timestamptz is null or created_at >= $1::timestamptz)
+        and created_at <= $2::timestamptz
+      order by created_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    result_count: Number(row.result_count),
+    created_at: isoUtc(row.created_at) ?? row.created_at
+  }));
+}
 import { eventColumnSql, getSchema, missingObjects, schemaSummary } from './schema.js';
 import {
   COVERAGE_REGISTRY,

@@ -54,7 +54,14 @@ export const TEAM_ANALYTICS_OUTCOMES = [
 export type TeamAnalyticsOutcome = (typeof TEAM_ANALYTICS_OUTCOMES)[number];
 export const TEAM_ANALYTICS_CUES = ['geo', 'offer', 'language', 'category'] as const;
 export type TeamAnalyticsCue = (typeof TEAM_ANALYTICS_CUES)[number];
-export const TEAM_ANALYTICS_ACTIONS = ['upload', 'download', 'rename', 'move', 'trash'] as const;
+export const TEAM_ANALYTICS_ACTIONS = [
+  'upload',
+  'download',
+  'rename',
+  'move',
+  'trash',
+  'copy'
+] as const;
 export type TeamAnalyticsAction = (typeof TEAM_ANALYTICS_ACTIONS)[number];
 export const TEAM_ANALYTICS_STORAGES = ['my_drive', 'shared_drive'] as const;
 export type TeamAnalyticsStorage = (typeof TEAM_ANALYTICS_STORAGES)[number];

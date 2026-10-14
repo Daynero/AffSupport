@@ -23,6 +23,7 @@ import { TaskEditor } from '../apps/web/src/team/tasks/TaskEditor';
 import { TaskSpace, type TaskSpaceClient } from '../apps/web/src/team/tasks/TaskSpace';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '../apps/web/src/components/toast';
+import { analytics } from '../apps/web/src/analytics/service';
 
 /**
  * Task surfaces report their outcomes through the shared toast channel, and the
@@ -197,6 +198,7 @@ describe('Creative Library task workflows', () => {
   });
 
   it('clears copied selection and board search so the next card selects on the first click', async () => {
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);
     const api = client();
     const copiedId = '31000000-0000-4000-8000-000000000007';
@@ -225,9 +227,28 @@ describe('Creative Library task workflows', () => {
     await userEvent.click(next);
     expect((next as HTMLInputElement).checked).toBe(true);
     expect(api.copyTasks).toHaveBeenCalledOnce();
+    const requestId = vi.mocked(api.copyTasks).mock.calls[0][0].requestId;
+    expect(track).toHaveBeenCalledWith(
+      'team_workflow_started',
+      expect.objectContaining({
+        workflow_id: requestId,
+        action: 'copy',
+        stage: 'processing'
+      })
+    );
+    expect(track).toHaveBeenCalledWith(
+      'team_workflow_completed',
+      expect.objectContaining({
+        workflow_id: requestId,
+        action: 'copy',
+        outcome: 'success',
+        production_completed: true
+      })
+    );
   });
 
   it('blocks duplicate paste and releases selection after a failed copy', async () => {
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);
     const other = { ...task(), id: '31000000-0000-4000-8000-000000000008', title: 'Other task' };
     const api = client();
@@ -249,6 +270,16 @@ describe('Creative Library task workflows', () => {
     expect(api.copyTasks).toHaveBeenCalledOnce();
     rejectCopy(new Error('CONNECTION_LOST'));
     await waitFor(() => expect((source as HTMLInputElement).checked).toBe(false));
+    const requestId = vi.mocked(api.copyTasks).mock.calls[0][0].requestId;
+    expect(track).toHaveBeenCalledWith(
+      'team_workflow_completed',
+      expect.objectContaining({
+        workflow_id: requestId,
+        action: 'copy',
+        outcome: 'failure',
+        production_completed: false
+      })
+    );
 
     const next = screen.getByRole('checkbox', { name: /Select.*Other task/i });
     await userEvent.click(next);

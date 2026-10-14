@@ -24,6 +24,9 @@ const U_LINK = '0a000000-0000-4000-8000-000000000002';
 const U_STITCH = '0a000000-0000-4000-8000-000000000003';
 const U_STALE = '0a000000-0000-4000-8000-000000000004';
 const U_EMPTY = '0a000000-0000-4000-8000-000000000005';
+const U_COPY = '0a000000-0000-4000-8000-000000000006';
+const COPY_CONFIRMED = '6a000000-0000-4000-8000-000000000001';
+const COPY_UNKNOWN = '6a000000-0000-4000-8000-000000000002';
 
 const INST_T = '1b000000-0000-4000-8000-000000000001';
 const INST_L = '1b000000-0000-4000-8000-000000000002';
@@ -133,7 +136,8 @@ beforeAll(async () => {
       ('${U_LINK}', 'link@example.test', 'link@example.test', '2026-10-06T10:00:00Z', null),
       ('${U_STITCH}', 'stitch@example.test', 'stitch@example.test', '2026-10-07T10:00:00Z', null),
       ('${U_STALE}', 'stale@example.test', 'stale@example.test', '2026-10-07T10:00:00Z', null),
-      ('${U_EMPTY}', 'empty@example.test', 'empty@example.test', '2026-10-08T10:00:00Z', null);
+      ('${U_EMPTY}', 'empty@example.test', 'empty@example.test', '2026-10-08T10:00:00Z', null),
+      ('${U_COPY}', 'copy@example.test', 'copy@example.test', '2026-10-08T10:00:00Z', null);
   `);
 
   const T = {
@@ -352,6 +356,25 @@ beforeAll(async () => {
       ('7a000000-0000-4000-8000-000000000001', '7b000000-0000-4000-8000-000000000001',
        'trans@example.test', 'failed', 'DRIVE_FORBIDDEN', 'secret detail', '2026-10-04T00:00:00Z', '2026-10-04T01:00:00Z');
   `);
+  await db.exec(
+    insertEvents([
+      {
+        user: U_COPY,
+        name: 'team_workflow_started',
+        at: '2026-10-08T10:00:00Z',
+        props: { action: 'copy', workflow_id: COPY_CONFIRMED, category: 'other' }
+      },
+      {
+        user: U_COPY,
+        name: 'team_workflow_started',
+        at: '2026-10-08T10:01:00Z',
+        props: { action: 'copy', workflow_id: COPY_UNKNOWN, category: 'other' }
+      }
+    ])
+  );
+  await db.exec(`insert into public.analytics_task_copy_receipts
+    (actor_id, request_id, result_count, created_at) values
+    ('${U_COPY}', '${COPY_CONFIRMED}', 2, '2026-10-08T10:00:01Z')`);
 }, 60_000);
 
 afterAll(async () => {
@@ -374,6 +397,30 @@ function finding(data: InvestigateData, rule: string): InvestigateFinding {
 function withoutFiles(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value, (key, entry) => (key === 'files' ? undefined : entry)));
 }
+
+describe('investigate · task copy receipt', () => {
+  it('proves committed copies and leaves attempts without a receipt unknown', async () => {
+    const data = await investigate('copy@example.test');
+    expect(data.task_copies).toEqual([
+      {
+        request_id: COPY_UNKNOWN,
+        status: 'unknown',
+        result_count: null,
+        attempted_at: '2026-10-08T10:01:00.000Z',
+        confirmed_at: null
+      },
+      {
+        request_id: COPY_CONFIRMED,
+        status: 'confirmed',
+        result_count: 2,
+        attempted_at: '2026-10-08T10:00:00.000Z',
+        confirmed_at: '2026-10-08T10:00:01.000Z'
+      }
+    ]);
+    expect(finding(data, 'task_copy_unconfirmed').kind).toBe('insufficient');
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
 
 describe('investigate · (a) failed transcription with a code', () => {
   it('reports a fact with the stage, the code and the files', async () => {

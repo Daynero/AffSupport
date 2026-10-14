@@ -3,6 +3,7 @@ import type { TeamTaskCopyRequest, TeamTaskSummary } from '@video-compressor/sha
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
+import { analytics } from '../../analytics/service';
 
 const PREFIX = 'SOTY_TASKS_V1:';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -130,14 +131,49 @@ export function useTaskClipboard({
         previous?.signature === signature ? previous.requestId : crypto.randomUUID();
       pending.current = { signature, requestId };
       savePending(teamId, pending.current);
+      const startedAt = Date.now();
+      analytics.track('team_workflow_started', {
+        workflow_id: requestId,
+        action: 'copy',
+        category: 'other',
+        cache_state: 'unknown',
+        attempt_number: 1,
+        stage: 'processing'
+      });
       void client.copyTasks!({ teamId, taskIds: payload.taskIds, requestId })
         .then(async ids => {
           await onPasted(ids);
           pending.current = null;
           savePending(teamId, null);
+          analytics.track('team_workflow_completed', {
+            workflow_id: requestId,
+            action: 'copy',
+            category: 'other',
+            cache_state: 'unknown',
+            attempt_number: 1,
+            stage: 'finalizing',
+            duration_ms: Date.now() - startedAt,
+            outcome: 'success',
+            retryable: false,
+            production_completed: true
+          });
           push({ tone: 'success', text: t('teamTasksPasted', { count: ids.length }) });
         })
-        .catch(cause => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }))
+        .catch(cause => {
+          analytics.track('team_workflow_completed', {
+            workflow_id: requestId,
+            action: 'copy',
+            category: 'other',
+            cache_state: 'unknown',
+            attempt_number: 1,
+            stage: 'finalizing',
+            duration_ms: Date.now() - startedAt,
+            outcome: 'failure',
+            retryable: true,
+            production_completed: false
+          });
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        })
         .finally(() => {
           pasting.current = false;
           onPasteSettled?.();

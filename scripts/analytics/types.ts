@@ -852,6 +852,7 @@ export interface InvestigateBlindSpot {
     | 'agent_version_without_journal'
     | 'agent_journal_missing'
     | 'image_selection_signal_missing'
+    | 'task_copy_receipts_unavailable'
     | 'analytics_disabled'
     | 'analytics_delivery_losses'
     | 'sync_unavailable'
@@ -882,6 +883,13 @@ export interface InvestigateData {
   environment: InvestigateEnvironment;
   sessions: { count: number; recent: InvestigateSession[] };
   operations: InvestigateOperation[];
+  task_copies: Array<{
+    request_id: string;
+    status: 'confirmed' | 'unknown' | 'receipt_unavailable';
+    result_count: number | null;
+    attempted_at: string | null;
+    confirmed_at: string | null;
+  }>;
   link: InvestigateLink;
   errors: InvestigateErrorCluster[];
   journal_around_failures: InvestigateJournalWindow[];

@@ -374,6 +374,7 @@ export interface TeamFileAttemptCompletedProperties extends TeamFileAttemptStart
 
 export interface TeamWorkflowStartedProperties {
   workflow_id: string;
+  action?: TeamAnalyticsAction;
   category: MaterialCategory;
   cache_state: TeamAnalyticsCacheState;
   attempt_number: number;

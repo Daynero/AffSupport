@@ -93,7 +93,7 @@ as $$
       payload ->> 'cue_category' in ('geo','offer','language','category')
       else true end
     and case when payload ? 'action' then
-      payload ->> 'action' in ('upload','download','rename','move','trash')
+      payload ->> 'action' in ('upload','download','rename','move','trash','copy')
       else true end
     and case when payload ? 'storage_kind' then
       payload ->> 'storage_kind' in ('my_drive','shared_drive')

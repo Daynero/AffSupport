@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto';
 import { lookupCodeLocations } from './code-map.js';
 import { capabilityById } from './coverage-registry.js';
 import { query, queryOne } from './db.js';
-import { getInspect, getSyncJobs, isoUtc } from './queries.js';
+import { getInspect, getSyncJobs, getTaskCopyReceipts, isoUtc } from './queries.js';
 import { eventColumnSql, getSchema, hasEnvelopeV3, schemaSummary } from './schema.js';
 import { sanitizeEventProperties, type SanitizedProperties } from './sanitize.js';
 import type {
@@ -1475,10 +1475,11 @@ export async function getInvestigation(
 ): Promise<InvestigateData> {
   const schema = await getSchema();
   const scope = await resolveSubject(input, period, schema);
-  const [rows, newest, activity] = await Promise.all([
+  const [rows, newest, activity, copyReceipts] = await Promise.all([
     readEvents(scope, period, schema),
     newestVersionSeen(period),
-    userActivity(scope.userId, period)
+    userActivity(scope.userId, period),
+    getTaskCopyReceipts(scope.userId, period)
   ]);
   const installations = sortedUnique([
     scope.installationId,
@@ -1534,6 +1535,55 @@ export async function getInvestigation(
     blindSpots,
     errors
   });
+  const copyAttempts = rows.filter(
+    row => row.event_name === 'team_workflow_started' && row.props.action === 'copy'
+  );
+  const attemptsById = new Map(
+    copyAttempts.filter(row => row.workflow_id).map(row => [row.workflow_id!, row] as const)
+  );
+  const receiptsById = new Map(copyReceipts?.map(row => [row.request_id, row] as const) ?? []);
+  const taskCopies = [...new Set([...attemptsById.keys(), ...receiptsById.keys()])]
+    .map(requestId => {
+      const attempt = attemptsById.get(requestId);
+      const receipt = receiptsById.get(requestId);
+      return {
+        request_id: requestId,
+        status: receipt
+          ? ('confirmed' as const)
+          : copyReceipts === null
+            ? ('receipt_unavailable' as const)
+            : ('unknown' as const),
+        result_count: receipt?.result_count ?? null,
+        attempted_at: attempt?.occurred_at ?? null,
+        confirmed_at: receipt?.created_at ?? null
+      };
+    })
+    .sort((a, b) =>
+      (b.attempted_at ?? b.confirmed_at ?? '').localeCompare(a.attempted_at ?? a.confirmed_at ?? '')
+    );
+  if (copyReceipts === null && copyAttempts.length > 0) {
+    blindSpots.push({
+      kind: 'task_copy_receipts_unavailable',
+      detail:
+        'The read-only task copy receipt view is unavailable; a client response cannot prove whether a copy committed.',
+      values: []
+    });
+  }
+  for (const copy of taskCopies.filter(copy => copy.status !== 'confirmed')) {
+    findings.push({
+      id: hashId(['task_copy_unconfirmed', copy.request_id]),
+      kind: 'insufficient',
+      severity: 'medium',
+      rule: 'task_copy_unconfirmed',
+      title: 'Task copy outcome is unconfirmed',
+      evidence: attemptsById.get(copy.request_id)?.event_id
+        ? [`event:${attemptsById.get(copy.request_id)!.event_id}`]
+        : [],
+      code_locations: [],
+      next_step:
+        'Retry the same request ID; the server will replay a committed copy instead of making another.'
+    });
+  }
 
   const subject: InvestigateSubject = {
     kind: scope.kind,
@@ -1547,6 +1597,7 @@ export async function getInvestigation(
     environment,
     sessions: sessionsOf(rows, sessionLimit),
     operations,
+    task_copies: taskCopies,
     link,
     errors,
     journal_around_failures: journalAroundFailures,
