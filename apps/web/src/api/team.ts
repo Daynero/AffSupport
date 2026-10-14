@@ -3744,6 +3744,15 @@ export const teamApi = {
     );
   },
 
+  async getTaskTimezone(teamId: string): Promise<string> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_task_timezone', { p_team: teamId })
+    );
+    throwRpc(error);
+    if (!validFinanceTimezone(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
   async copyTasks(input: TeamTaskCopyRequest): Promise<string[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('copy_team_tasks', {

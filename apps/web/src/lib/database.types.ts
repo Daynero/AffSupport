@@ -3888,6 +3888,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       get_team_task_progress_max_default: { Args: { p_team: string }; Returns: number };
+      get_team_task_timezone: { Args: { p_team: string }; Returns: string };
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
       get_transcript_delete_pref: { Args: Record<PropertyKey, never>; Returns: string };
       get_upload_batch: { Args: { p_batch: string; p_team: string }; Returns: Json };
@@ -5747,6 +5748,10 @@ export type GeneratedDatabase = {
       set_team_task_progress_max_default: {
         Args: { p_team: string; p_value: number };
         Returns: number;
+      };
+      set_team_task_timezone: {
+        Args: { p_team: string; p_timezone: string };
+        Returns: string;
       };
       set_transcript_delete_pref: { Args: { p_pref: string }; Returns: string };
       stop_team_catalog_updater: { Args: { p_team: string }; Returns: Json };

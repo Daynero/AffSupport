@@ -2,7 +2,7 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nProvider } from 'react-aria-components';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,6 +26,7 @@ beforeEach(() => localStorage.setItem('language', 'en'));
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 /**
@@ -124,6 +125,25 @@ describe('the hand-written grids are gone', () => {
 });
 
 describe('the board filter row', () => {
+  it('uses the space timezone across midnight and the daylight-saving boundary', async () => {
+    const { quickRangeValue, taskFilterBounds } =
+      await import('../apps/web/src/team/tasks/useTasks');
+    const now = new Date('2026-10-14T22:30:00Z');
+    expect(quickRangeValue('today', now, 'Europe/Kyiv')).toEqual({
+      kind: 'range',
+      from: '2026-10-15',
+      to: '2026-10-15'
+    });
+    expect(quickRangeValue('yesterday', now, 'Europe/Kyiv')).toEqual({
+      kind: 'range',
+      from: '2026-10-14',
+      to: '2026-10-14'
+    });
+    expect(
+      taskFilterBounds({ kind: 'range', from: '2026-03-29', to: '2026-03-29' }, 'Europe/Kyiv')
+    ).toMatchObject({ from: '2026-03-28T22:00:00.000Z', to: '2026-03-29T21:00:00.000Z' });
+  });
+
   it('puts the date chip before "Yesterday" and "Today"', async () => {
     const { TaskDateFilterControl } = await import('../apps/web/src/team/tasks/TaskDateFilter');
     render(
@@ -143,5 +163,24 @@ describe('the board filter row', () => {
     expect(
       Array.from(row.querySelectorAll('.task-date-filter-days button')).map(b => b.textContent)
     ).toEqual(['Yesterday', 'Today']);
+  });
+
+  it('presses Today in the shared space day even when the browser day differs', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-14T22:30:00Z'));
+    const { TaskDateFilterControl } = await import('../apps/web/src/team/tasks/TaskDateFilter');
+    const onChange = vi.fn();
+    render(
+      <TaskDateFilterControl
+        value={{ kind: 'all' }}
+        onChange={onChange}
+        status="all"
+        onStatusChange={vi.fn()}
+        timezone="Europe/Kyiv"
+        inlineDays
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }));
+    expect(onChange).toHaveBeenCalledWith({ kind: 'range', from: '2026-10-15', to: '2026-10-15' });
   });
 });

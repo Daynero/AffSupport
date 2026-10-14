@@ -30,6 +30,7 @@ export type TaskSpaceClient = TaskCopyClient &
   TasksClient &
   TaskEditorClient &
   TaskLabelsClient & {
+    getTaskTimezone?: (teamId: string) => Promise<string>;
     listMembers(teamId: string): Promise<TeamMemberSummary[]>;
     deleteTask(input: { teamId: string; taskId: string }): Promise<true>;
     listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
@@ -89,6 +90,24 @@ export function TaskSpace({
   const { t } = useI18n();
   const { push } = useToasts();
   const { can, revision } = useTeam();
+  const [taskTimezone, setTaskTimezone] = useState('Europe/Kyiv');
+  useEffect(() => {
+    let active = true;
+    setTaskTimezone('Europe/Kyiv');
+    if (client.getTaskTimezone) {
+      void client
+        .getTaskTimezone(teamId)
+        .then(zone => {
+          if (active) setTaskTimezone(zone);
+        })
+        .catch(cause => {
+          if (active) push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [client, push, t, teamId]);
   /**
    * The account scope is the address's when the shell supplies it, so a link
    * from the Accounts tab lands narrowed and Back widens it again; mounted on
@@ -101,7 +120,7 @@ export function TaskSpace({
   );
   const scope = onScopeChange ? (scopeProp ?? { kind: 'all' }) : localScope;
   const setScope = onScopeChange ?? setLocalScope;
-  const tasks = useTasks({ teamId, revision, scope, client });
+  const tasks = useTasks({ teamId, revision, scope, timezone: taskTimezone, client });
   /**
    * The space's tag dictionary (018), read once here and handed to both the
    * filter and the editor: two copies would mean two realtime channels for a
@@ -545,6 +564,7 @@ export function TaskSpace({
         onLabelIdsChange={tasks.setLabelIds}
         sort={tasks.sort}
         onSortChange={tasks.setSort}
+        timezone={taskTimezone}
         /* The eye and "Unfold all" lived in the heading beside the title — an icon nobody could
            name and a button that looked like an action on the board (024). They are how the
            cards are drawn, so they sit with the order, as Linear's Display does. */

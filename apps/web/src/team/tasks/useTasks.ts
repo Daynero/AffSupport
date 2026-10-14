@@ -1,10 +1,10 @@
 import { realtimeTopic } from '../../lib/realtimeTopic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { parseDate } from '@internationalized/date';
 import {
   filterBySearchQuery,
   isTeamTaskSort,
-  localTaskDayBounds,
   TEAM_TASK_STATUSES,
   teamTaskComparator,
   type TeamTaskLabelRef,
@@ -41,15 +41,18 @@ export type TaskAssigneeFilter =
  */
 export type QuickRange = 'today' | 'yesterday' | 'month' | 'all';
 
-export function quickRangeValue(range: Exclude<QuickRange, 'all'>, now: Date): TaskDateFilter {
+export function quickRangeValue(
+  range: Exclude<QuickRange, 'all'>,
+  now: Date,
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+): TaskDateFilter {
+  const todayValue = localDateValue(now, timezone);
+  const today = parseDate(todayValue);
   if (range === 'today') {
-    const today = localDateValue(now);
-    return { kind: 'range', from: today, to: today };
+    return { kind: 'range', from: todayValue, to: todayValue };
   }
   if (range === 'yesterday') {
-    const yesterday = localDateValue(
-      new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12)
-    );
+    const yesterday = today.subtract({ days: 1 }).toString();
     return { kind: 'range', from: yesterday, to: yesterday };
   }
   // The whole month, first to last: a task can be dated ahead of today (017),
@@ -57,15 +60,19 @@ export function quickRangeValue(range: Exclude<QuickRange, 'all'>, now: Date): T
   // person plans in.
   return {
     kind: 'range',
-    from: localDateValue(new Date(now.getFullYear(), now.getMonth(), 1, 12)),
-    to: localDateValue(new Date(now.getFullYear(), now.getMonth() + 1, 0, 12))
+    from: today.set({ day: 1 }).toString(),
+    to: today.set({ day: 1 }).add({ months: 1 }).subtract({ days: 1 }).toString()
   };
 }
 
-export function activeQuickRange(value: TaskDateFilter, now: Date): QuickRange | null {
+export function activeQuickRange(
+  value: TaskDateFilter,
+  now: Date,
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+): QuickRange | null {
   if (value.kind === 'all') return 'all';
   for (const range of ['today', 'yesterday', 'month'] as const) {
-    const candidate = quickRangeValue(range, now);
+    const candidate = quickRangeValue(range, now, timezone);
     if (candidate.kind === 'range' && candidate.from === value.from && candidate.to === value.to) {
       return range;
     }
@@ -77,14 +84,17 @@ export function activeQuickRange(value: TaskDateFilter, now: Date): QuickRange |
  * A quick range is stored by name, so "today" means today after tomorrow's reload rather than the
  * day it was pressed; a range picked on the calendar is stored as its days.
  */
-function encodeDateFilter(value: TaskDateFilter): unknown {
-  const quick = activeQuickRange(value, new Date());
+function encodeDateFilter(value: TaskDateFilter, timezone: string): unknown {
+  const quick = activeQuickRange(value, new Date(), timezone);
   return quick && quick !== 'all' ? { kind: 'quick', range: quick } : value;
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/u;
 
-export function parseStoredDateFilter(value: unknown): TaskDateFilter | null {
+export function parseStoredDateFilter(
+  value: unknown,
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+): TaskDateFilter | null {
   if (typeof value !== 'object' || value === null) return null;
   const record = value as Record<string, unknown>;
   if (record.kind === 'all') return { kind: 'all' };
@@ -92,7 +102,7 @@ export function parseStoredDateFilter(value: unknown): TaskDateFilter | null {
     record.kind === 'quick' &&
     (record.range === 'today' || record.range === 'yesterday' || record.range === 'month')
   ) {
-    return quickRangeValue(record.range, new Date());
+    return quickRangeValue(record.range, new Date(), timezone);
   }
   if (
     record.kind === 'range' &&
@@ -159,11 +169,18 @@ const PAGE_SIZE = 50;
  */
 const cache = new Map<string, { tasks: TeamTaskSummary[]; hasMore: boolean }>();
 
-export function localDateValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+export function localDateValue(
+  date: Date,
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+): string {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const part = (type: string) => parts.find(item => item.type === type)!.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
 /**
@@ -172,13 +189,16 @@ export function localDateValue(date: Date): string {
  * are exact for a task that carries a date of its own. Sending both is what
  * keeps the board from having to guess a timezone in SQL.
  */
-export function taskFilterBounds(filter: TaskDateFilter) {
+export function taskFilterBounds(
+  filter: TaskDateFilter,
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+) {
   if (filter.kind === 'all') return null;
   const from = filter.from <= filter.to ? filter.from : filter.to;
   const to = filter.from <= filter.to ? filter.to : filter.from;
   return {
-    from: localTaskDayBounds(from).from,
-    to: localTaskDayBounds(to).to,
+    from: parseDate(from).toDate(timezone).toISOString(),
+    to: parseDate(to).add({ days: 1 }).toDate(timezone).toISOString(),
     dayFrom: from,
     dayTo: to
   };
@@ -196,19 +216,21 @@ export function useTasks({
   teamId,
   revision = 0,
   scope = { kind: 'all' },
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   client = defaultClient
 }: {
   teamId: string;
   revision?: number;
   scope?: TaskAccountScope;
+  timezone?: string;
   client?: TasksClient;
 }) {
   // Every choice below is the space's and outlives a reload (persistedView).
   const [filter, setFilter] = usePersistedState<TaskDateFilter>(
     persistedViewKey(teamId, 'tasks.date'),
     { kind: 'all' },
-    parseStoredDateFilter,
-    encodeDateFilter
+    value => parseStoredDateFilter(value, timezone),
+    value => encodeDateFilter(value, timezone)
   );
   const [statusFilter, setStatusFilter] = usePersistedState<TaskStatusFilter>(
     persistedViewKey(teamId, 'tasks.status'),
@@ -245,7 +267,7 @@ export function useTasks({
     '',
     value => (typeof value === 'string' ? value : null)
   );
-  const bounds = useMemo(() => taskFilterBounds(filter), [filter]);
+  const bounds = useMemo(() => taskFilterBounds(filter, timezone), [filter, timezone]);
   const status = statusFilter === 'all' ? null : statusFilter;
   const agentRowId = scope.kind === 'agent' ? scope.agentRowId : null;
   const accountId = scope.kind === 'account' ? scope.accountId : null;

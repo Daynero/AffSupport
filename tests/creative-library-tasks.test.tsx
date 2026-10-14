@@ -177,6 +177,25 @@ async function openTileMenu() {
 }
 
 describe('Creative Library task workflows', () => {
+  it('reads the space timezone before settling on the task date bounds', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    localStorage.setItem(
+      `soty.team-view.v1:${TEAM_ID}:tasks.date`,
+      JSON.stringify({ kind: 'range', from: '2026-03-29', to: '2026-03-29' })
+    );
+    const api = client();
+    api.getTaskTimezone = vi.fn().mockResolvedValue('America/Los_Angeles');
+    render(<TaskSpace teamId={TEAM_ID} client={api} />);
+    await waitFor(() =>
+      expect(api.listTasks).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createdFrom: '2026-03-29T07:00:00.000Z',
+          createdTo: '2026-03-30T07:00:00.000Z'
+        })
+      )
+    );
+  });
+
   it('clears copied selection and board search so the next card selects on the first click', async () => {
     localStorage.setItem('wishly.active-team.v1', TEAM_ID);
     const api = client();
