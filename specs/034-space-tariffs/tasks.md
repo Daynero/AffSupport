@@ -77,3 +77,20 @@
       `findings.md`.
 - [x] T022 (docs/ADMIN-TARIFFS.md; ROLLBACK.md — у міграціях) `docs/ADMIN-TARIFFS.md` (як видати, продовжити, перевести простори, вимкнути старе правило),
       `supabase/migrations/ROLLBACK.md`.
+
+## Фаза 5 — уточнення автоматичного відновлення, 2026-10-14 (не реалізовано)
+
+- [ ] T023 Уточнити contracts/data-model для US6.6: snapshot активних процесів, причина паузи, індивідуальні інтервали,
+      ручне вимкнення, checkpoints, часткове відновлення, межі 60 с / 5 хв та залежності Drive/агента.
+- [ ] T024 Додати спочатку failing DB/regression тести: renewal без браузера, два renewal, pause/renew race,
+      disabled catalog, змінені права, expired dependencies, старий worker та відсутність дубльованих побічних дій.
+- [ ] T025 Реалізувати додатковою міграцією серверне автоматичне відновлення на чинному переході доступу;
+      зберегти інтервали, одноразовий catch-up та bounded scheduling. Вимкнене/скасоване вручну не відновлювати.
+- [ ] T026 Узгодити автоматичне відновлення sync, restitch, preview/cleanup та незавершеної агентної роботи;
+      перевірити checkpoint, актуальні права й результат до retry, не перезапускати завершене/скасоване.
+- [ ] T027 Замінити нормальний ручний UpdaterResumeNotice на правдивий стан автоматичного/часткового відновлення;
+      зберегти попередження про зупинку, додати uk/en тексти та UI регресії.
+- [ ] T028 Розширити typed signals, code map/capability inventory та read-only diagnosis відновлення;
+      довести terminal і delivery, missing/delayed signals, безпечні bounded retries та приватність.
+- [ ] T029 Виконати single-worker регресії, npm run verify, beta LIFE-021–036/LOAD-08; після доказів оновити
+      docs/ADMIN-TARIFFS.md та прибрати позначку «ще не реалізовано». Готовність підтвердити exact-SHA beta.
