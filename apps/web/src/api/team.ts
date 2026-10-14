@@ -30,6 +30,8 @@ import {
   parseTeamTaskPatch,
   parseTeamAccount,
   parseTeamAccountAgent,
+  parseTeamAccountOrderSnapshot,
+  parseTeamAccountReorderResult,
   parseTeamAgentRunMarkerSnapshots,
   parseTeamTaskAgentTags,
   parseTeamTaskLabel,
@@ -52,6 +54,8 @@ import {
   normalizeTeamAgentNote,
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
+  type TeamAccountOrderSnapshot,
+  type TeamAccountReorderResult,
   type TeamAgentRunMarker,
   type TeamAgentRunMarkerSnapshot,
   parseUploadBatchRequest,
@@ -4450,6 +4454,38 @@ export const teamApi = {
       ...account,
       twoFactorSeed: seeds.get(account.id) ?? null
     }));
+  },
+
+  async getAccountOrder(teamId: string): Promise<TeamAccountOrderSnapshot> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_account_order', { p_team: teamId })
+    );
+    throwRpc(error);
+    const snapshot = parseTeamAccountOrderSnapshot(data);
+    if (!snapshot) throw new TeamApiError('INVALID_RESPONSE', false);
+    return snapshot;
+  },
+
+  async reorderAccounts(input: {
+    teamId: string;
+    scopeId: string;
+    ids: string[];
+    expectedVersion: number;
+    requestId: string;
+  }): Promise<TeamAccountReorderResult> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('reorder_team_accounts', {
+        p_team: input.teamId,
+        p_scope: input.scopeId,
+        p_ids: input.ids,
+        p_expected_version: input.expectedVersion,
+        p_request_id: input.requestId
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamAccountReorderResult(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
   },
 
   async setAccountTwoFactor(input: {

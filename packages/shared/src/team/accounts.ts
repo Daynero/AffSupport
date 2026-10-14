@@ -288,6 +288,53 @@ export interface TeamAccountSummary {
   agents: TeamAccountAgentSummary[];
 }
 
+export interface TeamAccountOrderSnapshot {
+  socialsVersion: number;
+  socialIds: string[];
+  agents: Record<string, { version: number; ids: string[] }>;
+}
+
+export interface TeamAccountReorderResult {
+  status: 'applied' | 'conflict';
+  version: number;
+  ids: string[];
+}
+
+function orderedIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || !value.every(id => typeof id === 'string')) return null;
+  return new Set(value).size === value.length ? value : null;
+}
+
+function orderVersion(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+export function parseTeamAccountOrderSnapshot(value: unknown): TeamAccountOrderSnapshot | null {
+  if (!isRecord(value) || !isRecord(value.agents)) return null;
+  const socialIds = orderedIds(value.social_ids);
+  if (!socialIds || !orderVersion(value.socials_version)) return null;
+  const agents: TeamAccountOrderSnapshot['agents'] = {};
+  for (const [accountId, raw] of Object.entries(value.agents)) {
+    if (!isRecord(raw)) return null;
+    const ids = orderedIds(raw.ids);
+    if (!ids || !orderVersion(raw.version)) return null;
+    agents[accountId] = { version: raw.version, ids };
+  }
+  return { socialsVersion: value.socials_version, socialIds, agents };
+}
+
+export function parseTeamAccountReorderResult(value: unknown): TeamAccountReorderResult | null {
+  if (!isRecord(value)) return null;
+  const ids = orderedIds(value.ids);
+  if (
+    !ids ||
+    !orderVersion(value.version) ||
+    (value.status !== 'applied' && value.status !== 'conflict')
+  )
+    return null;
+  return { status: value.status, version: value.version, ids };
+}
+
 export function isTeamAgentFree(agent: { runs: readonly TeamAgentRun[] }): boolean {
   return agent.runs.length === 0;
 }
@@ -476,7 +523,7 @@ function filterTeamAccountsBy(
       agents = agents.filter(agent => teamAgentHasMarker(agent, marker));
       if (agents.length === 0) continue;
     }
-    kept.push({ ...account, agents: sortTeamAgents(agents) });
+    kept.push({ ...account, agents });
   }
   return kept;
 }

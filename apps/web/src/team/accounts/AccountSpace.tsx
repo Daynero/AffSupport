@@ -3,7 +3,7 @@
  * which of them are free and what is running on the rest.
  *
  * Built as a list to be scanned and marked, not a form to be filled: one row
- * per agent, the free ones first and washed green, a run written in place. The
+ * per agent in the team's saved order, a run written in place. The
  * two filters answer the two questions the list is opened for — "where can I
  * start something" and "what is running" — and each drops the accounts that
  * have no answer rather than greying them out.
@@ -19,8 +19,6 @@ import { ChevronsDownUp, ChevronsUpDown, Plus, Search, UserRound, X } from 'luci
 import {
   countTeamAccounts,
   filterTeamAccounts,
-  sortTeamAccounts,
-  sortTeamAgents,
   TEAM_AGENT_RUN_MARKERS,
   teamAgentLabel,
   type TeamAccountAgentSummary,
@@ -231,8 +229,16 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       editingAgentRowId && !kept.some(agent => agent.id === editingAgentRowId)
         ? held.agents.filter(agent => agent.id === editingAgentRowId)
         : [];
-    const agents = edited.length > 0 ? sortTeamAgents([...kept, ...edited]) : kept;
-    return sortTeamAccounts([...filtered, { ...held, agents }]);
+    const visibleAgentIds = new Set([...kept, ...edited].map(agent => agent.id));
+    const visibleById = new Map(filtered.map(account => [account.id, account]));
+    visibleById.set(held.id, {
+      ...held,
+      agents: held.agents.filter(agent => visibleAgentIds.has(agent.id))
+    });
+    return accounts.accounts.flatMap(account => {
+      const shown = visibleById.get(account.id);
+      return shown ? [shown] : [];
+    });
   }, [accounts.accounts, editingAccountId, editingAgentRowId, marker, occupancy, search]);
 
   /**

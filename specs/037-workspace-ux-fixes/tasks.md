@@ -116,7 +116,7 @@
 
 - [x] T030 [US6] Add database regressions for initial rank backfill, same-parent membership, concurrent version conflict, permissions and destination rank on РК move in `supabase/tests/database/team-accounts-order.test.sql` (create if absent).
 - [x] T031 [US6] Add rank/version fields and deterministic natural-order backfill for `team_accounts` and `team_account_agents`, plus atomic permission-checked reorder functions, in `supabase/migrations/20261203102000_account_order.sql`.
-- [ ] T032 [US6] Extend typed account readers/parsers and reorder client calls in `packages/shared/src/team/accounts.ts`, `apps/web/src/api/team.ts` and `apps/web/src/team/accounts/useAccounts.ts`; replace all natural re-sorting that would override persisted ranks.
+- [x] T032 [US6] Extend typed account readers/parsers and reorder client calls in `packages/shared/src/team/accounts.ts`, `apps/web/src/api/team.ts` and `apps/web/src/team/accounts/useAccounts.ts`; replace all natural re-sorting that would override persisted ranks.
 - [ ] T033 [US6] Add pointer and keyboard reordering, insertion indicator, cancellation and conflict feedback in `apps/web/src/team/accounts/AccountSpace.tsx`, `apps/web/src/team/accounts/AccountGroup.tsx` and `apps/web/src/team/accounts/AgentRow.tsx` using existing design tokens.
 - [ ] T034 [US6] Validate two-client realtime order and conflict/permission behavior in `tests/team-accounts-order.test.tsx` (create if absent); add correlated result/unknown diagnosis in `scripts/analytics/queries.ts` and `tests/analytics-investigate-command.test.ts`.
 

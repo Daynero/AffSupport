@@ -310,6 +310,7 @@ export type GeneratedDatabase = {
           created_at: string;
           created_by: string;
           id: string;
+          sort_rank: number;
           team_id: string;
           topup: number | null;
           updated_at: string;
@@ -321,6 +322,7 @@ export type GeneratedDatabase = {
           created_at?: string;
           created_by: string;
           id?: string;
+          sort_rank: number;
           team_id: string;
           topup?: number | null;
           updated_at?: string;
@@ -332,6 +334,7 @@ export type GeneratedDatabase = {
           created_at?: string;
           created_by?: string;
           id?: string;
+          sort_rank?: number;
           team_id?: string;
           topup?: number | null;
           updated_at?: string;
@@ -359,6 +362,7 @@ export type GeneratedDatabase = {
           created_by: string;
           id: string;
           name: string;
+          sort_rank: number;
           team_id: string;
           updated_at: string;
         };
@@ -367,6 +371,7 @@ export type GeneratedDatabase = {
           created_by: string;
           id?: string;
           name: string;
+          sort_rank: number;
           team_id: string;
           updated_at?: string;
         };
@@ -375,6 +380,7 @@ export type GeneratedDatabase = {
           created_by?: string;
           id?: string;
           name?: string;
+          sort_rank?: number;
           team_id?: string;
           updated_at?: string;
         };
@@ -3817,6 +3823,7 @@ export type GeneratedDatabase = {
       };
       get_share_preference: { Args: { p_team: string }; Returns: Json };
       get_task_progress_max_default: { Args: Record<PropertyKey, never>; Returns: number };
+      get_team_account_order: { Args: { p_team: string }; Returns: Json };
       get_team_agent_finance: {
         Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;
@@ -4382,6 +4389,16 @@ export type GeneratedDatabase = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      reorder_team_accounts: {
+        Args: {
+          p_expected_version: number;
+          p_ids: string[];
+          p_request_id: string;
+          p_scope: string;
+          p_team: string;
+        };
+        Returns: Json;
       };
       replace_team_product_catalog_texts: {
         Args: { p_items: Json; p_team: string };

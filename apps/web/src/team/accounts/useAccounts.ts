@@ -2,8 +2,9 @@ import { realtimeTopic } from '../../lib/realtimeTopic';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
-  sortTeamAccounts,
   type TeamAccountAgentSummary,
+  type TeamAccountOrderSnapshot,
+  type TeamAccountReorderResult,
   type TeamAccountSummary,
   type TeamAgentRunMarker,
   type TeamAgentRunMarkerSnapshot
@@ -17,6 +18,14 @@ import { getSupabaseClient } from '../../lib/supabase';
  */
 export interface AccountsClient {
   listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
+  getAccountOrder?(teamId: string): Promise<TeamAccountOrderSnapshot>;
+  reorderAccounts?(input: {
+    teamId: string;
+    scopeId: string;
+    ids: string[];
+    expectedVersion: number;
+    requestId: string;
+  }): Promise<TeamAccountReorderResult>;
   createAccount(input: { teamId: string; name: string }): Promise<TeamAccountSummary>;
   renameAccount(input: {
     teamId: string;
@@ -90,9 +99,7 @@ function replaceAccount(
   accountId: string,
   update: (account: TeamAccountSummary) => TeamAccountSummary
 ): TeamAccountSummary[] {
-  return sortTeamAccounts(
-    accounts.map(account => (account.id === accountId ? update(account) : account))
-  );
+  return accounts.map(account => (account.id === accountId ? update(account) : account));
 }
 
 /**
@@ -115,6 +122,7 @@ export function useAccounts({
 }) {
   const cached = client === defaultClient ? cache.get(teamId) : undefined;
   const [accounts, setAccounts] = useState<TeamAccountSummary[]>(cached ?? []);
+  const [orderSnapshot, setOrderSnapshot] = useState<TeamAccountOrderSnapshot | null>(null);
   const [loading, setLoading] = useState(cached === undefined);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
@@ -139,10 +147,14 @@ export function useAccounts({
     const requestGeneration = ++generation.current;
     const writesBefore = writes.current;
     try {
-      const next = await client.listAccounts(teamId);
+      const [next, order] = await Promise.all([
+        client.listAccounts(teamId),
+        client.getAccountOrder?.(teamId) ?? Promise.resolve(null)
+      ]);
       if (requestGeneration !== generation.current) return;
       if (writes.current !== writesBefore) return;
-      setAccounts(sortTeamAccounts(next));
+      setAccounts(next);
+      setOrderSnapshot(order);
       setError(null);
     } catch (cause) {
       if (requestGeneration === generation.current) {
@@ -268,10 +280,11 @@ export function useAccounts({
     async (name: string) => {
       const created = await client.createAccount({ teamId, name });
       writes.current += 1;
-      setAccounts(current => sortTeamAccounts([...current, created]));
+      setAccounts(current => [...current, created]);
+      if (client.getAccountOrder) void refetch();
       return created;
     },
-    [client, teamId]
+    [client, refetch, teamId]
   );
 
   const renameAccount = useCallback(
@@ -291,8 +304,9 @@ export function useAccounts({
       await client.deleteAccount({ teamId, accountId });
       writes.current += 1;
       setAccounts(current => current.filter(account => account.id !== accountId));
+      if (client.getAccountOrder) void refetch();
     },
-    [client, teamId]
+    [client, refetch, teamId]
   );
 
   const setAccountTwoFactor = useCallback(
@@ -319,9 +333,10 @@ export function useAccounts({
           agents: [...account.agents.filter(agent => agent.id !== created.id), created]
         }))
       );
+      if (client.getAccountOrder) void refetch();
       return created;
     },
-    [client, teamId]
+    [client, refetch, teamId]
   );
 
   /** Replaces one agent in place with what a write returned. */
@@ -414,12 +429,34 @@ export function useAccounts({
           agents: account.agents.filter(item => item.id !== agent.id)
         }))
       );
+      if (client.getAccountOrder) void refetch();
     },
-    [client, teamId]
+    [client, refetch, teamId]
+  );
+
+  const reorderScope = useCallback(
+    async (scopeId: string, ids: string[]): Promise<TeamAccountReorderResult> => {
+      if (!client.getAccountOrder || !client.reorderAccounts) throw new Error('UNSUPPORTED');
+      const snapshot = orderSnapshot ?? (await client.getAccountOrder(teamId));
+      const expectedVersion =
+        scopeId === teamId ? snapshot.socialsVersion : snapshot.agents[scopeId]?.version;
+      if (expectedVersion === undefined) throw new Error('INVALID_RESPONSE');
+      const result = await client.reorderAccounts({
+        teamId,
+        scopeId,
+        ids,
+        expectedVersion,
+        requestId: crypto.randomUUID()
+      });
+      await refetch();
+      return result;
+    },
+    [client, orderSnapshot, refetch, teamId]
   );
 
   return {
     accounts,
+    orderSnapshot,
     loading,
     error,
     refetch,
@@ -437,6 +474,7 @@ export function useAccounts({
     clearMarkers,
     clearRuns,
     attachLabel,
-    detachLabel
+    detachLabel,
+    reorderScope
   };
 }

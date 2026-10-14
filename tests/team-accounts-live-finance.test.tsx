@@ -56,6 +56,11 @@ const account = {
 it('keeps a finance draft while switching views and updates its agent tags', async () => {
   vi.spyOn(supabaseModule, 'getSupabaseClient').mockReturnValue(null);
   vi.spyOn(teamApi, 'listAccounts').mockResolvedValue([account]);
+  vi.spyOn(teamApi, 'getAccountOrder').mockResolvedValue({
+    socialsVersion: 1,
+    socialIds: [account.id],
+    agents: { [account.id]: { version: 1, ids: [agent.id] } }
+  });
   const attach = vi.spyOn(teamApi, 'attachAgentLabel').mockResolvedValue(agent);
   const detach = vi.spyOn(teamApi, 'detachAgentLabel').mockResolvedValue(agent);
   render(
@@ -103,6 +108,11 @@ it('coalesces finance realtime changes, refreshes accounts and unsubscribes on e
     connection as unknown as NonNullable<ReturnType<typeof supabaseModule.getSupabaseClient>>
   );
   const list = vi.spyOn(teamApi, 'listAccounts').mockResolvedValue([account]);
+  vi.spyOn(teamApi, 'getAccountOrder').mockResolvedValue({
+    socialsVersion: 1,
+    socialIds: [account.id],
+    agents: { [account.id]: { version: 1, ids: [agent.id] } }
+  });
   const notification = vi.fn();
   window.addEventListener('soty:accounts-finance', notification);
   const view = renderHook(() => useAccounts({ teamId: 'live-updates' }));
