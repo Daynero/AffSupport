@@ -12,7 +12,7 @@
 
 - [x] T001 Map every live `team_materials` reference and upload provenance, including tasks, launch sources, catalogs, companions and Drive ownership; record an exhaustive safe-cleanup inventory in `specs/037-workspace-ux-fixes/research.md` and identify authoritative checks in `supabase/migrations/` and `supabase/functions/drive-ops/`. Launches references remain explicitly unverified and force retention until integrated.
 - [x] T002 [P] Trace task copy/selection, timezone calculation, explorer trash journal and diagnostics from UI to receipt; update `specs/037-workspace-ux-fixes/research.md` with exact seams in `apps/web/src/team/tasks/`, `apps/web/src/team/explorer/` and `scripts/analytics/`.
-- [ ] T003 [P] Trace stable РК identity through launches and finance placements, including moved/deleted РК and archived history; update `specs/037-workspace-ux-fixes/research.md` using `apps/web/src/team/launches/`, `apps/web/src/team/accounts/finance/` and `supabase/migrations/`.
+- [x] T003 [P] Trace stable РК identity through launches and finance placements, including moved/deleted РК and archived history; update `specs/037-workspace-ux-fixes/research.md` using `apps/web/src/team/launches/`, `apps/web/src/team/accounts/finance/` and `supabase/migrations/`.
 
 **Checkpoint**: File cleanup has an exhaustive reference set, and combined-view joins use stable IDs. If either cannot be proven, retain/unmatch rather than guess.
 
