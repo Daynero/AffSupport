@@ -63,7 +63,7 @@ describe('saved account order across two clients', () => {
     vi.spyOn(supabaseModule, 'getSupabaseClient').mockReturnValue(
       connection as unknown as NonNullable<ReturnType<typeof supabaseModule.getSupabaseClient>>
     );
-    vi.spyOn(teamApi, 'listAccounts').mockImplementation(async () => rows);
+    const list = vi.spyOn(teamApi, 'listAccounts').mockImplementation(async () => rows);
     vi.spyOn(teamApi, 'getAccountOrder').mockImplementation(async () => ({
       socialsVersion: socialVersion,
       socialIds: rows.map(item => item.id),
@@ -127,12 +127,15 @@ describe('saved account order across two clients', () => {
 
     rows = [row(B), row(C), row(A, [G2, G1])];
     socialVersion = 2;
+    list.mockRejectedValueOnce(new Error('READ_OFFLINE'));
     await act(async () => {
       expect(await first.result.current.reorderScope(TEAM, [A, B, C])).toMatchObject({
         status: 'conflict'
       });
     });
     expect(first.result.current.accounts.map(item => item.id)).toEqual([B, C, A]);
+    expect(first.result.current.orderSnapshot?.socialsVersion).toBe(2);
+    expect(first.result.current.error).toBe('READ_OFFLINE');
     expect(reorder).toHaveBeenLastCalledWith(expect.objectContaining({ expectedVersion: 1 }));
     first.unmount();
     second.unmount();

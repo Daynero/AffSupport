@@ -103,6 +103,15 @@ function replaceAccount(
   return accounts.map(account => (account.id === accountId ? update(account) : account));
 }
 
+function byCanonicalIds<T extends { id: string }>(rows: readonly T[], ids: readonly string[]): T[] {
+  const rank = new Map(ids.map((id, index) => [id, index]));
+  return [...rows].sort(
+    (left, right) =>
+      (rank.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+      (rank.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+  );
+}
+
 /**
  * The accounts of a space, kept live.
  *
@@ -461,6 +470,27 @@ export function useAccounts({
           requestId
         });
         writes.current += 1;
+        setOrderSnapshot(current => {
+          if (!current) return current;
+          return scopeId === teamId
+            ? { ...current, socialsVersion: result.version, socialIds: result.ids }
+            : {
+                ...current,
+                agents: {
+                  ...current.agents,
+                  [scopeId]: { version: result.version, ids: result.ids }
+                }
+              };
+        });
+        setAccounts(current =>
+          scopeId === teamId
+            ? byCanonicalIds(current, result.ids)
+            : current.map(account =>
+                account.id === scopeId
+                  ? { ...account, agents: byCanonicalIds(account.agents, result.ids) }
+                  : account
+              )
+        );
         await refetch();
         analytics.track('team_workflow_completed', {
           workflow_id: requestId,
