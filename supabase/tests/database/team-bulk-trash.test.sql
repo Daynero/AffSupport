@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(14);
+select plan(17);
 
 insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data) values
 ('bb370000-0000-4000-8000-000000000001','authenticated','authenticated','bulk-owner@example.test','{}','{}'),
@@ -90,6 +90,16 @@ select is((public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')->
  'failed','one failed item does not hide confirmed siblings');
 select ok(position('Secret A' in public.list_team_bulk_trash('bb370000-0000-4000-8000-000000000010')::text)=0,
  'receipt contains no names');
+select is((public.prepare_team_bulk_trash_retry('bb370000-0000-4000-8000-000000000010',
+ (select (result->>'id')::uuid from bulk_receipt),'bb370000-0000-4000-8000-000000000021')->>'status'),
+ 'confirmed','confirmed item cannot be retried');
+select isnt((public.prepare_team_bulk_trash_retry('bb370000-0000-4000-8000-000000000010',
+ (select (result->>'id')::uuid from bulk_receipt),'bb370000-0000-4000-8000-000000000022')->>'idempotencyKey'),
+ (select idempotency_key::text from public.team_operations where id='bb370000-0000-4000-8000-000000000042'),
+ 'failed operation gets a new retry key');
+select is((public.prepare_team_bulk_trash_retry('bb370000-0000-4000-8000-000000000010',
+ (select (result->>'id')::uuid from bulk_receipt),'bb370000-0000-4000-8000-000000000023')->>'status'),
+ 'retryable','queued item can resume after a worker interruption');
 
 select * from finish();
 rollback;

@@ -143,6 +143,7 @@ export type ExplorerShellClient = ExplorerClient &
     beginBulkTrash?: typeof teamApi.beginBulkTrash;
     markBulkTrashAttempt?: typeof teamApi.markBulkTrashAttempt;
     listBulkTrash?: typeof teamApi.listBulkTrash;
+    prepareBulkTrashRetry?: typeof teamApi.prepareBulkTrashRetry;
   };
 
 export type { ExplorerView };
@@ -1489,6 +1490,75 @@ function ExplorerBody({
     ]
   );
 
+  const [retryingBulkTrash, setRetryingBulkTrash] = useState(false);
+  const bulkRetryInFlight = useRef(false);
+  const retryBulkTrash = useCallback(
+    async (groupId: string) => {
+      if (bulkRetryInFlight.current || !permissions?.delete) return;
+      bulkRetryInFlight.current = true;
+      setRetryingBulkTrash(true);
+      try {
+        const groups = await (client.listBulkTrash ?? teamApi.listBulkTrash)(teamId);
+        const group = groups.find(candidate => candidate.id === groupId);
+        if (!group) return;
+        const retryable: Array<{ materialId: string; idempotencyKey: string }> = [];
+        const categoryById = new Map(
+          group.items.map(item => [item.materialId, item.category ?? null])
+        );
+        for (const item of group.items) {
+          if (!['failed', 'unknown', 'queued'].includes(item.state)) continue;
+          const prepared = await (client.prepareBulkTrashRetry ?? teamApi.prepareBulkTrashRetry)({
+            teamId,
+            groupId,
+            materialId: item.materialId
+          });
+          if (prepared.status === 'retryable') {
+            retryable.push({
+              materialId: item.materialId,
+              idempotencyKey: prepared.idempotencyKey
+            });
+          }
+        }
+        if (retryable.length === 0) {
+          void workspaceOperations?.refreshBulkTrash?.();
+          return;
+        }
+        await executeBulkTrash({
+          intent: { id: group.id, requestId: group.requestId, items: retryable },
+          mark: materialId =>
+            (client.markBulkTrashAttempt ?? teamApi.markBulkTrashAttempt)({
+              teamId,
+              groupId,
+              materialId
+            }),
+          trash: async (materialId, idempotencyKey) => {
+            await trashMaterialWithTail({
+              teamId,
+              material: {
+                id: materialId,
+                name: '',
+                category: categoryById.get(materialId) ?? null
+              },
+              client: tailClient,
+              idempotencyKey
+            });
+          },
+          settled: async () => {
+            changed();
+            await workspaceOperations?.refreshBulkTrash?.();
+          }
+        });
+        await workspaceOperations?.refreshBulkTrash?.();
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      } finally {
+        bulkRetryInFlight.current = false;
+        setRetryingBulkTrash(false);
+      }
+    },
+    [changed, client, permissions?.delete, push, t, tailClient, teamId, workspaceOperations]
+  );
+
   /**
    * Keyboard on the content area (FR-027): arrows move, Enter opens, Escape
    * clears, Delete trashes with undo. Keys typed into a field — the rename
@@ -2330,7 +2400,18 @@ function ExplorerBody({
               active={bulkGroup.items.some(
                 item => item.state === 'queued' || item.state === 'active'
               )}
-              actions={[]}
+              actions={
+                permissions?.delete &&
+                !retryingBulkTrash &&
+                bulkGroup.items.some(item => ['failed', 'unknown', 'queued'].includes(item.state))
+                  ? [
+                      {
+                        label: t('teamBulkTrashRetry'),
+                        run: () => void retryBulkTrash(bulkGroup.id)
+                      }
+                    ]
+                  : []
+              }
             >
               <ul className="team-bulk-trash-receipts" aria-label={t('teamBulkTrashTitle')}>
                 {bulkGroup.items.map(item => (

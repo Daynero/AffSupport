@@ -34,6 +34,7 @@ import {
   parseTeamAccountReorderResult,
   parseTeamBulkTrashIntent,
   parseTeamBulkTrashGroups,
+  parseTeamBulkTrashRetry,
   parseTeamAgentRunMarkerSnapshots,
   parseTeamTaskAgentTags,
   parseTeamTaskLabel,
@@ -60,6 +61,7 @@ import {
   type TeamAccountReorderResult,
   type TeamBulkTrashIntent,
   type TeamBulkTrashGroup,
+  type TeamBulkTrashRetry,
   type TeamAgentRunMarker,
   type TeamAgentRunMarkerSnapshot,
   parseUploadBatchRequest,
@@ -3504,6 +3506,24 @@ export const teamApi = {
       })
     );
     throwRpc(error);
+  },
+
+  async prepareBulkTrashRetry(input: {
+    teamId: string;
+    groupId: string;
+    materialId: string;
+  }): Promise<TeamBulkTrashRetry> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('prepare_team_bulk_trash_retry', {
+        p_team: input.teamId,
+        p_group: input.groupId,
+        p_material: input.materialId
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamBulkTrashRetry(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
   },
 
   async restoreMaterial(input: {

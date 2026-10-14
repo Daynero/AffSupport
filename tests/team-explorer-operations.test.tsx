@@ -95,6 +95,12 @@ it('keeps the 50-item selection responsive and reports a partial hosted result',
       items: receiptItems.map(({ materialId, idempotencyKey }) => ({ materialId, idempotencyKey }))
     })),
     markBulkTrashAttempt: vi.fn(async () => undefined),
+    prepareBulkTrashRetry: vi.fn(async ({ materialId }: { materialId: string }) => {
+      const item = receiptItems.find(entry => entry.materialId === materialId)!;
+      item.idempotencyKey = 'retry-key-17';
+      item.state = 'queued';
+      return { status: 'retryable' as const, idempotencyKey: item.idempotencyKey };
+    }),
     listBulkTrash: vi.fn(async () => [
       {
         id: 'group',
@@ -104,9 +110,11 @@ it('keeps the 50-item selection responsive and reports a partial hosted result',
       }
     ])
   } as unknown as ExplorerShellClient;
+  let failOnce = true;
   const trashMaterial = vi.fn(async ({ materialId }: { materialId: string }) => {
     const item = receiptItems.find(entry => entry.materialId === materialId)!;
-    item.state = materialId === 'material-17' ? 'failed' : 'confirmed';
+    item.state = materialId === 'material-17' && failOnce ? 'failed' : 'confirmed';
+    if (item.state === 'failed') failOnce = false;
     if (item.state === 'failed') throw new Error('PROVIDER_FAILURE');
     return { operationId: materialId, state: 'succeeded' };
   });
@@ -153,6 +161,16 @@ it('keeps the 50-item selection responsive and reports a partial hosted result',
   const receipts = screen.getByRole('list', { name: 'Moving files to trash' });
   expect(within(receipts).getAllByText('In trash')).toHaveLength(49);
   expect(within(receipts).getByText('Failed')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry unresolved files' }));
+  await waitFor(() => expect(trashMaterial).toHaveBeenCalledTimes(51));
+  expect(client.prepareBulkTrashRetry).toHaveBeenCalledTimes(1);
+  expect(trashMaterial).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      materialId: 'material-17',
+      idempotencyKey: 'retry-key-17'
+    })
+  );
+  await waitFor(() => expect(within(receipts).getAllByText('In trash')).toHaveLength(50));
   cleanup();
   localStorage.clear();
 }, 30_000);

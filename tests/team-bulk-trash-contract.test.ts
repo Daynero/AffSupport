@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseTeamBulkTrashGroups, parseTeamBulkTrashIntent } from '@video-compressor/shared';
+import {
+  parseTeamBulkTrashGroups,
+  parseTeamBulkTrashIntent,
+  parseTeamBulkTrashRetry
+} from '@video-compressor/shared';
 
 const GROUP = 'bb370000-0000-4000-8000-000000000031';
 const MATERIAL = 'bb370000-0000-4000-8000-000000000021';
@@ -49,6 +53,13 @@ describe('hosted bulk trash contract', () => {
           ]
         }
       ])
+    ).toBeNull();
+    expect(parseTeamBulkTrashRetry({ status: 'retryable', idempotencyKey: KEY })).toEqual({
+      status: 'retryable',
+      idempotencyKey: KEY
+    });
+    expect(
+      parseTeamBulkTrashRetry({ status: 'retryable', idempotencyKey: '/private/file' })
     ).toBeNull();
     expect(
       parseTeamBulkTrashIntent({

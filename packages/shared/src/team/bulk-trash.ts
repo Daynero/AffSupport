@@ -1,7 +1,9 @@
 import { isRecord } from './contract.js';
+import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
 
 export interface TeamBulkTrashItem {
   materialId: string;
+  category?: MaterialCategory | null;
   idempotencyKey: string;
   operationId: string | null;
   state: 'queued' | 'active' | 'confirmed' | 'failed' | 'unknown';
@@ -19,6 +21,19 @@ export interface TeamBulkTrashIntent {
   id: string;
   requestId: string;
   items: Array<Pick<TeamBulkTrashItem, 'materialId' | 'idempotencyKey'>>;
+}
+
+export type TeamBulkTrashRetry =
+  | { status: 'retryable'; idempotencyKey: string }
+  | { status: 'confirmed' | 'active' | 'unknown' | 'exhausted' };
+
+export function parseTeamBulkTrashRetry(value: unknown): TeamBulkTrashRetry | null {
+  if (!isRecord(value)) return null;
+  if (value.status === 'retryable' && id(value.idempotencyKey))
+    return { status: 'retryable', idempotencyKey: value.idempotencyKey };
+  if (['confirmed', 'active', 'unknown', 'exhausted'].includes(String(value.status)))
+    return { status: value.status as 'confirmed' | 'active' | 'unknown' | 'exhausted' };
+  return null;
 }
 
 function id(value: unknown): value is string {
@@ -58,6 +73,9 @@ export function parseTeamBulkTrashGroups(value: unknown): TeamBulkTrashGroup[] |
         !isRecord(item) ||
         !id(item.materialId) ||
         !id(item.idempotencyKey) ||
+        (item.category !== undefined &&
+          item.category !== null &&
+          !MATERIAL_CATEGORIES.includes(item.category as MaterialCategory)) ||
         (item.operationId !== null && !id(item.operationId)) ||
         !['queued', 'active', 'confirmed', 'failed', 'unknown'].includes(String(item.state)) ||
         (item.errorCode !== null &&
@@ -66,6 +84,7 @@ export function parseTeamBulkTrashGroups(value: unknown): TeamBulkTrashGroup[] |
         return null;
       items.push({
         materialId: item.materialId,
+        category: (item.category as MaterialCategory | null | undefined) ?? null,
         idempotencyKey: item.idempotencyKey,
         operationId: item.operationId,
         state: item.state as TeamBulkTrashItem['state'],
