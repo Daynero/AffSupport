@@ -22,9 +22,9 @@
 
 **Goal**: Establish shared outcome semantics needed by the state-changing stories.
 
-- [ ] T004 Define bounded operation stages, stable error codes and privacy-safe correlation fields for copy, detach/cleanup, bulk trash, ordering, archive and image choice in `packages/shared/src/team/analytics.ts`, `packages/shared/src/types.ts` and `scripts/analytics/code-map.ts`; avoid duplicating an existing type.
-- [ ] T005 Register coverage expectations and missing/delayed-signal behavior for the six journeys in `scripts/analytics/coverage-registry.ts` and `scripts/analytics/investigate.ts`, keeping unsupported stages explicit.
-- [ ] T006 Add focused contract coverage for parsing, error-code mapping and absence of private payloads in `tests/analytics-code-map.test.ts` and `tests/analytics-investigate-command.test.ts`.
+- [x] T004 Define bounded operation stages, stable error codes and privacy-safe correlation fields for copy, detach/cleanup, bulk trash, ordering, archive and image choice in `packages/shared/src/team/analytics.ts`, `packages/shared/src/types.ts` and `scripts/analytics/code-map.ts`; avoid duplicating an existing type.
+- [x] T005 Register coverage expectations and missing/delayed-signal behavior for the six journeys in `scripts/analytics/coverage-registry.ts` and `scripts/analytics/investigate.ts`, keeping unsupported stages explicit.
+- [x] T006 Add focused contract coverage for parsing, error-code mapping and absence of private payloads in `tests/analytics-code-map.test.ts` and `tests/analytics-investigate-command.test.ts`.
 
 **Checkpoint**: Each later story can report a request, accepted work, proven result and unknown outcome through the same diagnostic vocabulary.
 
