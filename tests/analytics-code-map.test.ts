@@ -20,8 +20,10 @@ import { CODE_MAP, lookupCodeLocations } from '../scripts/analytics/code-map';
 import {
   TEAM_ERROR_CODES,
   TEAM_TASK_ORPHAN_REASON_CODES,
-  TEAM_WORKSPACE_DIAGNOSTIC_JOURNEYS
+  TEAM_WORKSPACE_DIAGNOSTIC_JOURNEYS,
+  parseTeamEdgeResult
 } from '../packages/shared/src/team/index';
+import { teamErrorMessage } from '../apps/web/src/team/errors';
 
 /**
  * 033 FR-008 / T007 — every failure the product can name points at code. A new code in a
@@ -190,6 +192,10 @@ describe('037 workspace diagnostic contract', () => {
   });
   it('maps every task orphan reason and the upload rejection to code', () => {
     expect(TEAM_ERROR_CODES).toContain('UNVERIFIED_UPLOAD');
+    expect(
+      parseTeamEdgeResult({ ok: false, error: { code: 'UNVERIFIED_UPLOAD', retryable: false } })
+    ).toEqual({ ok: false, error: { code: 'UNVERIFIED_UPLOAD', retryable: false } });
+    expect(teamErrorMessage('UNVERIFIED_UPLOAD', key => key)).toBe('teamTaskCleanupUnverified');
     for (const reason of TEAM_TASK_ORPHAN_REASON_CODES) {
       const hit = lookupCodeLocations(`task-orphan:${reason}`);
       expect(hit?.files).toContain('apps/web/src/team/tasks/TaskEditor.tsx');
