@@ -79,7 +79,9 @@ describe('canonical section labels', () => {
     // 017: the accounts a space runs from, beside the tasks they will tag.
     ['teamSectionAccounts', 'Accounts', 'Акаунти'],
     ['teamSectionMembers', 'Members', 'Учасники'],
-    ['teamSpaceSettings', 'Space settings', 'Налаштування простору']
+    ['teamSpaceSettings', 'Space settings', 'Налаштування простору'],
+    ['catalogUpdaterEntry', 'Catalog Manager', 'Менеджер каталогів'],
+    ['catalogUpdaterTitle', 'Catalog Manager', 'Менеджер каталогів']
   ] as const)('%s is the agreed label in both locales', (key, en, uk) => {
     expect(translate('en', key)).toBe(en);
     expect(translate('uk', key)).toBe(uk);
