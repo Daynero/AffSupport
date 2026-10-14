@@ -39,7 +39,10 @@ describe('workspace background summary', () => {
         <BackgroundWorkChip onOpen={vi.fn()} onRetryGroup={vi.fn()} />
       </WorkspaceOperationsContextOverride>
     );
-    await userEvent.click(screen.getByRole('button', { name: /1 local operations/i }));
+    const chip = screen.getByRole('button', { name: /1 local operations/i });
+    expect(chip.querySelector('.ui-chip-spinner')).toBeNull();
+    expect(chip.classList.contains('ui-chip-busy')).toBe(false);
+    await userEvent.click(chip);
     expect(screen.getByText(/Operation completed/i)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Retry operation' })).toBeNull();
   });

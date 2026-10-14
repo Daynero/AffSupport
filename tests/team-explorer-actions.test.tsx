@@ -111,6 +111,14 @@ describe('a video’s card', () => {
     for (const name of ['Download', 'Download re-stitched', 'Share', 'Move to trash']) {
       expect(screen.getByRole('menuitem', { name })).toBeTruthy();
     }
+    expect(screen.getByRole('menu', { name: /Actions for/ })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(
+      within(card)
+        .getByRole('button', { name: /^Actions for/ })
+        .getAttribute('aria-expanded')
+    ).toBe('false');
   });
 });
 
