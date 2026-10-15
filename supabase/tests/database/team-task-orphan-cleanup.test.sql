@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(19);
+select plan(20);
 select ok(exists(select 1 from public.team_error_codes where code='UNVERIFIED_UPLOAD'),
  'unverified upload rejection is in the hosted closed code list');
 
@@ -101,10 +101,16 @@ select public.detach_team_task_material_v2('bd370000-0000-4000-8000-000000000010
  'bd370000-0000-4000-8000-000000000030','bd370000-0000-4000-8000-000000000021');
 update private.team_task_orphan_intents set cleanup_not_before=clock_timestamp()-interval '1 second'
  where material_id='bd370000-0000-4000-8000-000000000021' and state='waiting';
+update private.team_task_orphan_intents set state='claimed', lease_until=clock_timestamp()+interval '1 hour'
+ where material_id='bd370000-0000-4000-8000-000000000021' and state='waiting';
+select is(private.sweep_task_orphan_uncertainty(),0,
+ 'a live worker claim is not settled before its lease expires');
+update private.team_task_orphan_intents set lease_until=null
+ where material_id='bd370000-0000-4000-8000-000000000021' and state='claimed';
 select private.invoke_catalog_updater_worker();
 select is((select state from private.team_task_orphan_intents where material_id=
  'bd370000-0000-4000-8000-000000000021' and state='cleanup_unverified'),
- 'cleanup_unverified','minute-scheduled updater settles a due task orphan without provider trash');
+ 'cleanup_unverified','minute-scheduled updater recovers a claim with a missing lease without provider trash');
 select is((select reason_code from private.team_task_orphan_intents where material_id=
  'bd370000-0000-4000-8000-000000000021' and state='cleanup_unverified'),
  'LAUNCH_REFERENCE_UNVERIFIED','unintegrated Launches references remain an explicit reason');

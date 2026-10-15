@@ -1,14 +1,14 @@
 -- The Launches source reference inventory is not yet in this branch. Due
 -- intents settle visibly as unverified instead of waiting forever or making
 -- an unsafe provider call. The scheduled catalog updater invokes this sweep.
-create function private.sweep_task_orphan_uncertainty(p_limit integer default 50)
+create or replace function private.sweep_task_orphan_uncertainty(p_limit integer default 50)
 returns integer language plpgsql security definer set search_path = '' as $$
 declare changed integer;
 begin
   with due as (
     select id from private.team_task_orphan_intents
     where cleanup_not_before <= clock_timestamp()
-      and (state='waiting' or (state='claimed' and lease_until < clock_timestamp()))
+      and (state='waiting' or (state='claimed' and (lease_until is null or lease_until <= clock_timestamp())))
     order by cleanup_not_before, id
     for update skip locked
     limit least(greatest(p_limit,1),100)
