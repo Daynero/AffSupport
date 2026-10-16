@@ -67,3 +67,42 @@ concat demuxer honours it: the shipped path produces tracks that agree to **0.0 
 - **A stop has to reach the current pass.** `encodeVideo` reports each child through
   `onChild`, and the queue re-points its activity at it; cancelling mid-body leaves no partial
   output, no `.body.mp4` beside the target, and no stray process.
+
+## Compressor preparation and frame-rate reduction (2026-10-16)
+
+Two further sources of repeated work are removed:
+
+- Estimation and compression share completed static-edge trim scans. The bounded cache holds
+  at most 64 results and checks file identity, size, nanosecond modification/change times,
+  duration and frame rate. A changed file, failed scan or cancelled caller cannot seed a
+  reusable result. Concurrent callers retain independent cancellation.
+- For ordinary compression with a known source FPS above the requested FPS, the `fps` filter
+  runs before scaling. Discarded frames no longer need scaling. Unknown/equal/lower source FPS
+  retains the original order. Estimates use the same ordering as the final encode.
+
+The embedded-image graphs, x264 `slow` preset, quality, audio policy, queue concurrency and
+power-governor behavior remain unchanged.
+
+Local synthetic measurements (wall time, not a production guarantee):
+
+| Work                                | Before                      | After                | Method                          |
+| ----------------------------------- | --------------------------- | -------------------- | ------------------------------- |
+| Repeat static-edge analysis         | 1327 ms, 10 FFmpeg children | 0.17 ms, no children | One cold/warm pair              |
+| 1920×1080, 60→30 FPS                | 2182 ms                     | 2151 ms              | Median of four runs per variant |
+| 720×1280, 120→30 FPS                | 1915 ms                     | 1440 ms              | Median of four runs per variant |
+| Variable FPS below target (control) | 976 ms                      | 973 ms               | Median of four runs per variant |
+
+The paired compression runs alternate old/new order, use three-second sources, resolution
+limit 720, CRF 26 and the production `slow` preset. The control keeps the same filter order;
+its small difference is noise. The largest measured reduction is 24.8%, while the landscape
+case gains only 1.4%. Long clips and other machines may behave differently.
+
+Regression coverage compares decoded video/audio frame hashes, media metadata, output size
+and exact estimate-sample bytes for landscape, portrait, fractional FPS and variable FPS.
+Queue coverage exercises reuse after preparation and retains cancellation, held-image,
+estimate and power integration checks. See `tests/compressor-filter-order.test.ts`,
+`tests/static-edge-cache.test.ts` and `tests/static-edges.test.ts`.
+
+Existing correlated compression/estimate lifecycle signals remain the diagnostic seam.
+Cache hits and per-filter timing are not emitted; the coverage registry records this blind
+spot. Local timings must not be reported as observed production improvement.

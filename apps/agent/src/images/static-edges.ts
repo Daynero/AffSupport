@@ -1,5 +1,6 @@
 import { spawnTracked } from '../power/spawn.js';
 import { ffmpegPath, MediaToolUnavailableError } from '../ffmpeg/tools.js';
+import { StaticEdgeTrimCache } from './static-edge-cache.js';
 
 const SAMPLE_WIDTH = 32;
 const SAMPLE_HEIGHT = 32;
@@ -10,6 +11,10 @@ export interface StaticEdgeTrims {
   startSeconds: number;
   endSeconds: number;
 }
+
+const trimCache = new StaticEdgeTrimCache((input, duration, frameRate, signal) =>
+  staticEdgeScan(input, duration, frameRate, signal).trims()
+);
 
 /**
  * Finds runs of visually static frames at both edges without decoding a long
@@ -22,7 +27,7 @@ export async function detectStaticEdgeTrims(
   frameRate: number,
   signal?: AbortSignal
 ): Promise<StaticEdgeTrims> {
-  return staticEdgeScan(input, durationSeconds, frameRate, signal).trims();
+  return trimCache.detect(input, durationSeconds, frameRate, signal);
 }
 
 /**

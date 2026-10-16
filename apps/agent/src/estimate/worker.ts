@@ -17,7 +17,7 @@ import {
   refreshEstimateFromBreakdown
 } from '../images/embedding.js';
 import { ImageAssetError, ImageAssetStore } from '../images/store.js';
-import { detectStaticEdgeTrims, type StaticEdgeTrims } from '../images/static-edges.js';
+import { detectStaticEdgeTrims } from '../images/static-edges.js';
 import { EstimateCache, estimateCacheKey } from './cache.js';
 import { createSamplePlan, estimateBreakdownFromSamples } from './sampler.js';
 
@@ -49,7 +49,6 @@ export class EstimationWorker {
   private priorityPumping = false;
   private shuttingDown = false;
   private debounce: ReturnType<typeof setTimeout> | null = null;
-  private replacementTrimCache = new Map<string, Promise<StaticEdgeTrims>>();
   // Aborts the in-flight estimate's background media work (static-edge
   // detection and ffprobe) whose children are not tracked in `this.child`, so
   // invalidate/pause/cancel actually stop them instead of letting them run —
@@ -241,11 +240,10 @@ export class EstimationWorker {
       let metadata: Awaited<ReturnType<typeof probe>> | null = null;
       if (job.imageEmbedding?.replaceExisting) {
         metadata = await probe(job.inputPath, abort.signal);
-        const trims = await this.detectReplacementTrims(
-          job,
-          source.size,
-          source.mtimeMs,
+        const trims = await this.detectStaticEdges(
+          job.inputPath,
           metadata.duration,
+          job.sourceFrameRate ?? outputFrameRate(job),
           abort.signal
         );
         if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
@@ -331,7 +329,14 @@ export class EstimationWorker {
         const sample = plan[index];
         const output = path.join(temporaryDirectory, `sample-${index}.h264`);
         const result = await this.runFfmpeg(
-          buildEstimateArgs(job.inputPath, output, sample.start, sample.duration, job.encoding)
+          buildEstimateArgs(
+            job.inputPath,
+            output,
+            sample.start,
+            sample.duration,
+            job.encoding,
+            job.sourceFrameRate
+          )
         );
         if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
         if (result === 0) {
@@ -478,34 +483,6 @@ export class EstimationWorker {
       });
       child.on('close', resolve);
     });
-  }
-
-  private detectReplacementTrims(
-    job: CompressionJob,
-    size: number,
-    mtimeMs: number,
-    duration: number,
-    signal?: AbortSignal
-  ) {
-    const frameRate = job.sourceFrameRate ?? outputFrameRate(job);
-    const key = JSON.stringify([
-      path.resolve(job.inputPath),
-      size,
-      Math.round(mtimeMs),
-      duration,
-      frameRate
-    ]);
-    let pending = this.replacementTrimCache.get(key);
-    if (!pending) {
-      pending = this.detectStaticEdges(job.inputPath, duration, frameRate, signal);
-      this.replacementTrimCache.set(key, pending);
-      void pending.catch(() => {
-        if (this.replacementTrimCache.get(key) === pending) {
-          this.replacementTrimCache.delete(key);
-        }
-      });
-    }
-    return pending;
   }
 }
 

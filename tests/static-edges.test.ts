@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
@@ -9,6 +9,7 @@ import {
   type ImageAsset
 } from '../packages/shared/src/types.js';
 import { detectStaticEdgeTrims } from '../apps/agent/src/images/static-edges.js';
+import * as managedSpawn from '../apps/agent/src/power/spawn.js';
 import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
@@ -20,6 +21,7 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let directory = '';
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (directory) await removeTemporaryDirectory(directory);
   directory = '';
 });
@@ -30,7 +32,20 @@ describeRequiring(ffmpegBinaries, 're-embedding static edge removal', () => {
     const input = path.join(directory, 'previously-embedded.mp4');
     expect(await createEdgedVideo(input)).toBe(0);
     const media = await probeMedia(input);
+    const launches = vi.spyOn(managedSpawn, 'spawnTracked');
+    const started = performance.now();
     const trims = await detectStaticEdgeTrims(input, media.duration!, media.frameRate!);
+    const coldMs = performance.now() - started;
+    const coldSpawns = launches.mock.calls.length;
+    launches.mockClear();
+    const warmStarted = performance.now();
+    const warm = await detectStaticEdgeTrims(input, media.duration!, media.frameRate!);
+    const warmMs = performance.now() - warmStarted;
+    expect(warm).toEqual(trims);
+    expect(coldSpawns).toBeGreaterThan(1);
+    expect(launches).not.toHaveBeenCalled();
+    launches.mockRestore();
+    console.info('static-edge reuse', { coldMs, warmMs, coldSpawns });
 
     expect(trims.startSeconds).toBeGreaterThanOrEqual(0.2);
     expect(trims.startSeconds).toBeLessThanOrEqual(0.3);
@@ -101,7 +116,10 @@ describeRequiring(ffmpegBinaries, 're-embedding static edge removal', () => {
       new ImageAssetStore(imageRoot)
     );
     await queue.add([input]);
-    const id = queue.state().jobs[0].id;
+    const source = queue.state().jobs[0];
+    await detectStaticEdgeTrims(input, source.durationSeconds!, source.sourceFrameRate!);
+    const launches = vi.spyOn(managedSpawn, 'spawnTracked');
+    const id = source.id;
     expect(await queue.start([id])).toBe(true);
     await waitFor(() => !queue.state().running, {
       timeoutMs: 15_000,
@@ -118,6 +136,10 @@ describeRequiring(ffmpegBinaries, 're-embedding static edge removal', () => {
       completed.imageEmbedding!.sourceTrimEndSeconds +
       0.2;
     expect(completed.finalDurationSeconds).toBeCloseTo(expectedDuration, 1);
+    expect(
+      launches.mock.calls.filter(([, , options]) => options.toolId === 'compressor-edges')
+    ).toHaveLength(0);
+    await queue.shutdown();
   }, 20_000);
 });
 

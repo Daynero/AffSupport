@@ -2276,7 +2276,8 @@ export class JobQueue {
       // A held final image is built in three passes; a stop has to reach whichever is running.
       child => {
         if (this.current.kind === 'encoding') this.setActivity({ ...this.current, child });
-      }
+      },
+      job.sourceFrameRate
     );
     // Attached to the activity that already exists for this job. Reaching here with anything
     // other than an encode would mean `run()` was called outside the guarded region, and

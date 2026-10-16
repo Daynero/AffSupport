@@ -32,11 +32,22 @@ export function videoCodecArgs(settings: EncodingSettings): string[] {
 }
 
 /** Build the shared H.264 arguments used by both estimation and a normal final encode. */
-export function videoArgs(settings: EncodingSettings): string[] {
+export function videoArgs(
+  settings: EncodingSettings,
+  sourceFrameRate: number | null = null
+): string[] {
   const args = videoCodecArgs(settings);
   const filters: string[] = [];
+  // When dropping frames, avoid scaling pictures the fps filter will discard. Keep the
+  // old order for upsampling/unknown input rates so duplicated frames are scaled only once.
+  const dropFirst =
+    settings.frameRate !== null &&
+    sourceFrameRate !== null &&
+    Number.isFinite(sourceFrameRate) &&
+    sourceFrameRate > settings.frameRate;
+  if (dropFirst) filters.push(`fps=${settings.frameRate}`);
   if (settings.resolutionLimit) filters.push(fitLongestSide(settings.resolutionLimit));
-  if (settings.frameRate) filters.push(`fps=${settings.frameRate}`);
+  if (settings.frameRate && !dropFirst) filters.push(`fps=${settings.frameRate}`);
   if (filters.length) args.push('-vf', filters.join(','));
   return args;
 }
@@ -74,7 +85,8 @@ export function buildFfmpegArgs(
   output: string,
   settings: EncodingSettings,
   forceAac = false,
-  threads: number | null = null
+  threads: number | null = null,
+  sourceFrameRate: number | null = null
 ): string[] {
   const audio = forceAac ? ['-c:a', 'aac', '-b:a', '96k'] : ['-c:a', 'copy'];
   return [
@@ -84,7 +96,7 @@ export function buildFfmpegArgs(
     ...threadArgs(threads),
     '-i',
     input,
-    ...videoArgs(settings),
+    ...videoArgs(settings, sourceFrameRate),
     ...audio,
     ...metadataArgs(settings),
     '-movflags',
@@ -300,7 +312,8 @@ export function buildEstimateArgs(
   output: string,
   start: number,
   duration: number,
-  settings: EncodingSettings
+  settings: EncodingSettings,
+  sourceFrameRate: number | null = null
 ): string[] {
   return [
     '-hide_banner',
@@ -312,7 +325,7 @@ export function buildEstimateArgs(
     input,
     '-t',
     duration.toFixed(3),
-    ...videoArgs(settings),
+    ...videoArgs(settings, sourceFrameRate),
     '-an',
     '-f',
     'h264',

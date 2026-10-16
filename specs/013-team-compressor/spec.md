@@ -77,3 +77,18 @@ Status: draft (owner brief, 2026-08-30). Branch base: `011-team-workspace-rework
 - SC-3: a disabled embedding image is never chosen across many runs; the
   toggle survives an agent restart.
 - SC-4: the queue runs N selected videos one by one with the corner panel.
+
+### Compression performance acceptance (2026-10-16)
+
+- Reuse completed static-edge scans between estimation and compression only while file
+  identity, size, modification/change times, duration and FPS match. Bound memory and keep
+  cancellation independent between callers; failures never become cached success.
+- For ordinary compression, discard excess source frames before scaling when source FPS is
+  known to exceed output FPS. Estimates and final output must use identical filter ordering.
+- Preserve decoded video/audio, dimensions, timestamps, duration and estimate-sample bytes
+  in the covered landscape, portrait, fractional-FPS and variable-FPS cases. Preserve
+  embedded-image encoding, quality settings and the shared CPU budget.
+- Retain existing run-correlated start, completion, failure and cancellation signals.
+  Cache-hit and per-filter timings remain unobservable in production analytics and are
+  explicitly listed in the capability inventory. Report local benchmarks with their scope;
+  do not infer production gains from lifecycle events alone.

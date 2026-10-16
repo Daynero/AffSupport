@@ -4,6 +4,17 @@ import { buildEstimateArgs, buildFfmpegArgs, videoArgs } from '../apps/agent/src
 import { customEncoding, optimalEncoding } from './helpers.js';
 
 describe('FFmpeg compression arguments', () => {
+  it('drops frames before scaling only when the known source rate is higher', () => {
+    expect(argumentAfter(videoArgs(optimalEncoding, 60), '-vf')).toMatch(/^fps=30,scale=/);
+    for (const rate of [null, 24, 30, NaN, Infinity]) {
+      expect(argumentAfter(videoArgs(optimalEncoding, rate), '-vf')).toMatch(/^scale=.*fps=30$/);
+    }
+    const sample = buildEstimateArgs('in.mp4', 'out.h264', 0, 3, optimalEncoding, 60);
+    const final = buildFfmpegArgs('in.mp4', 'out.mp4', optimalEncoding, false, null, 60);
+    expect(argumentAfter(sample, '-vf')).toBe(argumentAfter(final, '-vf'));
+    expect(final).not.toContain('-threads');
+    expect(argumentAfter(final, '-preset')).toBe('slow');
+  });
   it('uses CRF 26, H.264, compatible pixels and MP4 faststart in Optimal mode', () => {
     const args = buildFfmpegArgs('in.mov', 'out.mp4', optimalEncoding);
     expect(argumentAfter(args, '-crf')).toBe('26');

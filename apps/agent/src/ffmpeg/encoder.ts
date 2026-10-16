@@ -54,7 +54,8 @@ export function encodeVideo(
   // call site forgot to thread the dependency through.
   governor: ManagedSpawnGovernor | null = activeGovernorOrNull(),
   // Each pass in turn, so whoever holds the job can still reach the running child.
-  onChild?: (child: ChildProcessWithoutNullStreams) => void
+  onChild?: (child: ChildProcessWithoutNullStreams) => void,
+  sourceFrameRate: number | null = null
 ): { child: ChildProcessWithoutNullStreams; done: Promise<EncodeResult> } {
   const threads = governor?.budget().threadBudget ?? null;
   const held = embedding?.endImagePath
@@ -75,7 +76,7 @@ export function encodeVideo(
   }
   const args = embedding
     ? buildEmbeddedFfmpegArgs({ input, output, settings, threads, ...embedding })
-    : buildFfmpegArgs(input, output, settings, transcodeAudio, threads);
+    : buildFfmpegArgs(input, output, settings, transcodeAudio, threads, sourceFrameRate);
   const child = spawnManaged(governor ?? null, ffmpegPath, args, {
     toolId: 'compressor'
   }) as ChildProcessWithoutNullStreams;

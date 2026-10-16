@@ -120,9 +120,13 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     readiness: { event: 'tool_ready', correlate: 'none' },
     error: { event: 'error_occurred', correlate: 'run_id' },
     platforms: BOTH,
-    unobservable: ['result file opened outside Soty'],
+    unobservable: [
+      'result file opened outside Soty',
+      'static-edge cache hits and per-filter compression timings'
+    ],
     producerStatus: 'emitted',
-    source: 'events'
+    source: 'events',
+    note: 'Preparation caching and frame-rate filter ordering retain the existing run_id start/terminal signals. Local benchmarks prove measured cases only; production speedup cannot be attributed to either optimization from these events.'
   },
   {
     id: 'compressor.estimate',
