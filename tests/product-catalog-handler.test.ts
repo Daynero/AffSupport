@@ -574,4 +574,69 @@ describe('re-creating a catalog', () => {
     expect(drive.createConvertedFile).not.toHaveBeenCalled();
   });
 });
+describe('100-product catalog sharing', () => {
+  it.each([false, true])('shares concurrently before publishing (recreate=%s)', async recreate => {
+    const images = Array.from({ length: 100 }, (_, index) => ({
+      driveFileId: `image-${index}`,
+      resourceKey: null
+    }));
+    const { deps, drive } = setup({
+      images,
+      videoPublic: true,
+      ...(recreate ? { live: existing } : {})
+    });
+    const original = drive.listAnyonePermissions.getMockImplementation()!;
+    let active = 0;
+    let peak = 0;
+    const checked = new Set<string>();
+    drive.listAnyonePermissions.mockImplementation(async id => {
+      if (!id.startsWith('image-')) return original(id);
+      active += 1;
+      peak = Math.max(peak, active);
+      await Promise.resolve();
+      const result = await original(id);
+      if (result.length) checked.add(id);
+      active -= 1;
+      return result;
+    });
+    const convert = drive.createConvertedFile.getMockImplementation()!;
+    drive.createConvertedFile.mockImplementation(async input => {
+      expect(checked.size).toBe(100);
+      expect(active).toBe(0);
+      return convert(input);
+    });
+    const result = await createProductCatalog(
+      deps,
+      body({ productCount: 100, replacesMaterialId: recreate ? OLD_SHEET : null }),
+      ACTOR
+    );
+    expect(result.outcome).toBe(recreate ? 'recreated' : 'created');
+    expect(peak).toBe(8);
+    expect(drive.createConvertedFile).toHaveBeenCalledOnce();
+    expect(deps.link.mock.calls[0][0].record.settingsSnapshot.rows).toHaveLength(100);
+    expect(deps.finalize).toHaveBeenCalledOnce();
+  });
+
+  it('does not create a sheet when any image sharing fails', async () => {
+    const { deps, drive } = setup({
+      videoPublic: true,
+      images: Array.from({ length: 100 }, (_, index) => ({
+        driveFileId: `image-${index}`,
+        resourceKey: null
+      }))
+    });
+    const original = drive.listAnyonePermissions.getMockImplementation()!;
+    drive.listAnyonePermissions.mockImplementation(async id => {
+      if (id === 'image-0') throw new TeamFunctionError('RATE_LIMITED');
+      return original(id);
+    });
+    await expect(
+      createProductCatalog(deps, body({ productCount: 100 }), ACTOR)
+    ).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    expect(drive.createConvertedFile).not.toHaveBeenCalled();
+    expect(deps.startOperation).not.toHaveBeenCalled();
+    expect(deps.finalize).not.toHaveBeenCalled();
+    expect(deps.link).not.toHaveBeenCalled();
+  });
+});
 // @ts-nocheck — handler fixtures cover legacy catalog payloads as well.

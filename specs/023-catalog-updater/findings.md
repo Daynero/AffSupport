@@ -152,3 +152,21 @@ wrote the deflated workbook; Drive converted it in place as before.
 
 The device-based variant stays on `023-catalog-updater-restitch` for a later desktop release; its
 schema was removed from the beta database by hand (never `db reset`) before applying this one.
+
+## 100-product update performance (2026-10-16)
+
+- The updater already shared eight images concurrently per catalog and ran three catalogs at
+  a time. The shared image helper preserves those limits. It now drains in-flight permission
+  work before recording retry, instead of letting rejected Promise.all workers keep running.
+- Text and image pool draws overlap during growth and refresh. Text-to-picture matching still
+  happens after the final pictures are known. Pool locks are scoped by team and pool kind in
+  `private.draw_product_catalog_items`; text and image selection use different locks.
+- A picture verified during growth is reused if the same picture occurs again during refresh
+  in that attempt. No permission cache crosses catalogs, attempts, credentials or rounds.
+- Existing empty/failed pool fallbacks, picture/name matching, content IDs, XLSX compression,
+  conversion-in-place, leases, retry backoff and completion conditions remain in place.
+- Acceptance: 100 resulting rows, at most eight simultaneous image checks per catalog,
+  fresh checks in the next attempt, independent text/image draws, and failure recorded only
+  after started work settles. Tests: `catalog-image-sharing`, `catalog-updater-worker`,
+  `catalog-updater-parity`, `product-catalog-xlsx`. Production speedup is not measured;
+  the diagnostic coverage gap and follow-up are recorded in feature 022's findings.

@@ -83,6 +83,18 @@ function capability(data: AuditData, id: string) {
 }
 
 describe('audit · capability status', () => {
+  it('keeps product catalog latency and standalone lifecycle coverage explicitly unknown', async () => {
+    const data = await getAudit(ALL);
+    const catalog = capability(data, 'team.product_catalog');
+    expect(catalog).toMatchObject({
+      status: 'uncovered',
+      producer_status: 'unsupported_by_producer',
+      observed: []
+    });
+    expect(catalog.unobservable.join(' ')).toContain(
+      'Per-image sharing and Drive conversion latency'
+    );
+  });
   it('marks a start that meets its terminal by id as covered and counts the orphan', async () => {
     const data = await getAudit(ALL);
     const compressor = capability(data, 'compressor.run');

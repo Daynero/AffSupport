@@ -1,7 +1,7 @@
 import { rebuildCatalogRows, retryDelaySeconds } from '../_shared/catalog-updater.ts';
 import type { GoogleDriveClient } from '../_shared/drive.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
-import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
+import { createCatalogImageSharer } from '../_shared/catalog-image-sharing.ts';
 import {
   PRODUCT_CATALOG_SHEET_NAME,
   SPREADSHEET_MIME_TYPE,
@@ -43,7 +43,6 @@ const CLAIM_LIMIT = PARALLEL;
 // Refreshing and verifying a large picture pool can legitimately take longer than a minute.
 // Five minutes is the database's cap and keeps another worker from rewriting the same sheet.
 const LEASE_SECONDS = 300;
-const SHARE_PARALLEL = 8;
 const RETIRED_LIMIT = 10;
 const ORPHAN_LIMIT = 10;
 
@@ -147,19 +146,7 @@ function wholeNumber(value: unknown): number | null {
   return typeof number === 'number' && Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
 
-/** Share many pool images without turning a 100-row catalog into 100 serial Drive round trips. */
-async function ensureImagesShared(
-  drive: UpdaterDrive,
-  images: ReadonlyArray<{ driveFileId: string }>
-): Promise<void> {
-  const queue = [...new Set(images.map(image => image.driveFileId))];
-  const workers = Array.from({ length: Math.min(SHARE_PARALLEL, queue.length) }, async () => {
-    for (let fileId = queue.shift(); fileId; fileId = queue.shift()) {
-      await ensureAnyoneReader(drive, fileId);
-    }
-  });
-  await Promise.all(workers);
-}
+type ShareImages = ReturnType<typeof createCatalogImageSharer>;
 
 /** A claimed row from `service_claim_catalog_updater_items`, or null when it is not one. */
 export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
@@ -303,7 +290,7 @@ const DETAIL_NUMBER_KEYS = ['salePrice', 'quantity'] as const;
 async function refreshedRows(
   deps: CatalogUpdaterDeps,
   item: ClaimedCatalog,
-  drive: UpdaterDrive,
+  shareImages: ShareImages,
   rows: ProductCatalogRowValues[] | undefined,
   count: number
 ): Promise<ProductCatalogRowValues[] | undefined> {
@@ -315,7 +302,7 @@ async function refreshedRows(
     return rows;
   }
   if (drawn.length === 0) return rows;
-  await ensureImagesShared(drive, drawn);
+  await shareImages(drawn);
   /* A picture for the words this row already has (024, US27): a row named for a hoodie keeps
      being a hoodie when its picture is drawn afresh. */
   const base = rows ?? rowsOf(item, count);
@@ -363,17 +350,18 @@ export function grownCount(
 async function addedRows(
   deps: CatalogUpdaterDeps,
   item: ClaimedCatalog,
-  drive: UpdaterDrive,
+  shareImages: ShareImages,
   count: number
 ): Promise<ProductCatalogRowValues[] | undefined> {
   const added = count - item.productCount;
   if (added <= 0) return item.rows;
   const base = rowsOf(item, item.productCount);
   const teamId = item.teamId;
-  const texts = teamId && deps.drawTexts ? await deps.drawTexts(teamId, added).catch(() => []) : [];
-  const images =
-    teamId && deps.drawImages ? await deps.drawImages(teamId, added).catch(() => []) : [];
-  await ensureImagesShared(drive, images);
+  const [texts, images] = await Promise.all([
+    teamId && deps.drawTexts ? deps.drawTexts(teamId, added).catch(() => []) : [],
+    teamId && deps.drawImages ? deps.drawImages(teamId, added).catch(() => []) : []
+  ]);
+  await shareImages(images);
   const brand = base[0]?.brand ?? inventedBrand();
   for (let index = 0; index < added; index += 1) {
     const text = texts[index % texts.length] ?? null;
@@ -404,19 +392,25 @@ async function addedRows(
  * category — are worked out again from the new name. Off, or with nothing to draw, the rows keep
  * what they had.
  */
-async function refreshedTexts(
+async function drawRefreshedTexts(
   deps: CatalogUpdaterDeps,
   item: ClaimedCatalog,
-  rows: ProductCatalogRowValues[] | undefined,
   count: number
-): Promise<ProductCatalogRowValues[] | undefined> {
-  if (!item.refreshTexts || !item.teamId || !deps.drawTexts) return rows;
-  let drawn: Array<{ title: string; description: string }>;
+): Promise<Array<{ title: string; description: string }>> {
+  if (!item.refreshTexts || !item.teamId || !deps.drawTexts) return [];
   try {
-    drawn = await deps.drawTexts(item.teamId, count);
+    return await deps.drawTexts(item.teamId, count);
   } catch {
-    return rows;
+    return [];
   }
+}
+
+function refreshedTexts(
+  item: ClaimedCatalog,
+  rows: ProductCatalogRowValues[] | undefined,
+  count: number,
+  drawn: Array<{ title: string; description: string }>
+): ProductCatalogRowValues[] | undefined {
   if (drawn.length === 0) return rows;
   const base = rows ?? rowsOf(item, count);
   const brand = base[0]?.brand ?? inventedBrand();
@@ -503,14 +497,19 @@ async function updateOne(
   try {
     await deps.progress(item.catalogId, 'preparing').catch(() => false);
     const drive = await deps.driveFor(item.credentialId);
+    const shareImages = createCatalogImageSharer(drive);
     const count = grownCount(item.productCount, item.growProducts === true);
     await deps.progress(item.catalogId, 'refreshing').catch(() => false);
-    const rows = await refreshedTexts(
-      deps,
-      item,
-      await refreshedRows(deps, item, drive, await addedRows(deps, item, drive, count), count),
-      count
-    );
+    const grown = await addedRows(deps, item, shareImages, count);
+    // Draw independent pools together, but match words only after the pictures are known.
+    // Wait for both even on failure: pool draws must not outlive this attempt's retry.
+    const [pictures, texts] = await Promise.allSettled([
+      refreshedRows(deps, item, shareImages, grown, count),
+      drawRefreshedTexts(deps, item, count)
+    ]);
+    if (pictures.status === 'rejected') throw pictures.reason;
+    if (texts.status === 'rejected') throw texts.reason;
+    const rows = refreshedTexts(item, pictures.value, count, texts.value);
     await deps.progress(item.catalogId, 'building').catch(() => false);
     const bytes = await buildXlsx({
       sheetName: PRODUCT_CATALOG_SHEET_NAME,

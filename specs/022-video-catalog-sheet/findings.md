@@ -114,6 +114,38 @@ web update, without a full release?". The spec stays free of implementation; thi
   with the next desktop release. SC-007 ("reaches all users with the web update") holds only for
   the hosted site.
 
+## 100-product performance investigation (2026-10-16)
+
+- Creation and recreation awaited image sharing one file at a time. For 100 distinct images,
+  the common public case made 100 serial permission checks; private images additionally needed
+  creation and read-back. Durable intent receipts also add database calls per image.
+- `createCatalogImageSharer` runs at most eight distinct image checks per catalog attempt.
+  Duplicates reuse a successful check only within that attempt. Provider read-back and durable
+  permission receipts still complete before creating, linking or returning a sheet.
+- On the first observed sharing failure, the queue stops taking new images and drains all
+  in-flight checks before throwing the original error. This prevents a late permission receipt
+  from racing interruption/retry handling. A later attempt checks permissions afresh.
+- The deterministic latency model in `tests/catalog-image-sharing.test.ts` uses 10 ms per
+  provider call: 100 public images take 130 ms (13 waves) instead of 1,000 ms serially; private
+  images take 390 ms instead of 3,000 ms. These are simulated image-stage timings, **not** a
+  measurement of live Drive or total catalog latency. Durable database round trips, conversion,
+  optional video restitch and upload remain additional costs.
+- Handler tests cover both create/recreate at 100 rows, complete image verification before
+  conversion, and no sheet publication on an image failure. Existing rollback, replacement,
+  duplicate-request and durable recovery tests remain applicable.
+- Workbook generation already creates one compressed XLSX and uploads it once. No per-row
+  network writes were found. Provider conversion is still a separate potentially slow stage;
+  changing spreadsheet APIs would require separate compatibility and authorization work.
+- Local synthetic workbook measurement (20 runs, 100 distinct product rows, Node 22.23.2):
+  median 5.54 ms, p95 8.63 ms, first run 52.31 ms, last output 16,417 bytes. This measures
+  row construction plus XLSX generation on this machine, excluding Drive and database work.
+  It supports prioritizing network preparation over changing workbook serialization.
+- Diagnostics gap: standalone creation and scheduled updater stages are not currently a
+  dedicated correlated journey in the analytics CLI. `team.product_catalog` exposes that gap
+  in the coverage audit. Launch intent receipts and updater stage/retry records are operational
+  evidence only; they do not prove per-image latency or result visibility. The follow-up is a
+  restricted attempt/stage/duration/result projection, excluding row content and provider IDs.
+
 ## Rollout path (no desktop release)
 
 1. Additive migration(s): widen `companion_kind`, catalog metadata (pasted link, product count),

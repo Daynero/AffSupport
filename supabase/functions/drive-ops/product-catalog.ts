@@ -1,6 +1,7 @@
 import type { DriveFileMetadata, GoogleDriveClient } from '../_shared/drive.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
+import { createCatalogImageSharer } from '../_shared/catalog-image-sharing.ts';
 import type { OperationAuthority } from '../_shared/operations.ts';
 import {
   PRODUCT_CATALOG_SHEET_NAME,
@@ -337,12 +338,7 @@ export async function createProductCatalog(
     deps.drawTexts(teamId, request.productCount),
     deps.drawImages(teamId, request.productCount)
   ]);
-  const sharedImages = new Set<string>();
-  for (const image of images) {
-    if (sharedImages.has(image.driveFileId)) continue;
-    await ensureAnyoneReader(drive, image.driveFileId);
-    sharedImages.add(image.driveFileId);
-  }
+  await createCatalogImageSharer(drive)(images);
   const planned = planCatalogRows({
     count: request.productCount,
     settings,

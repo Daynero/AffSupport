@@ -423,6 +423,23 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     source: 'events'
   },
   {
+    id: 'team.product_catalog',
+    tool: 'team',
+    title: 'Team · product catalog creation and scheduled updates',
+    stages: ['accepted', 'refreshing', 'building', 'uploading', 'finalizing', 'terminal'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    unobservable: [
+      'Standalone catalog creation and updater attempts have no dedicated correlated lifecycle in the analytics CLI.',
+      'Per-image sharing and Drive conversion latency; a missing signal cannot establish a slow or failed stage.'
+    ],
+    producerStatus: 'unsupported_by_producer',
+    source: 'events',
+    note: 'Launch catalog intents have separate authoritative evidence through team.launches. Updater progress/retry and catalog permission receipts remain operational evidence, not a measured speedup. tests/catalog-image-sharing.test.ts models 100 images; handler and worker regressions verify terminal ordering. A future restricted diagnostic projection must expose attempt correlation, stage durations and delivery without image IDs, links or row content.'
+  },
+  {
     id: 'team.process',
     tool: 'team',
     title: 'Team · process a material (workflow)',

@@ -536,4 +536,93 @@ async function zipEntryAny(bytes: Uint8Array): Promise<string> {
   const parts = await Promise.all(names.map(name => zipEntry(bytes, name).catch(() => '')));
   return parts.join('\n');
 }
+describe('catalog refresh preparation', () => {
+  it('draws texts while images are pending, then matches texts to the final pictures', async () => {
+    const { deps, drive, written } = setup({
+      batches: [[claimedRow('a', { product_count: 100 })]]
+    });
+    let resolveImages!: (
+      value: Array<{ driveFileId: string; resourceKey: null; name: string }>
+    ) => void;
+    const pendingImages = new Promise<
+      Array<{ driveFileId: string; resourceKey: null; name: string }>
+    >(resolve => {
+      resolveImages = resolve;
+    });
+    deps.drawImages = vi.fn(() => pendingImages);
+    deps.drawTexts = vi.fn(async () => {
+      // A sequential draw deadlocks here; resolving pictures depends on starting the text draw.
+      resolveImages(
+        Array.from({ length: 100 }, (_, index) => ({
+          driveFileId: `img-${index}`,
+          resourceKey: null,
+          name: 'Hoodie_Black.png'
+        }))
+      );
+      return Array.from({ length: 100 }, () => ({ title: 'Hoodie', description: 'Fresh' }));
+    });
+    Object.assign(drive, {
+      listAnyonePermissions: vi.fn(async () => [{ id: 'p', role: 'reader' }]),
+      createAnyoneReaderPermission: vi.fn()
+    });
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary.updated).toBe(1);
+    expect(deps.drawTexts).toHaveBeenCalledWith('team', 100);
+    const rows = deps.complete.mock.calls[0][3].snapshot.rows;
+    expect(rows).toHaveLength(100);
+    expect(
+      rows.every(row => row.title === 'Hoodie' && row.pictureName === 'Hoodie_Black.png')
+    ).toBe(true);
+    expect(await sheetIds(written[0].bytes)).toHaveLength(100);
+  });
+
+  it('checks a repeated growth/refresh image once per attempt, and rechecks next round', async () => {
+    const { deps, drive } = setup({
+      batches: [
+        [claimedRow('a', { grow_products: true })],
+        [claimedRow('b', { grow_products: true })]
+      ]
+    });
+    deps.drawImages = vi.fn(async () => [{ driveFileId: 'same-image', resourceKey: null }]);
+    Object.assign(drive, {
+      listAnyonePermissions: vi.fn(async () => [{ id: 'p', role: 'reader' }]),
+      createAnyoneReaderPermission: vi.fn()
+    });
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary.updated).toBe(2);
+    expect(deps.drawImages).toHaveBeenCalledTimes(4);
+    expect(drive.listAnyonePermissions).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits for a pending text draw before recording an image failure', async () => {
+    const { deps, drive } = setup({ batches: [[claimedRow('a')]] });
+    let release!: () => void;
+    let failureReached!: () => void;
+    const atFailure = new Promise<void>(resolve => {
+      failureReached = resolve;
+    });
+    const texts = new Promise<Array<{ title: string; description: string }>>(resolve => {
+      release = () => resolve([]);
+    });
+    deps.drawTexts = vi.fn(() => texts);
+    deps.drawImages = vi.fn(async () => [{ driveFileId: 'image', resourceKey: null }]);
+    Object.assign(drive, {
+      listAnyonePermissions: vi.fn(async () => {
+        failureReached();
+        throw new TeamFunctionError('RATE_LIMITED');
+      }),
+      createAnyoneReaderPermission: vi.fn()
+    });
+    const pending = runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    await atFailure;
+    await Promise.resolve();
+    expect(deps.retry).not.toHaveBeenCalled();
+    release();
+    const summary = await pending;
+    expect(summary.failed).toBe(1);
+    expect(deps.retry).toHaveBeenCalledWith('a', 'RATE_LIMITED', expect.any(Date));
+    expect(drive.updateConvertedFile).not.toHaveBeenCalled();
+    expect(deps.complete).not.toHaveBeenCalled();
+  });
+});
 // @ts-nocheck — fixture mocks intentionally model only the drive surface used by each case.
