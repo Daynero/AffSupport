@@ -205,7 +205,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['stitched file opened outside Soty'],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'stitch_started is one per accepted job; stitch_* and operation_* share the job id as run_id (031 T008). A copied-body timing or audio defect emits stitcher:body_recovery_* in the agent journal with the same runId and a bounded reason; older agents without journal delivery leave that cause unknown.'
+    note: 'stitch_started is one per accepted job; stitch_* and operation_* share the job id as run_id (031 T008). stitcher:pipeline_stage_started/completed records carry runId, stage, durationBucket and body fromCache; tests/stitch-first-frame.test.ts verifies production and tests/agent-journal-ingest.test.ts verifies ingestion. Team restitch uses its operationId as runId. A copied-body timing or audio defect emits stitcher:body_recovery_* with the same runId and a bounded reason. A missing completion can be interruption or missing delivery, not proof of a slow stage; older agents without journal delivery leave the cause unknown. Media phase timings exclude source inspection, network transfer and final installation.'
   },
   {
     id: 'transcription.run',
@@ -437,7 +437,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     platforms: BOTH,
     unobservable: ['material content'],
     producerStatus: 'emitted',
-    source: 'events'
+    source: 'events',
+    note: 'Catalog restitch processing includes a Drive result upload. Local acknowledged-byte progress is covered by tests/team-transfer-upload.test.ts and partial acknowledgements/terminal states by tests/team-bridge.test.ts. Workflow lifecycle events do not establish per-request latency or a measured upload speedup.'
   },
   {
     id: 'team.restitch',

@@ -152,4 +152,28 @@ describe('journal · by id, period and limit', () => {
     expect(result.human).toContain('Agent journal');
     expect(result.human).toContain('spawn:exited');
   });
+
+  it('exposes stitch phase timing and cache evidence only after its journal delivery', async () => {
+    const instance = '2d000000-0000-4000-8000-00000000000d';
+    const runId = '00000000-0000-4000-8000-000000000032';
+    await db.exec(`
+      insert into public.agent_journal_records
+        (user_id, installation_id, agent_instance_id, seq, recorded_at, received_at, category, code, props)
+      values
+        ('${OTHER}', null, '${instance}', 1, '2026-10-08T23:59:00Z', '2026-10-08T23:59:01Z', 'stitcher', 'pipeline_stage_started', '{"runId":"${runId}","stage":"body"}'),
+        ('${OTHER}', null, '${instance}', 2, '2026-10-08T23:59:05Z', '2026-10-09T00:00:30Z', 'stitcher', 'pipeline_stage_completed', '{"runId":"${runId}","stage":"body","durationBucket":"under_10s","fromCache":false}');
+    `);
+    const beforeDelivery = await journal(instance);
+    expect(beforeDelivery.records.map(record => record.code)).toEqual(['pipeline_stage_started']);
+    const afterDelivery = await executeCommand(
+      parseArgs(['journal', instance, '--as-of', '2026-10-10T00:00:00Z', '--json'])
+    );
+    const data = afterDelivery.data as JournalData;
+    expect(data.records[1]).toMatchObject({
+      category: 'stitcher',
+      code: 'pipeline_stage_completed',
+      props: { runId, stage: 'body', durationBucket: 'under_10s', fromCache: false }
+    });
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
 });

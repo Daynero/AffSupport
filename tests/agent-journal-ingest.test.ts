@@ -111,6 +111,32 @@ describe('agent journal ingestion (PGlite, real migration)', () => {
     expect(result).toEqual({ accepted: 1, duplicates: 0, rejected: [] });
   });
 
+  it('preserves correlated stitch timings and cache outcomes for remote diagnosis', async () => {
+    const props = {
+      runId: '00000000-0000-4000-8000-000000000032',
+      stage: 'body',
+      durationBucket: 'under_10s',
+      fromCache: true
+    };
+    const result = await ingest(
+      [
+        record(2, {
+          category: 'stitcher',
+          code: 'pipeline_stage_started',
+          props: { runId: props.runId, stage: 'body' }
+        }),
+        record(3, { category: 'stitcher', code: 'pipeline_stage_completed', props })
+      ],
+      { instance: RECOVERY_INSTANCE }
+    );
+    expect(result).toEqual({ accepted: 2, duplicates: 0, rejected: [] });
+    const rows = await harness.root<{ props: unknown }>(
+      'select props from public.agent_journal_records where agent_instance_id = $1 and seq = 3',
+      [RECOVERY_INSTANCE]
+    );
+    expect(rows[0]?.props).toEqual(props);
+  });
+
   it('treats a record already stored as a no-op, and a restarted agent as new rows', async () => {
     const again = await ingest([record(1), record(2), record(3)]);
     expect(again).toEqual({ accepted: 1, duplicates: 2, rejected: [] });

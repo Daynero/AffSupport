@@ -38,6 +38,33 @@ because what is found is written back to the space.
 
 ---
 
+## Catalog upload overhead
+
+Catalog generation uses `TeamProcessBridge`: download the source, run the local stitch
+pipeline, upload the result to Drive, then finalize the material. The timings above describe
+a re-stitched download; they do not include uploading the result for a catalog.
+
+The uploader previously treated Drive's 256 KiB alignment requirement as the chunk size.
+It now sends up to 8 MiB per request, still aligned to 256 KiB, following the
+[Drive resumable upload contract](https://developers.google.com/workspace/drive/api/guides/manage-uploads#http_-_multiple_requests).
+A 32 MiB result requires four data requests instead of 128 when Drive acknowledges each
+chunk in full. This reduces sequential request overhead; it does not imply a 32-fold
+improvement in total processing time. Each upload buffer is bounded to 8 MiB. Progress is
+reported after each acknowledgement, so slow connections may update less frequently.
+
+Acceptance coverage: `tests/team-transfer-upload.test.ts` checks request counts, exact bytes,
+alignment, a short final chunk, acknowledged progress, and cancellation without finalization.
+`tests/team-bridge.test.ts` covers partial acknowledgements and the operation's terminal state.
+The existing `operationId` and downloading/processing/uploading/finalizing stages remain the
+diagnostic boundaries. No file content, paths or upload session URLs are added to telemetry.
+Remote workflow events alone do not measure per-request latency; real Drive speedup remains
+unmeasured until a comparable before/after run is available.
+
+Further opportunities observed in code, not measured causes of a particular slow run:
+catalog orchestration passes `prepared: null`, and downloaded sources use fresh temporary
+paths that cannot reuse a body cache keyed by path and modification time. Reusing those
+requires validating the current source identity before trusting a previous inspection/body.
+
 ## What a preparation is
 
 One row per material in `team_material_restitch_prep`: where the existing screens were found,

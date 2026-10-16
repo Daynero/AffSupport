@@ -19,6 +19,10 @@ import { runTool, toolSucceeded } from './run.js';
 
 export interface MeasuredOutput {
   durationSeconds: number;
+  /** Timestamp origin removed by the concat demuxer when it opens this segment. */
+  startTimeSeconds: number;
+  /** Container end corrected by packet presentation times; null if packets are unavailable. */
+  concatDurationSeconds: number | null;
   frameCount: number;
   videoTrackSeconds: number;
   audioTrackSeconds: number;
@@ -38,7 +42,7 @@ export function buildVerifyProbeArgs(input: string): string[] {
     // frame, so the count is the same and it comes off the index.
     '-count_packets',
     '-show_entries',
-    'stream=codec_type,codec_name,width,height,pix_fmt,duration,nb_read_packets:packet=stream_index,pts_time,duration_time:format=duration',
+    'stream=index,codec_type,codec_name,width,height,pix_fmt,duration,nb_read_packets:packet=stream_index,pts_time,duration_time:format=duration,start_time',
     '-of',
     'json',
     input
@@ -65,13 +69,18 @@ export function measurementFromProbe(raw: unknown): MeasuredOutput | null {
   // With copied B-frames, MP4 may report the duration of the last packet in decode order,
   // although a preceding packet is presented later. The concat planner already uses the
   // latest presentation timestamp; verification must measure the same end of the picture.
-  const videoIndex = streams.indexOf(video);
+  const videoIndex = number(video.index) ?? streams.indexOf(video);
   const packets = Array.isArray(raw.packets) ? raw.packets.filter(isRecord) : [];
   let lastPictureEnd = -Infinity;
+  let lastConcatEnd = -Infinity;
   for (const packet of packets) {
     if (number(packet.stream_index) !== videoIndex) continue;
     const pts = number(packet.pts_time);
     const length = number(packet.duration_time);
+    // Match concatSegmentDuration's handling of a packet with no duration field.
+    const concatLength = packet.duration_time === undefined ? 0 : length;
+    if (pts !== null && concatLength !== null && concatLength >= 0)
+      lastConcatEnd = Math.max(lastConcatEnd, pts + concatLength);
     if (pts !== null && length !== null && length >= 0)
       lastPictureEnd = Math.max(lastPictureEnd, pts + length);
   }
@@ -81,6 +90,9 @@ export function measurementFromProbe(raw: unknown): MeasuredOutput | null {
   if (duration === null || videoSeconds === null) return null;
   return {
     durationSeconds: duration,
+    startTimeSeconds: number(format.start_time) ?? 0,
+    concatDurationSeconds:
+      duration > 0 && Number.isFinite(lastConcatEnd) ? Math.max(duration, lastConcatEnd) : null,
     frameCount: number(video.nb_read_packets) ?? number(video.nb_read_frames) ?? 0,
     videoTrackSeconds: videoSeconds,
     audioTrackSeconds: audio ? (number(audio.duration) ?? duration) : videoSeconds,
@@ -171,11 +183,20 @@ export function compareToPlan(
 export async function measureSegment(
   input: string,
   options: { signal?: AbortSignal } = {}
-): Promise<{ durationSeconds: number; videoTrackSeconds: number; frameCount: number } | null> {
+): Promise<Pick<
+  MeasuredOutput,
+  | 'durationSeconds'
+  | 'startTimeSeconds'
+  | 'concatDurationSeconds'
+  | 'videoTrackSeconds'
+  | 'frameCount'
+> | null> {
   const measured = await measureOutput(input, options);
   return measured
     ? {
         durationSeconds: measured.durationSeconds,
+        startTimeSeconds: measured.startTimeSeconds,
+        concatDurationSeconds: measured.concatDurationSeconds,
         videoTrackSeconds: measured.videoTrackSeconds,
         frameCount: measured.frameCount
       }

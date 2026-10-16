@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { planStitch, type StitchScreens } from '../packages/shared/src/stitcher.js';
 import { createRestitchDelegate } from '../apps/agent/src/team-bridge/restitch.js';
 import { PreparedBodyCache } from '../apps/agent/src/stitcher/body-cache.js';
@@ -28,6 +28,11 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
  */
 
 let directory = '';
+// Keep silence banks isolated too: a cold-cache regression must not depend on the
+// developer's installed Soty data or write new banks into it.
+vi.mock('../apps/agent/src/files/support-dir.js', () => ({
+  applicationSupportRoot: () => directory
+}));
 let legacy = '';
 let clean = '';
 let photoTail = '';

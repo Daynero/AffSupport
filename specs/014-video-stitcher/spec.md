@@ -370,6 +370,25 @@ that was stitched, to within one frame, with no re-encoding.
 - Stitching from inside the team space (Drive-backed materials) — a later feature.
 - A slow, re-encoding fallback for videos the tool declines; those go to the compressor.
 
+## Performance regression acceptance (2026-10-16)
+
+- A first-frame-only run with a cold silence cache must prepare a short reusable bank,
+  not an hour of audio. Banks must cover the requested duration with the existing margin;
+  longer existing banks remain reusable, and a short bank must never serve a longer screen.
+- The body measurement must supply packet counts, track verification and concat timing in
+  one probe. Keep the B-frame presentation-end correction and every output verification gate.
+- With only an opening screen, expected output length must account for concat removing the
+  body's timestamp origin. Do not increase duration tolerance to hide an offset error.
+- Regression evidence includes real H.264 B-frames with 48 kHz/44.1 kHz audio and without
+  audio, cold/warm cache, decoded picture identity, copied interframe identity, unchanged
+  source bytes, full decode, long endings, trimming, removal and recovery of shifted audio.
+- Diagnostics use correlated `stitcher:pipeline_stage_started/completed` journal records for
+  silence, body, measurement, screens, joining and verification; completed stages carry a
+  duration bucket and body cache state. Team runs use their operation ID. Missing completion
+  is explicitly inconclusive without terminal/recovery evidence. No paths or media content
+  are collected. Tests cover production, ingestion and the CLI code map. Inspect/network/
+  installation time remains outside these media-stage measurements.
+
 ## Dependencies
 
 - A connected local Soty agent with its media toolchain available.

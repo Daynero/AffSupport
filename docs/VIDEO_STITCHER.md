@@ -27,7 +27,7 @@ Everything lives under the agent's Application Support root (`Soty`, or `Soty Be
 beta environment):
 
 - `stitcher/state.json` — settings and the last 50 runs.
-- `stitcher/silence/silence-<rate>-<channels>.aac` — the AAC silence banks, built once each.
+- `stitcher/silence/silence-<rate>-<channels>-<seconds>.aac` — reusable AAC silence banks.
 - `stitcher/bodies/<key>.mp4` — prepared bodies, LRU-evicted against a 4 GB ceiling.
 
 The body cache key includes a **format version**. Bump `PREPARED_BODY_FORMAT` in
@@ -62,6 +62,48 @@ just spent where the user has already asked for it.
 A dropped file's bytes are never sent either. `/api/stitcher/dropped` matches a file on disk
 by name, size and modification time and drains the part without reading it, so the client
 sends an empty placeholder carrying the real filename.
+
+## Performance investigation, 2026-10-16
+
+Cold first-frame-only runs used to build 3,660 seconds of silence. Banks now use 2/60/600/3,660
+second tiers (or the requested duration plus the existing 5% margin for a larger request).
+An existing longer bank remains reusable; explicit preparation with an unknown duration still
+builds the full bank. A short bank is never used for a longer screen. Atomic staging and the
+AAC encoding settings are unchanged.
+
+On this development machine, a sequential comparison with isolated empty caches, AAC 48 kHz
+stereo at 128 kbps, measured **73,424 ms** to build the previous hour bank and **142 ms** to build
+the first-frame bank. Reusing either bank took 0–2 ms. This is one measurement of silence
+preparation under local load, not a promise about whole-job latency or warm-cache speedup.
+
+The pipeline also reuses its body verification probe's packet data for concat timing, removing
+one full-body probe per run. Output verification, B-frame end correction, AAC compatibility
+checks and the shifted-audio recovery remain active. For an intro-only result, the expected
+duration now subtracts the body's timestamp origin, matching the
+[concat demuxer's normalization](https://ffmpeg.org/ffmpeg-formats.html#concat-1). This fixes a
+false duration refusal on silent B-frame sources without increasing any verification tolerance.
+
+`tests/stitch-first-frame.test.ts` exercises 30-second 640×360 H.264 B-frame sources with 48 kHz,
+44.1 kHz and no audio, cold and warm. It checks copied interframes, every decoded body picture,
+complete decoding, unchanged source bytes, stage diagnostics and cache reuse. The existing
+integration suite covers removal, cuts between keyframes, long endings and end-screen seeking;
+`stitch-body-recovery.test.ts` keeps the shifted-audio repair covered.
+
+The October 14 fix (`5e1a714e`) bumped the body-cache format from 7 to 8 and added recovery by
+full encoding for defective copied bodies. A first run after that upgrade can therefore be
+slower; a recovery run can be much slower. This is a code-level explanation, not confirmation
+that it caused a particular user's complaint. Disabling those checks would bring back broken
+sound. The compressor uses its own encode/filter path; this silence-bank change applies to
+the standalone stitcher and team/catalog restitch delegates.
+
+For diagnosis, use `analytics inspect <run-id>` and `analytics journal <subject>` through the
+read-only CLI. New `stitcher:pipeline_stage_started/completed` records share the run ID and
+carry phase, duration bucket, and body cache hit. Team delegates use the operation ID. A stage
+without a completion can mean interruption or missing journal delivery; it is not proof of a
+hang. Media phases exclude inspection, download/upload and installation. No source paths,
+content or provider credentials are collected. `tests/agent-journal-ingest.test.ts` verifies
+server ingestion; `tests/analytics-journal-command.test.ts` verifies CLI output and delayed
+delivery without inventing a completion before the evidence arrives.
 
 ## Things that will bite
 

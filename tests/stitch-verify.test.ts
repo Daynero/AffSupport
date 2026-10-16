@@ -64,6 +64,8 @@ function makePlan(): StitchPlan {
 function measured(plan: StitchPlan, overrides: Partial<MeasuredOutput> = {}): MeasuredOutput {
   return {
     durationSeconds: plan.promisedDurationSeconds,
+    startTimeSeconds: 0,
+    concatDurationSeconds: plan.promisedDurationSeconds,
     frameCount: plan.promisedFrameCount,
     videoTrackSeconds: plan.promisedDurationSeconds,
     audioTrackSeconds: plan.promisedDurationSeconds,
@@ -119,7 +121,28 @@ describe('the probe it verifies with', () => {
       format: { duration: '100.021000' }
     });
     expect(parsed?.videoTrackSeconds).toBeCloseTo(100.053711, 6);
+    expect(parsed?.concatDurationSeconds).toBeCloseTo(100.053711, 6);
     expect(parsed?.audioTrackSeconds).toBe(100.021);
+  });
+
+  it('keeps concat timing distinct from the video duration and uses actual stream indices', () => {
+    const payload = {
+      streams: [
+        { index: 2, codec_type: 'audio', duration: '10.05' },
+        { index: 3, codec_type: 'video', duration: '10.2', nb_read_packets: '300' }
+      ],
+      packets: [
+        { stream_index: 2, pts_time: '20', duration_time: '0.02' },
+        { stream_index: 3, pts_time: '9.97', duration_time: '0.03' }
+      ],
+      format: { duration: '10.1', start_time: '0.066667' }
+    };
+    expect(measurementFromProbe(payload)).toMatchObject({
+      startTimeSeconds: 0.066667,
+      concatDurationSeconds: 10.1,
+      videoTrackSeconds: 10.2
+    });
+    expect(measurementFromProbe({ ...payload, packets: [] })?.concatDurationSeconds).toBeNull();
   });
 });
 

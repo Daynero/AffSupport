@@ -519,6 +519,16 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     files: [AGENT_STITCH_BODY],
     check: 'The reason prop identifies the copied body defect that triggered a full re-encode.'
   },
+  'stitcher:pipeline_stage_started': {
+    files: [AGENT_STITCH_PIPELINE, AGENT_STITCH_SILENCE, AGENT_STITCH_BODY],
+    check:
+      'Pair stage and runId with pipeline_stage_completed; an absent completion alone does not distinguish interruption from missing journal delivery.'
+  },
+  'stitcher:pipeline_stage_completed': {
+    files: [AGENT_STITCH_PIPELINE, AGENT_STITCH_SILENCE, AGENT_STITCH_BODY],
+    check:
+      'Compare durationBucket by stage and body fromCache; body_recovery records explain a full re-encode. Completion of one stage is not delivery of the result.'
+  },
   'stitcher:body_recovery_completed': {
     files: [AGENT_STITCH_BODY],
     check: 'The recovered body passed its track-length check; confirm the run later completed.'

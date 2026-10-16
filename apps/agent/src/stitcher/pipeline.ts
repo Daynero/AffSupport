@@ -19,7 +19,7 @@ import type {
   StitchStage,
   StitchVerification
 } from '@video-compressor/shared';
-import { concatSegmentDuration, ffmpegPath } from '../ffmpeg/tools.js';
+import { ffmpegPath } from '../ffmpeg/tools.js';
 import { buildConcatArgs, concatListContents } from '../ffmpeg/stitch-presets.js';
 import { audioShapeDisagreements, measureAudioShape } from './audio-shape.js';
 import { PreparedBodyCache } from './body-cache.js';
@@ -27,6 +27,7 @@ import { buildScreenSegment } from './segments.js';
 import { ensureSilenceBank } from './silence.js';
 import { runTool, toolSucceeded } from './run.js';
 import { measureSegment, verifyOutput } from './verify.js';
+import { diagnostics, durationBucket } from '../server/diagnostics-log.js';
 /**
  * What the media half needs, which is a decided plan rather than a chosen row.
  *
@@ -80,6 +81,24 @@ export const runStitchPipeline: StitchPipeline = async context => {
   const { request, workDir, threads } = context;
   const { profile, plan, screens } = request;
   const run = { signal: context.signal, onChild: context.onChild };
+  type Phase = 'silence' | 'body' | 'measurement' | 'screens' | 'joining' | 'verification';
+  let phase: Phase = 'silence';
+  let phaseStartedAt = performance.now();
+  const identity: Record<string, string> = context.runId ? { runId: context.runId } : {};
+  const completedPhase = (props: { fromCache?: boolean } = {}) =>
+    diagnostics.record('stitcher', 'pipeline_stage_completed', {
+      ...identity,
+      stage: phase,
+      durationBucket: durationBucket(performance.now() - phaseStartedAt),
+      ...props
+    });
+  const nextPhase = (next: Phase, props: { fromCache?: boolean } = {}) => {
+    completedPhase(props);
+    phase = next;
+    phaseStartedAt = performance.now();
+    diagnostics.record('stitcher', 'pipeline_stage_started', { ...identity, stage: phase });
+  };
+  diagnostics.record('stitcher', 'pipeline_stage_started', { ...identity, stage: phase });
 
   let silenceBankPath: string | null = null;
   if (profile.hasAudio && (plan.startScreen || plan.endScreen)) {
@@ -98,6 +117,7 @@ export const runStitchPipeline: StitchPipeline = async context => {
     silenceBankPath = bank.path;
   }
 
+  nextPhase('body');
   const body = await context.bodies.prepare({
     profile,
     plan,
@@ -106,10 +126,13 @@ export const runStitchPipeline: StitchPipeline = async context => {
     ...run
   });
   if (!body.ok) return { ok: false, error: body.error };
+  nextPhase('measurement', { fromCache: body.value.fromCache });
 
   // What the body actually is, not what it was predicted to be: see `measureSegment`.
   const measuredBody = await measureSegment(body.value.path, { signal: context.signal });
-  const bodyConcatSeconds = measuredBody ? await concatSegmentDuration(body.value.path) : null;
+  // The verification probe already read every packet's presentation timestamp. Reuse
+  // that measurement instead of scanning the same body again with another ffprobe.
+  const bodyConcatSeconds = measuredBody?.concatDurationSeconds ?? null;
   // Segment measurements may correct muxing drift, but must never redefine a lost body
   // as the promised result. Check the video track before adopting measured durations.
   const plannedBodySeconds = plan.bodyEndSeconds - plan.bodyStartSeconds;
@@ -122,6 +145,7 @@ export const runStitchPipeline: StitchPipeline = async context => {
     return { ok: false, error: 'STITCH_VERIFICATION_FAILED' };
   }
 
+  nextPhase('screens');
   context.onStage('screens');
   const screen = async (
     plannedScreen: StitchPlan['startScreen'],
@@ -155,29 +179,28 @@ export const runStitchPipeline: StitchPipeline = async context => {
   /*
    * The promise, restated from the parts that actually exist.
    *
-   * Which of the body's two lengths applies depends on what is about to happen to it. Joined,
-   * the concat demuxer advances the timeline by each part's container duration; left alone,
-   * the finished file is the body and keeps the body's own video track. Both were tried
-   * against the wrong case, and both failed a correct file.
+   * Before an outro, concat advances by the body's corrected container duration. With only
+   * an intro, the body is last and concat removes its timestamp origin. Left alone, the
+   * finished file keeps the body's own video track. These are different measurements.
    */
   const joining = segments.length > 1;
-  const bodySeconds = measuredBody
-    ? joining
-      ? bodyConcatSeconds!
-      : measuredBody.videoTrackSeconds
-    : 0;
-  const expected: StitchPlan = measuredBody
-    ? {
-        ...plan,
-        promisedDurationSeconds:
-          bodySeconds +
-          (plan.startScreen?.durationSeconds ?? 0) +
-          (plan.endScreen?.durationSeconds ?? 0),
-        promisedFrameCount:
-          measuredBody.frameCount + (plan.startScreen?.frames ?? 0) + (plan.endScreen?.frames ?? 0)
-      }
-    : plan;
+  let bodySeconds = measuredBody.videoTrackSeconds;
+  if (joining) {
+    bodySeconds = outro.path
+      ? bodyConcatSeconds
+      : measuredBody.videoTrackSeconds - measuredBody.startTimeSeconds;
+  }
+  const expected: StitchPlan = {
+    ...plan,
+    promisedDurationSeconds:
+      bodySeconds +
+      (plan.startScreen?.durationSeconds ?? 0) +
+      (plan.endScreen?.durationSeconds ?? 0),
+    promisedFrameCount:
+      measuredBody.frameCount + (plan.startScreen?.frames ?? 0) + (plan.endScreen?.frames ?? 0)
+  };
 
+  nextPhase('joining');
   context.onStage('joining');
   const staged = path.join(workDir, 'result.mp4');
   /** Turns FFmpeg's `out_time_us` into a fraction of what the plan promised. */
@@ -249,11 +272,13 @@ export const runStitchPipeline: StitchPipeline = async context => {
     if (!toolSucceeded(joined)) return { ok: false, error: failureOf(joined, 'STITCH_JOIN') };
   }
 
+  nextPhase('verification');
   context.onStage('verifying');
   const verification = await verifyOutput(staged, expected, profile, { signal: context.signal });
   if (!verification) return { ok: false, error: 'STITCH_VERIFICATION_FAILED' };
   if (!verification.withinTolerance)
     return { ok: false, error: 'STITCH_VERIFICATION_FAILED', verification };
+  completedPhase();
   return { ok: true, stagedPath: staged, verification };
 };
 

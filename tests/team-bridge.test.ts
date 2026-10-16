@@ -252,7 +252,7 @@ describe('team cloud/local transfer bridge', () => {
     expect(await readdir(root)).toEqual([]);
   });
 
-  it('uploads output in aligned resumable chunks and finalizes exactly one result', async () => {
+  it('resends the unacknowledged suffix after a partial upload and finalizes exactly once', async () => {
     const root = await temporaryRoot();
     const output = path.join(root, 'output.bin');
     await writeFile(output, new Uint8Array(512 * 1024));
@@ -308,7 +308,7 @@ describe('team cloud/local transfer bridge', () => {
     expect(result).toMatchObject({ state: 'succeeded', materialId: 'material-result-1' });
     const uploadCalls = fetchImpl.mock.calls.slice(1, 3);
     expect(uploadCalls.map(([, init]) => new Headers(init?.headers).get('content-range'))).toEqual([
-      'bytes 0-262143/524288',
+      'bytes 0-524287/524288',
       'bytes 262144-524287/524288'
     ]);
     expect(

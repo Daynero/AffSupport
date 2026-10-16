@@ -6,6 +6,10 @@ import type { TeamFileOperationResult, TeamTransferGrant } from '@video-compress
 const MAX_RANGE_BYTES = 32 * 1024 * 1024;
 const MAX_TRANSFER_BYTES = 100 * 1024 * 1024 * 1024;
 const UPLOAD_CHUNK_MULTIPLE = 256 * 1024;
+// Drive requires 256 KiB alignment, not one request per 256 KiB. Larger chunks
+// avoid thousands of sequential round trips for catalog videos while keeping
+// each upload buffer bounded and retaining progress between acknowledgements.
+const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
 
 export interface TeamSourceDownloadRequest {
   operationId: string;
@@ -210,7 +214,7 @@ export class TeamTransferClient {
     try {
       while (offset < request.sizeBytes && !driveFileId) {
         throwIfAborted(signal);
-        const length = Math.min(UPLOAD_CHUNK_MULTIPLE, request.sizeBytes - offset);
+        const length = Math.min(UPLOAD_CHUNK_BYTES, request.sizeBytes - offset);
         const bytes = Buffer.allocUnsafe(length);
         const read = await handle.read(bytes, 0, length, offset);
         if (read.bytesRead !== length) throw new Error('SOURCE_CHANGED');

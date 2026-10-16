@@ -282,6 +282,7 @@ export function createRestitchDelegate(
     }
 
     const produced = await pipeline({
+      runId: input.operationId,
       request: {
         profile: looked.profile,
         plan: planned.value,

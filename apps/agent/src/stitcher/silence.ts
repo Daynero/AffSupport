@@ -15,13 +15,11 @@ import { applicationSupportRoot } from '../files/support-dir.js';
 import { buildSilenceBankArgs } from '../ffmpeg/stitch-presets.js';
 import { runTool, toolSucceeded } from './run.js';
 
-/**
- * Comfortably past the longest end screen the compressor's settings allow (an hour).
- *
- * Silence compresses to almost nothing — an hour of it is under three megabytes — and the
- * bank is built once per audio shape, so the length costs a few seconds exactly once.
- */
+/** The legacy full bank is still used for explicit preparation without a known screen. */
 const BANK_SECONDS = 60 * 60 + 60;
+// A first-frame-only run must not encode an hour of AAC before making its two samples.
+// Fixed tiers bound cache growth while covering short intros and long held end screens.
+const BANK_TIERS = [2, 60, 600, BANK_SECONDS] as const;
 const DEFAULT_BITRATE_KBPS = 96;
 
 export function silenceRoot(root = applicationSupportRoot()): string {
@@ -68,13 +66,20 @@ export async function ensureSilenceBank(
   options: SilenceBankOptions
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const root = options.root ?? applicationSupportRoot();
-  const seconds = Math.max(BANK_SECONDS, Math.ceil((options.neededSeconds ?? 0) * 1.05));
+  const needed = options.neededSeconds;
+  const minimum = needed && needed > 0 ? Math.ceil(needed * 1.05) : BANK_SECONDS;
+  const seconds = BANK_TIERS.find(tier => tier >= minimum) ?? minimum;
   const target = silenceBankPath(options.sampleRate, options.channels, seconds, root);
-  try {
-    const stats = await stat(target);
-    if (stats.size > 0) return { ok: true, path: target };
-  } catch {
-    // Not built yet.
+  // Reuse a longer bank, including one produced before tiering. Never serve a shorter
+  // bank: it would silently truncate the screen's audio on the next longer request.
+  for (const length of [seconds, ...BANK_TIERS.filter(tier => tier > seconds)]) {
+    const candidate = silenceBankPath(options.sampleRate, options.channels, length, root);
+    try {
+      const stats = await stat(candidate);
+      if (stats.size > 0) return { ok: true, path: candidate };
+    } catch {
+      // Not built yet.
+    }
   }
 
   await mkdir(path.dirname(target), { recursive: true });
