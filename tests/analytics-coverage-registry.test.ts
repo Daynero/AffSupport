@@ -118,8 +118,8 @@ describe('coverage registry · contract', () => {
     }
   });
 
-  it('keeps 037 hosted receipts and the unbuilt archive journey explicit', () => {
-    for (const id of ['team.task_copy', 'team.account_order']) {
+  it('keeps 037 hosted receipts and the archive journey explicit', () => {
+    for (const id of ['team.task_copy', 'team.account_order', 'team.account_archive']) {
       const capability = COVERAGE_REGISTRY.find(item => item.id === id);
       expect(capability?.source).toBe('authoritative_table');
       expect(capability?.producerStatus).toBe('emitted');
@@ -129,8 +129,8 @@ describe('coverage registry · contract', () => {
       expect(COVERAGE_REGISTRY.find(item => item.id === id)?.source).toBe('authoritative_table');
     }
     const archive = COVERAGE_REGISTRY.find(item => item.id === 'team.account_archive');
-    expect(archive?.producerStatus).toBe('unsupported_by_producer');
-    expect(archive?.unobservable).toContain('archive and restore attempts have no producer yet');
+    expect(archive?.stages).toContain('active_launch_guard');
+    expect(archive?.unobservable).toContain('launch content and social/account identifiers');
   });
 
   it('marks a signal `emitted` only when a call site in the web or shared source tracks it', () => {
