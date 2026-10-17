@@ -49,6 +49,7 @@ import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
 import { FinanceWorkspace } from './finance/FinanceWorkspace';
 import { MoveAgentDialog } from './finance/MoveAgentDialog';
+import { AccountLaunchFinanceTable } from './AccountLaunchFinanceTable';
 import { moveOrderedId } from './order';
 import type { OrderInteraction } from './OrderHandle';
 import { financeToday } from '@video-compressor/shared';
@@ -91,7 +92,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   const { push } = useToasts();
   const { can, revision } = useTeam();
   const canEdit = can('edit');
-  const [view, setView] = useState<'accounts' | 'finance'>('accounts');
+  const [view, setView] = useState<'accounts' | 'finance' | 'overview'>('accounts');
   const accounts = useAccounts({ teamId, revision, client });
   /**
    * The agent half of the space's tag dictionary (019). Read here, beside the
@@ -550,6 +551,15 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               >
                 {t('financeTitle')}
               </Button>
+              <Button
+                size="sm"
+                variant="soft"
+                aria-pressed={view === 'overview'}
+                color={view === 'overview' ? 'secondary' : 'neutral'}
+                onClick={() => setView('overview')}
+              >
+                {t('accountOverviewTitle')}
+              </Button>
             </div>
           )}
           {/* The search and the occupancy filter share one row, as the task filters
@@ -669,7 +679,10 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
           />
         </div>
       )}
-      <div className={!client && view === 'finance' ? 'hidden' : 'contents'}>
+      {!client && view === 'overview' && (
+        <AccountLaunchFinanceTable teamId={teamId} revision={revision} />
+      )}
+      <div className={!client && view !== 'accounts' ? 'hidden' : 'contents'}>
         {accounts.loading && accounts.accounts.length === 0 && (
           <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
         )}

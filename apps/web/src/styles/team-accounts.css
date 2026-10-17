@@ -30,6 +30,65 @@
      past this the row stops reading as one thing. */
 }
 
+.account-overview {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.account-overview-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.account-overview-period label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.account-overview-social {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.account-overview-social h3,
+.account-overview-agent h4,
+.account-overview-launches p {
+  margin: 0;
+}
+
+.account-overview-agent {
+  display: grid;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.account-overview-figures {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.account-overview-figures > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.account-overview-launches {
+  display: grid;
+  gap: var(--space-2);
+}
+
 /*
  * One grid for the whole list — the captions at the top and every agent row
  * under every account share it, which is what lets the captions be printed
