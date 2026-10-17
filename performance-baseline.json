@@ -1,7 +1,7 @@
 {
-  "note": "Ratcheted 2026-10-10 on main after the Windows video-input fix: measured from the rebuilt apps/web/dist assets. The growth over the 2026-09-27 figure (860582 B) is the finance backdating, task copy and accounts work merged on 2026-10-09 (d287ae50) plus the 024 HeroUI migration still in progress on main; the Windows fix itself adds under a kilobyte (stitcher/input-diagnostics.ts). Not acceptance of the final weight: branch 024-heroui-finish carries its own re-measured baseline with the lazy date/combobox split, and supersedes this one when it merges. Previous 021 baseline: total 605534 B, entry 5376 B, largest 91012 B. The 5% regression tolerance still applies.",
-  "measured_at": "2026-10-10",
-  "total_gzip_bytes": 913612,
-  "entry_gzip_bytes": 6022,
-  "largest_gzip_bytes": 122173
+  "note": "Ratcheted 2026-10-17 on the 037 workspace-fixes branch after the account overview and archive, task cleanup, bulk-trash and image-selection UI landed. Rebuilt apps/web/dist assets measure 985584 B total (+7.9% over 2026-10-10), 6053 B entry (+0.5%), and 130348 B largest chunk (+6.7%). The entry stayed nearly flat; the added route and shared UI code accounts for the total growth. This records the intentional feature cost and keeps the 5% regression tolerance for future changes. The 024 HeroUI branch's lazy date/combobox baseline may supersede this one when merged.",
+  "measured_at": "2026-10-17",
+  "total_gzip_bytes": 985584,
+  "entry_gzip_bytes": 6053,
+  "largest_gzip_bytes": 130348
 }
