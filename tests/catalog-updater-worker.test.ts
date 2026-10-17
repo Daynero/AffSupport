@@ -531,6 +531,73 @@ describe('clearing what a deleted video left (024, US24)', () => {
   });
 });
 
+describe('task-owned orphan cleanup (037)', () => {
+  const claimed = {
+    intent_id: 'intent-1',
+    material_id: 'material-1',
+    drive_file_id: 'drive-1',
+    resource_key: 'key-1',
+    credential_id: 'cred'
+  };
+
+  it('records confirmation only after Drive returns the exact trashed file', async () => {
+    const { deps, drive } = setup({ batches: [[]] });
+    Object.assign(drive, {
+      updateFileMetadata: vi.fn(async () => ({ id: 'drive-1', trashed: true }))
+    });
+    deps.claimTaskOrphans = vi.fn(async () => [claimed]);
+    deps.completeTaskOrphan = vi.fn(async () => true);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(drive.updateFileMetadata).toHaveBeenCalledWith({
+      fileId: 'drive-1',
+      resourceKey: 'key-1',
+      trashed: true
+    });
+    expect(deps.completeTaskOrphan).toHaveBeenCalledWith('intent-1', true);
+    expect(summary.clearedTaskOrphans).toBe(1);
+  });
+
+  it('keeps an unconfirmed provider response retryable', async () => {
+    const { deps, drive } = setup({ batches: [[]] });
+    Object.assign(drive, {
+      updateFileMetadata: vi.fn(async () => ({ id: 'drive-1', trashed: false }))
+    });
+    deps.claimTaskOrphans = vi.fn(async () => [claimed]);
+    deps.completeTaskOrphan = vi.fn(async () => false);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.completeTaskOrphan).toHaveBeenCalledWith('intent-1', false);
+    expect(summary.clearedTaskOrphans).toBe(0);
+  });
+
+  it('keeps an ambiguous provider timeout fenced for lease recovery', async () => {
+    const { deps, drive } = setup({ batches: [[]] });
+    Object.assign(drive, {
+      updateFileMetadata: vi.fn(async () => {
+        throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+      })
+    });
+    deps.claimTaskOrphans = vi.fn(async () => [claimed]);
+    deps.completeTaskOrphan = vi.fn(async () => false);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.completeTaskOrphan).not.toHaveBeenCalled();
+    expect(summary.clearedTaskOrphans).toBe(0);
+  });
+
+  it('handles due cleanup before a saturated catalog update tick', async () => {
+    const { deps, drive } = setup({ batches: [[]], clockStepMs: 9000 });
+    Object.assign(drive, {
+      updateFileMetadata: vi.fn(async () => ({ id: 'drive-1', trashed: true }))
+    });
+    deps.claimTaskOrphans = vi.fn(async () => [claimed]);
+    deps.completeTaskOrphan = vi.fn(async () => true);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary.clearedTaskOrphans).toBe(1);
+    expect(vi.mocked(deps.claimTaskOrphans).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deps.claim).mock.invocationCallOrder[0]!
+    );
+  });
+});
+
 async function zipEntryAny(bytes: Uint8Array): Promise<string> {
   const names = ['xl/sharedStrings.xml', 'xl/worksheets/sheet1.xml'];
   const parts = await Promise.all(names.map(name => zipEntry(bytes, name).catch(() => '')));

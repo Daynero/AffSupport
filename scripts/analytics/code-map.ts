@@ -836,9 +836,13 @@ function build(): Record<string, CodeLocation> {
   map['task-orphan:*'] = {
     files: [
       'supabase/migrations/20261203101000_task_attachment_orphan_cleanup.sql',
+      'supabase/migrations/20261203108000_task_orphan_provider_claim.sql',
+      'supabase/migrations/20261203108200_task_orphan_reference_fence.sql',
+      'supabase/functions/catalog-updater/worker.ts',
       'apps/web/src/team/tasks/TaskEditor.tsx'
     ],
-    check: 'Check the verified upload marker, live references and server cleanup deadline.'
+    check:
+      'Check upload provenance, reference inventory, provider confirmation, lease recovery and deadline.'
   };
   map['team:task_copy:unconfirmed'] = {
     files: [
