@@ -506,17 +506,17 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     tool: 'team',
     title: 'Team · account archive and restore',
     stages: ['attempted', 'active_launch_guard', 'server_commit', 'delivered'],
-    stageEvents: {},
-    start: [],
-    terminal: [],
+    stageEvents: {
+      attempted: ['team_workflow_started'],
+      delivered: ['team_workflow_completed']
+    },
+    start: [{ event: 'team_workflow_started', correlate: 'workflow_id' }],
+    terminal: [{ event: 'team_workflow_completed', correlate: 'workflow_id' }],
     platforms: BOTH,
-    unobservable: [
-      'archive and restore attempts have no producer yet',
-      'active-launch guard has no committed schema yet'
-    ],
-    producerStatus: 'unsupported_by_producer',
+    unobservable: ['launch content and social/account identifiers'],
+    producerStatus: 'emitted',
     source: 'authoritative_table',
-    note: 'The Launches dependency is uncommitted; audit must report this journey as unsupported until its schema and receipts land.'
+    note: 'action=archive/restore; investigate joins workflow_id to a content-free hosted receipt. A missing receipt remains unknown even if the client reported success.'
   },
   {
     id: 'team.task_detach',

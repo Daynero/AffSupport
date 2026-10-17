@@ -854,6 +854,21 @@ function build(): Record<string, CodeLocation> {
     ],
     check: 'Read the canonical order and version for the same request before retrying.'
   };
+  map['team:account_archive:unconfirmed'] = {
+    files: [
+      'apps/web/src/team/accounts/archiveDiagnostics.ts',
+      'supabase/migrations/20261203104000_account_archive.sql',
+      'supabase/migrations/20261203106000_account_archive_analytics_receipts.sql'
+    ],
+    check: 'Compare the request identifier with the hosted archive receipt before retrying.'
+  };
+  map['team:account_archive:active_launch'] = {
+    files: [
+      'supabase/migrations/20261203104000_account_archive.sql',
+      'apps/web/src/team/accounts/AccountSpace.tsx'
+    ],
+    check: 'Find the active launch linked to the social and finish or archive it first.'
+  };
   map['team:bulk_trash:unconfirmed'] = {
     files: [
       'apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx',

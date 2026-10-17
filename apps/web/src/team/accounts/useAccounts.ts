@@ -4,6 +4,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   type TeamAccountAgentSummary,
   type TeamAccountOrderSnapshot,
+  type TeamAccountArchiveResult,
   type TeamAccountReorderResult,
   type TeamAccountSummary,
   type TeamAgentRunMarker,
@@ -12,13 +13,24 @@ import {
 import { teamApi } from '../../api/team';
 import { getSupabaseClient } from '../../lib/supabase';
 import { analytics } from '../../analytics/service';
+import { trackAccountArchiveEnd, trackAccountArchiveStart } from './archiveDiagnostics';
 
 /**
  * The client seam for the accounts section: what `AccountSpace` needs of the
  * API and nothing more, so a test can hand it a stub and a preview a fixture.
  */
 export interface AccountsClient {
-  listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
+  listAccounts(
+    teamId: string,
+    state?: 'active' | 'archived' | 'all'
+  ): Promise<TeamAccountSummary[]>;
+  setAccountArchived?(input: {
+    teamId: string;
+    accountId: string;
+    archived: boolean;
+    expectedVersion: number;
+    requestId: string;
+  }): Promise<TeamAccountArchiveResult>;
   getAccountOrder?(teamId: string): Promise<TeamAccountOrderSnapshot>;
   reorderAccounts?(input: {
     teamId: string;
@@ -319,6 +331,40 @@ export function useAccounts({
     [client, refetch, teamId]
   );
 
+  const archiveRequests = useRef(new Map<string, string>());
+
+  const archiveAccount = useCallback(
+    async (account: TeamAccountSummary) => {
+      if (!client.setAccountArchived || account.archiveVersion === undefined)
+        throw new Error('ACCOUNT_ARCHIVE_UNAVAILABLE');
+      const requestId = archiveRequests.current.get(account.id) ?? crypto.randomUUID();
+      archiveRequests.current.set(account.id, requestId);
+      const startedAt = trackAccountArchiveStart(requestId, 'archive');
+      let result: TeamAccountArchiveResult;
+      try {
+        result = await client.setAccountArchived({
+          teamId,
+          accountId: account.id,
+          archived: true,
+          expectedVersion: account.archiveVersion,
+          requestId
+        });
+      } catch (cause) {
+        trackAccountArchiveEnd(requestId, 'archive', startedAt, cause);
+        throw cause;
+      }
+      trackAccountArchiveEnd(requestId, 'archive', startedAt, result.status);
+      archiveRequests.current.delete(account.id);
+      if (result.status === 'applied') {
+        writes.current += 1;
+        setAccounts(current => current.filter(row => row.id !== account.id));
+      }
+      void refetch();
+      return result;
+    },
+    [client, refetch, teamId]
+  );
+
   const setAccountTwoFactor = useCallback(
     async (accountId: string, seed: string | null) => {
       await client.setAccountTwoFactor({ teamId, accountId, seed });
@@ -533,6 +579,7 @@ export function useAccounts({
     createAccount,
     renameAccount,
     deleteAccount,
+    archiveAccount,
     setAccountTwoFactor,
     addAgent,
     updateAgent,

@@ -31,12 +31,13 @@ import {
   TEAM_AGENT_RUN_MARKERS,
   teamAgentLabel,
   type TeamAccountAgentSummary,
+  type TeamAccountSummary,
   type TeamAccountMarkerFilter,
   type TeamAccountOccupancyFilter,
   type TeamAgentRun
 } from '@video-compressor/shared';
 import { boundedText, oneOf, persistedViewKey, usePersistedState } from '../persistedView';
-import { Button, IconButton } from '../../components/ui/index';
+import { Button, IconButton, Input } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Empty, ErrorState, LoadingState } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
@@ -53,6 +54,8 @@ import { AccountLaunchFinanceTable } from './AccountLaunchFinanceTable';
 import { moveOrderedId } from './order';
 import type { OrderInteraction } from './OrderHandle';
 import { financeToday } from '@video-compressor/shared';
+import { teamApi } from '../../api/team';
+import { trackAccountArchiveEnd, trackAccountArchiveStart } from './archiveDiagnostics';
 
 export type AccountSpaceClient = AccountsClient & TaskLabelsClient;
 
@@ -92,8 +95,47 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   const { push } = useToasts();
   const { can, revision } = useTeam();
   const canEdit = can('edit');
-  const [view, setView] = useState<'accounts' | 'finance' | 'overview'>('accounts');
+  const [view, setView] = useState<'accounts' | 'finance' | 'overview' | 'archived'>('accounts');
   const accounts = useAccounts({ teamId, revision, client });
+  const [archivedAccounts, setArchivedAccounts] = useState<TeamAccountSummary[]>([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedError, setArchivedError] = useState(false);
+  const [archivedSearch, setArchivedSearch] = useState('');
+  const [archivedRefresh, setArchivedRefresh] = useState(0);
+  const visibleArchivedAccounts = useMemo(
+    () =>
+      archivedAccounts.filter(account =>
+        [account.name, ...account.agents.map(agent => agent.agentId)].some(value =>
+          value.toLocaleLowerCase().includes(archivedSearch.toLocaleLowerCase())
+        )
+      ),
+    [archivedAccounts, archivedSearch]
+  );
+  const restoreRequests = useRef(new Map<string, string>());
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  useEffect(() => {
+    if (view !== 'archived') return;
+    let current = true;
+    setArchivedLoading(true);
+    setArchivedError(false);
+    void (client ?? teamApi).listAccounts(teamId, 'archived').then(
+      rows => {
+        if (current) {
+          setArchivedAccounts(rows);
+          setArchivedLoading(false);
+        }
+      },
+      () => {
+        if (current) {
+          setArchivedError(true);
+          setArchivedLoading(false);
+        }
+      }
+    );
+    return () => {
+      current = false;
+    };
+  }, [client, teamId, revision, view, archivedRefresh]);
   /**
    * The agent half of the space's tag dictionary (019). Read here, beside the
    * accounts, and handed down: every row's tag menu shows the same list, and
@@ -481,8 +523,8 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
 
   const listEmpty = !accounts.loading && !accounts.error && accounts.accounts.length === 0;
   const creating = editor?.kind === 'create';
-  const showToolbar = !listEmpty && (Boolean(client) || view === 'accounts');
-  const hasStickyHeader = !client || showToolbar;
+  const showToolbar = !listEmpty && view === 'accounts';
+  const hasStickyHeader = true;
   // The captions and the finance header stick below the tabs and the toolbar,
   // whose height changes as the toolbar wraps.
   useLayoutEffect(() => {
@@ -519,7 +561,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         </div>
         {/* While the list is empty the empty state carries this same invitation;
             two primaries for one act is one too many (024, FR-092). */}
-        {canEdit && !listEmpty && (client || view === 'accounts') && (
+        {canEdit && !listEmpty && view === 'accounts' && (
           <Button type="button" variant="primary" data-account-create="true" onClick={startCreate}>
             <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('teamAccountsCreate')}
@@ -529,19 +571,19 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
 
       {/* The tabs, the search and the filters stay on screen while the list
           scrolls under them; the column captions stick just below (measured). */}
-      {(!client || showToolbar) && (
+      {hasStickyHeader && (
         <div ref={stickyHeader} className="team-accounts-sticky">
-          {!client && (
-            <div className="flex flex-wrap gap-2" role="group" aria-label={t('financeView')}>
-              <Button
-                size="sm"
-                variant="soft"
-                aria-pressed={view === 'accounts'}
-                color={view === 'accounts' ? 'secondary' : 'neutral'}
-                onClick={() => setView('accounts')}
-              >
-                {t('financeAccountsView')}
-              </Button>
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t('financeView')}>
+            <Button
+              size="sm"
+              variant="soft"
+              aria-pressed={view === 'accounts'}
+              color={view === 'accounts' ? 'secondary' : 'neutral'}
+              onClick={() => setView('accounts')}
+            >
+              {t('financeAccountsView')}
+            </Button>
+            {!client && (
               <Button
                 size="sm"
                 variant="soft"
@@ -551,6 +593,8 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               >
                 {t('financeTitle')}
               </Button>
+            )}
+            {!client && (
               <Button
                 size="sm"
                 variant="soft"
@@ -560,8 +604,17 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               >
                 {t('accountOverviewTitle')}
               </Button>
-            </div>
-          )}
+            )}
+            <Button
+              size="sm"
+              variant="soft"
+              aria-pressed={view === 'archived'}
+              color={view === 'archived' ? 'secondary' : 'neutral'}
+              onClick={() => setView('archived')}
+            >
+              {t('teamAccountArchivedView')}
+            </Button>
+          </div>
           {/* The search and the occupancy filter share one row, as the task filters
             do. The pills are the task filter's pills — same class, so the two
             toolbars cannot drift — with a count on each. */}
@@ -682,7 +735,85 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       {!client && view === 'overview' && (
         <AccountLaunchFinanceTable teamId={teamId} revision={revision} />
       )}
-      <div className={!client && view !== 'accounts' ? 'hidden' : 'contents'}>
+      {view === 'archived' && (
+        <section className="team-archived-list" aria-label={t('teamAccountArchivedView')}>
+          <label>
+            <span className="visually-hidden">{t('teamAccountArchiveSearch')}</span>
+            <Input
+              type="search"
+              value={archivedSearch}
+              placeholder={t('teamAccountArchiveSearch')}
+              onChange={event => setArchivedSearch(event.target.value)}
+            />
+          </label>
+          {archivedLoading && (
+            <LoadingState shape="row" count={2} label={t('teamAccountsLoading')} />
+          )}
+          {archivedError && (
+            <ErrorState
+              message={t('teamAccountsLoadFailed')}
+              onRetry={() => setArchivedRefresh(value => value + 1)}
+              retryLabel={t('retry')}
+            />
+          )}
+          {!archivedLoading &&
+            !archivedError &&
+            visibleArchivedAccounts.map(account => (
+              <div key={account.id} className="team-archived-row">
+                <div>
+                  <strong>{account.name}</strong>
+                  <span>{t('teamAccountArchiveAgentCount', { count: account.agents.length })}</span>
+                </div>
+                {canEdit && (
+                  <Button
+                    size="sm"
+                    variant="soft"
+                    disabled={restoringId !== null || account.archiveVersion === undefined}
+                    onClick={() => {
+                      if (
+                        account.archiveVersion === undefined ||
+                        !(client ?? teamApi).setAccountArchived
+                      )
+                        return;
+                      const requestId =
+                        restoreRequests.current.get(account.id) ?? crypto.randomUUID();
+                      restoreRequests.current.set(account.id, requestId);
+                      setRestoringId(account.id);
+                      const startedAt = trackAccountArchiveStart(requestId, 'restore');
+                      void (client ?? teamApi).setAccountArchived!({
+                        teamId,
+                        accountId: account.id,
+                        archived: false,
+                        expectedVersion: account.archiveVersion,
+                        requestId
+                      })
+                        .then(result => {
+                          trackAccountArchiveEnd(requestId, 'restore', startedAt, result.status);
+                          restoreRequests.current.delete(account.id);
+                          if (result.status === 'conflict')
+                            push({ tone: 'warning', text: t('teamAccountArchiveConflict') });
+                          else push({ tone: 'success', text: t('teamAccountRestoreSuccess') });
+                          setArchivedRefresh(value => value + 1);
+                          void accounts.refetch();
+                        })
+                        .catch(cause => {
+                          trackAccountArchiveEnd(requestId, 'restore', startedAt, cause);
+                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                        })
+                        .finally(() => setRestoringId(null));
+                    }}
+                  >
+                    {t('teamAccountRestore')}
+                  </Button>
+                )}
+              </div>
+            ))}
+          {!archivedLoading && !archivedError && visibleArchivedAccounts.length === 0 && (
+            <p>{t(archivedSearch ? 'teamAccountArchiveNoMatch' : 'teamAccountArchiveEmpty')}</p>
+          )}
+        </section>
+      )}
+      <div className={view !== 'accounts' ? 'hidden' : 'contents'}>
         {accounts.loading && accounts.accounts.length === 0 && (
           <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
         )}
@@ -790,6 +921,22 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                       panel.current?.querySelector<HTMLElement>('[data-account-create]')?.focus()
                     );
                   }}
+                  onArchive={
+                    canEdit && account.archiveVersion !== undefined
+                      ? async () => {
+                          const result = await accounts.archiveAccount(account);
+                          push({
+                            tone: result.status === 'conflict' ? 'warning' : 'success',
+                            text: t(
+                              result.status === 'conflict'
+                                ? 'teamAccountArchiveConflict'
+                                : 'teamAccountArchiveSuccess'
+                            )
+                          });
+                          setArchivedRefresh(value => value + 1);
+                        }
+                      : undefined
+                  }
                   onAddAgent={async value => {
                     const created = await accounts.addAgent(
                       account.id,

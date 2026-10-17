@@ -23,8 +23,8 @@ const placement = (id: string, socialId: string, balanceCents: number | null) =>
 const overview: TeamAccountOverview = {
   period: { from: '2026-10-01', to: '2026-10-31', currency: 'USD' },
   socials: [
-    { id: SOCIAL_A, name: 'Original social', sortRank: 0 },
-    { id: SOCIAL_B, name: 'Current social', sortRank: 1 }
+    { id: SOCIAL_A, name: 'Original social', sortRank: 0, archivedAt: '2026-10-15T10:00:00Z' },
+    { id: SOCIAL_B, name: 'Current social', sortRank: 1, archivedAt: null }
   ],
   agents: [{ id: AGENT, socialId: SOCIAL_B, agentId: 'RK-7', sortRank: 0 }],
   launches: [
@@ -84,6 +84,7 @@ describe('account launch and finance overview', () => {
     render(<AccountLaunchFinanceTable teamId={SOCIAL_A} revision={0} client={client} />);
     const original = await screen.findByRole('region', { name: 'Original social' });
     const current = screen.getByRole('region', { name: 'Current social' });
+    expect(within(original).getByRole('heading', { level: 3 }).textContent).toContain('Archived');
     expect(within(original).getByText(/Offer A/).textContent).toContain('Ad account moved');
     expect(within(original).queryByText(/Offer B/)).toBeNull();
     expect(within(original).getAllByText(/No recorded amount/).length).toBeGreaterThan(0);

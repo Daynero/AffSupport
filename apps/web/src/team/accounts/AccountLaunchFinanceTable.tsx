@@ -115,7 +115,10 @@ export function AccountLaunchFinanceTable({
           )}
           {data.socials.map(social => (
             <section key={social.id} className="account-overview-social" aria-label={social.name}>
-              <h3>{social.name}</h3>
+              <h3>
+                {social.name}
+                {social.archivedAt && ` · ${t('accountOverviewArchived')}`}
+              </h3>
               {(rowsBySocial.get(social.id) ?? []).map(agentId => {
                 const launches = data.launches.filter(
                   launch =>

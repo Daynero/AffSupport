@@ -141,6 +141,43 @@ export async function getAccountOrderReceipts(
   }));
 }
 
+/** Archive commits only; the private source table keeps social and team IDs. */
+export async function getAccountArchiveReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{
+  request_id: string;
+  desired_archived: boolean;
+  result_version: number;
+  created_at: string;
+}> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_account_archive_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{
+    request_id: string;
+    desired_archived: boolean;
+    result_version: number;
+    created_at: string;
+  }>(
+    `select request_id::text as request_id, desired_archived,
+       result_version, created_at::text as created_at
+       from public.analytics_account_archive_receipts
+      where actor_id = $3::uuid
+        and ($1::timestamptz is null or created_at >= $1::timestamptz)
+        and created_at <= $2::timestamptz
+      order by created_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    result_version: Number(row.result_version),
+    created_at: isoUtc(row.created_at) ?? row.created_at
+  }));
+}
+
 /** Committed copy receipts contain counts only; task IDs and titles stay private. */
 export async function getTaskCopyReceipts(
   userId: string | null,

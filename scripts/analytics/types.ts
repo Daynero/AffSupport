@@ -854,6 +854,7 @@ export interface InvestigateBlindSpot {
     | 'image_selection_signal_missing'
     | 'task_copy_receipts_unavailable'
     | 'account_order_receipts_unavailable'
+    | 'account_archive_receipts_unavailable'
     | 'bulk_trash_receipts_unavailable'
     | 'task_orphan_receipts_unavailable'
     | 'analytics_disabled'
@@ -897,6 +898,15 @@ export interface InvestigateData {
     request_id: string;
     status: 'confirmed' | 'conflict' | 'unknown' | 'receipt_unavailable';
     scope_kind: string | null;
+    result_version: number | null;
+    attempted_at: string | null;
+    confirmed_at: string | null;
+  }>;
+  account_archives: Array<{
+    request_id: string;
+    status: 'confirmed' | 'blocked' | 'unknown' | 'receipt_unavailable';
+    action: 'archive' | 'restore' | null;
+    reason: 'active_launch' | 'permission_denied' | 'conflict' | 'unknown' | null;
     result_version: number | null;
     attempted_at: string | null;
     confirmed_at: string | null;

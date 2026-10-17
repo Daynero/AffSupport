@@ -3,7 +3,7 @@ import { isRecord } from './contract.js';
 /** A read-only account-first view. Identity always comes from UUIDs, never labels. */
 export interface TeamAccountOverview {
   period: { from: string; to: string; currency: 'USD' };
-  socials: { id: string; name: string; sortRank: number }[];
+  socials: { id: string; name: string; sortRank: number; archivedAt: string | null }[];
   agents: { id: string; socialId: string; agentId: string; sortRank: number }[];
   launches: {
     id: string;
@@ -75,10 +75,17 @@ export function parseTeamAccountOverview(value: unknown): TeamAccountOverview | 
       !identifier(row.id) ||
       typeof row.name !== 'string' ||
       typeof row.sortRank !== 'number' ||
-      !Number.isSafeInteger(row.sortRank)
+      !Number.isSafeInteger(row.sortRank) ||
+      (row.archivedAt !== null &&
+        (typeof row.archivedAt !== 'string' || !Number.isFinite(Date.parse(row.archivedAt))))
     )
       return null;
-    socials.push({ id: row.id, name: row.name, sortRank: row.sortRank });
+    socials.push({
+      id: row.id,
+      name: row.name,
+      sortRank: row.sortRank,
+      archivedAt: row.archivedAt
+    });
   }
   const agents: TeamAccountOverview['agents'] = [];
   for (const row of value.agents) {

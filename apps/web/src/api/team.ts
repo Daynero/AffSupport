@@ -30,6 +30,7 @@ import {
   parseTeamTaskDetachResult,
   parseTeamTaskPatch,
   parseTeamAccount,
+  parseTeamAccountArchiveResult,
   parseTeamAccountOverview,
   parseTeamAccountAgent,
   parseTeamAccountOrderSnapshot,
@@ -61,6 +62,7 @@ import {
   type TeamAccountSummary,
   type TeamAccountOrderSnapshot,
   type TeamAccountReorderResult,
+  type TeamAccountArchiveResult,
   type TeamBulkTrashIntent,
   type TeamBulkTrashGroup,
   type TeamBulkTrashRetry,
@@ -4546,10 +4548,14 @@ export const teamApi = {
   },
 
   /** Every account of a space with its agents nested — one round trip, no paging. */
-  async listAccounts(teamId: string): Promise<TeamAccountSummary[]> {
+  async listAccounts(
+    teamId: string,
+    state: 'active' | 'archived' | 'all' = 'active'
+  ): Promise<TeamAccountSummary[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_accounts', {
-        p_team: teamId
+      requireSupabaseClient().rpc('list_team_accounts_by_state', {
+        p_team: teamId,
+        p_state: state
       })
     );
     throwRpc(error);
@@ -4560,6 +4566,7 @@ export const teamApi = {
     const parsedAccounts = accounts.filter(
       (account): account is TeamAccountSummary => account !== null
     );
+    if (state !== 'active') return parsedAccounts;
     const { data: seedRows, error: seedError } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_team_account_two_factor_seeds', { p_team: teamId })
     );
@@ -4576,6 +4583,28 @@ export const teamApi = {
       ...account,
       twoFactorSeed: seeds.get(account.id) ?? null
     }));
+  },
+
+  async setAccountArchived(input: {
+    teamId: string;
+    accountId: string;
+    archived: boolean;
+    expectedVersion: number;
+    requestId: string;
+  }): Promise<TeamAccountArchiveResult> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_account_archived', {
+        p_team: input.teamId,
+        p_account: input.accountId,
+        p_archived: input.archived,
+        p_expected_version: input.expectedVersion,
+        p_request_id: input.requestId
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamAccountArchiveResult(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
   },
 
   async getAccountOrder(teamId: string): Promise<TeamAccountOrderSnapshot> {

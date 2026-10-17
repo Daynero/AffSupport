@@ -42,6 +42,13 @@ const POST_031_TABLES = `
     result_version bigint not null,
     created_at timestamptz not null
   );
+  create table public.analytics_account_archive_receipts (
+    actor_id uuid not null,
+    request_id uuid not null,
+    desired_archived boolean not null,
+    result_version bigint not null,
+    created_at timestamptz not null
+  );
   create table public.analytics_task_copy_receipts (
     actor_id uuid not null,
     request_id uuid not null,

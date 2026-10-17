@@ -10,8 +10,8 @@ const launch = 'a0390000-0000-4000-8000-000000000050';
 const payload = {
   period: { from: '2026-10-01', to: '2026-10-31', currency: 'USD' },
   socials: [
-    { id: socialA, name: 'Social A', sortRank: 1 },
-    { id: socialB, name: 'Social B', sortRank: 2 }
+    { id: socialA, name: 'Social A', sortRank: 1, archivedAt: '2026-10-15T10:00:00Z' },
+    { id: socialB, name: 'Social B', sortRank: 2, archivedAt: null }
   ],
   agents: [{ id: agent, socialId: socialB, agentId: 'rk-1', sortRank: 1 }],
   launches: [
@@ -56,6 +56,7 @@ describe('account overview contract', () => {
       topupCents: 0,
       spendCents: null
     });
+    expect(parsed?.socials[0].archivedAt).toBe('2026-10-15T10:00:00Z');
   });
 
   it('rejects an unrecognized match reason or an unsafe money amount', () => {

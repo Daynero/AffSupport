@@ -21,7 +21,7 @@ import {
   type CSSProperties,
   type KeyboardEvent
 } from 'react';
-import { Check, ChevronDown, Pencil, Plus, Trash2, UserRound, X } from 'lucide-react';
+import { Archive, Check, ChevronDown, Pencil, Plus, Trash2, UserRound, X } from 'lucide-react';
 import {
   countTeamAccounts,
   generateTotp,
@@ -132,6 +132,7 @@ export function AccountGroup({
   onRename,
   onSetTwoFactor,
   onDelete,
+  onArchive,
   onAddAgent,
   onUpdateAgent,
   onDeleteAgent,
@@ -164,6 +165,7 @@ export function AccountGroup({
   onRename: (name: string) => Promise<void>;
   onSetTwoFactor?: (seed: string | null) => Promise<void>;
   onDelete: () => Promise<void>;
+  onArchive?: () => Promise<void>;
   onAddAgent: (value: { agentId: string; note: string | null; timezone?: string }) => Promise<void>;
   onUpdateAgent: (agent: TeamAccountAgentSummary, agentId: string) => Promise<void>;
   onDeleteAgent: (agent: TeamAccountAgentSummary) => Promise<void>;
@@ -193,6 +195,7 @@ export function AccountGroup({
   const renaming = editing?.kind === 'rename';
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [addedCount, setAddedCount] = useState(0);
   const [totpSeconds, setTotpSeconds] = useState<number | null>(null);
   const [totpDeadlineMs, setTotpDeadlineMs] = useState<number | null>(null);
@@ -507,6 +510,23 @@ export function AccountGroup({
                 >
                   <Trash2 size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </IconButton>
+                {onArchive && (
+                  <IconButton
+                    label={`${t('teamAccountArchive')}: ${account.name}`}
+                    className="team-agent-action"
+                    disabled={archiving}
+                    onClick={() => {
+                      setArchiving(true);
+                      void onArchive()
+                        .catch(cause => {
+                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                        })
+                        .finally(() => setArchiving(false));
+                    }}
+                  >
+                    <Archive size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  </IconButton>
+                )}
               </>
             )}
           </div>

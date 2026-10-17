@@ -31,6 +31,9 @@ const COPY_UNKNOWN = '6a000000-0000-4000-8000-000000000002';
 const ORDER_CONFIRMED = '6b000000-0000-4000-8000-000000000001';
 const ORDER_UNKNOWN = '6b000000-0000-4000-8000-000000000002';
 const ORDER_CONFLICT = '6b000000-0000-4000-8000-000000000003';
+const ARCHIVE_CONFIRMED = '6f000000-0000-4000-8000-000000000001';
+const ARCHIVE_UNKNOWN = '6f000000-0000-4000-8000-000000000002';
+const ARCHIVE_BLOCKED = '6f000000-0000-4000-8000-000000000003';
 const BULK_PARTIAL = '6c000000-0000-4000-8000-000000000001';
 const BULK_UNKNOWN = '6c000000-0000-4000-8000-000000000002';
 
@@ -426,6 +429,45 @@ beforeAll(async () => {
       {
         user: U_ORDER,
         name: 'team_workflow_started',
+        at: '2026-10-08T11:10:00Z',
+        props: { action: 'archive', workflow_id: ARCHIVE_CONFIRMED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_completed',
+        at: '2026-10-08T11:10:01Z',
+        outcome: 'success',
+        props: { action: 'archive', workflow_id: ARCHIVE_CONFIRMED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:11:00Z',
+        props: { action: 'restore', workflow_id: ARCHIVE_UNKNOWN }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:12:00Z',
+        props: { action: 'archive', workflow_id: ARCHIVE_BLOCKED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_completed',
+        at: '2026-10-08T11:12:01Z',
+        outcome: 'blocked',
+        props: { action: 'archive', workflow_id: ARCHIVE_BLOCKED, archive_reason: 'active_launch' }
+      }
+    ])
+  );
+  await db.exec(`insert into public.analytics_account_archive_receipts
+    (actor_id, request_id, desired_archived, result_version, created_at) values
+    ('${U_ORDER}', '${ARCHIVE_CONFIRMED}', true, 1, '2026-10-08T11:10:01Z')`);
+  await db.exec(
+    insertEvents([
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
         at: '2026-10-08T12:00:00Z',
         props: { action: 'trash', workflow_id: BULK_PARTIAL, item_count: 3 }
       },
@@ -516,6 +558,22 @@ describe('investigate · account order receipt', () => {
       matched: 'team:account_order:unconfirmed',
       files: expect.arrayContaining(['apps/web/src/team/accounts/useAccounts.ts'])
     });
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
+
+describe('investigate · account archive receipt', () => {
+  it('proves commits, explains active-launch refusal and preserves unknown delivery', async () => {
+    const data = await investigate('order@example.test');
+    expect(data.account_archives.map(row => [row.request_id, row.status])).toEqual([
+      [ARCHIVE_BLOCKED, 'blocked'],
+      [ARCHIVE_UNKNOWN, 'unknown'],
+      [ARCHIVE_CONFIRMED, 'confirmed']
+    ]);
+    expect(data.account_archives[0].reason).toBe('active_launch');
+    expect(data.account_archives[2]).toMatchObject({ action: 'archive', result_version: 1 });
+    expect(finding(data, 'account_archive_active_launch').kind).toBe('fact');
+    expect(finding(data, 'account_archive_unconfirmed').kind).toBe('insufficient');
     expect(investigateOutputIsPrivate(data)).toBe(true);
   });
 });

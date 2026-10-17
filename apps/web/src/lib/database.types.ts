@@ -4111,6 +4111,20 @@ export type GeneratedDatabase = {
           updated_at: string;
         }[];
       };
+      list_team_accounts_by_state: {
+        Args: { p_team: string; p_state: string };
+        Returns: {
+          agents: Json;
+          archive_version: number;
+          archived_at: string | null;
+          created_at: string;
+          id: string;
+          name: string;
+          task_count: number;
+          team_id: string;
+          updated_at: string;
+        }[];
+      };
       list_team_agent_finance_history: {
         Args: { p_agent: string; p_cursor?: Json; p_limit?: number; p_team: string };
         Returns: Json;
@@ -4425,6 +4439,16 @@ export type GeneratedDatabase = {
           p_request_id: string;
           p_scope: string;
           p_team: string;
+        };
+        Returns: Json;
+      };
+      set_team_account_archived: {
+        Args: {
+          p_team: string;
+          p_account: string;
+          p_archived: boolean;
+          p_expected_version: number;
+          p_request_id: string;
         };
         Returns: Json;
       };

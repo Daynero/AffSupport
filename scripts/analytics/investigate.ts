@@ -19,6 +19,7 @@ import { capabilityById } from './coverage-registry.js';
 import { query, queryOne } from './db.js';
 import {
   getAccountOrderReceipts,
+  getAccountArchiveReceipts,
   getBulkTrashReceipts,
   getInspect,
   getSyncJobs,
@@ -1483,16 +1484,25 @@ export async function getInvestigation(
 ): Promise<InvestigateData> {
   const schema = await getSchema();
   const scope = await resolveSubject(input, period, schema);
-  const [rows, newest, activity, copyReceipts, orderReceipts, bulkReceipts, orphanReceipts] =
-    await Promise.all([
-      readEvents(scope, period, schema),
-      newestVersionSeen(period),
-      userActivity(scope.userId, period),
-      getTaskCopyReceipts(scope.userId, period),
-      getAccountOrderReceipts(scope.userId, period),
-      getBulkTrashReceipts(scope.userId, period),
-      getTaskOrphanReceipts(scope.userId, period)
-    ]);
+  const [
+    rows,
+    newest,
+    activity,
+    copyReceipts,
+    orderReceipts,
+    archiveReceipts,
+    bulkReceipts,
+    orphanReceipts
+  ] = await Promise.all([
+    readEvents(scope, period, schema),
+    newestVersionSeen(period),
+    userActivity(scope.userId, period),
+    getTaskCopyReceipts(scope.userId, period),
+    getAccountOrderReceipts(scope.userId, period),
+    getAccountArchiveReceipts(scope.userId, period),
+    getBulkTrashReceipts(scope.userId, period),
+    getTaskOrphanReceipts(scope.userId, period)
+  ]);
   const installations = sortedUnique([
     scope.installationId,
     ...rows.map(row => row.installation_id)
@@ -1666,6 +1676,106 @@ export async function getInvestigation(
     });
   }
 
+  const archiveAttempts = rows.filter(
+    row =>
+      row.event_name === 'team_workflow_started' &&
+      (row.props.action === 'archive' || row.props.action === 'restore') &&
+      row.workflow_id
+  );
+  const archiveResults = new Map(
+    rows
+      .filter(
+        row =>
+          row.event_name === 'team_workflow_completed' &&
+          (row.props.action === 'archive' || row.props.action === 'restore') &&
+          row.workflow_id
+      )
+      .map(row => [row.workflow_id!, row] as const)
+  );
+  const archiveAttemptsById = new Map(archiveAttempts.map(row => [row.workflow_id!, row] as const));
+  const archiveReceiptsById = new Map(
+    archiveReceipts?.map(row => [row.request_id, row] as const) ?? []
+  );
+  const accountArchives: InvestigateData['account_archives'] = [
+    ...new Set([...archiveAttemptsById.keys(), ...archiveReceiptsById.keys()])
+  ]
+    .map(requestId => {
+      const attempt = archiveAttemptsById.get(requestId);
+      const result = archiveResults.get(requestId);
+      const receipt = archiveReceiptsById.get(requestId);
+      const action: InvestigateData['account_archives'][number]['action'] = receipt
+        ? receipt.desired_archived
+          ? 'archive'
+          : 'restore'
+        : attempt?.props.action === 'archive' || attempt?.props.action === 'restore'
+          ? attempt.props.action
+          : null;
+      const rawReason = result?.props.archive_reason;
+      const reason: InvestigateData['account_archives'][number]['reason'] =
+        rawReason === 'active_launch' ||
+        rawReason === 'permission_denied' ||
+        rawReason === 'conflict' ||
+        rawReason === 'unknown'
+          ? rawReason
+          : null;
+      return {
+        request_id: requestId,
+        status: receipt
+          ? ('confirmed' as const)
+          : result?.outcome === 'blocked'
+            ? ('blocked' as const)
+            : archiveReceipts === null
+              ? ('receipt_unavailable' as const)
+              : ('unknown' as const),
+        action,
+        reason,
+        result_version: receipt?.result_version ?? null,
+        attempted_at: attempt?.occurred_at ?? null,
+        confirmed_at: receipt?.created_at ?? null
+      };
+    })
+    .sort((a, b) =>
+      (b.attempted_at ?? b.confirmed_at ?? '').localeCompare(a.attempted_at ?? a.confirmed_at ?? '')
+    );
+  if (archiveReceipts === null && archiveAttempts.length > 0) {
+    blindSpots.push({
+      kind: 'account_archive_receipts_unavailable',
+      detail:
+        'The read-only account archive receipt view is unavailable; commits cannot be confirmed.',
+      values: []
+    });
+  }
+  for (const row of accountArchives) {
+    if (row.status === 'blocked' && row.reason === 'active_launch') {
+      const event = archiveResults.get(row.request_id);
+      const location = lookupCodeLocations('team:account_archive:active_launch');
+      findings.push({
+        id: hashId(['account_archive_active_launch', row.request_id]),
+        kind: 'fact',
+        severity: 'medium',
+        rule: 'account_archive_active_launch',
+        title: 'Account archive was refused because an active launch depends on it',
+        evidence: event?.event_id ? [`event:${event.event_id}`] : [],
+        code_locations: location ? [location] : [],
+        next_step: 'Finish or archive the active launch, then retry the same account.'
+      });
+    } else if (row.status === 'unknown' || row.status === 'receipt_unavailable') {
+      const location = lookupCodeLocations('team:account_archive:unconfirmed');
+      findings.push({
+        id: hashId(['account_archive_unconfirmed', row.request_id]),
+        kind: 'insufficient',
+        severity: 'medium',
+        rule: 'account_archive_unconfirmed',
+        title: 'Account archive or restore outcome is unconfirmed',
+        evidence: archiveAttemptsById.get(row.request_id)?.event_id
+          ? [`event:${archiveAttemptsById.get(row.request_id)!.event_id}`]
+          : [],
+        code_locations: location ? [location] : [],
+        next_step: 'Retry the same request ID; the server replays a committed receipt.'
+      });
+    }
+  }
+
   const bulkAttempts = rows.filter(
     row =>
       row.event_name === 'team_workflow_started' && row.props.action === 'trash' && row.workflow_id
@@ -1793,6 +1903,7 @@ export async function getInvestigation(
     operations,
     task_copies: taskCopies,
     account_orders: accountOrders,
+    account_archives: accountArchives,
     bulk_trash: bulkTrash,
     task_orphans: taskOrphans,
     link,

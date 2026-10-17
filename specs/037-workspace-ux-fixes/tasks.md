@@ -161,11 +161,11 @@
 
 **Independent Test**: Archive a social with historical records, find it in archived view, restore it, and try archive while an active launch depends on it.
 
-- [ ] T044 [US8] Add database regressions for archive/restore, active-launch refusal, history preservation and permissions in `supabase/tests/database/team-accounts-archive.test.sql` (create if absent).
-- [ ] T045 [US8] Add reversible `archived_at` state, versioned mutation and active-launch guard in `supabase/migrations/20261203104000_account_archive.sql`; extend the combined read projection for archived history in `supabase/migrations/20261203105000_account_overview_archive.sql` without editing the earlier migration.
-- [ ] T046 [US8] Extend active/archived/all readers and typed archive calls in `packages/shared/src/team/accounts.ts`, `apps/web/src/api/team.ts` and `apps/web/src/team/accounts/useAccounts.ts`; remove archived socials from active pickers without hiding history.
-- [ ] T047 [US8] Add archive action, archived view/search and restore feedback in `apps/web/src/team/accounts/AccountSpace.tsx` and `apps/web/src/team/accounts/AccountGroup.tsx`; explain active-launch refusal and preserve manual order.
-- [ ] T048 [US8] Add UI and diagnostic regression for restore, history in the combined table, and refusal in `tests/team-accounts-archive.test.tsx`, `scripts/analytics/queries.ts` and `tests/analytics-investigate-command.test.ts`.
+- [x] T044 [US8] Add database regressions for archive/restore, active-launch refusal, history preservation and permissions in `supabase/tests/database/team-accounts-archive.test.sql` (create if absent).
+- [x] T045 [US8] Add reversible `archived_at` state, versioned mutation and active-launch guard in `supabase/migrations/20261203104000_account_archive.sql`; extend the combined read projection for archived history in `supabase/migrations/20261203105000_account_overview_archive.sql` without editing the earlier migration.
+- [x] T046 [US8] Extend active/archived/all readers and typed archive calls in `packages/shared/src/team/accounts.ts`, `apps/web/src/api/team.ts` and `apps/web/src/team/accounts/useAccounts.ts`; remove archived socials from active pickers without hiding history.
+- [x] T047 [US8] Add archive action, archived view/search and restore feedback in `apps/web/src/team/accounts/AccountSpace.tsx` and `apps/web/src/team/accounts/AccountGroup.tsx`; explain active-launch refusal and preserve manual order.
+- [x] T048 [US8] Add UI and diagnostic regression for restore, history in the combined table, and refusal in `tests/team-accounts-archive.test.tsx`, `scripts/analytics/queries.ts` and `tests/analytics-investigate-command.test.ts`.
 
 **Checkpoint**: FR-015 passes and no historical link is lost.
 

@@ -3,6 +3,7 @@ import type { BrowserFamily } from '../lib/browser';
 import {
   CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS,
   CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES,
+  TEAM_ACCOUNT_ARCHIVE_REASONS,
   MATERIAL_CATEGORIES,
   TEAM_ANALYTICS_ACTIONS,
   TEAM_ANALYTICS_CACHE_STATES,
@@ -559,6 +560,7 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   category: { kind: 'enum', values: MATERIAL_CATEGORIES },
   cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
   action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
+  archive_reason: { kind: 'enum', values: TEAM_ACCOUNT_ARCHIVE_REASONS },
   storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
   size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
   cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },
