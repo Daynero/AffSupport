@@ -2,6 +2,11 @@ import { stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   COMPRESSION_LIFECYCLE,
+  COMPRESSION_ERROR_CODES,
+  TRANSCRIPTION_ERROR_CODES,
+  STITCH_ERROR_CODES,
+  LANDING_ERROR_CODES,
+  TEAM_ERROR_CODES,
   LANDING_JOB_LIFECYCLE,
   TRANSCRIPTION_LIFECYCLE,
   isSettled,
@@ -106,6 +111,11 @@ export interface TeamProcessTransfer {
     request: TeamResultUploadRequest,
     signal: AbortSignal
   ): Promise<TeamFileOperationResult>;
+  ackUploadQuiescence?(request: {
+    operationId: string;
+    cloudBaseUrl: string;
+    finalizeGrant: TeamAgentProcessRequest['finalizeGrant'];
+  }): Promise<void>;
 }
 
 export interface TeamProcessBridgeOptions {
@@ -352,7 +362,7 @@ export class TeamProcessBridge {
         stage: 'uploading',
         progress: 70
       });
-      const result = await this.#transfer.uploadResult(
+      const upload = this.#transfer.uploadResult(
         {
           operationId: request.operationId,
           cloudBaseUrl: request.cloudBaseUrl,
@@ -371,7 +381,31 @@ export class TeamProcessBridge {
         },
         controller.signal
       );
-      throwIfAborted(controller.signal);
+      let result: TeamFileOperationResult;
+      let uploadOutcome: TeamFileOperationResult | null = null;
+      try {
+        result = await upload;
+        uploadOutcome = result;
+      } finally {
+        // The parent can cancel the database child before the local uploader
+        // notices. Only an agent that has awaited the upload promise may
+        // authorize orphan cleanup; a missing receipt leaves recovery pending.
+        if (
+          uploadOutcome?.state !== 'succeeded' &&
+          request.toolId === 'restitch' &&
+          this.#transfer.ackUploadQuiescence
+        ) {
+          await this.#transfer
+            .ackUploadQuiescence({
+              operationId: request.operationId,
+              cloudBaseUrl: request.cloudBaseUrl,
+              finalizeGrant: request.finalizeGrant
+            })
+            .catch(() => undefined);
+        }
+      }
+      // The finalize reply is authoritative. A late local abort cannot undo
+      // cloud success or rewrite an already committed terminal outcome.
       const sourceLanguage = output.sourceLanguage;
 
       this.#events.update(request.operationId, {
@@ -395,21 +429,10 @@ export class TeamProcessBridge {
       return sourceLanguage ? { ...result, sourceLanguage } : result;
     } catch (error) {
       const canceled = controller.signal.aborted;
-      // Debug (013): the generic PROCESS_FAILED hid every real upload error;
-      // surface the underlying message in the agent's stdout.
-      if (!canceled) {
-        const describe = (err: unknown, depth = 0): string => {
-          if (!(err instanceof Error)) return String(err);
-          const cause = depth < 3 && err.cause !== undefined ? describe(err.cause, depth + 1) : '';
-          return `${err.message}${cause ? ` <= cause: ${cause}` : ''}`;
-        };
-        console.error(
-          '[team-process] failed:',
-          describe(error),
-          error instanceof Error ? (error.stack ?? '') : ''
-        );
-      }
       const code = canceled ? abortCode(controller.signal) : safeErrorCode(error);
+      // Never log provider bodies, credentials, source paths or raw error stacks.
+      // The same safe code is carried by the operation snapshot for diagnosis.
+      if (!canceled) console.error('[team-process] failed:', code);
       this.#events.update(request.operationId, {
         state: canceled ? 'canceled' : 'failed',
         stage: canceled ? 'canceled' : 'failed',
@@ -729,7 +752,7 @@ function waitForTerminal<T>(observer: TerminalObserver<T>): Promise<T> {
       void Promise.resolve(observer.cancel()).catch(() => undefined);
       cancelDeadline = setTimeout(
         () => finish(() => reject(new Error('PROCESS_CANCELED'))),
-        CANCEL_SETTLE_MS
+        activeGovernorOrNull()?.scaleTimeout(CANCEL_SETTLE_MS) ?? CANCEL_SETTLE_MS
       );
       cancelDeadline.unref();
     };
@@ -837,9 +860,16 @@ function abortCode(signal: AbortSignal) {
     : 'PROCESS_CANCELED';
 }
 
+const PROCESS_FAILURE_CODES = new Set<string>([
+  ...TEAM_ERROR_CODES,
+  ...COMPRESSION_ERROR_CODES,
+  ...TRANSCRIPTION_ERROR_CODES,
+  ...STITCH_ERROR_CODES,
+  ...LANDING_ERROR_CODES
+]);
 function safeErrorCode(error: unknown) {
   const message = error instanceof Error ? error.message : '';
-  return /^[A-Z][A-Z0-9_]{2,63}$/u.test(message) ? message : 'PROCESS_FAILED';
+  return PROCESS_FAILURE_CODES.has(message) ? message : 'PROCESS_FAILED';
 }
 
 function throwIfAborted(signal: AbortSignal) {

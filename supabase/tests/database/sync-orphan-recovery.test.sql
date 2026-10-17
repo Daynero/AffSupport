@@ -23,7 +23,7 @@ select is(
   (select array_agg(proconfig::text) from pg_proc
    where proname in ('sweep_catalog_sync_orphans', 'run_catalog_sync_maintenance',
      'nudge_catalog_sync_feed', 'recover_catalog_sync_feed', 'find_team_folder_sync_request')
-     and not ('search_path=' = any(proconfig))),
+     and not ('search_path=""' = any(proconfig))),
   null, 'every new function pins search_path to empty');
 
 select ok(not has_function_privilege('authenticated', 'private.sweep_catalog_sync_orphans(integer, interval)', 'execute'),

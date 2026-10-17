@@ -99,6 +99,7 @@ export const AGENT_TOOL_CONTRACTS = {
   // Same shape of capability: without it the tile keeps the kind glyph, which
   // is exactly where it was before.
   teamPosterFrame: 1,
+  teamRestitchAutomaticFrame: 1,
   // Re-stitch screens drawn from the space's Drive pools (030): the agent accepts
   // `screens` with download grants on a re-stitch job and keeps them in its own
   // cache, not in the compressor's library. A capability, not a tool page, for the

@@ -1,28 +1,21 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import type { TeamAccountSummary, TeamTaskLabel } from '@video-compressor/shared';
-import type { TeamMemberSummary } from '../../api/team';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { Popover } from '../../components/ui/index';
 import { TaskAccountFilter, taskScopeLabel } from './TaskAccountFilter';
-import { TaskAssigneeFilter } from './TaskAssigneeFilter';
 import { TaskLabelFilter } from './TaskLabelFilter';
 import { TaskSortControl } from './TaskSortControl';
 import { TaskDateFilterControl } from './TaskDateFilter';
-import type {
-  TaskAccountScope,
-  TaskAssigneeFilter as AssigneeFilter,
-  TaskDateFilter,
-  TaskStatusFilter
-} from './useTasks';
+import type { TaskAccountScope, TaskDateFilter, TaskStatusFilter } from './useTasks';
 import type { TeamTaskSort } from '@video-compressor/shared';
 
 /**
  * The board's filters, in three places instead of nine (024, FR-077).
  *
  * The row used to carry, left to right: four quick-range buttons, a calendar
- * trigger, its clear, an account pill, an assignee pill, a tag pill, two sort
+ * trigger, its clear, an account pill, a tag pill, two sort
  * buttons and four status buttons. Thirteen controls, none of them obviously
  * more important than any other, and on a laptop they wrapped onto two lines
  * before a single task was visible.
@@ -48,9 +41,6 @@ export function TaskFilterBar({
   accounts,
   scope,
   onScopeChange,
-  members,
-  assignee,
-  onAssigneeChange,
   labels,
   labelIds,
   onLabelIdsChange,
@@ -68,9 +58,6 @@ export function TaskFilterBar({
   accounts: TeamAccountSummary[];
   scope: TaskAccountScope;
   onScopeChange: (value: TaskAccountScope) => void;
-  members: readonly TeamMemberSummary[];
-  assignee: AssigneeFilter;
-  onAssigneeChange: (value: AssigneeFilter) => void;
   labels: readonly TeamTaskLabel[];
   labelIds: readonly string[];
   onLabelIdsChange: (value: string[]) => void;
@@ -102,20 +89,6 @@ export function TaskFilterBar({
         clear: () => onScopeChange({ kind: 'all' })
       });
     }
-    if (assignee.kind !== 'all') {
-      const member =
-        assignee.kind === 'member'
-          ? members.find(item => item.userId === assignee.userId)
-          : undefined;
-      active.push({
-        id: 'assignee',
-        label:
-          assignee.kind === 'unassigned'
-            ? t('teamTaskUnassigned')
-            : (member?.displayName ?? member?.email ?? t('teamTaskAssignee')),
-        clear: () => onAssigneeChange({ kind: 'all' })
-      });
-    }
     for (const id of labelIds) {
       const label = labels.find(item => item.id === id);
       if (!label) continue;
@@ -126,18 +99,7 @@ export function TaskFilterBar({
       });
     }
     return active;
-  }, [
-    accounts,
-    assignee,
-    labelIds,
-    labels,
-    members,
-    onAssigneeChange,
-    onLabelIdsChange,
-    onScopeChange,
-    scope,
-    t
-  ]);
+  }, [accounts, labelIds, labels, onLabelIdsChange, onScopeChange, scope, t]);
 
   return (
     <div className="task-filter-bar">
@@ -197,8 +159,6 @@ export function TaskFilterBar({
                   a hairline between the sections. */}
               {(accounts.length > 0 ||
                 scope.kind !== 'all' ||
-                members.length > 1 ||
-                assignee.kind !== 'all' ||
                 labels.length > 0 ||
                 labelIds.length > 0) && (
                 <div
@@ -211,15 +171,6 @@ export function TaskFilterBar({
                   </span>
                   {(accounts.length > 0 || scope.kind !== 'all') && (
                     <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
-                  )}
-                  {/* A space of one has nobody to filter by (024, FR-089); a filter
-                      already in force stays visible, so it can be taken off. */}
-                  {(members.length > 1 || assignee.kind !== 'all') && (
-                    <TaskAssigneeFilter
-                      members={members}
-                      value={assignee}
-                      onChange={onAssigneeChange}
-                    />
                   )}
                   {(labels.length > 0 || labelIds.length > 0) && (
                     <TaskLabelFilter

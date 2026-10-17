@@ -872,3 +872,46 @@ describe('Creative Library task workflows', () => {
     await waitFor(() => expect(screen.queryByLabelText(/Title/)).toBeNull());
   });
 });
+
+it('reuses the media browser in single Creative mode with Launch-specific words and no task attachment writes', async () => {
+  const api = client();
+  api.listMaterials = vi.fn().mockResolvedValue([
+    {
+      id: ASSET_ID,
+      teamId: TEAM_ID,
+      name: 'one.mp4',
+      kind: 'file',
+      category: 'video',
+      previewState: 'ready'
+    },
+    {
+      id: SECOND_ASSET_ID,
+      teamId: TEAM_ID,
+      name: 'two.mp4',
+      kind: 'file',
+      category: 'video',
+      previewState: 'ready'
+    }
+  ]);
+  const picked = vi.fn();
+  render(
+    <TaskAttachmentPicker
+      teamId={TEAM_ID}
+      client={api}
+      attachedMaterialIds={new Set()}
+      onAdd={picked}
+      single
+      title="Choose creative"
+      confirmLabel={() => 'Choose creative'}
+    />
+  );
+  fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
+  await screen.findByRole('heading', { name: 'Choose creative' });
+  fireEvent.click(await screen.findByRole('button', { name: /one.mp4/ }));
+  fireEvent.click(screen.getByRole('button', { name: /two.mp4/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Choose creative' }));
+  expect(picked).toHaveBeenCalledWith([
+    expect.objectContaining({ id: SECOND_ASSET_ID, name: 'two.mp4' })
+  ]);
+  expect(api.attachTaskMaterials).not.toHaveBeenCalled();
+});

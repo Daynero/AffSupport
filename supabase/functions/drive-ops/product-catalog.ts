@@ -1,5 +1,5 @@
 import type { DriveFileMetadata, GoogleDriveClient } from '../_shared/drive.ts';
-import { TeamFunctionError } from '../_shared/errors.ts';
+import { TeamFunctionError, mapUnknownError } from '../_shared/errors.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
 import { createCatalogImageSharer } from '../_shared/catalog-image-sharing.ts';
 import type { OperationAuthority } from '../_shared/operations.ts';
@@ -14,10 +14,11 @@ import {
   planCatalogRows,
   productCatalogName,
   videoShareLink,
+  type ProductCatalogRowValues,
   type ProductCatalogSpaceSettings
 } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
-import { buildXlsx } from '../_shared/xlsx.ts';
+import { buildXlsx, type XlsxCell } from '../_shared/xlsx.ts';
 
 /**
  * `POST /drive-ops/product-catalog/create` (feature 022).
@@ -87,6 +88,12 @@ export type CatalogLinkOutcome =
   | { linked: false; reason: 'NOT_ELIGIBLE' };
 
 export interface ProductCatalogDeps {
+  /** Durable adapter owns reconciliation; an uncertain output must not be trashed blindly. */
+  preserveUncertainOutput?: boolean;
+  /** Reconciles an already-created sheet before repeating XLSX conversion. */
+  readCreatedFile?: (parentId: string, credentialId: string) => Promise<DriveFileMetadata | null>;
+  rememberRowRecipe?: (rows: ProductCatalogRowValues[]) => Promise<ProductCatalogRowValues[]>;
+  rememberSheetRows?: (rows: XlsxCell[][]) => Promise<XlsxCell[][]>;
   loadVideo(input: {
     teamId: string;
     videoId: string;
@@ -250,10 +257,7 @@ async function trashQuietly(
       trashed: true
     });
   } catch (error) {
-    deps.log(
-      `[product-catalog] ${why}: sheet stayed in Drive`,
-      `${file.driveFileId} ${String(error)}`
-    );
+    deps.log(`[product-catalog] ${why}: sheet stayed in Drive`, mapUnknownError(error).code);
   }
 }
 
@@ -339,7 +343,7 @@ export async function createProductCatalog(
     deps.drawImages(teamId, request.productCount)
   ]);
   await createCatalogImageSharer(drive)(images);
-  const planned = planCatalogRows({
+  let planned = planCatalogRows({
     count: request.productCount,
     settings,
     texts,
@@ -349,6 +353,7 @@ export async function createProductCatalog(
     }))
   });
   if (!planned) wrongState('settings_missing');
+  if (deps.rememberRowRecipe) planned = await deps.rememberRowRecipe(planned);
   const first = planned[0]!;
   /* Kept for sheets and workers that read one value: the first row's. */
   const snapshot = {
@@ -392,24 +397,25 @@ export async function createProductCatalog(
   }
   try {
     await deps.markRunning(authority.operationId);
-    const bytes = await buildXlsx({
-      sheetName: PRODUCT_CATALOG_SHEET_NAME,
-      rows: buildProductCatalogRows({
-        settings: first,
-        sourceLink: request.sourceLink,
-        videoLink,
-        count: request.productCount,
-        randomLinkVariation: request.randomLinkVariation,
-        rows: planned
-      })
+    let sheetRows: XlsxCell[][] = buildProductCatalogRows({
+      settings: first,
+      sourceLink: request.sourceLink,
+      videoLink,
+      count: request.productCount,
+      randomLinkVariation: request.randomLinkVariation,
+      rows: planned
     });
-    const file = await drive.createConvertedFile({
-      name: plan.name,
-      parentId: destination.live.id,
-      sourceMimeType: XLSX_MIME_TYPE,
-      targetMimeType: SPREADSHEET_MIME_TYPE,
-      bytes
-    });
+    if (deps.rememberSheetRows) sheetRows = await deps.rememberSheetRows(sheetRows);
+    const recoveredFile = await deps.readCreatedFile?.(destination.live.id, video.credentialId);
+    const file =
+      recoveredFile ??
+      (await drive.createConvertedFile({
+        name: plan.name,
+        parentId: destination.live.id,
+        sourceMimeType: XLSX_MIME_TYPE,
+        targetMimeType: SPREADSHEET_MIME_TYPE,
+        bytes: await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows: sheetRows })
+      }));
     const created = { driveFileId: file.id, resourceKey: file.resourceKey ?? null };
     try {
       await deps.bindIntent({ authority, actorId, name: file.name, sizeBytes: file.size });
@@ -446,7 +452,8 @@ export async function createProductCatalog(
         }
       });
       if (!linked.linked) {
-        await trashQuietly(deps, drive, created, 'lost the race');
+        if (!deps.preserveUncertainOutput)
+          await trashQuietly(deps, drive, created, 'lost the race');
         if (linked.reason === 'EXISTS' && linked.existing) {
           return { outcome: 'existing', catalog: linked.existing, videoShared };
         }
@@ -470,7 +477,7 @@ export async function createProductCatalog(
       };
     } catch (error) {
       // A sheet that is not shared, not committed or not linked is not a catalog. It leaves.
-      await trashQuietly(deps, drive, created, 'rolled back');
+      if (!deps.preserveUncertainOutput) await trashQuietly(deps, drive, created, 'rolled back');
       throw error;
     }
   } catch (error) {

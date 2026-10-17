@@ -27,6 +27,7 @@ import {
   Pagination,
   Popover,
   Progress,
+  StageProgress,
   RadioGroup,
   SegmentedControl,
   Select,
@@ -582,6 +583,18 @@ export default function DesignSystemPage() {
           <Row title="progress">
             <Progress value={35} label="A third done" />
             <Progress label="Working" />
+            <StageProgress
+              captionBelow
+              label="Re-stitching video"
+              detail="63%"
+              stepsLabel="Generation steps"
+              stages={[
+                { id: 'prepare', label: 'Preparation', state: 'complete' },
+                { id: 'video', label: 'Video', state: 'active', fraction: 0.63 },
+                { id: 'catalog', label: 'Catalog', state: 'pending' },
+                { id: 'result', label: 'Result', state: 'pending' }
+              ]}
+            />
             <Spinner label="Working" />
           </Row>
           <Row title="tooltip">

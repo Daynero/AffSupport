@@ -349,6 +349,7 @@
   --motion-fast: 150ms;
   --motion-base: 220ms;
   --motion-slow: 300ms;
+  --motion-progress: 750ms;
   --ease-out-curve: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-curve: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-linear: linear;

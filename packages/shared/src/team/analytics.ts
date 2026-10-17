@@ -1,3 +1,15 @@
+import {
+  LAUNCH_ANALYTICS_EVENTS,
+  LAUNCH_ANALYTICS_STAGES,
+  LAUNCH_ANALYTICS_ACTIONS,
+  LAUNCH_ANALYTICS_FIELDS,
+  LAUNCH_ANALYTICS_CODES,
+  type LaunchAnalyticsStage,
+  type LaunchAnalyticsAction,
+  type LaunchAnalyticsField,
+  type LaunchAnalyticsCode
+} from './launches/lifecycle.js';
+import { LAUNCH_GENERATION_STATES, type LaunchGenerationState } from './launches.js';
 import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
 import {
   TEAM_STORAGE_ATTENTION_REASONS,
@@ -13,6 +25,7 @@ import {
 } from './creative-library.js';
 
 export const TEAM_ANALYTICS_EVENT_NAMES = [
+  ...LAUNCH_ANALYTICS_EVENTS,
   'team_workspace_session',
   'team_onboarding_started',
   'team_onboarding_completed',
@@ -89,6 +102,14 @@ const LANDING_RENDER_FAILURE_REASONS = [
 
 export interface TeamAnalyticsProperties {
   flow_id?: string;
+  run_id?: string;
+  revision_id?: string;
+  launch_stage?: LaunchAnalyticsStage;
+  launch_action?: LaunchAnalyticsAction;
+  launch_field?: LaunchAnalyticsField;
+  launch_code?: LaunchAnalyticsCode;
+  launch_method?: 'catalog' | 'other';
+  launch_state?: LaunchGenerationState;
   study_run_id?: string;
   attempt_id?: string;
   workflow_id?: string;
@@ -151,6 +172,14 @@ export const TEAM_ANALYTICS_PROPERTY_RULES: Readonly<
   Record<keyof TeamAnalyticsProperties, TeamAnalyticsPropertyRule>
 > = {
   flow_id: { kind: 'id' },
+  run_id: { kind: 'id' },
+  revision_id: { kind: 'id' },
+  launch_stage: { kind: 'enum', values: LAUNCH_ANALYTICS_STAGES },
+  launch_action: { kind: 'enum', values: LAUNCH_ANALYTICS_ACTIONS },
+  launch_field: { kind: 'enum', values: LAUNCH_ANALYTICS_FIELDS },
+  launch_code: { kind: 'enum', values: LAUNCH_ANALYTICS_CODES },
+  launch_method: { kind: 'enum', values: ['catalog', 'other'] },
+  launch_state: { kind: 'enum', values: LAUNCH_GENERATION_STATES },
   study_run_id: { kind: 'id' },
   attempt_id: { kind: 'id' },
   workflow_id: { kind: 'id' },

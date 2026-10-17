@@ -122,6 +122,9 @@ describe('BackgroundRenderProvider', () => {
     await waitFor(() => expect(order).toEqual(['a', 'c']));
     expect(maxInFlight).toBe(1);
     expect(client.startLandingRender).toHaveBeenCalledTimes(2);
+    expect(client.listLandingRenders).toHaveBeenCalledWith(TEAM, ['a', 'b', 'c'], 'default', {
+      includeArtifacts: false
+    });
     expect(seen?.available).toBe(true);
   });
 

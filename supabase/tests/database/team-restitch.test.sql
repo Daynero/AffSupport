@@ -102,7 +102,8 @@ select ok(
    from pg_catalog.pg_proc as p
    join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname like '%restitch%'
-     and p.proname not like 'service_%'),
+     and p.proname not like 'service_%'
+     and p.proname <> 'prepare_launch_restitch_unchecked'),
   'signed-in callers may execute the caller-facing re-stitch functions'
 );
 

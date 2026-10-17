@@ -27,6 +27,8 @@ export interface TeamContextValue {
   error: string | null;
   revision: number;
   realtimeState: TeamRealtimeState;
+  /** Channel/read health, independent of an ordinary catalog cache invalidation. */
+  realtimeConnectionState: TeamRealtimeState;
   /**
    * Set when a realtime event says this membership ended mid-session. The
    * surface reacts by explaining and returning to the lobby; a silent bounce is
@@ -237,6 +239,7 @@ export function TeamProvider({
       error,
       revision,
       realtimeState,
+      realtimeConnectionState: channelState,
       membershipLostTeamId,
       acknowledgeMembershipLoss,
       hasEnteredSpace: activeTeam !== null,
@@ -253,6 +256,7 @@ export function TeamProvider({
       acknowledgeMembershipLoss,
       activeTeam,
       can,
+      channelState,
       enterSpace,
       error,
       leaveSpace,

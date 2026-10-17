@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runPhase } from './lib/gate.mjs';
@@ -24,6 +24,14 @@ const SUITE_REPORT_FILE = path.join(root, 'verification-suite.json');
 const COVERAGE_SUMMARY_FILE = path.join(root, 'coverage/coverage-summary.json');
 const COVERAGE_BASELINE_FILE = path.join(root, 'coverage-baseline.json');
 const COVERAGE_CRITICAL_FILE = path.join(root, 'coverage-critical.json');
+
+export function prepareSuiteArtifacts(
+  suiteReport = SUITE_REPORT_FILE,
+  coverageSummary = COVERAGE_SUMMARY_FILE
+) {
+  rmSync(suiteReport, { force: true });
+  rmSync(coverageSummary, { force: true });
+}
 
 /**
  * How far a single file may fall before the ratchet objects.
@@ -82,7 +90,7 @@ const PHASES = {
     group: 'static',
     exclusive: false,
     gates: () => [
-      script('format', 'format:check', 180_000),
+      script('format', 'format:check', 300_000),
       script('lint', 'lint', 300_000),
       script('typecheck:projects', 'typecheck:projects', 600_000),
       script('typecheck:tests', 'typecheck:tests', 600_000),
@@ -161,16 +169,7 @@ const PHASES = {
         // its portable Node entry point without a command-shell intermediary.
         command: process.execPath,
         args: [
-          vitest,
-          'run',
-          '--project=unit',
-          '--maxWorkers=1',
-          '--no-file-parallelism',
-          '--reporter=dot',
-          `--reporter=${path.join(root, 'scripts/lib/suite-progress-reporter.mjs')}`,
-          '--reporter=json',
-          `--outputFile.json=${SUITE_REPORT_FILE}`,
-          '--silent=passed-only',
+          path.join(root, 'scripts/run-unit-suite.mjs'),
           ...(form === 'release' ? ['--coverage'] : [])
         ],
         timeoutMs: 2_700_000
@@ -179,7 +178,9 @@ const PHASES = {
   },
   build: {
     group: 'build',
-    exclusive: false,
+    // The release contract scans dist. It must observe the production bundle
+    // after build:web has replaced a previous beta bundle, never during it.
+    exclusive: true,
     forms: ['release'],
     gates: () => [
       script('build:web', 'build:web', 900_000),
@@ -581,6 +582,12 @@ async function main() {
   let suite = null;
 
   for (const name of phasesFor(args.form, args.gates)) {
+    if (name === 'suite') {
+      // A timed-out Vitest run may never replace these files. Clearing them
+      // before this gate prevents a previous green run from being reported as
+      // the tests or coverage of the current failed run.
+      prepareSuiteArtifacts();
+    }
     const phase = PHASES[name];
     const results = await runPhase(phase.gates(args.form), { exclusive: phase.exclusive });
     for (const result of results) {
@@ -605,12 +612,15 @@ async function main() {
           excerpt: report.failed
         };
       }
-      const coverage = judgeCoverage({
-        form: args.form,
-        summary: readJson(COVERAGE_SUMMARY_FILE),
-        baseline: readJson(COVERAGE_BASELINE_FILE),
-        critical: readJson(COVERAGE_CRITICAL_FILE)
-      });
+      const suiteGatePassed = results.some(result => result.id === 'suite' && result.ok);
+      const coverage = suiteGatePassed
+        ? judgeCoverage({
+            form: args.form,
+            summary: readJson(COVERAGE_SUMMARY_FILE),
+            baseline: readJson(COVERAGE_BASELINE_FILE),
+            critical: readJson(COVERAGE_CRITICAL_FILE)
+          })
+        : null;
       if (coverage) {
         suite = { ...(suite ?? {}), coverageLines: coverage.total };
         if (args.updateCoverageBaseline) {

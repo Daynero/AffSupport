@@ -209,7 +209,8 @@ select is_empty(
           -- new RPC arriving in it should be somebody's decision rather than a
           -- test repair.
           'list_team_drive_selections', 'add_team_drive_selection',
-          'remove_team_drive_selection', 'team_material_kind'
+          'remove_team_drive_selection', 'team_material_kind',
+          'admin_revoke_tariff_invitation'
         ))
       )
   $$,

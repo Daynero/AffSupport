@@ -31,6 +31,23 @@ for the built-in reference.
 
 ## Commands
 
+`npm run analytics -- database-retention --json` checks the seven-day history cleanup
+jobs, expired-grant retention, reuse/expiry/tenant indexes, cumulative grant writes
+and current Auth/REST health using read-only management metadata.
+It does not scan application or grant tables; use it for post-deploy checks.
+
+`npm run analytics -- database-tables --json` performs an on-demand read-only
+management audit of exact counts in the largest non-grant tables, index sizes
+and duplicates, age distributions and legacy Storage references. It scans these
+tables; do not poll it frequently. See [the table audit](SUPABASE_TABLE_AUDIT.md).
+
+`npm run analytics -- database-health --json` reports database relation sizes,
+churn and connection counts without scanning private grant records when access
+is absent. `--management` uses the existing Supabase release credentials in
+read-only mode for grant purpose/expiry aggregates, cron and service health.
+These are current snapshots, not historical `--period` results. Run on demand;
+grant aggregation scans the table. See [the repair report](SUPABASE_HEALTH_REPAIR.md).
+
 | Command                       | What it returns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `overview`                    | Users (total/new/active), sessions, events, tool opens, batches, videos, and top locales/platforms/app & agent versions.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -456,3 +473,15 @@ SUPABASE_URL=https://<ref>.supabase.co SUPABASE_SERVICE_ROLE_KEY=... \
 
 Pass `--bucket team-restitch-images` to list one bucket. The service key is read from the
 environment for the one call and is never written anywhere.
+
+### Launch result reuse
+
+`inspect <launch_id|generation_id> --json` includes
+`data.launches.generations[].reuse_evidence` when the diagnostic view supports it.
+`video_operation_id` identifies the processed-video receipt; `video_generation_id`
+identifies the generation that actually processed it. A different generation ID
+means the registered result reused an earlier video. `catalog_revision_id`
+identifies a prior revision whose exact catalog reference was reused. Null IDs
+do not prove fresh processing: the operation may be pending or its provenance
+unavailable. A null `reuse_evidence` object is an explicit coverage gap. These
+opaque IDs contain no configuration, media content, URLs, or file names.

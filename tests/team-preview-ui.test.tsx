@@ -232,3 +232,49 @@ describe('team material preview UI', () => {
     expect(screen.queryByText('Preparing the file preview…')).toBeNull();
   });
 });
+
+it('uses the authorized media MIME when a restored creative has no cached category', async () => {
+  render(
+    <MaterialPreview
+      teamId={TEAM_ID}
+      material={item(null)}
+      client={client({
+        kind: 'media',
+        rangeUrl: 'https://example.invalid/image',
+        mimeType: 'image/png',
+        expiresAt: '2026-08-01T12:05:00Z'
+      })}
+      onClose={vi.fn()}
+    />
+  );
+  await waitFor(() => expect(document.body.querySelector('img')).not.toBeNull());
+  expect(document.body.querySelector('video')).toBeNull();
+});
+
+it('keeps playback and its signed URL across parent updates and category hydration', async () => {
+  const previewClient = client({
+    kind: 'media',
+    rangeUrl: 'https://example.invalid/stable-video',
+    mimeType: 'video/mp4',
+    expiresAt: '2026-08-01T12:05:00Z'
+  });
+  const props = { teamId: TEAM_ID, material: item(null), client: previewClient, onClose: vi.fn() };
+  const view = render(<MaterialPreview {...props} />);
+  await waitFor(() => expect(document.body.querySelector('video')).not.toBeNull());
+  const video = document.body.querySelector('video')!;
+  video.currentTime = 12;
+  fireEvent.loadedData(video);
+  view.rerender(
+    <MaterialPreview
+      {...props}
+      material={{ ...props.material, name: 'Renamed creative', category: 'video' }}
+    />
+  );
+  expect(document.body.querySelector('video')).toBe(video);
+  expect(video.currentTime).toBe(12);
+  expect(previewClient.requestPreview).toHaveBeenCalledTimes(1);
+  view.rerender(
+    <MaterialPreview {...props} material={{ ...props.material, id: 'different-creative' }} />
+  );
+  await waitFor(() => expect(previewClient.requestPreview).toHaveBeenCalledTimes(2));
+});

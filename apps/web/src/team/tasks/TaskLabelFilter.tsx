@@ -1,7 +1,7 @@
 /**
  * Narrowing the board to a set of tags (018).
  *
- * A field in the "Filters" panel (024), under the account and the assignee.
+ * A field in the "Filters" panel (024), under the account filter.
  * Several tags at once, and a task matching any of them stays: the filter is
  * opened to gather work — "everything hot or urgent" — not to intersect it.
  */

@@ -1,3 +1,14 @@
+import { launchFailure } from '../_shared/launch-failures.ts';
+import {
+  parseLaunchSources,
+  launchMaterialIdentity,
+  type LaunchConfig,
+  type LaunchSourceSnapshot
+} from '../../../packages/shared/dist/team/launches.js';
+import { createDurableProductCatalog, catalogIntentStore } from './catalog-durable.ts';
+import { generateLaunch } from './launches.ts';
+import { executeLaunchCatalog } from './launch-catalog.ts';
+import { runLaunchCatalogRecovery } from './launch-recovery.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 // Narrow module imports, never the `types.js` barrel: the barrel re-exports the
 // whole shared package (release, environment, lifecycle, the stitcher…), and the
@@ -23,7 +34,11 @@ import {
   type TeamErrorCode,
   type TeamTransferGrant
 } from '../../../packages/shared/dist/team/transport.js';
-import { authorizeCaller, type OAuthProductionSignals } from '../_shared/auth.ts';
+import {
+  authorizeCaller,
+  requireNamedWorkerSecret,
+  type OAuthProductionSignals
+} from '../_shared/auth.ts';
 import { thumbnailCachePath } from '../_shared/thumbnails.ts';
 import {
   DriveThumbnailCache,
@@ -62,7 +77,7 @@ import { resolveTaskDropFolder } from './task-drop-folder.ts';
 import { resolveWorkspaceFolder } from './workspace-folder.ts';
 import { resolveUploadFolder } from './upload-folder.ts';
 import {
-  createProductCatalog,
+  parseCreateProductCatalogRequest,
   type CatalogLinkOutcome,
   type ExistingCatalog,
   type ProductCatalogDeps
@@ -1028,16 +1043,7 @@ async function handleUploadFinalize(
     result.size !== operation.expectedSize ||
     (operation.replaceMaterialId && result.id !== driveFileId.value)
   ) {
-    console.error(
-      '[finalize] mismatch',
-      JSON.stringify({
-        parentsOk: result.parents.includes(liveDestination.id),
-        name: [result.name, operation.expectedName],
-        mime: [result.mimeType, operation.mimeType],
-        size: [result.size, operation.expectedSize],
-        replace: [operation.replaceMaterialId, result.id, driveFileId.value]
-      })
-    );
+    console.error('[finalize] mismatch', 'SOURCE_CHANGED');
     throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
   }
   await verifyBoundSource(service, operation, request, driveFileId.value);
@@ -1106,12 +1112,7 @@ async function handleUploadFinalize(
     }
     return committed;
   } catch (error) {
-    console.error(
-      '[finalize] failed:',
-      error instanceof Error
-        ? `${error.message} ${String((error as { cause?: unknown }).cause ?? '')}`
-        : String(error)
-    );
+    console.error('[finalize] failed:', mapUnknownError(error).code);
     await transitionOperation({
       service,
       operationId,
@@ -2038,6 +2039,18 @@ async function consumeOperationGrant(service: RpcClient, ticket: unknown, purpos
   return grant;
 }
 
+async function handleProcessOutputQuiesced(body: Record<string, unknown>, service: RpcClient) {
+  const operationId = requireUuid(body.operationId);
+  if (typeof body.ticket !== 'string' || body.ticket.length < 32 || body.ticket.length > 2048)
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  const acknowledged = await rpcValue(service, 'service_ack_launch_upload_quiescence', {
+    p_operation: operationId,
+    p_token_hash: byteaHex(await sha256(body.ticket))
+  });
+  if (acknowledged !== true) throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+  return { acknowledged: true };
+}
+
 async function handleProcessOutputStart(
   request: Request,
   body: Record<string, unknown>,
@@ -2076,6 +2089,14 @@ async function handleProcessOutputStart(
   // keeps (or renames to) the expected name, and the finalize's
   // on-conflict-by-drive-file-id update refreshes the same material row, so
   // companions stay attached and the modified date moves.
+  const launchRestitch =
+    operation.toolId === 'restitch' &&
+    (await rpcValue(service, 'service_is_launch_restitch_process', {
+      p_operation: operationId,
+      p_actor: grant.actorId
+    })) === true;
+  if (launchRestitch && operation.versionOfMaterialId)
+    throw new TeamFunctionError('WRONG_STATE', { retryable: false });
   let overwriteTarget: DriveFileMetadata | null = null;
   if (operation.versionOfMaterialId) {
     const context = await loadContext({
@@ -2088,6 +2109,12 @@ async function handleProcessOutputStart(
     const client = await driveClient(service, context.credentialId, request);
     overwriteTarget = await proveContext(context, client);
   }
+  if (launchRestitch) {
+    await rpcValue(service, 'service_prepare_launch_process_upload', {
+      p_operation: operationId,
+      p_actor: grant.actorId
+    });
+  }
   await rpcValue(service, 'service_set_team_operation_intent', {
     p_operation: operationId,
     p_actor: grant.actorId,
@@ -2099,12 +2126,20 @@ async function handleProcessOutputStart(
     p_tool: operation.toolId,
     p_tool_contract_version: operation.toolContractVersion
   });
+  if (launchRestitch) {
+    // This durable transition must commit before any provider request.
+    await rpcValue(service, 'service_start_launch_process_upload', {
+      p_operation: operationId,
+      p_actor: grant.actorId
+    });
+  }
   const session = await destination.client.startResumableUpload({
     name: operation.expectedName,
     mimeType: operation.mimeType,
     sizeBytes,
     parentId: destination.live.id,
-    existingFileId: overwriteTarget?.id ?? null
+    existingFileId: overwriteTarget?.id ?? null,
+    ...(launchRestitch ? { appProperties: { 'soty.launch.restitch.operation': operationId } } : {})
   });
   await transitionOperation({
     service,
@@ -2543,11 +2578,61 @@ function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatal
  * handler itself lives in `product-catalog.ts` and never touches Deno, Supabase or Drive
  * directly, which is what lets its order of refusals and its rollback be tested.
  */
+async function proveLaunchSource(
+  request: Request,
+  service: RpcClient,
+  teamId: string,
+  actor: string,
+  materialId: string,
+  expected?: LaunchSourceSnapshot
+) {
+  const context = await loadContext({
+    service,
+    teamId,
+    materialId,
+    actorId: actor,
+    permission: 'view'
+  });
+  const drive = await driveClient(service, context.credentialId, request);
+  const live = await proveContext(context, drive);
+  if (live.id !== context.driveFileId || (expected && expected.materialDriveFileId !== live.id))
+    throw new TeamFunctionError('SOURCE_CHANGED');
+  const expectedIdentity = expected ? launchMaterialIdentity(expected) : null;
+  const sameExpectedContent =
+    expected !== undefined &&
+    expectedIdentity !== null &&
+    expectedIdentity ===
+      launchMaterialIdentity({
+        ...expected,
+        materialDriveFileId: live.id,
+        materialVersion: live.version,
+        materialChecksum: live.checksum
+      });
+  if (live.version !== context.driveVersion || live.checksum !== context.checksum) {
+    if (live.version)
+      await rpcValue(service, 'service_refresh_material_revision', {
+        p_material: materialId,
+        p_drive_file_id: live.id,
+        p_drive_version: live.version,
+        p_checksum: live.checksum
+      });
+    if (expected && !sameExpectedContent) throw new TeamFunctionError('SOURCE_CHANGED');
+  }
+  if (expected && !sameExpectedContent) throw new TeamFunctionError('SOURCE_CHANGED');
+  return live;
+}
+
 function productCatalogDeps(request: Request, caller: RpcClient, service: RpcClient) {
   const contexts = new Map<string, MaterialOperationContext>();
   const drives = new Map<string, GoogleDriveClient>();
   let destinationClient: GoogleDriveClient | null = null;
-
+  const fullDriveFor = async (credentialId: string): Promise<GoogleDriveClient> => {
+    const known = drives.get(credentialId);
+    if (known) return known;
+    const client = await driveClient(service, credentialId, request);
+    drives.set(credentialId, client);
+    return client;
+  };
   const deps: ProductCatalogDeps = {
     async loadVideo({ teamId, videoId, actorId, permission }) {
       const context = await loadContext({
@@ -2660,13 +2745,7 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       }
       return value;
     },
-    async driveFor(credentialId) {
-      const known = drives.get(credentialId);
-      if (known) return known;
-      const client = await driveClient(service, credentialId, request);
-      drives.set(credentialId, client);
-      return client;
-    },
+    driveFor: fullDriveFor,
     async proveVideo(video, drive) {
       const context = contexts.get(video.id);
       if (!context) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
@@ -2748,8 +2827,8 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         service,
         operationId,
         state: 'running',
-        stage: 'uploading',
-        progress: 30
+        stage: 'preparing',
+        progress: 0
       });
     },
     async failOperation(operationId, cause) {
@@ -2816,7 +2895,7 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       console.error(message, detail);
     }
   };
-  return deps;
+  return { ...deps, fullDriveFor };
 }
 
 function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterRestitchDeps {
@@ -2918,22 +2997,72 @@ Deno.serve(async request => {
   const browserCors = corsHeadersForRequest(request);
   if (request.headers.has('origin') && !browserCors) return new Response(null, { status: 403 });
   const cors = browserCors ?? {};
+  let path = '';
 
   try {
     const url = new URL(request.url);
-    const path = routePath(url);
+    path = routePath(url);
     const configured = clients(request);
     if (request.method !== 'POST') {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
 
-    if (path === '/process/output/start' || path === '/process/output/finalize') {
+    if (path === '/launches/recover') {
+      await requireNamedWorkerSecret(request);
+      const recovered = await runLaunchCatalogRecovery(
+        configured.service,
+        async (teamId, generationId, actorId) => {
+          const catalog = productCatalogDeps(request, configured.caller, configured.service);
+          // Launch always creates a new reserved variation, never recreates an existing catalog.
+          return executeLaunchCatalog(
+            {
+              service: configured.service,
+              catalog: { ...catalog, readLiveCatalogs: async () => [] },
+              driveFor: catalog.fullDriveFor,
+              proveSource: async (config, source) => {
+                const parsed = parseLaunchSources(source);
+                if (!parsed) throw new TeamFunctionError('SOURCE_CHANGED');
+                await proveLaunchSource(
+                  request,
+                  configured.service,
+                  teamId,
+                  actorId,
+                  config.materialId,
+                  parsed
+                );
+              },
+              proveCatalog: async resource => {
+                await proveLaunchSource(
+                  request,
+                  configured.service,
+                  teamId,
+                  actorId,
+                  resource.materialId
+                );
+              }
+            },
+            teamId,
+            generationId,
+            actorId
+          );
+        }
+      );
+      return successResponse(recovered, cors);
+    }
+
+    if (
+      path === '/process/output/start' ||
+      path === '/process/output/finalize' ||
+      path === '/process/output/quiesced'
+    ) {
       const parsed = await parseJsonBody(request);
       if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
       const value =
         path === '/process/output/start'
           ? await handleProcessOutputStart(request, parsed.value, configured.service)
-          : await handleProcessOutputFinalize(request, parsed.value, configured.service);
+          : path === '/process/output/finalize'
+            ? await handleProcessOutputFinalize(request, parsed.value, configured.service)
+            : await handleProcessOutputQuiesced(parsed.value, configured.service);
       return successResponse(value, cors, path.endsWith('/start') ? 202 : 200);
     }
 
@@ -2950,7 +3079,59 @@ Deno.serve(async request => {
     let value: unknown;
     let status = 200;
     const finalize = /^\/uploads\/([0-9a-f-]{36})\/finalize$/iu.exec(path);
-    if (path === '/uploads/start') {
+    if (path === '/launches/sources/refresh') {
+      const teamId = requireUuid(body.teamId);
+      if (!isRecord(body.config)) throw new TeamFunctionError('INVALID_INPUT');
+      const source = parseLaunchSources(
+        await rpcValue(configured.caller, 'resolve_launch_selection', {
+          p_team: teamId,
+          p_config: body.config
+        })
+      );
+      if (!source) throw new TeamFunctionError('SOURCE_CHANGED');
+      await proveLaunchSource(request, configured.service, teamId, userId, source.materialId);
+      value = await rpcValue(configured.caller, 'resolve_launch_selection', {
+        p_team: teamId,
+        p_config: body.config
+      });
+    } else if (path === '/launches/generate') {
+      value = await generateLaunch(
+        {
+          caller: configured.caller,
+          service: configured.service,
+          catalogReady: async () => {
+            const ready = await rpcValue(configured.service, 'service_launch_worker_ready', {});
+            if (ready !== true) throw new TeamFunctionError('NO_WORK');
+          },
+          proveSource: async (teamId, actor, config: LaunchConfig, source) => {
+            await proveLaunchSource(
+              request,
+              configured.service,
+              teamId,
+              actor,
+              config.materialId,
+              source
+            );
+            if (config.method === 'catalog') {
+              const catalog = productCatalogDeps(request, configured.caller, configured.service);
+              const video = await catalog.loadVideo({
+                teamId,
+                videoId: config.materialId,
+                actorId: actor,
+                permission: 'view'
+              });
+              if (video.category !== 'video' || !(await catalog.readSettings(teamId)))
+                throw new TeamFunctionError('WRONG_STATE');
+              // Launch preparation freezes saved defaults or derives its own end
+              // frame. Selecting restitch does not require saving workspace settings.
+              await catalog.destination({ teamId, actorId: actor, folderId: video.parentFolderId });
+            }
+          }
+        },
+        body,
+        userId
+      );
+    } else if (path === '/uploads/start') {
       value = await handleUploadStart(request, body, configured.service, userId);
       status = 202;
     } else if (finalize) {
@@ -2985,9 +3166,21 @@ Deno.serve(async request => {
     } else if (path === '/ensure-upload-folder') {
       value = await handleEnsureUploadFolder(request, body, configured.service, userId);
     } else if (path === '/product-catalog/create') {
-      value = await createProductCatalog(
-        productCatalogDeps(request, configured.caller, configured.service),
-        body,
+      const catalogRequest = parseCreateProductCatalogRequest(body);
+      if (catalogRequest.idempotencyKey.startsWith('launch:'))
+        throw new TeamFunctionError('INVALID_INPUT');
+      const deps = productCatalogDeps(request, configured.caller, configured.service);
+      value = await createDurableProductCatalog(
+        deps,
+        catalogIntentStore(
+          configured.service,
+          catalogRequest.teamId,
+          catalogRequest.videoMaterialId,
+          userId,
+          catalogRequest.idempotencyKey
+        ),
+        deps.fullDriveFor,
+        catalogRequest,
         userId
       );
     } else if (path === '/updater/claim') {
@@ -3016,6 +3209,9 @@ Deno.serve(async request => {
     }
     return successResponse(value, cors, status);
   } catch (error) {
-    return errorResponse(mapUnknownError(error), cors);
+    return errorResponse(
+      path.startsWith('/launches/') ? launchFailure(error) : mapUnknownError(error),
+      cors
+    );
   }
 });

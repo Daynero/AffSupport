@@ -1,3 +1,4 @@
+import { landingReuseKey, landingTicket } from './landing-ticket.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   AGENT_INTAKE_MAX_BYTES,
@@ -395,6 +396,34 @@ async function issueLandingArtifactGrant(
     maxUses: number;
   }
 ): Promise<TeamTransferGrant> {
+  if (input.toolId.startsWith('landing-render:') && input.maxUses === 8) {
+    const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!secret) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+    const candidateId = crypto.randomUUID();
+    const candidateTicket = await landingTicket(secret, candidateId);
+    const result = firstRecord(
+      await rpcValue(service, 'issue_landing_preview_grant', {
+        p_id: candidateId,
+        p_token_hash: byteaHex(await sha256(candidateTicket)),
+        p_reuse_key: await landingReuseKey(secret),
+        p_team: input.teamId,
+        p_actor: input.actorId,
+        p_material: input.materialId,
+        p_tool: input.toolId,
+        p_max_range_bytes: MAX_PREVIEW_RANGE_BYTES
+      })
+    );
+    const grantId = result && stringValue(result, 'grant_id');
+    const expiresAt = result && stringValue(result, 'expires_at');
+    if (!grantId || !expiresAt) throw new TeamFunctionError('INVALID_RESPONSE');
+    return {
+      ticket: grantId === candidateId ? candidateTicket : await landingTicket(secret, grantId),
+      purpose: 'preview_range',
+      expiresAt,
+      maxRangeBytes: MAX_PREVIEW_RANGE_BYTES,
+      maxUses: 8
+    };
+  }
   const ticket = randomTicket();
   const expiresAt = new Date(Date.now() + LANDING_RENDER_GRANT_TTL_MS).toISOString();
   await rpcValue(service, 'issue_team_transfer_grant', {

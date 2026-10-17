@@ -1,3 +1,7 @@
+import {
+  TEAM_ANALYTICS_PROPERTY_KEYS,
+  TEAM_ANALYTICS_PROPERTY_ENUMS
+} from '../../packages/shared/src/team/analytics.js';
 /**
  * 031 FR-055 — the CLI returns event properties only through the client's own
  * allowlist, so `journey`, `inspect`, `run` and `diagnose` can never print a key
@@ -12,7 +16,10 @@ import {
   analyticsEventNames
 } from '../../apps/web/src/analytics/events.js';
 
-const ALLOWED_KEYS: ReadonlySet<string> = new Set(ANALYTICS_PROPERTY_KEYS);
+const ALLOWED_KEYS: ReadonlySet<string> = new Set([
+  ...ANALYTICS_PROPERTY_KEYS,
+  ...TEAM_ANALYTICS_PROPERTY_KEYS
+]);
 
 /** The database guard refuses these in any value; a stored row cannot carry them, but the CLI checks again. */
 const SECRET_VALUE = /bearer|oauth|token=|authorization/i;
@@ -30,6 +37,8 @@ export function sanitizeEventProperties(input: unknown): SanitizedProperties {
   const output: SanitizedProperties = {};
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
     if (!ALLOWED_KEYS.has(key)) continue;
+    if (key.startsWith('launch_') && !TEAM_ANALYTICS_PROPERTY_ENUMS[key]?.includes(String(value)))
+      continue;
     if (typeof value === 'number' && Number.isFinite(value)) output[key] = value;
     else if (typeof value === 'boolean') output[key] = value;
     else if (typeof value === 'string' && !SECRET_VALUE.test(value) && !PATH_LIKE.test(value)) {

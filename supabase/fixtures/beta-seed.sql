@@ -1,7 +1,8 @@
 -- Beta staging fixtures.
 --
 -- The minimum needed to begin an end-to-end journey immediately after a reset:
--- one account you can sign in as, one workspace it owns, and one media item.
+-- one account you can sign in as and one workspace it owns. Drive media is
+-- intentionally absent until a test Google account is connected in beta.
 -- Nothing here is copied from production; every identifier is fixed so a reset
 -- is reproducible and assertions can name what they expect.
 --
@@ -117,5 +118,46 @@ on conflict (id) do nothing;
 insert into public.admin_users (user_id)
 values ('11111111-1111-4111-8111-111111111111')
 on conflict (user_id) do nothing;
+
+-- Launch form sources that do not depend on a Google connection. The creative
+-- library remains empty until beta Drive is explicitly connected and indexed.
+insert into public.team_accounts (id, team_id, created_by, name)
+values (
+  '44444444-4444-4444-8444-444444444441',
+  '22222222-2222-4222-8222-222222222222',
+  '11111111-1111-4111-8111-111111111111',
+  'g1'
+)
+on conflict (id) do nothing;
+
+insert into public.team_account_agents (id, team_id, account_id, created_by, agent_id)
+values (
+  '44444444-4444-4444-8444-444444444442',
+  '22222222-2222-4222-8222-222222222222',
+  '44444444-4444-4444-8444-444444444441',
+  '11111111-1111-4111-8111-111111111111',
+  '1234567892'
+)
+on conflict (id) do nothing;
+
+insert into public.team_launch_offers (id, team_id, name, normalized_key, created_by)
+values (
+  '44444444-4444-4444-8444-444444444443',
+  '22222222-2222-4222-8222-222222222222',
+  'ProCaps TR',
+  'procaps tr',
+  '11111111-1111-4111-8111-111111111111'
+)
+on conflict (id) do nothing;
+
+insert into public.team_launch_buyers (id, team_id, value, normalized_key, created_by)
+values (
+  '44444444-4444-4444-8444-444444444444',
+  '22222222-2222-4222-8222-222222222222',
+  'patrik',
+  'patrik',
+  '11111111-1111-4111-8111-111111111111'
+)
+on conflict (id) do nothing;
 
 commit;

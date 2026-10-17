@@ -12,6 +12,15 @@ import type { UnavailableReason } from './materials/actions';
  * it a sentence is a type error rather than a silent fallback in production.
  */
 const COPY: Record<TeamErrorCode, TranslationKey> = {
+  LAUNCH_VERSION_CONFLICT: 'financeConflict',
+  LAUNCH_BUSY: 'launchesBusyError',
+  LAUNCH_URL_INVALID: 'launchesUrlInvalid',
+  LAUNCH_SUB_INVALID: 'launchesSubInvalid',
+  LAUNCH_BUDGET_INVALID: 'launchesBudgetInvalid',
+  LAUNCH_RESULT_UNCERTAIN: 'launchesUncertain',
+  LAUNCH_INTERNAL_ERROR: 'launchesUnexpectedError',
+  PROCESS_CANCELED: 'teamErrorProcessCanceled',
+  PROCESS_FAILED: 'teamErrorProcessFailed',
   FINANCE_CLIENT_UPGRADE_REQUIRED: 'financeError',
   FINANCE_HISTORY_PROTECTED: 'financeProtected',
   FINANCE_AMOUNT_INVALID: 'financeInvalid',
@@ -69,7 +78,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   RESTRICTED_SCOPE_NOT_APPROVED: 'teamErrorRestrictedScopeNotApproved',
   RESTITCH_FORBIDDEN: 'teamRestitchForbidden',
   RESTITCH_NO_SCREENS: 'teamRestitchNoScreens',
-  RESTITCH_INVALID: 'teamRestitchInvalid',
+  RESTITCH_INVALID: 'launchesRestitchInvalid',
   RESTITCH_POOL_EMPTY: 'teamRestitchPoolEmpty',
   RESTITCH_SOURCE_FORBIDDEN: 'teamRestitchSourceForbidden',
   RESTITCH_SOURCES_INVALID: 'teamRestitchSourcesInvalid',

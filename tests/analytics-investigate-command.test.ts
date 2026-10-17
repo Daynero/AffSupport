@@ -537,7 +537,8 @@ describe('investigate · (e) a user with no events', () => {
     expect(data.findings[0]).toMatchObject({ kind: 'insufficient', rule: 'no_events' });
     expect(data.coverage.blind_spots.map(spot => spot.kind)).toEqual([
       'no_events_in_period',
-      'analytics_disabled'
+      'analytics_disabled',
+      'launch_diagnostics_unavailable'
     ]);
     expect(data.findings[0].evidence).toEqual([
       'blind_spot:no_events_in_period',

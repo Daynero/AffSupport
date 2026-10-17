@@ -30,6 +30,7 @@ export const RESTITCH_DURATION_MODES = [
   'random-30-40',
   'random-40-50',
   'random-50-60',
+  'random-centered',
   'custom'
 ] as const;
 
@@ -48,6 +49,8 @@ export interface TeamRestitchDefaults {
   customStartDurationMs?: number;
   /** Whether this set could actually produce a file; see `restitchDefaultsSaveable`. */
   configured: boolean;
+  /** Launch fallback: derive the end screen from the source video without saved setup. */
+  automaticEndFrame?: boolean;
   /**
    * Where the pictures come from (030). `legacy` rows keep drawing from the id lists above;
    * `drive` rows draw from the space's source pools and leave those lists empty.
@@ -181,6 +184,7 @@ export function parseTeamRestitchDefaults(value: unknown): RestitchParse<TeamRes
       startImageIds,
       endImageIds,
       sourceMode,
+      ...(value.automaticEndFrame === true ? { automaticEndFrame: true } : {}),
       fitMode: oneOf(value.fitMode, RESTITCH_FIT_MODES, 'cover'),
       finalDurationMode: oneOf(value.finalDurationMode, RESTITCH_DURATION_MODES, 'random-40-50'),
       customFinalDurationSeconds: clampStitchEndDuration(

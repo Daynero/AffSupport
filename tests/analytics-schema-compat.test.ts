@@ -221,7 +221,7 @@ describe('analytics CLI without the sync jobs view', () => {
     const audit = (await run('audit', '--period', '30d')).data as AuditData;
     expect(audit.schema.tables.analytics_catalog_sync_jobs).toBe(false);
     expect(audit.schema.missing).toContain('analytics_catalog_sync_jobs');
-    const sync = audit.capabilities.find(c => c.source === 'authoritative_table');
+    const sync = audit.capabilities.find(c => c.id === 'team.sync');
     expect(sync).toMatchObject({ status: 'uncovered', missing: ['analytics_catalog_sync_jobs'] });
   });
 });

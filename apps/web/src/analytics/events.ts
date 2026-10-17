@@ -499,6 +499,13 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
 > = {
   flow_id: { kind: 'id' },
   run_id: { kind: 'id' },
+  revision_id: { kind: 'id' },
+  launch_stage: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.launch_stage },
+  launch_action: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.launch_action },
+  launch_field: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.launch_field },
+  launch_code: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.launch_code },
+  launch_method: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.launch_method },
+  launch_state: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.launch_state },
   tool_identifier: { kind: 'enum', values: ANALYTICS_TOOLS },
   feature_identifier: { kind: 'token' },
   screen_identifier: { kind: 'token' },

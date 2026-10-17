@@ -1,7 +1,7 @@
+import { prepareCatalogRestitch } from './catalog-orchestration';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Dices, Timer } from 'lucide-react';
 import {
-  RESTITCH_CONTRACT_VERSION,
   restitchDefaultsSaveable,
   type FinalImageDurationMode,
   type TeamRestitchDefaults
@@ -255,68 +255,19 @@ export function CreateProductCatalogDialog({
       if (restitch) {
         const defaults = restitchDefaults;
         if (!defaults) throw new Error('RESTITCH_DEFAULTS_INVALID');
-        const choice = JSON.stringify({ durationMode, customSeconds, defaults });
-        if (processed?.choice === choice) {
-          restitchOperationId = processed.operationId;
-          catalogKey = processed.catalogKey;
-        } else {
-          const available = await (client.canRestitch ?? agentCanRestitch)();
-          if (available !== 'yes') throw new Error('AGENT_UPDATE_REQUIRED');
-          // Drive pools (030) or the owner's published library (legacy): the settings say which.
-          const drawn = await (client.prepareRestitchScreens ?? prepareRestitchScreens)(
-            teamId,
-            defaults
-          );
-          if (drawn.kind === 'too-old') throw new Error('AGENT_UPDATE_REQUIRED');
-          if (drawn.kind === 'legacy') {
-            await (client.ensureRestitchImages ?? ensureRestitchImages)(teamId, defaults);
-          }
-          const destination = await (
-            client.ensureRestitchedFolder ?? teamApi.ensureRestitchedFolder
-          )(teamId);
-          const stem = video.name.replace(/\.[^.]+$/u, '') || video.name;
-          const started = await (client.startProcess ?? teamApi.startProcess)({
-            teamId,
-            materialId: video.id,
-            toolId: 'restitch',
-            optionsSummary: { finalDurationMode: durationMode },
-            destinationFolderId: destination.materialId,
-            outputName: `${stem} restitched.mp4`,
-            conflictMode: 'keep_both',
-            idempotencyKey: crypto.randomUUID(),
-            agentContractVersion: 1,
-            toolContractVersion: RESTITCH_CONTRACT_VERSION
-          });
-          try {
-            const finished = await (client.runAgentProcess ?? startTeamAgentProcess)({
-              operationId: started.operationId,
-              toolId: 'restitch',
-              options: {
-                defaults: {
-                  ...defaults,
-                  operation: 'restitch',
-                  finalDurationMode: durationMode,
-                  customFinalDurationSeconds:
-                    durationMode === 'custom' ? customSeconds! : defaults.customFinalDurationSeconds
-                },
-                prepared: null,
-                ...(drawn.kind === 'ready' ? { screens: drawn.screens, teamId } : {})
-              },
-              sourceGrant: started.sourceGrant,
-              finalizeGrant: started.finalizeGrant
-            });
-            if (finished.state !== 'succeeded' || !finished.materialId)
-              throw new Error('PROCESS_FAILED');
-            restitchOperationId = started.operationId;
-            setProcessed({ operationId: started.operationId, choice, catalogKey });
-          } catch (error) {
-            await (client.cancelOperation ?? teamApi.cancelOperation)(
-              teamId,
-              started.operationId
-            ).catch(() => undefined);
-            throw error;
-          }
-        }
+        const receipt = await prepareCatalogRestitch({
+          teamId,
+          video,
+          defaults,
+          durationMode,
+          customSeconds,
+          catalogKey,
+          previous: processed,
+          client
+        });
+        restitchOperationId = receipt.operationId;
+        catalogKey = receipt.catalogKey;
+        setProcessed(receipt);
         setPhase({ kind: 'busy', step: 'catalog' });
       }
       const result = await client.createProductCatalog({

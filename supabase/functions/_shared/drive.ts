@@ -29,6 +29,7 @@ export interface DriveFileMetadata {
   modifiedAt: string | null;
   version: string | null;
   checksum: string | null;
+  ownedByMe?: boolean;
   webViewLink?: string | null;
   thumbnailLink?: string | null;
   /**
@@ -60,7 +61,8 @@ function parseListing(payload: unknown): DriveListingPage {
   if (
     !isRecord(payload) ||
     !Array.isArray(payload.files) ||
-    (payload.nextPageToken !== undefined && typeof payload.nextPageToken !== 'string') ||
+    (payload.nextPageToken !== undefined &&
+      (typeof payload.nextPageToken !== 'string' || payload.nextPageToken.length === 0)) ||
     (payload.incompleteSearch !== undefined && typeof payload.incompleteSearch !== 'boolean')
   ) {
     throw new TeamFunctionError('INVALID_RESPONSE');
@@ -70,10 +72,7 @@ function parseListing(payload: unknown): DriveListingPage {
     .filter((file): file is DriveFileMetadata => file !== null);
   const invalidEntries = payload.files.length - files.length;
   const incompleteSearch = payload.incompleteSearch === true;
-  const nextPageToken =
-    typeof payload.nextPageToken === 'string' && payload.nextPageToken.length > 0
-      ? payload.nextPageToken
-      : null;
+  const nextPageToken = typeof payload.nextPageToken === 'string' ? payload.nextPageToken : null;
   return {
     files,
     nextPageToken,
@@ -90,6 +89,7 @@ const FILE_FIELDS = [
   'parents',
   'trashed',
   'driveId',
+  'ownedByMe',
   'resourceKey',
   'shortcutDetails(targetId,targetMimeType,targetResourceKey)',
   'capabilities(canDownload,canListChildren,canAddChildren,canRename,canMoveItemWithinDrive,canMoveItemOutOfDrive,canModifyContent,canShare,canTrash,canUntrash)',
@@ -176,6 +176,7 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
     checksum: typeof value.md5Checksum === 'string' ? value.md5Checksum : null,
     webViewLink: typeof value.webViewLink === 'string' ? value.webViewLink : null,
     thumbnailLink: typeof value.thumbnailLink === 'string' ? value.thumbnailLink : null,
+    ...(typeof value.ownedByMe === 'boolean' ? { ownedByMe: value.ownedByMe } : {}),
     appProperties: parseAppProperties(value.appProperties)
   };
 }
@@ -339,7 +340,14 @@ export class GoogleDriveClient {
     if (input.driveId) url.searchParams.set('driveId', input.driveId);
     const response = await this.#request(url);
     const payload: unknown = await response.json().catch(() => null);
-    if (!isRecord(payload) || !Array.isArray(payload.changes)) {
+    if (
+      !isRecord(payload) ||
+      !Array.isArray(payload.changes) ||
+      (payload.nextPageToken !== undefined &&
+        (typeof payload.nextPageToken !== 'string' || payload.nextPageToken.length === 0)) ||
+      (payload.newStartPageToken !== undefined &&
+        (typeof payload.newStartPageToken !== 'string' || payload.newStartPageToken.length === 0))
+    ) {
       throw new TeamFunctionError('INVALID_RESPONSE');
     }
     const changes: DriveChange[] = [];
@@ -475,6 +483,72 @@ export class GoogleDriveClient {
    * spreadsheet (022). One multipart request: the file never exists in its source format, so
    * there is no half-made original to clean up.
    */
+  /** Search one catalog intent in its expected parent and credential scope. Never choose an arbitrary duplicate. */
+  async findCatalogIntentFiles(input: {
+    marker: string;
+    parentId: string;
+  }): Promise<DriveFileMetadata[]> {
+    const escape = (value: string) => value.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    const url = new URL('https://www.googleapis.com/drive/v3/files');
+    url.searchParams.set(
+      'q',
+      `appProperties has { key='soty.catalog.intent' and value='${escape(input.marker)}' } and '${escape(input.parentId)}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`
+    );
+    url.searchParams.set('fields', `nextPageToken,incompleteSearch,files(${FILE_FIELDS})`);
+    url.searchParams.set('pageSize', '10');
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('includeItemsFromAllDrives', 'true');
+    const payload: unknown = await (await this.#request(url)).json();
+    if (
+      !isRecord(payload) ||
+      !Array.isArray(payload.files) ||
+      payload.files.length > 10 ||
+      payload.nextPageToken !== undefined ||
+      payload.incompleteSearch === true ||
+      (payload.incompleteSearch !== undefined && typeof payload.incompleteSearch !== 'boolean')
+    )
+      throw new TeamFunctionError('LAUNCH_RESULT_UNCERTAIN');
+    const files: DriveFileMetadata[] = [];
+    for (const value of payload.files) {
+      const file = parseMetadata(value);
+      if (!file) throw new TeamFunctionError('INVALID_RESPONSE');
+      files.push(file);
+    }
+    return files;
+  }
+
+  /** Bounded lookup for a Launch-created native video; duplicate or incomplete results stay uncertain. */
+  async findLaunchRestitchFiles(input: {
+    operationId: string;
+    parentId: string;
+  }): Promise<DriveFileMetadata[]> {
+    const escape = (value: string) => value.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    const url = new URL('https://www.googleapis.com/drive/v3/files');
+    url.searchParams.set(
+      'q',
+      `appProperties has { key='soty.launch.restitch.operation' and value='${escape(input.operationId)}' } and '${escape(input.parentId)}' in parents`
+    );
+    url.searchParams.set('fields', `nextPageToken,incompleteSearch,files(${FILE_FIELDS})`);
+    url.searchParams.set('pageSize', '10');
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('includeItemsFromAllDrives', 'true');
+    const payload: unknown = await (await this.#request(url)).json();
+    if (
+      !isRecord(payload) ||
+      !Array.isArray(payload.files) ||
+      payload.files.length > 1 ||
+      payload.nextPageToken !== undefined ||
+      payload.incompleteSearch === true ||
+      (payload.incompleteSearch !== undefined && typeof payload.incompleteSearch !== 'boolean')
+    )
+      throw new TeamFunctionError('LAUNCH_RESULT_UNCERTAIN');
+    return payload.files.map(value => {
+      const file = parseMetadata(value);
+      if (!file) throw new TeamFunctionError('INVALID_RESPONSE');
+      return file;
+    });
+  }
+
   async createConvertedFile(input: {
     name: string;
     parentId: string;
@@ -619,24 +693,50 @@ export class GoogleDriveClient {
   }
 
   async listAnyonePermissions(fileId: string): Promise<Array<{ id: string; role: string }>> {
-    const url = new URL(
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`
-    );
-    url.searchParams.set('supportsAllDrives', 'true');
-    url.searchParams.set('fields', 'permissions(id,type,role)');
-    const response = await this.#request(url);
-    const payload: unknown = await response.json().catch(() => null);
-    if (!isRecord(payload) || !Array.isArray(payload.permissions)) {
-      throw new TeamFunctionError('INVALID_RESPONSE');
-    }
     const permissions: Array<{ id: string; role: string }> = [];
-    for (const raw of payload.permissions) {
-      if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.role !== 'string') {
+    const seenTokens = new Set<string>();
+    let pageToken: string | null = null;
+    // Shared drives can paginate permissions. A partial list must never prove
+    // that an exact Launch-owned grant disappeared after a lost DELETE reply.
+    for (let page = 0; page < 50; page++) {
+      const url = new URL(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`
+      );
+      url.searchParams.set('supportsAllDrives', 'true');
+      url.searchParams.set('pageSize', '100');
+      url.searchParams.set('fields', 'nextPageToken,permissions(id,type,role)');
+      if (pageToken !== null) url.searchParams.set('pageToken', pageToken);
+      const response = await this.#request(url);
+      const payload: unknown = await response.json().catch(() => null);
+      if (
+        !isRecord(payload) ||
+        !Array.isArray(payload.permissions) ||
+        (payload.nextPageToken !== undefined &&
+          (typeof payload.nextPageToken !== 'string' ||
+            !payload.nextPageToken ||
+            payload.nextPageToken.length > 2048 ||
+            /\p{Cc}/u.test(payload.nextPageToken)))
+      )
         throw new TeamFunctionError('INVALID_RESPONSE');
+      for (const raw of payload.permissions) {
+        if (
+          !isRecord(raw) ||
+          typeof raw.id !== 'string' ||
+          !raw.id ||
+          typeof raw.type !== 'string' ||
+          typeof raw.role !== 'string'
+        )
+          throw new TeamFunctionError('INVALID_RESPONSE');
+        if (raw.type === 'anyone') permissions.push({ id: raw.id, role: raw.role });
       }
-      if (raw.type === 'anyone') permissions.push({ id: raw.id, role: raw.role });
+      const next = payload.nextPageToken;
+      if (next === undefined) return permissions;
+      if (typeof next !== 'string' || seenTokens.has(next))
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      seenTokens.add(next);
+      pageToken = next;
     }
-    return permissions;
+    throw new TeamFunctionError('INVALID_RESPONSE');
   }
 
   async createAnyoneReaderPermission(fileId: string): Promise<{ id: string; role: 'reader' }> {
@@ -661,6 +761,24 @@ export class GoogleDriveClient {
       throw new TeamFunctionError('INVALID_RESPONSE');
     }
     return { id: payload.id, role: 'reader' };
+  }
+
+  /** Deletes only the permission ID supplied by a fenced cleanup plan. */
+  async deletePermission(fileId: string, permissionId: string): Promise<void> {
+    if (
+      !fileId ||
+      !permissionId ||
+      fileId.length > 200 ||
+      permissionId.length > 200 ||
+      /\p{Cc}/u.test(fileId) ||
+      /\p{Cc}/u.test(permissionId)
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
+    const url = new URL(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}`
+    );
+    url.searchParams.set('supportsAllDrives', 'true');
+    await this.#request(url, { method: 'DELETE' });
   }
 
   async downloadFileRange(input: {
@@ -782,6 +900,7 @@ export class GoogleDriveClient {
     sizeBytes: number;
     parentId: string;
     existingFileId?: string | null;
+    appProperties?: Record<string, string>;
   }): Promise<{ sessionUri: string; expiresAt: string }> {
     if (
       input.name.length < 1 ||
@@ -789,7 +908,8 @@ export class GoogleDriveClient {
       input.mimeType.length < 1 ||
       !Number.isSafeInteger(input.sizeBytes) ||
       input.sizeBytes < 0 ||
-      input.parentId.length < 1
+      input.parentId.length < 1 ||
+      (input.existingFileId && input.appProperties)
     ) {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
@@ -801,7 +921,12 @@ export class GoogleDriveClient {
     url.searchParams.set('supportsAllDrives', 'true');
     const metadata = input.existingFileId
       ? { name: input.name }
-      : { name: input.name, mimeType: input.mimeType, parents: [input.parentId] };
+      : {
+          name: input.name,
+          mimeType: input.mimeType,
+          parents: [input.parentId],
+          ...(input.appProperties ? { appProperties: input.appProperties } : {})
+        };
     const response = await this.#request(url, {
       method: input.existingFileId ? 'PATCH' : 'POST',
       headers: {

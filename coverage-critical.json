@@ -73,6 +73,17 @@
     "packages/shared/src/team/transport.ts": 85,
     "packages/shared/src/types.ts": 63,
     "packages/shared/src/totp.ts": 50,
-    "apps/agent/src/server/diagnostics-log.ts": 95
+    "apps/agent/src/server/diagnostics-log.ts": 95,
+    "packages/shared/src/team/launches.ts": 99,
+    "packages/shared/src/team/launches/budgets.ts": 95,
+    "packages/shared/src/team/launches/lifecycle.ts": 90,
+    "packages/shared/src/team/launches/naming.ts": 90,
+    "packages/shared/src/team/launches/persistence.ts": 75,
+    "packages/shared/src/team/launches/preview.ts": 80,
+    "packages/shared/src/team/launches/revisions.ts": 80,
+    "packages/shared/src/team/launches/url.ts": 95,
+    "packages/shared/src/team/launches/validation.ts": 75,
+    "packages/shared/src/team/tariffs.ts": 85,
+    "packages/shared/src/team/text-search.ts": 85
   }
 }

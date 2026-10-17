@@ -315,6 +315,24 @@ describe('team cloud/local transfer bridge', () => {
       fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/process/output/finalize'))
     ).toHaveLength(1);
   });
+
+  it('sends a separate short-lived quiescence receipt after a canceled upload', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: true, value: { acknowledged: true } }), { status: 200 })
+      );
+    const client = new TeamTransferClient({ fetchImpl, temporaryRoot: await temporaryRoot() });
+    await client.ackUploadQuiescence({
+      operationId: 'operation-upload',
+      cloudBaseUrl: 'https://project.supabase.co/functions/v1/drive-ops',
+      finalizeGrant: grant('finalize')
+    });
+    expect(String(fetchImpl.mock.calls[0][0])).toMatch(/\/process\/output\/quiesced$/u);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))).toMatchObject({
+      operationId: 'operation-upload'
+    });
+  });
 });
 
 describe('team processing orchestration and SSE state', () => {
@@ -690,4 +708,106 @@ describe('team processing orchestration and SSE state', () => {
     await expect(bridge.process(processRequest())).resolves.toMatchObject({ state: 'succeeded' });
     expect(bridge.setPaused('operation-process', true)).toBe('not-found');
   });
+  it('preserves confirmed upload success when cancellation races the finalize reply', async () => {
+    const root = await temporaryRoot();
+    const file = path.join(root, 'result.mp4');
+    await writeFile(file, 'result');
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    const events = new TeamOperationEvents();
+    const transfer: TeamProcessTransfer = {
+      downloadSource: vi.fn().mockResolvedValue({
+        workspace: root,
+        file,
+        sizeBytes: 6,
+        sourceVersion: null,
+        sourceChecksum: null,
+        cleanup
+      }),
+      uploadResult: vi.fn().mockImplementation(async () => {
+        // The cloud already committed success, then the cancel request arrives
+        // before this continuation consumes the confirmed finalize reply.
+        expect(bridge.cancel('operation-process')).toBe(true);
+        return {
+          operationId: 'operation-process',
+          state: 'succeeded',
+          materialId: 'result-material',
+          reused: false
+        };
+      })
+    };
+    const bridge = new TeamProcessBridge({
+      transfer,
+      events,
+      delegates: { compressor: async () => ({ file, mimeType: 'video/mp4', sizeBytes: 6 }) }
+    });
+    await expect(bridge.process(processRequest())).resolves.toMatchObject({
+      state: 'succeeded',
+      materialId: 'result-material'
+    });
+    expect(events.snapshot().operations[0]).toMatchObject({ state: 'succeeded', errorCode: null });
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(bridge.busy()).toBe(false);
+  });
+
+  it('acknowledges Launch restitch quiescence only after its upload promise settles', async () => {
+    const root = await temporaryRoot();
+    const file = path.join(root, 'restitch.mp4');
+    await writeFile(file, 'result');
+    const order: string[] = [];
+    const transfer: TeamProcessTransfer = {
+      downloadSource: vi.fn().mockResolvedValue({
+        workspace: root,
+        file,
+        sizeBytes: 6,
+        sourceVersion: null,
+        sourceChecksum: null
+      }),
+      uploadResult: vi.fn().mockImplementation(async () => {
+        order.push('upload');
+        throw new Error('PROCESS_CANCELED');
+      }),
+      ackUploadQuiescence: vi.fn().mockImplementation(async () => {
+        order.push('quiesced');
+      })
+    };
+    const bridge = new TeamProcessBridge({
+      transfer,
+      events: new TeamOperationEvents(),
+      delegates: { restitch: async () => ({ file, mimeType: 'video/mp4', sizeBytes: 6 }) }
+    });
+    await expect(bridge.process({ ...processRequest(), toolId: 'restitch' })).rejects.toThrow();
+    expect(order).toEqual(['upload', 'quiesced']);
+    expect(transfer.ackUploadQuiescence).toHaveBeenCalledOnce();
+  });
+
+  it.each(['provider token=secret https://example.invalid/ /private/path', 'PRIVATE_CAPI_SECRET'])(
+    'logs only a closed failure code, excluding provider content (%s)',
+    async message => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const events = new TeamOperationEvents();
+      const bridge = new TeamProcessBridge({
+        events,
+        transfer: {
+          downloadSource: async () => {
+            throw new Error(message, {
+              cause: new Error('secret-cause')
+            });
+          },
+          uploadResult: vi.fn()
+        },
+        delegates: { compressor: vi.fn() }
+      });
+      try {
+        await expect(bridge.process(processRequest())).rejects.toThrow('PROCESS_FAILED');
+        expect(log).toHaveBeenCalledWith('[team-process] failed:', 'PROCESS_FAILED');
+        expect(JSON.stringify(log.mock.calls)).not.toMatch(/secret|https:|private\/path/);
+        expect(events.snapshot().operations[0]).toMatchObject({
+          state: 'failed',
+          errorCode: 'PROCESS_FAILED'
+        });
+      } finally {
+        log.mockRestore();
+      }
+    }
+  );
 });

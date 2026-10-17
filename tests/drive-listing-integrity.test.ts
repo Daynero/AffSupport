@@ -85,9 +85,20 @@ describe('Drive listing coverage', () => {
   });
   it.each([
     { files: [], nextPageToken: 12 },
+    { files: [], nextPageToken: '' },
     { files: [], incompleteSearch: 'false' }
   ])('rejects malformed pagination/coverage flags', async payload => {
     await expect(client(payload).listChildren({ parentId: 'root' })).rejects.toThrow(
+      'INVALID_RESPONSE'
+    );
+  });
+  it.each([
+    { changes: [], nextPageToken: 0 },
+    { changes: [], nextPageToken: '' },
+    { changes: [], newStartPageToken: 0 },
+    { changes: [], newStartPageToken: '' }
+  ])('rejects malformed change cursor fields before checkpointing', async payload => {
+    await expect(client(payload).listChanges({ pageToken: 'position' })).rejects.toThrow(
       'INVALID_RESPONSE'
     );
   });

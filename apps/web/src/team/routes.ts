@@ -14,7 +14,7 @@ import {
  * addresses still resolve, as aliases, so a pasted link keeps meaning what it
  * meant.
  */
-export const TEAM_SECTIONS = ['explorer', 'tasks', 'accounts', 'members'] as const;
+export const TEAM_SECTIONS = ['explorer', 'tasks', 'launches', 'accounts', 'members'] as const;
 
 /** The settings dialog's tabs, named in the address as they are in the dialog. */
 export const TEAM_SETTINGS_TABS = ['general', 'tags', 'restitch', 'product-catalog'] as const;
@@ -36,6 +36,9 @@ export interface TeamRouteQuery {
   filters: CatalogSearchFilters;
   /** Opens the task editor over the Tasks section. */
   taskId: string | null;
+  launchId?: string | null;
+  launchTab?: 'result' | 'settings' | null;
+  revisionId?: string | null;
   /** Tasks tagged with one agent (017) — how the Accounts tab links into the list. */
   agentId: string | null;
   /** Tasks tagged with any agent of one account (017). */
@@ -291,6 +294,13 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     q: params.get('q')?.trim() ?? '',
     filters: readFilters(params),
     taskId: trimmedParam(params, 'task'),
+    ...(params.has('launch') ? { launchId: trimmedParam(params, 'launch') } : {}),
+    ...(params.get('launchTab') === 'result'
+      ? { launchTab: 'result' as const }
+      : params.get('launchTab') === 'settings'
+        ? { launchTab: 'settings' as const }
+        : {}),
+    ...(params.has('revision') ? { revisionId: trimmedParam(params, 'revision') } : {}),
     agentId: trimmedParam(params, 'agent'),
     accountId: trimmedParam(params, 'account'),
     folderId: trimmedParam(params, 'folder'),
@@ -409,6 +419,11 @@ export function buildTeamRoute(input: TeamRouteInput): string {
   if (query.palette) params.set('palette', '1');
   if (query.process) params.set('process', '1');
   if (query.storage) params.set('storage', '1');
+  if (section === 'launches') {
+    if (query.launchId) params.set('launch', query.launchId);
+    if (query.launchTab) params.set('launchTab', query.launchTab);
+    if (query.revisionId) params.set('revision', query.revisionId);
+  }
   if (section === 'tasks') {
     if (query.taskId) params.set('task', query.taskId);
     // One scope at a time: an agent is narrower than its account, so it wins.

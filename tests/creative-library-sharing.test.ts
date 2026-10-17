@@ -52,6 +52,64 @@ describe('Creative Library exact Drive sharing', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it('does not treat a shared-drive permission on a later page as absent', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            permissions: [{ id: 'other', type: 'user', role: 'reader' }],
+            nextPageToken: 'page/two'
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ permissions: [{ id: 'owned-grant', type: 'anyone', role: 'reader' }] }),
+          { status: 200 }
+        )
+      );
+    const drive = new GoogleDriveClient('access-token-with-enough-entropy', fetchImpl);
+    await expect(drive.listAnyonePermissions('shared-file')).resolves.toEqual([
+      { id: 'owned-grant', role: 'reader' }
+    ]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const [first] = fetchImpl.mock.calls[0]!;
+    const [second] = fetchImpl.mock.calls[1]!;
+    expect(first).toBeInstanceOf(URL);
+    expect(second).toBeInstanceOf(URL);
+    if (!(first instanceof URL) || !(second instanceof URL)) throw new Error('Expected URL');
+    expect(first.searchParams.get('fields')).toContain('nextPageToken');
+    expect(second.searchParams.get('pageToken')).toBe('page/two');
+  });
+
+  it('rejects repeated pagination tokens instead of returning an incomplete grant list', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ permissions: [], nextPageToken: 'same-page' }), {
+        status: 200
+      })
+    );
+    const drive = new GoogleDriveClient('access-token-with-enough-entropy', fetchImpl);
+    await expect(drive.listAnyonePermissions('shared-file')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE'
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('deletes only the exact permission ID and rejects malformed cleanup targets', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const drive = new GoogleDriveClient('access-token-with-enough-entropy', fetchImpl);
+    await drive.deletePermission('item/one', 'grant/two');
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(String(url)).toContain('/files/item%2Fone/permissions/grant%2Ftwo');
+    expect(init.method).toBe('DELETE');
+    await expect(drive.deletePermission('item/one', '')).rejects.toMatchObject({
+      code: 'INVALID_INPUT'
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('requires explicit approval before a remembered restricted-share choice', () => {
     expect(
       parseLibraryShareCopyRequest({

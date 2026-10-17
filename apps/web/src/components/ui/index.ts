@@ -25,7 +25,16 @@ export type { CardProps, CardRole, SeparatorProps } from './Card';
 export { Alert } from './Alert';
 export type { AlertProps } from './Alert';
 
-export { FormField, Input, InputNumber, InputTags, Select, SearchField, Textarea } from './Field';
+export {
+  FormField,
+  Input,
+  InputNumber,
+  InputTags,
+  Select,
+  SelectMenu,
+  SearchField,
+  Textarea
+} from './Field';
 export type {
   FieldProps,
   InputNumberProps,
@@ -122,3 +131,6 @@ export {
   type RangeCalendarProps,
   type DateRange
 } from './DateField';
+
+export { DurationSlider } from './DurationSlider';
+export { StageProgress, type ProgressStage } from './StageProgress';

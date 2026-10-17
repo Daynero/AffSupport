@@ -95,8 +95,8 @@ describe('the rebuilt sheet', () => {
     const copy = 'https://drive.google.com/file/d/copy/view?usp=sharing';
     const rows = rebuildCatalogRows({ record, videoLinkOverride: copy });
     const links = rows.slice(2).map(row => row[CATALOG_UPDATER_COLUMNS.video]!.v);
-    expect(links[0]).toBe(`${copy}?v=001`);
-    expect(links[99]).toBe(`${copy}?v=100`);
+    expect(links[0]).toBe(`${copy}&v=001`);
+    expect(links[99]).toBe(`${copy}&v=100`);
     expect(new Set(links).size).toBe(100);
   });
 });

@@ -116,6 +116,15 @@ insert into public.role_permissions (role, permission, allowed) values
   ('viewer', 'manage_metadata', false);
 
 insert into public.team_error_codes (code) values
+  ('LAUNCH_VERSION_CONFLICT'),
+  ('LAUNCH_BUSY'),
+  ('LAUNCH_URL_INVALID'),
+  ('LAUNCH_SUB_INVALID'),
+  ('LAUNCH_BUDGET_INVALID'),
+  ('LAUNCH_RESULT_UNCERTAIN'),
+  ('LAUNCH_INTERNAL_ERROR'),
+  ('PROCESS_CANCELED'),
+  ('PROCESS_FAILED'),
   ('FINANCE_CLIENT_UPGRADE_REQUIRED'),
   ('FINANCE_HISTORY_PROTECTED'),
   ('FINANCE_AMOUNT_INVALID'),
@@ -178,7 +187,13 @@ insert into public.team_error_codes (code) values
   ('RESTITCH_SOURCES_INVALID'),
   ('RESTITCH_SOURCES_TOO_MANY'),
   ('RESTITCH_CLIENT_OUTDATED'),
-  ('UPLOAD_SESSION_UNAVAILABLE');
+  ('UPLOAD_SESSION_UNAVAILABLE'),
+  ('SEATS_FULL'),
+  ('SEATS_IN_USE'),
+  ('SPACE_BLOCKED'),
+  ('TARIFF_BOUND'),
+  ('LEGACY_SPACES_REMAIN'),
+  ('TARIFF_DATE_INVALID');
 
 insert into public.geo_options (code) values
   ('AD'),

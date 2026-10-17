@@ -412,3 +412,22 @@ describe('dialogs worth coming back to', () => {
     });
   });
 });
+
+describe('Launch navigation', () => {
+  it('round-trips only Launch route identifiers without leaking configuration', () => {
+    const address = buildTeamRoute({
+      spaceId: 'space',
+      section: 'launches',
+      query: { launchId: 'launch-id', launchTab: 'result', revisionId: 'revision-id' }
+    });
+    expect(address).toBe(
+      '/team/space/launches?launch=launch-id&launchTab=result&revision=revision-id'
+    );
+    const parsed = parseTeamRoute(address);
+    expect(parsed?.kind).toBe('space');
+    if (parsed?.kind === 'space') expect(parsed.query.launchId).toBe('launch-id');
+    expect(
+      buildTeamRoute({ spaceId: 'space', section: 'tasks', query: { launchId: 'launch-id' } })
+    ).toBe('/team/space/tasks');
+  });
+});

@@ -19,6 +19,7 @@ export type GeneratedDatabase = {
           created_at: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           user_id: string;
@@ -26,6 +27,105 @@ export type GeneratedDatabase = {
         Update: {
           created_at?: string;
           user_id?: string;
+        };
+        Relationships: [];
+      };
+      agent_journal_records: {
+        Row: {
+          agent_instance_id: string;
+          category: string;
+          code: string;
+          id: number;
+          installation_id: string | null;
+          props: NonNullable<Json>;
+          received_at: string;
+          recorded_at: string;
+          seq: number;
+          user_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          agent_instance_id: string;
+          category: string;
+          code: string;
+          id?: never;
+          installation_id?: string | null;
+          props?: NonNullable<Json>;
+          received_at?: string;
+          recorded_at: string;
+          seq: number;
+          user_id?: string | null;
+        };
+        Update: {
+          agent_instance_id?: string;
+          category?: string;
+          code?: string;
+          id?: never;
+          installation_id?: string | null;
+          props?: NonNullable<Json>;
+          received_at?: string;
+          recorded_at?: string;
+          seq?: number;
+          user_id?: string | null;
+        };
+        Relationships: [];
+      };
+      analytics_daily_events: {
+        Row: {
+          count: number;
+          day: string;
+          event_name: string;
+          users: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          count?: number;
+          day: string;
+          event_name: string;
+          users?: number;
+        };
+        Update: {
+          count?: number;
+          day?: string;
+          event_name?: string;
+          users?: number;
+        };
+        Relationships: [];
+      };
+      analytics_daily_tool_outcomes: {
+        Row: {
+          cancellations: number;
+          completions: number;
+          day: string;
+          failures: number;
+          local_app_version: string;
+          platform: string;
+          starts: number;
+          tool: string;
+          users: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          cancellations?: number;
+          completions?: number;
+          day: string;
+          failures?: number;
+          local_app_version: string;
+          platform: string;
+          starts?: number;
+          tool: string;
+          users?: number;
+        };
+        Update: {
+          cancellations?: number;
+          completions?: number;
+          day?: string;
+          failures?: number;
+          local_app_version?: string;
+          platform?: string;
+          starts?: number;
+          tool?: string;
+          users?: number;
         };
         Relationships: [];
       };
@@ -68,6 +168,7 @@ export type GeneratedDatabase = {
           user_id: string | null;
           web_build_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           action?: string | null;
           agent_instance_id?: string | null;
@@ -150,6 +251,7 @@ export type GeneratedDatabase = {
         Row: {
           code: string;
         };
+        ComputedFields: never;
         Insert: {
           code: string;
         };
@@ -162,6 +264,7 @@ export type GeneratedDatabase = {
         Row: {
           code: string;
         };
+        ComputedFields: never;
         Insert: {
           code: string;
         };
@@ -188,6 +291,7 @@ export type GeneratedDatabase = {
           transcript_delete_pref: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           account_status?: string;
           avatar_url?: string | null;
@@ -230,6 +334,7 @@ export type GeneratedDatabase = {
           permission: string;
           role: string;
         };
+        ComputedFields: never;
         Insert: {
           allowed: boolean;
           permission: string;
@@ -257,6 +362,219 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      space_tariff_events: {
+        Row: {
+          actor_id: string | null;
+          after: Json | null;
+          before: Json | null;
+          created_at: string;
+          id: string;
+          kind: string;
+          tariff_id: string | null;
+          team_id: string | null;
+          toast_acked_at: string | null;
+          undone_at: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          after?: Json | null;
+          before?: Json | null;
+          created_at?: string;
+          id?: string;
+          kind: string;
+          tariff_id?: string | null;
+          team_id?: string | null;
+          toast_acked_at?: string | null;
+          undone_at?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          after?: Json | null;
+          before?: Json | null;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          tariff_id?: string | null;
+          team_id?: string | null;
+          toast_acked_at?: string | null;
+          undone_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'space_tariff_events_tariff_id_fkey';
+            columns: ['tariff_id'];
+            isOneToOne: false;
+            referencedRelation: 'space_tariffs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'space_tariff_events_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      space_tariff_notices: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          id: string;
+          kind: string;
+          last_error: string | null;
+          lease_until: string | null;
+          period_end: string;
+          requested_by: string | null;
+          sent_at: string | null;
+          state: string;
+          tariff_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          id?: string;
+          kind: string;
+          last_error?: string | null;
+          lease_until?: string | null;
+          period_end: string;
+          requested_by?: string | null;
+          sent_at?: string | null;
+          state?: string;
+          tariff_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          last_error?: string | null;
+          lease_until?: string | null;
+          period_end?: string;
+          requested_by?: string | null;
+          sent_at?: string | null;
+          state?: string;
+          tariff_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'space_tariff_notices_requested_by_fkey';
+            columns: ['requested_by'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'space_tariff_notices_requested_by_fkey';
+            columns: ['requested_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'space_tariff_notices_tariff_id_fkey';
+            columns: ['tariff_id'];
+            isOneToOne: false;
+            referencedRelation: 'space_tariffs';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      space_tariffs: {
+        Row: {
+          bound_at: string | null;
+          claimed_at: string | null;
+          created_at: string;
+          ends_on: string;
+          external_ref: string | null;
+          extra_seats: number;
+          granted_by: string | null;
+          id: string;
+          note: string | null;
+          owner_email: string;
+          owner_id: string | null;
+          plan_code: string;
+          revoked_at: string | null;
+          source: string;
+          starts_at: string;
+          team_id: string | null;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          bound_at?: string | null;
+          claimed_at?: string | null;
+          created_at?: string;
+          ends_on: string;
+          external_ref?: string | null;
+          extra_seats?: number;
+          granted_by?: string | null;
+          id?: string;
+          note?: string | null;
+          owner_email: string;
+          owner_id?: string | null;
+          plan_code: string;
+          revoked_at?: string | null;
+          source?: string;
+          starts_at?: string;
+          team_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          bound_at?: string | null;
+          claimed_at?: string | null;
+          created_at?: string;
+          ends_on?: string;
+          external_ref?: string | null;
+          extra_seats?: number;
+          granted_by?: string | null;
+          id?: string;
+          note?: string | null;
+          owner_email?: string;
+          owner_id?: string | null;
+          plan_code?: string;
+          revoked_at?: string | null;
+          source?: string;
+          starts_at?: string;
+          team_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'space_tariffs_owner_id_fkey';
+            columns: ['owner_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'space_tariffs_owner_id_fkey';
+            columns: ['owner_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'space_tariffs_plan_code_fkey';
+            columns: ['plan_code'];
+            isOneToOne: false;
+            referencedRelation: 'tariff_plans';
+            referencedColumns: ['code'];
+          },
+          {
+            foreignKeyName: 'space_tariffs_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       support_goals: {
         Row: {
           created_at: string;
@@ -272,6 +590,7 @@ export type GeneratedDatabase = {
           title_uk: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           currency?: string;
@@ -302,6 +621,120 @@ export type GeneratedDatabase = {
         };
         Relationships: [];
       };
+      tariff_plans: {
+        Row: {
+          active: boolean;
+          base_seats: number;
+          billing_period: string | null;
+          code: string;
+          created_at: string;
+          extra_seats_allowed: boolean;
+          features: string[];
+          highlight: boolean;
+          invites_allowed: boolean;
+          max_extra_seats: number | null;
+          name_en: string;
+          name_uk: string;
+          showcase: boolean;
+          sort_order: number;
+          summary_en: string;
+          summary_uk: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          active?: boolean;
+          base_seats: number;
+          billing_period?: string | null;
+          code: string;
+          created_at?: string;
+          extra_seats_allowed?: boolean;
+          features?: string[];
+          highlight?: boolean;
+          invites_allowed?: boolean;
+          max_extra_seats?: number | null;
+          name_en: string;
+          name_uk: string;
+          showcase?: boolean;
+          sort_order?: number;
+          summary_en?: string;
+          summary_uk?: string;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          base_seats?: number;
+          billing_period?: string | null;
+          code?: string;
+          created_at?: string;
+          extra_seats_allowed?: boolean;
+          features?: string[];
+          highlight?: boolean;
+          invites_allowed?: boolean;
+          max_extra_seats?: number | null;
+          name_en?: string;
+          name_uk?: string;
+          showcase?: boolean;
+          sort_order?: number;
+          summary_en?: string;
+          summary_uk?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      tariff_settings: {
+        Row: {
+          admin_email: string | null;
+          admin_telegram: string | null;
+          id: boolean;
+          legacy_rule_enabled: boolean;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          admin_email?: string | null;
+          admin_telegram?: string | null;
+          id?: boolean;
+          legacy_rule_enabled?: boolean;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          admin_email?: string | null;
+          admin_telegram?: string | null;
+          id?: boolean;
+          legacy_rule_enabled?: boolean;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [];
+      };
+      tariff_settings_events: {
+        Row: {
+          actor_id: string | null;
+          after: Json | null;
+          before: Json | null;
+          created_at: string;
+          id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          after?: Json | null;
+          before?: Json | null;
+          created_at?: string;
+          id?: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          after?: Json | null;
+          before?: Json | null;
+          created_at?: string;
+          id?: string;
+        };
+        Relationships: [];
+      };
       team_account_agents: {
         Row: {
           account_id: string;
@@ -314,6 +747,7 @@ export type GeneratedDatabase = {
           topup: number | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_id: string;
@@ -362,6 +796,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           created_by: string;
@@ -405,6 +840,7 @@ export type GeneratedDatabase = {
           request_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           actor_id?: string | null;
@@ -480,6 +916,7 @@ export type GeneratedDatabase = {
           team_id: string;
           topup_imported_event_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_row_id: string;
@@ -536,6 +973,7 @@ export type GeneratedDatabase = {
           team_id: string;
           undone_by_request_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           created_at?: string;
@@ -579,6 +1017,7 @@ export type GeneratedDatabase = {
           updated_by: string | null;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_row_id: string;
@@ -647,6 +1086,7 @@ export type GeneratedDatabase = {
           label_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           agent_row_id: string;
           attached_at?: string;
@@ -697,6 +1137,7 @@ export type GeneratedDatabase = {
           team_id: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_row_id: string;
@@ -750,6 +1191,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           agent_row_id: string;
           created_at?: string;
@@ -792,34 +1234,47 @@ export type GeneratedDatabase = {
           actor_id: string | null;
           agent_row_id: string;
           effective_on: string;
-          from_placement_id: string;
+          from_account_id: string | null;
+          from_account_name: string | null;
+          from_placement_id: string | null;
           id: string;
           occurred_at: string;
           request_id: string;
           team_id: string;
-          to_placement_id: string;
+          to_account_id: string | null;
+          to_account_name: string | null;
+          to_placement_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           agent_row_id: string;
           effective_on: string;
-          from_placement_id: string;
+          from_account_id?: string | null;
+          from_account_name?: string | null;
+          from_placement_id?: string | null;
           id?: string;
           occurred_at?: string;
           request_id: string;
           team_id: string;
-          to_placement_id: string;
+          to_account_id?: string | null;
+          to_account_name?: string | null;
+          to_placement_id?: string | null;
         };
         Update: {
           actor_id?: string | null;
           agent_row_id?: string;
           effective_on?: string;
-          from_placement_id?: string;
+          from_account_id?: string | null;
+          from_account_name?: string | null;
+          from_placement_id?: string | null;
           id?: string;
           occurred_at?: string;
           request_id?: string;
           team_id?: string;
-          to_placement_id?: string;
+          to_account_id?: string | null;
+          to_account_name?: string | null;
+          to_placement_id?: string | null;
         };
         Relationships: [
           {
@@ -864,6 +1319,7 @@ export type GeneratedDatabase = {
           target: NonNullable<Json>;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           action: string;
           actor_id?: string | null;
@@ -905,6 +1361,7 @@ export type GeneratedDatabase = {
           parent_folder_id: string | null;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           event_kind: string;
           id?: number;
@@ -945,6 +1402,7 @@ export type GeneratedDatabase = {
           shared_link: string | null;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           catalog_material_id?: string | null;
           created_at?: string;
@@ -1009,6 +1467,7 @@ export type GeneratedDatabase = {
           team_id: string;
           update_interval: string | null;
         };
+        ComputedFields: never;
         Insert: {
           added_at?: string;
           attempts?: number;
@@ -1054,10 +1513,10 @@ export type GeneratedDatabase = {
       };
       team_catalog_updaters: {
         Row: {
-          paused_by_tariff_at: string | null;
-          random_link_variation: boolean | null;
           grow_products: boolean;
           next_run_at: string | null;
+          paused_by_tariff_at: string | null;
+          random_link_variation: boolean | null;
           refresh_images: boolean;
           refresh_texts: boolean;
           restitch: boolean;
@@ -1069,11 +1528,12 @@ export type GeneratedDatabase = {
           updated_at: string;
           updated_by: string | null;
         };
+        ComputedFields: never;
         Insert: {
-          paused_by_tariff_at?: string | null;
-          random_link_variation?: boolean | null;
           grow_products?: boolean;
           next_run_at?: string | null;
+          paused_by_tariff_at?: string | null;
+          random_link_variation?: boolean | null;
           refresh_images?: boolean;
           refresh_texts?: boolean;
           restitch?: boolean;
@@ -1086,10 +1546,10 @@ export type GeneratedDatabase = {
           updated_by?: string | null;
         };
         Update: {
-          paused_by_tariff_at?: string | null;
-          random_link_variation?: boolean | null;
           grow_products?: boolean;
           next_run_at?: string | null;
+          paused_by_tariff_at?: string | null;
+          random_link_variation?: boolean | null;
           refresh_images?: boolean;
           refresh_texts?: boolean;
           restitch?: boolean;
@@ -1116,6 +1576,7 @@ export type GeneratedDatabase = {
           key: string;
           value: NonNullable<Json>;
         };
+        ComputedFields: never;
         Insert: {
           key: string;
           value: NonNullable<Json>;
@@ -1137,6 +1598,7 @@ export type GeneratedDatabase = {
           outcome: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           action_kind: string;
           actor_id: string;
@@ -1192,6 +1654,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           access_expires_at?: string | null;
           capabilities_checked_at?: string | null;
@@ -1266,6 +1729,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           connection_id: string;
           created_at?: string;
@@ -1317,6 +1781,7 @@ export type GeneratedDatabase = {
         Row: {
           code: string;
         };
+        ComputedFields: never;
         Insert: {
           code: string;
         };
@@ -1343,6 +1808,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           accept_token_hash: string;
           created_at?: string;
@@ -1405,6 +1871,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           color?: string;
           created_at?: string;
@@ -1452,6 +1919,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           artifact_root?: string | null;
           created_at?: string;
@@ -1501,6 +1969,678 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      team_launch_buyers: {
+        Row: {
+          archived_at: string | null;
+          created_at: string;
+          created_by: string;
+          id: string;
+          normalized_key: string;
+          team_id: string;
+          updated_at: string;
+          value: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          archived_at?: string | null;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          normalized_key: string;
+          team_id: string;
+          updated_at?: string;
+          value: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          normalized_key?: string;
+          team_id?: string;
+          updated_at?: string;
+          value?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_buyers_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_launch_campaigns: {
+        Row: {
+          ad_end: number;
+          ad_start: number;
+          budget_usd: number;
+          name: string;
+          ordinal: number;
+          revision_id: string;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          ad_end: number;
+          ad_start: number;
+          budget_usd: number;
+          name: string;
+          ordinal: number;
+          revision_id: string;
+          team_id: string;
+        };
+        Update: {
+          ad_end?: number;
+          ad_start?: number;
+          budget_usd?: number;
+          name?: string;
+          ordinal?: number;
+          revision_id?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_campaigns_revision_id_team_id_fkey';
+            columns: ['revision_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_revisions';
+            referencedColumns: ['id', 'team_id'];
+          }
+        ];
+      };
+      team_launch_defaults: {
+        Row: {
+          config: NonNullable<Json>;
+          schema_version: number;
+          sub_config: NonNullable<Json>;
+          team_id: string;
+          updated_at: string;
+          updated_by: string;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          config?: NonNullable<Json>;
+          schema_version?: number;
+          sub_config?: NonNullable<Json>;
+          team_id: string;
+          updated_at?: string;
+          updated_by: string;
+          version?: number;
+        };
+        Update: {
+          config?: NonNullable<Json>;
+          schema_version?: number;
+          sub_config?: NonNullable<Json>;
+          team_id?: string;
+          updated_at?: string;
+          updated_by?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_defaults_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_launch_generation_steps: {
+        Row: {
+          attempt_no: number;
+          checkpoint: NonNullable<Json>;
+          created_at: string;
+          fence: number;
+          generation_id: string;
+          id: string;
+          input_signature: string | null;
+          provider_file_id: string | null;
+          provider_intent_key: string | null;
+          reserved_variant: number | null;
+          result_material_id: string | null;
+          safe_error_code: string | null;
+          stable_step_key: string;
+          stage: string;
+          state: string;
+          team_id: string;
+          team_operation_id: string | null;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempt_no?: number;
+          checkpoint?: NonNullable<Json>;
+          created_at?: string;
+          fence?: number;
+          generation_id: string;
+          id?: string;
+          input_signature?: string | null;
+          provider_file_id?: string | null;
+          provider_intent_key?: string | null;
+          reserved_variant?: number | null;
+          result_material_id?: string | null;
+          safe_error_code?: string | null;
+          stable_step_key: string;
+          stage: string;
+          state?: string;
+          team_id: string;
+          team_operation_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          attempt_no?: number;
+          checkpoint?: NonNullable<Json>;
+          created_at?: string;
+          fence?: number;
+          generation_id?: string;
+          id?: string;
+          input_signature?: string | null;
+          provider_file_id?: string | null;
+          provider_intent_key?: string | null;
+          reserved_variant?: number | null;
+          result_material_id?: string | null;
+          safe_error_code?: string | null;
+          stable_step_key?: string;
+          stage?: string;
+          state?: string;
+          team_id?: string;
+          team_operation_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_generation_steps_generation_id_team_id_fkey';
+            columns: ['generation_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_launch_generations';
+            referencedColumns: ['generation_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_generation_steps_generation_id_team_id_fkey';
+            columns: ['generation_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_generations';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_generation_steps_team_operation_id_fkey';
+            columns: ['team_operation_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_launch_generations: {
+        Row: {
+          actor_id: string;
+          attempt_no: number;
+          cancel_requested_at: string | null;
+          catalog_retry_from_attempt: number | null;
+          created_at: string;
+          fence: number;
+          id: string;
+          input_version: string;
+          launch_id: string;
+          lease_expires_at: string | null;
+          lease_owner: string | null;
+          next_attempt_at: string | null;
+          progress: Json | null;
+          request_digest: string;
+          request_key: string;
+          retryable: boolean;
+          revision_id: string;
+          safe_error_code: string | null;
+          stage: string;
+          state: string;
+          state_version: number;
+          team_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id: string;
+          attempt_no?: number;
+          cancel_requested_at?: string | null;
+          catalog_retry_from_attempt?: number | null;
+          created_at?: string;
+          fence?: number;
+          id?: string;
+          input_version: string;
+          launch_id: string;
+          lease_expires_at?: string | null;
+          lease_owner?: string | null;
+          next_attempt_at?: string | null;
+          progress?: Json | null;
+          request_digest: string;
+          request_key: string;
+          retryable?: boolean;
+          revision_id: string;
+          safe_error_code?: string | null;
+          stage?: string;
+          state?: string;
+          state_version?: number;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          actor_id?: string;
+          attempt_no?: number;
+          cancel_requested_at?: string | null;
+          catalog_retry_from_attempt?: number | null;
+          created_at?: string;
+          fence?: number;
+          id?: string;
+          input_version?: string;
+          launch_id?: string;
+          lease_expires_at?: string | null;
+          lease_owner?: string | null;
+          next_attempt_at?: string | null;
+          progress?: Json | null;
+          request_digest?: string;
+          request_key?: string;
+          retryable?: boolean;
+          revision_id?: string;
+          safe_error_code?: string | null;
+          stage?: string;
+          state?: string;
+          state_version?: number;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_generations_launch_id_team_id_fkey';
+            columns: ['launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launches';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_generations_revision_id_launch_id_team_id_fkey';
+            columns: ['revision_id', 'launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_revisions';
+            referencedColumns: ['id', 'launch_id', 'team_id'];
+          }
+        ];
+      };
+      team_launch_member_preferences: {
+        Row: {
+          suppress_catalog_retention_warning: boolean;
+          team_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          suppress_catalog_retention_warning?: boolean;
+          team_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          suppress_catalog_retention_warning?: boolean;
+          team_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_member_preferences_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_launch_offers: {
+        Row: {
+          archived_at: string | null;
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          normalized_key: string;
+          team_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          archived_at?: string | null;
+          created_at?: string;
+          created_by: string;
+          id?: string;
+          name: string;
+          normalized_key: string;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          name?: string;
+          normalized_key?: string;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_offers_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_launch_requests: {
+        Row: {
+          action: string;
+          actor_id: string;
+          created_at: string;
+          digest: string;
+          request_key: string;
+          result: NonNullable<Json>;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          action: string;
+          actor_id: string;
+          created_at?: string;
+          digest: string;
+          request_key: string;
+          result: NonNullable<Json>;
+          team_id: string;
+        };
+        Update: {
+          action?: string;
+          actor_id?: string;
+          created_at?: string;
+          digest?: string;
+          request_key?: string;
+          result?: NonNullable<Json>;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_requests_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_launch_revision_catalogs: {
+        Row: {
+          catalog_id: string;
+          material_id: string;
+          name_snapshot: string;
+          restitch_material_id: string | null;
+          restitch_operation_id: string | null;
+          revision_id: string;
+          settings_snapshot: NonNullable<Json>;
+          sheet_url: string;
+          team_id: string;
+          variant: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          catalog_id: string;
+          material_id: string;
+          name_snapshot: string;
+          restitch_material_id?: string | null;
+          restitch_operation_id?: string | null;
+          revision_id: string;
+          settings_snapshot: NonNullable<Json>;
+          sheet_url: string;
+          team_id: string;
+          variant: number;
+        };
+        Update: {
+          catalog_id?: string;
+          material_id?: string;
+          name_snapshot?: string;
+          restitch_material_id?: string | null;
+          restitch_operation_id?: string | null;
+          revision_id?: string;
+          settings_snapshot?: NonNullable<Json>;
+          sheet_url?: string;
+          team_id?: string;
+          variant?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_revision_catalogs_revision_id_team_id_fkey';
+            columns: ['revision_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_revisions';
+            referencedColumns: ['id', 'team_id'];
+          }
+        ];
+      };
+      team_launch_revisions: {
+        Row: {
+          base_revision_id: string | null;
+          baseline_revision_id: string | null;
+          config: NonNullable<Json>;
+          created_at: string;
+          created_by: string;
+          generated_url: string;
+          generator_versions: NonNullable<Json>;
+          id: string;
+          launch_id: string;
+          original_url: string;
+          result_kind: string;
+          result_overrides: NonNullable<Json>;
+          revision_no: number;
+          sources: NonNullable<Json>;
+          sub_values: NonNullable<Json>;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          base_revision_id?: string | null;
+          baseline_revision_id?: string | null;
+          config: NonNullable<Json>;
+          created_at?: string;
+          created_by: string;
+          generated_url: string;
+          generator_versions?: NonNullable<Json>;
+          id?: string;
+          launch_id: string;
+          original_url: string;
+          result_kind: string;
+          result_overrides?: NonNullable<Json>;
+          revision_no: number;
+          sources: NonNullable<Json>;
+          sub_values: NonNullable<Json>;
+          team_id: string;
+        };
+        Update: {
+          base_revision_id?: string | null;
+          baseline_revision_id?: string | null;
+          config?: NonNullable<Json>;
+          created_at?: string;
+          created_by?: string;
+          generated_url?: string;
+          generator_versions?: NonNullable<Json>;
+          id?: string;
+          launch_id?: string;
+          original_url?: string;
+          result_kind?: string;
+          result_overrides?: NonNullable<Json>;
+          revision_no?: number;
+          sources?: NonNullable<Json>;
+          sub_values?: NonNullable<Json>;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_revisions_base_revision_id_launch_id_team_id_fkey';
+            columns: ['base_revision_id', 'launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_revisions';
+            referencedColumns: ['id', 'launch_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_revisions_baseline_revision_id_launch_id_team__fkey';
+            columns: ['baseline_revision_id', 'launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_revisions';
+            referencedColumns: ['id', 'launch_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_revisions_launch_id_team_id_fkey';
+            columns: ['launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launches';
+            referencedColumns: ['id', 'team_id'];
+          }
+        ];
+      };
+      team_launch_signals: {
+        Row: {
+          launch_id: string;
+          team_id: string;
+          updated_at: string;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          launch_id: string;
+          team_id: string;
+          updated_at?: string;
+          version: number;
+        };
+        Update: {
+          launch_id?: string;
+          team_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_signals_launch_id_team_id_fkey';
+            columns: ['launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launches';
+            referencedColumns: ['id', 'team_id'];
+          }
+        ];
+      };
+      team_launch_workspace_signals: {
+        Row: {
+          team_id: string;
+          updated_at: string;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          team_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          team_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_workspace_signals_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_launches: {
+        Row: {
+          active_revision_id: string | null;
+          aggregate_version: number;
+          archived_at: string | null;
+          assignee_id: string | null;
+          assignee_label_snapshot: string | null;
+          copied_from_launch_id: string | null;
+          copied_from_revision_id: string | null;
+          created_at: string;
+          created_by: string;
+          draft_config: NonNullable<Json>;
+          draft_version: number;
+          effective_launch_date: string | null;
+          expected_source_snapshot: Json | null;
+          id: string;
+          team_id: string;
+          updated_at: string;
+          work_status: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          active_revision_id?: string | null;
+          aggregate_version?: number;
+          archived_at?: string | null;
+          assignee_id?: string | null;
+          assignee_label_snapshot?: string | null;
+          copied_from_launch_id?: string | null;
+          copied_from_revision_id?: string | null;
+          created_at?: string;
+          created_by: string;
+          draft_config?: NonNullable<Json>;
+          draft_version?: number;
+          effective_launch_date?: string | null;
+          expected_source_snapshot?: Json | null;
+          id?: string;
+          team_id: string;
+          updated_at?: string;
+          work_status?: string;
+        };
+        Update: {
+          active_revision_id?: string | null;
+          aggregate_version?: number;
+          archived_at?: string | null;
+          assignee_id?: string | null;
+          assignee_label_snapshot?: string | null;
+          copied_from_launch_id?: string | null;
+          copied_from_revision_id?: string | null;
+          created_at?: string;
+          created_by?: string;
+          draft_config?: NonNullable<Json>;
+          draft_version?: number;
+          effective_launch_date?: string | null;
+          expected_source_snapshot?: Json | null;
+          id?: string;
+          team_id?: string;
+          updated_at?: string;
+          work_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launches_active_revision_id_id_team_id_fkey';
+            columns: ['active_revision_id', 'id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_revisions';
+            referencedColumns: ['id', 'launch_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launches_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_library_requirements: {
         Row: {
           completed_at: string | null;
@@ -1516,6 +2656,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           variant: string;
         };
+        ComputedFields: never;
         Insert: {
           completed_at?: string | null;
           created_at?: string;
@@ -1584,6 +2725,7 @@ export type GeneratedDatabase = {
           team_id: string;
           variant: string;
         };
+        ComputedFields: never;
         Insert: {
           accepted_attempt_id: string;
           accepted_by: string;
@@ -1658,6 +2800,7 @@ export type GeneratedDatabase = {
           tool_contract_version: number | null;
           tool_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           created_by: string;
@@ -1719,6 +2862,7 @@ export type GeneratedDatabase = {
           team_id: string;
           unsupported_reason: string | null;
         };
+        ComputedFields: never;
         Insert: {
           detected_end_seconds?: number;
           detected_start_seconds?: number;
@@ -1832,6 +2976,7 @@ export type GeneratedDatabase = {
           trashed_at: string | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           audio_fingerprint?: string | null;
           catalog_mutation_xid?: number;
@@ -2036,6 +3181,7 @@ export type GeneratedDatabase = {
           final_duration_mode: string;
           fit_mode: string;
           operation: string;
+          source_mode: string;
           start_duration_mode: string;
           start_enabled: boolean;
           start_image_ids: string[];
@@ -2044,6 +3190,7 @@ export type GeneratedDatabase = {
           use_owner: boolean;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           configured?: boolean;
           custom_final_duration_seconds?: number;
@@ -2053,6 +3200,7 @@ export type GeneratedDatabase = {
           final_duration_mode?: string;
           fit_mode?: string;
           operation?: string;
+          source_mode?: string;
           start_duration_mode?: string;
           start_enabled?: boolean;
           start_image_ids?: string[];
@@ -2070,6 +3218,7 @@ export type GeneratedDatabase = {
           final_duration_mode?: string;
           fit_mode?: string;
           operation?: string;
+          source_mode?: string;
           start_duration_mode?: string;
           start_enabled?: boolean;
           start_image_ids?: string[];
@@ -2101,6 +3250,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           base_role: string;
           created_at?: string;
@@ -2167,6 +3317,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           bytes_completed?: number;
@@ -2250,6 +3401,7 @@ export type GeneratedDatabase = {
         Row: {
           permission: string;
         };
+        ComputedFields: never;
         Insert: {
           permission: string;
         };
@@ -2265,6 +3417,7 @@ export type GeneratedDatabase = {
           material_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           kind: string;
@@ -2307,6 +3460,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           updated_by: string | null;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           description?: string | null;
@@ -2350,6 +3504,7 @@ export type GeneratedDatabase = {
           title: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           description: string;
           id?: string;
@@ -2394,6 +3549,7 @@ export type GeneratedDatabase = {
           video_link: string;
           video_material_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           created_by?: string | null;
@@ -2463,6 +3619,7 @@ export type GeneratedDatabase = {
           final_duration_mode: string;
           fit_mode: string;
           operation: string;
+          source_mode: string;
           start_duration_mode: string;
           start_enabled: boolean;
           start_image_ids: string[];
@@ -2470,6 +3627,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           updated_by: string | null;
         };
+        ComputedFields: never;
         Insert: {
           configured?: boolean;
           created_at?: string;
@@ -2480,6 +3638,7 @@ export type GeneratedDatabase = {
           final_duration_mode?: string;
           fit_mode?: string;
           operation?: string;
+          source_mode?: string;
           start_duration_mode?: string;
           start_enabled?: boolean;
           start_image_ids?: string[];
@@ -2497,6 +3656,7 @@ export type GeneratedDatabase = {
           final_duration_mode?: string;
           fit_mode?: string;
           operation?: string;
+          source_mode?: string;
           start_duration_mode?: string;
           start_enabled?: boolean;
           start_image_ids?: string[];
@@ -2514,11 +3674,67 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      team_restitch_sources: {
+        Row: {
+          added_at: string;
+          added_by: string | null;
+          drive_file_id: string | null;
+          id: string;
+          kind: string;
+          material_id: string | null;
+          slot: string;
+          sort_order: number;
+          team_id: string;
+          user_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          added_at?: string;
+          added_by?: string | null;
+          drive_file_id?: string | null;
+          id?: string;
+          kind: string;
+          material_id?: string | null;
+          slot: string;
+          sort_order?: number;
+          team_id: string;
+          user_id?: string | null;
+        };
+        Update: {
+          added_at?: string;
+          added_by?: string | null;
+          drive_file_id?: string | null;
+          id?: string;
+          kind?: string;
+          material_id?: string | null;
+          slot?: string;
+          sort_order?: number;
+          team_id?: string;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_restitch_sources_material_id_fkey';
+            columns: ['material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_restitch_sources_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_roles: {
         Row: {
           is_base_role: boolean;
           role: string;
         };
+        ComputedFields: never;
         Insert: {
           is_base_role: boolean;
           role: string;
@@ -2537,6 +3753,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           allow_link_on_copy?: boolean;
           created_at?: string;
@@ -2572,9 +3789,10 @@ export type GeneratedDatabase = {
           task_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
-          account_id?: string;
-          account_name_snapshot?: string;
+          account_id: string;
+          account_name_snapshot: string;
           agent_row_id: string;
           attached_at?: string;
           attached_by: string;
@@ -2626,6 +3844,7 @@ export type GeneratedDatabase = {
           task_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           attached_at?: string;
           attached_by: string;
@@ -2677,6 +3896,7 @@ export type GeneratedDatabase = {
           task_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           attached_at?: string;
           attached_by: string;
@@ -2735,6 +3955,7 @@ export type GeneratedDatabase = {
           title: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           assignee_id?: string | null;
           assignee_label_snapshot?: string | null;
@@ -2797,6 +4018,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           batch_id: string;
           client_item_key: string;
@@ -2881,6 +4103,7 @@ export type GeneratedDatabase = {
           type_hint: string | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           created_at?: string;
@@ -2949,6 +4172,7 @@ export type GeneratedDatabase = {
           team_id: string;
           verified_at: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           drive_folder_id: string;
@@ -2984,6 +4208,7 @@ export type GeneratedDatabase = {
           plan_interest: string | null;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           admin_note?: string | null;
           channel?: string | null;
@@ -3031,6 +4256,7 @@ export type GeneratedDatabase = {
           task_progress_max_default: number | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           id?: string;
@@ -3057,6 +4283,7 @@ export type GeneratedDatabase = {
           email: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           email: string;
@@ -3086,6 +4313,106 @@ export type GeneratedDatabase = {
       };
     };
     Views: {
+      analytics_catalog_sync_jobs: {
+        Row: {
+          attempts: number | null;
+          cancel_requested_at: string | null;
+          canonical_error_code: string | null;
+          canonical_job_id: string | null;
+          canonical_next_attempt_at: string | null;
+          canonical_state: string | null;
+          completed_at: string | null;
+          confirmed_at: string | null;
+          confirmed_sequence: number | null;
+          connection_id: string | null;
+          connection_state: string | null;
+          created_at: string | null;
+          detached_at: string | null;
+          error_detail: string | null;
+          files_added: number | null;
+          files_listed: number | null;
+          files_removed: number | null;
+          files_updated: number | null;
+          folders_done: number | null;
+          items_unavailable: number | null;
+          job_id: string | null;
+          job_kind: string | null;
+          last_error_code: string | null;
+          last_progress_at: string | null;
+          last_recovery_at: string | null;
+          lease_epoch: number | null;
+          lease_expires_at: string | null;
+          lease_lost_count: number | null;
+          next_attempt_at: string | null;
+          no_progress_runs: number | null;
+          owner_email_normalized: string | null;
+          phase: string | null;
+          recovery_count: number | null;
+          replay_after: number | null;
+          request_id: string | null;
+          request_key_hash: string | null;
+          request_outcome: string | null;
+          requested_by: string | null;
+          run_count: number | null;
+          scan_completed_at: string | null;
+          scope_hash: string | null;
+          state: string | null;
+          team_id: string | null;
+          updated_at: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'team_drive_connections_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_launch_generations: {
+        Row: {
+          actor_id: string | null;
+          attempt_no: number | null;
+          cancel_requested_at: string | null;
+          catalog_registered: boolean | null;
+          created_at: string | null;
+          flow_id: string | null;
+          generation_id: string | null;
+          launch_id: string | null;
+          lease_expires_at: string | null;
+          method: string | null;
+          next_attempt_at: string | null;
+          result_is_active: boolean | null;
+          retryable: boolean | null;
+          revision_id: string | null;
+          safe_error_code: string | null;
+          stage: string | null;
+          state: string | null;
+          state_version: string | null;
+          steps: Json | null;
+          team_id: string | null;
+          updated_at: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_generations_launch_id_team_id_fkey';
+            columns: ['launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launches';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_generations_revision_id_launch_id_team_id_fkey';
+            columns: ['revision_id', 'launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_revisions';
+            referencedColumns: ['id', 'launch_id', 'team_id'];
+          }
+        ];
+      };
       analytics_team_workspace: {
         Row: {
           member_joined_at: string | null;
@@ -3097,6 +4424,7 @@ export type GeneratedDatabase = {
           root_state: string | null;
           workspace_key: string | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_users: {
@@ -3113,6 +4441,7 @@ export type GeneratedDatabase = {
           plan: string | null;
           registered_at: string | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
     };
@@ -3218,7 +4547,7 @@ export type GeneratedDatabase = {
       admin_list_legacy_spaces: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_list_owner_spaces: { Args: { p_email: string }; Returns: Json };
       admin_list_space_requests: { Args: Record<PropertyKey, never>; Returns: Json };
-      admin_list_space_tariff_events: { Args: { p_id: string | null }; Returns: Json };
+      admin_list_space_tariff_events: { Args: { p_id: string }; Returns: Json };
       admin_list_space_tariffs: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_list_tariff_plans: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_list_tariff_seats: { Args: { p_team: string }; Returns: Json };
@@ -3284,9 +4613,9 @@ export type GeneratedDatabase = {
       admin_set_tariff_settings: {
         Args: {
           p_confirm?: boolean;
-          p_email: string | null;
+          p_email: string;
           p_legacy_rule_enabled: boolean;
-          p_telegram: string | null;
+          p_telegram: string;
         };
         Returns: Json;
       };
@@ -3301,12 +4630,12 @@ export type GeneratedDatabase = {
       admin_undo_space_tariff_event: { Args: { p_event: string }; Returns: Json };
       admin_update_space_tariff: {
         Args: {
-          p_ends_on: string | null;
-          p_external_ref: string | null;
-          p_extra_seats: number | null;
+          p_ends_on: string;
+          p_external_ref: string;
+          p_extra_seats: number;
           p_id: string;
-          p_note: string | null;
-          p_plan: string | null;
+          p_note: string;
+          p_plan: string;
         };
         Returns: Json;
       };
@@ -3364,6 +4693,20 @@ export type GeneratedDatabase = {
       };
       analytics_properties_are_safe: { Args: { payload: Json }; Returns: boolean };
       analytics_properties_are_safe_v2: { Args: { payload: Json }; Returns: boolean };
+      archive_launch: {
+        Args: {
+          p_expected_version: string;
+          p_key: string;
+          p_launch: string;
+          p_suppress?: boolean;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      archive_launch_dictionary: {
+        Args: { p_id: string; p_key: string; p_kind: string; p_team: string };
+        Returns: Json;
+      };
       assert_team_member: { Args: { p_team: string }; Returns: boolean };
       attach_team_agent_label: {
         Args: { p_agent: string; p_label: string; p_team: string };
@@ -3381,7 +4724,19 @@ export type GeneratedDatabase = {
         Args: { p_materials: string[]; p_task: string; p_team: string };
         Returns: Json;
       };
+      bind_launch_restitch: {
+        Args: { p_generation: string; p_operation: string; p_team: string };
+        Returns: undefined;
+      };
       can_access_team_workspace: { Args: Record<PropertyKey, never>; Returns: boolean };
+      cancel_launch_generation: {
+        Args: { p_generation: string; p_launch: string; p_request_key: string; p_team: string };
+        Returns: Json;
+      };
+      cancel_launch_request: {
+        Args: { p_cancel_key: string; p_key: string; p_launch: string; p_team: string };
+        Returns: Json;
+      };
       cancel_library_job: {
         Args: {
           p_agent_instance: string;
@@ -3390,6 +4745,13 @@ export type GeneratedDatabase = {
           p_team: string;
         };
         Returns: boolean;
+      };
+      cancel_team_folder_sync: {
+        Args: { p_request: string; p_team: string };
+        Returns: {
+          job_state: string;
+          request_outcome: string;
+        }[];
       };
       cancel_team_operation: {
         Args: { p_operation: string; p_team: string };
@@ -3458,6 +4820,18 @@ export type GeneratedDatabase = {
           tool_id: string;
         }[];
       };
+      copy_launch: {
+        Args: {
+          p_expected_version: string;
+          p_key: string;
+          p_revision: string;
+          p_source: string;
+          p_team: string;
+          p_timezone: string;
+        };
+        Returns: Json;
+      };
+      copy_team_tasks: { Args: { p_tasks: string[]; p_team: string }; Returns: string[] };
       create_invitation: {
         Args: { p_email: string; p_initial_role: string; p_team: string; p_token_hash: string };
         Returns: {
@@ -3472,6 +4846,22 @@ export type GeneratedDatabase = {
           target_user_id: string;
           team_name: string;
         }[];
+      };
+      edit_launch_dictionary: {
+        Args: {
+          p_team: string;
+          p_kind: string;
+          p_id: string;
+          p_expected_updated_at: string;
+          p_operation: string;
+          p_value: string;
+          p_request_key: string;
+        };
+        Returns: Json;
+      };
+      create_launch_dictionary: {
+        Args: { p_kind: string; p_request_key: string; p_team: string; p_value: string };
+        Returns: Json;
       };
       create_team: {
         Args: { p_name: string };
@@ -3518,10 +4908,6 @@ export type GeneratedDatabase = {
           isOneToOne: true;
           isSetofReturn: false;
         };
-      };
-      copy_team_tasks: {
-        Args: { p_team: string; p_tasks: string[] };
-        Returns: string[];
       };
       create_team_task: {
         Args: {
@@ -3630,6 +5016,7 @@ export type GeneratedDatabase = {
         Args: { p_material: string; p_task: string; p_team: string };
         Returns: boolean;
       };
+      draw_restitch_screens: { Args: { p_exclude?: string[]; p_team: string }; Returns: Json };
       expire_team_invitations: { Args: Record<PropertyKey, never>; Returns: number };
       fail_library_job: {
         Args: {
@@ -3641,29 +5028,20 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      cancel_team_folder_sync: {
-        Args: { p_request: string; p_team: string };
+      find_launch_generation: { Args: { p_key: string; p_team: string }; Returns: Json };
+      find_reusable_transcript: { Args: { p_team: string; p_video: string }; Returns: Json };
+      find_team_folder_sync_request: {
+        Args: { p_folder?: string; p_team: string };
         Returns: {
-          job_state: string;
-          request_outcome: string;
+          created_at: string;
+          state: string;
+          sync_job_id: string;
         }[];
-      };
-      find_reusable_transcript: {
-        Args: { p_team: string; p_video: string };
-        Returns: Json;
       };
       find_team_folder_sync_request_by_key: {
         Args: { p_request_key: string; p_team: string };
         Returns: {
           request_id: string;
-          state: string;
-          sync_job_id: string;
-        }[];
-      };
-      find_team_folder_sync_request: {
-        Args: { p_folder?: string | null; p_team: string };
-        Returns: {
-          created_at: string;
           state: string;
           sync_job_id: string;
         }[];
@@ -3684,6 +5062,18 @@ export type GeneratedDatabase = {
         }[];
       };
       get_effective_restitch_defaults: { Args: { p_team: string }; Returns: Json };
+      get_launch: {
+        Args: { p_launch: string; p_revision?: string; p_team: string };
+        Returns: Json;
+      };
+      get_launch_archive_warning: { Args: { p_launch: string; p_team: string }; Returns: Json };
+      get_launch_defaults: { Args: { p_team: string }; Returns: Json };
+      get_launch_restitch_preparation: {
+        Args: { p_generation: string; p_team: string };
+        Returns: Json;
+      };
+      get_launch_restitch_reuse: { Args: { p_generation: string; p_team: string }; Returns: Json };
+      get_launch_sources: { Args: { p_launch: string; p_team: string }; Returns: Json };
       get_library_processing_context: { Args: { p_source: string; p_team: string }; Returns: Json };
       get_material_preview: {
         Args: { p_material: string; p_team: string };
@@ -3801,6 +5191,7 @@ export type GeneratedDatabase = {
           final_duration_mode: string;
           fit_mode: string;
           operation: string;
+          source_mode: string;
           start_duration_mode: string;
           start_enabled: boolean;
           start_image_ids: string[];
@@ -3821,26 +5212,18 @@ export type GeneratedDatabase = {
         Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;
       };
+      get_team_agent_transfer_eligibility: {
+        Args: { p_agent: string; p_team: string; p_timezone: string };
+        Returns: Json;
+      };
       get_team_catalog_updater: { Args: { p_team: string }; Returns: Json };
       get_team_catalog_updater_grow: { Args: { p_team: string }; Returns: boolean };
-      get_team_catalog_updater_refresh_images: { Args: { p_team: string }; Returns: boolean };
-      get_team_catalog_updater_refresh_texts: { Args: { p_team: string }; Returns: boolean };
       get_team_catalog_updater_random_link_variation: {
         Args: { p_team: string };
         Returns: boolean;
       };
-      get_team_tariff: { Args: { p_team: string }; Returns: Json };
-      request_space_owner_nudge: { Args: { p_team: string }; Returns: Json };
-      resume_team_catalog_updater: { Args: { p_team: string }; Returns: boolean };
-      service_claim_tariff_notices: { Args: { p_limit?: number }; Returns: Json };
-      service_finish_tariff_notice: {
-        Args: { p_error?: string; p_id: string; p_sent: boolean; p_skipped?: boolean };
-        Returns: boolean;
-      };
-      set_team_catalog_updater_random_link_variation: {
-        Args: { p_team: string; p_enabled: boolean };
-        Returns: boolean;
-      };
+      get_team_catalog_updater_refresh_images: { Args: { p_team: string }; Returns: boolean };
+      get_team_catalog_updater_refresh_texts: { Args: { p_team: string }; Returns: boolean };
       get_team_folder_resync_status: {
         Args: { p_job: string; p_team: string };
         Returns: {
@@ -3878,6 +5261,7 @@ export type GeneratedDatabase = {
       };
       get_team_storage_health: { Args: { p_team: string }; Returns: Json };
       get_team_storage_health_v2: { Args: { p_team: string }; Returns: Json };
+      get_team_tariff: { Args: { p_team: string }; Returns: Json };
       get_team_task: {
         Args: {
           p_attachment_cursor?: number;
@@ -3915,6 +5299,10 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      ingest_agent_journal: {
+        Args: { p_agent_instance_id: string; p_installation_id: string; p_records: Json };
+        Returns: Json;
+      };
       ingest_analytics_events: {
         Args: { p_events: Json };
         Returns: {
@@ -3924,6 +5312,22 @@ export type GeneratedDatabase = {
         }[];
       };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      issue_landing_preview_grant: {
+        Args: {
+          p_actor: string;
+          p_id: string;
+          p_material: string;
+          p_max_range_bytes: number;
+          p_reuse_key: string;
+          p_team: string;
+          p_token_hash: string;
+          p_tool: string;
+        };
+        Returns: {
+          expires_at: string;
+          grant_id: string;
+        }[];
+      };
       issue_team_transfer_grant: {
         Args: {
           p_actor: string;
@@ -3970,6 +5374,19 @@ export type GeneratedDatabase = {
           valid: boolean;
         }[];
       };
+      list_launch_assignees: {
+        Args: { p_team: string };
+        Returns: {
+          display_name: string;
+          user_id: string;
+        }[];
+      };
+      list_launch_dictionaries: { Args: { p_team: string }; Returns: Json };
+      list_launch_revisions: {
+        Args: { p_before?: number; p_launch: string; p_team: string };
+        Returns: Json;
+      };
+      list_launches: { Args: { p_filter?: Json; p_limit?: number; p_team: string }; Returns: Json };
       list_library_contribution_totals: {
         Args: { p_from?: string; p_team: string; p_to?: string };
         Returns: {
@@ -4049,6 +5466,7 @@ export type GeneratedDatabase = {
           role: string;
         }[];
       };
+      list_restitch_sources: { Args: { p_scope: string; p_team: string }; Returns: Json };
       list_task_attachment_folders: {
         Args: { p_task: string; p_team: string };
         Returns: {
@@ -4308,10 +5726,6 @@ export type GeneratedDatabase = {
           user_id: string;
         }[];
       };
-      get_team_agent_transfer_eligibility: {
-        Args: { p_team: string; p_agent: string; p_timezone: string };
-        Returns: Json;
-      };
       move_team_account_agent: {
         Args: {
           p_agent: string;
@@ -4327,6 +5741,18 @@ export type GeneratedDatabase = {
       };
       next_product_catalog_variant: { Args: { p_team: string; p_video: string }; Returns: number };
       owned_team_count: { Args: { p_user: string }; Returns: number };
+      pause_launch_restitch: {
+        Args: { p_code: string; p_generation: string; p_team: string };
+        Returns: undefined;
+      };
+      prepare_launch_restitch: {
+        Args: { p_exclude?: string[]; p_generation: string; p_team: string };
+        Returns: Json;
+      };
+      prepare_launch_restitch_unchecked: {
+        Args: { p_exclude?: string[]; p_generation: string; p_team: string };
+        Returns: Json;
+      };
       read_google_drive_credential: {
         Args: { p_credential: string };
         Returns: {
@@ -4390,6 +5816,7 @@ export type GeneratedDatabase = {
         Args: { p_material: string; p_team: string };
         Returns: number;
       };
+      request_space_owner_nudge: { Args: { p_team: string }; Returns: Json };
       request_team_catalog_resync:
         | {
             Args: { p_team: string };
@@ -4439,14 +5866,59 @@ export type GeneratedDatabase = {
         }[];
       };
       reset_share_preference: { Args: { p_team: string }; Returns: boolean };
+      resolve_launch_selection: { Args: { p_config: Json; p_team: string }; Returns: Json };
+      resume_team_catalog_updater: { Args: { p_team: string }; Returns: boolean };
       retry_failed_library_jobs: {
         Args: { p_sources?: string[]; p_team: string };
         Returns: number;
+      };
+      retry_launch_generation: {
+        Args: { p_generation: string; p_key: string; p_team: string };
+        Returns: Json;
+      };
+      retry_launch_restitch: {
+        Args: { p_generation: string; p_key: string; p_team: string };
+        Returns: Json;
       };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
       run_team_catalog_update_now: {
         Args: { p_catalogs: string[]; p_team: string };
         Returns: number;
+      };
+      save_launch_draft: {
+        Args: {
+          p_config: Json;
+          p_expected_sources: Json;
+          p_expected_version: string;
+          p_launch: string;
+          p_request_key: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      save_launch_overrides: {
+        Args: {
+          p_baseline: string;
+          p_expected_version: string;
+          p_launch: string;
+          p_overrides: Json;
+          p_request_key: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      save_launch_working_copy: {
+        Args: {
+          p_baseline: string;
+          p_config: Json;
+          p_expected_sources: Json;
+          p_expected_version: string;
+          p_launch: string;
+          p_overrides: Json;
+          p_request_key: string;
+          p_team: string;
+        };
+        Returns: Json;
       };
       save_team_catalog_updater: {
         Args: { p_catalogs: string[]; p_interval: string; p_restitch: boolean; p_team: string };
@@ -4475,6 +5947,34 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_accept_launch_generation: {
+        Args: {
+          p_actor: string;
+          p_config: Json;
+          p_digest: string;
+          p_expected_version: string;
+          p_key: string;
+          p_launch: string;
+          p_preview: Json;
+          p_sources: Json;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_accept_launch_generation_unfenced: {
+        Args: {
+          p_actor: string;
+          p_config: Json;
+          p_digest: string;
+          p_expected_version: string;
+          p_key: string;
+          p_launch: string;
+          p_preview: Json;
+          p_sources: Json;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       service_accept_library_result: {
         Args: {
           p_actor: string;
@@ -4487,6 +5987,10 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_ack_launch_upload_quiescence: {
+        Args: { p_operation: string; p_token_hash: string };
+        Returns: boolean;
+      };
       service_append_library_contribution: {
         Args: {
           p_action: string;
@@ -4494,6 +5998,51 @@ export type GeneratedDatabase = {
           p_agent_instance?: string;
           p_category: string;
           p_outcome: string;
+          p_team: string;
+        };
+        Returns: string;
+      };
+      service_attach_launch_catalog: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: undefined;
+      };
+      service_authorize_launch_cleanup: {
+        Args: {
+          p_fence: string;
+          p_file: string;
+          p_generation: string;
+          p_intent_fence: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: string;
+      };
+      service_authorize_launch_permission_cleanup: {
+        Args: {
+          p_credential: string;
+          p_fence: string;
+          p_file: string;
+          p_generation: string;
+          p_intent_fence: string;
+          p_owner: string;
+          p_permission: string;
+          p_team: string;
+        };
+        Returns: string;
+      };
+      service_authorize_launch_video_cleanup: {
+        Args: {
+          p_fence: string;
+          p_file: string;
+          p_generation: string;
+          p_operation: string;
+          p_owner: string;
           p_team: string;
         };
         Returns: string;
@@ -4510,6 +6059,17 @@ export type GeneratedDatabase = {
           generation: string;
           page_token: string;
         }[];
+      };
+      service_begin_catalog_intent: {
+        Args: {
+          p_actor: string;
+          p_key: string;
+          p_owner: string;
+          p_payload: Json;
+          p_team: string;
+          p_video: string;
+        };
+        Returns: Json;
       };
       service_begin_change_replay: {
         Args: { p_connection: string; p_job: string };
@@ -4551,6 +6111,24 @@ export type GeneratedDatabase = {
           generation: string;
           state: string;
         }[];
+      };
+      service_catalog_sync_lease_live: {
+        Args: { p_epoch: number; p_job: string; p_worker: string };
+        Returns: boolean;
+      };
+      service_checkpoint_catalog_intent: {
+        Args: {
+          p_actor: string;
+          p_checkpoint: Json;
+          p_fence: string;
+          p_intent: string;
+          p_operation?: string;
+          p_owner: string;
+          p_result?: Json;
+          p_state: string;
+          p_team: string;
+        };
+        Returns: undefined;
       };
       service_checkpoint_catalog_sync_job: {
         Args: {
@@ -4625,7 +6203,6 @@ export type GeneratedDatabase = {
       service_claim_catalog_updater_items: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
         Returns: {
-          random_link_variation: boolean;
           attempts: number;
           catalog_material_id: string;
           credential_id: string;
@@ -4635,6 +6212,7 @@ export type GeneratedDatabase = {
           price_max: number;
           price_min: number;
           product_count: number;
+          random_link_variation: boolean;
           refresh_images: boolean;
           refresh_texts: boolean;
           resource_key: string;
@@ -4646,6 +6224,15 @@ export type GeneratedDatabase = {
           update_count: number;
           video_link: string;
         }[];
+      };
+      service_claim_launch_cleanup: { Args: { p_limit?: number; p_owner: string }; Returns: Json };
+      service_claim_launch_generation: {
+        Args: { p_actor: string; p_generation: string; p_owner: string; p_team: string };
+        Returns: Json;
+      };
+      service_claim_launch_video_cleanup: {
+        Args: { p_limit?: number; p_owner: string };
+        Returns: Json;
       };
       service_claim_orphan_cleanups: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
@@ -4690,6 +6277,7 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
+      service_claim_tariff_notices: { Args: { p_limit?: number }; Returns: Json };
       service_claim_upload_folder: {
         Args: { p_actor: string; p_key: string; p_name: string; p_parent: string; p_team: string };
         Returns: {
@@ -4958,6 +6546,10 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
+      service_defer_restitch_job: {
+        Args: { p_code: string; p_interval: string; p_job: string; p_lease_token_hash: string };
+        Returns: boolean;
+      };
       service_delete_google_drive_credential: { Args: { p_credential: string }; Returns: boolean };
       service_detach_drive_connection: {
         Args: { p_actor: string; p_connection: string; p_team: string };
@@ -4997,7 +6589,16 @@ export type GeneratedDatabase = {
           title: string;
         }[];
       };
-      service_enqueue_catalog_reconciliation: { Args: { p_connection: string }; Returns: string };
+      service_draw_restitch_screens: {
+        Args: { p_actor: string; p_exclude?: string[]; p_team: string };
+        Returns: Json;
+      };
+      service_enqueue_catalog_reconciliation:
+        | { Args: { p_connection: string }; Returns: string }
+        | {
+            Args: { p_connection: string; p_epoch: number; p_job: string; p_worker: string };
+            Returns: string;
+          };
       service_enqueue_discovered_catalog_subtree: {
         Args: {
           p_epoch: number;
@@ -5076,6 +6677,32 @@ export type GeneratedDatabase = {
       };
       service_finish_catalog_folder: {
         Args: { p_epoch: number; p_generation: string; p_job: string; p_worker: string };
+        Returns: boolean;
+      };
+      service_finish_launch_cleanup: {
+        Args: {
+          p_cleaned_file?: string;
+          p_fence: string;
+          p_generation: string;
+          p_intent_fence: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: string;
+      };
+      service_finish_launch_video_cleanup: {
+        Args: {
+          p_cleaned_file?: string;
+          p_fence: string;
+          p_generation: string;
+          p_operation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: string;
+      };
+      service_finish_tariff_notice: {
+        Args: { p_error?: string; p_id: string; p_sent: boolean; p_skipped?: boolean };
         Returns: boolean;
       };
       service_forget_restitch_copy: {
@@ -5226,6 +6853,7 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
+      service_get_space_restitch_defaults: { Args: { p_team: string }; Returns: Json };
       service_get_team_operation: {
         Args: { p_actor: string; p_operation: string };
         Returns: {
@@ -5295,13 +6923,70 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_invalidate_landing_renders: {
-        Args: { p_connection: string; p_drive_file_ids: string[] };
-        Returns: {
-          artifact_root: string;
-          material_id: string;
-          team_id: string;
-        }[];
+      service_interrupt_launch_generation: {
+        Args: {
+          p_actor: string;
+          p_code: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: undefined;
+      };
+      service_invalidate_landing_renders:
+        | {
+            Args: { p_connection: string; p_drive_file_ids: string[] };
+            Returns: {
+              artifact_root: string;
+              material_id: string;
+              team_id: string;
+            }[];
+          }
+        | {
+            Args: {
+              p_connection: string;
+              p_drive_file_ids: string[];
+              p_epoch: number;
+              p_job: string;
+              p_worker: string;
+            };
+            Returns: {
+              artifact_root: string;
+              material_id: string;
+              team_id: string;
+            }[];
+          };
+      service_is_launch_restitch_process: {
+        Args: { p_actor: string; p_operation: string };
+        Returns: boolean;
+      };
+      service_launch_restitch_receipt: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_launch_sources: {
+        Args: { p_actor: string; p_launch: string; p_team: string };
+        Returns: Json;
+      };
+      service_launch_worker_ready: { Args: Record<PropertyKey, never>; Returns: boolean };
+      service_link_launch_restitch_catalog: {
+        Args: {
+          p_actor: string;
+          p_companion: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_record: Json;
+          p_team: string;
+        };
+        Returns: Json;
       };
       service_link_product_catalog_companion: {
         Args: {
@@ -5342,6 +7027,17 @@ export type GeneratedDatabase = {
           resource_key: string;
         }[];
       };
+      service_list_launch_catalog_recovery: { Args: { p_limit?: number }; Returns: Json };
+      service_list_launch_cleanup_permissions: {
+        Args: {
+          p_fence: string;
+          p_generation: string;
+          p_intent_fence: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       service_list_pending_catalog_transcripts: {
         Args: { p_connection: string; p_file_ids: Json };
         Returns: {
@@ -5354,26 +7050,77 @@ export type GeneratedDatabase = {
           resource_key: string;
         }[];
       };
+      service_list_user_restitch_objects: { Args: { p_user: string }; Returns: string[] };
       service_mark_drive_needs_reauth: { Args: { p_credential: string }; Returns: number };
-      service_mark_folder_indexed: {
-        Args: { p_connection: string; p_drive_folder_id: string };
-        Returns: number;
-      };
+      service_mark_folder_indexed:
+        | { Args: { p_connection: string; p_drive_folder_id: string }; Returns: number }
+        | {
+            Args: {
+              p_connection: string;
+              p_drive_folder_id: string;
+              p_epoch: number;
+              p_job: string;
+              p_worker: string;
+            };
+            Returns: number;
+          };
       service_mark_landing_renders_stale: {
         Args: { p_material: string; p_team: string };
         Returns: number;
+      };
+      service_mark_launch_permission_cleaned: {
+        Args: {
+          p_credential: string;
+          p_fence: string;
+          p_file: string;
+          p_generation: string;
+          p_intent_fence: string;
+          p_owner: string;
+          p_permission: string;
+          p_team: string;
+        };
+        Returns: undefined;
+      };
+      service_mark_launch_permission_retained: {
+        Args: {
+          p_credential: string;
+          p_fence: string;
+          p_file: string;
+          p_generation: string;
+          p_intent_fence: string;
+          p_owner: string;
+          p_permission: string;
+          p_team: string;
+        };
+        Returns: undefined;
       };
       service_mark_material_group_reconciling: {
         Args: { p_error_code: string; p_intent: string };
         Returns: boolean;
       };
-      service_mark_root_state: {
-        Args: { p_connection: string; p_root_name?: string; p_state: string };
-        Returns: undefined;
-      };
+      service_mark_root_state:
+        | {
+            Args: { p_connection: string; p_root_name?: string; p_state: string };
+            Returns: undefined;
+          }
+        | {
+            Args: {
+              p_connection: string;
+              p_epoch: number;
+              p_job: string;
+              p_root_name?: string;
+              p_state: string;
+              p_worker: string;
+            };
+            Returns: undefined;
+          };
       service_next_product_catalog_variant: {
         Args: { p_team: string; p_video: string };
         Returns: number;
+      };
+      service_note_restitched_folder: {
+        Args: { p_drive_folder_id: string; p_team: string };
+        Returns: undefined;
       };
       service_open_catalog_updater_rounds: { Args: Record<PropertyKey, never>; Returns: number };
       service_peek_drive_oauth_transaction: {
@@ -5385,9 +7132,46 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
+      service_plan_catalog_resources: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_intent: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_prepare_launch_process_upload: {
+        Args: { p_actor: string; p_operation: string };
+        Returns: boolean;
+      };
+      service_publish_launch_generation: {
+        Args: { p_actor: string; p_fence: string; p_generation: string; p_team: string };
+        Returns: Json;
+      };
+      service_reconcile_catalog_result: {
+        Args: { p_actor: string; p_intent: string; p_team: string };
+        Returns: Json;
+      };
       service_record_access_expiry: {
         Args: { p_credential: string; p_expires_at: string; p_scope_set?: string[] };
         Returns: number;
+      };
+      service_record_catalog_permission: {
+        Args: {
+          p_actor: string;
+          p_credential: string;
+          p_fence: string;
+          p_file: string;
+          p_intent: string;
+          p_owner: string;
+          p_permission: string;
+          p_prior_anyone: boolean;
+          p_state: string;
+          p_team: string;
+        };
+        Returns: undefined;
       };
       service_record_restitch_output: {
         Args: {
@@ -5485,6 +7269,36 @@ export type GeneratedDatabase = {
           resource_key: string;
         }[];
       };
+      service_restitch_screen_context: {
+        Args: { p_actor: string; p_material: string; p_team: string };
+        Returns: {
+          checksum: string;
+          drive_file_id: string;
+          material_id: string;
+          mime_type: string;
+          size_bytes: number;
+        }[];
+      };
+      service_restore_registered_launch_catalog: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
+      service_retry_catalog_child: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_intent: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: number;
+      };
       service_retry_catalog_sync_job:
         | {
             Args: {
@@ -5509,6 +7323,16 @@ export type GeneratedDatabase = {
           };
       service_retry_catalog_update: {
         Args: { p_error: string; p_item: string; p_next_attempt_at: string; p_worker: string };
+        Returns: boolean;
+      };
+      service_reuse_launch_catalog: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
         Returns: boolean;
       };
       service_revoke_user_team_grants: { Args: { p_user: string }; Returns: number };
@@ -5556,6 +7380,10 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
+      service_settle_launch_authority_losses: { Args: { p_limit?: number }; Returns: number };
+      service_settle_launch_batch: { Args: { p_limit?: number }; Returns: Json };
+      service_settle_launch_restitch_batch: { Args: { p_limit?: number }; Returns: number };
+      service_settle_launch_restitch_cancellations: { Args: { p_limit?: number }; Returns: number };
       service_start_landing_render: {
         Args: {
           p_actor: string;
@@ -5566,6 +7394,10 @@ export type GeneratedDatabase = {
           p_team: string;
         };
         Returns: string;
+      };
+      service_start_launch_process_upload: {
+        Args: { p_actor: string; p_operation: string };
+        Returns: boolean;
       };
       service_start_team_operation: {
         Args: {
@@ -5597,11 +7429,35 @@ export type GeneratedDatabase = {
         };
         Returns: string;
       };
-      service_tombstone_catalog_files: {
-        Args: { p_connection: string; p_items: Json };
-        Returns: number;
+      service_tombstone_catalog_files:
+        | { Args: { p_connection: string; p_items: Json }; Returns: number }
+        | {
+            Args: {
+              p_connection: string;
+              p_epoch: number;
+              p_items: Json;
+              p_job: string;
+              p_worker: string;
+            };
+            Returns: number;
+          };
+      service_touch_catalog_reconciled:
+        | { Args: { p_connection: string }; Returns: undefined }
+        | {
+            Args: { p_connection: string; p_epoch: number; p_job: string; p_worker: string };
+            Returns: undefined;
+          };
+      service_touch_launch_generation: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_stage: string;
+          p_team: string;
+        };
+        Returns: undefined;
       };
-      service_touch_catalog_reconciled: { Args: { p_connection: string }; Returns: undefined };
       service_transition_team_operation: {
         Args: {
           p_error_code: string;
@@ -5614,13 +7470,35 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_upsert_catalog_page: {
-        Args: { p_connection: string; p_files: Json; p_parent_folder_id: string };
-        Returns: number;
-      };
+      service_upsert_catalog_page:
+        | {
+            Args: { p_connection: string; p_files: Json; p_parent_folder_id: string };
+            Returns: number;
+          }
+        | {
+            Args: {
+              p_connection: string;
+              p_epoch: number;
+              p_files: Json;
+              p_job: string;
+              p_parent_folder_id: string;
+              p_worker: string;
+            };
+            Returns: number;
+          };
       set_invitation_delivery_state: {
         Args: { p_delivery_state: string; p_error_code?: string; p_invitation: string };
         Returns: boolean;
+      };
+      set_launch_defaults: {
+        Args: {
+          p_config: Json;
+          p_expected_version: string;
+          p_key: string;
+          p_sub_config: Json;
+          p_team: string;
+        };
+        Returns: Json;
       };
       set_material_restitch_prep: {
         Args: { p_drive_version: string; p_material: string; p_prep: Json };
@@ -5631,12 +7509,6 @@ export type GeneratedDatabase = {
         Args: { p_items: Json; p_slot: string; p_team: string };
         Returns: Json;
       };
-      set_restitch_sources: {
-        Args: { p_items: Json; p_slot: string; p_team: string };
-        Returns: Json;
-      };
-      list_restitch_sources: { Args: { p_scope: string; p_team: string }; Returns: Json };
-      draw_restitch_screens: { Args: { p_exclude?: string[]; p_team: string }; Returns: Json };
       set_member_restitch_use_owner: {
         Args: { p_team: string; p_use_owner: boolean };
         Returns: Json;
@@ -5653,6 +7525,7 @@ export type GeneratedDatabase = {
           final_duration_mode: string;
           fit_mode: string;
           operation: string;
+          source_mode: string;
           start_duration_mode: string;
           start_enabled: boolean;
           start_image_ids: string[];
@@ -5667,26 +7540,44 @@ export type GeneratedDatabase = {
           isSetofReturn: false;
         };
       };
+      set_restitch_sources: {
+        Args: { p_items: Json; p_slot: string; p_team: string };
+        Returns: Json;
+      };
       set_share_preference: { Args: { p_allow: boolean; p_team: string }; Returns: boolean };
       set_task_progress_max_default: { Args: { p_value: number }; Returns: undefined };
       set_team_account_two_factor_seed: {
         Args: { p_account: string; p_secret: string; p_team: string };
         Returns: boolean;
       };
-      set_team_agent_finance_value: {
-        Args: {
-          p_agent: string;
-          p_date: string;
-          p_expected_placement_id: string;
-          p_expected_version: string;
-          p_metric: string;
-          p_request_id: string;
-          p_team: string;
-          p_timezone: string;
-          p_value: string;
-        };
-        Returns: Json;
-      };
+      set_team_agent_finance_value:
+        | {
+            Args: {
+              p_agent: string;
+              p_date: string;
+              p_expected_version: string;
+              p_metric: string;
+              p_request_id: string;
+              p_team: string;
+              p_timezone: string;
+              p_value: string;
+            };
+            Returns: Json;
+          }
+        | {
+            Args: {
+              p_agent: string;
+              p_date: string;
+              p_expected_placement_id: string;
+              p_expected_version: string;
+              p_metric: string;
+              p_request_id: string;
+              p_team: string;
+              p_timezone: string;
+              p_value: string;
+            };
+            Returns: Json;
+          };
       set_team_agent_money: {
         Args: { p_agent: string; p_balance: number; p_team: string; p_topup: number };
         Returns: Json;
@@ -5701,6 +7592,10 @@ export type GeneratedDatabase = {
       };
       set_team_catalog_updater_grow: {
         Args: { p_grow: boolean; p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_random_link_variation: {
+        Args: { p_enabled: boolean; p_team: string };
         Returns: boolean;
       };
       set_team_catalog_updater_refresh_images: {
@@ -5749,6 +7644,7 @@ export type GeneratedDatabase = {
         Returns: number;
       };
       set_transcript_delete_pref: { Args: { p_pref: string }; Returns: string };
+      settle_launch_restitch: { Args: { p_generation: string; p_team: string }; Returns: boolean };
       stop_team_catalog_updater: { Args: { p_team: string }; Returns: Json };
       team_material_kind: {
         Args: { p_category: string; p_kind: string; p_mime_type: string };
@@ -5767,6 +7663,17 @@ export type GeneratedDatabase = {
       };
       undo_team_agent_finance_clear: {
         Args: { p_original_request_id: string; p_request_id: string; p_team: string };
+        Returns: Json;
+      };
+      update_launch_metadata: {
+        Args: {
+          p_assignee: string;
+          p_expected_version: string;
+          p_launch: string;
+          p_request_key: string;
+          p_status: string;
+          p_team: string;
+        };
         Returns: Json;
       };
       update_material_metadata: {

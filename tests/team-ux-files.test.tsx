@@ -294,4 +294,51 @@ describe('the search field', () => {
     await user.keyboard('/');
     await waitFor(() => expect(document.activeElement).toBe(search));
   });
+
+  it('offers recent searches from the empty field and supports keyboard apply and forget', async () => {
+    const user = userEvent.setup();
+    const first = { query: 'first search', scope: 'space' as const, at: 1 };
+    const second = { query: 'second search', scope: 'folder' as const, at: 2 };
+    const apply = vi.fn();
+    const forget = vi.fn();
+    const clear = vi.fn();
+    const fieldKey = vi.fn();
+    const view = render(
+      <CatalogSearchBar
+        value=""
+        onChange={vi.fn()}
+        history={[first, second]}
+        onApplyHistory={apply}
+        onForgetHistory={forget}
+        onClearHistory={clear}
+        onFieldKeyDown={fieldKey}
+      />
+    );
+    const search = screen.getByRole('searchbox');
+    expect(screen.queryByRole('group', { name: 'Recent searches' })).toBeNull();
+    await user.click(search);
+    expect(screen.getByRole('group', { name: 'Recent searches' })).toBeTruthy();
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement?.textContent).toContain('first search');
+    await user.keyboard('{Enter}');
+    expect(apply).toHaveBeenCalledWith(first);
+    expect(document.activeElement).toBe(search);
+    expect(fieldKey).not.toHaveBeenCalled();
+
+    await user.keyboard('{ArrowDown}{ArrowLeft}');
+    expect(document.activeElement).toBe(search);
+    await user.keyboard('{ArrowDown}{Escape}');
+    expect(document.activeElement).toBe(search);
+    await user.keyboard('{Enter}');
+    expect(fieldKey).toHaveBeenCalledOnce();
+
+    await user.keyboard('{ArrowDown}{ArrowRight}{Delete}');
+    expect(forget).toHaveBeenCalledWith(second);
+    await user.click(screen.getByRole('button', { name: 'Clear history' }));
+    expect(clear).toHaveBeenCalledOnce();
+    view.rerender(
+      <CatalogSearchBar value="first" onChange={vi.fn()} history={[first]} onApplyHistory={apply} />
+    );
+    expect(screen.queryByRole('group', { name: 'Recent searches' })).toBeNull();
+  });
 });

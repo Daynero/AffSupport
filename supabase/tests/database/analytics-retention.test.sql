@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(50);
+select plan(43);
 
 -- 031 / FR-057: detailed events live 90 days, daily aggregates live forever,
 -- and a deleted account leaves rows that cannot be re-linked. Two users send
@@ -195,33 +195,49 @@ select is((private.purge_analytics_events(90))->>'deleted_events', '0',
 -- The temp tables above belong to the superuser; the role blocks compute the
 -- day inline so they exercise only the grants under test.
 set local role wishly_analytics_ro;
-select is((select count(*)::integer from public.analytics_daily_events
-  where day = ((now() - interval '95 days') at time zone 'UTC')::date), 6,
-  'the read-only role reads daily events of a purged day');
-select is((select count(*)::integer from public.analytics_daily_tool_outcomes
-  where day = ((now() - interval '95 days') at time zone 'UTC')::date), 2,
-  'the read-only role reads daily tool outcomes of a purged day');
-select throws_ok(
-  $$select count(*) from private.analytics_daily_materialized$$,
-  '42501', null, 'the read-only role cannot read the private ledger');
-select throws_ok(
-  $$insert into public.analytics_daily_events (day, event_name) values (current_date, 'x')$$,
-  '42501', null, 'the read-only role cannot write daily events');
+do $$
+begin
+  if (select count(*) from public.analytics_daily_events
+      where day = ((now() - interval '95 days') at time zone 'UTC')::date) <> 6 then
+    raise exception 'read-only role cannot read expected daily events';
+  end if;
+  if (select count(*) from public.analytics_daily_tool_outcomes
+      where day = ((now() - interval '95 days') at time zone 'UTC')::date) <> 2 then
+    raise exception 'read-only role cannot read expected daily tool outcomes';
+  end if;
+  begin
+    perform count(*) from private.analytics_daily_materialized;
+    raise exception 'read-only role unexpectedly read private ledger';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.analytics_daily_events (day, event_name) values (current_date, 'x');
+    raise exception 'read-only role unexpectedly wrote daily events';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
 reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'e0310000-0000-4000-8000-00000000000b', true);
-select is((select count(*)::integer from public.analytics_daily_events), 0,
-  'a signed-in non-admin sees no daily events');
-select is((select count(*)::integer from public.analytics_daily_tool_outcomes), 0,
-  'a signed-in non-admin sees no daily tool outcomes');
+do $$
+begin
+  if (select count(*) from public.analytics_daily_events) <> 0
+    or (select count(*) from public.analytics_daily_tool_outcomes) <> 0 then
+    raise exception 'signed-in non-admin unexpectedly sees daily analytics';
+  end if;
+end $$;
 reset role;
 
 insert into public.admin_users (user_id) values ('e0310000-0000-4000-8000-00000000000b');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'e0310000-0000-4000-8000-00000000000b', true);
-select ok((select count(*) from public.analytics_daily_events) > 0,
-  'an admin reads daily events');
+do $$
+begin
+  if (select count(*) from public.analytics_daily_events) = 0 then
+    raise exception 'admin cannot read daily analytics';
+  end if;
+end $$;
 reset role;
 
 -- Account deletion -------------------------------------------------------------

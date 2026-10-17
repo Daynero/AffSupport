@@ -1,3 +1,4 @@
+import { getLaunchEvidence } from './launches.js';
 /**
  * 033 — `journal` and `investigate`: everything the database knows about one user's problem,
  * in one read-only call (FR-005, FR-006).
@@ -1521,6 +1522,75 @@ export async function getInvestigation(
     errors
   });
 
+  const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
+  if (!launches.supported)
+    blindSpots.push({
+      kind: 'launch_diagnostics_unavailable',
+      detail:
+        'The restricted Launch diagnostic view is unavailable; backend-only outcomes are unknown.',
+      values: []
+    });
+  const unseenCommitted = launches.generations.filter(
+    generation =>
+      generation.state === 'succeeded' &&
+      !rows.some(
+        row =>
+          row.event_name === 'team_launch_visible' &&
+          row.run_id === generation.generation_id &&
+          row.props.revision_id === generation.revision_id
+      )
+  );
+  if (unseenCommitted.length)
+    blindSpots.push({
+      kind: 'launch_visibility_unknown',
+      detail:
+        'Database results prove a commit, not browser visibility; inspect the correlated visible signal.',
+      values: unseenCommitted.map(g => g.generation_id)
+    });
+  const unsettledLaunches = launches.generations.filter(g =>
+    ['cancel_requested', 'canceled_with_cleanup_pending'].includes(g.state)
+  );
+  if (unsettledLaunches.length)
+    blindSpots.push({
+      kind: 'launch_settlement_unknown',
+      detail:
+        'Cancellation has not settled; a child or provider side effect may still need fenced reconciliation.',
+      values: unsettledLaunches.map(g => g.generation_id)
+    });
+  for (const g of launches.generations) {
+    if (
+      ![
+        'failed',
+        'interrupted',
+        'partial',
+        'cancel_requested',
+        'canceled_with_cleanup_pending'
+      ].includes(g.state)
+    )
+      continue;
+    const code = g.safe_error_code;
+    const fingerprint = code ? `launches:generation:${code}` : undefined;
+    const location = fingerprint ? lookupCodeLocations(fingerprint) : null;
+    findings.push({
+      id: createHash('sha256')
+        .update(`launch-generation:${g.generation_id}:${g.state}:${code ?? 'unknown'}`)
+        .digest('hex'),
+      kind:
+        !['cancel_requested', 'canceled_with_cleanup_pending'].includes(g.state) &&
+        code &&
+        code !== 'UNKNOWN'
+          ? 'fact'
+          : 'insufficient',
+      severity: 'medium',
+      rule: 'launch_generation_state',
+      title: `Launch generation attempt ${g.attempt_no} is ${g.state}; last proven stage: ${g.stage}${code ? `; code: ${code}` : ''}.`,
+      evidence: [`launch-generation:${g.generation_id}`],
+      ...(fingerprint ? { fingerprint } : {}),
+      code_locations: fingerprint && location ? [{ ...location }] : [],
+      next_step:
+        'Inspect the generation and its child operations; reconcile durable receipts before retrying or cleaning resources.'
+    });
+  }
   const subject: InvestigateSubject = {
     kind: scope.kind,
     id: scope.id,
@@ -1530,6 +1600,7 @@ export async function getInvestigation(
   };
   return {
     subject,
+    launches,
     environment,
     sessions: sessionsOf(rows, sessionLimit),
     operations,

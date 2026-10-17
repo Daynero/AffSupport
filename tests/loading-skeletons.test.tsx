@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Session, User } from '@supabase/supabase-js';
 import type { Profile } from '../apps/web/src/lib/database.types';
 import { jobConfigurationKey } from '../packages/shared/src/types.js';
@@ -92,6 +92,7 @@ describe('admin page loading skeleton', () => {
         <AdminPage />
       </AuthContextOverride>
     );
+    fireEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
     const status = screen.getByRole('status');
     expect(status.classList.contains('admin-skeleton')).toBe(true);
     // Geometry mirrors the loaded dashboard: 23 metric cards + activity +
@@ -143,6 +144,7 @@ describe('admin page loading skeleton', () => {
         <AdminPage />
       </AuthContextOverride>
     );
+    fireEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
     expect(container.querySelector('.admin-skeleton')).toBeTruthy();
     await waitFor(() => expect(screen.getByText('Total users')).toBeTruthy());
     expect(container.querySelector('.admin-skeleton')).toBeNull();

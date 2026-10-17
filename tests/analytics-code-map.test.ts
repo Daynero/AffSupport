@@ -17,6 +17,7 @@ import {
 } from '../apps/web/src/analytics/errors';
 import { compressionErrorStage } from '../apps/web/src/analytics/compression';
 import { CODE_MAP, lookupCodeLocations } from '../scripts/analytics/code-map';
+import { LAUNCH_ANALYTICS_CODES } from '../packages/shared/src/team/launches/lifecycle';
 
 /**
  * 033 FR-008 / T007 — every failure the product can name points at code. A new code in a
@@ -25,6 +26,12 @@ import { CODE_MAP, lookupCodeLocations } from '../scripts/analytics/code-map';
  */
 
 const ROOT = join(__dirname, '..');
+it('maps every closed Launch failure to an exact diagnostic code location', () => {
+  for (const code of LAUNCH_ANALYTICS_CODES) {
+    const fingerprint = `launches:generation:${code}`;
+    expect(lookupCodeLocations(fingerprint)?.matched).toBe(fingerprint);
+  }
+});
 
 function fingerprintsOf(tool: string, codes: readonly string[], stage: (code: string) => string) {
   return codes.map(code => `${tool}:${stage(code)}:${code}`);

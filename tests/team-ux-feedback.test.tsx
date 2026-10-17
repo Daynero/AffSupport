@@ -40,6 +40,7 @@ function teamContext(realtimeState: TeamRealtimeState): TeamContextValue {
     error: null,
     revision: 0,
     realtimeState,
+    realtimeConnectionState: realtimeState,
     membershipLostTeamId: null,
     acknowledgeMembershipLoss: vi.fn(),
     hasEnteredSpace: true,
@@ -128,6 +129,10 @@ describe('every action reports its outcome', () => {
 });
 
 describe('the code→copy mapper', () => {
+  it('explains missing re-stitch setup instead of claiming an unnamed value is out of range', () => {
+    const t = (key: (typeof translationKeys)[number]) => translate('en', key);
+    expect(teamErrorMessage('RESTITCH_INVALID', t)).toContain('workspace settings');
+  });
   it('has a sentence for every code in the shared contract', () => {
     const t = (key: (typeof translationKeys)[number]) => translate('en', key);
     const generic = t('teamErrorUnknown');

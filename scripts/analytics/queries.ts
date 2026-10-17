@@ -1,3 +1,4 @@
+import { getLaunchEvidence, getLaunchAudit, type LaunchAuditEvidence } from './launches.js';
 import { createHash } from 'node:crypto';
 import { query, queryOne } from './db.js';
 import { eventColumnSql, getSchema, missingObjects, schemaSummary } from './schema.js';
@@ -210,7 +211,8 @@ export const QUERY_EVENT_NAMES: readonly string[] = Object.freeze(
 /** Events `audit` reads to detect emission; they are probes, never metrics. */
 export const AUDIT_PROBE_EVENT_NAMES: readonly string[] = Object.freeze([
   'analytics_delivery_report',
-  'error_occurred'
+  'error_occurred',
+  'team_launch_visible'
 ]);
 
 /**
@@ -1587,13 +1589,15 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const pairsBy = new Map(pairs.map(row => [row.capability, row]));
 
   const eventStatuses = registryEventStatuses();
+  const launchAudit = await getLaunchAudit(period.start, period.end);
   const capabilities = COVERAGE_REGISTRY.map(capability =>
     auditCapability(
       capability,
       eventStatuses,
       observedBy.get(capability.id) ?? [],
       pairsBy.get(capability.id),
-      syncJobs ? syncJobs.jobs : null
+      syncJobs ? syncJobs.jobs : null,
+      launchAudit
     )
   );
 
@@ -1653,7 +1657,8 @@ function auditCapability(
   }>,
   pairs: { orphan_starts: number; correlated_pairs: number } | undefined,
   /** Jobs in the sync view, or null when this connection cannot see the view. */
-  syncJobs: number | null
+  syncJobs: number | null,
+  launchAudit: LaunchAuditEvidence | null
 ): AuditCapability {
   const base = {
     id: capability.id,
@@ -1673,6 +1678,26 @@ function auditCapability(
     ...(capability.note ? { note: capability.note } : {})
   };
 
+  if (capability.id === 'team.launches') {
+    if (!launchAudit)
+      return {
+        ...base,
+        status: 'uncovered',
+        missing: ['analytics_launch_generations'],
+        samples: 0
+      };
+    const missing = [
+      ...(launchAudit.missing_visibility ? ['browser_result_visible'] : []),
+      ...(launchAudit.unknown_causes ? ['known_failure_code'] : []),
+      ...(launchAudit.unsettled ? ['settled_generation_or_recovery'] : [])
+    ];
+    return {
+      ...base,
+      status: missing.length ? 'partial' : launchAudit.generations ? 'covered' : 'uncovered',
+      missing: launchAudit.generations ? missing : ['launch_evidence_in_period'],
+      samples: launchAudit.generations
+    };
+  }
   if (capability.source === 'authoritative_table') {
     // An authoritative source this role cannot read is not coverage; `schema` names it.
     return syncJobs === null
@@ -1882,6 +1907,90 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  const events = await getEventInspect(id, asOf, limit);
+  const launches = await getLaunchEvidence(id, asOf);
+  if (!launches.generations.length) return events;
+  const latest = launches.generations[0];
+  const stages = [...new Set(['accepted', ...latest.steps.map(s => s.stage), latest.stage])];
+  const expected =
+    latest.method === 'catalog'
+      ? [
+          'accepted',
+          'preparing',
+          'catalog_planning',
+          'catalog_creating',
+          'catalog_sharing',
+          'catalog_registering',
+          'result_committing',
+          'result_committed'
+        ]
+      : ['accepted', 'result_committed'];
+  const terminal = ['succeeded', 'canceled', 'failed', 'partial', 'interrupted'].includes(
+    latest.state
+  )
+    ? {
+        event: `database:launch_${latest.state}`,
+        outcome:
+          latest.state === 'succeeded'
+            ? 'success'
+            : latest.state === 'canceled'
+              ? 'cancelled'
+              : 'failure',
+        occurred_at: latest.updated_at
+      }
+    : null;
+  if (events.found)
+    return {
+      ...events,
+      capability: 'team.launches',
+      tool: 'team',
+      terminal,
+      stages: { expected, observed: stages, missing: expected.filter(s => !stages.includes(s)) },
+      last_proven_stage: latest.stage,
+      launches: events.events.some(
+        event =>
+          event.event_name === 'team_launch_visible' &&
+          event.run_id === latest.generation_id &&
+          event.properties.revision_id === latest.revision_id
+      )
+        ? {
+            ...launches,
+            blind_spots: launches.blind_spots.filter(
+              spot =>
+                spot !==
+                'Database commit proves persistence; result visibility requires a browser signal.'
+            )
+          }
+        : launches
+    };
+  return {
+    found: true,
+    id,
+    matched_by: ['authoritative_table'],
+    capability: 'team.launches',
+    tool: 'team',
+    stages: { expected, observed: stages, missing: expected.filter(s => !stages.includes(s)) },
+    terminal,
+    last_proven_stage: latest.stage,
+    first_seen_at: latest.created_at,
+    last_seen_at: latest.updated_at,
+    delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+    agent: {
+      local_app_versions: [],
+      local_app_builds: [],
+      web_build_ids: [],
+      platforms: [],
+      architectures: [],
+      agent_instance_id: null,
+      agent_instance_ids: [],
+      agent_platforms: [],
+      note: 'Authoritative Launch rows have no browser or Agent identity; missing signals remain unknown.'
+    },
+    events: [],
+    launches
+  };
+}
+async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
   if (!OPAQUE_ID.test(id)) return { found: false, id };
   // The uuid columns need a uuid-typed parameter; a non-uuid id binds null there
   // and can only match the opaque ids kept in `properties`.
@@ -1910,6 +2019,7 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
          or e.properties ->> 'flow_id' = $1::text
          or ${columns.attemptId} = $1::text
          or e.properties ->> 'workflow_id' = $1::text
+         or e.properties ->> 'revision_id' = $1::text
        )
        and e.created_at <= $4::timestamptz
      order by e.occurred_at asc, e.session_sequence asc nulls last, e.created_at asc

@@ -230,7 +230,7 @@ export function TeamSpace({
   const browserRoute = useBrowserRoute();
   const route: TeamRoute = routeProp ??
     parseTeamRoute(browserRoute) ?? { kind: 'resolver', driveReturn: null, showAll: false };
-  const { teams, activeTeam, loading, replaceTeams, setActiveTeamId } = useTeam();
+  const { teams, activeTeam, loading, error: teamError, replaceTeams, setActiveTeamId } = useTeam();
   const [flow, setFlow] = useState<Flow>({ mode: 'browse' });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [teamsLoaded, setTeamsLoaded] = useState(false);
@@ -302,6 +302,16 @@ export function TeamSpace({
   }, [driveReturn, driveTarget, teams]);
 
   useEffect(() => {
+    // The production TeamProvider already owns this read. Waiting for its
+    // result avoids simultaneous duplicate list_my_teams RPCs while a fresh
+    // browser tab is establishing its Supabase session.
+    if (client === teamApi) {
+      if (!loading) {
+        setLoadError(teamError ? t('teamSpaceLoadFailed') : null);
+        setTeamsLoaded(true);
+      }
+      return;
+    }
     let active = true;
     void client
       .listTeams()
@@ -321,7 +331,7 @@ export function TeamSpace({
     return () => {
       active = false;
     };
-  }, [client, replaceTeams, t]);
+  }, [client, loading, replaceTeams, t, teamError]);
 
   // Non-blocking: an invitation the user has not answered holds them in the
   // lobby where they can see it. If the probe fails there is no count, and the

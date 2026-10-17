@@ -1,7 +1,7 @@
 {
-  "note": "Ratcheted 2026-10-10 on main after the Windows video-input fix: measured from the rebuilt apps/web/dist assets. The growth over the 2026-09-27 figure (860582 B) is the finance backdating, task copy and accounts work merged on 2026-10-09 (d287ae50) plus the 024 HeroUI migration still in progress on main; the Windows fix itself adds under a kilobyte (stitcher/input-diagnostics.ts). Not acceptance of the final weight: branch 024-heroui-finish carries its own re-measured baseline with the lazy date/combobox split, and supersedes this one when it merges. Previous 021 baseline: total 605534 B, entry 5376 B, largest 91012 B. The 5% regression tolerance still applies.",
-  "measured_at": "2026-10-10",
-  "total_gzip_bytes": 913612,
-  "entry_gzip_bytes": 6022,
-  "largest_gzip_bytes": 122173
+  "note": "Adopts the measured 2026-10-09 024-heroui-finish ratchet (99 built JS/CSS assets; see that branch's performance-baseline.json and specs/024-heroui-workspace/findings.md). The prior 2026-10-10 main value explicitly deferred to this accepted HeroUI measurement. LaunchSpace is a new lazy route measured separately by tests/performance-budgets.test.ts: 17,489 B gzip on 2026-10-14, capped at 20,000 B. The existing/shared assets still obey the 5% total ratchet; entry and largest-chunk limits remain unchanged.",
+  "measured_at": "2026-10-09",
+  "total_gzip_bytes": 956941,
+  "entry_gzip_bytes": 6019,
+  "largest_gzip_bytes": 136110
 }

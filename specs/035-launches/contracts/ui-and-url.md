@@ -2,7 +2,7 @@
 
 ## Navigation і controls
 
-Майбутній route: `/team/<id>/launches` у чинному router; query launchId, tab=result/settings, revisionId. URL маршруту не містить original URL або конфігурацію. List filter date: Calendar → Yesterday → Today, existing TaskDateFilterControl inlineDays; search/status/assignee комбінуються до pagination.
+Route: `/team/<id>/launches` у чинному router; query launchId, tab=result/settings, revisionId. URL маршруту не містить original URL або конфігурацію. У списку є пошук, фільтри дати Calendar → Yesterday → Today, рекламного кабінету та офера. Учасником запуск не фільтрується. Усі фільтри застосовуються сервером до pagination.
 
 Desktop form+preview поруч; narrow layout послідовний. Inventory Input/SelectMenu/Tabs/RadioGroup/Switch/Calendar/Popover/Card/state patterns, токени та i18n. Creative picker single selection через existing TaskAttachmentPicker seam; uploads — explicit action, не preview side effect.
 

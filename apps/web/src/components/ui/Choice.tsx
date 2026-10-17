@@ -369,13 +369,17 @@ export interface SliderProps {
   gradient?: boolean;
   value?: number;
   defaultValue?: number;
+  /** A pair of independently focusable thumbs for interval controls. */
+  rangeValue?: readonly [number, number];
   min?: number;
   max?: number;
   step?: number;
   disabled?: boolean;
   onChange?: (value: number) => void;
+  onRangeChange?: (value: readonly [number, number]) => void;
   /** Fired once the drag settles — the expensive half of a live preview. */
   onChangeEnd?: (value: number) => void;
+  onRangeChangeEnd?: (value: readonly [number, number]) => void;
   /**
    * Extra keys on the thumb, for a control whose step is not its keyboard step
    * — the transcript's scrubber drags by hundredths and seeks by seconds.
@@ -396,12 +400,15 @@ export function Slider({
   gradient = false,
   value,
   defaultValue,
+  rangeValue,
   min,
   max,
   step,
   disabled,
   onChange,
+  onRangeChange,
   onChangeEnd,
+  onRangeChangeEnd,
   onKeyDown,
   className,
   ...props
@@ -409,19 +416,36 @@ export function Slider({
   const slider = (
     <HeroSlider
       {...props}
-      value={value}
+      value={rangeValue ? [...rangeValue] : value}
       defaultValue={defaultValue}
       minValue={min}
       maxValue={max}
       step={step}
       isDisabled={disabled}
-      onChange={next => onChange?.(typeof next === 'number' ? next : next[0])}
-      onChangeEnd={next => onChangeEnd?.(typeof next === 'number' ? next : next[0])}
-      className={uiClasses('slider', { size, states: { gradient, disabled }, className })}
+      onChange={next => {
+        if (Array.isArray(next)) onRangeChange?.([next[0] ?? min ?? 0, next[1] ?? max ?? 0]);
+        else onChange?.(next);
+      }}
+      onChangeEnd={next => {
+        if (Array.isArray(next)) onRangeChangeEnd?.([next[0] ?? min ?? 0, next[1] ?? max ?? 0]);
+        else onChangeEnd?.(next);
+      }}
+      className={uiClasses('slider', {
+        size,
+        states: { gradient, disabled },
+        className: [className, rangeValue ? 'ui-slider--range' : ''].filter(Boolean).join(' ')
+      })}
     >
       <HeroSlider.Track className="ui-slider-track">
         <HeroSlider.Fill className="ui-slider-fill" />
-        <HeroSlider.Thumb className="ui-slider-thumb" />
+        {rangeValue ? (
+          <>
+            <HeroSlider.Thumb index={0} className="ui-slider-thumb" />
+            <HeroSlider.Thumb index={1} className="ui-slider-thumb" />
+          </>
+        ) : (
+          <HeroSlider.Thumb className="ui-slider-thumb" />
+        )}
       </HeroSlider.Track>
     </HeroSlider>
   );

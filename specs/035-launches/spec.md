@@ -286,7 +286,7 @@ advMarker = advantagePlus ? " adv+" : ""
 
 1. Перевірити матеріал, `view/edit/process/upload` відповідно до конкретних side effects, storage readiness, catalog settings/pools, тарифний доступ. Без restitch локальний агент для обчислення назв/URL не потрібен; restitch потребує підключення й capability.
 2. Зафіксувати original/generated URL і конфігурацію до side effects. Підготувати ключі етапів.
-3. Якщо restitch on: `getRestitchDefaults` → перевірка `restitchDefaultsSaveable` → `prepareRestitchScreens` або legacy `ensureRestitchImages` → `ensureRestitchedFolder` → `teamApi.startProcess` із `toolId='restitch'`, RESTITCH_CONTRACT_VERSION, keep_both → `startTeamAgentProcess` → підтверджений finalized material.
+3. Якщо restitch on: використати наявні space defaults, а за їх відсутності автоматично отримати фінальне зображення з останнього кадру вибраного відео без додаткового налаштування або збереження → `prepareRestitchScreens` або legacy `ensureRestitchImages` → `ensureRestitchedFolder` → `teamApi.startProcess` із `toolId='restitch'`, RESTITCH_CONTRACT_VERSION, keep_both → `startTeamAgentProcess` → підтверджений finalized material.
 4. Записати restitch operationId/resultMaterialId у серверному стані Launch generation. Успішний результат повторно використовувати при retry каталогу, якщо input signature і material version не змінилися.
 5. Викликати наявний createProductCatalog із `videoMaterialId` **оригінального** відео, `sourceLink=generatedAdvertisingUrl`, productCount, `restitchOperationId` якщо є, `replacesMaterialId=null` і стабільним idempotencyKey етапу. Це створює нову варіацію поруч, а не замінює стару.
 6. Прив'язати catalog record/materialId, variant, фактичну name, sheetUrl, параметри/settings snapshot та operationId до версії Launch. Не робити ще одну варіацію на кожну кампанію: N кампаній ділять один каталог.
@@ -296,7 +296,7 @@ advMarker = advantagePlus ? " adv+" : ""
 
 ### 10.2. Точні одиниці restitch
 
-Це тривалість фінального зображення в наявному restitch pipeline, не довільна «довжина рекламного ролика». `FinalImageDurationMode` з [types.ts](../../packages/shared/src/types.ts): 30–40, 40–50, 50–60 **хвилин**, custom через [parseMinutesInput](../../apps/web/src/components/ImageEmbeddingSection.tsx). UI приймає лише додатні цілі хвилини, множить на 60; існуюча верхня межа — `99*60*60 + 59*60 + 59` секунд (359999; найбільше допустиме ціле введення — 5999 хвилин). Інші restitch налаштування, початкові зображення/їхні мілісекунди, pools і fit modes наслідуються з поточного defaults, не дублюються новим набором полів.
+Це тривалість фінального зображення в наявному restitch pipeline, не довільна «довжина рекламного ролика». `FinalImageDurationMode` з [types.ts](../../packages/shared/src/types.ts): 30–40, 40–50, 50–60 **хвилин**, custom через [parseMinutesInput](../../apps/web/src/components/ImageEmbeddingSection.tsx). UI приймає лише додатні цілі хвилини, множить на 60; існуюча верхня межа — `99*60*60 + 59*60 + 59` секунд (359999; найбільше допустиме ціле введення — 5999 хвилин). Інші restitch налаштування, початкові зображення/їхні мілісекунди, pools і fit modes наслідуються з наявних defaults, не дублюються новим набором полів. Відсутність defaults не блокує запуск: автоматичний режим бере фінальне зображення з вибраного відео та застосовує вибрану тривалість без окремого збереження налаштувань.
 
 Перед запуском зберігати snapshot defaults та обраних ресурсів/версій; випадкову тривалість і вибір зображень не перебирати під час replay уже успішного етапу. Runtime має лишитися під PowerGovernor: [spawn.ts](../../apps/agent/src/power/spawn.ts), scaleTimeout, resumeForTermination. Новий FFmpeg runner не потрібен.
 
@@ -325,7 +325,7 @@ advMarker = advantagePlus ? " adv+" : ""
 
 Source snapshots у revision: agentRowId, accountId, accountName, full textual agentId і suffix; offerId/name; buyerId/value; creative materialId/driveVersion/filename/alias; launchDate/timezone; resolved restitch defaults і версії джерел. Збережені назви та URL читаються без повторного join до живих довідників. Конфігурація містить SUB schema/mapping version, budgetMode/overrides і templateVersion.
 
-URL доступні тільки авторизованому detail-read за правами, не list/card/realtime/audit projection. Не класти original URL у localStorage/IndexedDB або workspaceOperationJournal. Для draft — RAM до явного «Зберегти чернетку»/«Згенерувати», потім захищене серверне зберігання. Не використовувати plaintext payload hashing у логах; request digest/signatures серверні, недоступні аналітиці. Потребу field-level encryption узгодити в security gate (§18), не стверджувати, що вона вже реалізована для Launch URL.
+URL доступні тільки авторизованому detail-read за правами, не list/card/realtime/audit projection. Не класти original URL у localStorage/IndexedDB або workspaceOperationJournal. Draft автоматично зберігається у захищеному серверному сховищі після короткої паузи в редагуванні; до підтвердження сервера нові зміни лишаються в RAM. Не використовувати plaintext payload hashing у логах; request digest/signatures серверні, недоступні аналітиці. Потребу field-level encryption узгодити в security gate (§18), не стверджувати, що вона вже реалізована для Launch URL.
 
 Видалення: Launch у v1 архівується через `delete` permission; історія зберігається. Архівація Launch ніколи не каскадує на Google Sheet/catalog record, перезашите відео чи інші Drive materials: вони залишаються у просторі та в історії каталогу. Архівація заблокована під час активної generation до cancel/settlement. Перед архівацією Launch із готовим каталогом у будь-якій збереженій revision показати попередження «Каталог і перезашите відео залишаться у просторі» (називати відео лише коли воно є). Прапорець «Не показувати знову» присутній і **за замовчуванням вимкнений**; зберігати його як персональну перевагу поточного учасника в межах простору, не глобально. Записувати preference тільки якщо користувач підтвердив архівацію з прапорцем увімкненим; натискання «Скасувати» її не змінює. Коли preference вже збережена, попередження можна пропустити для наступних видалень у цьому просторі цього користувача. API/DB archive не видаляє й не змінює Drive outputs навіть коли попередження приховане. Від'єднання креативу не видаляє файл із Drive. Archived offer/Buyer не пропонується новим запускам, але snapshot продовжує відображатися. Видалення/перенесення джерел не каскадує Launch revisions: nullable references або soft-deletion/guard із незмінними snapshots. Фізичне очищення історії та retention — окрема погоджена політика. Видалення простору й авторизаційна недоступність підпорядковуються чинним правилам Soty.
 
@@ -577,7 +577,7 @@ URL-signature: original bytes + SUB order/mapping + значення викор�
 1. **Recovery без браузера.** Launch due recovery/cleanup самостійно пробуджує hosted worker через SQL dispatcher і endpoint wiring; scheduled catalog jobs не є передумовою. Bounded claims/backoff/fencing й доступність scheduler перевіряються окремо. Failed stage повторюється лише після explicit resume; автоматичне reconcile прийнятого intent не створює нової generation.
 2. **Source expectation.** Разом із draft зберігається expectedSourceSnapshot із джерел, використаних у preview. Generate порівнює його із server-resolved sources до side effects; rename/version/link mismatch повертає SOURCE_CHANGED навіть без зміни Launch version. UI явно оновлює sources і preview до повторного підтвердження. Replay прийнятого intent не перераховує snapshot із нових live values.
 3. **Copy timezone.** copyLaunch отримує поточний IANA timezone браузера. Сервер обчислює tomorrow календарно при першому успішному commit; replay після півночі повертає первісну дату й ID. Пояс історичного Launch не використовується як поточний.
-4. **Browser persistence.** Незбережені конфігурації й ручні outputs — RAM-only; заборона поширюється на localStorage/sessionStorage/IndexedDB/Cache API/operation journal та service-worker cache protected detail. Reload не відновлює незбережені секретні значення; вихід попереджає про втрату, logout/scope switch очищає RAM.
+4. **Browser persistence.** Незбережені конфігурації й ручні outputs — RAM-only; заборона поширюється на localStorage/sessionStorage/IndexedDB/Cache API/operation journal та service-worker cache protected detail. Reload відновлює підтверджену сервером чернетку за її ID; до підтвердження останніх змін вихід попереджає про втрату. Logout/scope switch очищає RAM.
 5. **Розходження результатів.** Після ручної правки URL каталог показує «Змінено для копіювання; каталог не оновлено». Залежні name/budget/range/SUB поля мають відповідну підказку; save/reopen зберігає її семантику, reset відповідного override прибирає. Жодних side effects від підказки.
 6. **Restore.** «Відновити конфігурацію» бере config historical revision у робочу копію Settings, включно зі старою датою та config budgets, без result overrides й outputs. Dirty input потребує явного save/discard/cancel. Sources revalidate; save draft не перемикає active result. Після explicit Generate створюється нова revision звичайним pipeline. Metadata assignee/workStatus не відновлюються зі старої revision. Права edit/lock/conflict чинні.
 
@@ -591,3 +591,184 @@ URL-signature: original bytes + SUB order/mapping + значення викор�
 | AC-31       | Synthetic secret відсутній у browser storage/cache/journal після вводу, конфлікту, copy, reload і logout; серверний protected detail лишається доступним за ACL                                 |
 | AC-37       | Ручний URL → catalog mismatch hint; save/reopen зберігає, reset прибирає; resource незмінний                                                                                                    |
 | AC-22/23/38 | Restore historical config з dirty input/removed source/viewer/active generation/conflict; лише explicit generation створює нову revision, попередня не переписується                            |
+
+### Уточнення повзунка тривалості (2026-10-16)
+
+- Точний час: одна кругла ручка без заливки зліва. Кнопка називає наступну дію — «Випадковий діапазон».
+- Діапазон: незалежні цілі хвилини 1–60; перетягування середини зберігає ширину, біля межі зупиняється весь діапазон. Перетягування ручки змінює тільки відповідну межу.
+- Перехід до діапазону розводить ручки на ±5 хв від точного часу з обрізанням біля 1/60; зворотний перехід зводить їх до середини. Reduced motion вимикає анімацію.
+- Рухи оновлюють лише локальний компонент; редактор і збереження отримують підсумок жесту. Клавіатура: стрілки, PageUp/Down, Home/End.
+- Обидві межі зберігаються у finalDurationRangeSeconds та враховуються при визначенні змін медіа. Сервер один раз вибирає тривалість у цих межах у durable preparation, повтор використовує той самий вибір.
+- Діагностика: чинний lifecycle запуску (intent → accepted → restitch preparation/processing → terminal → visible); помилкові межі відхиляються як INVALID_INPUT. Незбережені рухи курсора навмисно не збираються. Доказ результату — збережена ревізія та preparation, а не pointer telemetry. Регресії перевіряють drag/resize, крайні значення, round trip меж та invalidation медіа.
+
+- Перемикач режиму стоїть над шкалою; коли плашка хвилин наближається, кнопка ковзає в протилежний кут через transform за --motion-fast. Позиція враховує реальну ширину тексту та контейнера; у середині діапазону не перемикається без зіткнення. Reduced motion прибирає перехід.
+
+### Межі автоматичного бюджету (2026-10-16)
+
+- Заголовок бюджетної групи: «Встановіть бюджет кампанії» для N=1, «Встановіть бюджет кампаній» для N>1. В автоматичному режимі є два поля: «Мінімальний», потім «Максимальний».
+- Нові запуски мають minBudget=10, maxBudget=30. Для N>1 бюджет i дорівнює round(minBudget + i*(maxBudget-minBudget)/(N-1)), i=0…N-1. Для однієї кампанії використовується максимум. Показані суми й генерація використовують ту саму чисту функцію.
+- Позитивні цілі значення до 999999; min≤max; чинна вимога строго зростаючих бюджетів лишається. Якщо цілих значень у межах недостатньо для N кампаній, генерація блокується LAUNCH_BUDGET_INVALID. Зміна будь-якого поля одразу оновлює прев’ю.
+- Старі конфігурації без minBudget зберігають попередній розподіл max*i/N. Draft/defaults/revision зберігають minBudget за його наявності. Збережений результат історичного запуску не перераховується.
+- Діагностика використовує чинний lifecycle team.launches та закритий код LAUNCH_BUDGET_INVALID; невідправлені зміни полів не збираються. Регресії перевіряють preview→server parity, bounds validation, одиночну кампанію, legacy і round trip збереження.
+
+### Вибір дати запуску (2026-10-16)
+
+Праворуч у рядку аудиторії дата показується текстом «Дата запуску: DD.MM.YY». Під нею — «Сьогодні», «Завтра» та іконка календаря. Скорочення обчислюються в timezone запуску на момент кліку, календарна арифметика враховує DST та перехід місяця/року. Календар використовує спільний компонент і стек popover, після вибору закривається; заблокований редактор не допускає змін. Вибір одразу змінює конфігурацію й прев’ю, зберігається як чинний ISO YYYY-MM-DD. Діагностичний lifecycle запуску та INVALID_INPUT для невалідної дати незмінні; незбережені натискання окремо не збираються. Регресії перевіряють timezone, DST, Today/Tomorrow, вибір у календарі та disabled.
+
+### Сумісність назв SUB (2026-10-16)
+
+Літеральні query keys sub1/sub_1, sub2/sub_2, sub3/sub_3 означають відповідні спільні SUB-слоти. Попередження про відсутні слоти й фінальна підстановка використовують одну відповідність; якщо присутні обидві форми або дублікати, оновлюються всі відповідники. Написання ключів, порядок, невибрані слоти, сторонні параметри, рекламні макроси й fragment зберігаються byte-for-byte; відсутні ключі не додаються. Регістр та percent-encoded keys не нормалізуються. Параметри всередині fragment не вважаються query. Перевірки використовують тільки синтетичні URL; реальні токени/адреси не додаються до тестів або діагностики. Чинні коди LAUNCH_URL_INVALID/LAUNCH_SUB_INVALID і lifecycle запуску лишаються, незбережені URL не збираються.
+
+### Автозбереження параметрів (2026-10-16)
+
+Після першого редагування новий редактор створює захищену серверну чернетку та підмінює new її ID без перезапуску сесії. Після 500 мс без редагування зберігається найновіший snapshot конфігурації та джерел. Поля лишаються доступними під час запиту; наступний snapshot записується після підтвердження попередньої версії. Відповідь на старий snapshot не замінює новіший ввід, навіть коли вперше з’являється ID.
+
+Використовується чинний save_launch_draft з ACL, expectedVersion та requestKey. Невідомий результат/тимчасова помилка повторює ідентичний intent з bounded backoff; конфлікт версій зупиняє автозапис і показує помилку. Після втрати доступу/зміни scope пізні відповіді не застосовуються. Запуски, архівація та інші мутації не змагаються з автозаписом; до підтвердження browser unload лишає чинне попередження. Ручні result overrides зберігаються чинною окремою дією/working-copy transaction; їхні незбережені правки блокують автозапис конфігурації, щоб не розвести базові версії.
+
+Показуються стани «Збереження…», «Є незбережені зміни», «Чернетку збережено». Повний URL/aliases не записуються у browser storage/cache/journal. Reload читає захищений detail, а не локальний кеш. Діагностика: save_draft з flow_id=requestKey та workflow_id за наявності, success лише після підтвердження запису, closed failure codes і недоставлена browser telemetry залишаються невідомими. Джерело істини — збережена серверна версія, а не індикатор. Регресії: debounce, нові правки під час запиту, перший ID, retry з тим самим ключем, конфлікт, unmount/scope, browser storage privacy та refresh у beta.
+
+### Dictionary management
+
+Offer and buyer selectors expose a manage action to members with `manage_metadata`.
+The nested shared dialog searches active entries, renames with the same normalization
+as creation, and soft-deletes entries. A selected entry requires a replacement in
+the current draft before deletion. Generated revision snapshots are never rewritten.
+Undo restores the same ID; duplicate normalized names are rejected. Writes compare
+`updatedAt`, enforce team scope and permission, and replay the same request key after
+an unknown reply. Conflicts require reloading the protected dictionary before editing.
+Diagnostic intent and success/failure use `rename_dictionary`, `archive_dictionary`,
+and `restore_dictionary` with flow IDs and closed codes only. Names, searches and
+replacement values never enter telemetry. Database request receipts prove commit;
+missing client delivery and closing before refreshed visibility remain explicit blind
+spots. Regression acceptance covers optimistic conflicts, replay, permissions,
+validation, deletion/restore and required replacement.
+
+### Selected creative preview
+
+An eye action between the creative alias and chooser opens the existing protected
+MaterialPreview by selected material ID, including after restoring a saved draft.
+It is unavailable without a selection. Switching selection, workspace or input
+authority closes the viewer. Authorized media MIME selects video versus image
+rendering when no category is cached. The viewer reuses `team.preview` attempt
+correlation and safe terminal/error signals; no names, aliases or signed URLs enter
+analytics. Existing missing-delivery and media-load evidence limitations apply.
+
+### Re-stitch setup refusal before acceptance
+
+If generation refuses invalid supplied re-stitch settings before acceptance,
+show the re-stitch settings explanation, stop preparation progress and unlock the
+saved draft. A corrected retry saves to the same launch with a new generation
+request key. Preserve the correlated generate/failure signal and RESTITCH_INVALID
+code without settings content. After acceptance, retain request recovery instead
+of treating a child failure as proof that generation never started. Beta disables
+analytics; verify this path with hook regressions and the local UI.
+
+### Automatic launch re-stitching
+
+Selecting a video, enabling re-stitching and selecting its duration is sufficient.
+Saved workspace settings are optional. If absent, freeze automatic source-frame
+mode in the durable preparation and derive the end image from the selected video
+in the operation workspace. Preserve the selected duration, existing source/body
+validation, cancellation, power budget, permissions and catalog child receipts.
+Never create or modify workspace settings as a side effect. Existing configured
+space images remain in use. Older agents must be identified before local work
+starts via the automatic-frame capability.
+
+Record automatic_frame_started/completed/failed in the bounded agent journal with
+operation correlation only. Frame completion proves only a local image; video
+finalization and catalog registration still require their authoritative receipts.
+Missing journal delivery remains unknown and beta analytics remain disabled.
+Regression acceptance covers migration-chain preparation without settings, stable
+retry, actual FFmpeg output and duration, no local-library dependency, existing
+configured preparations, and diagnostic start/completion records.
+
+### Unified observed progress and scroll
+
+After Generate (including an approved regeneration or explicit retry), smoothly
+scroll the launch dialog to its top once. Respect reduced motion and never pull
+the viewport back when subsequent progress arrives. Prevent duplicate preflight
+submissions and bound read-only preflight to 15 seconds; cancellation or a late
+read cannot start generation afterwards.
+
+Show one segmented line: preparation, optional video, catalog (including access and registration),
+result. Omit inapplicable stages. The current action comes from the durable
+generation or the matching native child snapshot, including downloading,
+processing, uploading and finalizing. Catalog planning before a local child does
+not prove video completion. Segment completion requires current-attempt receipts;
+a completed video does not mean the catalog or result is ready. Show measured
+counts or a measured child percentage only within its stage, never as an overall
+percentage, and never advance stages using elapsed time.
+
+A child failure overrides a stale parent presentation immediately. Disconnection
+clears stale local progress and names the last confirmed stage. After 45 seconds
+without new evidence, perform one status reconciliation and show that no new
+confirmation arrived. This is not a failed or canceled operation. Reconcile on
+returning online or making the tab visible; no recurring client polling. Keep a
+Check status action available. Status reads abort after 15 seconds and discard
+responses from replaced subjects or older authoritative versions.
+
+Network mutation replies have a 30-second UI deadline. Lost replies remain
+LAUNCH_RESULT_UNCERTAIN with the same request keys and payload, allowing safe
+replay. Do not impose that deadline on native media work. An authoritative
+terminal receipt or confirmed cancellation releases a lost native HTTP wait; a
+late completion cannot overwrite the newer execution. Status reconciliation is
+read-only and must not restart processing.
+
+Diagnostic evidence reuses typed intent/local stages, correlated action failures,
+LAUNCH_RESULT_UNCERTAIN, child operation snapshots, durable steps and result
+visibility. Quiet-time UI notices alone are not proof of a stalled executor;
+missing browser/native signal delivery remains explicitly unknown. No content,
+URLs or paths enter telemetry. Regression acceptance covers receipt ordering,
+optional stages, local failure/disconnect/recovery, quiet and hung status reads,
+late replies, replay keys, unbounded legitimate native work, confirmed terminal
+recovery, single scroll and reduced motion.
+
+On the Result tab, size the launch dialog to its content through History instead
+of retaining a full-viewport height; keep the existing fixed dialog height for
+Settings and active progress. The dialog may scroll when its content exceeds the
+viewport.
+
+### Уточнення: швидке створення та відновлення перезашивки (2026-10-16)
+
+- Джерело картинок відповідає ефективним налаштуванням: власник і учасник зі спадкуванням використовують спільний набір, учасник із персональними налаштуваннями — свій. По одному доступному зображенню на початок і кінець достатньо; повтор підготовки повертає зафіксований вибір.
+- Прогрес створення — окремі комірки підготовки, відео (за потреби), каталогу (за потреби), результату. Поточна дія і виміряний прогрес під комірками; завершення кодування не означає завершення завантаження чи збереження результату. Невідома тривалість не дає вигаданого загального відсотка.
+- Відсутні/недоступні картинки дають дію переходу безпосередньо до вкладки перезашивки зі збереженим маршрутом запуску. Помилка підготовки залишається у durable receipt із кодом і останнім етапом.
+- Два незалежні запити доступу до картинок виконуються паралельно. Повторний вибір відбувається лише після обох відповідей, максимум один раз, без домішування старих grant-ів.
+- Координаційні мережеві очікування обмежені 30 секундами; невідповідь означає невідомий результат, а не доведену відмову. Пізня відповідь після timeout/cancel не починає локальну обробку. Цей deadline не поширюється на тривалу обробку відео.
+- Уся картка відкриває запуск; вибір checkbox і меню лишаються незалежними, основна кнопка доступна з клавіатури.
+
+Приймальні перевірки: власник / спадкування / персональний набір, справді порожній набір з `RESTITCH_POOL_EMPTY` у діагностичній проєкції, повтор receipt, паралельні grant-и, пізня відповідь, скасування підготовки, обробка 100% перед upload, прямий перехід налаштувань, повна клікабельність картки. Beta має вимкнену аналітику: UI та SQL regressions підтверджують поведінку, але не замінюють production delivery evidence.
+
+### 2026-10-17 — Видиме очікування перед генерацією
+
+Коли генерацію тимчасово блокує автозбереження, перевірка джерел, завантаження креативу або збереження вибору, кнопка показує спінер, а поряд є живий підпис фактичної причини. Після завершення очікування індикатор зникає; помилка чи історична ревізія самі по собі не означають фонову роботу. На вузькому екрані пояснення переноситься над кнопками. Відкладена відповідь автозбереження має зберігати індикатор та блокування генерації, дозволяти подальше введення, а після підтвердження останніх змін — прибирати індикатор. Діагностика використовує наявні кореляції `save_draft` та підтверджені версії; спінер не є доказом збереження, вміст URL не збирається.
+
+### 2026-10-17 — Стабільний прогрес генерації
+
+Звичайна інвалідація кешу каталогу не є втратою Realtime-з'єднання й не перемикає комірки запуску в попередження. Відсутність нового підтвердження залишає останню відому заливку; реальна помилка відображається одразу. Старі версії generation не замінюють нові, виміряна заливка в межах спроби не відкочується через пропущений або старіший зразок, нова спроба починає власний облік. Стани не оцінюються таймером. Комірки невідомої тривалості мають спокійний фон без пульсації та без удаваних 100%. Модальне вікно зберігає розмір, має внутрішній скрол і стабільне місце для статусу та дій; справжні помилки не обрізаються. Перевірки: повторні інвалідації кешу, справжній розрив зв'язку, збій, запізнілий snapshot, скидання між спробами. Діагностика й кореляції лишаються на чинних generation та operation receipts; колір і розмір UI не є доказом завершення роботи.
+
+### 2026-10-17 — Повторна генерація після зміни вхідних даних
+
+Зміна режиму, центру або будь-якої межі активного діапазону тривалості забороняє повторне використання старого відео та каталогу. Обидві серверні перевірки використовують однакову проєкцію активних полів, узгоджену з browser/Edge impact; неактивні поля часу не спричиняють зайвої обробки. Нова генерація фіксує новий process key і нову тривалість у межах вибраного діапазону; повтор запиту повертає ту саму підготовку.
+
+Дозвіл повторного використання перевіряє походження відео: його фактичну операцію й ревізію, яка підготувала її вхідні дані. Позначки останньої ревізії недостатньо — історичний результат, помилково використаний зі старою тривалістю, має бути перероблений при наступній генерації навіть без додаткової зміни форми. Історичні результати залишаються незмінними.
+
+Приймальна матриця охоплює креатив, байти й ідентичність файлу, зображення та defaults перезашивки, час, URL, кількість товарів, ціну, картинку й текст каталогу, назви та бюджети. URL і параметри каталогу оновлюють каталог зі збереженням придатного відео; зміни назв і бюджетів використовують чинні медіа. Retry прийнятої операції зберігає її зафіксовані дані, а нові зміни вимагають нової генерації; конфлікт не можна тихо проігнорувати.
+
+Діагностична проєкція та read-only CLI повертають `reuse_evidence`: opaque ID операції відео, generation, яка його обробила, та попередньої ревізії використаного каталогу. Це доказ походження збереженого результату, а не доказ його перегляду користувачем. Для старої схеми, пошкодженого доказу або втраченої підготовки причина відсутності обробки залишається невідомою. Немає збору конфігурації, URL, назв чи вмісту медіа. Регресії перевіряють весь шлях від SQL receipts до CLI, стару схему, некоректні значення та збереження приватності.
+
+Перевірка можливості повторного використання залишається на етапі підготовки. Відмова від старого каталогу не створює запису про його реєстрацію й не переводить прогрес уперед перед поверненням до створення нового каталогу. Executor/lease fence перевіряється до перевірки придатності результату.
+
+### 2026-10-17 — Стабільний статус редагування
+
+Редагування має один постійний рядок статусу під панеллю вкладок: очікування автозбереження й активний запис використовують однакове коротке повідомлення; підтверджений запис показує «Чернетку збережено» або «Зміни збережено». Статус залишається видимим при прокрутці. Помилки й конфлікти не оголошуються успішним збереженням. Перевірка джерел і завантаження креативу використовують цей самий рядок; кнопка генерації зберігає підпис і має доступний зв'язок зі статусом причини блокування.
+
+Пояснення копіювання знаходиться біля відповідної дії у підказці. Поки зміни не підтверджені, копіювання недоступне; повтор уже прийнятого запиту копіювання зберігає власну ідентичність. Звичайне редагування не додає абзаців над формою або рядків до панелі дій. Підказка SUB-параметрів займає зарезервовану висоту найдовшого локалізованого повідомлення для поточної ширини. Валідаційні помилки лишаються доступними.
+
+Acceptance: одна DOM-комірка статусу до редагування, під час debounce, запису та після підтвердження; незмінна кількість елементів над формою й у панелі дій; введення не блокується; копіювання розблоковується після підтвердження останньої зміни; відсутність/наявність SUB-параметрів не змінює місце підказки. Аналітика використовує чинні `save_draft`, `save_overrides`, `copy` та version-conflict receipts. Вигляд статусу не є окремим сигналом збереження; незбережені зміни в пам'яті й час читання повідомлення залишаються неспостережуваними.
+
+### 2026-10-17 — Компактне підтвердження оновлення
+
+Підтвердження має короткий заголовок «Оновити запуск?», список лише зачеплених результатів з іконками та одну виділену дію «Оновити запуск». «До редагування» повертає без генерації. Історія пояснена однією другорядною приміткою; попередження про незбережені ручні правки показується лише за їх наявності. Якщо змінюється тільки відео, повідомлення про незмінні результати не показується. Блок переносить вміст за доступною шириною без анімації розмірів.
+
+Acceptance: правильний список наслідків, повернення без запиту генерації, блокування повторного підтвердження та збереження ручних правок при невдалому запуску перевірені UI-регресіями. Чинні generate/cancel lifecycle та кореляції залишаються джерелом діагностики; перегляд підтвердження не є доказом початку або завершення обробки. Нові дані користувача не збираються.

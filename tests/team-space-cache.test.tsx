@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
+import { teamApi } from '../apps/web/src/api/team';
 import { makeClient, makeTeam } from './team-space-fixtures';
 
 const STORAGE_KEY = 'wishly.active-team.v1';
@@ -23,6 +24,20 @@ function renderSpace(client: ReturnType<typeof makeClient>) {
 }
 
 describe('team space entered-selection cache', () => {
+  it('uses the production provider team read without starting a second initial request', async () => {
+    const team = makeTeam();
+    localStorage.setItem(STORAGE_KEY, team.id);
+    const listTeams = vi.spyOn(teamApi, 'listTeams').mockResolvedValue([team]);
+    render(
+      <TeamProvider client={teamApi} realtime={false}>
+        <TeamSpace directAddMode="disabled" />
+      </TeamProvider>
+    );
+
+    await screen.findByRole('heading', { name: 'Media buyers' });
+    expect(listTeams).toHaveBeenCalledTimes(1);
+  });
+
   it('opens the workspace directly when a valid selection is cached (no lobby)', async () => {
     const team = makeTeam();
     localStorage.setItem(STORAGE_KEY, team.id);

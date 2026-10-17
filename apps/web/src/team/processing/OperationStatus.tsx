@@ -6,13 +6,14 @@ import { teamErrorMessage } from '../errors';
 
 export interface LocalTeamProgress {
   stage: string;
-  progress: number;
+  progress: number | null;
 }
 
 export function OperationStatus({
   operation,
   localProgress,
   localFailureCode = null,
+  measuredProgress,
   onCancel,
   onRetry
 }: {
@@ -26,6 +27,8 @@ export function OperationStatus({
    * themselves (finding S6). This is the truth, and it wins over that state.
    */
   localFailureCode?: string | null;
+  /** Explicit null means the current operation has no measured percentage. */
+  measuredProgress?: number | null;
   onCancel: () => void | Promise<void>;
   onRetry: () => void | Promise<void>;
 }) {
@@ -33,14 +36,24 @@ export function OperationStatus({
   const failedLocally = localFailureCode !== null;
   const running =
     !failedLocally && (operation.state === 'pending' || operation.state === 'running');
-  const progress = Math.max(operation.progress, running ? (localProgress?.progress ?? 0) : 0);
+  const reportedProgress = measuredProgress === undefined ? operation.progress : measuredProgress;
+  const localValue = localProgress?.progress;
+  const progress =
+    reportedProgress === null || !Number.isFinite(reportedProgress)
+      ? null
+      : Math.max(
+          reportedProgress,
+          running && localValue !== null && localValue !== undefined && Number.isFinite(localValue)
+            ? localValue
+            : 0
+        );
   const stage = running && localProgress ? localProgress.stage : operation.stage;
 
   return (
     <section className={`team-operation-status is-${operation.state}`} aria-live="polite">
       <div className="team-operation-status-heading">
         <strong>{operationLabel(failedLocally ? 'failed' : operation.state, t)}</strong>
-        <span>{Math.round(progress)}%</span>
+        {progress === null ? null : <span>{Math.round(progress)}%</span>}
       </div>
       <ProgressBar value={progress} active={running} label={t('teamOperationProgressLabel')} />
       <small>{stageLabel(stage, t)}</small>

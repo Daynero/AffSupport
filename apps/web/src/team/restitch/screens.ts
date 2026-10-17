@@ -48,37 +48,43 @@ export async function prepareRestitchScreens(
 
   let drawn = await deps.draw(teamId);
   if (drawn.sourceMode !== 'drive') return { kind: 'legacy' };
-  const screens: RestitchScreen[] = [];
-  const excluded: string[] = [];
-  let retried = false;
-  for (let index = 0; index < drawn.screens.length; index += 1) {
-    const screen = drawn.screens[index]!;
-    try {
-      const grant = await deps.grant(teamId, screen.materialId, 'agent');
-      if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
-      screens.push({
-        slot: screen.slot,
-        materialId: screen.materialId,
-        checksum: screen.checksum,
-        mimeType: screen.mimeType,
-        fileName: screen.fileName,
-        sizeBytes: screen.sizeBytes,
-        transfer: { transferUrl: grant.transferUrl, grant: grant.grant }
-      });
-    } catch (error) {
-      const code = codeOf(error);
-      // One more draw without this picture; a second refusal is the member's rights, not luck.
-      if (!retried && RETRY_CODES.has(code)) {
-        retried = true;
-        excluded.push(screen.materialId);
-        drawn = await deps.draw(teamId, { exclude: excluded });
-        screens.length = 0;
-        index = -1;
-        continue;
-      }
-      if (code === 'PERMISSION_DENIED') throw new TeamApiError('RESTITCH_SOURCE_FORBIDDEN', false);
-      throw error;
+  // At most two slots. Request independent grants together and wait for both
+  // outcomes before a redraw, so a late old grant cannot enter the new draw.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const results = await Promise.allSettled(
+      drawn.screens.map(async screen => {
+        const grant = await deps.grant(teamId, screen.materialId, 'agent');
+        if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
+        return {
+          slot: screen.slot,
+          materialId: screen.materialId,
+          checksum: screen.checksum,
+          mimeType: screen.mimeType,
+          fileName: screen.fileName,
+          sizeBytes: screen.sizeBytes,
+          transfer: { transferUrl: grant.transferUrl, grant: grant.grant }
+        } satisfies RestitchScreen;
+      })
+    );
+    const failures = results.flatMap((result, index) =>
+      result.status === 'rejected'
+        ? [{ error: result.reason as unknown, materialId: drawn.screens[index]!.materialId }]
+        : []
+    );
+    if (failures.length === 0)
+      return {
+        kind: 'ready',
+        screens: results.flatMap(result => (result.status === 'fulfilled' ? [result.value] : []))
+      };
+    if (attempt === 0 && failures.every(failure => RETRY_CODES.has(codeOf(failure.error)))) {
+      drawn = await deps.draw(teamId, { exclude: failures.map(failure => failure.materialId) });
+      if (drawn.sourceMode !== 'drive') return { kind: 'legacy' };
+      continue;
     }
+    const failure = failures.find(item => !RETRY_CODES.has(codeOf(item.error))) ?? failures[0]!;
+    if (codeOf(failure.error) === 'PERMISSION_DENIED')
+      throw new TeamApiError('RESTITCH_SOURCE_FORBIDDEN', false);
+    throw failure.error;
   }
-  return { kind: 'ready', screens };
+  throw new TeamApiError('RESTITCH_POOL_EMPTY', false);
 }

@@ -380,6 +380,44 @@ describe('team file operations', () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it('shows an indeterminate bar when measured progress is unavailable', () => {
+    const operation = {
+      id: 'operation-1',
+      teamId: TEAM_ID,
+      kind: 'process',
+      state: 'running' as const,
+      stage: 'processing',
+      progress: 30,
+      sourceMaterialId: 'material-1',
+      resultMaterialId: null,
+      errorCode: null,
+      retryable: false,
+      createdAt: '2026-08-01T12:00:00.000Z',
+      updatedAt: '2026-08-01T12:00:01.000Z'
+    };
+    const view = render(
+      <OperationStatus
+        operation={operation}
+        localProgress={null}
+        measuredProgress={null}
+        onCancel={vi.fn()}
+        onRetry={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('progressbar').hasAttribute('aria-valuenow')).toBe(false);
+    expect(screen.queryByText('30%')).toBeNull();
+    view.rerender(
+      <OperationStatus
+        operation={operation}
+        localProgress={{ stage: 'uploading', progress: Number.NaN }}
+        measuredProgress={Number.NaN}
+        onCancel={vi.fn()}
+        onRetry={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('progressbar').hasAttribute('aria-valuenow')).toBe(false);
+  });
+
   it('blocks an old agent and starts a compatible process with explicit destination/name', async () => {
     const client: ProcessMaterialClient = {
       start: vi.fn().mockResolvedValue({

@@ -24,6 +24,7 @@ export interface AnalyticsSchema {
     analytics_daily_events: boolean;
     analytics_daily_tool_outcomes: boolean;
     analytics_catalog_sync_jobs: boolean;
+    analytics_launch_generations?: boolean;
   };
 }
 
@@ -231,10 +232,13 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  launches?: import('./launches.js').LaunchEvidenceResult;
   found: true;
   id: string;
   /** Which column or property carried the id. */
-  matched_by: Array<'run_id' | 'flow_id' | 'attempt_id' | 'workflow_id' | 'properties'>;
+  matched_by: Array<
+    'run_id' | 'flow_id' | 'attempt_id' | 'workflow_id' | 'properties' | 'authoritative_table'
+  >;
   capability: string | null;
   tool: string | null;
   stages: InspectStages;
@@ -855,7 +859,10 @@ export interface InvestigateBlindSpot {
     | 'analytics_delivery_losses'
     | 'sync_unavailable'
     | 'journal_table_missing'
-    | 'envelope_v3_missing';
+    | 'envelope_v3_missing'
+    | 'launch_diagnostics_unavailable'
+    | 'launch_visibility_unknown'
+    | 'launch_settlement_unknown';
   detail: string;
   values: string[];
 }
@@ -877,6 +884,7 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  launches?: import('./launches.js').LaunchEvidenceResult;
   subject: InvestigateSubject;
   environment: InvestigateEnvironment;
   sessions: { count: number; recent: InvestigateSession[] };

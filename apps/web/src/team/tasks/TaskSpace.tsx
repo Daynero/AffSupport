@@ -238,8 +238,7 @@ export function TaskSpace({
     tasks.statusFilter !== 'all' ||
     tasks.filter.kind !== 'all' ||
     scope.kind !== 'all' ||
-    tasks.labelIds.length > 0 ||
-    tasks.assignee.kind !== 'all';
+    tasks.labelIds.length > 0;
 
   /**
    * Makes the task and opens it. The intermediate "name it first" dialog asked
@@ -534,9 +533,6 @@ export function TaskSpace({
         accounts={accounts}
         scope={scope}
         onScopeChange={setScope}
-        members={members}
-        assignee={tasks.assignee}
-        onAssigneeChange={tasks.setAssignee}
         labels={labels.labels}
         labelIds={tasks.labelIds}
         onLabelIdsChange={tasks.setLabelIds}

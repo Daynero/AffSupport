@@ -280,6 +280,26 @@ export class TeamTransferClient {
     return finalized as unknown as TeamFileOperationResult;
   }
 
+  async ackUploadQuiescence(request: {
+    operationId: string;
+    cloudBaseUrl: string;
+    finalizeGrant: TeamTransferGrant;
+  }): Promise<void> {
+    validateOperationId(request.operationId);
+    const baseUrl = cloudBaseUrl(request.cloudBaseUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    try {
+      await this.#edgeJson(
+        `${baseUrl}/process/output/quiesced`,
+        { operationId: request.operationId, ticket: request.finalizeGrant.ticket },
+        controller.signal
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async #edgeJson(url: string, body: unknown, signal: AbortSignal): Promise<unknown> {
     const response = await this.#fetch(url, {
       method: 'POST',

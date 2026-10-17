@@ -8,8 +8,10 @@ import LocalAppDialog from '../apps/web/src/components/LocalAppDialog';
 import { emptyQueueState } from './web-auth-helpers';
 import { fakeAgentValue } from './support/fake-agent';
 
-const WINDOWS_ARTIFACT_URL = 'https://example.com/Soty-v1.0.0-Windows-x64.exe';
-const MAC_ARTIFACT_URL = 'https://example.com/Soty-v1.0.0-macOS-arm64.dmg';
+const WINDOWS_ARTIFACT_URL =
+  'https://github.com/Daynero/AffSupport/releases/download/v1.0.0/Soty-v1.0.0-Windows-x64.exe';
+const MAC_ARTIFACT_URL =
+  'https://github.com/Daynero/AffSupport/releases/download/v1.0.0/Soty-v1.0.0-macOS-arm64.dmg';
 
 const WINDOWS_X64_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
 const WINDOWS_32BIT_UA = 'Mozilla/5.0 (Windows NT 10.0)';
@@ -63,8 +65,8 @@ function bothPlatformsPublished(): AgentContextValue {
   value.releaseManifest = {
     status: 'ready',
     manifest: manifestWith({
-      'macos-arm64': { url: MAC_ARTIFACT_URL, sha256: null },
-      'windows-x64': { url: WINDOWS_ARTIFACT_URL, sha256: null }
+      'macos-arm64': { url: MAC_ARTIFACT_URL, sha256: 'a'.repeat(64) },
+      'windows-x64': { url: WINDOWS_ARTIFACT_URL, sha256: 'b'.repeat(64) }
     })
   };
   return value;

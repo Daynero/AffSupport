@@ -368,6 +368,7 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
       raw.finalDurationMode === 'random-30-40' ||
       raw.finalDurationMode === 'random-40-50' ||
       raw.finalDurationMode === 'random-50-60' ||
+      raw.finalDurationMode === 'random-centered' ||
       raw.finalDurationMode === 'custom'
         ? raw.finalDurationMode
         : defaults.finalDurationMode,
@@ -413,6 +414,10 @@ function migrateJobImageEmbedding(value: unknown): JobImageEmbedding | null {
         : endImage && settings.finalDurationMode === 'custom'
           ? settings.customFinalDurationSeconds
           : null,
+    finalDurationCenterSeconds:
+      endImage && settings.finalDurationMode === 'random-centered'
+        ? settings.customFinalDurationSeconds
+        : null,
     fitMode: settings.fitMode,
     replaceExisting: raw.replaceExisting === true,
     sourceTrimStartSeconds: nonNegativeNumber(raw.sourceTrimStartSeconds),

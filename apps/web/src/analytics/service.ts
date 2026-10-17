@@ -128,14 +128,17 @@ const PROGRESS_EVENT_NAMES = new Set<string>([
   'tool_impression',
   'feature_impression',
   'home_viewed',
-  'screen_viewed'
+  'screen_viewed',
+  'team_launch_stage'
 ]);
 const TERMINAL_EVENT_NAMES = new Set<string>([
   'operation_cancelled',
   'error_occurred',
   'link_lost',
   'link_recovered',
-  'analytics_delivery_report'
+  'analytics_delivery_report',
+  'team_launch_terminal',
+  'team_launch_visible'
 ]);
 
 export function analyticsEventClass(name: string): AnalyticsEventClass {

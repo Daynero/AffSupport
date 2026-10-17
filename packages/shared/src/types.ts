@@ -15,7 +15,8 @@ export type EstimateStatus = 'waiting' | 'estimating' | 'estimated' | 'unavailab
 export type SourceKind = 'local' | 'uploaded';
 export type ImageSlot = 'start' | 'end';
 export type ImageFitMode = 'cover' | 'contain' | 'stretch';
-export type FinalImageDurationMode = 'random-30-40' | 'random-40-50' | 'random-50-60' | 'custom';
+export type FinalImageDurationMode =
+  'random-30-40' | 'random-40-50' | 'random-50-60' | 'random-centered' | 'custom';
 /** How long the embedded start image is held: one full frame, a fixed short preset, or a custom value. */
 export type StartImageDurationMode = 'one-frame' | 'ms-2' | 'ms-5' | 'ms-10' | 'custom';
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp';
@@ -146,6 +147,8 @@ export interface JobImageEmbedding {
   finalDurationMode: FinalImageDurationMode;
   /** A random duration is null while a ready job is only being estimated, then frozen at queue start. */
   finalDurationSeconds: number | null;
+  /** Center point used by the launch screen's moving 10-minute random window. */
+  finalDurationCenterSeconds?: number | null;
   fitMode: ImageFitMode;
   replaceExisting: boolean;
   /** Seconds removed from the source edges before the new images are embedded. */
@@ -308,6 +311,7 @@ export function imageEmbeddingKey(settings: JobImageEmbedding | null): string {
     settings.customStartDurationMs,
     settings.finalDurationMode,
     settings.finalDurationSeconds,
+    settings.finalDurationCenterSeconds ?? null,
     settings.fitMode,
     settings.replaceExisting,
     settings.sourceTrimStartSeconds,
@@ -347,6 +351,10 @@ export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageE
       endImage && settings.finalDurationMode === 'custom'
         ? settings.customFinalDurationSeconds
         : null,
+    finalDurationCenterSeconds:
+      endImage && settings.finalDurationMode === 'random-centered'
+        ? settings.customFinalDurationSeconds
+        : null,
     fitMode: settings.fitMode,
     replaceExisting: settings.replaceExisting,
     sourceTrimStartSeconds: 0,
@@ -355,8 +363,15 @@ export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageE
 }
 
 export function finalImageDurationRange(
-  mode: Exclude<FinalImageDurationMode, 'custom'>
+  mode: Exclude<FinalImageDurationMode, 'custom'>,
+  centerSeconds = DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
 ): readonly [number, number] {
+  if (mode === 'random-centered') {
+    const minimum = 60;
+    const maximum = 60 * 60;
+    const center = Math.min(maximum, Math.max(minimum, Math.round(centerSeconds / 60) * 60));
+    return [Math.max(minimum, center - 5 * 60), Math.min(maximum, center + 5 * 60)];
+  }
   if (mode === 'random-30-40') return [30 * 60, 40 * 60];
   if (mode === 'random-50-60') return [50 * 60, 60 * 60];
   return [40 * 60, 50 * 60];
@@ -364,9 +379,10 @@ export function finalImageDurationRange(
 
 export function randomFinalImageDurationSeconds(
   mode: Exclude<FinalImageDurationMode, 'custom'>,
-  random = Math.random
+  random = Math.random,
+  centerSeconds = DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
 ): number {
-  const [minimum, maximum] = finalImageDurationRange(mode);
+  const [minimum, maximum] = finalImageDurationRange(mode, centerSeconds);
   return (
     minimum + Math.floor(Math.min(0.999999999, Math.max(0, random())) * (maximum - minimum + 1))
   );
@@ -376,7 +392,10 @@ export function estimatedFinalImageDurationSeconds(settings: JobImageEmbedding |
   if (!settings?.endImage) return 0;
   if (settings.finalDurationSeconds !== null) return settings.finalDurationSeconds;
   if (settings.finalDurationMode === 'custom') return 0;
-  const [minimum, maximum] = finalImageDurationRange(settings.finalDurationMode);
+  const [minimum, maximum] = finalImageDurationRange(
+    settings.finalDurationMode,
+    settings.finalDurationCenterSeconds ?? DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
+  );
   return Math.round((minimum + maximum) / 2);
 }
 

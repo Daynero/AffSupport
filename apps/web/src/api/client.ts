@@ -845,12 +845,13 @@ export function localCompressSupported(contracts: ToolContracts): boolean {
   return toolContractCompatible('teamWorkspace', contracts) && (contracts.stitcher ?? 0) >= 1;
 }
 
-export async function agentCanRestitch(): Promise<RestitchCapability> {
+export async function agentCanRestitch(automaticEndFrame = false): Promise<RestitchCapability> {
   try {
     const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
     const contracts = health.toolContracts ?? {};
     return toolContractCompatible('teamWorkspace', contracts) &&
-      toolContractCompatible('stitcher', contracts)
+      toolContractCompatible('stitcher', contracts) &&
+      (!automaticEndFrame || (contracts.teamRestitchAutomaticFrame ?? 0) >= 1)
       ? 'yes'
       : 'too-old';
   } catch {

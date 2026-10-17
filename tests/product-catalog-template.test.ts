@@ -129,9 +129,9 @@ describe('the rows of a catalog', () => {
     expect(
       ids.every(cell => cell.t === 'string' && /^[0-9A-Z]+-[0-9A-Z]{7}$/u.test(String(cell.v)))
     ).toBe(true);
-    expect(cellAt(rows, 'Z', 3)).toEqual({ t: 'string', v: `${videoLink}?v=001` });
-    expect(cellAt(rows, 'Z', 12)).toEqual({ t: 'string', v: `${videoLink}?v=010` });
-    expect(cellAt(rows, 'Z', 402)).toEqual({ t: 'string', v: `${videoLink}?v=400` });
+    expect(cellAt(rows, 'Z', 3)).toEqual({ t: 'string', v: `${videoLink}&v=001` });
+    expect(cellAt(rows, 'Z', 12)).toEqual({ t: 'string', v: `${videoLink}&v=010` });
+    expect(cellAt(rows, 'Z', 402)).toEqual({ t: 'string', v: `${videoLink}&v=400` });
     const links = new Set(rows.slice(2).map(row => cellAt([row], 'Z', 1).v));
     expect(links.size).toBe(400);
   });
@@ -237,3 +237,21 @@ describe('the updater leaves 022 alone (023)', () => {
   });
 });
 // @ts-nocheck — template assertions include legacy row variants for compatibility coverage.
+
+it.each(['', '#preview'])(
+  'keeps the Drive resource key intact when adding a per-row video variation %s',
+  fragment => {
+    const protectedLink = `https://drive.google.com/file/d/video/view?usp=sharing&resourcekey=0-safe-key${fragment}`;
+    const rows = buildProductCatalogRows({
+      settings,
+      sourceLink,
+      videoLink: protectedLink,
+      count: 1
+    });
+    const link = new URL(String(cellAt(rows, 'Z', 3).v));
+    expect(link.searchParams.get('resourcekey')).toBe('0-safe-key');
+    expect(link.searchParams.get('usp')).toBe('sharing');
+    expect(link.searchParams.get('v')).toBe('001');
+    expect(link.hash).toBe(fragment);
+  }
+);

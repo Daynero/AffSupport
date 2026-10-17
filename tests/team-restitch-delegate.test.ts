@@ -47,6 +47,15 @@ const screen = (slot: 'start' | 'end', materialId = MATERIAL): RestitchScreen =>
 });
 
 describe('the options off the wire', () => {
+  it('preserves the explicit automatic source-frame mode', () => {
+    expect(
+      parseRestitchOptions({ defaults: { ...defaults, automaticEndFrame: true }, screens: [] })
+        ?.defaults.automaticEndFrame
+    ).toBe(true);
+    expect(
+      parseRestitchOptions({ defaults, screens: [] })?.defaults.automaticEndFrame
+    ).toBeUndefined();
+  });
   it('accepts screens beside the defaults and reads none as the legacy path', () => {
     const parsed = parseRestitchOptions({ defaults, screens: [screen('start')] });
     expect(parsed?.screens).toHaveLength(1);

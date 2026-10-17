@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 // Imported directly rather than through a wrapper: this test is the script's
 // contract, and a shim between them could drift from what actually runs.
 import {
   gateIdsFor,
   judgeCoverage,
   phasesFor,
+  prepareSuiteArtifacts,
   readSuiteReport,
   renderSummary
 } from '../scripts/verify-all.mjs';
@@ -78,6 +82,20 @@ function failureResult(excerptLines: number) {
 }
 
 describe('gate lists', () => {
+  it('removes stale suite and coverage reports before a new suite gate', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'soty-verify-suite-'));
+    try {
+      const suite = path.join(directory, 'verification-suite.json');
+      const coverage = path.join(directory, 'coverage-summary.json');
+      writeFileSync(suite, '{"numTotalTests":5492}');
+      writeFileSync(coverage, '{"total":{"lines":{"pct":75}}}');
+      prepareSuiteArtifacts(suite, coverage);
+      expect(existsSync(suite)).toBe(false);
+      expect(existsSync(coverage)).toBe(false);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
   it('gives every gate id to exactly one form', () => {
     const fast = gateIdsFor('fast');
     const release = gateIdsFor('release');

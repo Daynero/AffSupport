@@ -490,3 +490,21 @@ describe('starting a processing run', () => {
     expect(parseTeamProcessStartResult({ ...start, ...patch })).toBeNull();
   });
 });
+
+it('retains the existing native failure code in a team operation snapshot', () => {
+  const operation = {
+    id: 'operation',
+    teamId: 'team',
+    kind: 'process',
+    state: 'failed',
+    stage: 'failed',
+    progress: 0,
+    sourceMaterialId: null,
+    resultMaterialId: null,
+    errorCode: 'PROCESS_FAILED',
+    retryable: false,
+    createdAt: '2026-10-14T00:00:00Z',
+    updatedAt: '2026-10-14T00:00:00Z'
+  };
+  expect(parseTeamOperationSnapshot(operation)).toEqual(operation);
+});

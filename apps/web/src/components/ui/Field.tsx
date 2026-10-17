@@ -1,3 +1,5 @@
+import { ComboBox as HeroComboBox } from '@heroui/react/combo-box';
+import { Input as HeroInput } from '@heroui/react/input';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { ListBox } from '@heroui/react/list-box';
 import { ListBoxItem } from '@heroui/react/list-box-item';
@@ -7,6 +9,9 @@ import { Select as HeroSelect } from '@heroui/react/select';
 import {
   forwardRef,
   useId,
+  useEffect,
+  useRef,
+  useState,
   type InputHTMLAttributes,
   type ReactNode,
   type TextareaHTMLAttributes
@@ -450,6 +455,145 @@ export function InputTags({
             target.value = '';
           }}
         />
+      )}
+    </div>
+  );
+}
+
+/** The searchable closed-choice control in the inventory contract (024). */
+export function SelectMenu({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+  onCreate,
+  placeholder,
+  disabled = false,
+  createLabel,
+  errorLabel,
+  size = 'md'
+}: {
+  id?: string;
+  label: string;
+  value: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  onCreate?: (value: string) => Promise<string | void>;
+  placeholder: string;
+  createLabel?: (value: string) => string;
+  errorLabel: string;
+  disabled?: boolean;
+  size?: UiSize;
+}) {
+  const selectedLabel = options.find(option => option.value === value)?.label ?? '';
+  const [query, setQuery] = useState(selectedLabel);
+  const [creating, setCreating] = useState(false);
+  const creatingRef = useRef(false);
+  const [failed, setFailed] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    setQuery(selectedLabel);
+  }, [selectedLabel, value]);
+  const filtered =
+    query === selectedLabel
+      ? options
+      : options.filter(option =>
+          option.label.toLocaleLowerCase().includes(query.toLocaleLowerCase())
+        );
+  const candidate = query.trim();
+  const mayCreate = Boolean(
+    onCreate &&
+    createLabel &&
+    candidate &&
+    !options.some(option => option.label.toLocaleLowerCase() === candidate.toLocaleLowerCase())
+  );
+  return (
+    <div>
+      <HeroComboBox
+        aria-label={label}
+        selectedKey={value || null}
+        inputValue={query}
+        isDisabled={disabled || creating}
+        allowsCustomValue={false}
+        allowsEmptyCollection
+        onInputChange={next => {
+          setQuery(next);
+          setFailed(false);
+        }}
+        onBlur={() => {
+          if (!creatingRef.current) setQuery(selectedLabel);
+        }}
+        onSelectionChange={key => {
+          if (key === null) return;
+          if (key === '__create__' && onCreate && mayCreate) {
+            creatingRef.current = true;
+            setCreating(true);
+            setFailed(false);
+            void onCreate(candidate)
+              .then(createdValue => {
+                if (typeof createdValue === 'string' && mounted.current) {
+                  setQuery(candidate);
+                  onChange(createdValue);
+                }
+              })
+              .catch(() => {
+                if (mounted.current) setFailed(true);
+              })
+              .finally(() => {
+                creatingRef.current = false;
+                if (mounted.current) setCreating(false);
+              });
+          } else {
+            const option = options.find(option => option.value === String(key));
+            if (option) {
+              setQuery(option.label);
+              onChange(option.value);
+            }
+          }
+        }}
+        className={uiClasses('select', { size, states: { disabled: disabled || creating } })}
+      >
+        <HeroComboBox.InputGroup className="ui-select-trigger">
+          <HeroInput id={id} className="ui-select-value" placeholder={placeholder} />
+          <HeroComboBox.Trigger aria-label={label}>
+            <ChevronDown size={16} strokeWidth={1.75} />
+          </HeroComboBox.Trigger>
+        </HeroComboBox.InputGroup>
+        <HeroComboBox.Popover className="ui-select-popover">
+          <ListBox className="ui-select-list">
+            {filtered.map(option => (
+              <ListBoxItem
+                key={option.value}
+                id={option.value}
+                className="ui-select-option"
+                textValue={option.label}
+              >
+                {option.label}
+              </ListBoxItem>
+            ))}
+            {mayCreate && (
+              <ListBoxItem
+                id="__create__"
+                className="ui-select-option"
+                textValue={createLabel!(candidate)}
+              >
+                {createLabel!(candidate)}
+              </ListBoxItem>
+            )}
+          </ListBox>
+        </HeroComboBox.Popover>
+      </HeroComboBox>
+      {failed && (
+        <p role="alert" className="text-error-text">
+          {errorLabel}
+        </p>
       )}
     </div>
   );

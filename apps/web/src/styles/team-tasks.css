@@ -1199,15 +1199,6 @@ button.team-task-label-chip:hover:not(:disabled),
   --task-tag-color: var(--task-tag-slate);
 }
 
-/* --- Whose tasks (018 part 2) --------------------------------------------- */
-
-/* The name is what the row is scanned by; the address gives way first. */
-.task-assignee-filter-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* --- The palette and the shortcut sheet (024) ------------------------------ */
 
 /*

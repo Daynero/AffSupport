@@ -136,6 +136,9 @@ describe('workspace background summary', () => {
       </WorkspaceOperationsContextOverride>
     );
     expect(screen.getByText(/only until this tab closes/i)).toBeTruthy();
+    const settledChip = screen.getByRole('button', { name: /1 local operations/i });
+    expect(settledChip.classList.contains('ui-chip-warn')).toBe(true);
+    expect(settledChip.querySelector('.ui-chip-spinner')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /1 local operations/i }));
     expect(screen.getByText(/Select the same files again/i)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Retry operation' }));

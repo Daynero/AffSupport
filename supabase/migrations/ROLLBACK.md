@@ -1,5 +1,22 @@
 # Rollback notes
 
+## 20261202111000_agent_tenant_index_dedup.sql
+
+If the unreferenced duplicate was removed, restore it with
+`alter table public.team_account_agents add constraint team_agents_tenant_key unique (id, team_id)`.
+The retained tenant key and all foreign keys remain intact. No data is deleted.
+
+## 20261202110000_operational_history_retention.sql
+
+Unschedule `soty-catalog-event-retention` and `soty-cron-history-retention` first.
+Drop `private.cleanup_team_catalog_events(integer)` and
+`private.cleanup_cron_history(integer)`, then
+`public.team_catalog_events_retention_idx`. The managed cron primary key is
+unchanged. Already-expired history deleted by a job
+cannot be restored by this rollback; recent history, active jobs, audit and
+material records were never removed. Schedules can be disabled without dropping
+the functions or indexes.
+
 ## 20261130120000_space_tariff_notices.sql
 
 Unschedule `wishly-tariff-notices-queue` and `wishly-tariff-notices`
@@ -1615,7 +1632,7 @@ Space search rework (weighted document, name-first ranking, infix and typo toler
 1. `drop function public.search_materials(uuid, text, jsonb, integer, integer, text, text[], boolean);`
    then re-apply `public.search_materials` from `20261128100000_media_companion_projection.sql`
    together with its revoke/grant (`revoke all … from public, anon, authenticated, service_role;
-   grant execute … to authenticated`) and the comment from `20260827108000_team_search_scope.sql`.
+grant execute … to authenticated`) and the comment from `20260827108000_team_search_scope.sql`.
    A web build that asks for `p_recursive` gets PGRST202 and retries without it (direct-children
    scope); rows simply lack `matchedIn`/`snippet`.
 2. Re-apply `private.refresh_team_material_search()` from `20260916220000_material_notes.sql` and
@@ -1624,6 +1641,255 @@ Space search rework (weighted document, name-first ranking, infix and typo toler
    `catalog_material_mutation`; `update … set search_tsv = <old expression>`; re-enable). Leaving
    the weighted vector in place is also harmless: the old search ignores weights.
 3. Optional cleanup: `drop function private.material_search_document(text, text[], text, text,
-   text, text, text)`, `private.name_fuzzy_match(text, text)`, `private.name_similarity(text,
-   text)` and `drop index if exists public.team_materials_name_trgm_idx`. Keep the `pg_trgm`
+text, text, text)`, `private.name_fuzzy_match(text, text)`, `private.name_similarity(text,
+text)` and `drop index if exists public.team_materials_name_trgm_idx`. Keep the `pg_trgm`
    extension; other objects may come to depend on it.
+
+## Launches — 20261201110000 / 111000 / 112000
+
+Local rollback only after exporting any wanted Launch history: revoke the new Launch RPCs,
+remove `team_launch_signals` from `supabase_realtime`, drop new public/private Launch functions
+with their exact signatures, then drop `team_launches` active-revision FK and the new
+`team_launch_*` tables in dependency order. No existing Tasks/accounts/materials/catalog data
+is removed. Production rollback is an additive corrective migration, never rewriting these
+files or deleting historical results. No production migration is applied by this implementation.
+
+## 20261202121000_transfer_grant_retention.sql
+
+Stop `soty-transfer-grants-retention` first with `cron.unschedule` for that exact
+job. The cleanup function/index can remain, or drop
+`private.cleanup_team_transfer_grants(integer)` and
+`private.team_transfer_grants_retention_idx` after the job has stopped.
+If removing the full index, restore the previous expiry index on `expires_at`
+where `revoked_at is null` first. Already-cleaned expired tickets cannot be
+restored by rollback. No material,
+operation or stored file is deleted by the function.
+
+## 20261202120000_landing_grant_reuse.sql
+
+Redeploy the previous `drive-transfer` source to resume random tickets. Keep the
+additive service-only RPC, nullable reuse key and index until no function uses
+them; existing grants remain consumable through their hashes and expire normally.
+Do not remove grant rows or user data as a rollback.
+
+## Launches — durable catalog / coordinator / defaults / diagnostics (20261201113000, 122000–125000)
+
+These are additive implementation migrations, not a production deployment. Before any local rollback, stop the Launch executor and settle pending intents/cleanup; preserve its receipts until every owned resource is reconciled. Never infer ownership from a name or delete resources belonging to published/historical revisions.
+
+For a local-only rollback, revoke/drop the new `service_*catalog_intent`, `service_plan_catalog_resources`, `service_reconcile_catalog_result`, `service_retry_catalog_child` and `service_*launch_generation`/`service_attach_launch_catalog` routines by their exact signatures in these files; then drop `private.catalog_generation_sharing` before `private.catalog_generation_intents`. Restore the preceding analytics guard from `20261117100000_analytics_guard_contract.sql` only together with a compatible client; drop `public.analytics_launch_generations` and its read-only grant; remove the defaults validation trigger before its private function. Existing Tasks, catalogs, materials and Drive files are retained. A production correction would be a new forward migration, not rewriting applied SQL or destroying historical results.
+
+## Launches — projections, source identity and replay corrections (20261201126000–135000)
+
+Keep existing catalog/material/Drive resources and all immutable Launch revisions. Local rollback
+requires stopping the Launch executor before dropping the new restore/reuse RPCs by their exact
+signatures. Restore previous source/list/detail function definitions only with the matching web
+build. Remove the Launch workspace invalidation publication entry before its signal table; remove
+the material-operation/updater/reference guard triggers before their private guard functions.
+Dictionary normalization correction and protected resume fields can remain with older clients.
+Never drop the catalog intent journal while an unpublished output or uncertain permission needs
+reconciliation. Production corrections must be forward migrations.
+
+## Launches — provider-free hosted settlement (20261201136000)
+
+Stop the scheduled catalog updater before rolling back locally. Restore
+`private.invoke_catalog_updater_worker()` from `20261127100000_restitch_cache_cleanup.sql`,
+then drop `public.service_settle_launch_batch(integer)` and `private.launch_settlement_due()`.
+Use the matching prior worker build. Existing completed results and cancelled states remain;
+this path neither deletes Drive files nor rolls back permissions. It does not resolve uncertain
+provider work, which must retain its journal for ownership-aware cleanup.
+
+## Launches — fault isolation, cleanup claims and recovery dispatch (20261201137000–139000)
+
+Stop both hosted recovery endpoints before any local rollback. Keep all cancellation journals,
+sharing receipts and provider IDs until cleanup is settled. Roll back the worker/drive-ops build
+together with the exact service cleanup/list-recovery routines; restore the previous scheduler
+definition (136000) before dropping `private.launch_cleanup_due()` /
+`private.launch_catalog_recovery_due()`. Do not delete registered catalogs or materials.
+`service_finish_launch_cleanup` deliberately preserves unknown permission/create outcomes
+in `canceled_with_cleanup_pending`; rollback must not relabel them canceled. Unknown causes
+are stored as closed codes, never SQL exception text. Production corrections remain forward-only.
+
+## Launches — restitch preparation and settlement (20261201141000–146000)
+
+For a local rollback, stop Launch execution and use the matching prior worker/web build.
+Restore the previous settlement wakeup predicate and catalog attach definition before dropping
+`service_settle_launch_restitch_batch(integer)`, `settle_launch_restitch(uuid,uuid)` and the
+private settlement routine. Remove the reserved-key start and cancellation triggers before
+their functions. Keep `private.launch_restitch_preparations` until every bound operation and
+uncertain output is reconciled. Preserve generated videos, catalogs and immutable revisions;
+rolling back must never turn a canceled parent into accepted work. Production corrections
+remain forward migrations. The latest-secret worker readiness correction may remain.
+
+## Launches — local runner, retry and immutable video reuse (20261201147000–151000)
+
+Use a matching older web/worker build and stop Launch executors before local rollback.
+Restore the previous catalog recovery list, attach and receipt definitions before removing
+`service_link_launch_restitch_catalog`, `get_launch_restitch_reuse` and the private reuse
+predicate. Restore the prior detail projection and bind implementation before removing
+`process_attempt` or the explicit retry RPC. Retain all preparation rows, prior attempt steps,
+copy ledger rows and historical material identities; do not detach or trash videos shared by
+multiple Launch revisions. Completed copy ownership stays with its original catalog while
+new immutable Launch catalog references record reuse. Production corrections remain forward-only.
+
+## Launches — retention, publication and retry fences (20261201152000–160000)
+
+Stop Launch executors and ordinary cleanup workers before a local rollback. Restore
+matching prior claim/retention, material write/trash, ancestor-lock, catalog-link,
+publication and unlock routines together with their matching web/worker build.
+Do not remove retention guards while any immutable revision references its files
+or while an unpublished output is unresolved. Preserve cancellation journals,
+restitch preparations, attempt steps and catalog reservations. Unknown outcomes
+must stay unsettled; do not relabel partial/interrupted work as editable or canceled.
+Keep checksum identity receipts and prior manual revisions intact. Restore the
+previous override validation only with a compatible client; larger saved SUB values
+remain historical data. Production correction is forward-only and never deletes
+historical catalogs or videos as a rollback side effect.
+
+## Launches — working copies, frozen resources and request cancellation (20261201161000–172000)
+
+Stop matching Launch executors before local rollback and restore the matching
+web/worker build, analytics guard and diagnostic view together. Preserve immutable
+manual revisions, frozen catalog checkpoints, registered output references and
+canceled-request tombstones. Never remove the acceptance fence while late or
+uncertain acceptance requests can still arrive: that would resurrect canceled work.
+The unfenced acceptance function is intentionally not callable by service_role;
+only the fenced wrapper is exposed. Restore the wrapper and grants as one unit.
+Do not remove registered-output retention while a catalog or video remains in the
+workspace, and do not trash historical resources as a rollback side effect.
+Production corrections remain forward-only.
+
+## Launches — preparation receipts, bounded steps and authority loss (20261201173000–176000)
+
+Stop the matching recovery worker before local rollback. Preserve recorded failure
+causes and step receipts; never reinterpret failed preparation as unaccepted work
+or a revoked actor as permission to publish. Restore the preparation wrapper and
+its unchecked-function grants together; browsers must never bypass the wrapper.
+Restore the recovery predicate, dispatcher due predicate and authority-settlement
+call as one compatible unit. Authority loss does not prove native termination or
+provider cleanup. Keep those receipts pending until their independent proof exists.
+
+## Launches — existing-installation error vocabulary (20261201177000)
+
+This additive migration synchronizes the closed error vocabulary for installations
+that applied the older seed. Keep the codes while matching web, worker or stored
+diagnostic receipts reference them. Do not remove historical failure evidence;
+production vocabulary corrections remain forward-only.
+
+## Launches — cleanup lease presence (20261201178000)
+
+Keep the cleanup authorization and settlement routines together. Missing owner
+or lease expiry explicitly revokes cleanup authority, even with matching fences.
+Do not restore the earlier nullable comparison logic: it could authorize a
+provider effect after its lease was removed. No historical resources are deleted
+as a migration or rollback side effect.
+
+## Launches — restitch upload phase (20261201179000–181000)
+
+Deploy the matching Edge handler and migration together, with older Launch upload
+handlers drained before using `not_started` as proof. The marker is private and
+nullable: `NULL` means legacy or unknown, `started` means a Drive request may
+have happened. Never backfill old rows as `not_started`. Stop the matching worker
+before rollback; keep unresolved uploads in cleanup_pending and preserve every
+provider/material receipt. Migration 180000 makes missing phase/tool values fail
+closed on installations that applied 179000 before its corrected guard.
+Migration 181000 serializes the final upload-start authorization against parent
+cancellation using the existing launch → generation → child lock order. Keep
+that order when changing either path; an earlier authorization order could read
+an active parent while cancellation was in progress.
+
+Migrations 182000–183000 add a service-only lease and a marked native-video
+cleanup receipt. Stop the hosted worker before rollback. Never clear the private
+phase or delete a material as a rollback shortcut: unregistered uploads with
+unknown Drive outcomes must remain cleanup_pending. The corrected claim query
+in 183000 is also present in 182000 for fresh databases.
+
+Migrations 184000–185000 add the local-upload quiescence receipt and require it
+before a provider cleanup claim. Migration 186000 wakes the hosted worker for
+quiesced native-video cleanup even without a catalog intent. Restore the prior
+`private.launch_cleanup_due()` definition from 138000 if rolling back 186000.
+Drain the matching agent version before rollback; a canceled database child
+alone does not prove the native uploader has stopped. Preserve pending rows
+without a receipt.
+Migration 187000 adds a five-minute retry delay for uncertain video cleanup.
+Restore `service_finish_launch_video_cleanup` from 182000 only with the worker
+stopped; retain the `cleaned` phase until provider-free settlement completes.
+Migration 188000 locks new copy requests during generation. Restore `copy_launch`
+from 163000 only together with a matching UI; committed request replay is
+preserved in both versions and must never create another copy.
+Migration 189000 binds a failed Launch catalog child retry to the exact child
+attempt that existed when the actor explicitly retried the parent. Stop the
+Launch worker before restoring the earlier `retry_launch_generation` and
+`service_retry_catalog_child` definitions together. Do not lower an existing
+`attempt_no`, clear a registered intent, or retry a terminal child merely to
+complete a rollback; preserve its catalog reservation and output receipts.
+Migration 190000 keeps a permission in `cleanup_pending` when an `anyone`
+grant appears after the provider's create reply was lost. Do not roll this
+guard back while such ledger rows exist: the earlier function can relabel an
+uncertain grant as preexisting and falsely settle a canceled Launch. Keep the
+worker stopped for any function replacement and preserve pending receipts.
+Migration 191000 marks grants on a positively trashed, owned unpublished sheet
+as cleaned in the same fenced transaction. Grants on source videos and images
+remain separate pending receipts. Restore the prior finish routine only with
+the worker stopped; preserve existing `cleaned` receipts during rollback.
+Migration 192000 adds exact source-permission cleanup behind a service lease,
+consumer proof and a short catalog-start fence. Deploy it with the worker that
+reads the new permission plans and confirms deletion by listing the exact ID.
+Stop that worker before a forward-only correction. Preserve `cleaned`,
+`retained` and unknown ledger rows; never replace an unknown lost-create reply
+with an assumed owned grant. If the worker is rolled back, leave cancellation
+pending rather than deleting a source grant without the matching fence.
+Migration 193000 adds the producing `generationId` to the protected revision
+projection. A rollback can restore the prior `private.launch_revision_json`
+definition from 110000 without data changes, but browser result visibility
+then loses its run correlation. Treat delivery as unknown until the projection
+and matching web build are restored; do not count revision-only receipts as
+proof that a particular generation reached the user.
+Migration 20261202123000 enables and forces RLS on the private restitched-folder
+registry. Keep it enabled during rollback; the existing security-definer worker
+continues to use the table, and no data rewrite is needed.
+Migration 20261202124000 exposes only active member IDs and display names to
+Launch viewers for assignment controls. Dropping this function requires the
+matching web build to stop calling it; keep the stronger member-management
+permission on `list_team_members`.
+Migration 20261202125000 factors the existing copy date calculation into
+`private.launch_tomorrow` so deterministic timezone boundaries can be tested.
+Restore the previous `copy_launch` definition from 188000 before dropping
+that helper; committed copy receipts must remain unchanged and replayable.
+Migration 20261202126000 makes the restricted Launch diagnostic view return a
+non-null active-result flag for drafts and failed attempts. Do not restore the
+nullable expression from 172000 while the read-only CLI expects a boolean;
+keep the view content-free and repair it forward instead.
+
+### 20261202132000_launch_dictionary_management
+
+Drop `public.edit_launch_dictionary(uuid,text,uuid,text,text,text,text)` to remove
+management writes. Restore the prior analytics guard from
+`20261201172000_launch_cancel_diagnostic_code.sql` only after rolling back clients.
+Dictionary rows and revision snapshots are retained; no data rollback is required.
+
+### 20261202134000 — Launch restitch pool scope
+
+Reapply `prepare_launch_restitch_unchecked` from
+`20261202133000_launch_automatic_restitch.sql` to roll back the function change.
+Also restore `private.launch_restitch_settings_version` from
+`20261201131000_launch_content_identity.sql`, then drop the private helper
+`private.launch_restitch_pool_user(uuid,uuid)`. No rows are changed. The rollback restores the known
+incorrect personal-pool lookup for inherited settings; prefer a forward fix.
+
+### 20261202135000 — Launch reuse input identity
+
+Prefer a forward fix: restoring the old guards reintroduces stale duration reuse.
+If required, restore only `private.launch_reusable_restitch` from
+`20261201151000_launch_restitch_reuse.sql` and `public.service_reuse_launch_catalog`
+from `20261201132000_launch_content_reuse.sql`, then drop
+`private.launch_restitch_config_identity(jsonb)`. Keep the additive diagnostic
+`reuse_evidence` column and provenance index; old CLI versions ignore them, and
+Postgres cannot remove a view column through CREATE OR REPLACE VIEW. This
+migration changes no stored revisions, settings, files, or generation states.
+
+### 20261202136000 — Launch reuse checkpoint
+
+Restore only `public.service_reuse_launch_catalog` from
+`20261202135000_launch_reuse_input_identity.sql`. This preserves the corrected
+input guards but restores the premature catalog-registering checkpoint. No data
+changes need reversing.

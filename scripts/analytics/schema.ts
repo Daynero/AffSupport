@@ -23,6 +23,7 @@ const TABLES = [
   'agent_journal_records',
   'analytics_daily_events',
   'analytics_daily_tool_outcomes',
+  'analytics_launch_generations',
   'analytics_catalog_sync_jobs'
 ] as const;
 
@@ -52,7 +53,10 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_journal_records: has('table', 'agent_journal_records'),
       analytics_daily_events: has('table', 'analytics_daily_events'),
       analytics_daily_tool_outcomes: has('table', 'analytics_daily_tool_outcomes'),
-      analytics_catalog_sync_jobs: has('table', 'analytics_catalog_sync_jobs')
+      analytics_catalog_sync_jobs: has('table', 'analytics_catalog_sync_jobs'),
+      ...(has('table', 'analytics_launch_generations')
+        ? { analytics_launch_generations: true }
+        : {})
     }
   };
 }
@@ -76,7 +80,7 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
     ...EVENT_COLUMNS.filter(column => !schema.events[column]).map(
       column => `analytics_events.${column}`
     ),
-    ...TABLES.filter(table => !schema.tables[table])
+    ...TABLES.filter(table => table !== 'analytics_launch_generations' && !schema.tables[table])
   ];
 }
 

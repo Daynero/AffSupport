@@ -51,10 +51,11 @@ const SUPABASE_STUBS = `
     id uuid primary key default gen_random_uuid(),
     secret text not null,
     name text,
-    description text
+    description text,
+    created_at timestamptz not null default now()
   );
   create view vault.decrypted_secrets as
-    select id, secret as decrypted_secret from vault.secrets;
+    select id, secret as decrypted_secret, name, created_at from vault.secrets;
   create function vault.create_secret(text, text, text) returns uuid language plpgsql
   as $$ declare created uuid; begin
     insert into vault.secrets(secret, name, description) values ($1, $2, $3)
@@ -87,7 +88,7 @@ const SUPABASE_STUBS = `
   returns bigint language sql as $$ select 0::bigint $$;
 
   create schema cron;
-  create table cron.job (jobid bigint primary key, jobname text);
+  create table cron.job (jobid bigint primary key, jobname text, active boolean not null default true);
   create function cron.schedule(text, text, text) returns bigint language sql
   as $$ select 0::bigint $$;
   create function cron.unschedule(bigint) returns boolean language sql

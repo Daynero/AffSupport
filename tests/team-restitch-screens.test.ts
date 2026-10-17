@@ -143,3 +143,22 @@ describe('preparing the screens', () => {
     });
   });
 });
+
+it('starts both independent image grants before either completes and preserves slot order', async () => {
+  const pending: Array<() => void> = [];
+  const grant = vi.fn(
+    (_team: string, id: string) =>
+      new Promise<ReturnType<typeof agentGrant>>(resolve =>
+        pending.push(() => resolve(agentGrant(id)))
+      )
+  );
+  const result = prepareRestitchScreens(TEAM, defaults('drive'), deps({ grant }));
+  for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+  expect(grant).toHaveBeenCalledTimes(2);
+  pending[1]!();
+  pending[0]!();
+  expect(await result).toMatchObject({
+    kind: 'ready',
+    screens: [{ materialId: 'm1' }, { materialId: 'm2' }]
+  });
+});

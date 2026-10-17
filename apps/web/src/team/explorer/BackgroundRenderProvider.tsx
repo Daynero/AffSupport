@@ -37,7 +37,8 @@ export interface BackgroundRenderClient {
   listLandingRenders?: (
     teamId: string,
     materialIds: string[],
-    preset: string
+    preset: string,
+    options?: { includeArtifacts?: boolean }
   ) => Promise<LandingRenderPointer[]>;
   startLandingRender?: (
     teamId: string,
@@ -139,7 +140,11 @@ export function BackgroundRenderProvider({
     const ids = result.items.map(item => item.id);
     if (ids.length === 0) return { materialId: '', total: 0 };
     if (!client.listLandingRenders) return null;
-    const renders = await client.listLandingRenders(teamId, ids, 'default');
+    // Polling only needs state. Minting image tickets here writes one grant per
+    // ready landing every minute even though no image will ever use it.
+    const renders = await client.listLandingRenders(teamId, ids, 'default', {
+      includeArtifacts: false
+    });
     const byMaterial = new Map(renders.map(render => [render.materialId, render] as const));
     const waiting = ids.filter(id => {
       const render = byMaterial.get(id);

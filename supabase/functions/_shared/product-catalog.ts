@@ -1,3 +1,4 @@
+import { isRecord } from './validation.ts';
 /**
  * A video's product catalog sheet (feature 022) — everything about it that is not I/O.
  *
@@ -282,6 +283,13 @@ export function formatPrice(price: number): string {
 export function videoShareLink(fileId: string, resourceKey: string | null): string {
   const base = `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view?usp=sharing`;
   return resourceKey ? `${base}&resourcekey=${encodeURIComponent(resourceKey)}` : base;
+}
+function catalogVideoVariation(link: string, mark: string): string {
+  const hash = link.indexOf('#');
+  const base = hash < 0 ? link : link.slice(0, hash);
+  const fragment = hash < 0 ? '' : link.slice(hash);
+  const separator = base.includes('?') ? (/[?&]$/u.test(base) ? '' : '&') : '?';
+  return `${base}${separator}v=${encodeURIComponent(mark)}${fragment}`;
 }
 
 /**
@@ -588,7 +596,9 @@ export function buildProductCatalogRows(input: {
         case 'videoLink': {
           const mark = input.rows?.[index - 1]?.videoParam ?? String(index).padStart(3, '0');
           cell = text(
-            input.randomLinkVariation === false ? input.videoLink : `${input.videoLink}?v=${mark}`
+            input.randomLinkVariation === false
+              ? input.videoLink
+              : catalogVideoVariation(input.videoLink, mark)
           );
           break;
         }
@@ -608,4 +618,69 @@ export function buildProductCatalogRows(input: {
     rows.push(row);
   }
   return rows;
+}
+
+/** Narrow a persisted row recipe before reusing its random choices after a retry. */
+export function parseCatalogRowRecipe(value: unknown): ProductCatalogRowValues[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 400) return null;
+  const result: ProductCatalogRowValues[] = [];
+  for (const r of value) {
+    if (
+      !isRecord(r) ||
+      typeof r.title !== 'string' ||
+      typeof r.description !== 'string' ||
+      typeof r.price !== 'number' ||
+      typeof r.imageLink !== 'string'
+    )
+      return null;
+    const row: ProductCatalogRowValues = {
+      title: r.title,
+      description: r.description,
+      price: r.price,
+      imageLink: r.imageLink
+    };
+    for (const key of [
+      'saleWindow',
+      'color',
+      'size',
+      'material',
+      'pattern',
+      'gender',
+      'style',
+      'googleCategory',
+      'fbCategory',
+      'brand',
+      'shippingWeight',
+      'shipping',
+      'videoTag',
+      'videoParam'
+    ] as const) {
+      if (r[key] !== undefined) {
+        if (typeof r[key] !== 'string') return null;
+        row[key] = r[key];
+      }
+    }
+    for (const key of ['salePrice', 'quantity'] as const) {
+      if (r[key] !== undefined) {
+        if (typeof r[key] !== 'number' || !Number.isFinite(r[key])) return null;
+        row[key] = r[key];
+      }
+    }
+    if (r.pictureName !== undefined) {
+      if (r.pictureName !== null && typeof r.pictureName !== 'string') return null;
+      row.pictureName = r.pictureName;
+    }
+    if (r.tags !== undefined) {
+      if (
+        !Array.isArray(r.tags) ||
+        r.tags.length !== 2 ||
+        typeof r.tags[0] !== 'string' ||
+        typeof r.tags[1] !== 'string'
+      )
+        return null;
+      row.tags = [r.tags[0], r.tags[1]];
+    }
+    result.push(row);
+  }
+  return result;
 }

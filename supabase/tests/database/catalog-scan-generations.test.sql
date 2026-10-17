@@ -4,6 +4,9 @@ insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_da
 values ('fc270000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'generations@example.test', '{}', '{}');
 insert into public.teams(id, name, owner_id)
 values ('fc270000-0000-4000-8000-000000000002', 'Generations', 'fc270000-0000-4000-8000-000000000001');
+insert into public.space_tariffs(owner_email, team_id, plan_code, ends_on)
+values ('generations@example.test', 'fc270000-0000-4000-8000-000000000002',
+  'solo', current_date + 30);
 insert into private.google_drive_credentials(id, connected_by, google_permission_id, google_account_email, vault_secret_id, scope)
 values ('fc270000-0000-4000-8000-000000000003', 'fc270000-0000-4000-8000-000000000001',
   'generations', 'generations@example.test', gen_random_uuid(), 'https://www.googleapis.com/auth/drive.file');

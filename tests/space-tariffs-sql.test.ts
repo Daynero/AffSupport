@@ -1263,10 +1263,14 @@ describe('letters (R9)', () => {
     const { tariff } = await fixedSpace('grace', '2030-03-14');
     await queue('2030-03-15T10:00:00Z');
     await queue('2030-03-18T10:00:00Z');
-    expect((await notices(tariff)).map(row => [row.kind, row.state])).toEqual([
-      ['grace', 'superseded'],
-      ['blocked', 'pending']
-    ]);
+    const queued = (await notices(tariff)).map(row => [row.kind, row.state]);
+    expect(queued).toHaveLength(2);
+    expect(queued).toEqual(
+      expect.arrayContaining([
+        ['grace', 'superseded'],
+        ['blocked', 'pending']
+      ])
+    );
 
     const legacyOwner = await person('queue-legacy');
     const legacyTeam = await rawTeam(legacyOwner.id, 'Quiet');

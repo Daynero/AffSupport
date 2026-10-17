@@ -4,6 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { planStitch, type StitchScreens } from '../packages/shared/src/stitcher.js';
+import {
+  DiagnosticsLog,
+  setActiveDiagnosticsLog
+} from '../apps/agent/src/server/diagnostics-log.js';
 import { createRestitchDelegate } from '../apps/agent/src/team-bridge/restitch.js';
 import { PreparedBodyCache } from '../apps/agent/src/stitcher/body-cache.js';
 import { runStitchPipeline } from '../apps/agent/src/stitcher/pipeline.js';
@@ -694,6 +698,71 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
    * the space's defaults in, a finished file out, the member's own bytes untouched, and the
    * body carried over rather than rebuilt.
    */
+  it('re-stitches a launch with an automatic source frame and no image library or saved setup', async () => {
+    const journal = new DiagnosticsLog({ file: null });
+    setActiveDiagnosticsLog(journal);
+    const profile = unwrap(await probeSource(legacy));
+    const detected = await detectStitching(profile);
+    const workDir = await mkdtemp(path.join(directory, 'automatic-launch-'));
+    const delegate = createRestitchDelegate({
+      embedding: () => {
+        throw new Error('automatic launch must not require local settings');
+      },
+      imagePathFor: async () => {
+        throw new Error('automatic launch must not require a library');
+      },
+      bodies: new PreparedBodyCache({ root: directory })
+    });
+    const delivered = await delegate({
+      operationId: 'automatic-launch',
+      workspace: workDir,
+      sourceFile: legacy,
+      sourceSizeBytes: (await stat(legacy)).size,
+      sourceVersion: '1',
+      sourceChecksum: null,
+      options: {
+        defaults: {
+          ...spaceDefaults,
+          startImageIds: [],
+          endImageIds: [],
+          sourceMode: 'drive',
+          automaticEndFrame: true,
+          startEnabled: false,
+          endEnabled: true,
+          finalDurationMode: 'custom',
+          customFinalDurationSeconds: 2
+        },
+        screens: [],
+        prepared: {
+          materialId: 'material',
+          driveVersion: '1',
+          detectedStartSeconds: detected.startSeconds,
+          detectedEndSeconds: detected.endSeconds,
+          profile,
+          unsupportedReason: null,
+          preparedAt: ''
+        }
+      },
+      signal: new AbortController().signal,
+      onProgress: () => {},
+      pausable: () => {}
+    });
+    const output = unwrap(await probeSource(delivered.file));
+    const expectedBody = profile.durationSeconds - detected.startSeconds - detected.endSeconds;
+    expect(output.durationSeconds).toBeCloseTo(expectedBody + 2, 0);
+    expect(
+      journal
+        .since(0)
+        .filter(record => record.code.startsWith('automatic_frame_'))
+        .map(record => ({ code: record.code, runId: record.props?.runId }))
+    ).toEqual([
+      { code: 'automatic_frame_started', runId: 'automatic-launch' },
+      { code: 'automatic_frame_completed', runId: 'automatic-launch' }
+    ]);
+    setActiveDiagnosticsLog(null);
+    expect(delivered.sizeBytes).toBeGreaterThan(0);
+  }, 120_000);
+
   it('delivers a space’s re-stitch from a prepared record, in seconds', async () => {
     const probed = unwrap(await probeSource(legacy));
     const detected = await detectStitching(probed);

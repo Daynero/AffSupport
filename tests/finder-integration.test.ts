@@ -46,7 +46,7 @@ describe('Soty Finder image conversion integration', () => {
     expect(plist).toContain('<string>Soty Finder Action</string>');
     expect(launcher).toContain('"AGENT_NATIVE_TOKEN": nativeToken');
     expect(launcher).toContain('"X-Wishly-Native-Token"');
-    expect(agent).toContain("request.url.startsWith('/native/')");
+    expect(agent).toContain("admittedUnder(request, '/native/')");
     expect(agent).toContain("'/native/media-actions/images/convert'");
     expect(agent).toContain("app.get('/native/media-actions'");
     expect(agent).toContain("'/native/media-actions/:id'");

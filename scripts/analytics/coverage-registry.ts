@@ -94,6 +94,30 @@ const BOTH: CapabilityPlatform[] = ['macos', 'windows'];
 const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
+  {
+    id: 'team.launches',
+    tool: 'team',
+    title: 'Launches · prepare an advertising launch',
+    stages: ['intent', 'accepted', 'generation', 'terminal', 'result_visible'],
+    stageEvents: {
+      intent: ['team_launch_intent'],
+      terminal: ['team_launch_terminal'],
+      result_visible: ['team_launch_visible']
+    },
+    start: [{ event: 'team_launch_intent', correlate: 'flow_id' }],
+    terminal: [{ event: 'team_launch_terminal', correlate: 'run_id' }],
+    platforms: BOTH,
+    unobservable: [
+      'Browser visibility when its signal is absent; authoritative commit is separate evidence.',
+      'Browser storage can reject analytics enqueue before delivery; a missing client event does not negate an authoritative Launch commit.',
+      'External Ads Manager use and tracking-platform interpretation.',
+      'A missing native quiescence receipt or incomplete Drive lookup cannot prove that a canceled video upload is safe to clean; cleanup_pending remains explicit.',
+      'A source-video or image grant with an unknown create reply or unprovable competing use keeps cancellation in cleanup_pending; exact known grants are reconciled by fenced provider lookup.'
+    ],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'inspect joins the restricted Launch diagnostic projection. Server stages remain authoritative; missing browser events and unsettled child cleanup are not inferred as success. Launch creative preview reuses team.preview attempt correlation, safe error codes and protected media access; aliases, names and signed media URLs are never telemetry. Dictionary rename/archive/restore use closed action names and flow IDs without names or search content; permission, conflict and replay receipts prove commit, while missing UI delivery remains unknown. One persistent edit-status row exposes pending save and preparation state; Generate keeps its caption and links to this status, while copy waits for confirmed changes; indicator visibility is not commit evidence and URL content is never collected. The compact update review lists affected outputs and retains existing generate/abandon correlation; viewing it is not evidence that processing started, and no configuration content is collected. Autosave reuses save_draft action correlation and protected authoritative versions; retry reuses its request key, conflicts stop writes, and unacknowledged RAM edits remain an explicit reload blind spot. Literal SUB aliases sub1/sub_1 through sub3/sub_3 share the same detection and lossless patching; no URL content or credentials are added to diagnostics. Date shortcuts resolve in the launch timezone and use the existing saved revision, validation and generation lifecycle; unsaved date clicks are intentionally unobserved. Budget bounds share the typed preview and server validator; invalid or too narrow integer ranges stop at validation with LAUNCH_BUDGET_INVALID. Saved revisions prove the chosen bounds; unsaved field edits are intentionally unobserved. Unified Launch progress uses current-attempt durable receipts and matching native snapshots, never timer-estimated stage completion. Catalog cache invalidation is separate from connection health; a stale observation preserves confirmed fill without declaring failure or completion. Older generation versions are rejected, and observed fill resets for another attempt. Visual stability is verified by progress and workspace regressions, not inferred from telemetry. Quiet/disconnected observations trigger one bounded status read and remain last-confirmed/unknown; native media work has no network-reply deadline. Lost mutation replies keep their exact keys with LAUNCH_RESULT_UNCERTAIN, and authoritative terminal receipts release old UI waits without replaying processing. Scroll gestures and quiet-time notices are not independent executor evidence. Launches without saved restitch settings freeze automatic source-frame mode; automatic_frame_started/completed/failed journal records correlate to the child operation without media content. Frame completion does not prove video or catalog delivery; existing finalized-material and registered-catalog receipts remain authoritative. A pre-acceptance RESTITCH_INVALID refusal records generate/failure with the flow and saved launch IDs, releases the pending request and preserves the draft for correction; there is no accepted run to infer. Beta disables analytics, so hook regressions and local UI checks provide evidence for this path. Reuse provenance is projected as opaque video operation and origin generation IDs plus the source catalog revision; launch-state exercises actual SQL receipts through the read-only CLI, while launch-analytics covers unavailable and malformed evidence. Historical duration reuse is rejected against the original processing revision. A receipt proves origin, not browser visibility or the reason for an absent child. Duration bounds are validated configuration; a random duration is drawn once into durable restitch preparation and reused on retry. Missing Launch images retain RESTITCH_POOL_EMPTY at restitch_preparing in the diagnostic projection; tests/launch-state.test.ts covers shared, inherited, personal and truly empty pools. Image recovery links consume that same closed code. Parallel grant reads do not claim a measured end-to-end speedup; bounded coordination timeouts remain LAUNCH_RESULT_UNCERTAIN, and late replies cannot start obsolete native work. Pointer gestures and unsaved duration edits are intentionally unobserved; validation regressions and saved revision/preparation evidence cover the outcome without collecting pointer telemetry.'
+  },
   /* --------------------------------------------------------------------- *
    * Local tools
    * --------------------------------------------------------------------- */
@@ -409,6 +433,20 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     producerStatus: 'emitted',
     source: 'authoritative_table',
     note: 'Authoritative in the view analytics_catalog_sync_jobs (`sync <team|owner>`), not in the event stream.'
+  },
+  {
+    id: 'team.transfer_retention',
+    tool: 'team',
+    title: 'Team · transfer ticket lifecycle and database pressure',
+    stages: ['issued', 'consumed', 'expired', 'retained'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    unobservable: ['historical Disk I/O budget and HTTP failures before analytics delivery'],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'database-health reports purpose, producer and unused/expired/cleanup-eligible counts; --management is required for private aggregates. database-retention probes job outcomes, reuse/expiry indexes, cumulative inserts/deletes/index lookups and current Auth/REST health without scanning user tables. Timed snapshots measure activation and churn; historical I/O causality remains unobserved.'
   },
   {
     id: 'team.file_ops',

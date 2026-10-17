@@ -93,7 +93,8 @@ export function TaskAttachmentPicker({
   accept,
   trigger,
   title,
-  confirmLabel
+  confirmLabel,
+  single = false
 }: {
   teamId: string;
   client?: TaskAttachmentPickerClient;
@@ -110,6 +111,8 @@ export function TaskAttachmentPicker({
   /** The dialog's title and its confirm button's words, when not attaching to a task. */
   title?: string;
   confirmLabel?: (count: number) => string;
+  /** Reuse the same media browser for a single Creative selection. */
+  single?: boolean;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -218,7 +221,10 @@ export function TaskAttachmentPicker({
     setSelected(current => {
       const next = new Map(current);
       if (next.has(candidate.id)) next.delete(candidate.id);
-      else next.set(candidate.id, candidate);
+      else {
+        if (single) next.clear();
+        next.set(candidate.id, candidate);
+      }
       return next;
     });
   };

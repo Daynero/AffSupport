@@ -117,6 +117,14 @@ export function MaterialPreview({
   const [state, setState] = useState<DisplayState>({ kind: 'loading' });
   const [loadedMediaKey, setLoadedMediaKey] = useState<string | null>(null);
   const [failedMediaKey, setFailedMediaKey] = useState<string | null>(null);
+  const mediaCategory =
+    state.kind === 'media'
+      ? state.mimeType.startsWith('image/')
+        ? 'image'
+        : state.mimeType.startsWith('video/')
+          ? 'video'
+          : material.category
+      : material.category;
   const operationId = useRef<string | null>(null);
   const closed = useRef(new Set<string>());
 
@@ -132,16 +140,19 @@ export function MaterialPreview({
     [client]
   );
 
+  const materialId = material.id;
+  const mode = previewMode(material);
+  const materialRef = useRef(material);
+  materialRef.current = material;
   useEffect(() => {
     let active = true;
     operationId.current = null;
     closed.current.clear();
     setState({ kind: 'loading' });
-    const mode = previewMode(material);
     // 033 FR-009: one started and one completed per opening, on one opaque attempt id.
-    const attempt = startPreviewAttempt(material.category);
+    const attempt = startPreviewAttempt(materialRef.current.category);
     void client
-      .requestPreview(teamId, material.id, mode)
+      .requestPreview(teamId, materialId, mode)
       .then(async result => {
         if (!active) return;
         if (result.kind !== 'agent') {
@@ -168,7 +179,7 @@ export function MaterialPreview({
           void client
             .commitLandingValidation({
               teamId,
-              materialId: material.id,
+              materialId: materialId,
               operationId: result.operationId,
               ticket: result.transferGrant.ticket,
               validation: local.validation
@@ -193,7 +204,7 @@ export function MaterialPreview({
       attempt.finish('cancelled');
       void closeOperation(operationId.current);
     };
-  }, [client, closeOperation, material, teamId]);
+  }, [client, closeOperation, materialId, mode, teamId]);
 
   const close = () => {
     void closeOperation(operationId.current).finally(onClose);
@@ -282,7 +293,7 @@ export function MaterialPreview({
                 {t('teamPreviewLoadFailed')}
               </p>
             )}
-            {!mediaFailed && material.category === 'video' && (
+            {!mediaFailed && mediaCategory === 'video' && (
               <video
                 ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
                 controls
@@ -298,7 +309,7 @@ export function MaterialPreview({
                 onError={markMediaFailed}
               />
             )}
-            {!mediaFailed && material.category === 'image' && (
+            {!mediaFailed && mediaCategory === 'image' && (
               <img
                 loading="lazy"
                 decoding="async"

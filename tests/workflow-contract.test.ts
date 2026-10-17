@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { gateIdsFor, phasesFor } from '../scripts/verify-all.mjs';
+import { unitSuiteShardArgs, unitSuiteMergeArgs } from '../scripts/lib/unit-suite-shards.mjs';
 
 /**
  * B11. What CI runs has to stay the same thing a developer runs, and the two
@@ -80,15 +81,43 @@ describe('the verification workflow', () => {
     // Real-media e2e tests become intentionally expensive when FFmpeg is
     // installed. They belong to the separately scheduled e2e job, not the
     // suite that every required macOS and Windows check runs.
-    expect(aggregator).toContain("'--project=unit'");
+    expect(aggregator).toContain('scripts/run-unit-suite.mjs');
+    expect(
+      unitSuiteShardArgs({
+        vitest: 'vitest',
+        root,
+        shard: 1,
+        blob: 'one.blob',
+        coverageDir: 'one',
+        coverage: false
+      })
+    ).toContain('--project=unit');
   });
 
   it('runs the suite inside one worker budget', () => {
     // Real media tests each start a tool that can use every core. File-level
     // parallelism turns that into several all-core workloads competing at once,
     // which is both slower and unsafe on a thermally constrained release Mac.
-    expect(aggregator).toContain("'--maxWorkers=1'");
-    expect(aggregator).toContain("'--no-file-parallelism'");
+    const args = unitSuiteShardArgs({
+      vitest: 'vitest',
+      root,
+      shard: 1,
+      blob: 'one.blob',
+      coverageDir: 'one',
+      coverage: true
+    });
+    expect(args).toContain('--maxWorkers=1');
+    expect(args).toContain('--no-file-parallelism');
+    expect(args).toContain('--shard=1/8');
+    expect(
+      unitSuiteMergeArgs({
+        vitest: 'vitest',
+        blobs: 'blobs',
+        report: 'report.json',
+        coverageDir: 'coverage',
+        coverage: true
+      })
+    ).toContain('--coverage');
   });
 
   it('never asks a CI runner about a deployment it does not have', () => {

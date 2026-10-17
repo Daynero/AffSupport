@@ -69,9 +69,31 @@ export function useTeamRealtime(input: {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'team_catalog_events',
+          // Invalidation signals are append-only; retention deletes are not
+          // changes to the user's catalog and must not trigger another read.
+          filter: `team_id=eq.${teamId}`
+        },
+        refetch
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_launch_signals',
+          filter: `team_id=eq.${teamId}`
+        },
+        refetch
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_launch_workspace_signals',
           filter: `team_id=eq.${teamId}`
         },
         refetch

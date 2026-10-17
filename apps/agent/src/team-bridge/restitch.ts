@@ -20,6 +20,7 @@
  */
 
 import { stat } from 'node:fs/promises';
+import path from 'node:path';
 import {
   parseMaterialRestitchPrep,
   parseRestitchScreens,
@@ -40,6 +41,9 @@ import { detectStitching, screensFromEmbedding } from '../stitcher/plan.js';
 import { probeSource } from '../stitcher/probe.js';
 import { PreparedBodyCache } from '../stitcher/body-cache.js';
 import type { TeamProcessDelegate, TeamProcessDelegateInput } from './process.js';
+import { ffmpegPath } from '../ffmpeg/tools.js';
+import { runTool, toolSucceeded } from '../stitcher/run.js';
+import { diagnostics } from '../server/diagnostics-log.js';
 
 /** What the web sends with a re-stitched delivery. */
 export interface RestitchDelegateOptions {
@@ -254,9 +258,66 @@ export function createRestitchDelegate(
         );
       }
     }
-    const screens = resolved
-      ? screensFromResolved(resolved, options.defaults)
-      : spaceScreens(deps.embedding(), options.defaults);
+    const automaticFrameId = 'launch-source-end-frame';
+    let automaticFramePath: string | null = null;
+    if (options.defaults.automaticEndFrame === true) {
+      diagnostics.record('stitcher', 'automatic_frame_started', { runId: input.operationId });
+      automaticFramePath = path.join(input.workspace, 'launch-end-frame.png');
+      // A sparse end screen may have no packet near EOF. Its known boundary
+      // already has the final static image, so read one frame there. For motion,
+      // decode only the last second and keep the final frame in bounded memory.
+      const seek = Math.max(
+        0,
+        looked.profile.durationSeconds - Math.max(1, looked.detected.endSeconds)
+      );
+      const extracted = await runTool(
+        ffmpegPath,
+        [
+          '-nostdin',
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-ss',
+          String(seek),
+          '-i',
+          input.sourceFile,
+          '-an',
+          '-sn',
+          '-fps_mode',
+          'passthrough',
+          ...(looked.detected.endSeconds > 0 ? ['-frames:v', '1'] : ['-update', '1']),
+          '-c:v',
+          'png',
+          '-y',
+          automaticFramePath
+        ],
+        { signal: input.signal }
+      );
+      if (!toolSucceeded(extracted)) {
+        diagnostics.record('stitcher', 'automatic_frame_failed', {
+          runId: input.operationId,
+          cancelled: input.signal.aborted
+        });
+        throw new Error(input.signal.aborted ? 'PROCESS_CANCELED' : 'PROCESS_FAILED');
+      }
+      const frame = await stat(automaticFramePath).catch(() => null);
+      if (!frame?.isFile() || frame.size === 0) {
+        diagnostics.record('stitcher', 'automatic_frame_failed', {
+          runId: input.operationId,
+          cancelled: input.signal.aborted
+        });
+        throw new Error('PROCESS_FAILED');
+      }
+      diagnostics.record('stitcher', 'automatic_frame_completed', { runId: input.operationId });
+    }
+    const screens = automaticFramePath
+      ? screensFromResolved(
+          [{ slot: 'end', id: automaticFrameId, path: automaticFramePath }],
+          options.defaults
+        )
+      : resolved
+        ? screensFromResolved(resolved, options.defaults)
+        : spaceScreens(deps.embedding(), options.defaults);
     const planned = planStitch(
       looked.profile,
       looked.detected,
@@ -304,7 +365,10 @@ export function createRestitchDelegate(
       onStage: stage =>
         input.onProgress(stage === 'verifying' ? 92 : stage === 'joining' ? 45 : 42),
       onJoinProgress: fraction => input.onProgress(45 + Math.round(fraction * 45)),
-      imagePathFor: async id => deps.screenCache?.pathFor(id) ?? (await deps.imagePathFor(id)),
+      imagePathFor: async id =>
+        id === automaticFrameId && automaticFramePath
+          ? automaticFramePath
+          : (deps.screenCache?.pathFor(id) ?? (await deps.imagePathFor(id))),
       bodies
     });
     if (!produced.ok) {

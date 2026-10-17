@@ -524,6 +524,21 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     check:
       'Pair stage and runId with pipeline_stage_completed; an absent completion alone does not distinguish interruption from missing journal delivery.'
   },
+  'stitcher:automatic_frame_started': {
+    files: ['apps/agent/src/team-bridge/restitch.ts'],
+    check:
+      'Automatic Launch end-frame extraction began for this operation; missing completion is interruption or missing journal delivery, not proof of success.'
+  },
+  'stitcher:automatic_frame_completed': {
+    files: ['apps/agent/src/team-bridge/restitch.ts'],
+    check:
+      'The source frame exists locally; inspect later pipeline and finalization receipts to prove the video and catalog reached the user.'
+  },
+  'stitcher:automatic_frame_failed': {
+    files: ['apps/agent/src/team-bridge/restitch.ts'],
+    check:
+      'Check cancellation and source decoding for the correlated operation; no image library or saved workspace setup is required.'
+  },
   'stitcher:pipeline_stage_completed': {
     files: [AGENT_STITCH_PIPELINE, AGENT_STITCH_SILENCE, AGENT_STITCH_BODY],
     check:
@@ -841,6 +856,138 @@ function build(): Record<string, CodeLocation> {
   }
   for (const [reason, spec] of Object.entries(LINK_REASON_CHECKS)) {
     map[`link:${reason}`] = { files: unique(spec.files), check: spec.check };
+  }
+  for (const code of [
+    'INVALID_INPUT',
+    'INVALID_RESPONSE',
+    'SOURCE_CHANGED',
+    'PERMISSION_DENIED',
+    'NOT_FOUND',
+    'SPACE_BLOCKED',
+    'LEASE_MISMATCH',
+    'NO_WORK',
+    'LAUNCH_VERSION_CONFLICT',
+    'LAUNCH_BUSY',
+    'LAUNCH_URL_INVALID',
+    'LAUNCH_SUB_INVALID',
+    'LAUNCH_BUDGET_INVALID',
+    'LAUNCH_RESULT_UNCERTAIN',
+    'LAUNCH_INTERNAL_ERROR'
+  ]) {
+    map[`launches:generation:${code}`] = {
+      files: [
+        'supabase/functions/drive-ops/launches.ts',
+        'packages/shared/src/team/launches/validation.ts',
+        'apps/web/src/team/errors.ts'
+      ],
+      check:
+        'Verify the saved draft version, source expectation and last proven generation state before retrying.'
+    };
+  }
+  for (const code of ['PERMISSION_DENIED', 'SPACE_BLOCKED']) {
+    map[`launches:generation:${code}`].files.push(
+      'supabase/migrations/20261201175000_launch_authority_loss_settlement.sql'
+    );
+  }
+  map['launches:generation:LEASE_MISMATCH'].files.push(
+    'supabase/migrations/20261201178000_launch_cleanup_lease_presence.sql',
+    'supabase/functions/drive-ops/launch-recovery.ts'
+  );
+  map['launches:generation:LAUNCH_RESULT_UNCERTAIN'] = {
+    files: [
+      'apps/web/src/team/launches/reply.ts',
+      'apps/web/src/team/launches/useLaunchProgressWatch.ts',
+      'apps/web/src/team/launches/preparation.ts',
+      'apps/web/src/team/launches/useLaunchGeneration.ts',
+      'supabase/migrations/20261201179000_launch_restitch_upload_phase.sql',
+      'supabase/migrations/20261201181000_launch_restitch_upload_cancel_order.sql',
+      'supabase/migrations/20261201182000_launch_restitch_orphan_cleanup.sql',
+      'supabase/migrations/20261201184000_launch_video_cleanup_quiescence.sql',
+      'supabase/migrations/20261201185000_launch_video_claim_requires_quiescence.sql',
+      'supabase/migrations/20261201186000_launch_video_cleanup_dispatch.sql',
+      'supabase/migrations/20261201187000_launch_video_cleanup_retry_backoff.sql',
+      'supabase/migrations/20261201192000_launch_source_permission_cleanup.sql',
+      'supabase/functions/drive-ops/launch-recovery.ts',
+      'supabase/functions/drive-ops/index.ts',
+      'apps/agent/src/team-bridge/process.ts'
+    ],
+    check:
+      'Preflight read deadlines mean generation has not started; lost mutation replies require reconciliation with the same key. For cleanup, inspect native quiescence, provider ownership, consumer state and confirmed trash; silence never proves that restarting or deleting is safe.'
+  };
+  map['launches:generation:AGENT_REQUIRED'] = {
+    files: [
+      'apps/web/src/team/launches/restitch-runner.ts',
+      'supabase/migrations/20261201153000_launch_restitch_waiting_reason.sql'
+    ],
+    check:
+      'The frozen preparation is waiting for the paired local agent. Connect the agent and resume the same generation; do not create another Launch or redraw screens.'
+  };
+  map['launches:generation:UNKNOWN'] = {
+    files: [
+      'supabase/functions/drive-ops/launch-catalog.ts',
+      'supabase/functions/drive-ops/catalog-durable.ts',
+      'supabase/functions/_shared/launch-failures.ts'
+    ],
+    check:
+      'The cause is unknown. Inspect the last proven stage and child receipts; add a bounded failure code without logging configuration or output.'
+  };
+  for (const code of [
+    'PROCESS_FAILED',
+    'PROCESS_CANCELED',
+    'AGENT_UPDATE_REQUIRED',
+    'RESTITCH_INVALID',
+    'RESTITCH_NO_SCREENS',
+    'RESTITCH_POOL_EMPTY',
+    'RESTITCH_SOURCES_INVALID',
+    'RESTITCH_CLIENT_OUTDATED',
+    'RESTITCH_DEFAULTS_INVALID',
+    'RESTITCH_SOURCE_FORBIDDEN',
+    'WRONG_STATE'
+  ]) {
+    map[`launches:generation:${code}`] = {
+      files: [
+        'apps/web/src/team/launches/restitch-runner.ts',
+        'apps/web/src/team/restitch/screens.ts',
+        'apps/agent/src/team-bridge/restitch.ts',
+        'supabase/migrations/20261202133000_launch_automatic_restitch.sql',
+        'supabase/migrations/20261202134000_launch_restitch_pool_scope.sql',
+        'supabase/migrations/20261201153000_launch_restitch_waiting_reason.sql',
+        'supabase/migrations/20261201145000_launch_restitch_settlement.sql',
+        'supabase/migrations/20261201149000_launch_restitch_explicit_retry.sql'
+      ],
+      check:
+        'Inspect the bound child operation and its last proven stage. For missing screens, verify the effective shared or personal pool and source version; the Launch recovery link opens restitch settings. Retry explicitly with the frozen preparation; never restart a running or successful child.'
+    };
+  }
+  map['launches:generation:WRONG_STATE'] = {
+    files: [
+      'supabase/functions/drive-ops/catalog-durable.ts',
+      'supabase/migrations/20261201189000_launch_catalog_explicit_child_retry.sql',
+      'apps/web/src/team/launches/useLaunchGeneration.ts',
+      'apps/web/src/team/launches/restitch-runner.ts',
+      'apps/web/src/team/restitch/screens.ts',
+      'supabase/migrations/20261201153000_launch_restitch_waiting_reason.sql',
+      'supabase/migrations/20261201145000_launch_restitch_settlement.sql',
+      'supabase/migrations/20261201149000_launch_restitch_explicit_retry.sql'
+    ],
+    check:
+      'Inspect the bound child operation, last proven stage and catalog intent attempt. A failed child needs an explicit parent retry for that exact attempt; a running or successful child must not be replaced.'
+  };
+  for (const code of [
+    'NEEDS_REAUTH',
+    'DRIVE_UNAVAILABLE',
+    'DRIVE_FILE_MISSING',
+    'SHARE_NOT_ALLOWED'
+  ]) {
+    map[`launches:generation:${code}`] = {
+      files: [
+        'supabase/functions/drive-ops/launch-catalog.ts',
+        'supabase/functions/drive-ops/catalog-durable.ts',
+        'supabase/functions/_shared/drive.ts'
+      ],
+      check:
+        'Inspect the catalog intent receipt and current storage authority. Do not repeat provider creation while its outcome is unknown.'
+    };
   }
   return map;
 }

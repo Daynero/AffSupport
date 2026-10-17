@@ -184,11 +184,16 @@ assumed local.
 
 The baseline after a reset:
 
-| Fixture    | Value                                                                                  |
-| ---------- | -------------------------------------------------------------------------------------- |
-| Account    | `beta@soty.local` / `beta-password`, confirmed, `account_status = active`, plan `team` |
-| Workspace  | "Beta Workspace", owned by that account, with it as admin                              |
-| Pilot gate | that account is also in `public.admin_users`, which is what unlocks the workspace      |
+| Fixture       | Value                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------- |
+| Account       | `beta@soty.local` / `beta-password`, confirmed, `account_status = active`, plan `team` |
+| Workspace     | "Beta Workspace", owned by that account, with it as admin                              |
+| Pilot gate    | that account is also in `public.admin_users`, which is what unlocks the workspace      |
+| Launch inputs | account `g1` with agent ID `1234567892`, offer `ProCaps TR`, Buyer `patrik`            |
+
+The Launch creative library stays empty until a test Google Drive account is connected and
+indexed. These local inputs let the Launch form and its validation be exercised without
+pretending that a Drive-backed Generate → result journey is available.
 
 The pilot gate is easy to overlook and total in its effect: `private.team_workspace_allowed`
 unlocks a space only when one of its active members is also a product admin. Without that row the

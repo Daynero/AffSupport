@@ -154,7 +154,7 @@
   `SelectMenu` (з пошуком), `SearchField`, `Textarea`.
 - Вибір: `Checkbox`, `RadioGroup` (зокрема варіант `pictos` — це саме та
   picto-група, що описана вище), `SegmentedControl`, `Slider`, `Switch`.
-- Стан: `Empty`, `Progress`, `Skeleton`, `Spinner`, `Tooltip`, `Kbd`.
+- Стан: `Empty`, `Progress`, `StageProgress` (підтверджені етапи в одну смугу), `Skeleton`, `Spinner`, `Tooltip`, `Kbd`.
 - Шари: `Modal`, `Drawer`, `Popover`, `DropdownMenu`, `ContextMenu` — **один**
   стек на весь продукт, і його тримає React Aria: Escape отримує найглибша
   поверхня, фокус повертається на тригер, сторінка блокує прокрутку рівно

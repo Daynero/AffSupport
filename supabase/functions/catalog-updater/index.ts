@@ -13,6 +13,7 @@ import {
   TeamFunctionError
 } from '../_shared/errors.ts';
 import { runCatalogUpdaterTick } from './worker.ts';
+import { runLaunchCleanupTick, runLaunchVideoCleanupTick } from '../drive-ops/launch-recovery.ts';
 
 /**
  * The catalog updater's scheduled worker (feature 023).
@@ -56,6 +57,15 @@ Deno.serve(async request => {
   }
   try {
     await requireNamedWorkerSecret(request);
+    const service = serviceClient();
+    const workerId = `catalog-updater:${crypto.randomUUID()}`;
+    // Recover already completed Launch children and provider-free cancellations even
+    // when there are no updater rounds and no browser is connected. Unknown provider
+    // outcomes remain unsettled for the ownership-aware recovery path.
+    await rpcValue(service, 'service_settle_launch_restitch_cancellations', { p_limit: 3 });
+    await rpcValue(service, 'service_settle_launch_restitch_batch', { p_limit: 3 });
+    const launches = await rpcValue(service, 'service_settle_launch_batch', { p_limit: 3 });
+
     const signals = { siteUrl: Deno.env.get('WISHLY_SITE_URL') };
     const oauthMode = Deno.env.get('DRIVE_OAUTH_MODE');
     requireDriveOAuthGate(signals, oauthMode);
@@ -64,11 +74,41 @@ Deno.serve(async request => {
     if (!clientId || !clientSecret) {
       throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: false });
     }
-    const service = serviceClient();
-    const workerId = `catalog-updater:${crypto.randomUUID()}`;
 
     // One access token per credential for the whole tick.
     const drives = new Map<string, Promise<GoogleDriveClient>>();
+    const driveFor = (credentialId: string): Promise<GoogleDriveClient> => {
+      let drive = drives.get(credentialId);
+      if (!drive) {
+        drive = readDriveCredential(service, credentialId)
+          .then(credential =>
+            refreshGoogleAccessToken({
+              credential,
+              clientId,
+              clientSecret,
+              oauthMode,
+              productionSignals: signals
+            })
+          )
+          .then(token => new GoogleDriveClient(token.accessToken));
+        // A failed token is not cached: the next sheet on this credential tries again.
+        drive.catch(() => drives.delete(credentialId));
+        drives.set(credentialId, drive);
+      }
+      return drive;
+    };
+    // Cleanup failures retain their durable leases and must not starve regular
+    // catalog rounds or the other Launch cleanup lane.
+    const launchCleanup = await runLaunchCleanupTick(service, driveFor).catch(() => ({
+      completed: 0,
+      pending: 1,
+      unavailable: true
+    }));
+    const launchVideoCleanup = await runLaunchVideoCleanupTick(service, driveFor).catch(() => ({
+      completed: 0,
+      pending: 1,
+      unavailable: true
+    }));
     const summary = await runCatalogUpdaterTick(
       {
         workerId,
@@ -122,26 +162,7 @@ Deno.serve(async request => {
           });
           return Array.isArray(rows) ? rows : [];
         },
-        driveFor: credentialId => {
-          let drive = drives.get(credentialId);
-          if (!drive) {
-            drive = readDriveCredential(service, credentialId)
-              .then(credential =>
-                refreshGoogleAccessToken({
-                  credential,
-                  clientId,
-                  clientSecret,
-                  oauthMode,
-                  productionSignals: signals
-                })
-              )
-              .then(token => new GoogleDriveClient(token.accessToken));
-            // A failed token is not cached: the next sheet on this credential tries again.
-            drive.catch(() => drives.delete(credentialId));
-            drives.set(credentialId, drive);
-          }
-          return drive;
-        },
+        driveFor,
         progress: async (catalogId, stage) =>
           (await rpcValue(service, 'service_set_catalog_update_progress', {
             p_item: catalogId,
@@ -200,7 +221,7 @@ Deno.serve(async request => {
       },
       { budgetMs: BUDGET_MS }
     );
-    return successResponse(summary);
+    return successResponse({ ...summary, launches, launchCleanup, launchVideoCleanup });
   } catch (error) {
     return errorResponse(mapUnknownError(error));
   }

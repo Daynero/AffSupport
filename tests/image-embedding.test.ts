@@ -62,6 +62,16 @@ describe('final image duration configuration', () => {
     }
   });
 
+  it('draws a centered random interval and clamps it to the 1–60 minute scale', () => {
+    expect(finalImageDurationRange('random-centered', 30 * 60)).toEqual([25 * 60, 35 * 60]);
+    expect(finalImageDurationRange('random-centered', 60 * 60)).toEqual([55 * 60, 60 * 60]);
+    expect(finalImageDurationRange('random-centered', 60)).toEqual([60, 6 * 60]);
+    expect(randomFinalImageDurationSeconds('random-centered', () => 0, 60 * 60)).toBe(55 * 60);
+    expect(randomFinalImageDurationSeconds('random-centered', () => 0.999999999, 60 * 60)).toBe(
+      60 * 60
+    );
+  });
+
   it('freezes custom and random values without requiring both images', () => {
     const endOnly = {
       ...defaultImageEmbeddingSettings(),

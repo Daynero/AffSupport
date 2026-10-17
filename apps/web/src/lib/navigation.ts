@@ -114,18 +114,19 @@ export function crossesTeamBoundary(from: string, to: string): boolean {
  */
 export function navigateTo(path: string, replace = false, animate = true) {
   if (path === currentRoute()) return;
-  if (
-    !window.dispatchEvent(
-      new CustomEvent(BEFORE_NAVIGATION_EVENT, {
-        cancelable: true,
-        detail: { path, replace, animate }
-      })
-    )
-  )
-    return;
+  if (!navigationAllowed(path, replace, animate)) return;
   if (replace) history.replaceState(null, '', path);
   else history.pushState(null, '', path);
   window.dispatchEvent(new CustomEvent(NAVIGATION_EVENT, { detail: { animate } }));
+}
+
+function navigationAllowed(path: string, replace: boolean, animate: boolean): boolean {
+  return window.dispatchEvent(
+    new CustomEvent(BEFORE_NAVIGATION_EVENT, {
+      cancelable: true,
+      detail: { path, replace, animate }
+    })
+  );
 }
 
 export function useBrowserRoute() {
@@ -146,7 +147,17 @@ export function useBrowserRoute() {
       const animate = (event as CustomEvent<{ animate?: boolean }>).detail?.animate !== false;
       applyNavigation(animate);
     };
-    const onPopState = () => applyNavigation(true);
+    const onPopState = () => {
+      const next = currentRoute();
+      if (next === routeRef.current) return;
+      if (!navigationAllowed(next, false, true)) {
+        // popstate arrives after the URL moves. Restore the visible route without
+        // applying it, so a dirty editor remains mounted after a canceled Back.
+        history.pushState(null, '', routeRef.current);
+        return;
+      }
+      applyNavigation(true);
+    };
     window.addEventListener('popstate', onPopState);
     window.addEventListener(NAVIGATION_EVENT, onNavigation);
     return () => {

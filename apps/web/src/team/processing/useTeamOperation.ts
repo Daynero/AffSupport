@@ -1,5 +1,5 @@
 import { realtimeTopic } from '../../lib/realtimeTopic';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { TeamOperationSnapshot } from '../../api/team';
 import { teamApi } from '../../api/team';
@@ -9,6 +9,7 @@ import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { getSupabaseClient } from '../../lib/supabase';
 import type { LocalTeamProgress } from './OperationStatus';
 import { teamOperationErrorStage, trackToolError } from '../../analytics/errors';
+import { useOptionalTeam } from '../TeamContext';
 
 /**
  * Operations whose failure was already reported. Two surfaces can watch the same operation
@@ -54,21 +55,34 @@ export function useTeamOperation(input: {
   client?: Pick<typeof teamApi, 'getOperation' | 'cancelOperation'>;
   /** The analytics workflow this operation belongs to, so its failure correlates (031). */
   workflowId?: string;
+  /** Use the workspace's existing Realtime owner instead of opening another channel. */
+  workspaceObservation?: boolean;
 }) {
   const { teamId, operationId, agentEnabled = true, client = teamApi, workflowId } = input;
   const [operation, setOperation] = useState<TeamOperationSnapshot | null>(null);
   const [localProgress, setLocalProgress] = useState<LocalTeamProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [streamDisconnected, setStreamDisconnected] = useState(false);
+  const [localState, setLocalState] = useState<string | null>(null);
+  const [localErrorCode, setLocalErrorCode] = useState<string | null>(null);
+  const [observedAt, setObservedAt] = useState<string | null>(null);
+  const workspace = useOptionalTeam();
+  const workspaceRevision = workspace?.revision;
+  const workspaceObservation = input.workspaceObservation === true;
+  const readSequence = useRef(0);
 
   const refetch = useCallback(async () => {
     if (!operationId) return;
+    const sequence = ++readSequence.current;
     try {
       const value = await client.getOperation(teamId, operationId);
+      if (sequence !== readSequence.current) return;
       setOperation(value);
       setError(null);
       reportTeamOperationFailure(value, workflowId);
       if (!['pending', 'running'].includes(value.state)) setLocalProgress(null);
     } catch (caught) {
+      if (sequence !== readSequence.current) return;
       setError(caught instanceof Error ? caught.message : 'INVALID_RESPONSE');
     }
   }, [client, operationId, teamId, workflowId]);
@@ -77,12 +91,19 @@ export function useTeamOperation(input: {
     setOperation(null);
     setLocalProgress(null);
     setError(null);
+    setStreamDisconnected(false);
+    setLocalState(null);
+    setLocalErrorCode(null);
+    setObservedAt(null);
     if (operationId) void refetch();
+    return () => {
+      readSequence.current += 1;
+    };
   }, [operationId, refetch]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
-    if (!supabase || !operationId) return;
+    if (workspaceObservation || !supabase || !operationId) return;
     const channel: RealtimeChannel = supabase
       .channel(realtimeTopic(`team-operation:${operationId}`))
       .on(
@@ -101,7 +122,11 @@ export function useTeamOperation(input: {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [operationId, refetch]);
+  }, [operationId, refetch, workspaceObservation]);
+
+  useEffect(() => {
+    if (workspaceObservation && operationId) void refetch();
+  }, [workspaceObservation, workspaceRevision, operationId, refetch]);
 
   const agent = useOptionalAgent();
   const multiplexed = Boolean(agent?.capabilities?.includes('event-stream'));
@@ -111,10 +136,25 @@ export function useTeamOperation(input: {
     channel: 'team',
     multiplexed,
     enabled: Boolean(operationId && agentEnabled),
+    onOpen: () => {
+      setStreamDisconnected(false);
+      void refetch();
+    },
+    onDisconnect: () => {
+      setStreamDisconnected(true);
+      setLocalProgress(null);
+    },
+    onReconnect: () => {
+      void refetch();
+    },
     onMessage: event => {
       if (event.type !== 'team:operations' || !operationId) return;
       const local = event.operations.find(item => item.operationId === operationId);
       if (!local) return;
+      setStreamDisconnected(false);
+      setLocalState(local.state);
+      setLocalErrorCode(local.errorCode);
+      setObservedAt(local.updatedAt);
       setLocalProgress({ stage: local.stage, progress: local.progress });
       if (local.state !== 'running') void refetch();
     }
@@ -129,5 +169,15 @@ export function useTeamOperation(input: {
     await refetch();
   }, [agentEnabled, client, operationId, refetch, teamId]);
 
-  return { operation, localProgress, error, refetch, cancel };
+  return {
+    operation,
+    localProgress,
+    localState,
+    localErrorCode,
+    observedAt,
+    streamDisconnected,
+    error,
+    refetch,
+    cancel
+  };
 }

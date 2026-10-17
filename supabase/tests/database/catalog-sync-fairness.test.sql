@@ -18,6 +18,9 @@ values ('b0310000-0000-4000-8000-000000000001','authenticated','authenticated',
 insert into public.teams(id,name,owner_id) values
   ('b0310000-0000-4000-8000-000000000011','Fairness A','b0310000-0000-4000-8000-000000000001'),
   ('b0310000-0000-4000-8000-000000000012','Fairness B','b0310000-0000-4000-8000-000000000001');
+insert into public.space_tariffs(owner_email, team_id, plan_code, ends_on) values
+  ('fairness-pgtap@example.test', 'b0310000-0000-4000-8000-000000000011', 'solo', current_date + 30),
+  ('fairness-pgtap@example.test', 'b0310000-0000-4000-8000-000000000012', 'solo', current_date + 30);
 insert into private.google_drive_credentials
   (id,google_permission_id,google_account_email,scope,vault_secret_id,connected_by)
 values ('b0310000-0000-4000-8000-000000000021','fairness-pgtap',

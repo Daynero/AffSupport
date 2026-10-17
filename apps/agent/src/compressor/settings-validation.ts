@@ -162,7 +162,7 @@ export function parseSettingsPatch(
     }
     if (body.imageEmbedding.finalDurationMode !== undefined) {
       if (
-        !['random-30-40', 'random-40-50', 'random-50-60', 'custom'].includes(
+        !['random-30-40', 'random-40-50', 'random-50-60', 'random-centered', 'custom'].includes(
           body.imageEmbedding.finalDurationMode
         )
       ) {

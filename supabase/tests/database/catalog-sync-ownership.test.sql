@@ -5,6 +5,9 @@ insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_da
 values ('fc260000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'ownership@example.test', '{}', '{}');
 insert into public.teams(id, name, owner_id)
 values ('fc260000-0000-4000-8000-000000000002', 'Ownership', 'fc260000-0000-4000-8000-000000000001');
+insert into public.space_tariffs(owner_email, team_id, plan_code, ends_on)
+values ('ownership@example.test', 'fc260000-0000-4000-8000-000000000002',
+  'solo', current_date + 30);
 insert into private.google_drive_credentials(id, connected_by, google_permission_id, google_account_email, vault_secret_id, scope)
 values ('fc260000-0000-4000-8000-000000000003', 'fc260000-0000-4000-8000-000000000001',
   'ownership', 'ownership@example.test', gen_random_uuid(), 'https://www.googleapis.com/auth/drive.file');
@@ -47,12 +50,23 @@ select ok(not has_function_privilege('service_role', 'public.service_claim_catal
   'old workers cannot acquire new work');
 -- Use native Postgres for the long-running regression; a single 1,005-iteration
 -- wasm query blocks Vitest's worker event loop and its heartbeat.
-do $$ declare canonical uuid; claimed uuid; begin
+do $$ declare canonical uuid; claimed uuid; job private.catalog_sync_jobs; retry integer; begin
   select job_id into canonical from ownership_feed;
   for i in 1..1005 loop
     update private.catalog_sync_jobs set next_attempt_at = clock_timestamp() where id = canonical;
-    select id into claimed from private.claim_catalog_sync_jobs('no-change', 1, 60);
-    if claimed is distinct from canonical then raise exception 'LOST_CANONICAL'; end if;
+    -- The production claimer uses a non-blocking advisory lock. An unrelated
+    -- local worker can briefly hold it, so retry only an empty claim.
+    for retry in 1..10 loop
+      select id into claimed from private.claim_catalog_sync_jobs('no-change', 1, 60);
+      exit when claimed is not null;
+      perform pg_sleep(0.01);
+    end loop;
+    if claimed is distinct from canonical then
+      select * into job from private.catalog_sync_jobs where id = canonical;
+      raise exception 'LOST_CANONICAL iteration %, expected %, claimed %, state %, kind %, attempts %, runs %, next %, replay %',
+        i, canonical, claimed, job.state, job.job_kind, job.attempts, job.run_count,
+        job.next_attempt_at, job.replay_after;
+    end if;
     perform public.service_complete_catalog_sync_job(canonical, 'no-change', 'confirmed-token');
   end loop;
 end $$;

@@ -43,6 +43,16 @@ afterEach(() => {
 });
 
 describe('team Realtime invalidation', () => {
+  it('subscribes to catalog inserts so history cleanup does not refetch the workspace', () => {
+    renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch: vi.fn() }));
+    const client = vi.mocked(getSupabaseClient).mock.results.at(-1)?.value;
+    const channel = client ? vi.mocked(client.channel).mock.results[0]?.value : null;
+    expect(channel.on).toHaveBeenCalledWith(
+      'postgres_changes',
+      expect.objectContaining({ table: 'team_catalog_events', event: 'INSERT' }),
+      expect.any(Function)
+    );
+  });
   it('keeps the workspace stale when teams refresh but its catalog read fails, then recovers on retry', async () => {
     const team: TeamContextSnapshot = {
       id: '21000000-0000-4000-8000-000000000001',
@@ -81,23 +91,49 @@ describe('team Realtime invalidation', () => {
     expect(client.listTeams).toHaveBeenCalled();
     expect(view.result.current.page.error).toBe(true);
     expect(view.result.current.context.realtimeState).toBe('reconnecting');
+    expect(view.result.current.context.realtimeConnectionState).toBe('connected');
     client.listFolderPage.mockResolvedValue({ rows: [], total: 0, next: null });
     act(() => view.result.current.context.retryRealtime());
     act(() => status('SUBSCRIBED'));
     await act(async () => vi.advanceTimersByTimeAsync(1_000));
     expect(view.result.current.page.error).toBe(false);
     expect(view.result.current.context.realtimeState).toBe('connected');
+    expect(view.result.current.context.realtimeConnectionState).toBe('connected');
     window.history.replaceState(null, '', '/');
   });
   it('subscribes only to published catalog and operation events and catches the subscribe race', async () => {
     const onRefetch = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
-    expect([...events.keys()].sort()).toEqual(['team_catalog_events', 'team_operations']);
+    expect([...events.keys()].sort()).toEqual([
+      'team_catalog_events',
+      'team_launch_signals',
+      'team_launch_workspace_signals',
+      'team_operations'
+    ]);
     act(() => status('SUBSCRIBED'));
     expect(result.current).toBe('connecting');
     await act(async () => vi.advanceTimersByTimeAsync(1_000));
     expect(onRefetch).toHaveBeenCalledTimes(1);
     expect(result.current).toBe('connected');
+  });
+
+  it('coalesces Launch workspace invalidations without adding a second subscription', async () => {
+    const onRefetch = vi.fn().mockResolvedValue(undefined);
+    const { result, unmount } = renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
+    const client = vi.mocked(getSupabaseClient).mock.results[0]?.value;
+    if (!client) throw new Error('Supabase fixture missing');
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(result.current).toBe('connected');
+    act(() => {
+      events.get('team_launch_workspace_signals')!();
+      events.get('team_launch_workspace_signals')!();
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(onRefetch).toHaveBeenCalledTimes(2);
+    expect(client.channel).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(removeChannel).toHaveBeenCalledTimes(1);
   });
 
   it('does not let an older catalog response clear a newer invalidation', async () => {

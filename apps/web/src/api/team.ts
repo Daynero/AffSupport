@@ -1230,7 +1230,7 @@ function throwRpc(error: { message: string; code?: string } | null): void {
   const candidates = [error.message, error.code ?? ''].flatMap(
     value => value.match(/[A-Z][A-Z0-9_]+/g) ?? []
   );
-  const code = candidates[0] as TeamErrorCode | undefined;
+  const code = TEAM_ERROR_CODES.find(known => candidates.includes(known));
   if (code === 'PERMISSION_DENIED' || code === 'SPACE_BLOCKED') requestSpaceAccessRecheck();
   throw new TeamApiError(code ?? 'INVALID_RESPONSE', false);
 }
@@ -3106,7 +3106,8 @@ export const teamApi = {
   async listLandingRenders(
     teamId: string,
     materialIds: string[],
-    preset: string
+    preset: string,
+    options: { includeArtifacts?: boolean } = {}
   ): Promise<LandingRenderPointer[]> {
     if (materialIds.length === 0) return [];
     const { data, error } = await withFreshSession(() =>
@@ -3124,7 +3125,7 @@ export const teamApi = {
       row => row?.render_state === 'ready' && row.valid === true && row.segment_count
     );
     const tokenByMaterial = new Map<string, RenderArtifactRef>();
-    if (validRows.length > 0) {
+    if (options.includeArtifacts !== false && validRows.length > 0) {
       try {
         const tokens = await invokeTeamFunction(
           'drive-transfer',
@@ -3800,14 +3801,9 @@ export const teamApi = {
     labelIds?: readonly string[] | null;
     /** How the board is ordered (018): by date, or by tag. */
     sort?: TeamTaskSort | null;
-    /** Only one person's tasks (018 part 2). */
-    assigneeId?: string | null;
-    /** Only the tasks nobody is on; never together with `assigneeId`. */
-    unassigned?: boolean;
     cursor?: string | null;
     pageSize?: number;
   }): Promise<TeamTaskSummary[]> {
-    if (input.assigneeId && input.unassigned) throw new TeamApiError('INVALID_INPUT', false);
     const labelIds = input.labelIds?.length ? [...input.labelIds] : undefined;
     if (labelIds && labelIds.length > TEAM_TASK_LABEL_FILTER_MAX) {
       throw new TeamApiError('INVALID_INPUT', false);
@@ -3826,8 +3822,6 @@ export const teamApi = {
         p_account: input.accountId ?? undefined,
         p_labels: labelIds,
         p_sort: sort,
-        p_assignee: input.assigneeId ?? undefined,
-        p_unassigned: input.unassigned ? true : undefined,
         p_cursor: input.cursor ?? undefined,
         p_page_size: input.pageSize ?? 50
       })
@@ -5294,3 +5288,6 @@ export async function searchAdminUsers(query: string): Promise<AdminUserMatch[]>
 export type AdminTariffClient = typeof adminTariffApi & {
   searchUsers?: (query: string) => Promise<AdminUserMatch[]>;
 };
+
+export { throwRpc };
+export { launchApi } from './launches';

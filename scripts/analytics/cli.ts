@@ -9,6 +9,7 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { getDatabaseHealth, getDatabaseRetention, getDatabaseTables } from './database-health.js';
 import {
   formatAudit,
   formatCompressor,
@@ -84,6 +85,7 @@ export interface ParsedArgs {
   json: boolean;
   write: boolean;
   help: boolean;
+  management?: boolean;
 }
 
 export const HELP = `Soty analytics CLI (read-only)
@@ -113,6 +115,9 @@ Commands:
   team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
   connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage
+  database-health     Database sizes, churn and grant expiry (read-only)
+  database-tables     Exact counts and index inventory via read-only management API
+  database-retention  Lightweight checks of cleanup jobs and retained tenant key
   audit               Coverage registry vs observed events: blind spots, orphans, losses
   investigate <email|installation_id|run_id|flow_id|attempt_id>
                       One user's problem in one call: environment, sessions, failed runs,
@@ -129,6 +134,7 @@ Options:
   --limit <n>    row limit (default 10)
   --cohort-by <v> local-app-version | platform | web-build
   --write        audit: save specs/031-platform-autoanalytics/analysis/<date>.json
+  --management   database-health only: privileged aggregates via read-only Supabase API
   --json         machine-readable JSON only
   -h, --help     this help
 
@@ -155,6 +161,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
     switch (token) {
       case '--json':
         parsed.json = true;
+        break;
+      case '--management':
+        parsed.management = true;
         break;
       case '--write':
         parsed.write = true;
@@ -247,6 +256,18 @@ export async function executeCommand(
   });
 
   switch (command) {
+    case 'database-retention': {
+      const data = await getDatabaseRetention();
+      return done(data, JSON.stringify(data, null, 2));
+    }
+    case 'database-tables': {
+      const data = await getDatabaseTables();
+      return done(data, JSON.stringify(data, null, 2));
+    }
+    case 'database-health': {
+      const data = await getDatabaseHealth(args.management);
+      return done(data, JSON.stringify(data, null, 2));
+    }
     case 'overview': {
       const [data, delivery_lag_ms] = await Promise.all([getOverview(period), lag()]);
       const full = { ...data, delivery_lag_ms };

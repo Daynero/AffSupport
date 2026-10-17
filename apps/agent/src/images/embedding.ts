@@ -32,7 +32,11 @@ export function freezeImageEmbedding(
     finalDurationSeconds:
       draft.finalDurationMode === 'custom'
         ? settings.customFinalDurationSeconds
-        : randomFinalImageDurationSeconds(draft.finalDurationMode, random)
+        : randomFinalImageDurationSeconds(
+            draft.finalDurationMode,
+            random,
+            settings.customFinalDurationSeconds
+          )
   };
 }
 

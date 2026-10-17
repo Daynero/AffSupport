@@ -432,7 +432,11 @@ export function screensFromEmbedding(
     choice.endDurationSeconds ??
     (embedding.finalDurationMode === 'custom'
       ? embedding.customFinalDurationSeconds
-      : randomFinalImageDurationSeconds(embedding.finalDurationMode, random));
+      : randomFinalImageDurationSeconds(
+          embedding.finalDurationMode,
+          random,
+          embedding.customFinalDurationSeconds
+        ));
 
   return {
     startImageId: start?.id ?? null,

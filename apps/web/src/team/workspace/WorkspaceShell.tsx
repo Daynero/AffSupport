@@ -17,6 +17,7 @@ import { ShortcutSheet } from '../palette/ShortcutSheet';
 import { formatShortcut, matches, shortcutOf } from '../palette/shortcuts';
 import {
   ChevronDown,
+  ChevronRight,
   History as HistoryIcon,
   Keyboard,
   RefreshCw,
@@ -110,6 +111,9 @@ const accountSection = preloadable(
 );
 const TaskSpace = taskSection.Section;
 const AccountSpace = accountSection.Section;
+const LaunchSpace = lazy(() =>
+  import('../launches/LaunchSpace').then(module => ({ default: module.LaunchSpace }))
+);
 const ExplorerShell = lazy(() =>
   import('../explorer/ExplorerShell').then(module => ({ default: module.ExplorerShell }))
 );
@@ -129,6 +133,7 @@ export type WorkspaceShellClient = TeamCatalogClient &
 const CONTENT_TABS: { section: TeamSection; label: TranslationKey }[] = [
   { section: 'explorer', label: 'teamSectionExplorer' },
   { section: 'tasks', label: 'teamSectionTasks' },
+  { section: 'launches', label: 'launchesTitle' },
   { section: 'accounts', label: 'teamSectionAccounts' },
   { section: 'members', label: 'teamSectionMembers' }
 ];
@@ -632,6 +637,22 @@ export function WorkspaceShell({
      strip slides under the topbar, and each section's own sticky header sits
      below the strip. Both lengths are measured, since the header wraps. */
   const chromeObserver = useRef<ResizeObserver | null>(null);
+  const sectionTabsRef = useRef<HTMLDivElement>(null);
+  const [moreSections, setMoreSections] = useState(false);
+  useEffect(() => {
+    const tabs = sectionTabsRef.current?.querySelector<HTMLElement>('.team-space-tabs');
+    if (!tabs) return;
+    const measure = () =>
+      setMoreSections(tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 2);
+    measure();
+    tabs.addEventListener('scroll', measure, { passive: true });
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(tabs);
+    return () => {
+      tabs.removeEventListener('scroll', measure);
+      observer?.disconnect();
+    };
+  }, [teamId]);
   const chromeRef = useCallback((chrome: HTMLDivElement | null) => {
     chromeObserver.current?.disconnect();
     chromeObserver.current = null;
@@ -882,21 +903,36 @@ export function WorkspaceShell({
           and the active one is announced rather than merely coloured. The strip
           is the inventory's (021, T082), which grew the address variant for
           exactly this. */}
-                  <Tabs
-                    className="team-space-tabs"
-                    label={t('teamSectionsNavLabel')}
-                    value={section}
-                    /* No page crossfade between sections (the owner, 024): the header and
+                  <div ref={sectionTabsRef} className="team-space-tabs-frame">
+                    <Tabs
+                      className="team-space-tabs"
+                      label={t('teamSectionsNavLabel')}
+                      value={section}
+                      /* No page crossfade between sections (the owner, 024): the header and
                      the tabs stay where they are, and fading the whole page out and
                      back in let the honeycomb behind it flash through on every switch. */
-                    onChange={next => navigateTo(sectionRoute(next), false, false)}
-                    onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id), false)}
-                    items={CONTENT_TABS.map(tab => ({
-                      id: tab.section,
-                      label: t(tab.label),
-                      href: sectionRoute(tab.section)
-                    }))}
-                  />
+                      onChange={next => navigateTo(sectionRoute(next), false, false)}
+                      onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id), false)}
+                      items={CONTENT_TABS.map(tab => ({
+                        id: tab.section,
+                        label: t(tab.label),
+                        href: sectionRoute(tab.section)
+                      }))}
+                    />
+                    <button
+                      type="button"
+                      className={`team-space-tabs-next${moreSections ? '' : ' is-hidden'}`}
+                      aria-label={t('teamMoreSections')}
+                      tabIndex={moreSections ? 0 : -1}
+                      onClick={() =>
+                        sectionTabsRef.current
+                          ?.querySelector<HTMLElement>('.team-space-tabs')
+                          ?.scrollBy({ left: 160 })
+                      }
+                    >
+                      <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
 
                 <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
@@ -934,6 +970,15 @@ export function WorkspaceShell({
                           />
                         </Suspense>
                       </div>
+                    )}
+                    {section === 'launches' && !trashOver && (
+                      <Suspense fallback={null}>
+                        <LaunchSpace
+                          key={`launches:${teamId}`}
+                          teamId={teamId}
+                          query={query ?? emptyTeamRouteQuery()}
+                        />
+                      </Suspense>
                     )}
                     {visited.has('accounts') && (
                       <div hidden={section !== 'accounts' || trashOver}>

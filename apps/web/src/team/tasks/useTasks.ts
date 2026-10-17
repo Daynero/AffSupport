@@ -27,14 +27,6 @@ export type TaskAccountScope =
   { kind: 'all' } | { kind: 'account'; accountId: string } | { kind: 'agent'; agentRowId: string };
 
 /**
- * Whose tasks the board shows (018): everyone's, one person's, or the ones
- * nobody is on. "Nobody" is a state of its own rather than a missing id — it
- * is the pile a stand-up is held over.
- */
-export type TaskAssigneeFilter =
-  { kind: 'all' } | { kind: 'member'; userId: string } | { kind: 'unassigned' };
-
-/**
  * The ranges people actually ask for, one press each. The calendar answers
  * everything else, but reaching it for "today" was four interactions for the
  * commonest question there is.
@@ -106,16 +98,6 @@ export function parseStoredDateFilter(value: unknown): TaskDateFilter | null {
   return null;
 }
 
-function parseAssigneeFilter(value: unknown): TaskAssigneeFilter | null {
-  if (typeof value !== 'object' || value === null) return null;
-  const record = value as Record<string, unknown>;
-  if (record.kind === 'all' || record.kind === 'unassigned') return { kind: record.kind };
-  if (record.kind === 'member' && typeof record.userId === 'string' && record.userId.length > 0) {
-    return { kind: 'member', userId: record.userId };
-  }
-  return null;
-}
-
 export interface TasksClient {
   listTasks(input: {
     teamId: string;
@@ -131,10 +113,6 @@ export interface TasksClient {
     labelIds?: readonly string[] | null;
     /** How the server orders the page (018). */
     sort?: TeamTaskSort | null;
-    /** Only one person's tasks (018 part 2). */
-    assigneeId?: string | null;
-    /** Only the tasks nobody is on. */
-    unassigned?: boolean;
     cursor?: string | null;
     pageSize?: number;
   }): Promise<TeamTaskSummary[]>;
@@ -226,17 +204,11 @@ export function useTasks({
     'date',
     value => (isTeamTaskSort(value) ? value : null)
   );
-  /** Whose tasks the board shows (018 part 2). */
-  const [assignee, setAssignee] = usePersistedState<TaskAssigneeFilter>(
-    persistedViewKey(teamId, 'tasks.assignee'),
-    { kind: 'all' },
-    parseAssigneeFilter
-  );
   /**
    * A word from the title or the brief (024, FR-077).
    *
    * Filtered here rather than on the server: the board holds a page of tasks
-   * that is already narrowed by date, status, account, assignee and tag, so
+   * that is already narrowed by date, status, account and tag, so
    * the fastest way to the one you mean is to type two letters of it — and a
    * round trip for two letters would be slower than the eye.
    */
@@ -255,8 +227,6 @@ export function useTasks({
      nothing. */
   const labelKey = [...labelIds].sort().join(',');
   const labelFilter = useMemo(() => (labelKey === '' ? null : labelKey.split(',')), [labelKey]);
-  const assigneeId = assignee.kind === 'member' ? assignee.userId : null;
-  const unassigned = assignee.kind === 'unassigned';
   const cacheKey = [
     teamId,
     bounds?.from ?? '',
@@ -265,8 +235,7 @@ export function useTasks({
     agentRowId ?? '',
     accountId ?? '',
     labelKey,
-    sort,
-    assigneeId ?? (unassigned ? 'none' : '')
+    sort
   ].join('|');
   const cached = client === defaultClient ? cache.get(cacheKey) : undefined;
   const [tasks, setTasks] = useState<TeamTaskSummary[]>(cached?.tasks ?? []);
@@ -293,8 +262,6 @@ export function useTasks({
         accountId,
         labelIds: labelFilter,
         sort,
-        assigneeId,
-        unassigned,
         pageSize: PAGE_SIZE
       });
       if (requestGeneration !== generation.current) return;
@@ -311,7 +278,6 @@ export function useTasks({
   }, [
     accountId,
     agentRowId,
-    assigneeId,
     bounds?.from,
     bounds?.to,
     cacheKey,
@@ -319,8 +285,7 @@ export function useTasks({
     labelFilter,
     sort,
     status,
-    teamId,
-    unassigned
+    teamId
   ]);
 
   useEffect(() => {
@@ -450,8 +415,6 @@ export function useTasks({
         accountId,
         labelIds: labelFilter,
         sort,
-        assigneeId,
-        unassigned,
         cursor,
         pageSize: PAGE_SIZE
       });
@@ -466,7 +429,6 @@ export function useTasks({
   }, [
     accountId,
     agentRowId,
-    assigneeId,
     bounds?.from,
     bounds?.to,
     client,
@@ -477,8 +439,7 @@ export function useTasks({
     sort,
     status,
     tasks,
-    teamId,
-    unassigned
+    teamId
   ]);
 
   const create = useCallback(
@@ -524,10 +485,7 @@ export function useTasks({
       // And a task the edit takes out of the filters in force leaves the board
       // now, not at the next reload: a card set to "Done" under "In progress"
       // stayed there, answering to a filter it no longer passed.
-      const stillShown =
-        (status === null || next.status === status) &&
-        (assigneeId == null || next.assigneeId === assigneeId) &&
-        (!unassigned || next.assigneeId == null);
+      const stillShown = status === null || next.status === status;
       setTasks(current =>
         current
           .flatMap(item => (item.id === next.id ? (stillShown ? [next] : []) : [item]))
@@ -535,7 +493,7 @@ export function useTasks({
       );
       return next;
     },
-    [assigneeId, client, sort, status, teamId, unassigned]
+    [client, sort, status, teamId]
   );
 
   /** The editor hung or removed a tag (018); the card follows at once. */
@@ -566,7 +524,7 @@ export function useTasks({
    * away from the press that changed it.
    */
   const placedDone = useRef(new Map<string, boolean>());
-  const boardKey = `${teamId}|${JSON.stringify(filter)}|${statusFilter}|${sort}|${agentRowId}|${accountId}|${JSON.stringify(assignee)}|${labelIds.join(',')}`;
+  const boardKey = `${teamId}|${JSON.stringify(filter)}|${statusFilter}|${sort}|${agentRowId}|${accountId}|${labelIds.join(',')}`;
   const placedFor = useRef(boardKey);
   if (placedFor.current !== boardKey) {
     placedFor.current = boardKey;
@@ -604,8 +562,6 @@ export function useTasks({
     setLabelIds,
     sort,
     setSort,
-    assignee,
-    setAssignee,
     loading,
     loadingMore,
     hasMore,
