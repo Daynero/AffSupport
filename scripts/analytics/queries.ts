@@ -2145,7 +2145,7 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
     ? capability.stages.filter(stage =>
         rows.some(
           row =>
-            (capability.stageEvents[stage] ?? []).includes(row.event_name) &&
+            (capability.stageEvents[stage] ?? []).some(event => event === row.event_name) &&
             (stage !== 'image_choice' || hasImageChoice(row.properties))
         )
       )
