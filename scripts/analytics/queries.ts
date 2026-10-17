@@ -2138,16 +2138,17 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
         row
     )
   );
-  const stageOf = new Map<string, string>();
-  if (capability) {
-    for (const stage of capability.stages) {
-      for (const event of capability.stageEvents[stage] ?? []) {
-        if (!stageOf.has(event)) stageOf.set(event, stage as string);
-      }
-    }
-  }
+  const hasImageChoice = (properties: JourneyRow['properties']) =>
+    ['off', 'random', 'explicit'].includes(String(properties?.image_start_selection)) &&
+    ['off', 'random', 'explicit'].includes(String(properties?.image_end_selection));
   const observedStages = capability
-    ? capability.stages.filter(stage => rows.some(row => stageOf.get(row.event_name) === stage))
+    ? capability.stages.filter(stage =>
+        rows.some(
+          row =>
+            (capability.stageEvents[stage] ?? []).includes(row.event_name) &&
+            (stage !== 'image_choice' || hasImageChoice(row.properties))
+        )
+      )
     : [];
   const expected = capability
     ? capability.stages.filter(stage => (capability.stageEvents[stage] ?? []).length > 0)
