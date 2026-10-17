@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(20);
+select plan(21);
 select ok(exists(select 1 from public.team_error_codes where code='UNVERIFIED_UPLOAD'),
  'unverified upload rejection is in the hosted closed code list');
 
@@ -79,6 +79,12 @@ select is((select count(*) from private.team_task_orphan_intents where material_
  'bd370000-0000-4000-8000-000000000023'),1::bigint,
  'legacy boolean detach also creates a server intent');
 update private.team_task_orphan_intents set state='claimed' where material_id=
+ 'bd370000-0000-4000-8000-000000000021';
+select throws_ok($$insert into public.team_task_attachments(team_id,task_id,material_id,position,attached_by) values
+('bd370000-0000-4000-8000-000000000010','bd370000-0000-4000-8000-000000000030',
+ 'bd370000-0000-4000-8000-000000000021',0,'bd370000-0000-4000-8000-000000000001')$$,
+ '55000','WRONG_STATE','a new attachment cannot race an in-flight provider trash');
+update private.team_task_orphan_intents set state='waiting' where material_id=
  'bd370000-0000-4000-8000-000000000021';
 insert into public.team_task_attachments(team_id,task_id,material_id,position,attached_by) values
 ('bd370000-0000-4000-8000-000000000010','bd370000-0000-4000-8000-000000000030',
