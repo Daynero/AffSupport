@@ -30,6 +30,7 @@ import {
   parseTeamTaskDetachResult,
   parseTeamTaskPatch,
   parseTeamAccount,
+  parseTeamAccountOverview,
   parseTeamAccountAgent,
   parseTeamAccountOrderSnapshot,
   parseTeamAccountReorderResult,
@@ -4528,6 +4529,21 @@ export const teamApi = {
   // ---------------------------------------------------------------------------
   // Team accounts (017): the social accounts a space runs from, and their agents.
   // ---------------------------------------------------------------------------
+
+  /** Stable UUID projection for ordered socials, launches and recorded finance placements. */
+  async getAccountLaunchFinanceOverview(teamId: string, from: string, to: string) {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_account_launch_finance_overview', {
+        p_team: teamId,
+        p_from: from,
+        p_to: to
+      })
+    );
+    throwRpc(error);
+    const overview = parseTeamAccountOverview(data);
+    if (!overview) throw new TeamApiError('INVALID_RESPONSE', false);
+    return overview;
+  },
 
   /** Every account of a space with its agents nested — one round trip, no paging. */
   async listAccounts(teamId: string): Promise<TeamAccountSummary[]> {

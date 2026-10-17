@@ -3828,6 +3828,10 @@ export type GeneratedDatabase = {
       get_share_preference: { Args: { p_team: string }; Returns: Json };
       get_task_progress_max_default: { Args: Record<PropertyKey, never>; Returns: number };
       get_team_account_order: { Args: { p_team: string }; Returns: Json };
+      get_team_account_launch_finance_overview: {
+        Args: { p_team: string; p_from: string; p_to: string };
+        Returns: Json;
+      };
       get_team_agent_finance: {
         Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;

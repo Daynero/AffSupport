@@ -130,8 +130,8 @@
 
 **Independent Test**: Open a social with several РК, multiple launches, a known zero, no finance row, a moved РК and an unmatched launch snapshot.
 
-- [ ] T035 [US7] Define the stable launch-to-РК and finance-placement read projection with null-versus-zero and unmatched reasons in `packages/shared/src/team/account-overview.ts` and `apps/web/src/api/team.ts`; do not join on labels or suffixes.
-- [ ] T036 [US7] Implement the read endpoint/query for ordered socials and РК, launch rows, finance period and unmatched records in `supabase/migrations/20261203103000_account_launch_finance_view.sql` and `apps/web/src/api/team.ts`; preserve stable identity so a later archive remains resolvable.
+- [x] T035 [US7] Define the stable launch-to-РК and finance-placement read projection with null-versus-zero and unmatched reasons in `packages/shared/src/team/account-overview.ts` and `apps/web/src/api/team.ts`; do not join on labels or suffixes.
+- [x] T036 [US7] Implement the read endpoint/query for ordered socials and РК, launch rows, finance period and unmatched records in `supabase/migrations/20261203103000_account_launch_finance_view.sql` and `apps/web/src/api/team.ts`; preserve stable identity so a later archive remains resolvable.
 - [ ] T037 [US7] Build the combined table, explicit period and unmatched section in `apps/web/src/team/accounts/AccountSpace.tsx` and a new `apps/web/src/team/accounts/AccountLaunchFinanceTable.tsx`; keep editing in existing source screens.
 - [ ] T038 [US7] Test multiple launches, moved РК, zero versus no data, permissions and page consistency for active socials in `tests/team-account-launch-finance.test.tsx` and `supabase/tests/database/`.
 
