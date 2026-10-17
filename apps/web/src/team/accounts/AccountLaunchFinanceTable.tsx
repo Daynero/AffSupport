@@ -15,6 +15,19 @@ function validPeriod(from: string, to: string): boolean {
   );
 }
 
+function visiblePlacementPeriod(
+  row: TeamAccountOverview['finance'][number],
+  period: { from: string; to: string }
+): string {
+  const from = row.startsOn > period.from ? row.startsOn : period.from;
+  // Placement ends are exclusive; finance values are shown for inclusive calendar days.
+  const placementLastDay = row.endsOn
+    ? new Date(Date.parse(`${row.endsOn}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)
+    : period.to;
+  const to = placementLastDay < period.to ? placementLastDay : period.to;
+  return from === to ? from : `${from} — ${to}`;
+}
+
 export function AccountLaunchFinanceTable({
   teamId,
   revision,
@@ -136,10 +149,7 @@ export function AccountLaunchFinanceTable({
                     <div className="account-overview-figures">
                       {placements.map(row => (
                         <div key={row.placementId}>
-                          <span>
-                            {row.startsOn}
-                            {row.endsOn ? ` — ${row.endsOn}` : ''}
-                          </span>
+                          <span>{visiblePlacementPeriod(row, period)}</span>
                           <span>
                             {t('financeBalance')}: {money(row.balanceCents)}
                           </span>

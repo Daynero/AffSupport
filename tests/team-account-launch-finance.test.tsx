@@ -79,6 +79,24 @@ afterEach(() => {
 });
 
 describe('account launch and finance overview', () => {
+  it('labels a historical placement by its visible finance period, not the sentinel start date', async () => {
+    const historical: TeamAccountOverview = {
+      ...overview,
+      finance: [
+        {
+          ...placement('17000000-0000-4000-8000-000000000023', SOCIAL_A, null),
+          startsOn: '0001-01-01',
+          endsOn: '2026-10-10'
+        }
+      ]
+    };
+    const client = { getAccountLaunchFinanceOverview: vi.fn(async () => historical) };
+    render(<AccountLaunchFinanceTable teamId={SOCIAL_A} revision={0} client={client} />);
+    const original = await screen.findByRole('region', { name: 'Original social' });
+    expect(within(original).getByText('2026-10-01 — 2026-10-09')).toBeTruthy();
+    expect(within(original).queryByText('0001-01-01')).toBeNull();
+  });
+
   it('keeps moved launches and finance under historical socials, with explicit zero and missing values', async () => {
     const client = { getAccountLaunchFinanceOverview: vi.fn(async () => overview) };
     render(<AccountLaunchFinanceTable teamId={SOCIAL_A} revision={0} client={client} />);
