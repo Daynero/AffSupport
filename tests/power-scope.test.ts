@@ -48,6 +48,8 @@ async function sourcesUnder(directory: string): Promise<{ relative: string; sour
  * nothing that crosses the network.
  */
 const LOCAL_WORK_IN_THE_BRIDGE: Record<string, string> = {
+  'team-bridge/audio-fingerprint.ts':
+    'decodes a local audio fingerprint with ffmpeg; the transfer itself remains unmanaged',
   'team-bridge/poster.ts':
     'decodes one poster frame with ffmpeg — a 4K seek is the work the lever exists to cap'
 };
