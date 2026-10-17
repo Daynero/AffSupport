@@ -12,6 +12,74 @@ export const TEAM_TASK_PROGRESS_MAX = 10_000;
 export const LIBRARY_ATTACH_MUTATION_BATCH_MAX = 100;
 export const TEAM_TASK_PAGE_SIZE_MAX = 100;
 
+export type TeamTaskCleanupState =
+  'waiting' | 'cleanup_unverified' | 'claimed' | 'confirmed_in_trash' | 'failed' | 'cancelled';
+
+export const TEAM_TASK_ORPHAN_REASON_CODES = [
+  'PROVENANCE_UNKNOWN',
+  'LAUNCH_REFERENCE_UNVERIFIED'
+] as const;
+export type TeamTaskOrphanReasonCode = (typeof TEAM_TASK_ORPHAN_REASON_CODES)[number];
+
+export type TeamTaskDetachResult =
+  | {
+      detached: false;
+      state: 'already_detached';
+      intentId: null;
+      detachedAt: null;
+      undoDeadline: null;
+    }
+  | {
+      detached: true;
+      state: TeamTaskCleanupState;
+      intentId: string;
+      detachedAt: string;
+      undoDeadline: string;
+    };
+
+export function parseTeamTaskDetachResult(input: unknown): TeamTaskDetachResult | null {
+  if (!isRecord(input)) return null;
+  if (input.detached === false && input.state === 'already_detached')
+    return {
+      detached: false,
+      state: 'already_detached',
+      intentId: null,
+      detachedAt: null,
+      undoDeadline: null
+    };
+  if (
+    input.detached !== true ||
+    !isUuid(input.intentId) ||
+    typeof input.detachedAt !== 'string' ||
+    !Number.isFinite(Date.parse(input.detachedAt)) ||
+    typeof input.undoDeadline !== 'string' ||
+    !Number.isFinite(Date.parse(input.undoDeadline)) ||
+    ![
+      'waiting',
+      'cleanup_unverified',
+      'claimed',
+      'confirmed_in_trash',
+      'failed',
+      'cancelled'
+    ].includes(String(input.state))
+  )
+    return null;
+  return {
+    detached: true,
+    state: input.state as TeamTaskCleanupState,
+    intentId: input.intentId,
+    detachedAt: input.detachedAt,
+    undoDeadline: input.undoDeadline
+  };
+}
+
+/** One paste attempt; retries reuse requestId until a result is confirmed. */
+export interface TeamTaskCopyRequest {
+  teamId: string;
+  taskIds: string[];
+  requestId: string;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 function isUuid(value: unknown): value is string {

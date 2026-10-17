@@ -856,6 +856,7 @@ export class JobQueue {
 
   embeddingConfigurationError() {
     const embedding = this.settings.imageEmbedding;
+    if (missingExplicitImage(embedding)) return 'IMAGE_UNAVAILABLE';
     if (embedding.enabled && !embedding.startImages.length && !embedding.endImages.length) {
       return 'EMBED_IMAGES_REQUIRED';
     }
@@ -943,7 +944,10 @@ export class JobQueue {
     if (
       jobs.some(job => {
         const embedding = (this.teamJobSettings.get(job.id) ?? this.settings).imageEmbedding;
-        return embedding.enabled && !embedding.startImages.length && !embedding.endImages.length;
+        return (
+          missingExplicitImage(embedding) ||
+          (embedding.enabled && !embedding.startImages.length && !embedding.endImages.length)
+        );
       })
     ) {
       return false;
@@ -2607,8 +2611,13 @@ function cloneJobImageEmbedding(settings: CompressionJob['imageEmbedding']) {
 function imageEmbeddingSettingsKey(settings: AgentSettings['imageEmbedding']) {
   return JSON.stringify([
     settings.enabled,
+    settings.startEnabled,
+    settings.endEnabled,
     settings.startImages.map(asset => asset.id),
     settings.endImages.map(asset => asset.id),
+    settings.disabledImageIds,
+    settings.selectedStartImageId,
+    settings.selectedEndImageId,
     settings.replaceExisting,
     settings.finalDurationMode,
     settings.customFinalDurationSeconds,
@@ -2616,4 +2625,16 @@ function imageEmbeddingSettingsKey(settings: AgentSettings['imageEmbedding']) {
     settings.customStartDurationMs,
     settings.fitMode
   ]);
+}
+
+function missingExplicitImage(settings: AgentSettings['imageEmbedding']): boolean {
+  if (!settings.enabled) return false;
+  return (
+    (settings.startEnabled &&
+      settings.selectedStartImageId !== null &&
+      activeEmbeddingImages(settings, 'start').length === 0) ||
+    (settings.endEnabled &&
+      settings.selectedEndImageId !== null &&
+      activeEmbeddingImages(settings, 'end').length === 0)
+  );
 }

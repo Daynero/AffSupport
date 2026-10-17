@@ -2,6 +2,7 @@
 import React from 'react';
 import {
   cleanup,
+  createEvent,
   fireEvent,
   render as renderRaw,
   screen,
@@ -224,32 +225,32 @@ async function waitForGroups() {
 }
 
 describe('reading the list', () => {
-  it('shows accounts in natural order with the tail of each id and the free ones marked', async () => {
+  it('shows accounts in server order with the tail of each id and the free ones marked', async () => {
     render(client());
     await waitForGroups();
-    expect(groupNames()).toEqual(['v3', 'v12', 'v31']);
+    expect(groupNames()).toEqual(['v31', 'v3', 'v12']);
 
     const v31 = screen.getByRole('region', { name: 'v31' });
     const agentRows = within(v31)
       .getAllByRole('listitem')
       .filter(row => row.hasAttribute('data-agent-row-id'));
     expect(agentRows).toHaveLength(2);
-    // Free first: the question the tab is opened with is where to start.
-    expect(agentRows[0]?.getAttribute('data-free')).toBe('true');
-    expect(agentRows[1]?.getAttribute('data-free')).toBe('false');
+    // The server's manual agent order survives even when free and busy differ.
+    expect(agentRows[0]?.getAttribute('data-free')).toBe('false');
+    expect(agentRows[1]?.getAttribute('data-free')).toBe('true');
     // The tail only; the whole id is in the title of the copy button.
     // The tag, never the bare tail: an agent must not read like a second account.
-    expect(agentRows[1]?.textContent).toContain('v31-434');
-    expect(agentRows[1]?.textContent).not.toContain('1000098765434');
+    expect(agentRows[0]?.textContent).toContain('v31-434');
+    expect(agentRows[0]?.textContent).not.toContain('1000098765434');
     // The tooltip carries the full id.
     expect(
-      within(agentRows[1]!)
+      within(agentRows[0]!)
         .getByRole('button', { name: /^Copy full ID v31-434/ })
         .getAttribute('title')
     ).toContain('1000098765434');
     // The state is a word of its own, not only a colour.
-    expect(within(agentRows[0]!).getByText('Free')).toBeTruthy();
-    expect(within(agentRows[1]!).getByText('Running')).toBeTruthy();
+    expect(within(agentRows[1]!).getByText('Free')).toBeTruthy();
+    expect(within(agentRows[0]!).getByText('Running')).toBeTruthy();
   });
 
   it('counts agents on the filter chips', async () => {
@@ -267,6 +268,144 @@ describe('reading the list', () => {
     // state's were the same press, and there is no toolbar of zeros over it.
     expect(screen.getAllByRole('button', { name: 'Add account' })).toHaveLength(1);
     expect(document.querySelector('.team-accounts-toolbar')).toBeNull();
+  });
+});
+
+describe('shared account order', () => {
+  it('moves both levels with keys and a pointer, then cancels a released drag', async () => {
+    const initial = fixture();
+    let serverRows = initial;
+    let socialsVersion = 4;
+    let agentsVersion = 2;
+    const api = client(initial);
+    api.listAccounts = vi.fn(async () => serverRows);
+    api.getAccountOrder = vi.fn(async () => ({
+      socialsVersion,
+      socialIds: serverRows.map(account => account.id),
+      agents: Object.fromEntries(
+        serverRows.map(account => [
+          account.id,
+          {
+            version: account.id === V31 ? agentsVersion : 0,
+            ids: account.agents.map(agent => agent.id)
+          }
+        ])
+      )
+    }));
+    api.reorderAccounts = vi.fn(async input => {
+      if (input.scopeId === TEAM_ID) {
+        serverRows = input.ids.map((id: string) => serverRows.find(account => account.id === id)!);
+        socialsVersion += 1;
+        return { status: 'applied' as const, version: socialsVersion, ids: input.ids };
+      }
+      serverRows = serverRows.map(account =>
+        account.id === input.scopeId
+          ? {
+              ...account,
+              agents: input.ids.map((id: string) => account.agents.find(agent => agent.id === id)!)
+            }
+          : account
+      );
+      agentsVersion += 1;
+      return { status: 'applied' as const, version: agentsVersion, ids: input.ids };
+    });
+    render(api);
+    const user = userEvent.setup();
+    const socialGrip = await screen.findByRole('button', { name: /Reorder social account v31/ });
+    await user.click(socialGrip);
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(groupNames()).toEqual(['v3', 'v31', 'v12']));
+    expect(api.reorderAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopeId: TEAM_ID,
+        expectedVersion: 4,
+        ids: [V3, V31, V12]
+      })
+    );
+
+    const target = screen.getByRole('region', { name: 'v3' });
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({ top: 0, height: 100 } as DOMRect);
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' };
+    fireEvent.dragStart(socialGrip, { dataTransfer });
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', V31);
+    const over = createEvent.dragOver(target, { dataTransfer });
+    Object.defineProperty(over, 'clientY', { value: 10 });
+    expect(fireEvent(target, over)).toBe(false);
+    const dropTarget = screen.getByRole('region', { name: 'v3' });
+    const drop = createEvent.drop(dropTarget, { dataTransfer });
+    Object.defineProperty(drop, 'clientY', { value: 10 });
+    fireEvent(dropTarget, drop);
+    expect(api.reorderAccounts).toHaveBeenCalledTimes(2);
+    expect(api.reorderAccounts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ids: [V31, V3, V12] })
+    );
+    await waitFor(() => expect(groupNames()).toEqual(['v31', 'v3', 'v12']));
+
+    fireEvent.dragStart(socialGrip, { dataTransfer });
+    fireEvent.dragEnd(socialGrip, { dataTransfer });
+    expect(api.reorderAccounts).toHaveBeenCalledTimes(2);
+
+    const agentGrip = screen.getByRole('button', { name: /Reorder ad account v31-434/ });
+    await user.click(agentGrip);
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() =>
+      expect(
+        rows()
+          .filter(row => row.closest('[data-account-id]')?.getAttribute('data-account-id') === V31)
+          .map(row => row.getAttribute('data-agent-row-id'))
+      ).toEqual([initial[0]!.agents[1]!.id, initial[0]!.agents[0]!.id])
+    );
+    expect(api.reorderAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopeId: V31,
+        expectedVersion: 2,
+        ids: [initial[0]!.agents[1]!.id, initial[0]!.agents[0]!.id]
+      })
+    );
+  }, 20_000);
+
+  it('sends the version and shows the canonical order after a conflict', async () => {
+    const first = fixture();
+    let serverRows = first;
+    let serverVersion = 4;
+    const api = client(first);
+    api.listAccounts = vi.fn(async () => serverRows);
+    api.getAccountOrder = vi.fn(async () => ({
+      socialsVersion: serverVersion,
+      socialIds: serverRows.map(account => account.id),
+      agents: Object.fromEntries(
+        serverRows.map(account => [
+          account.id,
+          {
+            version: 0,
+            ids: account.agents.map(agent => agent.id)
+          }
+        ])
+      )
+    }));
+    api.reorderAccounts = vi.fn(async () => {
+      serverRows = [first[1]!, first[2]!, first[0]!];
+      serverVersion = 5;
+      return {
+        status: 'conflict' as const,
+        version: 5,
+        ids: serverRows.map(account => account.id)
+      };
+    });
+    const view = renderHook(() => useAccounts({ teamId: TEAM_ID, client: api }));
+    await waitFor(() => expect(view.result.current.orderSnapshot?.socialsVersion).toBe(4));
+    await act(async () => {
+      await view.result.current.reorderScope(TEAM_ID, [V12, V3, V31]);
+    });
+    expect(api.reorderAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopeId: TEAM_ID,
+        expectedVersion: 4,
+        ids: [V12, V3, V31]
+      })
+    );
+    expect(view.result.current.accounts.map(account => account.id)).toEqual([V3, V12, V31]);
+    expect(view.result.current.orderSnapshot?.socialsVersion).toBe(5);
   });
 });
 
@@ -317,7 +456,7 @@ describe('filtering', () => {
     await waitForGroups();
     await user.click(chip('Show ad accounts', /^Free/));
     // v12 has no agents at all, which is as free as it gets; v3 is fully busy.
-    expect(groupNames()).toEqual(['v12', 'v31']);
+    expect(groupNames()).toEqual(['v31', 'v12']);
     expect(rows()).toHaveLength(1);
     expect(rows()[0]?.getAttribute('data-free')).toBe('true');
   });
@@ -327,7 +466,7 @@ describe('filtering', () => {
     render(client());
     await waitForGroups();
     await user.click(chip('Show ad accounts', /^Running/));
-    expect(groupNames()).toEqual(['v3', 'v31']);
+    expect(groupNames()).toEqual(['v31', 'v3']);
     expect(rows().every(row => row.getAttribute('data-free') === 'false')).toBe(true);
   });
 

@@ -102,12 +102,22 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     tool: 'compressor',
     toolColumn: 'compressor',
     title: 'Compressor · compress a batch',
-    stages: ['open', 'ready', 'input_add', 'estimate', 'start', 'terminal', 'result_visible'],
+    stages: [
+      'open',
+      'ready',
+      'input_add',
+      'estimate',
+      'image_choice',
+      'start',
+      'terminal',
+      'result_visible'
+    ],
     stageEvents: {
       open: ['tool_opened'],
       ready: ['tool_ready'],
       input_add: ['videos_added'],
       estimate: ['estimate_started', 'estimate_completed', 'estimate_failed'],
+      image_choice: ['compression_started'],
       start: ['compression_batch_started', 'compression_started'],
       terminal: ['compression_completed', 'compression_failed', 'operation_cancelled']
     },
@@ -120,9 +130,13 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     readiness: { event: 'tool_ready', correlate: 'none' },
     error: { event: 'error_occurred', correlate: 'run_id' },
     platforms: BOTH,
-    unobservable: ['result file opened outside Soty'],
+    unobservable: [
+      'result file opened outside Soty',
+      'invalid image choice while the start control is disabled (no run is accepted)'
+    ],
     producerStatus: 'emitted',
-    source: 'events'
+    source: 'events',
+    note: 'Accepted runs carry image_start_selection and image_end_selection as bounded modes; missing compression_started leaves image choice unknown.'
   },
   {
     id: 'compressor.estimate',
@@ -205,7 +219,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['stitched file opened outside Soty'],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'stitch_started is one per accepted job; stitch_* and operation_* share the job id as run_id (031 T008).'
+    note: 'stitch_started is one per accepted job; stitch_* and operation_* share the job id as run_id (031 T008). A copied-body timing or audio defect emits stitcher:body_recovery_* in the agent journal with the same runId and a bounded reason; older agents without journal delivery leave that cause unknown.'
   },
   {
     id: 'transcription.run',
@@ -438,6 +452,100 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['material content'],
     producerStatus: 'emitted',
     source: 'events'
+  },
+  {
+    id: 'team.bulk_trash',
+    tool: 'team',
+    title: 'Team · bulk trash with hosted item receipts',
+    stages: ['start', 'terminal'],
+    stageEvents: { start: ['team_workflow_started'], terminal: ['team_workflow_completed'] },
+    start: [{ event: 'team_workflow_started', correlate: 'workflow_id' }],
+    terminal: [{ event: 'team_workflow_completed', correlate: 'workflow_id' }],
+    platforms: BOTH,
+    unobservable: ['provider state before the hosted operation receipt'],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'action=trash; investigate correlates workflow_id with the content-free hosted group receipt. A client terminal event alone does not prove that each item reached trash.'
+  },
+  {
+    id: 'team.task_copy',
+    tool: 'team',
+    title: 'Team · task copy',
+    stages: ['attempted', 'server_commit', 'delivered'],
+    stageEvents: {
+      attempted: ['team_workflow_started'],
+      delivered: ['team_workflow_completed']
+    },
+    start: [{ event: 'team_workflow_started', correlate: 'workflow_id' }],
+    terminal: [{ event: 'team_workflow_completed', correlate: 'workflow_id' }],
+    platforms: BOTH,
+    unobservable: ['client failure before a hosted receipt exists', 'task content'],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'action=copy; investigate joins workflow_id to the content-free task-copy receipt. A missing or delayed client completion does not undo a server commit.'
+  },
+  {
+    id: 'team.account_order',
+    tool: 'team',
+    title: 'Team · account order',
+    stages: ['attempted', 'version_checked', 'server_commit', 'delivered'],
+    stageEvents: {
+      attempted: ['team_workflow_started'],
+      delivered: ['team_workflow_completed']
+    },
+    start: [{ event: 'team_workflow_started', correlate: 'workflow_id' }],
+    terminal: [{ event: 'team_workflow_completed', correlate: 'workflow_id' }],
+    platforms: BOTH,
+    unobservable: ['order preference when no reorder is attempted'],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'action=reorder; investigate uses the versioned hosted receipt. A conflict is a blocked attempt, and a client completion alone does not prove the canonical order.'
+  },
+  {
+    id: 'team.account_archive',
+    tool: 'team',
+    title: 'Team · account archive and restore',
+    stages: ['attempted', 'active_launch_guard', 'server_commit', 'delivered'],
+    stageEvents: {
+      attempted: ['team_workflow_started'],
+      delivered: ['team_workflow_completed']
+    },
+    start: [{ event: 'team_workflow_started', correlate: 'workflow_id' }],
+    terminal: [{ event: 'team_workflow_completed', correlate: 'workflow_id' }],
+    platforms: BOTH,
+    unobservable: ['launch content and social/account identifiers'],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'action=archive/restore; investigate joins workflow_id to a content-free hosted receipt. A missing receipt remains unknown even if the client reported success.'
+  },
+  {
+    id: 'team.task_detach',
+    tool: 'team',
+    title: 'Team · task attachment detach and orphan cleanup',
+    stages: ['start', 'terminal'],
+    stageEvents: { start: ['team_workflow_started'], terminal: ['team_workflow_completed'] },
+    start: [
+      {
+        event: 'team_workflow_started',
+        correlate: 'workflow_id',
+        producerStatus: 'unsupported_by_producer'
+      }
+    ],
+    terminal: [
+      {
+        event: 'team_workflow_completed',
+        correlate: 'workflow_id',
+        producerStatus: 'unsupported_by_producer'
+      }
+    ],
+    platforms: BOTH,
+    unobservable: [
+      'client failure before the server persists a detach intent',
+      'provider cleanup until the worker confirms a hosted postcondition'
+    ],
+    producerStatus: 'unsupported_by_producer',
+    source: 'authoritative_table',
+    note: 'investigate reads the private intent through a content-free receipt view. Detach and cleanup events are not emitted yet; server states and reason codes remain authoritative.'
   },
   {
     id: 'team.restitch',

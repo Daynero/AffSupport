@@ -3,7 +3,7 @@
  * which of them are free and what is running on the rest.
  *
  * Built as a list to be scanned and marked, not a form to be filled: one row
- * per agent, the free ones first and washed green, a run written in place. The
+ * per agent in the team's saved order, a run written in place. The
  * two filters answer the two questions the list is opened for — "where can I
  * start something" and "what is running" — and each drops the accounts that
  * have no answer rather than greying them out.
@@ -14,22 +14,30 @@
  * agents are different numbers, and the chips have only ever meant agents.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent
+} from 'react';
 import { ChevronsDownUp, ChevronsUpDown, Plus, Search, UserRound, X } from 'lucide-react';
 import {
   countTeamAccounts,
   filterTeamAccounts,
-  sortTeamAccounts,
-  sortTeamAgents,
   TEAM_AGENT_RUN_MARKERS,
   teamAgentLabel,
   type TeamAccountAgentSummary,
+  type TeamAccountSummary,
   type TeamAccountMarkerFilter,
   type TeamAccountOccupancyFilter,
   type TeamAgentRun
 } from '@video-compressor/shared';
 import { boundedText, oneOf, persistedViewKey, usePersistedState } from '../persistedView';
-import { Button, IconButton } from '../../components/ui/index';
+import { Button, IconButton, Input } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Empty, ErrorState, LoadingState } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
@@ -42,7 +50,12 @@ import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
 import { FinanceWorkspace } from './finance/FinanceWorkspace';
 import { MoveAgentDialog } from './finance/MoveAgentDialog';
+import { AccountLaunchFinanceTable } from './AccountLaunchFinanceTable';
+import { moveOrderedId } from './order';
+import type { OrderInteraction } from './OrderHandle';
 import { financeToday } from '@video-compressor/shared';
+import { teamApi } from '../../api/team';
+import { trackAccountArchiveEnd, trackAccountArchiveStart } from './archiveDiagnostics';
 
 export type AccountSpaceClient = AccountsClient & TaskLabelsClient;
 
@@ -82,8 +95,47 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   const { push } = useToasts();
   const { can, revision } = useTeam();
   const canEdit = can('edit');
-  const [view, setView] = useState<'accounts' | 'finance'>('accounts');
+  const [view, setView] = useState<'accounts' | 'finance' | 'overview' | 'archived'>('accounts');
   const accounts = useAccounts({ teamId, revision, client });
+  const [archivedAccounts, setArchivedAccounts] = useState<TeamAccountSummary[]>([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedError, setArchivedError] = useState(false);
+  const [archivedSearch, setArchivedSearch] = useState('');
+  const [archivedRefresh, setArchivedRefresh] = useState(0);
+  const visibleArchivedAccounts = useMemo(
+    () =>
+      archivedAccounts.filter(account =>
+        [account.name, ...account.agents.map(agent => agent.agentId)].some(value =>
+          value.toLocaleLowerCase().includes(archivedSearch.toLocaleLowerCase())
+        )
+      ),
+    [archivedAccounts, archivedSearch]
+  );
+  const restoreRequests = useRef(new Map<string, string>());
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  useEffect(() => {
+    if (view !== 'archived') return;
+    let current = true;
+    setArchivedLoading(true);
+    setArchivedError(false);
+    void (client ?? teamApi).listAccounts(teamId, 'archived').then(
+      rows => {
+        if (current) {
+          setArchivedAccounts(rows);
+          setArchivedLoading(false);
+        }
+      },
+      () => {
+        if (current) {
+          setArchivedError(true);
+          setArchivedLoading(false);
+        }
+      }
+    );
+    return () => {
+      current = false;
+    };
+  }, [client, teamId, revision, view, archivedRefresh]);
   /**
    * The agent half of the space's tag dictionary (019). Read here, beside the
    * accounts, and handed down: every row's tag menu shows the same list, and
@@ -117,6 +169,96 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   const [hold, setHold] = useState(false);
   /** The agent whose transfer dialog is open, from its row's "…" menu. */
   const [moving, setMoving] = useState<string | null>(null);
+  const [draggingOrder, setDraggingOrder] = useState<{ scopeId: string; id: string } | null>(null);
+  const [orderTarget, setOrderTarget] = useState<{
+    scopeId: string;
+    id: string;
+    position: 'before' | 'after';
+  } | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const orderEnabled =
+    canEdit &&
+    occupancy === 'all' &&
+    marker === 'all' &&
+    search.trim() === '' &&
+    editor === null &&
+    accounts.orderSnapshot !== null;
+
+  const scopeIds = (scopeId: string): string[] =>
+    scopeId === teamId
+      ? (accounts.orderSnapshot?.socialIds ?? [])
+      : (accounts.orderSnapshot?.agents[scopeId]?.ids ?? []);
+
+  const commitOrder = async (
+    scopeId: string,
+    sourceId: string,
+    targetId: string,
+    position: 'before' | 'after'
+  ) => {
+    const next = moveOrderedId(scopeIds(scopeId), sourceId, targetId, position);
+    if (!next) return;
+    setReordering(true);
+    try {
+      const result = await accounts.reorderScope(scopeId, next);
+      if (result.status === 'conflict') push({ tone: 'warning', text: t('teamOrderConflict') });
+    } catch {
+      push({ tone: 'error', text: t('teamOrderFailed') });
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  const orderInteraction = (scopeId: string, id: string, label: string): OrderInteraction => ({
+    label,
+    targetPosition:
+      orderTarget?.scopeId === scopeId && orderTarget.id === id ? orderTarget.position : null,
+    onDragStart: (event: DragEvent<HTMLElement>) => {
+      if (reordering) {
+        event.preventDefault();
+        return;
+      }
+      event.stopPropagation();
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', id);
+      setDraggingOrder({ scopeId, id });
+    },
+    onDragOver: (event: DragEvent<HTMLElement>) => {
+      if (reordering || draggingOrder?.scopeId !== scopeId || draggingOrder.id === id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      setOrderTarget({
+        scopeId,
+        id,
+        position: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+      });
+    },
+    onDrop: (event: DragEvent<HTMLElement>) => {
+      if (draggingOrder?.scopeId !== scopeId || draggingOrder.id === id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const position = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+      setDraggingOrder(null);
+      setOrderTarget(null);
+      void commitOrder(scopeId, draggingOrder.id, id, position);
+    },
+    onDragEnd: () => {
+      setDraggingOrder(null);
+      setOrderTarget(null);
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (reordering) return;
+      const ids = scopeIds(scopeId);
+      const index = ids.indexOf(id);
+      const step = event.key === 'ArrowUp' ? -1 : 1;
+      const neighbor = ids[index + step];
+      if (neighbor) void commitOrder(scopeId, id, neighbor, step < 0 ? 'before' : 'after');
+    }
+  });
   // The transfer dialog only needs who is where; the list already knows.
   const moveSnapshot = useMemo(
     () => ({
@@ -231,8 +373,16 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       editingAgentRowId && !kept.some(agent => agent.id === editingAgentRowId)
         ? held.agents.filter(agent => agent.id === editingAgentRowId)
         : [];
-    const agents = edited.length > 0 ? sortTeamAgents([...kept, ...edited]) : kept;
-    return sortTeamAccounts([...filtered, { ...held, agents }]);
+    const visibleAgentIds = new Set([...kept, ...edited].map(agent => agent.id));
+    const visibleById = new Map(filtered.map(account => [account.id, account]));
+    visibleById.set(held.id, {
+      ...held,
+      agents: held.agents.filter(agent => visibleAgentIds.has(agent.id))
+    });
+    return accounts.accounts.flatMap(account => {
+      const shown = visibleById.get(account.id);
+      return shown ? [shown] : [];
+    });
   }, [accounts.accounts, editingAccountId, editingAgentRowId, marker, occupancy, search]);
 
   /**
@@ -373,8 +523,8 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
 
   const listEmpty = !accounts.loading && !accounts.error && accounts.accounts.length === 0;
   const creating = editor?.kind === 'create';
-  const showToolbar = !listEmpty && (Boolean(client) || view === 'accounts');
-  const hasStickyHeader = !client || showToolbar;
+  const showToolbar = !listEmpty && view === 'accounts';
+  const hasStickyHeader = true;
   // The captions and the finance header stick below the tabs and the toolbar,
   // whose height changes as the toolbar wraps.
   useLayoutEffect(() => {
@@ -411,7 +561,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         </div>
         {/* While the list is empty the empty state carries this same invitation;
             two primaries for one act is one too many (024, FR-092). */}
-        {canEdit && !listEmpty && (client || view === 'accounts') && (
+        {canEdit && !listEmpty && view === 'accounts' && (
           <Button type="button" variant="primary" data-account-create="true" onClick={startCreate}>
             <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('teamAccountsCreate')}
@@ -421,19 +571,19 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
 
       {/* The tabs, the search and the filters stay on screen while the list
           scrolls under them; the column captions stick just below (measured). */}
-      {(!client || showToolbar) && (
+      {hasStickyHeader && (
         <div ref={stickyHeader} className="team-accounts-sticky">
-          {!client && (
-            <div className="flex flex-wrap gap-2" role="group" aria-label={t('financeView')}>
-              <Button
-                size="sm"
-                variant="soft"
-                aria-pressed={view === 'accounts'}
-                color={view === 'accounts' ? 'secondary' : 'neutral'}
-                onClick={() => setView('accounts')}
-              >
-                {t('financeAccountsView')}
-              </Button>
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t('financeView')}>
+            <Button
+              size="sm"
+              variant="soft"
+              aria-pressed={view === 'accounts'}
+              color={view === 'accounts' ? 'secondary' : 'neutral'}
+              onClick={() => setView('accounts')}
+            >
+              {t('financeAccountsView')}
+            </Button>
+            {!client && (
               <Button
                 size="sm"
                 variant="soft"
@@ -443,8 +593,28 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
               >
                 {t('financeTitle')}
               </Button>
-            </div>
-          )}
+            )}
+            {!client && (
+              <Button
+                size="sm"
+                variant="soft"
+                aria-pressed={view === 'overview'}
+                color={view === 'overview' ? 'secondary' : 'neutral'}
+                onClick={() => setView('overview')}
+              >
+                {t('accountOverviewTitle')}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="soft"
+              aria-pressed={view === 'archived'}
+              color={view === 'archived' ? 'secondary' : 'neutral'}
+              onClick={() => setView('archived')}
+            >
+              {t('teamAccountArchivedView')}
+            </Button>
+          </div>
           {/* The search and the occupancy filter share one row, as the task filters
             do. The pills are the task filter's pills — same class, so the two
             toolbars cannot drift — with a count on each. */}
@@ -562,7 +732,88 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
           />
         </div>
       )}
-      <div className={!client && view === 'finance' ? 'hidden' : 'contents'}>
+      {!client && view === 'overview' && (
+        <AccountLaunchFinanceTable teamId={teamId} revision={revision} />
+      )}
+      {view === 'archived' && (
+        <section className="team-archived-list" aria-label={t('teamAccountArchivedView')}>
+          <label>
+            <span className="visually-hidden">{t('teamAccountArchiveSearch')}</span>
+            <Input
+              type="search"
+              value={archivedSearch}
+              placeholder={t('teamAccountArchiveSearch')}
+              onChange={event => setArchivedSearch(event.target.value)}
+            />
+          </label>
+          {archivedLoading && (
+            <LoadingState shape="row" count={2} label={t('teamAccountsLoading')} />
+          )}
+          {archivedError && (
+            <ErrorState
+              message={t('teamAccountsLoadFailed')}
+              onRetry={() => setArchivedRefresh(value => value + 1)}
+              retryLabel={t('retry')}
+            />
+          )}
+          {!archivedLoading &&
+            !archivedError &&
+            visibleArchivedAccounts.map(account => (
+              <div key={account.id} className="team-archived-row">
+                <div>
+                  <strong>{account.name}</strong>
+                  <span>{t('teamAccountArchiveAgentCount', { count: account.agents.length })}</span>
+                </div>
+                {canEdit && (
+                  <Button
+                    size="sm"
+                    variant="soft"
+                    disabled={restoringId !== null || account.archiveVersion === undefined}
+                    onClick={() => {
+                      if (
+                        account.archiveVersion === undefined ||
+                        !(client ?? teamApi).setAccountArchived
+                      )
+                        return;
+                      const requestId =
+                        restoreRequests.current.get(account.id) ?? crypto.randomUUID();
+                      restoreRequests.current.set(account.id, requestId);
+                      setRestoringId(account.id);
+                      const startedAt = trackAccountArchiveStart(requestId, 'restore');
+                      void (client ?? teamApi).setAccountArchived!({
+                        teamId,
+                        accountId: account.id,
+                        archived: false,
+                        expectedVersion: account.archiveVersion,
+                        requestId
+                      })
+                        .then(result => {
+                          trackAccountArchiveEnd(requestId, 'restore', startedAt, result.status);
+                          restoreRequests.current.delete(account.id);
+                          if (result.status === 'conflict')
+                            push({ tone: 'warning', text: t('teamAccountArchiveConflict') });
+                          else push({ tone: 'success', text: t('teamAccountRestoreSuccess') });
+                          setArchivedRefresh(value => value + 1);
+                          void accounts.refetch();
+                        })
+                        .catch(cause => {
+                          trackAccountArchiveEnd(requestId, 'restore', startedAt, cause);
+                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                        })
+                        .finally(() => setRestoringId(null));
+                    }}
+                  >
+                    {t('teamAccountRestore')}
+                  </Button>
+                )}
+              </div>
+            ))}
+          {!archivedLoading && !archivedError && visibleArchivedAccounts.length === 0 && (
+            <p>{t(archivedSearch ? 'teamAccountArchiveNoMatch' : 'teamAccountArchiveEmpty')}</p>
+          )}
+        </section>
+      )}
+      <div className={view !== 'accounts' ? 'hidden' : 'contents'}>
         {accounts.loading && accounts.accounts.length === 0 && (
           <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
         )}
@@ -624,6 +875,27 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                   account={accounts.accounts.find(item => item.id === account.id) ?? account}
                   visibleAgents={account.agents}
                   canEdit={canEdit}
+                  accountOrder={
+                    orderEnabled
+                      ? orderInteraction(
+                          teamId,
+                          account.id,
+                          t('teamAccountReorder', { name: account.name })
+                        )
+                      : undefined
+                  }
+                  agentOrder={
+                    orderEnabled
+                      ? agent =>
+                          orderInteraction(
+                            account.id,
+                            agent.id,
+                            t('teamAgentReorder', {
+                              name: teamAgentLabel(account.name, agent.agentId)
+                            })
+                          )
+                      : undefined
+                  }
                   collapsed={collapsed.has(account.id)}
                   onCollapsedChange={value => setAccountCollapsed(account.id, value)}
                   editing={
@@ -649,6 +921,22 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
                       panel.current?.querySelector<HTMLElement>('[data-account-create]')?.focus()
                     );
                   }}
+                  onArchive={
+                    canEdit && account.archiveVersion !== undefined
+                      ? async () => {
+                          const result = await accounts.archiveAccount(account);
+                          push({
+                            tone: result.status === 'conflict' ? 'warning' : 'success',
+                            text: t(
+                              result.status === 'conflict'
+                                ? 'teamAccountArchiveConflict'
+                                : 'teamAccountArchiveSuccess'
+                            )
+                          });
+                          setArchivedRefresh(value => value + 1);
+                        }
+                      : undefined
+                  }
                   onAddAgent={async value => {
                     const created = await accounts.addAgent(
                       account.id,

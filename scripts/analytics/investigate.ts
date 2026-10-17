@@ -17,7 +17,16 @@ import { createHash } from 'node:crypto';
 import { lookupCodeLocations } from './code-map.js';
 import { capabilityById } from './coverage-registry.js';
 import { query, queryOne } from './db.js';
-import { getInspect, getSyncJobs, isoUtc } from './queries.js';
+import {
+  getAccountOrderReceipts,
+  getAccountArchiveReceipts,
+  getBulkTrashReceipts,
+  getInspect,
+  getSyncJobs,
+  getTaskCopyReceipts,
+  getTaskOrphanReceipts,
+  isoUtc
+} from './queries.js';
 import { eventColumnSql, getSchema, hasEnvelopeV3, schemaSummary } from './schema.js';
 import { sanitizeEventProperties, type SanitizedProperties } from './sanitize.js';
 import type {
@@ -1402,6 +1411,20 @@ function blindSpotsOf(input: {
       values: input.buildsWithoutLink
     });
   }
+  const imageChoiceMissing = rows.filter(
+    row =>
+      row.event_name === 'compression_started' &&
+      (typeof row.props.image_start_selection !== 'string' ||
+        typeof row.props.image_end_selection !== 'string')
+  );
+  if (imageChoiceMissing.length > 0) {
+    spots.push({
+      kind: 'image_selection_signal_missing',
+      detail:
+        'Compression started, but the image choice mode was not delivered. The selected image outcome is unknown; use the agent job receipt or a newer web build before diagnosing it.',
+      values: sortedUnique(imageChoiceMissing.map(row => row.web_build_id)).slice(0, 20)
+    });
+  }
   const journaled = new Set(journal.map(record => record.agent_instance_id));
   const versions = sortedUnique(rows.map(row => row.local_app_version)).sort(compareVersions);
   const silent = versions.filter(version => {
@@ -1461,10 +1484,24 @@ export async function getInvestigation(
 ): Promise<InvestigateData> {
   const schema = await getSchema();
   const scope = await resolveSubject(input, period, schema);
-  const [rows, newest, activity] = await Promise.all([
+  const [
+    rows,
+    newest,
+    activity,
+    copyReceipts,
+    orderReceipts,
+    archiveReceipts,
+    bulkReceipts,
+    orphanReceipts
+  ] = await Promise.all([
     readEvents(scope, period, schema),
     newestVersionSeen(period),
-    userActivity(scope.userId, period)
+    userActivity(scope.userId, period),
+    getTaskCopyReceipts(scope.userId, period),
+    getAccountOrderReceipts(scope.userId, period),
+    getAccountArchiveReceipts(scope.userId, period),
+    getBulkTrashReceipts(scope.userId, period),
+    getTaskOrphanReceipts(scope.userId, period)
   ]);
   const installations = sortedUnique([
     scope.installationId,
@@ -1520,6 +1557,337 @@ export async function getInvestigation(
     blindSpots,
     errors
   });
+  const copyAttempts = rows.filter(
+    row => row.event_name === 'team_workflow_started' && row.props.action === 'copy'
+  );
+  const attemptsById = new Map(
+    copyAttempts.filter(row => row.workflow_id).map(row => [row.workflow_id!, row] as const)
+  );
+  const receiptsById = new Map(copyReceipts?.map(row => [row.request_id, row] as const) ?? []);
+  const taskCopies = [...new Set([...attemptsById.keys(), ...receiptsById.keys()])]
+    .map(requestId => {
+      const attempt = attemptsById.get(requestId);
+      const receipt = receiptsById.get(requestId);
+      return {
+        request_id: requestId,
+        status: receipt
+          ? ('confirmed' as const)
+          : copyReceipts === null
+            ? ('receipt_unavailable' as const)
+            : ('unknown' as const),
+        result_count: receipt?.result_count ?? null,
+        attempted_at: attempt?.occurred_at ?? null,
+        confirmed_at: receipt?.created_at ?? null
+      };
+    })
+    .sort((a, b) =>
+      (b.attempted_at ?? b.confirmed_at ?? '').localeCompare(a.attempted_at ?? a.confirmed_at ?? '')
+    );
+  if (copyReceipts === null && copyAttempts.length > 0) {
+    blindSpots.push({
+      kind: 'task_copy_receipts_unavailable',
+      detail:
+        'The read-only task copy receipt view is unavailable; a client response cannot prove whether a copy committed.',
+      values: []
+    });
+  }
+  for (const copy of taskCopies.filter(copy => copy.status !== 'confirmed')) {
+    const location = lookupCodeLocations('team:task_copy:unconfirmed');
+    findings.push({
+      id: hashId(['task_copy_unconfirmed', copy.request_id]),
+      kind: 'insufficient',
+      severity: 'medium',
+      rule: 'task_copy_unconfirmed',
+      title: 'Task copy outcome is unconfirmed',
+      evidence: attemptsById.get(copy.request_id)?.event_id
+        ? [`event:${attemptsById.get(copy.request_id)!.event_id}`]
+        : [],
+      code_locations: location ? [location] : [],
+      next_step:
+        'Retry the same request ID; the server will replay a committed copy instead of making another.'
+    });
+  }
+
+  const orderAttempts = rows.filter(
+    row => row.event_name === 'team_workflow_started' && row.props.action === 'reorder'
+  );
+  const orderResults = new Map(
+    rows
+      .filter(
+        row =>
+          row.event_name === 'team_workflow_completed' &&
+          row.props.action === 'reorder' &&
+          row.workflow_id
+      )
+      .map(row => [row.workflow_id!, row] as const)
+  );
+  const orderAttemptsById = new Map(
+    orderAttempts.filter(row => row.workflow_id).map(row => [row.workflow_id!, row] as const)
+  );
+  const orderReceiptsById = new Map(
+    orderReceipts?.map(row => [row.request_id, row] as const) ?? []
+  );
+  const accountOrders = [...new Set([...orderAttemptsById.keys(), ...orderReceiptsById.keys()])]
+    .map(requestId => {
+      const attempt = orderAttemptsById.get(requestId);
+      const result = orderResults.get(requestId);
+      const receipt = orderReceiptsById.get(requestId);
+      return {
+        request_id: requestId,
+        status: receipt
+          ? ('confirmed' as const)
+          : result?.outcome === 'blocked'
+            ? ('conflict' as const)
+            : orderReceipts === null
+              ? ('receipt_unavailable' as const)
+              : ('unknown' as const),
+        scope_kind: receipt?.scope_kind ?? null,
+        result_version: receipt?.result_version ?? null,
+        attempted_at: attempt?.occurred_at ?? null,
+        confirmed_at: receipt?.created_at ?? null
+      };
+    })
+    .sort((a, b) =>
+      (b.attempted_at ?? b.confirmed_at ?? '').localeCompare(a.attempted_at ?? a.confirmed_at ?? '')
+    );
+  if (orderReceipts === null && orderAttempts.length > 0) {
+    blindSpots.push({
+      kind: 'account_order_receipts_unavailable',
+      detail:
+        'The read-only account order receipt view is unavailable; order commits cannot be confirmed.',
+      values: []
+    });
+  }
+  for (const order of accountOrders.filter(
+    order => order.status === 'unknown' || order.status === 'receipt_unavailable'
+  )) {
+    const location = lookupCodeLocations('team:account_order:unconfirmed');
+    findings.push({
+      id: hashId(['account_order_unconfirmed', order.request_id]),
+      kind: 'insufficient',
+      severity: 'medium',
+      rule: 'account_order_unconfirmed',
+      title: 'Account order outcome is unconfirmed',
+      evidence: orderAttemptsById.get(order.request_id)?.event_id
+        ? [`event:${orderAttemptsById.get(order.request_id)!.event_id}`]
+        : [],
+      code_locations: location ? [location] : [],
+      next_step: 'Read the canonical order and version before retrying this request ID.'
+    });
+  }
+
+  const archiveAttempts = rows.filter(
+    row =>
+      row.event_name === 'team_workflow_started' &&
+      (row.props.action === 'archive' || row.props.action === 'restore') &&
+      row.workflow_id
+  );
+  const archiveResults = new Map(
+    rows
+      .filter(
+        row =>
+          row.event_name === 'team_workflow_completed' &&
+          (row.props.action === 'archive' || row.props.action === 'restore') &&
+          row.workflow_id
+      )
+      .map(row => [row.workflow_id!, row] as const)
+  );
+  const archiveAttemptsById = new Map(archiveAttempts.map(row => [row.workflow_id!, row] as const));
+  const archiveReceiptsById = new Map(
+    archiveReceipts?.map(row => [row.request_id, row] as const) ?? []
+  );
+  const accountArchives: InvestigateData['account_archives'] = [
+    ...new Set([...archiveAttemptsById.keys(), ...archiveReceiptsById.keys()])
+  ]
+    .map(requestId => {
+      const attempt = archiveAttemptsById.get(requestId);
+      const result = archiveResults.get(requestId);
+      const receipt = archiveReceiptsById.get(requestId);
+      const action: InvestigateData['account_archives'][number]['action'] = receipt
+        ? receipt.desired_archived
+          ? 'archive'
+          : 'restore'
+        : attempt?.props.action === 'archive' || attempt?.props.action === 'restore'
+          ? attempt.props.action
+          : null;
+      const rawReason = result?.props.archive_reason;
+      const reason: InvestigateData['account_archives'][number]['reason'] =
+        rawReason === 'active_launch' ||
+        rawReason === 'permission_denied' ||
+        rawReason === 'conflict' ||
+        rawReason === 'unknown'
+          ? rawReason
+          : null;
+      return {
+        request_id: requestId,
+        status: receipt
+          ? ('confirmed' as const)
+          : result?.outcome === 'blocked'
+            ? ('blocked' as const)
+            : archiveReceipts === null
+              ? ('receipt_unavailable' as const)
+              : ('unknown' as const),
+        action,
+        reason,
+        result_version: receipt?.result_version ?? null,
+        attempted_at: attempt?.occurred_at ?? null,
+        confirmed_at: receipt?.created_at ?? null
+      };
+    })
+    .sort((a, b) =>
+      (b.attempted_at ?? b.confirmed_at ?? '').localeCompare(a.attempted_at ?? a.confirmed_at ?? '')
+    );
+  if (archiveReceipts === null && archiveAttempts.length > 0) {
+    blindSpots.push({
+      kind: 'account_archive_receipts_unavailable',
+      detail:
+        'The read-only account archive receipt view is unavailable; commits cannot be confirmed.',
+      values: []
+    });
+  }
+  for (const row of accountArchives) {
+    if (row.status === 'blocked' && row.reason === 'active_launch') {
+      const event = archiveResults.get(row.request_id);
+      const location = lookupCodeLocations('team:account_archive:active_launch');
+      findings.push({
+        id: hashId(['account_archive_active_launch', row.request_id]),
+        kind: 'fact',
+        severity: 'medium',
+        rule: 'account_archive_active_launch',
+        title: 'Account archive was refused because an active launch depends on it',
+        evidence: event?.event_id ? [`event:${event.event_id}`] : [],
+        code_locations: location ? [location] : [],
+        next_step: 'Finish or archive the active launch, then retry the same account.'
+      });
+    } else if (row.status === 'unknown' || row.status === 'receipt_unavailable') {
+      const location = lookupCodeLocations('team:account_archive:unconfirmed');
+      findings.push({
+        id: hashId(['account_archive_unconfirmed', row.request_id]),
+        kind: 'insufficient',
+        severity: 'medium',
+        rule: 'account_archive_unconfirmed',
+        title: 'Account archive or restore outcome is unconfirmed',
+        evidence: archiveAttemptsById.get(row.request_id)?.event_id
+          ? [`event:${archiveAttemptsById.get(row.request_id)!.event_id}`]
+          : [],
+        code_locations: location ? [location] : [],
+        next_step: 'Retry the same request ID; the server replays a committed receipt.'
+      });
+    }
+  }
+
+  const bulkAttempts = rows.filter(
+    row =>
+      row.event_name === 'team_workflow_started' && row.props.action === 'trash' && row.workflow_id
+  );
+  const bulkAttemptsById = new Map(bulkAttempts.map(row => [row.workflow_id!, row] as const));
+  const bulkReceiptsById = new Map(bulkReceipts?.map(row => [row.request_id, row] as const) ?? []);
+  const bulkTrash: InvestigateData['bulk_trash'] = [
+    ...new Set([...bulkAttemptsById.keys(), ...bulkReceiptsById.keys()])
+  ]
+    .map(requestId => {
+      const attempt = bulkAttemptsById.get(requestId);
+      const receipt = bulkReceiptsById.get(requestId);
+      const status: InvestigateData['bulk_trash'][number]['status'] = receipt
+        ? receipt.confirmed_count === receipt.item_count
+          ? 'confirmed'
+          : receipt.failed_count > 0 || receipt.confirmed_count > 0
+            ? 'partial'
+            : receipt.queued_count > 0 || receipt.active_count > 0
+              ? 'pending'
+              : 'unknown'
+        : bulkReceipts === null
+          ? 'receipt_unavailable'
+          : 'unknown';
+      return {
+        request_id: requestId,
+        group_id: receipt?.group_id ?? null,
+        status,
+        item_count: receipt?.item_count ?? null,
+        confirmed_count: receipt?.confirmed_count ?? 0,
+        failed_count: receipt?.failed_count ?? 0,
+        unknown_count: receipt?.unknown_count ?? 0,
+        error_codes: receipt?.error_codes ?? [],
+        attempted_at: attempt?.occurred_at ?? null,
+        last_operation_at: receipt?.last_operation_at ?? null
+      };
+    })
+    .sort((a, b) =>
+      (b.attempted_at ?? b.last_operation_at ?? '').localeCompare(
+        a.attempted_at ?? a.last_operation_at ?? ''
+      )
+    );
+  if (bulkReceipts === null && bulkAttempts.length > 0)
+    blindSpots.push({
+      kind: 'bulk_trash_receipts_unavailable',
+      detail:
+        'The read-only bulk trash receipt view is unavailable; item outcomes cannot be confirmed.',
+      values: []
+    });
+  for (const group of bulkTrash.filter(
+    group => group.status === 'unknown' || group.status === 'receipt_unavailable'
+  )) {
+    const location = lookupCodeLocations('team:bulk_trash:unconfirmed');
+    findings.push({
+      id: hashId(['bulk_trash_unconfirmed', group.request_id]),
+      kind: 'insufficient',
+      severity: 'medium',
+      rule: 'bulk_trash_unconfirmed',
+      title: 'Bulk trash outcome is unconfirmed',
+      evidence: bulkAttemptsById.get(group.request_id)?.event_id
+        ? [`event:${bulkAttemptsById.get(group.request_id)!.event_id}`]
+        : [],
+      code_locations: location ? [location] : [],
+      next_step: 'Read the hosted group receipt and retry only unresolved items.'
+    });
+  }
+
+  const taskOrphans: InvestigateData['task_orphans'] = (orphanReceipts ?? []).map(receipt => ({
+    intent_id: receipt.intent_id,
+    status: [
+      'waiting',
+      'cleanup_unverified',
+      'claimed',
+      'confirmed_in_trash',
+      'failed',
+      'cancelled'
+    ].includes(receipt.state)
+      ? (receipt.state as InvestigateData['task_orphans'][number]['status'])
+      : 'unknown',
+    reason_code: receipt.reason_code,
+    attempt_count: receipt.attempt_count,
+    detached_at: receipt.detached_at,
+    cleanup_not_before: receipt.cleanup_not_before,
+    updated_at: receipt.updated_at,
+    has_operation: receipt.has_operation
+  }));
+  if (orphanReceipts === null)
+    blindSpots.push({
+      kind: 'task_orphan_receipts_unavailable',
+      detail:
+        'The read-only task orphan receipt view is unavailable; detach and cleanup outcomes cannot be confirmed.',
+      values: []
+    });
+  for (const orphan of taskOrphans) {
+    if (orphan.status === 'confirmed_in_trash' || orphan.status === 'cancelled') continue;
+    const overdue = Date.parse(period.end) - Date.parse(orphan.cleanup_not_before) > 5 * 60_000;
+    if (orphan.status === 'waiting' && !overdue) continue;
+    const fingerprint = `task-orphan:${orphan.reason_code ?? orphan.status.toUpperCase()}`;
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['task_orphan', orphan.intent_id, orphan.status]),
+      kind: orphan.status === 'unknown' ? 'insufficient' : 'fact',
+      severity: overdue ? 'high' : 'medium',
+      rule: 'task_orphan_not_confirmed',
+      title: overdue
+        ? 'Task attachment cleanup missed its expected window'
+        : 'Task attachment cleanup is retained or unresolved',
+      evidence: [`task_orphan:${orphan.intent_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step: 'Check provenance and all live material references before retrying cleanup.'
+    });
+  }
 
   const subject: InvestigateSubject = {
     kind: scope.kind,
@@ -1533,6 +1901,11 @@ export async function getInvestigation(
     environment,
     sessions: sessionsOf(rows, sessionLimit),
     operations,
+    task_copies: taskCopies,
+    account_orders: accountOrders,
+    account_archives: accountArchives,
+    bulk_trash: bulkTrash,
+    task_orphans: taskOrphans,
     link,
     errors,
     journal_around_failures: journalAroundFailures,

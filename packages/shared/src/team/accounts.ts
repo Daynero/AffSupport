@@ -286,6 +286,75 @@ export interface TeamAccountSummary {
   createdAt: string;
   updatedAt: string;
   agents: TeamAccountAgentSummary[];
+  archivedAt?: string | null;
+  archiveVersion?: number;
+}
+
+export interface TeamAccountArchiveResult {
+  status: 'applied' | 'conflict';
+  version: number;
+  archivedAt: string | null;
+}
+
+export function parseTeamAccountArchiveResult(value: unknown): TeamAccountArchiveResult | null {
+  if (
+    !isRecord(value) ||
+    (value.status !== 'applied' && value.status !== 'conflict') ||
+    typeof value.version !== 'number' ||
+    !Number.isSafeInteger(value.version) ||
+    value.version < 0 ||
+    (value.archivedAt !== null &&
+      (typeof value.archivedAt !== 'string' || !Number.isFinite(Date.parse(value.archivedAt))))
+  )
+    return null;
+  return { status: value.status, version: value.version, archivedAt: value.archivedAt };
+}
+
+export interface TeamAccountOrderSnapshot {
+  socialsVersion: number;
+  socialIds: string[];
+  agents: Record<string, { version: number; ids: string[] }>;
+}
+
+export interface TeamAccountReorderResult {
+  status: 'applied' | 'conflict';
+  version: number;
+  ids: string[];
+}
+
+function orderedIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || !value.every(id => typeof id === 'string')) return null;
+  return new Set(value).size === value.length ? value : null;
+}
+
+function orderVersion(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+export function parseTeamAccountOrderSnapshot(value: unknown): TeamAccountOrderSnapshot | null {
+  if (!isRecord(value) || !isRecord(value.agents)) return null;
+  const socialIds = orderedIds(value.social_ids);
+  if (!socialIds || !orderVersion(value.socials_version)) return null;
+  const agents: TeamAccountOrderSnapshot['agents'] = {};
+  for (const [accountId, raw] of Object.entries(value.agents)) {
+    if (!isRecord(raw)) return null;
+    const ids = orderedIds(raw.ids);
+    if (!ids || !orderVersion(raw.version)) return null;
+    agents[accountId] = { version: raw.version, ids };
+  }
+  return { socialsVersion: value.socials_version, socialIds, agents };
+}
+
+export function parseTeamAccountReorderResult(value: unknown): TeamAccountReorderResult | null {
+  if (!isRecord(value)) return null;
+  const ids = orderedIds(value.ids);
+  if (
+    !ids ||
+    !orderVersion(value.version) ||
+    (value.status !== 'applied' && value.status !== 'conflict')
+  )
+    return null;
+  return { status: value.status, version: value.version, ids };
 }
 
 export function isTeamAgentFree(agent: { runs: readonly TeamAgentRun[] }): boolean {
@@ -354,7 +423,14 @@ export function parseTeamAccount(value: unknown): TeamAccountSummary | null {
     typeof created_at !== 'string' ||
     (value.task_count !== undefined &&
       (typeof value.task_count !== 'number' || value.task_count < 0)) ||
-    typeof updated_at !== 'string'
+    typeof updated_at !== 'string' ||
+    (value.archived_at !== undefined &&
+      value.archived_at !== null &&
+      (typeof value.archived_at !== 'string' || !Number.isFinite(Date.parse(value.archived_at)))) ||
+    (value.archive_version !== undefined &&
+      (typeof value.archive_version !== 'number' ||
+        !Number.isSafeInteger(value.archive_version) ||
+        value.archive_version < 0))
   ) {
     return null;
   }
@@ -372,6 +448,8 @@ export function parseTeamAccount(value: unknown): TeamAccountSummary | null {
     name,
     createdAt: created_at,
     updatedAt: updated_at,
+    ...(value.archived_at !== undefined ? { archivedAt: value.archived_at as string | null } : {}),
+    ...(typeof value.archive_version === 'number' ? { archiveVersion: value.archive_version } : {}),
     ...(typeof value.task_count === 'number' ? { taskCount: value.task_count } : {}),
     agents: parsed
   };
@@ -476,7 +554,7 @@ function filterTeamAccountsBy(
       agents = agents.filter(agent => teamAgentHasMarker(agent, marker));
       if (agents.length === 0) continue;
     }
-    kept.push({ ...account, agents: sortTeamAgents(agents) });
+    kept.push({ ...account, agents });
   }
   return kept;
 }

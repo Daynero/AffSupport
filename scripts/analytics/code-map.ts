@@ -129,7 +129,8 @@ export const COMPRESSOR_CODES: Readonly<Record<string, CodeSpec>> = {
   IMAGE_UNAVAILABLE: {
     stage: 'image_embedding',
     agent: [AGENT_IMAGES, AGENT_QUEUE],
-    check: 'Whether the screen image referenced by the job still exists in the image library.'
+    check:
+      'Whether an explicitly selected image still belongs to its enabled slot and remains available in the image library; compare the accepted run’s bounded selection mode, never a file name or path.'
   },
   IMAGE_FILTER_GRAPH_INVALID: {
     stage: 'image_embedding',
@@ -397,6 +398,16 @@ export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
     agent: [AGENT_STITCH_BODY],
     check: 'Why the body pieces disagree on audio parameters.'
   },
+  BODY_RECOVERY_FAILED: {
+    stage: 'stitch',
+    agent: [AGENT_STITCH_BODY],
+    check: 'Why full-body recovery failed after copied tracks disagreed.'
+  },
+  BODY_RECOVERY_VERIFICATION_FAILED: {
+    stage: 'stitch',
+    agent: [AGENT_STITCH_BODY, AGENT_STITCH_PIPELINE],
+    check: 'Which recovered body track still disagreed with the planned duration.'
+  },
   BODY_TIMING_UNREADABLE: {
     stage: 'stitch',
     agent: [AGENT_STITCH_BODY, 'apps/agent/src/ffmpeg/encoder.ts'],
@@ -505,6 +516,18 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     files: [AGENT_SPAWN, AGENT_FFMPEG_TOOLS],
     check: 'The outcome prop: nonzero or spawn_error means the media tool itself failed to run.'
   },
+  'stitcher:body_recovery_started': {
+    files: [AGENT_STITCH_BODY],
+    check: 'The reason prop identifies the copied body defect that triggered a full re-encode.'
+  },
+  'stitcher:body_recovery_completed': {
+    files: [AGENT_STITCH_BODY],
+    check: 'The recovered body passed its track-length check; confirm the run later completed.'
+  },
+  'stitcher:body_recovery_failed': {
+    files: [AGENT_STITCH_BODY],
+    check: 'The reason and stage props identify why full-body recovery did not pass.'
+  },
   'auth:route_budget_exceeded': {
     files: [AGENT_APP],
     check: 'The per-route request budget refused the page; look for a retry loop in the web.'
@@ -583,6 +606,7 @@ const JOURNAL_CATEGORY_FILES: Readonly<Record<string, JournalSpec>> = {
     files: ['apps/agent/src/power/governor.ts'],
     check: 'The local resource budget governor.'
   },
+  stitcher: { files: [AGENT_STITCH_BODY], check: 'Prepared body recovery and verification.' },
   team: {
     files: ['apps/agent/src/team-bridge/routes.ts'],
     check: 'The team bridge of the local app.'
@@ -809,6 +833,53 @@ function build(): Record<string, CodeLocation> {
   for (const [reason, spec] of Object.entries(LINK_REASON_CHECKS)) {
     map[`link:${reason}`] = { files: unique(spec.files), check: spec.check };
   }
+  map['task-orphan:*'] = {
+    files: [
+      'supabase/migrations/20261203101000_task_attachment_orphan_cleanup.sql',
+      'supabase/migrations/20261203108000_task_orphan_provider_claim.sql',
+      'supabase/migrations/20261203108200_task_orphan_reference_fence.sql',
+      'supabase/functions/catalog-updater/worker.ts',
+      'apps/web/src/team/tasks/TaskEditor.tsx'
+    ],
+    check:
+      'Check upload provenance, reference inventory, provider confirmation, lease recovery and deadline.'
+  };
+  map['team:task_copy:unconfirmed'] = {
+    files: [
+      'apps/web/src/team/tasks/useTaskClipboard.ts',
+      'supabase/migrations/20261203100000_task_copy_idempotency.sql'
+    ],
+    check: 'Compare the persisted request identifier with the hosted copy receipt before retrying.'
+  };
+  map['team:account_order:unconfirmed'] = {
+    files: [
+      'apps/web/src/team/accounts/useAccounts.ts',
+      'supabase/migrations/20261203102000_account_order.sql'
+    ],
+    check: 'Read the canonical order and version for the same request before retrying.'
+  };
+  map['team:account_archive:unconfirmed'] = {
+    files: [
+      'apps/web/src/team/accounts/archiveDiagnostics.ts',
+      'supabase/migrations/20261203104000_account_archive.sql',
+      'supabase/migrations/20261203106000_account_archive_analytics_receipts.sql'
+    ],
+    check: 'Compare the request identifier with the hosted archive receipt before retrying.'
+  };
+  map['team:account_archive:active_launch'] = {
+    files: [
+      'supabase/migrations/20261203104000_account_archive.sql',
+      'apps/web/src/team/accounts/AccountSpace.tsx'
+    ],
+    check: 'Find the active launch linked to the social and finish or archive it first.'
+  };
+  map['team:bulk_trash:unconfirmed'] = {
+    files: [
+      'apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx',
+      'supabase/migrations/20261203101500_bulk_trash_receipts.sql'
+    ],
+    check: 'Read the hosted group and item receipts before retrying unresolved items.'
+  };
   return map;
 }
 

@@ -6,7 +6,8 @@ import type {
   TeamTaskLabel,
   TeamTaskLabelRef,
   TeamTaskPatch,
-  TeamTaskSummary
+  TeamTaskSummary,
+  TeamTaskDetachResult
 } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
@@ -81,6 +82,17 @@ export interface TaskEditorClient
   updateTask(teamId: string, taskId: string, patch: TeamTaskPatch): Promise<TeamTaskSummary>;
 
   detachTaskMaterial(teamId: string, taskId: string, materialId: string): Promise<boolean>;
+  detachTaskMaterialV2?(
+    teamId: string,
+    taskId: string,
+    materialId: string
+  ): Promise<TeamTaskDetachResult>;
+  markTaskUpload?(
+    teamId: string,
+    taskId: string,
+    materialId: string,
+    operationId: string
+  ): Promise<boolean>;
   /** The space's one folder for dropped files; made on first use (011). */
   ensureTaskDropFolder?: (
     teamId: string
@@ -93,11 +105,14 @@ export interface TaskEditorClient
     replaceMaterialId: string | null;
     versionOfMaterialId: string | null;
     onProgress?: (sentBytes: number, totalBytes: number) => void;
-  }) => Promise<{ materialId: string | null }>;
+  }) => Promise<{ materialId: string | null; operationId?: string }>;
 }
 
 const defaultClient: TaskEditorClient = { ...teamApi, uploadFile: uploadTeamFile };
 const TASK_PROGRESS_MAX = 10_000;
+export function canOfferTaskDetachUndo(deadline: string | null, now = Date.now()): boolean {
+  return deadline !== null && Date.parse(deadline) - now >= 20_000;
+}
 /** The assignee list's last line, which invites rather than assigns. */
 const INVITE_OPTION = '__invite__';
 
@@ -601,6 +616,8 @@ export function TaskEditor({
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
     }
   };
+  const addAttachmentsRef = useRef(addAttachments);
+  addAttachmentsRef.current = addAttachments;
 
   /**
    * Files dropped on the attachment area.
@@ -651,7 +668,10 @@ export function TaskEditor({
     }
 
     /** Sends one file into a folder and returns the material it became. */
-    const sendOne = async (file: File, destinationMaterialId: string): Promise<string | null> => {
+    const sendOne = async (
+      file: File,
+      destinationMaterialId: string
+    ): Promise<{ materialId: string; operationId?: string } | null> => {
       const tracking = {
         id: `${Date.now()}:${file.name}:${Math.random().toString(36).slice(2, 8)}`,
         name: file.name,
@@ -683,7 +703,7 @@ export function TaskEditor({
           sticky: false,
           text: t('teamTaskAttachmentUploaded', { name: file.name })
         });
-        return uploaded.materialId;
+        return { materialId: uploaded.materialId, operationId: uploaded.operationId };
       } catch (cause) {
         update(notice, {
           tone: 'error',
@@ -705,6 +725,7 @@ export function TaskEditor({
       name: string;
       category: TeamTaskAttachmentSummary['category'];
       kind?: TeamTaskAttachmentSummary['kind'];
+      operationId?: string;
     }) => {
       const attached = await attachTaskMaterialsInChunks({
         client,
@@ -721,6 +742,15 @@ export function TaskEditor({
           })
         });
         return;
+      }
+      if (input.operationId) {
+        const marked = await (client.markTaskUpload ?? teamApi.markTaskUpload)(
+          teamId,
+          task.id,
+          input.materialId,
+          input.operationId
+        ).catch(() => false);
+        if (!marked) push({ tone: 'warning', text: t('teamTaskCleanupUnverified') });
       }
       setPersistedAttachments(current =>
         uniqueAttachments(current, [
@@ -811,9 +841,9 @@ export function TaskEditor({
         break;
       }
       budget.left -= 1;
-      const materialId = await sendOne(file, root.materialId);
-      if (materialId) {
-        await attachOne({ materialId, name: file.name, category: fileCategory(file) });
+      const uploaded = await sendOne(file, root.materialId);
+      if (uploaded) {
+        await attachOne({ ...uploaded, name: file.name, category: fileCategory(file) });
       }
     }
     if (budget.left <= 0 && folders.length > 0) {
@@ -834,32 +864,39 @@ export function TaskEditor({
    * reason there is still no confirmation dialog in front of it (FR-028).
    */
   const detach = async (attachment: TeamTaskAttachmentSummary) => {
-    setPersistedAttachments(current =>
-      current.filter(item => item.materialId !== attachment.materialId)
-    );
+    let result: boolean | TeamTaskDetachResult;
     try {
-      await client.detachTaskMaterial(teamId, task.id, attachment.materialId);
+      result = client.detachTaskMaterialV2
+        ? await client.detachTaskMaterialV2(teamId, task.id, attachment.materialId)
+        : await client.detachTaskMaterial(teamId, task.id, attachment.materialId);
+      setPersistedAttachments(current =>
+        current.filter(item => item.materialId !== attachment.materialId)
+      );
       onChanged({ ...task, attachmentCount: Math.max(0, persistedAttachments.length - 1) });
     } catch (cause) {
-      setPersistedAttachments(current => uniqueAttachments(current, [attachment]));
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
       return;
     }
+    const undoDeadline = typeof result === 'boolean' ? null : result.undoDeadline;
     push({
       tone: 'info',
       text: t('teamToastAttachmentDetached', { name: attachment.name }),
-      action: {
-        label: t('teamUndo'),
-        run: () =>
-          void addAttachments([
-            {
-              id: attachment.materialId,
-              name: attachment.name,
-              category: attachment.category,
-              kind: attachment.kind
-            } as TaskAttachmentCandidate
-          ])
-      }
+      ...(canOfferTaskDetachUndo(undoDeadline)
+        ? {
+            action: {
+              label: t('teamUndo'),
+              run: () =>
+                void addAttachmentsRef.current([
+                  {
+                    id: attachment.materialId,
+                    name: attachment.name,
+                    category: attachment.category,
+                    kind: attachment.kind
+                  } as TaskAttachmentCandidate
+                ])
+            }
+          }
+        : {})
     });
   };
 
@@ -1411,7 +1448,7 @@ export function TaskEditor({
                       attachment={attachment}
                       client={client}
                       isDraft={attachment.id.startsWith('draft:')}
-                      onDetach={canEdit ? () => void detach(attachment) : undefined}
+                      onDetach={canEdit ? () => detach(attachment) : undefined}
                       onReveal={() => void revealAttachment(attachment)}
                       onDownloadRestitched={
                         can('download') ? () => deliverRestitched(attachment) : undefined

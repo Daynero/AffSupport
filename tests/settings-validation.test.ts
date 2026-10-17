@@ -159,4 +159,29 @@ describe('parseSettingsPatch', () => {
       });
     }
   });
+
+  it('accepts only an active image from the matching slot for explicit choice', () => {
+    const image = {
+      id: '11111111-1111-4111-8111-111111111111',
+      fileName: 'start.png',
+      width: 32,
+      height: 32,
+      size: 128,
+      mimeType: 'image/png' as const,
+      extension: '.png' as const
+    };
+    const current = { ...defaultImageEmbeddingSettings(), startImages: [image] };
+    expect(
+      parseSettingsPatch({ imageEmbedding: { selectedStartImageId: image.id } }, current)
+    ).toMatchObject({ ok: true, patch: { imageEmbedding: { selectedStartImageId: image.id } } });
+    expect(
+      parseSettingsPatch({ imageEmbedding: { selectedEndImageId: image.id } }, current)
+    ).toEqual({ ok: false, error: 'IMAGE_UNAVAILABLE' });
+    expect(
+      parseSettingsPatch(
+        { imageEmbedding: { selectedStartImageId: image.id } },
+        { ...current, disabledImageIds: [image.id] }
+      )
+    ).toEqual({ ok: false, error: 'IMAGE_UNAVAILABLE' });
+  });
 });

@@ -21,6 +21,7 @@ import {
 } from '../_shared/product-details.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { buildXlsx } from '../_shared/xlsx.ts';
+import { moveTaskOrphanToTrash } from '../drive-ops/task-orphan.ts';
 
 /**
  * One tick of the catalog updater (feature 023).
@@ -46,6 +47,7 @@ const LEASE_SECONDS = 300;
 const SHARE_PARALLEL = 8;
 const RETIRED_LIMIT = 10;
 const ORPHAN_LIMIT = 10;
+const TASK_ORPHAN_LEASE_SECONDS = 120;
 
 export type UpdaterDrive = Pick<
   GoogleDriveClient,
@@ -120,6 +122,8 @@ export interface CatalogUpdaterDeps {
   /** What a gone video left behind: its sheet and its text, a day after it went (024, US24). */
   claimOrphans?(limit: number, leaseSeconds: number): Promise<unknown[]>;
   clearOrphan?(materialId: string, trashed: boolean): Promise<boolean>;
+  claimTaskOrphans?(limit: number, leaseSeconds: number): Promise<unknown[]>;
+  completeTaskOrphan?(intentId: string, trashed: boolean): Promise<boolean>;
   now(): number;
   log(message: string, detail: string): void;
 }
@@ -136,6 +140,7 @@ export interface TickSummary {
   deletedCopies: number;
   /** Sheets and texts of deleted videos, put in Drive's bin (024, US24). */
   clearedOrphans: number;
+  clearedTaskOrphans: number;
 }
 
 function text(value: unknown): string | null {
@@ -490,6 +495,43 @@ async function clearOrphans(deps: CatalogUpdaterDeps, summary: TickSummary): Pro
   }
 }
 
+/** Task detachment is a separate, recoverable trash intent with an exact upload marker. */
+async function clearTaskOrphans(deps: CatalogUpdaterDeps, summary: TickSummary): Promise<void> {
+  if (!deps.claimTaskOrphans || !deps.completeTaskOrphan) return;
+  let rows: unknown[];
+  try {
+    rows = await deps.claimTaskOrphans(ORPHAN_LIMIT, TASK_ORPHAN_LEASE_SECONDS);
+  } catch (error) {
+    deps.log('[catalog-updater] task orphan claim failed', codeOf(error));
+    return;
+  }
+  for (const row of rows) {
+    if (!isRecord(row)) continue;
+    const intentId = text(row.intent_id);
+    const fileId = text(row.drive_file_id);
+    const credentialId = text(row.credential_id);
+    if (!intentId || !fileId || !credentialId) continue;
+    try {
+      const drive = await deps.driveFor(credentialId);
+      const outcome = await moveTaskOrphanToTrash(drive, fileId, text(row.resource_key));
+      if (outcome !== 'confirmed') {
+        deps.log('[catalog-updater] task orphan response unconfirmed', intentId);
+        // An explicit active postcondition is retryable. An unreadable response
+        // remains claimed until lease recovery because Drive may have applied it.
+        if (outcome === 'active') {
+          await deps.completeTaskOrphan(intentId, false);
+        }
+        continue;
+      }
+      if (await deps.completeTaskOrphan(intentId, true)) summary.clearedTaskOrphans += 1;
+    } catch (error) {
+      deps.log('[catalog-updater] task orphan not confirmed', `${intentId} ${codeOf(error)}`);
+      // An HTTP timeout can happen after Drive committed. Keep the claim fenced
+      // and let the next lease owner reconcile by repeating the idempotent trash.
+    }
+  }
+}
+
 function codeOf(error: unknown): string {
   return error instanceof TeamFunctionError ? error.code : 'DRIVE_UNAVAILABLE';
 }
@@ -583,8 +625,10 @@ export async function runCatalogUpdaterTick(
     failed: 0,
     skipped: 0,
     deletedCopies: 0,
-    clearedOrphans: 0
+    clearedOrphans: 0,
+    clearedTaskOrphans: 0
   };
+  if (deps.now() - startedAt < options.budgetMs) await clearTaskOrphans(deps, summary);
   summary.rounds = await deps.openRounds();
 
   while (deps.now() - startedAt < options.budgetMs) {

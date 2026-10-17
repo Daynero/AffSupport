@@ -2,6 +2,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Session, User } from '@supabase/supabase-js';
 import type { Profile } from '../apps/web/src/lib/database.types';
 import { jobConfigurationKey } from '../packages/shared/src/types.js';
@@ -85,13 +86,14 @@ describe('account page loading skeleton', () => {
 });
 
 describe('admin page loading skeleton', () => {
-  it('shows skeleton metric cards, chart, breakdowns and table rows while queries run', () => {
+  it('shows skeleton metric cards, chart, breakdowns and table rows while queries run', async () => {
     rpc.mockImplementation(() => new Promise(() => {})); // never settles
     const { container } = render(
       <AuthContextOverride value={authValue({ isAdmin: true })}>
         <AdminPage />
       </AuthContextOverride>
     );
+    await userEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
     const status = screen.getByRole('status');
     expect(status.classList.contains('admin-skeleton')).toBe(true);
     // Geometry mirrors the loaded dashboard: 23 metric cards + activity +
@@ -104,38 +106,12 @@ describe('admin page loading skeleton', () => {
   });
 
   it('crossfades the loaded dashboard in place of the skeleton', async () => {
+    let resolveOverview!: (result: { data: Record<string, number>; error: null }) => void;
+    const pendingOverview = new Promise<{ data: Record<string, number>; error: null }>(resolve => {
+      resolveOverview = resolve;
+    });
     rpc.mockImplementation(async (name: string) => {
-      if (name === 'admin_overview')
-        return {
-          data: Object.fromEntries(
-            [
-              'total_users',
-              'new_users_24h',
-              'new_users_7d',
-              'new_users_30d',
-              'active_users_7d',
-              'active_users_30d',
-              'marketing_consent_users',
-              'agent_connections',
-              'compressor_opens',
-              'compression_batches',
-              'successful_compressions',
-              'failed_compressions',
-              'total_videos',
-              'total_input_bytes',
-              'total_output_bytes',
-              'total_saved_bytes',
-              'average_saving_percent',
-              'optimal_batches',
-              'custom_batches',
-              'image_embedding_batches',
-              'videos_optimal',
-              'videos_custom',
-              'videos_with_image'
-            ].map(key => [key, 1])
-          ),
-          error: null
-        };
+      if (name === 'admin_overview') return pendingOverview;
       return { data: [], error: null };
     });
     const { container } = render(
@@ -143,7 +119,38 @@ describe('admin page loading skeleton', () => {
         <AdminPage />
       </AuthContextOverride>
     );
+    await userEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
     expect(container.querySelector('.admin-skeleton')).toBeTruthy();
+    resolveOverview({
+      data: Object.fromEntries(
+        [
+          'total_users',
+          'new_users_24h',
+          'new_users_7d',
+          'new_users_30d',
+          'active_users_7d',
+          'active_users_30d',
+          'marketing_consent_users',
+          'agent_connections',
+          'compressor_opens',
+          'compression_batches',
+          'successful_compressions',
+          'failed_compressions',
+          'total_videos',
+          'total_input_bytes',
+          'total_output_bytes',
+          'total_saved_bytes',
+          'average_saving_percent',
+          'optimal_batches',
+          'custom_batches',
+          'image_embedding_batches',
+          'videos_optimal',
+          'videos_custom',
+          'videos_with_image'
+        ].map(key => [key, 1])
+      ),
+      error: null
+    });
     await waitFor(() => expect(screen.getByText('Total users')).toBeTruthy());
     expect(container.querySelector('.admin-skeleton')).toBeNull();
     // The mount saw the skeleton, so real data enters with the crossfade class.

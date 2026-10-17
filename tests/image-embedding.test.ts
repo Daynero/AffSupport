@@ -22,6 +22,7 @@ import {
 } from '../apps/agent/src/ffmpeg/presets.js';
 import { calculateEncodeProgress } from '../apps/agent/src/ffmpeg/encoder.js';
 import { JobQueue } from '../apps/agent/src/queue/queue.js';
+import { loadState, defaultSettings } from '../apps/agent/src/queue/store.js';
 import { ImageAssetStore } from '../apps/agent/src/images/store.js';
 import {
   makeEmbedding,
@@ -52,6 +53,27 @@ afterEach(async () => {
 });
 
 describe('final image duration configuration', () => {
+  it('loads older settings in random mode', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-legacy-settings-'));
+    const imageEmbedding = { ...defaultImageEmbeddingSettings(), startImages: [asset('start')] };
+    const legacy: Partial<typeof imageEmbedding> = { ...imageEmbedding };
+    delete legacy.selectedStartImageId;
+    delete legacy.selectedEndImageId;
+    const file = path.join(directory, 'state.json');
+    await writeFile(
+      file,
+      JSON.stringify({
+        settings: { ...defaultSettings, imageEmbedding: legacy },
+        jobs: [],
+        batch: null
+      })
+    );
+    const loaded = await loadState(file);
+    expect(loaded.settings.imageEmbedding.selectedStartImageId).toBeNull();
+    expect(loaded.settings.imageEmbedding.selectedEndImageId).toBeNull();
+    expect(loaded.settings.imageEmbedding.startImages).toHaveLength(1);
+  });
+
   it('generates inclusive values inside all three minute ranges', () => {
     for (const mode of ['random-30-40', 'random-40-50', 'random-50-60'] as const) {
       const [minimum, maximum] = finalImageDurationRange(mode);
@@ -79,6 +101,23 @@ describe('final image duration configuration', () => {
     expect(
       freezeImageEmbedding({ ...endOnly, endImages: [], startImages: [asset('start')] })
     ).toMatchObject({ startImage: { id: asset('start').id }, endImage: null });
+  });
+
+  it('uses an explicit start image and refuses a missing or disabled selection', () => {
+    const chosen = { ...asset('chosen'), id: '33333333-3333-4333-8333-333333333333' };
+    const settings = {
+      ...defaultImageEmbeddingSettings(),
+      enabled: true,
+      startImages: [asset('start'), chosen],
+      selectedStartImageId: chosen.id
+    };
+    expect(freezeImageEmbedding(settings)?.startImage?.id).toBe(chosen.id);
+    expect(
+      freezeImageEmbedding({ ...settings, selectedStartImageId: 'missing' })?.startImage
+    ).toBeUndefined();
+    expect(
+      freezeImageEmbedding({ ...settings, disabledImageIds: [chosen.id] })?.startImage
+    ).toBeUndefined();
   });
 
   it('assigns a separate frozen random duration to every queued job', async () => {
@@ -239,6 +278,64 @@ describe('final image duration configuration', () => {
       startImages: []
     });
     expect(queue.embeddingConfigurationError()).toBe('EMBED_IMAGES_REQUIRED');
+  });
+
+  it('reports a removed explicit selection before queuing work', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-explicit-missing-'));
+    const job = makeJob('selected', 'ready', { inputPath: path.join(directory, 'source.mp4') });
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [job],
+      {
+        ...optimalSettings,
+        imageEmbedding: makeEmbeddingSettings({
+          ...defaultImageEmbeddingSettings(),
+          enabled: true,
+          startImages: [asset('start')],
+          selectedStartImageId: asset('removed').id
+        })
+      },
+      null,
+      new ImageAssetStore(path.join(directory, 'images'))
+    );
+    await createSources([job]);
+    expect(queue.embeddingConfigurationError()).toBe('IMAGE_UNAVAILABLE');
+    expect(await queue.start([job.id])).toBe(false);
+    expect(queue.state().jobs[0]?.status).toBe('ready');
+  });
+
+  it('keeps the chosen asset frozen after the settings change', async () => {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-explicit-frozen-'));
+    const first = asset('start');
+    const chosen = { ...asset('chosen'), id: '33333333-3333-4333-8333-333333333333' };
+    const settings = makeEmbeddingSettings({
+      ...defaultImageEmbeddingSettings(),
+      enabled: true,
+      startImages: [first, chosen],
+      selectedStartImageId: chosen.id
+    });
+    const job = makeJob('selected', 'ready', { inputPath: path.join(directory, 'source.mp4') });
+    const queue = new JobQueue(
+      { ffmpeg: true, ffprobe: true },
+      () => {},
+      [job],
+      {
+        ...optimalSettings,
+        outputMode: 'chosen-folder',
+        outputFolder: directory,
+        imageEmbedding: settings
+      },
+      null,
+      new ImageAssetStore(path.join(directory, 'images'))
+    );
+    await createSources([job]);
+    expect(await queue.start([job.id])).toBe(true);
+    expect(queue.state().jobs[0]?.imageEmbedding?.startImage?.id).toBe(chosen.id);
+    await queue.updateSettings({
+      imageEmbedding: { ...settings, selectedStartImageId: first.id }
+    });
+    expect(queue.state().jobs[0]?.imageEmbedding?.startImage?.id).toBe(chosen.id);
   });
 });
 

@@ -11,8 +11,10 @@ import { emptyQueueState } from './web-auth-helpers';
 import { fakeAgentValue } from './support/fake-agent';
 import { expectPrimaryAction, expectSecondaryAction } from './support/design-system';
 
-const WINDOWS_ARTIFACT_URL = 'https://example.com/Soty-Agent-v0.9.0-Windows-x64.exe';
-const MAC_ARTIFACT_URL = 'https://example.com/Soty-Agent-v0.9.0-macOS-arm64.dmg';
+const WINDOWS_ARTIFACT_URL =
+  'https://github.com/Daynero/AffSupport/releases/download/v0.9.0/Soty-Agent-v0.9.0-Windows-x64.exe';
+const MAC_ARTIFACT_URL =
+  'https://github.com/Daynero/AffSupport/releases/download/v0.9.0/Soty-Agent-v0.9.0-macOS-arm64.dmg';
 
 function manifestWith(artifacts: StableReleaseManifest['artifacts']): StableReleaseManifest {
   return {
@@ -97,8 +99,8 @@ describe('local app platform choices', () => {
     value.releaseManifest = {
       status: 'ready',
       manifest: manifestWith({
-        'macos-arm64': { url: MAC_ARTIFACT_URL, sha256: null },
-        'windows-x64': { url: WINDOWS_ARTIFACT_URL, sha256: null }
+        'macos-arm64': { url: MAC_ARTIFACT_URL, sha256: 'a'.repeat(64) },
+        'windows-x64': { url: WINDOWS_ARTIFACT_URL, sha256: 'b'.repeat(64) }
       })
     };
 
@@ -122,8 +124,8 @@ describe('local app platform choices', () => {
     value.releaseManifest = {
       status: 'ready',
       manifest: manifestWith({
-        'macos-arm64': { url: MAC_ARTIFACT_URL, sha256: null },
-        'windows-x64': { url: WINDOWS_ARTIFACT_URL, sha256: null }
+        'macos-arm64': { url: MAC_ARTIFACT_URL, sha256: 'a'.repeat(64) },
+        'windows-x64': { url: WINDOWS_ARTIFACT_URL, sha256: 'b'.repeat(64) }
       })
     };
 

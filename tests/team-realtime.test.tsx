@@ -11,7 +11,7 @@ import { useFolderPage } from '../apps/web/src/team/explorer/useFolderPage';
 
 vi.mock('../apps/web/src/lib/supabase', () => ({ getSupabaseClient: vi.fn() }));
 
-type Callback = () => void;
+type Callback = (payload?: { new?: { event_kind?: string } }) => void;
 let events: Map<string, Callback>;
 let status: (value: string) => void;
 let removeChannel: ReturnType<typeof vi.fn>;
@@ -43,6 +43,19 @@ afterEach(() => {
 });
 
 describe('team Realtime invalidation', () => {
+  it('rereads a bulk trash marker before the normal one-second debounce', async () => {
+    const onRefetch = vi.fn().mockResolvedValue(undefined);
+    renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    onRefetch.mockClear();
+    act(() => events.get('team_catalog_events')!({ new: { event_kind: 'upserted' } }));
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(onRefetch).not.toHaveBeenCalled();
+    act(() => events.get('team_catalog_events')!({ new: { event_kind: 'bulk_trash_changed' } }));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(onRefetch).toHaveBeenCalledTimes(1);
+  });
   it('keeps the workspace stale when teams refresh but its catalog read fails, then recovers on retry', async () => {
     const team: TeamContextSnapshot = {
       id: '21000000-0000-4000-8000-000000000001',

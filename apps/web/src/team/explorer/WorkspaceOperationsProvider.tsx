@@ -11,7 +11,8 @@ import {
 import type {
   LocalItemState,
   LocalOperationStage,
-  LocalOperationState
+  LocalOperationState,
+  TeamBulkTrashGroup
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { useI18n, type TranslationKey } from '../../i18n';
@@ -21,6 +22,7 @@ import type { LocalManifest } from './localManifest';
 import { localStageProgress } from './localProgress';
 import { WorkspaceOperationJournal, type JournalGroup } from './workspaceOperationJournal';
 import { catalogNameKey, type WorkspaceCatalogResult } from './catalogPostcondition';
+import { useOptionalTeam } from '../TeamContext';
 
 export interface WorkspaceDestination {
   driveFolderId: string | null;
@@ -57,6 +59,7 @@ export interface WorkspaceOperationsClient {
   uploadFile: (input: TeamFileUploadInput) => Promise<unknown>;
   getOperation?: typeof teamApi.getOperation;
   cancelOperation?: typeof teamApi.cancelOperation;
+  listBulkTrash?: typeof teamApi.listBulkTrash;
 }
 export interface WorkspaceUploadRequest {
   teamId: string;
@@ -77,6 +80,8 @@ export interface WorkspaceUploadRequest {
 }
 export interface WorkspaceOperationsValue {
   groups: WorkspaceOperationGroup[];
+  bulkTrashGroups?: TeamBulkTrashGroup[];
+  refreshBulkTrash?: () => Promise<void>;
   /** IndexedDB failed; recovery is limited to this browser session. */
   sessionOnly?: boolean;
   startUploadGroup: (request: WorkspaceUploadRequest) => Promise<WorkspaceOperationGroup>;
@@ -92,7 +97,8 @@ const defaultClient: WorkspaceOperationsClient = {
   ensureFolder: (teamId, input) => teamApi.ensureUploadFolder(teamId, input),
   uploadFile: uploadTeamFile,
   getOperation: (teamId, operationId) => teamApi.getOperation(teamId, operationId),
-  cancelOperation: (teamId, operationId) => teamApi.cancelOperation(teamId, operationId)
+  cancelOperation: (teamId, operationId) => teamApi.cancelOperation(teamId, operationId),
+  listBulkTrash: teamId => teamApi.listBulkTrash(teamId)
 };
 
 function fromJournal(group: JournalGroup): WorkspaceOperationGroup {
@@ -177,6 +183,23 @@ export function WorkspaceOperationsProvider({
   children: ReactNode;
 }) {
   const [groups, setGroups] = useState<WorkspaceOperationGroup[]>([]);
+  const [bulkTrashGroups, setBulkTrashGroups] = useState<TeamBulkTrashGroup[]>([]);
+  const team = useOptionalTeam();
+  const realtimeRevision = team?.revision ?? 0;
+  const bulkReadGeneration = useRef(0);
+  const refreshBulkTrash = useCallback(async () => {
+    if (!client.listBulkTrash) return;
+    const generation = ++bulkReadGeneration.current;
+    const next = await client.listBulkTrash(teamId);
+    if (generation === bulkReadGeneration.current) setBulkTrashGroups(next);
+  }, [client, teamId]);
+  useEffect(() => setBulkTrashGroups([]), [teamId]);
+  useEffect(() => {
+    void refreshBulkTrash().catch(() => undefined);
+    return () => {
+      bulkReadGeneration.current += 1;
+    };
+  }, [refreshBulkTrash, realtimeRevision]);
   const [sessionOnly, setSessionOnly] = useState(false);
   const { t } = useI18n();
   const toastHost = useOptionalToasts();
@@ -797,8 +820,24 @@ export function WorkspaceOperationsProvider({
   }, []);
 
   const value = useMemo<WorkspaceOperationsValue>(
-    () => ({ groups, sessionOnly, startUploadGroup, retryUploadGroup, cancelGroup }),
-    [groups, sessionOnly, startUploadGroup, retryUploadGroup, cancelGroup]
+    () => ({
+      groups,
+      bulkTrashGroups,
+      refreshBulkTrash,
+      sessionOnly,
+      startUploadGroup,
+      retryUploadGroup,
+      cancelGroup
+    }),
+    [
+      groups,
+      bulkTrashGroups,
+      refreshBulkTrash,
+      sessionOnly,
+      startUploadGroup,
+      retryUploadGroup,
+      cancelGroup
+    ]
   );
   return (
     <WorkspaceOperationsContext.Provider value={value}>

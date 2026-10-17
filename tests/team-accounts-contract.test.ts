@@ -12,6 +12,8 @@ import {
   normalizeTeamAgentNote,
   parseTeamAccount,
   parseTeamAccountAgent,
+  parseTeamAccountOrderSnapshot,
+  parseTeamAccountReorderResult,
   parseTeamTaskAgentTags,
   sortTeamAccounts,
   sortTeamAgents,
@@ -172,6 +174,36 @@ describe('parsing what the server returns', () => {
 });
 
 describe('ordering, counting and filtering', () => {
+  it('parses a canonical order and rejects duplicate or malformed membership', () => {
+    const snapshot = {
+      socials_version: 4,
+      social_ids: ['social-b', 'social-a'],
+      agents: { 'social-b': { version: 2, ids: ['agent-2', 'agent-1'] } }
+    };
+    expect(parseTeamAccountOrderSnapshot(snapshot)).toEqual({
+      socialsVersion: 4,
+      socialIds: ['social-b', 'social-a'],
+      agents: { 'social-b': { version: 2, ids: ['agent-2', 'agent-1'] } }
+    });
+    expect(
+      parseTeamAccountOrderSnapshot({ ...snapshot, social_ids: ['social-a', 'social-a'] })
+    ).toBeNull();
+    expect(parseTeamAccountOrderSnapshot({ ...snapshot, socials_version: -1 })).toBeNull();
+    expect(
+      parseTeamAccountReorderResult({ status: 'conflict', version: 5, ids: ['social-a'] })
+    ).toEqual({ status: 'conflict', version: 5, ids: ['social-a'] });
+    expect(
+      parseTeamAccountReorderResult({ status: 'applied', version: 1, ids: ['x', 'x'] })
+    ).toBeNull();
+  });
+
+  it('keeps the server order while filtering agents', () => {
+    const manual = [{ ...SPACE[0]!, agents: [...SPACE[0]!.agents].reverse() }];
+    expect(
+      filterTeamAccounts(manual, { occupancy: 'all', search: '' })[0]!.agents.map(agent => agent.id)
+    ).toEqual(manual[0]!.agents.map(agent => agent.id));
+  });
+
   it('sorts accounts naturally, so v3 comes before v12 and v31', () => {
     expect(sortTeamAccounts(SPACE).map(item => item.name)).toEqual(['v3', 'v12', 'v31']);
   });

@@ -38,6 +38,31 @@ export const TEAM_ANALYTICS_EVENT_NAMES = [
 ] as const;
 export type TeamAnalyticsEventName = (typeof TEAM_ANALYTICS_EVENT_NAMES)[number];
 
+/** Bounded diagnostic contract for the 037 journeys; unsupported stages stay explicit. */
+export const TEAM_WORKSPACE_DIAGNOSTIC_JOURNEYS = {
+  task_copy: { correlate: 'workflow_id', stages: ['attempted', 'committed', 'delivered'] },
+  task_detach: {
+    correlate: 'intent_id',
+    stages: ['detached', 'grace', 'reference_check', 'provider_trash', 'confirmed']
+  },
+  bulk_trash: {
+    correlate: 'workflow_id',
+    stages: ['intent', 'item_attempt', 'operation_receipt', 'lifecycle_confirmed']
+  },
+  account_order: {
+    correlate: 'workflow_id',
+    stages: ['attempted', 'version_checked', 'committed', 'delivered']
+  },
+  account_archive: {
+    correlate: 'workflow_id',
+    stages: ['attempted', 'active_launch_guard', 'committed', 'delivered']
+  },
+  image_choice: {
+    correlate: 'run_id',
+    stages: ['selected', 'validated', 'queued', 'embedded', 'delivered']
+  }
+} as const;
+
 /**
  * The outcome vocabulary is the database guard's, verbatim. `ready`/`failed`
  * used to be accepted here and refused there, so every `team_landing_render`
@@ -54,8 +79,25 @@ export const TEAM_ANALYTICS_OUTCOMES = [
 export type TeamAnalyticsOutcome = (typeof TEAM_ANALYTICS_OUTCOMES)[number];
 export const TEAM_ANALYTICS_CUES = ['geo', 'offer', 'language', 'category'] as const;
 export type TeamAnalyticsCue = (typeof TEAM_ANALYTICS_CUES)[number];
-export const TEAM_ANALYTICS_ACTIONS = ['upload', 'download', 'rename', 'move', 'trash'] as const;
+export const TEAM_ANALYTICS_ACTIONS = [
+  'upload',
+  'download',
+  'rename',
+  'move',
+  'trash',
+  'copy',
+  'reorder',
+  'archive',
+  'restore'
+] as const;
 export type TeamAnalyticsAction = (typeof TEAM_ANALYTICS_ACTIONS)[number];
+export const TEAM_ACCOUNT_ARCHIVE_REASONS = [
+  'active_launch',
+  'permission_denied',
+  'conflict',
+  'unknown'
+] as const;
+export type TeamAccountArchiveReason = (typeof TEAM_ACCOUNT_ARCHIVE_REASONS)[number];
 export const TEAM_ANALYTICS_STORAGES = ['my_drive', 'shared_drive'] as const;
 export type TeamAnalyticsStorage = (typeof TEAM_ANALYTICS_STORAGES)[number];
 export const TEAM_ANALYTICS_SIZE_BUCKETS = ['tiny', 'small', 'medium', 'large', 'agent'] as const;
@@ -96,6 +138,7 @@ export interface TeamAnalyticsProperties {
   category?: MaterialCategory;
   cue_category?: TeamAnalyticsCue;
   action?: TeamAnalyticsAction;
+  archive_reason?: TeamAccountArchiveReason;
   storage_kind?: TeamAnalyticsStorage;
   size_bucket?: TeamAnalyticsSizeBucket;
   cache_state?: TeamAnalyticsCacheState;
@@ -158,6 +201,7 @@ export const TEAM_ANALYTICS_PROPERTY_RULES: Readonly<
   category: { kind: 'enum', values: MATERIAL_CATEGORIES },
   cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
   action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
+  archive_reason: { kind: 'enum', values: TEAM_ACCOUNT_ARCHIVE_REASONS },
   storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
   size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
   cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },

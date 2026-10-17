@@ -50,7 +50,7 @@ beforeAll(async () => {
       ('${ALICE}','team_file_attempt_started',null,null,'${ATTEMPT_V3}',null,null,'1.2.6','macos',1,'{"action":"download","stage":"downloading"}','2026-10-05T08:00:00Z','2026-10-05T08:00:00.100Z'),
       ('${ALICE}','team_file_attempt_completed',null,null,'${ATTEMPT_V3}',null,null,'1.2.6','macos',2,'{"action":"download","outcome":"success"}','2026-10-05T08:00:04Z','2026-10-05T08:00:04.100Z'),
       -- a compressor run across an Agent restart, the browser on Windows, the Agent on macOS.
-      ('${ALICE}','compression_started','compressor','${RUN_V3}',null,'${INSTANCE_A}','macos','1.2.6','windows',1,'{"video_count":1}','2026-10-06T08:00:00Z','2026-10-06T08:00:00.100Z'),
+      ('${ALICE}','compression_started','compressor','${RUN_V3}',null,'${INSTANCE_A}','macos','1.2.6','windows',1,'{"video_count":1,"image_start_selection":"explicit","image_end_selection":"off"}','2026-10-06T08:00:00Z','2026-10-06T08:00:00.100Z'),
       ('${ALICE}','compression_failed','compressor','${RUN_V3}',null,'${INSTANCE_B}','macos','1.2.6','windows',2,'{"error_code":"MEDIA_TOOL_UNAVAILABLE"}','2026-10-06T08:05:00Z','2026-10-06T08:05:00.100Z');
   `);
 }, 30_000);
@@ -76,9 +76,9 @@ describe('inspect · by run_id', () => {
       'compression_failed'
     ]);
     expect(data.stages).toEqual({
-      expected: ['open', 'ready', 'input_add', 'estimate', 'start', 'terminal'],
+      expected: ['open', 'ready', 'input_add', 'estimate', 'image_choice', 'start', 'terminal'],
       observed: ['start', 'terminal'],
-      missing: ['open', 'ready', 'input_add', 'estimate']
+      missing: ['open', 'ready', 'input_add', 'estimate', 'image_choice']
     });
     expect(data.last_proven_stage).toBe('terminal');
     // The latest terminal wins: the failed row came after the completed one.
@@ -156,6 +156,7 @@ describe('inspect · by flow_id, attempt_id, workflow_id', () => {
 
   it("names the Agent run that saw the attempt last, every run, and the Agent's platform", async () => {
     const data = found(await getInspect(RUN_V3));
+    expect(data.stages.observed).toEqual(['image_choice', 'start', 'terminal']);
     expect(data.agent).toMatchObject({
       agent_instance_id: INSTANCE_B,
       agent_instance_ids: [INSTANCE_A, INSTANCE_B],

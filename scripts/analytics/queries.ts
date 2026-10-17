@@ -1,5 +1,208 @@
 import { createHash } from 'node:crypto';
 import { query, queryOne } from './db.js';
+
+export async function getTaskOrphanReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{
+  intent_id: string;
+  detached_at: string;
+  cleanup_not_before: string;
+  state: string;
+  reason_code: string | null;
+  attempt_count: number;
+  updated_at: string;
+  has_operation: boolean;
+}> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_task_orphan_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{
+    intent_id: string;
+    detached_at: string;
+    cleanup_not_before: string;
+    state: string;
+    reason_code: string | null;
+    attempt_count: number;
+    updated_at: string;
+    has_operation: boolean;
+  }>(
+    `select intent_id::text, detached_at::text, cleanup_not_before::text,
+      state, reason_code, attempt_count, updated_at::text, has_operation
+    from public.analytics_task_orphan_receipts
+    where actor_id = $3::uuid
+      and ($1::timestamptz is null or detached_at >= $1::timestamptz)
+      and detached_at <= $2::timestamptz
+    order by detached_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    detached_at: isoUtc(row.detached_at) ?? row.detached_at,
+    cleanup_not_before: isoUtc(row.cleanup_not_before) ?? row.cleanup_not_before,
+    updated_at: isoUtc(row.updated_at) ?? row.updated_at,
+    attempt_count: Number(row.attempt_count)
+  }));
+}
+
+export async function getBulkTrashReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{
+  request_id: string;
+  group_id: string;
+  item_count: number;
+  queued_count: number;
+  active_count: number;
+  confirmed_count: number;
+  failed_count: number;
+  unknown_count: number;
+  error_codes: string[];
+  created_at: string;
+  last_operation_at: string | null;
+}> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_bulk_trash_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{
+    request_id: string;
+    group_id: string;
+    item_count: number;
+    queued_count: number;
+    active_count: number;
+    confirmed_count: number;
+    failed_count: number;
+    unknown_count: number;
+    error_codes: string[] | null;
+    created_at: string;
+    last_operation_at: string | null;
+  }>(
+    `select request_id::text, group_id::text, item_count, queued_count,
+      active_count, confirmed_count, failed_count, unknown_count,
+      error_codes, created_at::text, last_operation_at::text
+    from public.analytics_bulk_trash_receipts
+    where actor_id = $3::uuid
+      and ($1::timestamptz is null or created_at >= $1::timestamptz)
+      and created_at <= $2::timestamptz
+    order by created_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    item_count: Number(row.item_count),
+    queued_count: Number(row.queued_count),
+    active_count: Number(row.active_count),
+    confirmed_count: Number(row.confirmed_count),
+    failed_count: Number(row.failed_count),
+    unknown_count: Number(row.unknown_count),
+    error_codes: row.error_codes ?? [],
+    created_at: isoUtc(row.created_at) ?? row.created_at,
+    last_operation_at: isoUtc(row.last_operation_at) ?? row.last_operation_at
+  }));
+}
+
+/** Confirmed commits only; ordered IDs and account IDs remain in the private source table. */
+export async function getAccountOrderReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{
+  request_id: string;
+  scope_kind: string;
+  result_version: number;
+  created_at: string;
+}> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_account_order_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{
+    request_id: string;
+    scope_kind: string;
+    result_version: number;
+    created_at: string;
+  }>(
+    `select request_id::text as request_id, scope_kind, result_version, created_at::text as created_at
+       from public.analytics_account_order_receipts
+      where actor_id = $3::uuid
+        and ($1::timestamptz is null or created_at >= $1::timestamptz)
+        and created_at <= $2::timestamptz
+      order by created_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    result_version: Number(row.result_version),
+    created_at: isoUtc(row.created_at) ?? row.created_at
+  }));
+}
+
+/** Archive commits only; the private source table keeps social and team IDs. */
+export async function getAccountArchiveReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{
+  request_id: string;
+  desired_archived: boolean;
+  result_version: number;
+  created_at: string;
+}> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_account_archive_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{
+    request_id: string;
+    desired_archived: boolean;
+    result_version: number;
+    created_at: string;
+  }>(
+    `select request_id::text as request_id, desired_archived,
+       result_version, created_at::text as created_at
+       from public.analytics_account_archive_receipts
+      where actor_id = $3::uuid
+        and ($1::timestamptz is null or created_at >= $1::timestamptz)
+        and created_at <= $2::timestamptz
+      order by created_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    result_version: Number(row.result_version),
+    created_at: isoUtc(row.created_at) ?? row.created_at
+  }));
+}
+
+/** Committed copy receipts contain counts only; task IDs and titles stay private. */
+export async function getTaskCopyReceipts(
+  userId: string | null,
+  period: ResolvedPeriod
+): Promise<Array<{ request_id: string; result_count: number; created_at: string }> | null> {
+  if (!userId) return [];
+  const available = await queryOne<{ present: boolean }>(
+    "select to_regclass('public.analytics_task_copy_receipts') is not null as present"
+  );
+  if (!available?.present) return null;
+  const rows = await query<{ request_id: string; result_count: number; created_at: string }>(
+    `select request_id::text as request_id, result_count, created_at::text as created_at
+       from public.analytics_task_copy_receipts
+      where actor_id = $3::uuid
+        and ($1::timestamptz is null or created_at >= $1::timestamptz)
+        and created_at <= $2::timestamptz
+      order by created_at desc limit 500`,
+    [period.start, period.end, userId]
+  );
+  return rows.map(row => ({
+    ...row,
+    result_count: Number(row.result_count),
+    created_at: isoUtc(row.created_at) ?? row.created_at
+  }));
+}
 import { eventColumnSql, getSchema, missingObjects, schemaSummary } from './schema.js';
 import {
   COVERAGE_REGISTRY,
@@ -1935,16 +2138,17 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
         row
     )
   );
-  const stageOf = new Map<string, string>();
-  if (capability) {
-    for (const stage of capability.stages) {
-      for (const event of capability.stageEvents[stage] ?? []) {
-        if (!stageOf.has(event)) stageOf.set(event, stage as string);
-      }
-    }
-  }
+  const hasImageChoice = (properties: JourneyRow['properties']) =>
+    ['off', 'random', 'explicit'].includes(String(properties?.image_start_selection)) &&
+    ['off', 'random', 'explicit'].includes(String(properties?.image_end_selection));
   const observedStages = capability
-    ? capability.stages.filter(stage => rows.some(row => stageOf.get(row.event_name) === stage))
+    ? capability.stages.filter(stage =>
+        rows.some(
+          row =>
+            (capability.stageEvents[stage] ?? []).some(event => event === row.event_name) &&
+            (stage !== 'image_choice' || hasImageChoice(row.properties))
+        )
+      )
     : [];
   const expected = capability
     ? capability.stages.filter(stage => (capability.stageEvents[stage] ?? []).length > 0)

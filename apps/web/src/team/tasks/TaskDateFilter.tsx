@@ -90,6 +90,7 @@ export function TaskDateFilterControl({
   disabled = false,
   calendarLabel,
   inlineDays = false,
+  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   children
 }: {
   value: TaskDateFilter;
@@ -102,6 +103,7 @@ export function TaskDateFilterControl({
   calendarLabel?: string;
   /** "Yesterday" and "Today" beside the calendar, one press each — the board's two most asked ranges. */
   inlineDays?: boolean;
+  timezone?: string;
   /** A further filter that shares the row — the account scope (017). */
   children?: React.ReactNode;
 }) {
@@ -124,7 +126,7 @@ export function TaskDateFilterControl({
   }, [value]);
 
   const now = new Date();
-  const quick = activeQuickRange(value, now);
+  const quick = activeQuickRange(value, now, timezone);
   const quickRanges: ReadonlyArray<{ range: QuickRange; label: string }> = [
     { range: 'today', label: t('teamTasksToday') },
     { range: 'yesterday', label: t('teamTasksYesterday') },
@@ -222,7 +224,7 @@ export function TaskDateFilterControl({
                           onChange(
                             option.range === 'all'
                               ? { kind: 'all' }
-                              : quickRangeValue(option.range, new Date())
+                              : quickRangeValue(option.range, new Date(), timezone)
                           );
                         }}
                       >
@@ -258,7 +260,7 @@ export function TaskDateFilterControl({
                   onChange(
                     quick === option.range && allowAll
                       ? { kind: 'all' }
-                      : quickRangeValue(option.range, new Date())
+                      : quickRangeValue(option.range, new Date(), timezone)
                   )
                 }
               >

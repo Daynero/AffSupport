@@ -126,6 +126,9 @@ insert into public.team_error_codes (code) values
   ('LEGACY_ALREADY_IMPORTED'),
   ('LEGACY_TARGET_OCCUPIED'),
   ('PLACEMENT_CONFLICT'),
+  ('ACTIVE_LAUNCH'),
+  ('ACCOUNT_ARCHIVED'),
+  ('ACCOUNT_HAS_HISTORY'),
   ('TRANSFER_DATE_INVALID'),
   ('AGENT_ID_CONFLICT'),
   ('FUTURE_FINANCE_DATE'),
@@ -136,6 +139,7 @@ insert into public.team_error_codes (code) values
   ('NOT_FOUND'),
   ('INVALID_INPUT'),
   ('INVALID_RESPONSE'),
+  ('UNVERIFIED_UPLOAD'),
   ('WRONG_STATE'),
   ('NAME_CONFLICT'),
   ('ALREADY_MEMBER'),
@@ -178,7 +182,13 @@ insert into public.team_error_codes (code) values
   ('RESTITCH_SOURCES_INVALID'),
   ('RESTITCH_SOURCES_TOO_MANY'),
   ('RESTITCH_CLIENT_OUTDATED'),
-  ('UPLOAD_SESSION_UNAVAILABLE');
+  ('UPLOAD_SESSION_UNAVAILABLE'),
+  ('SEATS_FULL'),
+  ('SEATS_IN_USE'),
+  ('SPACE_BLOCKED'),
+  ('TARIFF_BOUND'),
+  ('LEGACY_SPACES_REMAIN'),
+  ('TARIFF_DATE_INVALID');
 
 insert into public.geo_options (code) values
   ('AD'),

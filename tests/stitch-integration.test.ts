@@ -71,6 +71,8 @@ const library = {
     }
   ],
   disabledImageIds: [],
+  selectedStartImageId: null,
+  selectedEndImageId: null,
   replaceExisting: true,
   finalDurationMode: 'custom' as const,
   customFinalDurationSeconds: 6,
@@ -509,7 +511,7 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
     expect(produced.verification.frameCount).toBeGreaterThanOrEqual(175);
   }, 120_000);
 
-  it('rejects a truncated prepared body before measurements can redefine the promise', async () => {
+  it('recovers a truncated copied body without shortening the promised result', async () => {
     const profile = unwrap(await probeSource(legacy));
     const plan = unwrap(planStitch(profile, await detectStitching(profile), SCREENS, 'unstitch'));
     const workDir = await mkdtemp(path.join(directory, 'truncated-body-'));
@@ -529,7 +531,10 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
       imagePathFor: async () => photo,
       bodies: new PreparedBodyCache({ root: workDir })
     });
-    expect(produced).toEqual({ ok: false, error: 'STITCH_VERIFICATION_FAILED' });
+    expect(produced.ok).toBe(true);
+    if (!produced.ok) throw new Error(produced.error);
+    expect(produced.verification.videoTrackSeconds).toBeCloseTo(6, 0);
+    expect(produced.verification.withinTolerance).toBe(true);
   }, 120_000);
 
   it('places a sparse end screen after every B-frame of the cut body', async () => {

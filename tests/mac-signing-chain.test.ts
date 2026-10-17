@@ -264,7 +264,7 @@ describe.skipIf(!isMac)('the signing verifier has teeth', () => {
 
 describe.skipIf(!isMac)('the signing chain (scripts/sign-mac-app.sh)', () => {
   it.skipIf(!chainExists)(
-    'signs inside-out with the hardened runtime and a minimal entitlement set',
+    'signs inside-out with the hardened runtime and a minimal entitlement set [needs: scripts/sign-mac-app.sh]',
     async () => {
       const { app } = await fixtureBundle();
       await runChain(app);
@@ -274,7 +274,7 @@ describe.skipIf(!isMac)('the signing chain (scripts/sign-mac-app.sh)', () => {
   );
 
   it.skipIf(!chainExists || !expectNotarized)(
-    'produces a bundle Gatekeeper accepts, with the notarization ticket stapled',
+    'produces a bundle Gatekeeper accepts, with the notarization ticket stapled [needs: scripts/sign-mac-app.sh,env:SOTY_TEST_EXPECT_NOTARIZED]',
     async () => {
       const { app } = await fixtureBundle();
       await runChain(app);

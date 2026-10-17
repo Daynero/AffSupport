@@ -851,6 +851,12 @@ export interface InvestigateBlindSpot {
     | 'web_build_without_link_events'
     | 'agent_version_without_journal'
     | 'agent_journal_missing'
+    | 'image_selection_signal_missing'
+    | 'task_copy_receipts_unavailable'
+    | 'account_order_receipts_unavailable'
+    | 'account_archive_receipts_unavailable'
+    | 'bulk_trash_receipts_unavailable'
+    | 'task_orphan_receipts_unavailable'
     | 'analytics_disabled'
     | 'analytics_delivery_losses'
     | 'sync_unavailable'
@@ -881,6 +887,59 @@ export interface InvestigateData {
   environment: InvestigateEnvironment;
   sessions: { count: number; recent: InvestigateSession[] };
   operations: InvestigateOperation[];
+  task_copies: Array<{
+    request_id: string;
+    status: 'confirmed' | 'unknown' | 'receipt_unavailable';
+    result_count: number | null;
+    attempted_at: string | null;
+    confirmed_at: string | null;
+  }>;
+  account_orders: Array<{
+    request_id: string;
+    status: 'confirmed' | 'conflict' | 'unknown' | 'receipt_unavailable';
+    scope_kind: string | null;
+    result_version: number | null;
+    attempted_at: string | null;
+    confirmed_at: string | null;
+  }>;
+  account_archives: Array<{
+    request_id: string;
+    status: 'confirmed' | 'blocked' | 'unknown' | 'receipt_unavailable';
+    action: 'archive' | 'restore' | null;
+    reason: 'active_launch' | 'permission_denied' | 'conflict' | 'unknown' | null;
+    result_version: number | null;
+    attempted_at: string | null;
+    confirmed_at: string | null;
+  }>;
+  bulk_trash: Array<{
+    request_id: string;
+    group_id: string | null;
+    status: 'confirmed' | 'partial' | 'pending' | 'unknown' | 'receipt_unavailable';
+    item_count: number | null;
+    confirmed_count: number;
+    failed_count: number;
+    unknown_count: number;
+    error_codes: string[];
+    attempted_at: string | null;
+    last_operation_at: string | null;
+  }>;
+  task_orphans: Array<{
+    intent_id: string;
+    status:
+      | 'waiting'
+      | 'cleanup_unverified'
+      | 'claimed'
+      | 'confirmed_in_trash'
+      | 'failed'
+      | 'cancelled'
+      | 'unknown';
+    reason_code: string | null;
+    attempt_count: number;
+    detached_at: string;
+    cleanup_not_before: string;
+    updated_at: string;
+    has_operation: boolean;
+  }>;
   link: InvestigateLink;
   errors: InvestigateErrorCluster[];
   journal_around_failures: InvestigateJournalWindow[];

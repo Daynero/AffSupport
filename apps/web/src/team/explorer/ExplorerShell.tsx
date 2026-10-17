@@ -12,6 +12,7 @@ import { usablePrep } from '@video-compressor/shared';
 import type {
   CatalogMaterialItem,
   TeamAnalyticsStorage,
+  TeamBulkTrashItem,
   TeamMaterialRow,
   TeamMaterialTagColor,
   TeamPermissions
@@ -39,11 +40,13 @@ import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { trashMaterialWithTail, type TailClient } from '../materials/tail';
+import { dedupeTrashTargets, executeBulkTrash } from './bulkTrash';
 import { moveWorkspaceMaterials } from './moveCoordinator';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamErrorMessageFor } from '../errors';
+import { analytics } from '../../analytics/service';
 import { TeamCatalog, type TeamCatalogClient } from '../catalog/TeamCatalog';
 import { TrashView } from '../catalog/TrashView';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
@@ -94,6 +97,7 @@ import {
   type UploadConflictRequest
 } from './UploadConflictDialog';
 import { ProcessPanel } from './ProcessPanel';
+import { BulkTrashStatus } from './BulkTrashStatus';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { foldCompanions } from './companions';
@@ -137,6 +141,10 @@ export type ExplorerShellClient = ExplorerClient &
       materialId: string;
       color: TeamMaterialTagColor | null;
     }) => Promise<TeamMaterialTagColor | null>;
+    beginBulkTrash?: typeof teamApi.beginBulkTrash;
+    markBulkTrashAttempt?: typeof teamApi.markBulkTrashAttempt;
+    listBulkTrash?: typeof teamApi.listBulkTrash;
+    prepareBulkTrashRetry?: typeof teamApi.prepareBulkTrashRetry;
   };
 
 export type { ExplorerView };
@@ -1279,6 +1287,16 @@ function ExplorerBody({
   // The batch spans folders, so it comes from the accumulated selection map
   // rather than only the rows on the current page.
   const selectedRows = useMemo(() => Array.from(selectedRowsMap.values()), [selectedRowsMap]);
+  const bulkGroup = workspaceOperations?.bulkTrashGroups?.[0] ?? null;
+  const bulkStatusById = useMemo(() => {
+    const statuses = new Map<string, TeamBulkTrashItem['state']>();
+    for (const group of workspaceOperations?.bulkTrashGroups ?? []) {
+      for (const item of group.items) {
+        if (!statuses.has(item.materialId)) statuses.set(item.materialId, item.state);
+      }
+    }
+    return statuses;
+  }, [workspaceOperations?.bulkTrashGroups]);
   /* The videos in the selection, once: three of the bar's actions ask for exactly this
      and one of them decides whether it is offered at all. */
   const selectedVideos = useMemo(
@@ -1351,16 +1369,91 @@ function ExplorerBody({
   const trashRows = useCallback(
     async (rows: TeamMaterialRow[]) => {
       if (!permissions?.delete) return;
+      const targets = dedupeTrashTargets(rows, pathTo);
+      if (targets.length > 1) {
+        const requestId = crypto.randomUUID();
+        const startedAt = Date.now();
+        analytics.track('team_workflow_started', {
+          workflow_id: requestId,
+          action: 'trash',
+          category: 'other',
+          cache_state: 'unknown',
+          attempt_number: 1,
+          stage: 'processing',
+          item_count: targets.length
+        });
+        const report = (confirmed: boolean) =>
+          analytics.track('team_workflow_completed', {
+            workflow_id: requestId,
+            action: 'trash',
+            category: 'other',
+            cache_state: 'unknown',
+            attempt_number: 1,
+            stage: 'finalizing',
+            item_count: targets.length,
+            duration_ms: Date.now() - startedAt,
+            outcome: confirmed ? 'success' : 'failure',
+            retryable: !confirmed,
+            production_completed: confirmed
+          });
+        try {
+          const intent = await (client.beginBulkTrash ?? teamApi.beginBulkTrash)({
+            teamId,
+            requestId,
+            materialIds: targets.map(row => row.id)
+          });
+          const byId = new Map(targets.map(row => [row.id, row]));
+          select(null);
+          clearSelection();
+          void workspaceOperations?.refreshBulkTrash?.();
+          void executeBulkTrash({
+            intent,
+            mark: materialId =>
+              (client.markBulkTrashAttempt ?? teamApi.markBulkTrashAttempt)({
+                teamId,
+                groupId: intent.id,
+                materialId
+              }),
+            trash: async (materialId, idempotencyKey) => {
+              const row = byId.get(materialId);
+              if (!row) throw new Error('INVALID_INPUT');
+              await trashMaterialWithTail({
+                teamId,
+                material: { id: row.id, name: row.name, category: row.category },
+                client: tailClient,
+                idempotencyKey
+              });
+            },
+            settled: async () => {
+              changed();
+              await workspaceOperations?.refreshBulkTrash?.();
+            }
+          })
+            .then(async () => {
+              const receipts = await (client.listBulkTrash ?? teamApi.listBulkTrash)(teamId);
+              const group = receipts.find(receipt => receipt.id === intent.id);
+              const confirmed = group?.items.filter(item => item.state === 'confirmed').length ?? 0;
+              report(confirmed === intent.items.length);
+              push({
+                tone: confirmed === intent.items.length ? 'success' : 'warning',
+                text:
+                  confirmed === intent.items.length
+                    ? t('teamExplorerTrashedCount', { count: confirmed })
+                    : t('teamBulkTrashPartial', { confirmed, total: intent.items.length })
+              });
+            })
+            .catch(() => {
+              report(false);
+              push({ tone: 'warning', text: t('teamBulkTrashAwaiting') });
+            });
+        } catch (cause) {
+          report(false);
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        }
+        return;
+      }
       const trashed: string[] = [];
-      const selectedFolders = new Set(
-        rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
-      );
-      for (const row of rows) {
-        if (
-          row.parentFolderId &&
-          pathTo(row.parentFolderId).some(folder => selectedFolders.has(folder.driveFileId))
-        )
-          continue;
+      for (const row of targets) {
         try {
           // The transcript goes with its video, here as everywhere else.
           await trashMaterialWithTail({
@@ -1405,6 +1498,7 @@ function ExplorerBody({
     },
     [
       actionsClient,
+      client,
       changed,
       clearSelection,
       permissions?.delete,
@@ -1413,8 +1507,78 @@ function ExplorerBody({
       select,
       t,
       tailClient,
-      teamId
+      teamId,
+      workspaceOperations
     ]
+  );
+
+  const [retryingBulkTrash, setRetryingBulkTrash] = useState(false);
+  const bulkRetryInFlight = useRef(false);
+  const retryBulkTrash = useCallback(
+    async (groupId: string) => {
+      if (bulkRetryInFlight.current || !permissions?.delete) return;
+      bulkRetryInFlight.current = true;
+      setRetryingBulkTrash(true);
+      try {
+        const groups = await (client.listBulkTrash ?? teamApi.listBulkTrash)(teamId);
+        const group = groups.find(candidate => candidate.id === groupId);
+        if (!group) return;
+        const retryable: Array<{ materialId: string; idempotencyKey: string }> = [];
+        const categoryById = new Map(
+          group.items.map(item => [item.materialId, item.category ?? null])
+        );
+        for (const item of group.items) {
+          if (!['failed', 'unknown', 'queued'].includes(item.state)) continue;
+          const prepared = await (client.prepareBulkTrashRetry ?? teamApi.prepareBulkTrashRetry)({
+            teamId,
+            groupId,
+            materialId: item.materialId
+          });
+          if (prepared.status === 'retryable') {
+            retryable.push({
+              materialId: item.materialId,
+              idempotencyKey: prepared.idempotencyKey
+            });
+          }
+        }
+        if (retryable.length === 0) {
+          void workspaceOperations?.refreshBulkTrash?.();
+          return;
+        }
+        await executeBulkTrash({
+          intent: { id: group.id, requestId: group.requestId, items: retryable },
+          mark: materialId =>
+            (client.markBulkTrashAttempt ?? teamApi.markBulkTrashAttempt)({
+              teamId,
+              groupId,
+              materialId
+            }),
+          trash: async (materialId, idempotencyKey) => {
+            await trashMaterialWithTail({
+              teamId,
+              material: {
+                id: materialId,
+                name: '',
+                category: categoryById.get(materialId) ?? null
+              },
+              client: tailClient,
+              idempotencyKey
+            });
+          },
+          settled: async () => {
+            changed();
+            await workspaceOperations?.refreshBulkTrash?.();
+          }
+        });
+        await workspaceOperations?.refreshBulkTrash?.();
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      } finally {
+        bulkRetryInFlight.current = false;
+        setRetryingBulkTrash(false);
+      }
+    },
+    [changed, client, permissions?.delete, push, t, tailClient, teamId, workspaceOperations]
   );
 
   /**
@@ -2128,6 +2292,7 @@ function ExplorerBody({
                 onPreview={onPreview}
                 actions={actions}
                 rows={sortedRows}
+                bulkTrashState={bulkStatusById}
                 companionRows={folded.children}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
@@ -2140,6 +2305,7 @@ function ExplorerBody({
                 onPreview={onPreview}
                 actions={actions}
                 rows={sortedRows}
+                bulkTrashState={bulkStatusById}
                 companionCounts={folded.counts}
                 openedCompanions={openedCompanions}
                 onToggleCompanions={toggleCompanions}
@@ -2241,6 +2407,45 @@ function ExplorerBody({
           selection, and pinned to the same pixel the second hid the first. */}
       {processStack(
         <>
+          {bulkGroup && (
+            <ProcessPanel
+              title={t('teamBulkTrashTitle')}
+              detail={t('teamBulkTrashProgress', {
+                confirmed: bulkGroup.items.filter(item => item.state === 'confirmed').length,
+                total: bulkGroup.items.length
+              })}
+              progress={Math.round(
+                (bulkGroup.items.filter(item => item.state === 'confirmed').length /
+                  Math.max(1, bulkGroup.items.length)) *
+                  100
+              )}
+              active={bulkGroup.items.some(
+                item => item.state === 'queued' || item.state === 'active'
+              )}
+              actions={
+                permissions?.delete &&
+                !retryingBulkTrash &&
+                bulkGroup.items.some(item => ['failed', 'unknown', 'queued'].includes(item.state))
+                  ? [
+                      {
+                        label: t('teamBulkTrashRetry'),
+                        run: () => void retryBulkTrash(bulkGroup.id)
+                      }
+                    ]
+                  : []
+              }
+            >
+              <ul className="team-bulk-trash-receipts" aria-label={t('teamBulkTrashTitle')}>
+                {bulkGroup.items.map(item => (
+                  <li key={item.materialId}>
+                    {page.rows.find(row => row.id === item.materialId)?.name ??
+                      item.materialId.slice(-8)}{' '}
+                    <BulkTrashStatus state={item.state} />
+                  </li>
+                ))}
+              </ul>
+            </ProcessPanel>
+          )}
           {!space && (queue.active || queue.queued.length > 0) && (
             <AgentQueuePanel queue={queue} t={t} />
           )}

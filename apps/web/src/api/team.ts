@@ -27,9 +27,17 @@ import {
   parseLibraryVideoTextVariants,
   parseTaskAttachmentMutation,
   parseTeamTaskAttachmentSummary,
+  parseTeamTaskDetachResult,
   parseTeamTaskPatch,
   parseTeamAccount,
+  parseTeamAccountArchiveResult,
+  parseTeamAccountOverview,
   parseTeamAccountAgent,
+  parseTeamAccountOrderSnapshot,
+  parseTeamAccountReorderResult,
+  parseTeamBulkTrashIntent,
+  parseTeamBulkTrashGroups,
+  parseTeamBulkTrashRetry,
   parseTeamAgentRunMarkerSnapshots,
   parseTeamTaskAgentTags,
   parseTeamTaskLabel,
@@ -45,12 +53,20 @@ import {
   type TeamTaskLabelColor,
   type TeamTaskLabelRef,
   type TeamTaskSort,
+  type TeamTaskCopyRequest,
   normalizeTeamAccountName,
   normalizeTeamAgentId,
   validFinanceTimezone,
   normalizeTeamAgentNote,
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
+  type TeamAccountOrderSnapshot,
+  type TeamAccountReorderResult,
+  type TeamAccountArchiveResult,
+  type TeamBulkTrashIntent,
+  type TeamBulkTrashGroup,
+  type TeamBulkTrashRetry,
+  type TeamTaskDetachResult,
   type TeamAgentRunMarker,
   type TeamAgentRunMarkerSnapshot,
   parseUploadBatchRequest,
@@ -3454,6 +3470,67 @@ export const teamApi = {
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
   },
 
+  async beginBulkTrash(input: {
+    teamId: string;
+    requestId: string;
+    materialIds: string[];
+  }): Promise<TeamBulkTrashIntent> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('begin_team_bulk_trash', {
+        p_team: input.teamId,
+        p_request: input.requestId,
+        p_materials: input.materialIds
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamBulkTrashIntent(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async listBulkTrash(teamId: string): Promise<TeamBulkTrashGroup[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_bulk_trash', { p_team: teamId })
+    );
+    throwRpc(error);
+    const result = parseTeamBulkTrashGroups(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async markBulkTrashAttempt(input: {
+    teamId: string;
+    groupId: string;
+    materialId: string;
+  }): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('mark_team_bulk_trash_attempt', {
+        p_team: input.teamId,
+        p_group: input.groupId,
+        p_material: input.materialId
+      })
+    );
+    throwRpc(error);
+  },
+
+  async prepareBulkTrashRetry(input: {
+    teamId: string;
+    groupId: string;
+    materialId: string;
+  }): Promise<TeamBulkTrashRetry> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('prepare_team_bulk_trash_retry', {
+        p_team: input.teamId,
+        p_group: input.groupId,
+        p_material: input.materialId
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamBulkTrashRetry(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
   async restoreMaterial(input: {
     teamId: string;
     materialId: string;
@@ -3743,11 +3820,21 @@ export const teamApi = {
     );
   },
 
-  async copyTasks(input: { teamId: string; taskIds: string[] }): Promise<string[]> {
+  async getTaskTimezone(teamId: string): Promise<string> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_task_timezone', { p_team: teamId })
+    );
+    throwRpc(error);
+    if (!validFinanceTimezone(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async copyTasks(input: TeamTaskCopyRequest): Promise<string[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('copy_team_tasks', {
         p_team: input.teamId,
-        p_tasks: input.taskIds
+        p_tasks: input.taskIds,
+        p_request_id: input.requestId
       })
     );
     throwRpc(error);
@@ -3911,6 +3998,43 @@ export const teamApi = {
         p_team: teamId,
         p_task: taskId,
         p_material: materialId
+      })
+    );
+    throwRpc(error);
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async detachTaskMaterialV2(
+    teamId: string,
+    taskId: string,
+    materialId: string
+  ): Promise<TeamTaskDetachResult> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('detach_team_task_material_v2', {
+        p_team: teamId,
+        p_task: taskId,
+        p_material: materialId
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamTaskDetachResult(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async markTaskUpload(
+    teamId: string,
+    taskId: string,
+    materialId: string,
+    operationId: string
+  ): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('mark_team_task_upload', {
+        p_team: teamId,
+        p_task: taskId,
+        p_material: materialId,
+        p_operation: operationId
       })
     );
     throwRpc(error);
@@ -4408,11 +4532,30 @@ export const teamApi = {
   // Team accounts (017): the social accounts a space runs from, and their agents.
   // ---------------------------------------------------------------------------
 
-  /** Every account of a space with its agents nested — one round trip, no paging. */
-  async listAccounts(teamId: string): Promise<TeamAccountSummary[]> {
+  /** Stable UUID projection for ordered socials, launches and recorded finance placements. */
+  async getAccountLaunchFinanceOverview(teamId: string, from: string, to: string) {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_accounts', {
-        p_team: teamId
+      requireSupabaseClient().rpc('get_team_account_launch_finance_overview', {
+        p_team: teamId,
+        p_from: from,
+        p_to: to
+      })
+    );
+    throwRpc(error);
+    const overview = parseTeamAccountOverview(data);
+    if (!overview) throw new TeamApiError('INVALID_RESPONSE', false);
+    return overview;
+  },
+
+  /** Every account of a space with its agents nested — one round trip, no paging. */
+  async listAccounts(
+    teamId: string,
+    state: 'active' | 'archived' | 'all' = 'active'
+  ): Promise<TeamAccountSummary[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_accounts_by_state', {
+        p_team: teamId,
+        p_state: state
       })
     );
     throwRpc(error);
@@ -4423,6 +4566,7 @@ export const teamApi = {
     const parsedAccounts = accounts.filter(
       (account): account is TeamAccountSummary => account !== null
     );
+    if (state !== 'active') return parsedAccounts;
     const { data: seedRows, error: seedError } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_team_account_two_factor_seeds', { p_team: teamId })
     );
@@ -4439,6 +4583,60 @@ export const teamApi = {
       ...account,
       twoFactorSeed: seeds.get(account.id) ?? null
     }));
+  },
+
+  async setAccountArchived(input: {
+    teamId: string;
+    accountId: string;
+    archived: boolean;
+    expectedVersion: number;
+    requestId: string;
+  }): Promise<TeamAccountArchiveResult> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_account_archived', {
+        p_team: input.teamId,
+        p_account: input.accountId,
+        p_archived: input.archived,
+        p_expected_version: input.expectedVersion,
+        p_request_id: input.requestId
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamAccountArchiveResult(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
+  },
+
+  async getAccountOrder(teamId: string): Promise<TeamAccountOrderSnapshot> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_account_order', { p_team: teamId })
+    );
+    throwRpc(error);
+    const snapshot = parseTeamAccountOrderSnapshot(data);
+    if (!snapshot) throw new TeamApiError('INVALID_RESPONSE', false);
+    return snapshot;
+  },
+
+  async reorderAccounts(input: {
+    teamId: string;
+    scopeId: string;
+    ids: string[];
+    expectedVersion: number;
+    requestId: string;
+  }): Promise<TeamAccountReorderResult> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('reorder_team_accounts', {
+        p_team: input.teamId,
+        p_scope: input.scopeId,
+        p_ids: input.ids,
+        p_expected_version: input.expectedVersion,
+        p_request_id: input.requestId
+      })
+    );
+    throwRpc(error);
+    const result = parseTeamAccountReorderResult(data);
+    if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
+    return result;
   },
 
   async setAccountTwoFactor(input: {

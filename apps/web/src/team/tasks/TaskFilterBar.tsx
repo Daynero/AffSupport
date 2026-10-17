@@ -56,6 +56,7 @@ export function TaskFilterBar({
   onLabelIdsChange,
   sort,
   onSortChange,
+  timezone,
   trailing,
   display
 }: {
@@ -76,6 +77,7 @@ export function TaskFilterBar({
   onLabelIdsChange: (value: string[]) => void;
   sort: TeamTaskSort;
   onSortChange: (value: TeamTaskSort) => void;
+  timezone?: string;
   /** Anything the board wants at the end of the row. */
   trailing?: ReactNode;
   /** How the cards are drawn (024): switches that change the view, not what is on it. */
@@ -158,6 +160,7 @@ export function TaskFilterBar({
           status={status}
           onStatusChange={onStatusChange}
           inlineDays
+          timezone={timezone}
         >
           <div ref={filtersRoot} className="task-filter-more">
             {/* The chip says how many are on before the panel is opened: a

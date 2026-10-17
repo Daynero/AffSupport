@@ -31,7 +31,7 @@ function releaseManifest(
     summary,
     artifacts: {
       'macos-arm64': {
-        url: `https://example.test/Soty-v${version}.dmg`,
+        url: `https://github.com/Daynero/AffSupport/releases/download/v${version}/Soty-v${version}.dmg`,
         sha256: 'a'.repeat(64)
       }
     },
@@ -133,7 +133,7 @@ describe('update notice on Windows', () => {
   function withWindowsArtifact(version = '0.6.2') {
     const manifest = releaseManifest(version);
     manifest.artifacts['windows-x64'] = {
-      url: `https://example.test/Soty-v${version}-Windows-x64.exe`,
+      url: `https://github.com/Daynero/AffSupport/releases/download/v${version}/Soty-v${version}-Windows-x64.exe`,
       sha256: 'b'.repeat(64)
     };
     return manifest;

@@ -3,6 +3,7 @@ import type { BrowserFamily } from '../lib/browser';
 import {
   CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS,
   CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES,
+  TEAM_ACCOUNT_ARCHIVE_REASONS,
   MATERIAL_CATEGORIES,
   TEAM_ANALYTICS_ACTIONS,
   TEAM_ANALYTICS_CACHE_STATES,
@@ -328,6 +329,8 @@ export type AnalyticsProperties = {
   output_fps?: number;
   target_resolution?: number;
   image_embedding?: boolean;
+  image_start_selection?: 'off' | 'random' | 'explicit';
+  image_end_selection?: 'off' | 'random' | 'explicit';
   has_audio?: boolean;
   language?: 'en' | 'uk';
   marketing_consent?: boolean;
@@ -372,6 +375,8 @@ export interface TeamFileAttemptCompletedProperties extends TeamFileAttemptStart
 
 export interface TeamWorkflowStartedProperties {
   workflow_id: string;
+  item_count?: number;
+  action?: TeamAnalyticsAction;
   category: MaterialCategory;
   cache_state: TeamAnalyticsCacheState;
   attempt_number: number;
@@ -542,6 +547,8 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   output_fps: { kind: 'number', range: [1, 1000] },
   target_resolution: { kind: 'number', range: [16, 32_768] },
   image_embedding: { kind: 'boolean' },
+  image_start_selection: { kind: 'enum', values: ['off', 'random', 'explicit'] },
+  image_end_selection: { kind: 'enum', values: ['off', 'random', 'explicit'] },
   has_audio: { kind: 'boolean' },
   language: { kind: 'enum', values: ['en', 'uk'] },
   marketing_consent: { kind: 'boolean' },
@@ -553,6 +560,7 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   category: { kind: 'enum', values: MATERIAL_CATEGORIES },
   cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
   action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
+  archive_reason: { kind: 'enum', values: TEAM_ACCOUNT_ARCHIVE_REASONS },
   storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
   size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
   cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },

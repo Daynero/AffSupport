@@ -80,6 +80,29 @@ async function renderWorkspace(canEdit = true) {
   await screen.findByRole('textbox', { name: new RegExp(`${LABEL.spend} · USD$`) });
 }
 
+it('tracks the wrapped finance toolbar height for the sticky table header', async () => {
+  const originalObserver = globalThis.ResizeObserver;
+  let resized: (() => void) | undefined;
+  globalThis.ResizeObserver = class {
+    constructor(callback: ResizeObserverCallback) {
+      resized = () => callback([], this);
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver;
+  try {
+    await renderWorkspace();
+    const toolbar = document.querySelector('.finance-toolbar-sticky') as HTMLDivElement;
+    const section = toolbar.closest('section') as HTMLElement;
+    vi.spyOn(toolbar, 'getBoundingClientRect').mockReturnValue({ height: 112 } as DOMRect);
+    resized?.();
+    expect(section.style.getPropertyValue('--finance-toolbar-height')).toBe('112px');
+  } finally {
+    globalThis.ResizeObserver = originalObserver;
+  }
+});
+
 /** Empties one field and saves it through the bar, confirming the clear. */
 async function clearAndConfirm(metric: keyof typeof LABEL) {
   const user = userEvent.setup();

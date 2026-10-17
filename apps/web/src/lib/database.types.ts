@@ -310,6 +310,7 @@ export type GeneratedDatabase = {
           created_at: string;
           created_by: string;
           id: string;
+          sort_rank: number;
           team_id: string;
           topup: number | null;
           updated_at: string;
@@ -321,6 +322,7 @@ export type GeneratedDatabase = {
           created_at?: string;
           created_by: string;
           id?: string;
+          sort_rank: number;
           team_id: string;
           topup?: number | null;
           updated_at?: string;
@@ -332,6 +334,7 @@ export type GeneratedDatabase = {
           created_at?: string;
           created_by?: string;
           id?: string;
+          sort_rank?: number;
           team_id?: string;
           topup?: number | null;
           updated_at?: string;
@@ -359,6 +362,7 @@ export type GeneratedDatabase = {
           created_by: string;
           id: string;
           name: string;
+          sort_rank: number;
           team_id: string;
           updated_at: string;
         };
@@ -367,6 +371,7 @@ export type GeneratedDatabase = {
           created_by: string;
           id?: string;
           name: string;
+          sort_rank: number;
           team_id: string;
           updated_at?: string;
         };
@@ -375,6 +380,7 @@ export type GeneratedDatabase = {
           created_by?: string;
           id?: string;
           name?: string;
+          sort_rank?: number;
           team_id?: string;
           updated_at?: string;
         };
@@ -3520,7 +3526,7 @@ export type GeneratedDatabase = {
         };
       };
       copy_team_tasks: {
-        Args: { p_team: string; p_tasks: string[] };
+        Args: { p_team: string; p_tasks: string[]; p_request_id: string };
         Returns: string[];
       };
       create_team_task: {
@@ -3629,6 +3635,10 @@ export type GeneratedDatabase = {
       detach_team_task_material: {
         Args: { p_material: string; p_task: string; p_team: string };
         Returns: boolean;
+      };
+      detach_team_task_material_v2: {
+        Args: { p_material: string; p_task: string; p_team: string };
+        Returns: Json;
       };
       expire_team_invitations: { Args: Record<PropertyKey, never>; Returns: number };
       fail_library_job: {
@@ -3817,6 +3827,11 @@ export type GeneratedDatabase = {
       };
       get_share_preference: { Args: { p_team: string }; Returns: Json };
       get_task_progress_max_default: { Args: Record<PropertyKey, never>; Returns: number };
+      get_team_account_order: { Args: { p_team: string }; Returns: Json };
+      get_team_account_launch_finance_overview: {
+        Args: { p_team: string; p_from: string; p_to: string };
+        Returns: Json;
+      };
       get_team_agent_finance: {
         Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;
@@ -3888,6 +3903,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       get_team_task_progress_max_default: { Args: { p_team: string }; Returns: number };
+      get_team_task_timezone: { Args: { p_team: string }; Returns: string };
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
       get_transcript_delete_pref: { Args: Record<PropertyKey, never>; Returns: string };
       get_upload_batch: { Args: { p_batch: string; p_team: string }; Returns: Json };
@@ -4056,6 +4072,26 @@ export type GeneratedDatabase = {
           parent_folder_id: string;
         }[];
       };
+      begin_team_bulk_trash: {
+        Args: { p_team: string; p_request: string; p_materials: string[] };
+        Returns: Json;
+      };
+      list_team_bulk_trash: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
+      mark_team_bulk_trash_attempt: {
+        Args: { p_team: string; p_group: string; p_material: string };
+        Returns: undefined;
+      };
+      mark_team_task_upload: {
+        Args: { p_team: string; p_task: string; p_material: string; p_operation: string };
+        Returns: boolean;
+      };
+      prepare_team_bulk_trash_retry: {
+        Args: { p_team: string; p_group: string; p_material: string };
+        Returns: Json;
+      };
       list_team_account_two_factor_seeds: {
         Args: { p_team: string };
         Returns: {
@@ -4067,6 +4103,20 @@ export type GeneratedDatabase = {
         Args: { p_team: string };
         Returns: {
           agents: Json;
+          created_at: string;
+          id: string;
+          name: string;
+          task_count: number;
+          team_id: string;
+          updated_at: string;
+        }[];
+      };
+      list_team_accounts_by_state: {
+        Args: { p_team: string; p_state: string };
+        Returns: {
+          agents: Json;
+          archive_version: number;
+          archived_at: string | null;
           created_at: string;
           id: string;
           name: string;
@@ -4381,6 +4431,26 @@ export type GeneratedDatabase = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      reorder_team_accounts: {
+        Args: {
+          p_expected_version: number;
+          p_ids: string[];
+          p_request_id: string;
+          p_scope: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      set_team_account_archived: {
+        Args: {
+          p_team: string;
+          p_account: string;
+          p_archived: boolean;
+          p_expected_version: number;
+          p_request_id: string;
+        };
+        Returns: Json;
       };
       replace_team_product_catalog_texts: {
         Args: { p_items: Json; p_team: string };
@@ -5747,6 +5817,10 @@ export type GeneratedDatabase = {
       set_team_task_progress_max_default: {
         Args: { p_team: string; p_value: number };
         Returns: number;
+      };
+      set_team_task_timezone: {
+        Args: { p_team: string; p_timezone: string };
+        Returns: string;
       };
       set_transcript_delete_pref: { Args: { p_pref: string }; Returns: string };
       stop_team_catalog_updater: { Args: { p_team: string }; Returns: Json };

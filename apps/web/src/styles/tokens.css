@@ -258,6 +258,7 @@
 
   /* ---- Space -------------------------------------------------------------- */
   --finance-table-min-height: 240px;
+  --bulk-trash-list-max-height: 240px;
   --finance-date-column-width: 144px;
   --finance-agent-column-width: 160px;
   --finance-row-actions-width: 112px;

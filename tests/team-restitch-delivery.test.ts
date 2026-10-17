@@ -79,6 +79,8 @@ const library: ImageEmbeddingSettings = {
     }
   ],
   disabledImageIds: [],
+  selectedStartImageId: null,
+  selectedEndImageId: null,
   replaceExisting: true,
   finalDurationMode: 'random-30-40',
   customFinalDurationSeconds: 2700,

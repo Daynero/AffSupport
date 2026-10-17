@@ -1,8 +1,9 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import type { TeamTaskSummary } from '@video-compressor/shared';
+import type { TeamTaskCopyRequest, TeamTaskSummary } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
+import { analytics } from '../../analytics/service';
 
 const PREFIX = 'SOTY_TASKS_V1:';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -19,7 +20,35 @@ function editing(target: EventTarget | null): boolean {
 }
 
 export interface TaskCopyClient {
-  copyTasks?: (input: { teamId: string; taskIds: string[] }) => Promise<string[]>;
+  copyTasks?: (input: TeamTaskCopyRequest) => Promise<string[]>;
+}
+
+function pendingKey(teamId: string) {
+  return `soty.task-copy-retry:${teamId}`;
+}
+
+function readPending(teamId: string): { signature: string; requestId: string } | null {
+  try {
+    const raw = sessionStorage.getItem(pendingKey(teamId));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Record<string, unknown>;
+    return typeof value.signature === 'string' &&
+      typeof value.requestId === 'string' &&
+      UUID.test(value.requestId)
+      ? { signature: value.signature, requestId: value.requestId }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function savePending(teamId: string, value: { signature: string; requestId: string } | null) {
+  try {
+    if (value) sessionStorage.setItem(pendingKey(teamId), JSON.stringify(value));
+    else sessionStorage.removeItem(pendingKey(teamId));
+  } catch {
+    // Browser storage can be unavailable; the in-memory attempt still protects this tab.
+  }
 }
 
 /** Native copy/paste events support Cmd on macOS and Ctrl on Windows without
@@ -30,6 +59,7 @@ export function useTaskClipboard({
   canEdit,
   client,
   onPasted,
+  onPasteSettled,
   anchor
 }: {
   /** An element inside the task board: while the board is hidden (another
@@ -40,10 +70,12 @@ export function useTaskClipboard({
   canEdit: boolean;
   client: TaskCopyClient;
   onPasted: (ids: string[]) => Promise<void> | void;
+  onPasteSettled?: () => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const pasting = useRef(false);
+  const pending = useRef<{ signature: string; requestId: string } | null>(null);
   useEffect(() => {
     if (!canEdit || !client.copyTasks) return;
     const blocked = (event: ClipboardEvent) =>
@@ -62,6 +94,8 @@ export function useTaskClipboard({
           })
       );
       event.preventDefault();
+      pending.current = null;
+      savePending(teamId, null);
       push({ tone: 'success', text: t('teamTasksCopied', { count: selected.length }) });
     };
     const paste = (event: ClipboardEvent) => {
@@ -91,14 +125,58 @@ export function useTaskClipboard({
       }
       if (pasting.current) return;
       pasting.current = true;
-      void client.copyTasks!({ teamId, taskIds: payload.taskIds })
+      const signature = JSON.stringify([teamId, payload.taskIds]);
+      const previous = pending.current ?? readPending(teamId);
+      const requestId =
+        previous?.signature === signature ? previous.requestId : crypto.randomUUID();
+      pending.current = { signature, requestId };
+      savePending(teamId, pending.current);
+      const startedAt = Date.now();
+      analytics.track('team_workflow_started', {
+        workflow_id: requestId,
+        action: 'copy',
+        category: 'other',
+        cache_state: 'unknown',
+        attempt_number: 1,
+        stage: 'processing'
+      });
+      void client.copyTasks!({ teamId, taskIds: payload.taskIds, requestId })
         .then(async ids => {
           await onPasted(ids);
+          pending.current = null;
+          savePending(teamId, null);
+          analytics.track('team_workflow_completed', {
+            workflow_id: requestId,
+            action: 'copy',
+            category: 'other',
+            cache_state: 'unknown',
+            attempt_number: 1,
+            stage: 'finalizing',
+            duration_ms: Date.now() - startedAt,
+            outcome: 'success',
+            retryable: false,
+            production_completed: true
+          });
           push({ tone: 'success', text: t('teamTasksPasted', { count: ids.length }) });
         })
-        .catch(cause => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }))
+        .catch(cause => {
+          analytics.track('team_workflow_completed', {
+            workflow_id: requestId,
+            action: 'copy',
+            category: 'other',
+            cache_state: 'unknown',
+            attempt_number: 1,
+            stage: 'finalizing',
+            duration_ms: Date.now() - startedAt,
+            outcome: 'failure',
+            retryable: true,
+            production_completed: false
+          });
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        })
         .finally(() => {
           pasting.current = false;
+          onPasteSettled?.();
         });
     };
     document.addEventListener('copy', copy);
@@ -107,5 +185,5 @@ export function useTaskClipboard({
       document.removeEventListener('copy', copy);
       document.removeEventListener('paste', paste);
     };
-  }, [canEdit, client, onPasted, push, selected, t, teamId]);
+  }, [canEdit, client, onPasted, onPasteSettled, push, selected, t, teamId]);
 }

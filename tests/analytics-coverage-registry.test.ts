@@ -118,6 +118,21 @@ describe('coverage registry · contract', () => {
     }
   });
 
+  it('keeps 037 hosted receipts and the archive journey explicit', () => {
+    for (const id of ['team.task_copy', 'team.account_order', 'team.account_archive']) {
+      const capability = COVERAGE_REGISTRY.find(item => item.id === id);
+      expect(capability?.source).toBe('authoritative_table');
+      expect(capability?.producerStatus).toBe('emitted');
+      expect(capability?.stages).toContain('delivered');
+    }
+    for (const id of ['team.bulk_trash', 'team.task_detach']) {
+      expect(COVERAGE_REGISTRY.find(item => item.id === id)?.source).toBe('authoritative_table');
+    }
+    const archive = COVERAGE_REGISTRY.find(item => item.id === 'team.account_archive');
+    expect(archive?.stages).toContain('active_launch_guard');
+    expect(archive?.unobservable).toContain('launch content and social/account identifiers');
+  });
+
   it('marks a signal `emitted` only when a call site in the web or shared source tracks it', () => {
     const emittedWithoutProducer: string[] = [];
     for (const capability of COVERAGE_REGISTRY) {

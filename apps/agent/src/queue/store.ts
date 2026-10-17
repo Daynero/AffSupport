@@ -364,6 +364,9 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
           (id): id is string => typeof id === 'string'
         )
       : [],
+    selectedStartImageId:
+      typeof raw.selectedStartImageId === 'string' ? raw.selectedStartImageId : null,
+    selectedEndImageId: typeof raw.selectedEndImageId === 'string' ? raw.selectedEndImageId : null,
     finalDurationMode:
       raw.finalDurationMode === 'random-30-40' ||
       raw.finalDurationMode === 'random-40-50' ||
@@ -404,6 +407,14 @@ function migrateJobImageEmbedding(value: unknown): JobImageEmbedding | null {
   return {
     startImage,
     endImage,
+    startSelectionMode:
+      startImage && raw.startSelectionMode === 'explicit'
+        ? 'explicit'
+        : startImage
+          ? 'random'
+          : 'off',
+    endSelectionMode:
+      endImage && raw.endSelectionMode === 'explicit' ? 'explicit' : endImage ? 'random' : 'off',
     startDurationMode: settings.startDurationMode,
     customStartDurationMs: settings.customStartDurationMs,
     finalDurationMode: settings.finalDurationMode,

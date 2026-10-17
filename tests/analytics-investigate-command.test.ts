@@ -24,6 +24,18 @@ const U_LINK = '0a000000-0000-4000-8000-000000000002';
 const U_STITCH = '0a000000-0000-4000-8000-000000000003';
 const U_STALE = '0a000000-0000-4000-8000-000000000004';
 const U_EMPTY = '0a000000-0000-4000-8000-000000000005';
+const U_COPY = '0a000000-0000-4000-8000-000000000006';
+const U_ORDER = '0a000000-0000-4000-8000-000000000007';
+const COPY_CONFIRMED = '6a000000-0000-4000-8000-000000000001';
+const COPY_UNKNOWN = '6a000000-0000-4000-8000-000000000002';
+const ORDER_CONFIRMED = '6b000000-0000-4000-8000-000000000001';
+const ORDER_UNKNOWN = '6b000000-0000-4000-8000-000000000002';
+const ORDER_CONFLICT = '6b000000-0000-4000-8000-000000000003';
+const ARCHIVE_CONFIRMED = '6f000000-0000-4000-8000-000000000001';
+const ARCHIVE_UNKNOWN = '6f000000-0000-4000-8000-000000000002';
+const ARCHIVE_BLOCKED = '6f000000-0000-4000-8000-000000000003';
+const BULK_PARTIAL = '6c000000-0000-4000-8000-000000000001';
+const BULK_UNKNOWN = '6c000000-0000-4000-8000-000000000002';
 
 const INST_T = '1b000000-0000-4000-8000-000000000001';
 const INST_L = '1b000000-0000-4000-8000-000000000002';
@@ -133,7 +145,9 @@ beforeAll(async () => {
       ('${U_LINK}', 'link@example.test', 'link@example.test', '2026-10-06T10:00:00Z', null),
       ('${U_STITCH}', 'stitch@example.test', 'stitch@example.test', '2026-10-07T10:00:00Z', null),
       ('${U_STALE}', 'stale@example.test', 'stale@example.test', '2026-10-07T10:00:00Z', null),
-      ('${U_EMPTY}', 'empty@example.test', 'empty@example.test', '2026-10-08T10:00:00Z', null);
+      ('${U_EMPTY}', 'empty@example.test', 'empty@example.test', '2026-10-08T10:00:00Z', null),
+      ('${U_COPY}', 'copy@example.test', 'copy@example.test', '2026-10-08T10:00:00Z', null),
+      ('${U_ORDER}', 'order@example.test', 'order@example.test', '2026-10-08T10:00:00Z', null);
   `);
 
   const T = {
@@ -352,6 +366,133 @@ beforeAll(async () => {
       ('7a000000-0000-4000-8000-000000000001', '7b000000-0000-4000-8000-000000000001',
        'trans@example.test', 'failed', 'DRIVE_FORBIDDEN', 'secret detail', '2026-10-04T00:00:00Z', '2026-10-04T01:00:00Z');
   `);
+  await db.exec(
+    insertEvents([
+      {
+        user: U_COPY,
+        name: 'team_workflow_started',
+        at: '2026-10-08T10:00:00Z',
+        props: { action: 'copy', workflow_id: COPY_CONFIRMED, category: 'other' }
+      },
+      {
+        user: U_COPY,
+        name: 'team_workflow_started',
+        at: '2026-10-08T10:01:00Z',
+        props: { action: 'copy', workflow_id: COPY_UNKNOWN, category: 'other' }
+      }
+    ])
+  );
+  await db.exec(`insert into public.analytics_task_copy_receipts
+    (actor_id, request_id, result_count, created_at) values
+    ('${U_COPY}', '${COPY_CONFIRMED}', 2, '2026-10-08T10:00:01Z')`);
+  await db.exec(
+    insertEvents([
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:00:00Z',
+        props: { action: 'reorder', workflow_id: ORDER_CONFIRMED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_completed',
+        at: '2026-10-08T11:00:01Z',
+        outcome: 'success',
+        props: { action: 'reorder', workflow_id: ORDER_CONFIRMED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:01:00Z',
+        props: { action: 'reorder', workflow_id: ORDER_UNKNOWN }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:02:00Z',
+        props: { action: 'reorder', workflow_id: ORDER_CONFLICT }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_completed',
+        at: '2026-10-08T11:02:01Z',
+        outcome: 'blocked',
+        props: { action: 'reorder', workflow_id: ORDER_CONFLICT }
+      }
+    ])
+  );
+  await db.exec(`insert into public.analytics_account_order_receipts
+    (actor_id, request_id, scope_kind, result_version, created_at) values
+    ('${U_ORDER}', '${ORDER_CONFIRMED}', 'socials', 5, '2026-10-08T11:00:01Z')`);
+  await db.exec(
+    insertEvents([
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:10:00Z',
+        props: { action: 'archive', workflow_id: ARCHIVE_CONFIRMED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_completed',
+        at: '2026-10-08T11:10:01Z',
+        outcome: 'success',
+        props: { action: 'archive', workflow_id: ARCHIVE_CONFIRMED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:11:00Z',
+        props: { action: 'restore', workflow_id: ARCHIVE_UNKNOWN }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T11:12:00Z',
+        props: { action: 'archive', workflow_id: ARCHIVE_BLOCKED }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_completed',
+        at: '2026-10-08T11:12:01Z',
+        outcome: 'blocked',
+        props: { action: 'archive', workflow_id: ARCHIVE_BLOCKED, archive_reason: 'active_launch' }
+      }
+    ])
+  );
+  await db.exec(`insert into public.analytics_account_archive_receipts
+    (actor_id, request_id, desired_archived, result_version, created_at) values
+    ('${U_ORDER}', '${ARCHIVE_CONFIRMED}', true, 1, '2026-10-08T11:10:01Z')`);
+  await db.exec(
+    insertEvents([
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T12:00:00Z',
+        props: { action: 'trash', workflow_id: BULK_PARTIAL, item_count: 3 }
+      },
+      {
+        user: U_ORDER,
+        name: 'team_workflow_started',
+        at: '2026-10-08T12:01:00Z',
+        props: { action: 'trash', workflow_id: BULK_UNKNOWN, item_count: 2 }
+      }
+    ])
+  );
+  await db.exec(`insert into public.analytics_bulk_trash_receipts
+    (actor_id,request_id,group_id,item_count,queued_count,active_count,confirmed_count,
+     failed_count,unknown_count,error_codes,created_at,last_operation_at) values
+    ('${U_ORDER}','${BULK_PARTIAL}','6d000000-0000-4000-8000-000000000001',
+     3,0,0,1,1,1,array['PROVIDER_FAILURE'],'2026-10-08T12:00:00Z','2026-10-08T12:00:02Z')`);
+  await db.exec(`insert into public.analytics_task_orphan_receipts
+    (actor_id,intent_id,detached_at,cleanup_not_before,state,reason_code,
+     attempt_count,updated_at,has_operation) values
+    ('${U_ORDER}','6e000000-0000-4000-8000-000000000001',
+     '2026-10-08T13:00:00Z','2026-10-08T13:00:30Z',
+     'cleanup_unverified','PROVENANCE_UNKNOWN',0,'2026-10-08T13:00:00Z',false),
+    ('${U_ORDER}','6e000000-0000-4000-8000-000000000002',
+     '2026-10-08T13:01:00Z','2026-10-08T13:01:30Z',
+     'confirmed_in_trash',null,1,'2026-10-08T13:02:00Z',true)`);
 }, 60_000);
 
 afterAll(async () => {
@@ -374,6 +515,107 @@ function finding(data: InvestigateData, rule: string): InvestigateFinding {
 function withoutFiles(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value, (key, entry) => (key === 'files' ? undefined : entry)));
 }
+
+describe('investigate · task copy receipt', () => {
+  it('proves committed copies and leaves attempts without a receipt unknown', async () => {
+    const data = await investigate('copy@example.test');
+    expect(data.task_copies).toEqual([
+      {
+        request_id: COPY_UNKNOWN,
+        status: 'unknown',
+        result_count: null,
+        attempted_at: '2026-10-08T10:01:00.000Z',
+        confirmed_at: null
+      },
+      {
+        request_id: COPY_CONFIRMED,
+        status: 'confirmed',
+        result_count: 2,
+        attempted_at: '2026-10-08T10:00:00.000Z',
+        confirmed_at: '2026-10-08T10:00:01.000Z'
+      }
+    ]);
+    expect(finding(data, 'task_copy_unconfirmed').kind).toBe('insufficient');
+    expect(finding(data, 'task_copy_unconfirmed').code_locations[0]).toMatchObject({
+      matched: 'team:task_copy:unconfirmed',
+      files: expect.arrayContaining(['apps/web/src/team/tasks/useTaskClipboard.ts'])
+    });
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
+
+describe('investigate · account order receipt', () => {
+  it('distinguishes a confirmed write, server conflict and unknown delivery without IDs', async () => {
+    const data = await investigate('order@example.test');
+    expect(data.account_orders.map(row => [row.request_id, row.status])).toEqual([
+      [ORDER_CONFLICT, 'conflict'],
+      [ORDER_UNKNOWN, 'unknown'],
+      [ORDER_CONFIRMED, 'confirmed']
+    ]);
+    expect(data.account_orders[2]).toMatchObject({ scope_kind: 'socials', result_version: 5 });
+    expect(finding(data, 'account_order_unconfirmed').kind).toBe('insufficient');
+    expect(finding(data, 'account_order_unconfirmed').code_locations[0]).toMatchObject({
+      matched: 'team:account_order:unconfirmed',
+      files: expect.arrayContaining(['apps/web/src/team/accounts/useAccounts.ts'])
+    });
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
+
+describe('investigate · account archive receipt', () => {
+  it('proves commits, explains active-launch refusal and preserves unknown delivery', async () => {
+    const data = await investigate('order@example.test');
+    expect(data.account_archives.map(row => [row.request_id, row.status])).toEqual([
+      [ARCHIVE_BLOCKED, 'blocked'],
+      [ARCHIVE_UNKNOWN, 'unknown'],
+      [ARCHIVE_CONFIRMED, 'confirmed']
+    ]);
+    expect(data.account_archives[0].reason).toBe('active_launch');
+    expect(data.account_archives[2]).toMatchObject({ action: 'archive', result_version: 1 });
+    expect(finding(data, 'account_archive_active_launch').kind).toBe('fact');
+    expect(finding(data, 'account_archive_unconfirmed').kind).toBe('insufficient');
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
+
+describe('investigate · bulk trash receipt', () => {
+  it('shows per-group partial and unknown outcomes without material details', async () => {
+    const data = await investigate('order@example.test');
+    expect(data.bulk_trash.map(row => [row.request_id, row.status])).toEqual([
+      [BULK_UNKNOWN, 'unknown'],
+      [BULK_PARTIAL, 'partial']
+    ]);
+    expect(data.bulk_trash[1]).toMatchObject({
+      item_count: 3,
+      confirmed_count: 1,
+      failed_count: 1,
+      unknown_count: 1,
+      error_codes: ['PROVIDER_FAILURE']
+    });
+    expect(finding(data, 'bulk_trash_unconfirmed').kind).toBe('insufficient');
+    expect(finding(data, 'bulk_trash_unconfirmed').code_locations[0]).toMatchObject({
+      matched: 'team:bulk_trash:unconfirmed',
+      files: expect.arrayContaining(['apps/web/src/team/explorer/WorkspaceOperationsProvider.tsx'])
+    });
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
+
+describe('investigate · task orphan receipt', () => {
+  it('explains retained cleanup by stable reason without a task ID, material ID or path', async () => {
+    const data = await investigate('order@example.test');
+    expect(data.task_orphans.map(row => [row.status, row.has_operation])).toEqual([
+      ['confirmed_in_trash', true],
+      ['cleanup_unverified', false]
+    ]);
+    expect(data.task_orphans[1]?.reason_code).toBe('PROVENANCE_UNKNOWN');
+    expect(finding(data, 'task_orphan_not_confirmed')).toMatchObject({
+      kind: 'fact',
+      fingerprint: 'task-orphan:PROVENANCE_UNKNOWN'
+    });
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+});
 
 describe('investigate · (a) failed transcription with a code', () => {
   it('reports a fact with the stage, the code and the files', async () => {
@@ -443,6 +685,9 @@ describe('investigate · (a) failed transcription with a code', () => {
       states: { failed: 1 },
       error_codes: ['DRIVE_FORBIDDEN']
     });
+    expect(data.coverage.blind_spots).toContainEqual(
+      expect.objectContaining({ kind: 'image_selection_signal_missing', values: ['1.2.6'] })
+    );
     expect(JSON.stringify(data)).not.toContain('secret detail');
   });
 });

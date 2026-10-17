@@ -20,6 +20,7 @@ import type { ChildProcess } from 'node:child_process';
 import type { SourceProfile, StitchPlan } from '@video-compressor/shared';
 import { concatSegmentDuration, ffmpegPath } from '../ffmpeg/tools.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { diagnostics } from '../server/diagnostics-log.js';
 import {
   buildBodyRemuxArgs,
   buildConcatArgs,
@@ -28,6 +29,7 @@ import {
 } from '../ffmpeg/stitch-presets.js';
 import { audioShapeDisagreements, measureAudioShape } from './audio-shape.js';
 import { runTool, toolSucceeded } from './run.js';
+import { measureOutput } from './verify.js';
 
 const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 
@@ -44,7 +46,8 @@ const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 //    carried both configurations at once and went silent at the seam.
 // 6: old average-FPS frame limits could cache only seconds of a minutes-long body.
 // 7: concat must wait for the last presented B-frame, not an early MP4 duration.
-const PREPARED_BODY_FORMAT = 7;
+// 8: reject copied bodies with a shifted audio track and recover by encoding the body.
+const PREPARED_BODY_FORMAT = 8;
 
 export interface PreparedBody {
   path: string;
@@ -57,6 +60,8 @@ export type PrepareResult = { ok: true; value: PreparedBody } | { ok: false; err
 export interface PrepareOptions {
   profile: SourceProfile;
   plan: StitchPlan;
+  /** Same queue id the browser sends as run_id. */
+  runId?: string;
   threads?: number | null;
   signal?: AbortSignal;
   onChild?: (child: ChildProcess) => void;
@@ -177,6 +182,8 @@ async function buildBody(
       run
     );
     if (!toolSucceeded(remux)) return { ok: false, error: failureOf(remux, 'BODY_REMUX') };
+    if (await bodyNeedsRecovery(output, profile, plan, options.signal))
+      return reencodeWholeBody(workDir, options, 'track_timing');
     return { ok: true, value: { path: output, headWasReencoded: false } };
   }
 
@@ -197,8 +204,11 @@ async function buildBody(
   );
   if (!toolSucceeded(head)) return { ok: false, error: failureOf(head, 'BODY_HEAD') };
 
-  if (headEnd >= plan.bodyEndSeconds - 1e-6)
+  if (headEnd >= plan.bodyEndSeconds - 1e-6) {
+    if (await bodyNeedsRecovery(headPath, profile, plan, options.signal))
+      return reencodeWholeBody(workDir, options, 'track_timing');
     return { ok: true, value: { path: headPath, headWasReencoded: true } };
+  }
 
   const tailPath = path.join(workDir, 'tail.mp4');
   const tail = await runTool(
@@ -224,7 +234,29 @@ async function buildBody(
     measureAudioShape(tailPath, run)
   ]);
   if (audioShapeDisagreements(shapes).length > 0)
-    return { ok: false, error: 'BODY_AUDIO_MISMATCH' };
+    return reencodeWholeBody(
+      workDir,
+      options,
+      shapes.some(shape => shape !== null && shape.profile === null)
+        ? 'audio_profile_unknown'
+        : 'audio_shape_mismatch'
+    );
+
+  // A stream copy can carry packets from before the seek point. On some MP4 edit lists
+  // FFmpeg then shifts the audio several seconds after the picture. Both parts can still
+  // say AAC-LC, so compare their actual track lengths before joining them.
+  if (
+    await bodyNeedsRecovery(
+      tailPath,
+      profile,
+      {
+        ...plan,
+        bodyStartSeconds: headEnd
+      },
+      options.signal
+    )
+  )
+    return reencodeWholeBody(workDir, options, 'track_timing');
 
   const listPath = path.join(workDir, 'body.txt');
   const headConcatSeconds = await concatSegmentDuration(headPath);
@@ -237,6 +269,67 @@ async function buildBody(
   const output = path.join(workDir, 'body.mp4');
   const joined = await runTool(ffmpegPath, buildConcatArgs({ listPath, output }), run);
   if (!toolSucceeded(joined)) return { ok: false, error: failureOf(joined, 'BODY_JOIN') };
+  if (await bodyNeedsRecovery(output, profile, plan, options.signal))
+    return reencodeWholeBody(workDir, options, 'track_timing');
+  return { ok: true, value: { path: output, headWasReencoded: true } };
+}
+
+async function bodyNeedsRecovery(
+  output: string,
+  profile: SourceProfile,
+  plan: Pick<StitchPlan, 'bodyStartSeconds' | 'bodyEndSeconds'>,
+  signal?: AbortSignal
+): Promise<boolean> {
+  const measured = await measureOutput(output, { signal });
+  if (!measured) return true;
+  const tolerance = Math.max(0.25, 3 / profile.frameRate);
+  if (
+    Math.abs(measured.videoTrackSeconds - (plan.bodyEndSeconds - plan.bodyStartSeconds)) > tolerance
+  )
+    return true;
+  if (!profile.hasAudio) return false;
+  return (
+    measured.audioCodec === null ||
+    Math.abs(measured.videoTrackSeconds - measured.audioTrackSeconds) > tolerance
+  );
+}
+
+async function reencodeWholeBody(
+  workDir: string,
+  options: PrepareOptions,
+  reason: 'audio_profile_unknown' | 'audio_shape_mismatch' | 'track_timing'
+): Promise<
+  { ok: true; value: { path: string; headWasReencoded: boolean } } | { ok: false; error: string }
+> {
+  const { profile, plan } = options;
+  const output = path.join(workDir, 'body-recovered.mp4');
+  const props = { reason, ...(options.runId ? { runId: options.runId } : {}) };
+  diagnostics.record('stitcher', 'body_recovery_started', props);
+  const result = await runTool(
+    ffmpegPath,
+    buildHeadReencodeArgs({
+      input: profile.path,
+      output,
+      startSeconds: plan.bodyStartSeconds,
+      endSeconds: plan.bodyEndSeconds,
+      profile,
+      threads: options.threads
+    }),
+    { signal: options.signal, onChild: options.onChild }
+  );
+  if (!toolSucceeded(result)) {
+    diagnostics.record('stitcher', 'body_recovery_failed', {
+      ...props,
+      stage: 'encode',
+      cancelled: result.cancelled
+    });
+    return { ok: false, error: failureOf(result, 'BODY_RECOVERY') };
+  }
+  if (await bodyNeedsRecovery(output, profile, plan, options.signal)) {
+    diagnostics.record('stitcher', 'body_recovery_failed', { ...props, stage: 'verification' });
+    return { ok: false, error: 'BODY_RECOVERY_VERIFICATION_FAILED' };
+  }
+  diagnostics.record('stitcher', 'body_recovery_completed', props);
   return { ok: true, value: { path: output, headWasReencoded: true } };
 }
 

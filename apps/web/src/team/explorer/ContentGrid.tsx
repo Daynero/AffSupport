@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   LandingRenderPointer,
   RenderArtifactRef,
+  TeamBulkTrashItem,
   TeamMaterialRow,
   ThumbnailSession
 } from '@video-compressor/shared';
@@ -15,6 +16,7 @@ import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
+import { BulkTrashStatus } from './BulkTrashStatus';
 import { useMaterialDrag } from './materialDrag';
 import { suppressShiftTextSelection, useRowPress } from './useSelectionGestures';
 import type { Modifiers } from './selectionGestures';
@@ -60,7 +62,8 @@ export function ContentGrid({
   emptyAction,
   emptyState,
   onDropMaterials,
-  companionRows
+  companionRows,
+  bulkTrashState
 }: {
   client: ContentGridClient;
   /** The folder's rows, held by the shell so one listing serves everything. */
@@ -79,6 +82,7 @@ export function ContentGrid({
    * having to know what order the shell would have put them in.
    */
   rows?: readonly TeamMaterialRow[];
+  bulkTrashState?: ReadonlyMap<string, TeamBulkTrashItem['state']>;
   onPreview?: (material: TeamMaterialSummary) => void;
   actions?: RowActionsProps;
   /** Present only for the space's owner (011). */
@@ -180,6 +184,7 @@ export function ContentGrid({
           <Tile
             key={row.id}
             row={row}
+            bulkTrashState={bulkTrashState?.get(row.id)}
             session={session}
             client={client}
             render={renders.get(row.id) ?? null}
@@ -212,6 +217,7 @@ export function ContentGrid({
 
 function Tile({
   row,
+  bulkTrashState,
   session,
   client,
   render,
@@ -230,6 +236,7 @@ function Tile({
   companionSelected = false
 }: {
   row: TeamMaterialRow;
+  bulkTrashState?: TeamBulkTrashItem['state'];
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
   dropTarget: boolean;
   session: ThumbnailSession | null;
@@ -353,6 +360,7 @@ function Tile({
       )}
       <div className="team-explorer-tile-caption">
         <span className="team-explorer-tile-name">{row.name}</span>
+        {bulkTrashState && <BulkTrashStatus state={bulkTrashState} />}
         {/* One quiet line under the name, as Drive and Frame.io draw it (024):
             the picture already says "image" or "video", so the kind is named
             only where there is no picture; then size and date. The colour tag

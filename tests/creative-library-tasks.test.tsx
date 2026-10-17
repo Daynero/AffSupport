@@ -23,6 +23,7 @@ import { TaskEditor } from '../apps/web/src/team/tasks/TaskEditor';
 import { TaskSpace, type TaskSpaceClient } from '../apps/web/src/team/tasks/TaskSpace';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '../apps/web/src/components/toast';
+import { analytics } from '../apps/web/src/analytics/service';
 
 /**
  * Task surfaces report their outcomes through the shared toast channel, and the
@@ -177,6 +178,114 @@ async function openTileMenu() {
 }
 
 describe('Creative Library task workflows', () => {
+  it('reads the space timezone before settling on the task date bounds', async () => {
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    localStorage.setItem(
+      `soty.team-view.v1:${TEAM_ID}:tasks.date`,
+      JSON.stringify({ kind: 'range', from: '2026-03-29', to: '2026-03-29' })
+    );
+    const api = client();
+    api.getTaskTimezone = vi.fn().mockResolvedValue('America/Los_Angeles');
+    render(<TaskSpace teamId={TEAM_ID} client={api} />);
+    await waitFor(() =>
+      expect(api.listTasks).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createdFrom: '2026-03-29T07:00:00.000Z',
+          createdTo: '2026-03-30T07:00:00.000Z'
+        })
+      )
+    );
+  });
+
+  it('clears copied selection and board search so the next card selects on the first click', async () => {
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const api = client();
+    const copiedId = '31000000-0000-4000-8000-000000000007';
+    let copied = false;
+    api.listTasks = vi
+      .fn()
+      .mockImplementation(async () =>
+        copied ? [task(), { ...task(), id: copiedId, title: 'Copied task' }] : [task()]
+      );
+    api.copyTasks = vi.fn().mockImplementation(async () => {
+      copied = true;
+      return [copiedId];
+    });
+    render(<TaskSpace teamId={TEAM_ID} client={api} />);
+    const source = await screen.findByRole('checkbox', { name: /Select.*Task: launch.mp4/i });
+    await userEvent.click(source);
+    await userEvent.type(screen.getByRole('searchbox', { name: /Find a task/i }), 'launch');
+    fireEvent.paste(document, {
+      clipboardData: {
+        getData: () => `SOTY_TASKS_V1:${JSON.stringify({ teamId: TEAM_ID, taskIds: [TASK_ID] })}`
+      }
+    });
+
+    const next = await screen.findByRole('checkbox', { name: /Select.*Copied task/i });
+    await waitFor(() => expect((source as HTMLInputElement).checked).toBe(false));
+    await userEvent.click(next);
+    expect((next as HTMLInputElement).checked).toBe(true);
+    expect(api.copyTasks).toHaveBeenCalledOnce();
+    const requestId = vi.mocked(api.copyTasks).mock.calls[0][0].requestId;
+    expect(track).toHaveBeenCalledWith(
+      'team_workflow_started',
+      expect.objectContaining({
+        workflow_id: requestId,
+        action: 'copy',
+        stage: 'processing'
+      })
+    );
+    expect(track).toHaveBeenCalledWith(
+      'team_workflow_completed',
+      expect.objectContaining({
+        workflow_id: requestId,
+        action: 'copy',
+        outcome: 'success',
+        production_completed: true
+      })
+    );
+  });
+
+  it('blocks duplicate paste and releases selection after a failed copy', async () => {
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+    localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+    const other = { ...task(), id: '31000000-0000-4000-8000-000000000008', title: 'Other task' };
+    const api = client();
+    api.listTasks = vi.fn().mockResolvedValue([task(), other]);
+    let rejectCopy: (reason: Error) => void = () => {};
+    api.copyTasks = vi.fn().mockReturnValue(
+      new Promise<string[]>((_, reject) => {
+        rejectCopy = reject;
+      })
+    );
+    render(<TaskSpace teamId={TEAM_ID} client={api} />);
+    const source = await screen.findByRole('checkbox', { name: /Select.*Task: launch.mp4/i });
+    await userEvent.click(source);
+    const clipboardData = {
+      getData: () => `SOTY_TASKS_V1:${JSON.stringify({ teamId: TEAM_ID, taskIds: [TASK_ID] })}`
+    };
+    fireEvent.paste(document, { clipboardData });
+    fireEvent.paste(document, { clipboardData });
+    expect(api.copyTasks).toHaveBeenCalledOnce();
+    rejectCopy(new Error('CONNECTION_LOST'));
+    await waitFor(() => expect((source as HTMLInputElement).checked).toBe(false));
+    const requestId = vi.mocked(api.copyTasks).mock.calls[0][0].requestId;
+    expect(track).toHaveBeenCalledWith(
+      'team_workflow_completed',
+      expect.objectContaining({
+        workflow_id: requestId,
+        action: 'copy',
+        outcome: 'failure',
+        production_completed: false
+      })
+    );
+
+    const next = screen.getByRole('checkbox', { name: /Select.*Other task/i });
+    await userEvent.click(next);
+    expect((next as HTMLInputElement).checked).toBe(true);
+  });
+
   it('chunks an unlimited UI attachment selection into idempotent batches of 100', async () => {
     const attachTaskMaterials = vi.fn(async ({ materialIds }: { materialIds: string[] }) => ({
       attached: materialIds,

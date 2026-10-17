@@ -11,6 +11,10 @@ import { PGlite, type Extensions } from '@electric-sql/pglite';
  */
 
 const MIGRATIONS_DIR = 'supabase/migrations';
+// The subsequent 037 migrations require the still separate Launches 035 schema.
+// PGlite suites without that dependency exercise the complete standalone chain;
+// the Launches-dependent migrations run in the isolated PostgreSQL pgTAP suite.
+const LATEST_STANDALONE_MIGRATION = '20261203102200_task_orphan_attach_fence.sql';
 
 /**
  * Supabase provides these; a bare Postgres does not. They are stubs, not
@@ -137,7 +141,7 @@ export async function createTeamTestDb(
   const files = readdirSync(MIGRATIONS_DIR)
     .filter(
       name =>
-        name.endsWith('.sql') && (!options.throughMigration || name <= options.throughMigration)
+        name.endsWith('.sql') && name <= (options.throughMigration ?? LATEST_STANDALONE_MIGRATION)
     )
     .sort();
   for (const file of files) {

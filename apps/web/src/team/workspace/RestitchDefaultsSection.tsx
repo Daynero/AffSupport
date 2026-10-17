@@ -133,6 +133,8 @@ function embeddingOf(form: RestitchForm): ImageEmbeddingSettings {
     startImages: [],
     endImages: [],
     disabledImageIds: [],
+    selectedStartImageId: null,
+    selectedEndImageId: null,
     ...form
   };
 }

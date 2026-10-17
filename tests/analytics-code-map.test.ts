@@ -17,6 +17,13 @@ import {
 } from '../apps/web/src/analytics/errors';
 import { compressionErrorStage } from '../apps/web/src/analytics/compression';
 import { CODE_MAP, lookupCodeLocations } from '../scripts/analytics/code-map';
+import {
+  TEAM_ERROR_CODES,
+  TEAM_TASK_ORPHAN_REASON_CODES,
+  TEAM_WORKSPACE_DIAGNOSTIC_JOURNEYS,
+  parseTeamEdgeResult
+} from '../packages/shared/src/team/index';
+import { teamErrorMessage } from '../apps/web/src/team/errors';
 
 /**
  * 033 FR-008 / T007 — every failure the product can name points at code. A new code in a
@@ -164,5 +171,34 @@ describe('lookupCodeLocations', () => {
     const hit = lookupCodeLocations('link:timeout');
     hit?.files.push('mutated');
     expect(CODE_MAP['link:timeout'].files).not.toContain('mutated');
+  });
+});
+
+describe('037 workspace diagnostic contract', () => {
+  it('names six bounded journeys with opaque correlations and no content fields', () => {
+    expect(Object.keys(TEAM_WORKSPACE_DIAGNOSTIC_JOURNEYS)).toEqual([
+      'task_copy',
+      'task_detach',
+      'bulk_trash',
+      'account_order',
+      'account_archive',
+      'image_choice'
+    ]);
+    for (const journey of Object.values(TEAM_WORKSPACE_DIAGNOSTIC_JOURNEYS)) {
+      expect(['workflow_id', 'intent_id', 'run_id']).toContain(journey.correlate);
+      expect(journey.stages.length).toBeGreaterThan(2);
+      expect(JSON.stringify(journey)).not.toMatch(/name|path|email|title|content|secret/i);
+    }
+  });
+  it('maps every task orphan reason and the upload rejection to code', () => {
+    expect(TEAM_ERROR_CODES).toContain('UNVERIFIED_UPLOAD');
+    expect(
+      parseTeamEdgeResult({ ok: false, error: { code: 'UNVERIFIED_UPLOAD', retryable: false } })
+    ).toEqual({ ok: false, error: { code: 'UNVERIFIED_UPLOAD', retryable: false } });
+    expect(teamErrorMessage('UNVERIFIED_UPLOAD', key => key)).toBe('teamTaskCleanupUnverified');
+    for (const reason of TEAM_TASK_ORPHAN_REASON_CODES) {
+      const hit = lookupCodeLocations(`task-orphan:${reason}`);
+      expect(hit?.files).toContain('apps/web/src/team/tasks/TaskEditor.tsx');
+    }
   });
 });

@@ -18,7 +18,7 @@ import {
   type ImageSlot
 } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
-import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
+import { Checkbox, Collapse, IconButton, Select, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
 import {
   Crop,
@@ -89,9 +89,21 @@ export function ImageEmbeddingSection({
     !settings.endImages.length || settings.finalDurationMode !== 'custom' || customTimeValid;
   const startDurationValid =
     !settings.startImages.length || settings.startDurationMode !== 'custom' || customStartMsValid;
+  const selectionValid = (['start', 'end'] as const).every(slot => {
+    if (!optional || (slot === 'start' ? !settings.startEnabled : !settings.endEnabled))
+      return true;
+    const selected = slot === 'start' ? settings.selectedStartImageId : settings.selectedEndImageId;
+    const assets = slot === 'start' ? settings.startImages : settings.endImages;
+    return (
+      !selected ||
+      assets.some(asset => asset.id === selected && !settings.disabledImageIds.includes(selected))
+    );
+  });
   useEffect(() => {
-    onValidityChange(!settings.enabled || (finalDurationValid && startDurationValid));
-  }, [settings.enabled, finalDurationValid, startDurationValid, onValidityChange]);
+    onValidityChange(
+      !settings.enabled || (finalDurationValid && startDurationValid && selectionValid)
+    );
+  }, [settings.enabled, finalDurationValid, startDurationValid, selectionValid, onValidityChange]);
 
   const disabledIds = new Set(settings.disabledImageIds ?? []);
   const toggleImage = (id: string) => {
@@ -197,6 +209,8 @@ export function ImageEmbeddingSection({
               removeImage={removeImage}
               disabledIds={disabledIds}
               onToggleImage={toggleImage}
+              selectedId={optional ? settings.selectedStartImageId : undefined}
+              onSelect={id => update({ selectedStartImageId: id })}
               t={t}
             >
               <div className="embedding-column-fields">
@@ -281,6 +295,8 @@ export function ImageEmbeddingSection({
               removeImage={removeImage}
               disabledIds={disabledIds}
               onToggleImage={toggleImage}
+              selectedId={optional ? settings.selectedEndImageId : undefined}
+              onSelect={id => update({ selectedEndImageId: id })}
               t={t}
             >
               <div className="embedding-column-fields">
@@ -392,6 +408,8 @@ function ImageColumn({
   removeImage,
   disabledIds,
   onToggleImage,
+  selectedId,
+  onSelect,
   children,
   content,
   t
@@ -409,6 +427,8 @@ function ImageColumn({
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
   disabledIds?: ReadonlySet<string>;
   onToggleImage?: (id: string) => void;
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
   t: Translate;
   children?: React.ReactNode;
 }) {
@@ -436,6 +456,37 @@ function ImageColumn({
       </div>
       <Collapse open={slotEnabled}>
         <div className="image-column-body">
+          {selectedId !== undefined && onSelect && (
+            <div className="field-group">
+              <FieldLabel label={t('imageSelectionMode')} />
+              <Select
+                aria-label={`${title}: ${t('imageSelectionMode')}`}
+                value={selectedId ?? ''}
+                placeholder={t('imageSelectionRandom')}
+                options={[
+                  ...assets
+                    .filter(asset => !disabledIds?.has(asset.id))
+                    .map(asset => ({ value: asset.id, label: asset.fileName })),
+                  ...(selectedId &&
+                  !assets.some(asset => asset.id === selectedId && !disabledIds?.has(asset.id))
+                    ? [{ value: selectedId, label: t('imageSelectionUnavailable') }]
+                    : [])
+                ]}
+                invalid={Boolean(
+                  selectedId &&
+                  !assets.some(asset => asset.id === selectedId && !disabledIds?.has(asset.id))
+                )}
+                disabled={disabled}
+                onChange={value => onSelect(value || null)}
+              />
+              {selectedId &&
+                !assets.some(asset => asset.id === selectedId && !disabledIds?.has(asset.id)) && (
+                  <span className="soty-field-error" role="alert">
+                    {t('imageSelectionUnavailable')}
+                  </span>
+                )}
+            </div>
+          )}
           {children}
           {content !== undefined ? (
             content

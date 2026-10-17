@@ -38,12 +38,15 @@ export function BackgroundWorkChip({
   const summaryId = useId();
   const batch = useOptionalLibraryProcessing();
   const operations = useOptionalWorkspaceOperations();
-  const active = operations?.groups.filter(group => group.stage !== 'done') ?? [];
+  const active =
+    operations?.groups.filter(
+      group => group.stage !== 'done' && (group.state === 'preparing' || group.state === 'running')
+    ) ?? [];
   const reviewable =
     operations?.groups
       .filter(
         group =>
-          group.stage === 'done' &&
+          (group.stage === 'done' || group.state === 'interrupted_input_required') &&
           (group.state === 'succeeded' ||
             group.state === 'failed' ||
             group.state === 'partial' ||

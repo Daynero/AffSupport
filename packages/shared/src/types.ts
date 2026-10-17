@@ -130,6 +130,9 @@ export interface ImageEmbeddingSettings {
   endImages: ImageAsset[];
   /** Images excluded from the random pick (toggled off by clicking the tile). */
   disabledImageIds: string[];
+  /** Null keeps the historical random pick from active images. */
+  selectedStartImageId: string | null;
+  selectedEndImageId: string | null;
   replaceExisting: boolean;
   finalDurationMode: FinalImageDurationMode;
   customFinalDurationSeconds: number;
@@ -141,6 +144,8 @@ export interface ImageEmbeddingSettings {
 export interface JobImageEmbedding {
   startImage: ImageAsset | null;
   endImage: ImageAsset | null;
+  startSelectionMode: 'off' | 'random' | 'explicit';
+  endSelectionMode: 'off' | 'random' | 'explicit';
   startDurationMode: StartImageDurationMode;
   customStartDurationMs: number;
   finalDurationMode: FinalImageDurationMode;
@@ -204,6 +209,8 @@ export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
     startImages: [],
     endImages: [],
     disabledImageIds: [],
+    selectedStartImageId: null,
+    selectedEndImageId: null,
     replaceExisting: true,
     finalDurationMode: 'random-40-50',
     customFinalDurationSeconds: DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
@@ -304,6 +311,8 @@ export function imageEmbeddingKey(settings: JobImageEmbedding | null): string {
   return JSON.stringify([
     settings.startImage?.id ?? null,
     settings.endImage?.id ?? null,
+    settings.startSelectionMode,
+    settings.endSelectionMode,
     settings.startDurationMode,
     settings.customStartDurationMs,
     settings.finalDurationMode,
@@ -330,7 +339,10 @@ export function activeEmbeddingImages(settings: ImageEmbeddingSettings, slot: 's
   }
   const disabled = new Set(settings.disabledImageIds ?? []);
   const assets = slot === 'start' ? settings.startImages : settings.endImages;
-  return assets.filter(asset => !disabled.has(asset.id));
+  const selectedId = slot === 'start' ? settings.selectedStartImageId : settings.selectedEndImageId;
+  return assets.filter(
+    asset => !disabled.has(asset.id) && (!selectedId || asset.id === selectedId)
+  );
 }
 
 export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageEmbedding | null {
@@ -340,6 +352,12 @@ export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageE
   return {
     startImage: startImage ? { ...startImage } : null,
     endImage: endImage ? { ...endImage } : null,
+    startSelectionMode: startImage
+      ? settings.selectedStartImageId
+        ? 'explicit'
+        : 'random'
+      : 'off',
+    endSelectionMode: endImage ? (settings.selectedEndImageId ? 'explicit' : 'random') : 'off',
     startDurationMode: settings.startDurationMode,
     customStartDurationMs: settings.customStartDurationMs,
     finalDurationMode: settings.finalDurationMode,
@@ -520,6 +538,8 @@ export const STITCH_ERROR_CODES = [
   'BODY_HEAD_FAILED',
   'BODY_TAIL_FAILED',
   'BODY_AUDIO_MISMATCH',
+  'BODY_RECOVERY_FAILED',
+  'BODY_RECOVERY_VERIFICATION_FAILED',
   'BODY_TIMING_UNREADABLE',
   'BODY_JOIN_FAILED'
 ] as const;
@@ -795,6 +815,7 @@ export const DIAGNOSTIC_CATEGORIES = [
   'drop',
   'update',
   'power',
+  'stitcher',
   'team'
 ] as const;
 export type DiagnosticCategory = (typeof DIAGNOSTIC_CATEGORIES)[number];

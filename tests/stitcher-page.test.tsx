@@ -77,6 +77,8 @@ const EMBEDDING = {
   startImages: [],
   endImages: [] as unknown[],
   disabledImageIds: [],
+  selectedStartImageId: null,
+  selectedEndImageId: null,
   replaceExisting: true,
   finalDurationMode: 'random-40-50',
   customFinalDurationSeconds: 45 * 60,

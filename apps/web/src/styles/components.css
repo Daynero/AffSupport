@@ -1546,6 +1546,7 @@
   flex-direction: column;
   min-width: min(200px, calc(100vw - var(--space-6)));
   max-width: min(340px, calc(100vw - var(--space-4)));
+  max-height: calc(100dvh - var(--space-4));
   overflow: hidden;
 }
 .ui-menu-popover > .ui-menu {
@@ -2619,6 +2620,8 @@
 /* Dense financial matrices fill the remaining viewport. The opaque sticky
    layers deliberately sit above the date rail, including its footer corner. */
 .finance-matrix-scroll {
+  min-width: 0;
+  max-width: 100%;
   height: max(
     var(--finance-table-min-height),
     calc(100dvh - var(--finance-table-top, 0px) - var(--space-6))
@@ -2677,14 +2680,27 @@
   --team-agent-columns: var(--team-agent-rail) var(--team-agent-id-width)
     repeat(3, minmax(var(--finance-date-column-width), 1fr)) var(--finance-row-actions-width);
 }
-.finance-daily-header {
+.finance-toolbar-sticky {
   position: sticky;
   top: calc(var(--topbar-h, 62px) + var(--team-accounts-sticky-height, 0px));
+  z-index: calc(var(--layer-sticky) + 1);
+  background: var(--color-surface);
+}
+.finance-daily-header {
+  position: sticky;
+  top: calc(
+    var(--topbar-h, 62px) + var(--team-accounts-sticky-height, 0px) +
+      var(--finance-toolbar-height, 0px)
+  );
   z-index: var(--layer-sticky);
   background: var(--color-surface);
 }
 .finance-daily-header .finance-daily-columns {
   position: static;
+}
+.team-bulk-trash-receipts {
+  max-height: var(--bulk-trash-list-max-height);
+  overflow: auto;
 }
 .finance-daily-table .team-agent-row.finance-daily-row {
   display: grid;

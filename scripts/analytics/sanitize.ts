@@ -1,8 +1,8 @@
 /**
  * 031 FR-055 — the CLI returns event properties only through the client's own
- * allowlist, so `journey`, `inspect`, `run` and `diagnose` can never print a key
- * the browser would have refused to send. The allowlist is imported from the
- * client (`ANALYTICS_PROPERTY_KEYS`), not mirrored, so the two cannot drift.
+ * allowlists, so `journey`, `inspect`, `run` and `diagnose` can never print a key
+ * the browser would have refused to send. Both the general and team property
+ * lists are imported from their producers, not mirrored here.
  *
  * The import is type-erased apart from two frozen arrays; `events.ts` pulls the
  * shared contract only, never React or the DOM.
@@ -11,8 +11,12 @@ import {
   ANALYTICS_PROPERTY_KEYS,
   analyticsEventNames
 } from '../../apps/web/src/analytics/events.js';
+import { TEAM_ANALYTICS_PROPERTY_KEYS } from '../../packages/shared/src/team/analytics.js';
 
-const ALLOWED_KEYS: ReadonlySet<string> = new Set(ANALYTICS_PROPERTY_KEYS);
+const ALLOWED_KEYS: ReadonlySet<string> = new Set([
+  ...ANALYTICS_PROPERTY_KEYS,
+  ...TEAM_ANALYTICS_PROPERTY_KEYS
+]);
 
 /** The database guard refuses these in any value; a stored row cannot carry them, but the CLI checks again. */
 const SECRET_VALUE = /bearer|oauth|token=|authorization/i;
