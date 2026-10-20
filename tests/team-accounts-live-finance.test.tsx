@@ -1,12 +1,22 @@
 // @vitest-environment jsdom
-import React, { type ComponentProps } from 'react';
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import React from 'react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { teamApi } from '../apps/web/src/api/team';
 import * as supabaseModule from '../apps/web/src/lib/supabase';
 import { useAccounts } from '../apps/web/src/team/accounts/useAccounts';
 import { AccountSpace } from '../apps/web/src/team/accounts/AccountSpace';
-import type { FinanceWorkspace } from '../apps/web/src/team/accounts/finance/FinanceWorkspace';
+import { financeToday } from '@video-compressor/shared';
+import { teamFinanceApi } from '../apps/web/src/api/team-finance';
+import { accountsWorkspaceApi } from '../apps/web/src/api/team-accounts-workspace';
 import { ToastProvider } from '../apps/web/src/components/toast';
 
 vi.mock('../apps/web/src/team/TeamContext', () => ({
@@ -15,21 +25,16 @@ vi.mock('../apps/web/src/team/TeamContext', () => ({
 vi.mock('../apps/web/src/team/labels/useTaskLabels', () => ({
   useTaskLabels: () => ({ labels: [] })
 }));
-vi.mock('../apps/web/src/team/accounts/finance/FinanceWorkspace', () => ({
-  FinanceWorkspace: (props: ComponentProps<typeof FinanceWorkspace>) => (
-    <section aria-label="Finance fixture">
-      <input aria-label="Finance draft" defaultValue="" />
-      <button onClick={() => void props.onToggleLabel?.(props.agents![0], 'label', true)}>
-        Attach finance tag
-      </button>
-      <button onClick={() => void props.onToggleLabel?.(props.agents![0], 'label', false)}>
-        Detach finance tag
-      </button>
-    </section>
-  )
+vi.mock('../apps/web/src/api/team-finance', () => ({ teamFinanceApi: { snapshot: vi.fn() } }));
+vi.mock('../apps/web/src/api/team-accounts-workspace', () => ({
+  accountsWorkspaceApi: { overview: vi.fn() }
 }));
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
 
 const agent = {
   id: 'agent',
@@ -48,76 +53,106 @@ const account = {
   id: 'account',
   teamId: 'live-finance',
   name: 'Account',
+  twoFactorSeed: null,
   agents: [agent],
   createdAt: '2026-10-01',
   updatedAt: '2026-10-01'
 };
 
-it('keeps a finance draft while switching views and updates its agent tags', async () => {
+it('shows one unified view and retains its finance draft across social collapse', async () => {
   vi.spyOn(supabaseModule, 'getSupabaseClient').mockReturnValue(null);
-  vi.spyOn(teamApi, 'listAccounts').mockResolvedValue([account]);
-  const attach = vi.spyOn(teamApi, 'attachAgentLabel').mockResolvedValue(agent);
-  const detach = vi.spyOn(teamApi, 'detachAgentLabel').mockResolvedValue(agent);
+  vi.mocked(accountsWorkspaceApi.overview).mockResolvedValue({
+    schemaVersion: 1,
+    coverage: 'complete',
+    accounts: [account],
+    socialOrderVersion: '0',
+    agentOrderVersions: {}
+  });
+  const date = financeToday();
+  vi.mocked(teamFinanceApi.snapshot).mockResolvedValue({
+    schemaVersion: 1,
+    teamId: 'live-finance',
+    teamName: 'Finance',
+    from: date,
+    to: date,
+    currency: 'USD',
+    generatedAt: 'now',
+    accounts: [{ id: account.id, name: account.name }],
+    agents: [{ id: agent.id, agentId: agent.agentId }],
+    placements: [
+      {
+        id: 'placement',
+        accountId: account.id,
+        agentRowId: agent.id,
+        startsOn: '2026-01-01',
+        endsOn: null,
+        version: '0'
+      }
+    ],
+    fields: []
+  });
   render(
     <ToastProvider>
       <AccountSpace teamId="live-finance" />
     </ToastProvider>
   );
-  await waitFor(() => expect(screen.getByRole('region', { name: 'Account' })).toBeTruthy());
-  fireEvent.click(screen.getByRole('button', { name: 'Daily finances' }));
-  fireEvent.change(screen.getByRole('textbox', { name: 'Finance draft' }), {
-    target: { value: 'unsaved' }
+  const balance = await screen.findByRole('textbox', {
+    name: new RegExp(`123 · ${date} · Balance · USD`)
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Attach finance tag' }));
-  await waitFor(() =>
-    expect(attach).toHaveBeenCalledWith({
-      teamId: 'live-finance',
-      agentRowId: 'agent',
-      labelId: 'label'
-    })
+  await waitFor(() => expect((balance as HTMLInputElement).disabled).toBe(false));
+  const row = balance.closest<HTMLElement>('[data-agent-row-id]');
+  if (!row) throw new Error('Missing RK row');
+  const fields = within(row).getAllByRole('textbox');
+  expect(fields).toHaveLength(3);
+  expect(fields.map(input => input.getAttribute('aria-label'))).toEqual([
+    expect.stringContaining(`${date} · Balance · USD`),
+    expect.stringContaining(`${date} · Top-up · USD`),
+    expect.stringContaining(`${date} · Spend · Today · USD`)
+  ]);
+  expect(within(row).queryByText('Balance')).toBeNull();
+  expect(within(row).queryByText('Top-up')).toBeNull();
+  expect(within(row).queryByText('Spend')).toBeNull();
+  expect(within(row).queryByRole('button', { name: /History/i })).toBeNull();
+  expect(within(row).queryByRole('button', { name: /Archive/i })).toBeNull();
+  const more = within(row).getByRole('button', { name: /^More actions for/ });
+  fireEvent.click(more);
+  expect(await screen.findByRole('menuitem', { name: 'History · Account · 123' })).toBeTruthy();
+  expect(screen.getByRole('menuitem', { name: 'Archive Account-123' })).toBeTruthy();
+  fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+  expect(teamFinanceApi.snapshot).toHaveBeenCalledWith(
+    'live-finance',
+    date,
+    date,
+    expect.any(String),
+    true
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Detach finance tag' }));
-  await waitFor(() => expect(detach).toHaveBeenCalled());
-  fireEvent.click(screen.getByRole('button', { name: 'Ad accounts and runs' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Daily finances' }));
-  expect((screen.getByRole('textbox', { name: 'Finance draft' }) as HTMLInputElement).value).toBe(
-    'unsaved'
-  );
+  expect(screen.queryByRole('button', { name: 'Daily finances' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Ad accounts and runs' })).toBeNull();
+  fireEvent.change(balance, { target: { value: '125,35' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Collapse Account' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Expand Account' }));
+  expect(
+    (
+      screen.getByRole('textbox', {
+        name: new RegExp(`123 · ${date} · Balance · USD`)
+      }) as HTMLInputElement
+    ).value
+  ).toBe('125,35');
 });
 
-it('coalesces finance realtime changes, refreshes accounts and unsubscribes on exit', async () => {
-  const callbacks = new Map<string, () => void>();
-  const channel = {
-    on: vi.fn((_event: string, filter: { table: string }, callback: () => void) => {
-      callbacks.set(filter.table, callback);
-      return channel;
-    }),
-    subscribe: vi.fn((callback: (status: string) => void) => {
-      callback('SUBSCRIBED');
-      return channel;
-    })
-  };
-  const removeChannel = vi.fn();
-  const connection = { channel: vi.fn(() => channel), removeChannel };
-  vi.spyOn(supabaseModule, 'getSupabaseClient').mockReturnValue(
-    connection as unknown as NonNullable<ReturnType<typeof supabaseModule.getSupabaseClient>>
-  );
+it('refreshes account data from the workspace revision without owning another channel', async () => {
+  const channel = vi.fn();
+  vi.spyOn(supabaseModule, 'getSupabaseClient').mockReturnValue({
+    channel
+  } as unknown as NonNullable<ReturnType<typeof supabaseModule.getSupabaseClient>>);
   const list = vi.spyOn(teamApi, 'listAccounts').mockResolvedValue([account]);
-  const notification = vi.fn();
-  window.addEventListener('soty:accounts-finance', notification);
-  const view = renderHook(() => useAccounts({ teamId: 'live-updates' }));
-  try {
-    await waitFor(() => expect(view.result.current.loading).toBe(false));
-    list.mockClear();
-    act(() => {
-      callbacks.get('team_agent_finance_values')!();
-      callbacks.get('team_agent_placements')!();
-    });
-    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
-    expect(notification).toHaveBeenCalledTimes(1);
-    view.unmount();
-    expect(removeChannel).toHaveBeenCalledWith(channel);
-  } finally {
-    window.removeEventListener('soty:accounts-finance', notification);
-  }
+  const view = renderHook(({ revision }) => useAccounts({ teamId: 'live-updates', revision }), {
+    initialProps: { revision: 0 }
+  });
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  list.mockClear();
+  view.rerender({ revision: 1 });
+  await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+  expect(channel).not.toHaveBeenCalled();
+  view.unmount();
 });

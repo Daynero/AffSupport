@@ -3,7 +3,7 @@ import { executeFinanceExport } from '../supabase/functions/team-finance-export/
 import type { FinanceSnapshot } from '@video-compressor/shared';
 
 const snapshot: FinanceSnapshot = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   teamId: '27000000-0000-4000-8000-000000000010',
   teamName: 'Test',
   from: '2026-09-01',
@@ -13,7 +13,8 @@ const snapshot: FinanceSnapshot = {
   accounts: [],
   agents: [],
   placements: [],
-  fields: []
+  fields: [],
+  lifecycle: { accounts: [], agents: [], events: [], parents: [] }
 };
 const input = { teamId: snapshot.teamId, from: snapshot.from, to: snapshot.to, timezone: 'UTC' };
 it('uses one user-scoped snapshot and rechecks permission before returning the binary', async () => {
@@ -25,7 +26,7 @@ it('uses one user-scoped snapshot and rechecks permission before returning the b
   expect(result.bytes[0]).toBe(0x50);
   expect(result.filename).toBe(`finance-${snapshot.teamId}-2026-09-01-2026-09-30.xlsx`);
   expect(rpc.mock.calls.map(c => c[0])).toEqual([
-    'get_team_agent_finance',
+    'get_team_agent_finance_v2',
     'list_team_agent_finance_legacy'
   ]);
 });
@@ -43,4 +44,13 @@ it('refuses invalid dates before querying and propagates cross-team denial', asy
   );
   expect(rpc).not.toHaveBeenCalled();
   await expect(executeFinanceExport(input, { rpc })).rejects.toThrow('PERMISSION_DENIED');
+});
+
+it('requires lifecycle-aware v2 instead of silently exporting an active-only legacy projection', async () => {
+  const rpc = vi.fn().mockResolvedValue({
+    data: { ...snapshot, schemaVersion: 1, lifecycle: undefined },
+    error: null
+  });
+  await expect(executeFinanceExport(input, { rpc })).rejects.toThrow('INVALID_RESPONSE');
+  expect(rpc).toHaveBeenCalledTimes(1);
 });

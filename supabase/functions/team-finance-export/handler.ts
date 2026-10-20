@@ -28,17 +28,18 @@ export async function executeFinanceExport(input: unknown, client: FinanceExport
     p_to: input.to,
     p_timezone: input.timezone
   };
-  const { data, error } = await client.rpc('get_team_agent_finance', args);
+  const { data, error } = await client.rpc('get_team_agent_finance_v2', args);
   if (error) throw new Error(error.message);
   const snapshot = parseFinanceSnapshot(data);
   if (
     !snapshot ||
+    snapshot.schemaVersion !== 2 ||
     snapshot.teamId !== input.teamId ||
     snapshot.from !== input.from ||
     snapshot.to !== input.to
   )
     throw new Error('INVALID_RESPONSE');
-  const bytes = await buildFinanceWorkbook(snapshot);
+  const bytes = await buildFinanceWorkbook({ ...snapshot, timezone: input.timezone });
   // Recheck access after potentially expensive serialization, without rereading
   // the report: every worksheet must describe the very same snapshot.
   const access = await client.rpc('list_team_agent_finance_legacy', { p_team: input.teamId });

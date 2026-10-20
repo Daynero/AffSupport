@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { AccountSpace, type AccountSpaceClient } from '../apps/web/src/team/accounts';
-import { runAgeLabel } from '../apps/web/src/team/accounts/AgentRow';
+import { EditField, runAgeLabel } from '../apps/web/src/team/accounts/AgentRow';
 
 /**
  * The Accounts section (017) against a stubbed client: what the list shows,
@@ -34,6 +34,20 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
+});
+
+it('keeps the caret in an inline field after its clear control disappears', async () => {
+  function Editable() {
+    const [value, setValue] = React.useState('launch draft');
+    return (
+      <EditField value={value} label="Launch draft" onChange={setValue} onKeyDown={() => {}} />
+    );
+  }
+  renderRaw(<Editable />);
+  const input = screen.getByRole('textbox', { name: 'Launch draft' });
+  await userEvent.setup().click(screen.getByRole('button'));
+  expect((input as HTMLInputElement).value).toBe('');
+  expect(document.activeElement).toBe(input);
 });
 
 let sequence = 0;
@@ -543,7 +557,11 @@ describe('writing a run', () => {
     expect((screen.getByRole('textbox', { name: /^Run,/ }) as HTMLInputElement).value).toBe(
       'half a thou'
     );
-    expect(screen.getByRole('status').textContent).toContain('Finish this one first');
+    expect(
+      screen
+        .getAllByRole('status')
+        .some(status => status.textContent?.includes('Finish this one first'))
+    ).toBe(true);
     // Letting go (Escape in the field, or its cancel mark) frees the way.
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await openAgentMenu(user, busyRow);
@@ -893,7 +911,7 @@ describe('an editor a filter would close over', () => {
 });
 
 describe('searching', () => {
-  it('marks what answered the search and counts what it left', async () => {
+  it('marks matching run notes while leaving social and RK names plain', async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
@@ -901,11 +919,13 @@ describe('searching', () => {
 
     const row = rows().find(item => item.textContent?.includes('Pro Caps'))!;
     expect(within(row).getByText('Pro Caps', { selector: 'mark' })).toBeTruthy();
-    // And in a name, not only in a run: "v31" typed marks the account's head.
+    // Identity names stay plain even when they answer the search.
     await user.clear(screen.getByRole('searchbox', { name: 'Search accounts' }));
     await user.type(screen.getByRole('searchbox', { name: 'Search accounts' }), 'v31');
     const v31 = screen.getByRole('region', { name: 'v31' });
-    expect(within(v31).getAllByText('v31', { selector: 'mark' }).length).toBeGreaterThan(0);
+    expect(within(v31).getByRole('heading', { name: 'v31' })).toBeTruthy();
+    expect(v31.querySelector('.team-account-title mark, .team-agent-id mark')).toBeNull();
+    expect(v31.querySelector('.team-agent-tail')).toBeNull();
     await user.clear(screen.getByRole('searchbox', { name: 'Search accounts' }));
     await user.type(screen.getByRole('searchbox', { name: 'Search accounts' }), 'pro caps');
   });
@@ -1067,6 +1087,39 @@ describe('the tags on an agent', () => {
  * save" and is impossible to reproduce on purpose.
  */
 describe('a stale list read', () => {
+  it('keeps canonical manual order and private metadata when an older mutation reply omits them', async () => {
+    const accounts = fixture();
+    const account = accounts[0]!;
+    const first = account.agents[0]!;
+    const second = account.agents[1]!;
+    first.sortRank = 0;
+    first.nameColor = 4;
+    first.nameColorVersion = '12';
+    first.lifecycleVersion = '3';
+    second.sortRank = 1;
+    const api = client(accounts);
+    const legacy = structuredClone(first);
+    delete legacy.sortRank;
+    delete legacy.nameColor;
+    delete legacy.nameColorVersion;
+    delete legacy.lifecycleVersion;
+    legacy.runs = [];
+    vi.mocked(api.clearAgentRuns).mockResolvedValue(legacy);
+    const view = renderHook(() => useAccounts({ teamId: TEAM_ID, client: api }));
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+    await act(async () => {
+      await view.result.current.clearRuns(first);
+    });
+    const result = view.result.current.accounts.find(item => item.id === account.id)!;
+    expect(result.agents.map(agent => agent.id)).toEqual([first.id, second.id]);
+    expect(result.agents[0]).toMatchObject({
+      sortRank: 0,
+      nameColor: 4,
+      nameColorVersion: '12',
+      lifecycleVersion: '3',
+      runs: []
+    });
+  });
   it('does not undo a newer write', async () => {
     const accounts = fixture();
     const api = client(accounts);

@@ -3,6 +3,8 @@ import type { GeneratedDatabase } from './database.types';
 // PostgreSQL does not expose argument nullability to pg-meta. These nullable
 // inputs are intentional clearing operations, not schema-generator guesses.
 type NullableInputs = {
+  reorder_team_accounts: 'p_parent';
+  list_team_account_archive: 'p_cursor';
   find_team_folder_sync_request: 'p_folder';
   save_launch_draft: 'p_launch' | 'p_expected_version' | 'p_expected_sources';
   save_launch_working_copy: 'p_baseline';

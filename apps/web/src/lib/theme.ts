@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { analytics } from '../analytics/service';
 
 export type Theme = 'light' | 'dark';
 
@@ -6,6 +7,13 @@ const STORAGE_KEY = 'theme';
 const CHANGE_EVENT = 'wishly-theme-changed';
 const META_LIGHT = '#7557e8';
 const META_DARK = '#120e1f';
+export function trackThemePreference(theme: Theme) {
+  analytics.track('setting_changed', {
+    setting_name: 'theme',
+    setting_value: theme,
+    flow_step: 'theme'
+  });
+}
 
 /** Reads the theme the FOUC-prevention inline script already committed to <html>. */
 export function getInitialTheme(): Theme {
@@ -80,6 +88,7 @@ export function useTheme() {
   const setTheme = useCallback((next: Theme, origin?: Origin) => {
     if (themeRef.current === next) return;
     themeRef.current = next;
+    trackThemePreference(next);
     setThemeState(next);
     localStorage.setItem(STORAGE_KEY, next);
     transitionTheme(next, origin ?? null);

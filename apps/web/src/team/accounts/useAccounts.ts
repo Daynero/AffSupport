@@ -1,15 +1,16 @@
-import { realtimeTopic } from '../../lib/realtimeTopic';
+import { accountFlowId, emitAccountSignal, type AccountSignal } from './analytics';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   sortTeamAccounts,
+  financeToday,
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
+  type TeamAccountLaunchSummary,
   type TeamAgentRunMarker,
   type TeamAgentRunMarkerSnapshot
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
-import { getSupabaseClient } from '../../lib/supabase';
+import { accountsWorkspaceApi } from '../../api/team-accounts-workspace';
 
 /**
  * The client seam for the accounts section: what `AccountSpace` needs of the
@@ -17,7 +18,12 @@ import { getSupabaseClient } from '../../lib/supabase';
  */
 export interface AccountsClient {
   listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
-  createAccount(input: { teamId: string; name: string }): Promise<TeamAccountSummary>;
+  createAccount(input: {
+    teamId: string;
+    name: string;
+    startsOn?: string;
+    timezone?: string;
+  }): Promise<TeamAccountSummary>;
   renameAccount(input: {
     teamId: string;
     accountId: string;
@@ -35,6 +41,7 @@ export interface AccountsClient {
     agentId: string;
     note?: string | null;
     timezone?: string;
+    startsOn?: string;
   }): Promise<TeamAccountAgentSummary>;
   updateAccountAgent(input: {
     teamId: string;
@@ -74,16 +81,22 @@ export interface AccountsClient {
 
 const defaultClient: AccountsClient = teamApi;
 
-/**
- * The last list each space showed, kept for the life of the page.
- *
- * The section unmounts on every trip to another tab, so without this every
- * return began with "Loading…" over an empty frame. Now the list is on screen
- * at once and re-read quietly behind it; realtime carries anyone else's
- * changes, so what is shown in the meantime is at most a moment old. Only the
- * production client is cached: a stubbed one is a test's own data.
- */
-const cache = new Map<string, TeamAccountSummary[]>();
+function creationDay(
+  startsOn: string | undefined,
+  timezone: string | undefined
+): AccountSignal['day'] {
+  if (!startsOn) return undefined;
+  const today = financeToday(timezone);
+  const previous = new Date(`${today}T00:00:00Z`);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return startsOn === today
+    ? 'today'
+    : startsOn === previous.toISOString().slice(0, 10)
+      ? 'previous'
+      : 'historical';
+}
+
+// Account state belongs to the mounted auth/team scope; no cross-user module cache.
 
 function replaceAccount(
   accounts: TeamAccountSummary[],
@@ -107,15 +120,26 @@ function replaceAccount(
 export function useAccounts({
   teamId,
   revision = 0,
-  client = defaultClient
+  client = defaultClient,
+  from,
+  to,
+  timezone
 }: {
   teamId: string;
   revision?: number;
   client?: AccountsClient;
+  from?: string;
+  to?: string;
+  timezone?: string;
 }) {
-  const cached = client === defaultClient ? cache.get(teamId) : undefined;
-  const [accounts, setAccounts] = useState<TeamAccountSummary[]>(cached ?? []);
-  const [loading, setLoading] = useState(cached === undefined);
+  const [accounts, setAccounts] = useState<TeamAccountSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [launchSummaries, setLaunchSummaries] = useState<TeamAccountLaunchSummary[]>([]);
+  const [launchCoverage, setLaunchCoverage] = useState<'complete' | 'partial'>('complete');
+  const [orderVersions, setOrderVersions] = useState({
+    socials: '0',
+    agents: {} as Record<string, string>
+  });
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
 
@@ -134,170 +158,185 @@ export function useAccounts({
    * millisecond, and `Date.now()` cannot tell which came first.
    */
   const writes = useRef(0);
+  const overviewApplied = useRef<string[]>([]);
+  const appliedSignals = useRef<
+    {
+      flowId: string;
+      operation: Exclude<keyof AccountsClient, 'listAccounts'>;
+      day?: AccountSignal['day'];
+    }[]
+  >([]);
+  const retained = useCallback(
+    async <T>(
+      operation: Exclude<keyof AccountsClient, 'listAccounts'>,
+      execute: () => Promise<T>,
+      day?: AccountSignal['day']
+    ): Promise<T> => {
+      const flowId = accountFlowId();
+      const context = day ? { day } : {};
+      emitAccountSignal('retained_action', 'requested', { flowId, operation, ...context });
+      try {
+        const result = await execute();
+        emitAccountSignal('retained_action', 'accepted', {
+          flowId,
+          operation,
+          outcome: 'success',
+          ...context
+        });
+        appliedSignals.current.push({ flowId, operation, ...context });
+        return result;
+      } catch (error) {
+        const code =
+          error !== null && typeof error === 'object' && 'code' in error ? error.code : 'UNKNOWN';
+        emitAccountSignal('retained_action', 'terminal', {
+          flowId,
+          operation,
+          ...context,
+          code,
+          outcome: 'failure',
+          result: 'failed'
+        });
+        throw error;
+      }
+    },
+    []
+  );
+  useEffect(() => {
+    // This effect runs after canonical local account state reaches React's commit.
+    // This hook can prove accounts only; finance and launch rendering belong to
+    // the composition owner and must never be inferred from an account read.
+    for (const flowId of overviewApplied.current.splice(0)) {
+      emitAccountSignal('overview', 'applied', {
+        flowId,
+        outcome: 'success',
+        result: 'partial',
+        coverage: 'accounts_only'
+      });
+    }
+    for (const { flowId, operation, day } of appliedSignals.current.splice(0)) {
+      emitAccountSignal('retained_action', 'applied', {
+        flowId,
+        operation,
+        ...(day ? { day } : {}),
+        outcome: 'success',
+        result: 'complete'
+      });
+    }
+  }, [accounts]);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (): Promise<TeamAccountSummary[] | null> => {
+    const flowId = accountFlowId();
+    emitAccountSignal('overview', 'requested', { flowId, coverage: 'accounts_only' });
     const requestGeneration = ++generation.current;
     const writesBefore = writes.current;
     try {
-      const next = await client.listAccounts(teamId);
-      if (requestGeneration !== generation.current) return;
-      if (writes.current !== writesBefore) return;
-      setAccounts(sortTeamAccounts(next));
+      const overview =
+        client === defaultClient && from && to && timezone
+          ? await accountsWorkspaceApi.overview(teamId, from, to, timezone)
+          : null;
+      const next = overview?.accounts ?? (await client.listAccounts(teamId));
+      if (requestGeneration !== generation.current || writes.current !== writesBefore) {
+        emitAccountSignal('overview', 'terminal', {
+          flowId,
+          result: 'cancelled',
+          outcome: 'cancelled',
+          coverage: 'accounts_only'
+        });
+        return null;
+      }
+      const canonical = sortTeamAccounts(next);
+      emitAccountSignal('overview', 'accepted', {
+        flowId,
+        result: 'partial',
+        outcome: 'success',
+        coverage: 'accounts_only',
+        count: canonical.length
+      });
+      overviewApplied.current.push(flowId);
+      setAccounts(canonical);
+      if (overview) {
+        setLaunchSummaries(overview.launchSummaries ?? []);
+        setLaunchCoverage(overview.launchCoverage ?? 'partial');
+      }
+      if (overview)
+        setOrderVersions({
+          socials: overview.socialOrderVersion,
+          agents: overview.agentOrderVersions
+        });
       setError(null);
+      return canonical;
     } catch (cause) {
+      emitAccountSignal('overview', 'terminal', {
+        flowId,
+        result: 'failed',
+        outcome: 'failure',
+        code:
+          cause !== null && typeof cause === 'object' && 'code' in cause ? cause.code : 'UNKNOWN',
+        coverage: 'accounts_only'
+      });
       if (requestGeneration === generation.current) {
         setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
       }
+      return null;
     } finally {
       if (requestGeneration === generation.current) setLoading(false);
     }
-  }, [client, teamId]);
+  }, [client, teamId, from, to, timezone]);
 
   useEffect(() => {
     // A cached list stays on screen while it is re-read; only a space never
     // seen before shows the loading line.
-    if (!(client === defaultClient && cache.has(teamId))) setLoading(true);
+    setLoading(true);
     void refetch();
     return () => {
       generation.current += 1;
     };
   }, [client, refetch, revision, teamId]);
 
-  useEffect(() => {
-    if (client === defaultClient && !loading) cache.set(teamId, accounts);
-  }, [accounts, client, loading, teamId]);
-
-  // Live sync, the same way tasks do it: one channel per space, both tables,
-  // bursts coalesced. A custom client is a test or preview data source and is
-  // never wired to the production channel.
-  const refetchRef = useRef(refetch);
-  useEffect(() => {
-    refetchRef.current = refetch;
-  }, [refetch]);
-
-  useEffect(() => {
-    if (client !== defaultClient) return;
-    const supabase = getSupabaseClient();
-    if (!supabase || !teamId) return;
-
-    let active = true;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const scheduleRefetch = () => {
-      if (!active) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        window.dispatchEvent(new CustomEvent('soty:accounts-finance', { detail: teamId }));
-        void refetchRef.current();
-      }, 300);
-    };
-
-    const channel: RealtimeChannel = supabase
-      .channel(realtimeTopic(`team-accounts:${teamId}`))
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'team_accounts', filter: `team_id=eq.${teamId}` },
-        scheduleRefetch
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'team_account_agents',
-          filter: `team_id=eq.${teamId}`
-        },
-        scheduleRefetch
-      )
-      // The Tasks column counts tags; a teammate tagging a task, or a task
-      // being deleted with its tags, changes it without touching the agent.
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'team_task_agents', filter: `team_id=eq.${teamId}` },
-        scheduleRefetch
-      )
-      // An agent tag (019) is a row of its own, and the dictionary behind it
-      // holds the name and colour every chip draws.
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'team_agent_labels',
-          filter: `team_id=eq.${teamId}`
-        },
-        scheduleRefetch
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'team_labels', filter: `team_id=eq.${teamId}` },
-        scheduleRefetch
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'team_agent_finance_values',
-          filter: `team_id=eq.${teamId}`
-        },
-        scheduleRefetch
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'team_agent_placements',
-          filter: `team_id=eq.${teamId}`
-        },
-        scheduleRefetch
-      )
-      .subscribe(status => {
-        if (status === 'SUBSCRIBED') scheduleRefetch();
-      });
-
-    return () => {
-      active = false;
-      if (timer) clearTimeout(timer);
-      void supabase.removeChannel(channel);
-    };
-  }, [client, teamId]);
-
+  // TeamContext owns the only workspace realtime channel. A local mutation
+  // still applies its canonical response immediately; revision refreshes peers.
   const createAccount = useCallback(
-    async (name: string) => {
-      const created = await client.createAccount({ teamId, name });
+    async (name: string, startsOn?: string) => {
+      const created = await retained(
+        'createAccount',
+        () => client.createAccount({ teamId, name, ...(startsOn ? { startsOn, timezone } : {}) }),
+        creationDay(startsOn, timezone)
+      );
       writes.current += 1;
       setAccounts(current => sortTeamAccounts([...current, created]));
       return created;
     },
-    [client, teamId]
+    [client, retained, teamId, timezone]
   );
 
   const renameAccount = useCallback(
     async (accountId: string, name: string) => {
-      const renamed = await client.renameAccount({ teamId, accountId, name });
+      const renamed = await retained('renameAccount', () =>
+        client.renameAccount({ teamId, accountId, name })
+      );
       writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, accountId, account => ({ ...account, ...renamed }))
       );
       return renamed;
     },
-    [client, teamId]
+    [client, retained, teamId]
   );
 
   const deleteAccount = useCallback(
     async (accountId: string) => {
-      await client.deleteAccount({ teamId, accountId });
+      await retained('deleteAccount', () => client.deleteAccount({ teamId, accountId }));
       writes.current += 1;
       setAccounts(current => current.filter(account => account.id !== accountId));
     },
-    [client, teamId]
+    [client, retained, teamId]
   );
 
   const setAccountTwoFactor = useCallback(
     async (accountId: string, seed: string | null) => {
-      await client.setAccountTwoFactor({ teamId, accountId, seed });
+      await retained('setAccountTwoFactor', () =>
+        client.setAccountTwoFactor({ teamId, accountId, seed })
+      );
       writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, accountId, account => ({
@@ -306,22 +345,43 @@ export function useAccounts({
         }))
       );
     },
-    [client, teamId]
+    [client, retained, teamId]
   );
 
   const addAgent = useCallback(
-    async (accountId: string, agentId: string, note: string | null, timezone?: string) => {
-      const created = await client.addAccountAgent({ teamId, accountId, agentId, note, timezone });
+    async (
+      accountId: string,
+      agentId: string,
+      note: string | null,
+      timezone?: string,
+      startsOn?: string
+    ) => {
+      const created = await retained(
+        'addAccountAgent',
+        () =>
+          client.addAccountAgent({
+            teamId,
+            accountId,
+            agentId,
+            note,
+            timezone,
+            ...(startsOn ? { startsOn } : {})
+          }),
+        creationDay(startsOn, timezone)
+      );
       writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, accountId, account => ({
           ...account,
+          ...(account.startsOn && created.startsOn && created.startsOn < account.startsOn
+            ? { startsOn: created.startsOn }
+            : {}),
           agents: [...account.agents.filter(agent => agent.id !== created.id), created]
         }))
       );
       return created;
     },
-    [client, teamId]
+    [client, retained, teamId]
   );
 
   /** Replaces one agent in place with what a write returned. */
@@ -330,7 +390,9 @@ export function useAccounts({
     setAccounts(current =>
       replaceAccount(current, updated.accountId, account => ({
         ...account,
-        agents: account.agents.map(item => (item.id === updated.id ? updated : item))
+        agents: account.agents.map(item =>
+          item.id === updated.id ? { ...item, ...updated } : item
+        )
       }))
     );
     return updated;
@@ -338,32 +400,47 @@ export function useAccounts({
 
   const updateAgent = useCallback(
     async (agent: TeamAccountAgentSummary, agentId: string) =>
-      putAgent(await client.updateAccountAgent({ teamId, agentRowId: agent.id, agentId })),
-    [client, putAgent, teamId]
+      putAgent(
+        await retained('updateAccountAgent', () =>
+          client.updateAccountAgent({ teamId, agentRowId: agent.id, agentId })
+        )
+      ),
+    [client, putAgent, retained, teamId]
   );
 
   const addRun = useCallback(
     async (agent: TeamAccountAgentSummary, note: string) =>
-      putAgent(await client.addAgentRun({ teamId, agentRowId: agent.id, note })),
-    [client, putAgent, teamId]
+      putAgent(
+        await retained('addAgentRun', () =>
+          client.addAgentRun({ teamId, agentRowId: agent.id, note })
+        )
+      ),
+    [client, putAgent, retained, teamId]
   );
 
   const updateRun = useCallback(
     async (runId: string, note: string) =>
-      putAgent(await client.updateAgentRun({ teamId, runId, note })),
-    [client, putAgent, teamId]
+      putAgent(
+        await retained('updateAgentRun', () => client.updateAgentRun({ teamId, runId, note }))
+      ),
+    [client, putAgent, retained, teamId]
   );
 
   const deleteRun = useCallback(
-    async (runId: string) => putAgent(await client.deleteAgentRun({ teamId, runId })),
-    [client, putAgent, teamId]
+    async (runId: string) =>
+      putAgent(await retained('deleteAgentRun', () => client.deleteAgentRun({ teamId, runId }))),
+    [client, putAgent, retained, teamId]
   );
 
   /** The colour a press on the run landed on; null clears it. */
   const setRunMarker = useCallback(
     async (runId: string, marker: TeamAgentRunMarker | null) =>
-      putAgent(await client.setAgentRunMarker({ teamId, runId, marker })),
-    [client, putAgent, teamId]
+      putAgent(
+        await retained('setAgentRunMarker', () =>
+          client.setAgentRunMarker({ teamId, runId, marker })
+        )
+      ),
+    [client, putAgent, retained, teamId]
   );
 
   /**
@@ -371,7 +448,9 @@ export function useAccounts({
    * were so the toast can put them back one by one.
    */
   const clearMarkers = useCallback(async () => {
-    const cleared = await client.clearAgentRunMarkers({ teamId });
+    const cleared = await retained('clearAgentRunMarkers', () =>
+      client.clearAgentRunMarkers({ teamId })
+    );
     writes.current += 1;
     setAccounts(current =>
       current.map(account => ({
@@ -383,30 +462,44 @@ export function useAccounts({
       }))
     );
     return cleared;
-  }, [client, teamId]);
+  }, [client, retained, teamId]);
 
   /** Frees the agent: every run goes at once. */
   const clearRuns = useCallback(
     async (agent: TeamAccountAgentSummary) =>
-      putAgent(await client.clearAgentRuns({ teamId, agentRowId: agent.id })),
-    [client, putAgent, teamId]
+      putAgent(
+        await retained('clearAgentRuns', () =>
+          client.clearAgentRuns({ teamId, agentRowId: agent.id })
+        )
+      ),
+    [client, putAgent, retained, teamId]
   );
 
   const attachLabel = useCallback(
     async (agent: TeamAccountAgentSummary, labelId: string) =>
-      putAgent(await client.attachAgentLabel({ teamId, agentRowId: agent.id, labelId })),
-    [client, putAgent, teamId]
+      putAgent(
+        await retained('attachAgentLabel', () =>
+          client.attachAgentLabel({ teamId, agentRowId: agent.id, labelId })
+        )
+      ),
+    [client, putAgent, retained, teamId]
   );
 
   const detachLabel = useCallback(
     async (agent: TeamAccountAgentSummary, labelId: string) =>
-      putAgent(await client.detachAgentLabel({ teamId, agentRowId: agent.id, labelId })),
-    [client, putAgent, teamId]
+      putAgent(
+        await retained('detachAgentLabel', () =>
+          client.detachAgentLabel({ teamId, agentRowId: agent.id, labelId })
+        )
+      ),
+    [client, putAgent, retained, teamId]
   );
 
   const deleteAgent = useCallback(
     async (agent: TeamAccountAgentSummary) => {
-      await client.deleteAccountAgent({ teamId, agentRowId: agent.id });
+      await retained('deleteAccountAgent', () =>
+        client.deleteAccountAgent({ teamId, agentRowId: agent.id })
+      );
       writes.current += 1;
       setAccounts(current =>
         replaceAccount(current, agent.accountId, account => ({
@@ -415,11 +508,14 @@ export function useAccounts({
         }))
       );
     },
-    [client, teamId]
+    [client, retained, teamId]
   );
 
   return {
     accounts,
+    orderVersions,
+    launchSummaries,
+    launchCoverage,
     loading,
     error,
     refetch,

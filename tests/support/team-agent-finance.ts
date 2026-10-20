@@ -18,13 +18,20 @@ export async function financeFixture(
     "insert into public.team_members(team_id,user_id,base_role) values ($1,$2,'viewer')",
     [team, FINANCE_VIEWER]
   );
+  const datedCreation = (
+    await db.root<{ available: boolean }>(
+      "select to_regprocedure('public.add_team_account_agent(uuid,uuid,text,text,text,date)') is not null as available"
+    )
+  )[0]!.available;
   const accounts = [];
   for (const name of ['X', 'Y'])
     accounts.push(
       (
         await db.asUser<{ id: string }>(
           FINANCE_OWNER,
-          'select id from public.create_team_account($1,$2)',
+          datedCreation
+            ? "select id from public.create_team_account($1,$2,p_starts_on => date '2026-01-01')"
+            : 'select id from public.create_team_account($1,$2)',
           [team, name]
         )
       )[0]!.id
@@ -32,7 +39,9 @@ export async function financeFixture(
   const agent = (
     await db.asUser<{ id: string }>(
       FINANCE_OWNER,
-      "select public.add_team_account_agent($1,$2,$3)->>'id' as id",
+      datedCreation
+        ? "select public.add_team_account_agent($1,$2,$3,p_starts_on => date '2026-01-01')->>'id' as id"
+        : "select public.add_team_account_agent($1,$2,$3)->>'id' as id",
       [team, accounts[0], '001234']
     )
   )[0]!.id;
@@ -52,7 +61,9 @@ export async function financeFixture(
   const otherAccount = (
     await db.asUser<{ id: string }>(
       FINANCE_OWNER,
-      'select id from public.create_team_account($1,$2)',
+      datedCreation
+        ? "select id from public.create_team_account($1,$2,p_starts_on => date '2026-01-01')"
+        : 'select id from public.create_team_account($1,$2)',
       [otherTeam, 'Other']
     )
   )[0]!.id;

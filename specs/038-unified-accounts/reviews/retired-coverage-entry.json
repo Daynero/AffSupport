@@ -1,0 +1,11 @@
+{
+  "baselineCommit": "4c392f6316a0a6ad1f02e4acc0b30bb1df91e10b",
+  "removedRecord": {
+    "path": "apps/web/src/team/tasks/TaskAssigneeFilter.tsx",
+    "previousFloor": 80.91
+  },
+  "reason": "Source deleted coherently in pre038 HEAD; no live module or coverage threshold is lowered. Legacy cache migration regression replaces obsolete removed-control test.",
+  "globalFloorUnchanged": 75.75,
+  "allOtherBaselineValuesUnchanged": true,
+  "evidence": "git show HEAD -- apps/web/src/team/tasks/TaskAssigneeFilter.tsx and associated TaskFilterBar/TaskSpace/useTasks/i18n removal"
+}

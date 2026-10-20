@@ -1,0 +1,144 @@
+{
+  "ok": false,
+  "command": "verify",
+  "generated_at": "2026-10-18T11:36:35.341Z",
+  "form": "fast",
+  "error": "typecheck:tests",
+  "data": {
+    "duration_ms": 189107,
+    "totals": {
+      "gates": 13,
+      "passed": 12,
+      "failed": 1,
+      "tests": 0,
+      "skipped_tests": 0,
+      "skip_reasons": {},
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 6894
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 160984
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 145064
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 163663
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": false,
+        "duration_ms": 182153
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 32481
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 1708
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 21140
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 1544
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 1678
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 1643
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 889
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 11851
+      }
+    ],
+    "failure": {
+      "gate": "typecheck:tests",
+      "subject": "tests/team-account-birthdate-ui.test.tsx(52,75): error TS2322: Type 'Promise<{ schemaVersion: 1; coverage: \"complete\"; socialOrderVersion: string; agentOrderVersions: {}; accounts: { agents: TeamAccountAgentSummary[]; taskCount?: number | undefined; ... 11 more ...; nameColorVersion?: string | undefined; }[]; }>' is not assignable to type 'Promise<{ accounts: { twoFactorSeed: string | null; taskCount?: number | undefined; id: string; teamId: string; name: string; createdAt: string; updatedAt: st…",
+      "excerpt": [
+        "tests/team-account-birthdate-ui.test.tsx(52,75): error TS2322: Type 'Promise<{ schemaVersion: 1; coverage: \"complete\"; socialOrderVersion: string; agentOrderVersions: {}; accounts: { agents: TeamAccountAgentSummary[]; taskCount?: number | undefined; ... 11 more ...; nameColorVersion?: string | undefined; }[]; }>' is not assignable to type 'Promise<{ accounts: { twoFactorSeed: string | null; taskCount?: number | undefined; id: string; teamId: string; name: string; createdAt: string; updatedAt: st…",
+        "  Type '{ schemaVersion: 1; coverage: \"complete\"; socialOrderVersion: string; agentOrderVersions: {}; accounts: { agents: TeamAccountAgentSummary[]; taskCount?: number; ... 11 more ...; nameColorVersion?: string; }[]; }' is not assignable to type '{ accounts: { twoFactorSeed: string | null; taskCount?: number; id: string; teamId: string; name: string; createdAt: string; updatedAt: string; agents: TeamAccountAgentSummary[]; ... 5 more ...; nameColorVersion?: string; }[]; ... 5 more ...; launchCov…",
+        "    Types of property 'accounts' are incompatible.",
+        "      Type '{ agents: TeamAccountAgentSummary[]; taskCount?: number | undefined; id: string; teamId: string; name: string; createdAt: string; updatedAt: string; twoFactorSeed?: string | ... 1 more ... | undefined; ... 5 more ...; nameColorVersion?: string | undefined; }[]' is not assignable to type '{ twoFactorSeed: string | null; taskCount?: number | undefined; id: string; teamId: string; name: string; createdAt: string; updatedAt: string; agents: TeamAccountAgentSummary[]; ... 5 more ...; name…",
+        "        Type '{ agents: TeamAccountAgentSummary[]; taskCount?: number; id: string; teamId: string; name: string; createdAt: string; updatedAt: string; twoFactorSeed?: string | null; ... 5 more ...; nameColorVersion?: string; }' is not assignable to type '{ twoFactorSeed: string | null; taskCount?: number; id: string; teamId: string; name: string; createdAt: string; updatedAt: string; agents: TeamAccountAgentSummary[]; ... 5 more ...; nameColorVersion?: string; }'.",
+        "          Types of property 'twoFactorSeed' are incompatible.",
+        "            Type 'string | null | undefined' is not assignable to type 'string | null'.",
+        "              Type 'undefined' is not assignable to type 'string | null'.",
+        "tests/team-account-birthdate-ui.test.tsx(146,68): error TS2769: No overload matches this call.",
+        "  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "tests/team-account-birthdate-ui.test.tsx(149,55): error TS2769: No overload matches this call.",
+        "  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "tests/team-account-birthdate-ui.test.tsx(152,70): error TS2769: No overload matches this call.",
+        "  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "tests/team-account-birthdate-ui.test.tsx(165,70): error TS2769: No overload matches this call.",
+        "  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined, waitForElementOptions?: waitForOptions | undefined): Promise<HTMLElement>', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined, waitForElementOptions?: waitForOptions | undefined): Promise<HTMLElement>', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "tests/team-account-birthdate-ui.test.tsx(192,74): error TS2769: No overload matches this call.",
+        "  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "tests/team-account-birthdate-ui.test.tsx(194,64): error TS2769: No overload matches this call.",
+        "  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "tests/team-account-birthdate-ui.test.tsx(233,16): error TS2322: Type 'TeamAccountSummary' is not assignable to type '{ twoFactorSeed: string | null; taskCount?: number; id: string; teamId: string; name: string; createdAt: string; updatedAt: string; agents: TeamAccountAgentSummary[]; ... 5 more ...; nameColorVersion?: string; }'.",
+        "  Types of property 'twoFactorSeed' are incompatible.",
+        "    Type 'string | null | undefined' is not assignable to type 'string | null'.",
+        "      Type 'undefined' is not assignable to type 'string | null'.",
+        "tests/team-account-birthdate-ui.test.tsx(264,68): error TS2769: No overload matches this call.",
+        "  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "tests/team-account-birthdate-ui.test.tsx(267,74): error TS2769: No overload matches this call.",
+        "  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.",
+        "  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement', gave the following error.",
+        "    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'."
+      ]
+    }
+  }
+}

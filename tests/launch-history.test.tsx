@@ -214,3 +214,9 @@ it('stages an old dated configuration without restoring its source or changing t
   expect(current.draft).toEqual(currentConfig);
   expect(current.activeRevision).toBeNull();
 });
+
+it('explains an empty history without offering restore actions', () => {
+  render(<LaunchHistory {...props()} rows={[]} confirming={false} />);
+  expect(screen.getByRole('status').textContent).toBe('No versions yet');
+  expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
+});

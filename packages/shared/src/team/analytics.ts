@@ -24,8 +24,117 @@ import {
   type CreativeLibraryContributionCategory
 } from './creative-library.js';
 
+/** Content-free account workspace diagnostics (038). No entity IDs or values. */
+export const ACCOUNT_ANALYTICS_OPERATIONS = [
+  'createAccount',
+  'renameAccount',
+  'setAccountTwoFactor',
+  'deleteAccount',
+  'addAccountAgent',
+  'updateAccountAgent',
+  'deleteAccountAgent',
+  'addAgentRun',
+  'updateAgentRun',
+  'deleteAgentRun',
+  'setAgentRunMarker',
+  'clearAgentRunMarkers',
+  'clearAgentRuns',
+  'attachAgentLabel',
+  'detachAgentLabel',
+  'financeClear',
+  'financeUndo',
+  'financeLegacyImport',
+  'financeTransfer',
+  'financeHistory',
+  'financeExport'
+] as const;
+export const ACCOUNT_ANALYTICS_ACTIONS = [
+  'overview',
+  'reorder',
+  'lifecycle',
+  'decoration',
+  'finance_edit',
+  'topup_copy',
+  'retained_action'
+] as const;
+export const ACCOUNT_ANALYTICS_STAGES = [
+  'held',
+  'captured',
+  'drop',
+  'draft_resolution',
+  'preflight',
+  'edited',
+  'validated',
+  'requested',
+  'accepted',
+  'applied',
+  'terminal',
+  'clipboard_requested',
+  'clipboard_confirmed'
+] as const;
+export const ACCOUNT_ANALYTICS_CODES = [
+  'NONE',
+  'AUTH_REQUIRED',
+  'NOT_A_MEMBER',
+  'AGENT_ID_CONFLICT',
+  'NAME_CONFLICT',
+  'WRONG_STATE',
+  'DATE_BEFORE_AGENT',
+  'TRANSFER_DATE_INVALID',
+  'FINANCE_UNDO_ALREADY_APPLIED',
+  'LEGACY_ALREADY_IMPORTED',
+  'LEGACY_TARGET_OCCUPIED',
+  'INVALID_INPUT',
+  'INVALID_RESPONSE',
+  'PERMISSION_DENIED',
+  'NOT_FOUND',
+  'ACCOUNT_ARCHIVED',
+  'ACCOUNT_SCOPE_CHANGED',
+  'PARENT_ARCHIVED',
+  'HISTORICAL_CORRECTION_REQUIRED',
+  'REQUEST_REPLAY_MISMATCH',
+  'FINANCE_CONFLICT',
+  'FINANCE_AMOUNT_INVALID',
+  'FINANCE_HISTORY_PROTECTED',
+  'FINANCE_CLIENT_UPGRADE_REQUIRED',
+  'REQUEST_REUSE_CONFLICT',
+  'FINANCE_EXPORT_FAILED',
+  'FUTURE_FINANCE_DATE',
+  'PLACEMENT_CONFLICT',
+  'ACCOUNT_ORDER_CONFLICT',
+  'ACCOUNT_LIFECYCLE_CONFLICT',
+  'ACCOUNT_CONTENT_CONFLICT',
+  'ACCOUNT_PREFERENCE_CONFLICT',
+  'ACCOUNT_RESULT_UNCERTAIN',
+  'VERSION_CONFLICT',
+  'CLIPBOARD_DENIED',
+  'SOURCE_CHANGED',
+  'UNKNOWN'
+] as const;
+export const ACCOUNT_ANALYTICS_RESULTS = [
+  'complete',
+  'partial',
+  'cancelled',
+  'noop',
+  'conflict',
+  'denied',
+  'unknown',
+  'hidden_no_period_data',
+  'retained_period_data',
+  'restored',
+  'parent_archived',
+  'failed'
+] as const;
+export type AccountAnalyticsAction = (typeof ACCOUNT_ANALYTICS_ACTIONS)[number];
+export type AccountAnalyticsStage = (typeof ACCOUNT_ANALYTICS_STAGES)[number];
+export type AccountAnalyticsCode = (typeof ACCOUNT_ANALYTICS_CODES)[number];
+export type AccountAnalyticsResult = (typeof ACCOUNT_ANALYTICS_RESULTS)[number];
+
 export const TEAM_ANALYTICS_EVENT_NAMES = [
   ...LAUNCH_ANALYTICS_EVENTS,
+  'team_account_stage',
+  'team_account_terminal',
+  'team_account_visible',
   'team_workspace_session',
   'team_onboarding_started',
   'team_onboarding_completed',
@@ -101,6 +210,20 @@ const LANDING_RENDER_FAILURE_REASONS = [
 ] as const satisfies readonly LandingRenderFailureReason[];
 
 export interface TeamAnalyticsProperties {
+  account_action?: AccountAnalyticsAction;
+  account_operation?: (typeof ACCOUNT_ANALYTICS_OPERATIONS)[number];
+  account_stage?: AccountAnalyticsStage;
+  account_code?: AccountAnalyticsCode;
+  account_result?: AccountAnalyticsResult;
+  account_entity?: 'social' | 'rk' | 'workspace';
+  account_day?: 'today' | 'previous' | 'historical';
+  account_coverage?:
+    | 'complete'
+    | 'accounts_missing'
+    | 'finance_missing'
+    | 'launches_missing'
+    | 'multiple_missing'
+    | 'accounts_only';
   flow_id?: string;
   run_id?: string;
   revision_id?: string;
@@ -171,6 +294,24 @@ export const TEAM_ANALYTICS_COUNT_MAX = 100_000;
 export const TEAM_ANALYTICS_PROPERTY_RULES: Readonly<
   Record<keyof TeamAnalyticsProperties, TeamAnalyticsPropertyRule>
 > = {
+  account_operation: { kind: 'enum', values: ACCOUNT_ANALYTICS_OPERATIONS },
+  account_action: { kind: 'enum', values: ACCOUNT_ANALYTICS_ACTIONS },
+  account_stage: { kind: 'enum', values: ACCOUNT_ANALYTICS_STAGES },
+  account_code: { kind: 'enum', values: ACCOUNT_ANALYTICS_CODES },
+  account_result: { kind: 'enum', values: ACCOUNT_ANALYTICS_RESULTS },
+  account_entity: { kind: 'enum', values: ['social', 'rk', 'workspace'] },
+  account_day: { kind: 'enum', values: ['today', 'previous', 'historical'] },
+  account_coverage: {
+    kind: 'enum',
+    values: [
+      'complete',
+      'accounts_missing',
+      'finance_missing',
+      'launches_missing',
+      'multiple_missing',
+      'accounts_only'
+    ]
+  },
   flow_id: { kind: 'id' },
   run_id: { kind: 'id' },
   revision_id: { kind: 'id' },

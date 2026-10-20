@@ -132,8 +132,12 @@ describe('the token layer', () => {
       '--motion-progress',
       '--motion-catalog-success'
     ]);
+    // This is the deliberate long-press activation threshold, not a visual
+    // transition. Feedback waits 200ms, then fills within the 300ms ceiling.
+    expect(light.get('--motion-account-hold')).toBe('500ms');
     for (const [name, value] of light) {
-      if (!name.startsWith('--motion-') || AMBIENT.has(name)) continue;
+      if (!name.startsWith('--motion-') || AMBIENT.has(name) || name === '--motion-account-hold')
+        continue;
       const ms = /^(\d+(?:\.\d+)?)ms$/.exec(value);
       expect(ms, `${name} should be a plain millisecond value`).not.toBeNull();
       expect(Number(ms![1]), name).toBeLessThanOrEqual(300);

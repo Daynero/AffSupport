@@ -1,4 +1,4 @@
-import { Button, Card, Badge } from '../../components/ui/index';
+import { Button, Card, Badge, Empty } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import type { launchApi } from '../../api/launches';
 export function LaunchHistory({
@@ -49,6 +49,7 @@ export function LaunchHistory({
           </div>
         </Card>
       )}
+      {rows.length === 0 && <Empty size="sm" title={t('launchesHistoryEmpty')} />}
       {rows.map(row => {
         const date = new Date(row.createdAt);
         const label = Number.isFinite(date.getTime())

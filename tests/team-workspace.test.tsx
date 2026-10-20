@@ -114,7 +114,7 @@ describe('guided team space workspace', () => {
 
       // The invitation is made from the one Members screen.
       await user.click(screen.getByRole('link', { name: 'Members' }));
-      await user.type(await screen.findByLabelText('Invite by email'), 'new.member@example.test');
+      await user.type(await screen.findByLabelText('Email'), 'new.member@example.test');
       await user.click(screen.getByRole('button', { name: 'Send invitation' }));
       expect(await screen.findByText('new.member@example.test')).toBeTruthy();
 

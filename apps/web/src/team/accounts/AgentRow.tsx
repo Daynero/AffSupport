@@ -1,3 +1,5 @@
+import { useAccountReorderItem } from './AccountReorderProvider';
+import { TEAM_ACCOUNT_NAME_COLORS, type TeamAccountNameColor } from '@video-compressor/shared';
 /**
  * One agent under an account, in whichever of its states it is in.
  *
@@ -27,6 +29,10 @@ import {
   type ReactNode
 } from 'react';
 import {
+  Archive,
+  History,
+  ArrowUp,
+  ArrowDown,
   ArrowRightLeft,
   Check,
   CircleCheck,
@@ -49,7 +55,7 @@ import {
 } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
 import { Button, IconButton } from '../../components/ui';
-import { ICON_STROKE } from '../../components/icons';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type Language, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
@@ -164,17 +170,29 @@ function AgentMenu({
   triggerRef,
   onEdit,
   onMove,
-  onDelete
+  onDelete,
+  onHistory,
+  historyLabel,
+  onArchive,
+  archiveLabel,
+  onOrderUp,
+  onOrderDown
 }: {
   label: string;
   editLabel: string;
   moveLabel: string;
   deleteLabel: string;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
-  onEdit: () => void;
+  onEdit?: () => void;
   /** Absent when there is nowhere to move to. */
   onMove?: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
+  onHistory?: () => void;
+  historyLabel?: string;
+  onArchive?: () => void;
+  archiveLabel?: string;
+  onOrderUp?: () => void;
+  onOrderDown?: () => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -241,6 +259,7 @@ function AgentMenu({
 
   const choose = (run: () => void) => {
     setOpen(false);
+    triggerRef.current?.focus();
     run();
   };
 
@@ -269,8 +288,80 @@ function AgentMenu({
     </button>
   );
 
-  // The arrows walk exactly the items on screen, with or without "Move".
-  items.current.length = onMove ? 3 : 2;
+  const actions = [
+    ...(onEdit
+      ? [
+          {
+            label: editLabel,
+            text: t('teamAgentEdit'),
+            icon: <Pencil size={ICON} strokeWidth={ICON_STROKE} />,
+            run: onEdit
+          }
+        ]
+      : []),
+    ...(onMove
+      ? [
+          {
+            label: moveLabel,
+            text: t('financeMove'),
+            icon: <ArrowRightLeft size={ICON} strokeWidth={ICON_STROKE} />,
+            run: onMove
+          }
+        ]
+      : []),
+    ...(onOrderUp
+      ? [
+          {
+            label: t('accountsMoveUp'),
+            text: t('accountsMoveUp'),
+            icon: <ArrowUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+            run: onOrderUp
+          }
+        ]
+      : []),
+    ...(onOrderDown
+      ? [
+          {
+            label: t('accountsMoveDown'),
+            text: t('accountsMoveDown'),
+            icon: <ArrowDown size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+            run: onOrderDown
+          }
+        ]
+      : []),
+    ...(onHistory
+      ? [
+          {
+            label: historyLabel ?? t('financeHistory'),
+            text: t('financeHistory'),
+            icon: <History size={ICON} strokeWidth={ICON_STROKE} />,
+            run: onHistory
+          }
+        ]
+      : []),
+    ...(onArchive
+      ? [
+          {
+            label: archiveLabel ?? t('accountsArchive'),
+            text: t('accountsArchive'),
+            icon: <Archive size={ICON} strokeWidth={ICON_STROKE} />,
+            run: onArchive
+          }
+        ]
+      : []),
+    ...(onDelete
+      ? [
+          {
+            label: deleteLabel,
+            text: t('teamAgentDelete'),
+            icon: <Trash2 size={ICON} strokeWidth={ICON_STROKE} />,
+            run: onDelete,
+            danger: true
+          }
+        ]
+      : [])
+  ];
+  items.current.length = actions.length;
 
   return (
     <div className="team-agent-menu" ref={box}>
@@ -282,6 +373,8 @@ function AgentMenu({
         title={label}
         aria-haspopup="menu"
         aria-expanded={open}
+        data-reorder-keyboard={onOrderUp || onOrderDown ? 'true' : undefined}
+        aria-keyshortcuts={onOrderUp || onOrderDown ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
         onClick={() => {
           setActive(0);
           setOpen(value => !value);
@@ -316,33 +409,18 @@ function AgentMenu({
             setOpen(false);
           }}
         >
-          {item(
-            0,
-            'team-agent-menu-item',
-            editLabel,
-            <Pencil size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />,
-            t('teamAgentEdit'),
-            () => choose(onEdit)
-          )}
-          {onMove &&
-            item(
-              1,
-              'team-agent-menu-item',
-              moveLabel,
-              <ArrowRightLeft size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />,
-              t('financeMove'),
-              () => choose(onMove)
-            )}
-          {/* Last, and alone in its danger colour: the one press in this menu
-              that cannot be taken back by typing again. */}
-          {item(
-            onMove ? 2 : 1,
-            'team-agent-menu-item is-danger',
-            deleteLabel,
-            <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />,
-            t('teamAgentDelete'),
-            () => choose(onDelete)
-          )}
+          {actions.map((action, index) => (
+            <span key={action.label} className="contents">
+              {item(
+                index,
+                `team-agent-menu-item${'danger' in action ? ' is-danger' : ''}`,
+                action.label,
+                action.icon,
+                action.text,
+                () => choose(action.run)
+              )}
+            </span>
+          ))}
         </div>
       </Popover>
     </div>
@@ -351,6 +429,14 @@ function AgentMenu({
 
 export function AgentRow({
   agent,
+  index = 0,
+  finance,
+  linkedLaunches,
+  nameColor = 0,
+  onCycleColor,
+  onArchive,
+  onHistory,
+  reorderEnabled = false,
   accountName,
   canEdit,
   pending = false,
@@ -372,6 +458,14 @@ export function AgentRow({
   onDelete
 }: {
   agent: TeamAccountAgentSummary;
+  index?: number;
+  finance?: ReactNode;
+  linkedLaunches?: ReactNode;
+  nameColor?: TeamAccountNameColor;
+  onCycleColor?: () => void;
+  onArchive?: () => void;
+  onHistory?: () => void;
+  reorderEnabled?: boolean;
   accountName: string;
   canEdit: boolean;
   /** A write on this agent is in flight elsewhere (an undo); the row waits. */
@@ -398,6 +492,20 @@ export function AgentRow({
   onDelete: () => Promise<void>;
 }) {
   const { t, language } = useI18n();
+  const reorder = useAccountReorderItem(
+    { kind: 'agent', id: agent.id, parent: agent.accountId, index, label: agent.agentId },
+    !canEdit || !reorderEnabled || Boolean(agent.archivedAt)
+  );
+  const colorKey = [
+    'accountsColorNone',
+    'accountsColorGreen',
+    'accountsColorYellow',
+    'accountsColorRed',
+    'accountsColorBlue',
+    'accountsColorPurple',
+    'accountsColorPink',
+    'accountsColorOrange'
+  ] as const;
   const { push } = useToasts();
   const { activeTeam } = useTeam();
   const titleId = useId();
@@ -529,33 +637,54 @@ export function AgentRow({
 
   return (
     <li
+      ref={reorder.ref}
+      role="listitem"
+      data-reorder-id={agent.id}
+      data-finance-social={agent.accountId}
+      data-name-color-value={TEAM_ACCOUNT_NAME_COLORS[nameColor]}
       className={`team-agent-row${free ? ' is-free' : ''}${pending ? ' is-pending' : ''}`}
       data-agent-row-id={agent.id}
       data-free={free ? 'true' : 'false'}
       aria-busy={pending || undefined}
+      onKeyDown={event => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest('[data-reorder-keyboard]') &&
+          event.altKey &&
+          (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+        ) {
+          event.preventDefault();
+          reorder.move(event.key === 'ArrowUp' ? -1 : 1);
+        }
+      }}
     >
+      <span hidden ref={reorder.handleRef} />
       <span className="team-agent-rail" aria-hidden="true" />
       {/* The agent's identity is `v31-434` — the account and the tail of the
           id, the same chip a task shows — so an ad account never reads like a
-          second social account, however its id happens to end. It is text, not
-          a button: the copy is the small mark beside it, which is the rare
-          thing, and the identity itself no longer spends the row's largest
-          target on it. */}
+          second social account, however its id happens to end. The name cycles
+          personal decoration; the separate small control copies the full ID. */}
       <div className="team-agent-id">
-        <span
+        <button
+          type="button"
+          data-name-color="true"
+          data-color={TEAM_ACCOUNT_NAME_COLORS[nameColor]}
+          aria-label={t('accountsColor', { color: t(colorKey[nameColor]) })}
+          onClick={event => {
+            if (reorder.suppressClick()) {
+              event.preventDefault();
+              return;
+            }
+            onCycleColor?.();
+          }}
           className={`team-agent-tag${free ? ' is-free' : ''}${revealed ? ' is-revealed' : ''}`}
           title={tooltip}
         >
           <span className="team-task-agent-chip-dot" aria-hidden="true" />
           <span className="team-agent-tag-text">
-            <AgentIdentity
-              accountName={accountName}
-              agentId={agent.agentId}
-              revealed={revealed}
-              search={search}
-            />
+            <AgentIdentity accountName={accountName} agentId={agent.agentId} revealed={revealed} />
           </span>
-        </span>
+        </button>
         <IconButton
           label={`${named('teamAgentCopyId')}: ${agent.agentId}`}
           title={tooltip}
@@ -584,9 +713,11 @@ export function AgentRow({
           down it. A dot and the word, not a pill: a row already carries two
           real buttons, and a third thing shaped like one is a press wasted. */}
       <div className="team-agent-status">
-        <span className={`team-agent-state${free ? ' is-free' : ' is-busy'}`}>
+        <span
+          className={`team-agent-state${agent.archivedAt ? ' is-archived' : free ? ' is-free' : ' is-busy'}`}
+        >
           <span className="team-agent-state-dot" aria-hidden="true" />
-          {t(free ? 'teamAgentFree' : 'teamAgentBusy')}
+          {agent.archivedAt ? t('accountsArchived') : t(free ? 'teamAgentFree' : 'teamAgentBusy')}
         </span>
         {/* Under the state, the same place on every row (024). On the last run's line it
             pushed that run's age out of line with the others, and on a free agent it stood
@@ -597,6 +728,7 @@ export function AgentRow({
       {/* The runs: one line each, with the day it was written. A line being
           corrected is a field; a new run is a field under the last line. */}
       <div className="team-agent-runs">
+        {linkedLaunches}
         {agent.runs.map(item =>
           runEditing?.runId === item.id ? (
             <RunField
@@ -641,7 +773,7 @@ export function AgentRow({
                   }
                 />
               )}
-              <span className="team-agent-run-text">
+              <span className="team-agent-run-text" data-tip={item.note} data-tip-overflow>
                 <Marked text={item.note} term={search} />
               </span>
               <RunAge createdAt={item.createdAt} />
@@ -656,7 +788,7 @@ export function AgentRow({
                     disabled={waiting}
                     onClick={() => onRunEditingChange({ runId: item.id })}
                   >
-                    <Pencil size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   </IconButton>
                   <IconButton
                     label={`${t('teamAgentRunDelete')}: ${item.note}`}
@@ -664,7 +796,7 @@ export function AgentRow({
                     disabled={waiting || editingRun}
                     onClick={() => void run(() => onDeleteRun(item))}
                   >
-                    <Trash2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   </IconButton>
                 </span>
               )}
@@ -721,19 +853,28 @@ export function AgentRow({
              * neither writes. Disabling them mid-open took the focus off an
              * item and left no enabled element in the row to give it back to.
              */}
-            <AgentMenu
-              label={named('teamAgentMore')}
-              editLabel={named('teamAgentEdit')}
-              moveLabel={named('teamAgentMove')}
-              deleteLabel={named('teamAgentDelete')}
-              triggerRef={menuTrigger}
-              onEdit={onEdit}
-              onMove={onMove}
-              onDelete={() => setConfirming(true)}
-            />
           </>
         )}
+        {(canEdit || onHistory) && (
+          <AgentMenu
+            label={named('teamAgentMore')}
+            editLabel={named('teamAgentEdit')}
+            moveLabel={named('teamAgentMove')}
+            deleteLabel={named('teamAgentDelete')}
+            historyLabel={`${t('financeHistory')} · ${accountName} · ${agent.agentId}`}
+            archiveLabel={t('accountsArchiveAction', { name: tag })}
+            triggerRef={menuTrigger}
+            onEdit={canEdit ? onEdit : undefined}
+            onMove={canEdit ? onMove : undefined}
+            onDelete={canEdit ? () => setConfirming(true) : undefined}
+            onHistory={onHistory}
+            onArchive={canEdit ? onArchive : undefined}
+            onOrderUp={reorder.canMove(-1) ? () => reorder.move(-1) : undefined}
+            onOrderDown={reorder.canMove(1) ? () => reorder.move(1) : undefined}
+          />
+        )}
       </div>
+      {finance}
 
       {/* Focus starts on Cancel: Enter on the menu item and Enter again must
           not be a deletion with no pause in between. */}
@@ -1076,10 +1217,12 @@ export function EditField({
   className?: string;
 }) {
   const { t } = useI18n();
+  const ownInput = useRef<HTMLInputElement>(null);
+  const fieldInput = inputRef ?? ownInput;
   return (
     <div className={`team-accounts-field ${className}`.trim()}>
       <input
-        ref={inputRef}
+        ref={fieldInput}
         type="text"
         value={value}
         spellCheck={false}
@@ -1096,7 +1239,10 @@ export function EditField({
           title=""
           label={t('teamAccountsClearField')}
           tabIndex={-1}
-          onClick={() => onChange('')}
+          onClick={() => {
+            onChange('');
+            fieldInput.current?.focus({ preventScroll: true });
+          }}
         >
           <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>

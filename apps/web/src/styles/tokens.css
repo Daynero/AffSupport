@@ -351,6 +351,8 @@
   --motion-slow: 300ms;
   --motion-progress: 750ms;
   --motion-catalog-success: 1500ms;
+  --motion-account-hold: 500ms;
+  --motion-account-hold-grace: 200ms;
   --ease-out-curve: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-curve: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-linear: linear;
@@ -729,6 +731,66 @@
   /* Shadow aliases the old sheet still names */
   --shadow-xl: var(--shadow-lg);
   --shadow-raise: var(--shadow-md);
+}
+
+:root {
+  --account-unified-width: 1380px;
+  --account-finance-cell: 84px;
+  --account-row-height: 44px;
+  --account-input-height: 30px;
+  --account-actions-width: 98px;
+  --account-status-width: 112px;
+  --account-finance-action: 44px;
+}
+
+:root {
+  /* Personal account decoration: flat colours, independent of the surface. */
+  --account-name-green: #d1f6df;
+  --account-name-green-rail: #24a568;
+  --account-name-green-ink: #164d32;
+  --account-name-yellow: #fff0a3;
+  --account-name-yellow-rail: #d5a900;
+  --account-name-yellow-ink: #594600;
+  --account-name-red: #ffd3dc;
+  --account-name-red-rail: #e44b6a;
+  --account-name-red-ink: #79213a;
+  --account-name-blue: #d6e9ff;
+  --account-name-blue-rail: #3c8be5;
+  --account-name-blue-ink: #194c87;
+  --account-name-purple: #ebdcff;
+  --account-name-purple-rail: #9b65db;
+  --account-name-purple-ink: #61328c;
+  --account-name-pink: #ffd8ee;
+  --account-name-pink-rail: #de63a9;
+  --account-name-pink-ink: #872d63;
+  --account-name-orange: #ffe1ba;
+  --account-name-orange-rail: #e79335;
+  --account-name-orange-ink: #6e3e0c;
+}
+
+:root[data-theme='dark'] {
+  /* Personal account decoration: flat colours, independent of the surface. */
+  --account-name-green: #287d55;
+  --account-name-green-rail: #79e8ab;
+  --account-name-green-ink: #ffffff;
+  --account-name-yellow: #daba38;
+  --account-name-yellow-rail: #fff08a;
+  --account-name-yellow-ink: #3f3104;
+  --account-name-red: #bb435f;
+  --account-name-red-rail: #ff91a8;
+  --account-name-red-ink: #ffffff;
+  --account-name-blue: #316fb5;
+  --account-name-blue-rail: #91c7ff;
+  --account-name-blue-ink: #ffffff;
+  --account-name-purple: #8353b5;
+  --account-name-purple-rail: #cfa7ff;
+  --account-name-purple-ink: #ffffff;
+  --account-name-pink: #b54d89;
+  --account-name-pink-rail: #ffa4d4;
+  --account-name-pink-ink: #ffffff;
+  --account-name-orange: #dc8d3c;
+  --account-name-orange-rail: #ffd09a;
+  --account-name-orange-ink: #3e2407;
 }
 
 :root {

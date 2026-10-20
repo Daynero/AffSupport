@@ -17,9 +17,9 @@ function check(error: { message: string } | null) {
     );
 }
 export const teamFinanceApi = {
-  async snapshot(team: string, from: string, to: string, timezone: string) {
+  async snapshot(team: string, from: string, to: string, timezone: string, v2 = false) {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_agent_finance', {
+      requireSupabaseClient().rpc(v2 ? 'get_team_agent_finance_v2' : 'get_team_agent_finance', {
         p_team: team,
         p_from: from,
         p_to: to,
@@ -28,9 +28,15 @@ export const teamFinanceApi = {
     );
     check(error);
     const result = parseFinanceSnapshot(data);
-    if (!result || result.teamId !== team || result.from !== from || result.to !== to)
+    if (
+      !result ||
+      (v2 && result.schemaVersion !== 2) ||
+      result.teamId !== team ||
+      result.from !== from ||
+      result.to !== to
+    )
       throw new TeamApiError('INVALID_RESPONSE', false);
-    return result;
+    return v2 ? { ...result, timezone } : result;
   },
   async set(
     team: string,
@@ -41,7 +47,8 @@ export const teamFinanceApi = {
     version: string,
     timezone: string,
     requestId: string,
-    placementId: string
+    placementId: string,
+    intent: 'normal' | 'historical_correction' = 'normal'
   ) {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('set_team_agent_finance_value', {
@@ -53,7 +60,8 @@ export const teamFinanceApi = {
         p_expected_version: version,
         p_timezone: timezone,
         p_request_id: requestId,
-        p_expected_placement_id: placementId
+        p_expected_placement_id: placementId,
+        p_intent: intent
       })
     );
     check(error);
@@ -61,12 +69,18 @@ export const teamFinanceApi = {
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
     return result;
   },
-  async undo(team: string, original: string, requestId: string) {
+  async undo(
+    team: string,
+    original: string,
+    requestId: string,
+    intent: 'normal' | 'historical_correction' = 'normal'
+  ) {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('undo_team_agent_finance_clear', {
         p_team: team,
         p_original_request_id: original,
-        p_request_id: requestId
+        p_request_id: requestId,
+        p_intent: intent
       })
     );
     check(error);
@@ -181,7 +195,8 @@ export const teamFinanceApi = {
     date: string,
     value: string,
     timezone: string,
-    request: string
+    request: string,
+    intent: 'normal' | 'historical_correction' = 'normal'
   ) {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('import_team_agent_finance_legacy', {
@@ -192,7 +207,8 @@ export const teamFinanceApi = {
         p_value: value,
         p_currency: 'USD',
         p_timezone: timezone,
-        p_request_id: request
+        p_request_id: request,
+        p_intent: intent
       })
     );
     check(error);
@@ -206,7 +222,8 @@ export const teamFinanceApi = {
     metric: 'balance' | 'topup',
     fields: { agent: string; expectedVersion: string }[],
     timezone: string,
-    requestId: string
+    requestId: string,
+    intent: 'normal' | 'historical_correction' = 'normal'
   ) {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('clear_team_agent_finance_values', {
@@ -215,7 +232,8 @@ export const teamFinanceApi = {
         p_metric: metric,
         p_fields: fields,
         p_timezone: timezone,
-        p_request_id: requestId
+        p_request_id: requestId,
+        p_intent: intent
       })
     );
     check(error);

@@ -2,146 +2,155 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /**
- * The Accounts tab (017) at every width, measured in a real browser.
- *
- * The agent row is a grid whose fixed tracks — the id, the status, the tasks
- * and the row's own buttons — are spent before the runs get a pixel, and a run
- * line is a flex row of things that do not shrink: the note, the day it was
- * written, a pencil, a bin and "+ Run". When the two do not fit, the note does
- * not overflow the page and nothing throws: `overflow-wrap: anywhere` folds it
- * into a column of single letters inside its cell, and `document.scrollWidth`
- * never moves. That is why the invariant checked here is not "the page does
- * not scroll sideways" but
- *
- *     every run line's scrollWidth === the width of the cell holding it
- *
- * and why it is checked at the widths either side of every breakpoint (560,
- * 1000, 1200) rather than at one comfortable desktop size. Add both sides of
- * any breakpoint you add: this list is what the next person will copy.
- *
- * It needs the beta stack up (`npm run beta:up`) and Playwright's Chromium.
- * Usage: node scripts/check-accounts-layout.mjs [teamId] [--site=http://…]
- * Exits non-zero and prints the offending widths when the invariant breaks.
+ * 038 unified Accounts: the TABLE owns vertical scrolling. Compact variable-height rows
+ * are expected when runs wrap; every complete run line must fit its own cell.
+ * Only the local beta is supported. No database writes or DOM fixture cloning.
+ * Usage: node scripts/check-accounts-layout.mjs [teamId] [--site=http://127.0.0.1:5175]
+ *        [--storage-state=/path/to/local-auth.json]
  */
-
-import { existsSync, readdirSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import playwright from 'playwright-core';
-
-const { chromium } = playwright;
-
-const args = process.argv.slice(2);
-const site =
-  args.find(a => a.startsWith('--site='))?.slice('--site='.length) ?? 'http://127.0.0.1:5175';
-const teamId = args.find(a => !a.startsWith('--')) ?? '22222222-2222-4222-8222-222222222222';
-
-/** Either side of every breakpoint, plus the phones nobody remembers. */
+import { openAccountsBrowser } from './lib/accounts-browser.mjs';
 const WIDTHS = [
   320, 360, 390, 414, 480, 560, 561, 700, 900, 1000, 1001, 1100, 1200, 1201, 1280, 1440, 1600
 ];
-
-/**
- * The run each line is measured with, rather than whatever the beta happens to
- * hold: this is the shape the product itself offers as an example of a run
- * (`teamAgentNotePlaceholder`), and the 1001px failure this script first caught
- * depended on the note's length as much as on the day beside it. Seed the beta
- * with shorter notes and an unnormalised check would go quietly green.
- */
-const SAMPLE_RUN = 'Pro Caps | TR 02/09';
-
-/**
- * `playwright-core` ships no browsers, so it needs to be told where one is:
- * `PLAYWRIGHT_CHROME` first, then whatever `playwright` installed under the
- * user's cache, then Playwright's own resolver — which is the one that works
- * on a machine with the full package.
- */
-function chromePath() {
-  if (process.env.PLAYWRIGHT_CHROME) return process.env.PLAYWRIGHT_CHROME;
-  const cache = join(homedir(), 'Library/Caches/ms-playwright');
-  if (!existsSync(cache)) return null;
-  const build = readdirSync(cache)
-    .filter(name => name.startsWith('chromium-'))
-    .sort()
-    .pop();
-  if (!build) return null;
-  const app = join(
-    cache,
-    build,
-    'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
-  );
-  return existsSync(app) ? app : null;
-}
-
-const executablePath = chromePath();
-const browser = await chromium.launch(
-  executablePath ? { executablePath, headless: true } : { headless: true }
-);
-const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
-const page = await context.newPage();
-
-await page.goto(`${site}/login`, { waitUntil: 'domcontentloaded' });
-await page.evaluate(() => localStorage.setItem('theme', 'dark'));
-const signIn = page.getByRole('button', { name: /beta-акаунт|beta account/i });
-if (await signIn.count()) {
-  await signIn.first().click();
-  await page.waitForTimeout(3000);
-}
-await page.goto(`${site}/team/${teamId}/accounts`, { waitUntil: 'domcontentloaded' });
-await page.waitForSelector('.team-agent-row', { timeout: 15000 });
-
-/**
- * Both halves of the worst case, written into the DOM and not into the beta's
- * data: a run written today prints no day, and the day is the widest thing on
- * the line after the note. Idempotent, so it can run at every width.
- */
-const normalise = () =>
-  page.evaluate(sample => {
-    for (const line of document.querySelectorAll('.team-agent-run')) {
-      if (line.classList.contains('is-empty')) continue;
-      const text = line.querySelector('.team-agent-run-text');
-      if (text) text.textContent = sample;
-      if (line.querySelector('.team-agent-run-age')) continue;
-      const stamp = document.createElement('time');
-      stamp.className = 'team-agent-run-age';
-      stamp.textContent = '5 днів тому';
-      text?.after(stamp);
-    }
-  }, SAMPLE_RUN);
-
+const { browser, page } = await openAccountsBrowser();
 const failures = [];
-for (const width of WIDTHS) {
-  await page.setViewportSize({ width, height: 900 });
-  await page.waitForTimeout(250);
-  await normalise();
-  const seen = await page.evaluate(() => {
-    const lines = [...document.querySelectorAll('.team-agent-run:not(.is-empty)')];
-    return {
-      rows: [...document.querySelectorAll('.team-agent-row')].map(row =>
-        Math.round(row.getBoundingClientRect().height)
-      ),
-      spill: lines
-        .map(line =>
-          Math.round(line.scrollWidth - (line.parentElement?.getBoundingClientRect().width ?? 0))
-        )
-        .filter(over => over > 1),
-      page: document.documentElement.scrollWidth - document.documentElement.clientWidth
-    };
-  });
-  const heights = [...new Set(seen.rows)];
-  const uneven = width > 1000 && heights.length > 1;
-  const ok = seen.spill.length === 0 && seen.page <= 0 && !uneven;
-  if (!ok) failures.push({ width, ...seen });
+try {
+  for (const width of WIDTHS) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(
+      () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    );
+    const seen = await page.evaluate(() => {
+      const table = document.querySelector('.team-accounts-table');
+      if (!(table instanceof HTMLElement)) throw new Error('Unified table missing');
+      const style = getComputedStyle(table);
+      const rect = table.getBoundingClientRect();
+      const rows = [...table.querySelectorAll('.team-agent-row')];
+      // Cells stay inside their row and never cover one another. Wide layouts
+      // also share one baseline; narrow layouts intentionally use several rows.
+      const misalignedRows = rows
+        .filter(row => !row.classList.contains('is-editing'))
+        .flatMap(row => {
+          const cells = [...row.children].filter(cell =>
+            cell.matches(
+              '.team-agent-id, .team-agent-status, .team-agent-runs, .unified-agent-finance, .team-agent-actions'
+            )
+          );
+          const bounds = row.getBoundingClientRect();
+          const boxes = cells
+            .map(cell => cell.getBoundingClientRect())
+            .filter(box => box.height > 0);
+          const outside = boxes.some(
+            box =>
+              box.left < bounds.left - 1 ||
+              box.right > bounds.right + 1 ||
+              box.top < bounds.top - 1 ||
+              box.bottom > bounds.bottom + 1
+          );
+          const overlap = boxes.some((box, i) =>
+            boxes
+              .slice(i + 1)
+              .some(
+                other =>
+                  Math.min(box.right, other.right) - Math.max(box.left, other.left) > 1 &&
+                  Math.min(box.bottom, other.bottom) - Math.max(box.top, other.top) > 1
+              )
+          );
+          const centers = boxes.map(box => (box.top + box.bottom) / 2);
+          const spread = Math.max(...centers) - Math.min(...centers);
+          return outside || overlap || (innerWidth > 1000 && spread > 2)
+            ? [{ id: row.getAttribute('data-agent-row-id'), spread, outside, overlap }]
+            : [];
+        });
+      const blockedSocialActions = [
+        ...table.querySelectorAll('.team-account-head:not(.is-editing)')
+      ]
+        .filter(head => {
+          const title = head.querySelector('.team-account-title')?.getBoundingClientRect();
+          const actions = head.querySelector('.team-account-actions')?.getBoundingClientRect();
+          return (
+            title &&
+            actions &&
+            Math.min(title.right, actions.right) - Math.max(title.left, actions.left) > 1 &&
+            Math.min(title.bottom, actions.bottom) - Math.max(title.top, actions.top) > 1
+          );
+        })
+        .map(head => head.getAttribute('data-reorder-id'));
+      const runLines = [...table.querySelectorAll('.team-agent-run:not(.is-empty)')];
+      const escapedRunControls = runLines.flatMap(line => {
+        const bounds = line.getBoundingClientRect();
+        return [...line.querySelectorAll('button')]
+          .filter(button => {
+            const box = button.getBoundingClientRect();
+            return (
+              box.left < bounds.left - 1 ||
+              box.right > bounds.right + 1 ||
+              box.top < bounds.top - 1 ||
+              box.bottom > bounds.bottom + 1
+            );
+          })
+          .map(button => button.getAttribute('aria-label'));
+      });
+      const spill = runLines
+        .map(line => ({
+          width: line.getBoundingClientRect().width,
+          excess: line.scrollWidth - line.clientWidth,
+          cellExcess:
+            line.getBoundingClientRect().right -
+            (line.parentElement?.getBoundingClientRect().right ?? Number.NEGATIVE_INFINITY)
+        }))
+        .filter(line => line.excess > 1 || line.cellExcess > 1);
+      const before = { x: table.scrollLeft, y: table.scrollTop };
+      table.scrollLeft = table.scrollWidth;
+      table.scrollTop = table.scrollHeight;
+      const reachesRight = Math.abs(table.scrollWidth - table.clientWidth - table.scrollLeft) <= 2;
+      const reachesBottom =
+        Math.abs(table.scrollHeight - table.clientHeight - table.scrollTop) <= 2;
+      table.scrollLeft = before.x;
+      table.scrollTop = before.y;
+      return {
+        rowCount: rows.length,
+        runCount: runLines.length,
+        rowHeights: [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().height)))],
+        spill,
+        misalignedRows,
+        blockedSocialActions,
+        escapedRunControls,
+        pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        tableOutsideViewport: rect.left < -1 || rect.right > innerWidth + 1,
+        ownsScroll: style.overflowX === 'hidden' && ['auto', 'scroll'].includes(style.overflowY),
+        innerHorizontalOverflow: table.scrollWidth > table.clientWidth + 1,
+        innerVerticalOverflow: table.scrollHeight > table.clientHeight + 1,
+        reachesRight,
+        reachesBottom
+      };
+    });
+    const ok =
+      seen.rowCount > 0 &&
+      seen.runCount > 0 &&
+      !seen.spill.length &&
+      !seen.misalignedRows.length &&
+      !seen.blockedSocialActions.length &&
+      !seen.escapedRunControls.length &&
+      seen.pageOverflow <= 1 &&
+      !seen.tableOutsideViewport &&
+      seen.ownsScroll &&
+      !seen.innerHorizontalOverflow &&
+      seen.reachesRight &&
+      seen.reachesBottom;
+    if (!ok) failures.push({ width, ...seen });
+    console.log(JSON.stringify({ width, ok, ...seen }));
+  }
+} finally {
+  await browser.close();
+}
+if (failures.length) {
+  console.error(
+    `Unified layout failed at widths: ${failures.map(failure => failure.width).join(', ')}`
+  );
+  process.exitCode = 1;
+} else {
   console.log(
-    `${String(width).padStart(5)}  ${ok ? 'ok  ' : 'FAIL'}  rows ${heights.join('/')}` +
-      (seen.spill.length ? `  spill ${seen.spill.join(',')}px` : '') +
-      (seen.page > 0 ? `  page +${seen.page}px` : '')
+    'PASS: variable-height run content fits; the unified table fits horizontally and owns reachable vertical overflow. This is layout evidence, not a 500-row performance result.'
   );
 }
-
-await browser.close();
-if (failures.length > 0) {
-  console.error(`\nRun lines overflow their cell at: ${failures.map(f => f.width).join(', ')}`);
-  process.exit(1);
-}
-console.log('\nEvery run line fits its cell, and rows keep one height above 1000.');

@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { financeRecord } from '@video-compressor/shared';
 import { Button, Drawer, ErrorState, LoadingState } from '../../../components/ui/index';
 import { teamFinanceApi } from '../../../api/team-finance';
 import { useI18n } from '../../../i18n';
 import { formatFinanceAmount } from './formatFinanceAmount';
 import { AgentIdentity } from '../AgentIdentity';
+import {
+  useRetainedFinanceDiagnostics,
+  type FinanceDiagnosticAttempt
+} from './useRetainedFinanceDiagnostics';
 
 export function FinanceHistoryDrawer({
   teamId,
@@ -12,7 +16,8 @@ export function FinanceHistoryDrawer({
   accountName,
   agentId,
   onClose,
-  onReviewLegacy
+  onReviewLegacy,
+  onCorrect
 }: {
   teamId: string;
   agent: string;
@@ -20,8 +25,16 @@ export function FinanceHistoryDrawer({
   agentId: string;
   onClose: () => void;
   onReviewLegacy?: () => void;
+  onCorrect?: (date: string) => void;
 }) {
   const { t, language } = useI18n();
+  const { start, current, accept, applied, fail, cancel } = useRetainedFinanceDiagnostics(
+    'financeHistory',
+    `${teamId}/${agent}`
+  );
+  const request = useRef<FinanceDiagnosticAttempt | null>(null);
+  const list = useRef<HTMLOListElement>(null);
+  const [proof, setProof] = useState<FinanceDiagnosticAttempt | null>(null);
   const formatDate = (value: unknown, withTime = false) => {
     const raw = String(value ?? '');
     const date = new Date(withTime ? raw : `${raw}T12:00:00+03:00`);
@@ -40,15 +53,20 @@ export function FinanceHistoryDrawer({
   const [error, setError] = useState(false);
   const [page, setPage] = useState(0);
   const [legacy, setLegacy] = useState<Record<string, unknown>[]>([]);
+  const [legacyStatus, setLegacyStatus] = useState<'loading' | 'complete' | 'error'>('loading');
   useEffect(() => {
     let active = true;
+    setLegacyStatus('loading');
     void teamFinanceApi
       .legacy(teamId, agent)
       .then(rows => {
-        if (active) setLegacy(rows);
+        if (active) {
+          setLegacy(rows);
+          setLegacyStatus('complete');
+        }
       })
       .catch(() => {
-        if (active) setError(true);
+        if (active) setLegacyStatus('error');
       });
     return () => {
       active = false;
@@ -58,10 +76,14 @@ export function FinanceHistoryDrawer({
     let active = true;
     setLoading(true);
     setError(false);
+    const attempt = start();
+    request.current = attempt;
     void teamFinanceApi
       .history(teamId, agent, cursor)
       .then(data => {
-        if (!active) return;
+        if (!active || !current(attempt)) return;
+        accept(attempt);
+        setProof(attempt);
         const events: Record<string, unknown>[] = [];
         if (Array.isArray(data.events))
           for (const event of data.events) if (financeRecord(event)) events.push(event);
@@ -82,8 +104,11 @@ export function FinanceHistoryDrawer({
             : undefined
         );
       })
-      .catch(() => {
-        if (active) setError(true);
+      .catch(cause => {
+        if (active && current(attempt)) {
+          fail(attempt, cause);
+          setError(true);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -92,10 +117,24 @@ export function FinanceHistoryDrawer({
       active = false;
     };
     // Cursor is consumed only when the person requests another page.
-  }, [teamId, agent, page]);
+  }, [teamId, agent, page, start, current, accept, fail]);
+  useEffect(() => {
+    if (
+      proof &&
+      legacyStatus !== 'loading' &&
+      current(proof) &&
+      !loading &&
+      !error &&
+      list.current?.children.length === rows.length
+    )
+      applied(proof, legacyStatus === 'error' ? 'partial' : 'complete');
+  }, [proof, current, applied, loading, error, rows, legacyStatus]);
   return (
     <Drawer
-      onClose={onClose}
+      onClose={() => {
+        if (request.current && !request.current.applied) cancel(request.current);
+        onClose();
+      }}
       title={
         <span className="flex min-w-0 items-center gap-2">
           {t('financeHistory')} · <AgentIdentity accountName={accountName} agentId={agentId} />
@@ -115,7 +154,7 @@ export function FinanceHistoryDrawer({
           {onReviewLegacy && <Button onClick={onReviewLegacy}>{t('financeImport')}</Button>}
         </section>
       )}
-      <ol className="m-0 flex list-none flex-col gap-3 p-0">
+      <ol ref={list} className="m-0 flex list-none flex-col gap-3 p-0">
         {rows.map((r, i) => (
           <li
             className="flex flex-col gap-2 rounded-md border border-neutral-border p-3"
@@ -165,11 +204,16 @@ export function FinanceHistoryDrawer({
                 `${String(r.from_account ?? '')} → ${String(r.to_account ?? '')}`
               )}{' '}
             </div>
+            {onCorrect && typeof r.entry_date === 'string' && (
+              <Button size="sm" variant="ghost" onClick={() => onCorrect(r.entry_date as string)}>
+                {t('financeCorrect')} · {formatDate(r.entry_date)}
+              </Button>
+            )}
           </li>
         ))}
       </ol>
       {loading && <LoadingState label={t('financeHistory')} />}
-      {error && (
+      {(error || legacyStatus === 'error') && (
         <ErrorState
           message={t('financeError')}
           onRetry={() => setPage(p => p + 1)}

@@ -2,7 +2,7 @@ import { formatTaskDate } from '../tasks/TaskDateField';
 import { useRef, useState } from 'react';
 import { Link2, MoreHorizontal, Trash2 } from 'lucide-react';
 import { teamTaskDate, type LaunchSummary } from '@video-compressor/shared';
-import { Card, Button, Badge, Checkbox, DropdownMenu, IconButton } from '../../components/ui/index';
+import { Card, Badge, Checkbox, DropdownMenu, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { campaignCountLabel } from './campaignCountLabel';
@@ -47,12 +47,21 @@ export function LaunchCard({
             ? 'Усі'
             : 'All'
           : null;
-  const accountLabel = value.accountName || value.social;
+  const accountLabel = value.accountName?.trim() || value.social.trim();
+  const agentSuffix = value.agentSuffix?.trim() || value.agentId?.trim().slice(-3);
+  const accountChipLabel = agentSuffix
+    ? [value.social.trim() || accountLabel, agentSuffix].filter(Boolean).join('-')
+    : accountLabel;
   const accountTooltip = [
     `${t('teamAgentTooltipAccount', { name: accountLabel })}`,
     `${t('teamAgentTooltipId', { id: value.agentId || value.agentSuffix || '' })}`,
     t(value.agentFree === false ? 'teamAgentBusy' : 'teamAgentFree')
   ].join('\n');
+  const methodLabel = t(value.method === 'catalog' ? 'launchesCatalog' : 'launchesOther');
+  const heading =
+    value.offer.trim() ||
+    value.creativeAlias.trim() ||
+    [accountLabel, methodLabel].filter(Boolean).join(' · ');
   return (
     <Card
       role="surface"
@@ -78,16 +87,23 @@ export function LaunchCard({
             onChange={onSelectedChange}
           />
         )}
-        <span className="launch-card-heading" title={value.offer || t('launchesNew')}>
-          {value.offer || t('launchesNew')}
-        </span>
-        {accountLabel && value.agentSuffix && (
+        <button
+          type="button"
+          className="launch-card-heading"
+          title={heading}
+          onClick={() => {
+            if (!window.getSelection()?.toString()) onOpen();
+          }}
+        >
+          {heading}
+        </button>
+        {accountChipLabel && (
           <span
             className={`team-task-agent-chip${value.agentFree === false ? '' : ' is-free'}`}
             title={accountTooltip}
           >
             <span className="team-task-agent-chip-dot" aria-hidden="true" />
-            {value.social}-{value.agentSuffix}
+            {accountChipLabel}
           </span>
         )}
         {(onCopyLink || onDelete) && (
@@ -102,7 +118,7 @@ export function LaunchCard({
               label={t('launchesCardActions')}
               onClick={() => setMenuOpen(current => !current)}
             >
-              <MoreHorizontal size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             </IconButton>
             <DropdownMenu
               open={menuOpen}
@@ -138,11 +154,7 @@ export function LaunchCard({
           </>
         )}
       </div>
-      <Button
-        variant="ghost"
-        className="launch-card-open w-full min-w-0 justify-start text-left"
-        onClick={onOpen}
-      >
+      <div className="launch-card-body">
         <span className="launch-card-content">
           {(attention || generating) && (
             <Badge color={attention ? 'warning' : 'primary'}>
@@ -150,8 +162,10 @@ export function LaunchCard({
             </Badge>
           )}
           <span className="launch-card-context">
-            <strong>{value.creativeAlias}</strong>
-            <span> · {value.method === 'catalog' ? t('launchesCatalog') : t('launchesOther')}</span>
+            {value.creativeAlias.trim() && value.creativeAlias.trim() !== heading && (
+              <strong>{value.creativeAlias} · </strong>
+            )}
+            <span>{methodLabel}</span>
           </span>
           <span className="launch-card-facts">
             {value.campaignCount ? (
@@ -169,7 +183,7 @@ export function LaunchCard({
             ) : null}
           </span>
         </span>
-      </Button>
+      </div>
       {createdOn && (
         <div className="team-task-card-footer">
           <time

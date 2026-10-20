@@ -192,7 +192,11 @@ export function TeamProvider({
 
   const handleRealtimeRefetch = useCallback(async () => {
     const selected = activeTeamIdRef.current;
-    if (selected) catalogFreshness.invalidate(selected);
+    if (selected) {
+      catalogFreshness.invalidate(selected);
+      // All account/finance observers share the workspace owner's coalesced read.
+      window.dispatchEvent(new CustomEvent('soty:accounts-finance', { detail: selected }));
+    }
     // The catalog moves first (028): a membership read that hangs or fails
     // must not hold back files that are already written. Losing the
     // membership still surfaces through refreshTeams; it is just not the

@@ -431,3 +431,18 @@ describe('Launch navigation', () => {
     ).toBe('/team/space/tasks');
   });
 });
+
+it('preserves the selected material when opening a new launch', () => {
+  const path = buildTeamRoute({ spaceId: 'space', section: 'launches', query: {
+    launchId: 'new', launchTab: 'settings', launchMaterialId: 'video-id'
+  } });
+  const parsed = parseTeamRoute(path);
+  expect(parsed?.kind).toBe('space');
+  if (parsed?.kind === 'space') {
+    expect(parsed.query.launchMaterialId).toBe('video-id');
+    expect(parsed.query.launchId).toBe('new');
+  }
+  expect(buildTeamRoute({ spaceId: 'space', section: 'launches', query: {
+    launchId: 'saved-launch', launchMaterialId: 'video-id'
+  } })).not.toContain('launchMaterial');
+});

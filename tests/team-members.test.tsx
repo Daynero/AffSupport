@@ -12,6 +12,10 @@ import type {
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { MemberList, type MemberManagementClient } from '../apps/web/src/team/members/MemberList';
+import {
+  MembersSection,
+  type MembersSectionClient
+} from '../apps/web/src/team/workspace/MembersSection';
 import { TeamAuditPanel } from '../apps/web/src/team/members/TeamAuditPanel';
 
 const TEAM_ID = '21000000-0000-4000-8000-000000000001';
@@ -89,11 +93,11 @@ describe('team membership management', () => {
     expect(await screen.findByText('Alex Editor')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Edit permissions for Alex Editor' }));
 
-    const edit = screen.getByRole('checkbox', { name: 'Edit files' });
-    const metadata = screen.getByRole('checkbox', { name: 'Manage metadata' });
+    const edit = screen.getByRole('checkbox', { name: 'Edit space content' });
+    const metadata = screen.getByRole('checkbox', { name: 'File details and shared settings' });
     expect((edit as HTMLInputElement).checked).toBe(true);
     expect((metadata as HTMLInputElement).checked).toBe(true);
-    await user.click(edit);
+    await user.click(screen.getByText('Edit space content'));
     expect((edit as HTMLInputElement).checked).toBe(false);
     expect((metadata as HTMLInputElement).checked).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Save permissions' }));
@@ -137,7 +141,7 @@ describe('team membership management', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'More for Alex Editor' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Remove' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Remove from space' }));
     expect(screen.getByText(/direct Google Drive access is managed separately/i)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Remove member' }));
     await waitFor(() => expect(client.removeMember).toHaveBeenCalledWith(TEAM_ID, MEMBER_ID));
@@ -172,4 +176,87 @@ describe('team membership management', () => {
     expect(screen.getByText('Succeeded')).toBeTruthy();
     expect(screen.queryByText(/41000000-/)).toBeNull();
   });
+});
+
+it('never reports zero members while loading and offers retry after a failed read', async () => {
+  let reject!: (error: unknown) => void;
+  const client: MemberManagementClient = {
+    listMembers: vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, fail) => {
+            reject = fail;
+          })
+      )
+      .mockResolvedValueOnce([owner, editor]),
+    updateMembership: vi.fn(),
+    removeMember: vi.fn(),
+    transferOwnership: vi.fn()
+  };
+  const user = userEvent.setup();
+  renderMembers(client);
+  expect(screen.queryByText('0 members')).toBeNull();
+  expect(screen.getAllByText('Loading members…').length).toBeGreaterThan(0);
+  reject(new Error('unavailable'));
+  await user.click(await screen.findByRole('button', { name: 'Repeat' }));
+  expect(await screen.findByText('Alex Editor')).toBeTruthy();
+  expect(screen.getByText('2 members')).toBeTruthy();
+});
+
+it('prevents duplicate removal and closing the confirmation while the request is pending', async () => {
+  let resolve!: (value: { ok: true; warningCode: 'EXTERNAL_DRIVE_ACCESS_REMAINS' }) => void;
+  const client: MemberManagementClient = {
+    listMembers: vi.fn().mockResolvedValue([owner, editor]),
+    updateMembership: vi.fn(),
+    transferOwnership: vi.fn(),
+    removeMember: vi.fn(
+      () =>
+        new Promise<{ ok: true; warningCode: 'EXTERNAL_DRIVE_ACCESS_REMAINS' }>(done => {
+          resolve = done;
+        })
+    )
+  };
+  const user = userEvent.setup();
+  renderMembers(client);
+  await user.click(await screen.findByRole('button', { name: 'More for Alex Editor' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Remove from space' }));
+  const button = screen.getByRole('button', { name: 'Remove member' });
+  await user.dblClick(button);
+  expect(client.removeMember).toHaveBeenCalledOnce();
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  await user.keyboard('{Escape}');
+  expect(screen.getByRole('dialog', { name: 'Remove member' })).toBeTruthy();
+  resolve({ ok: true, warningCode: 'EXTERNAL_DRIVE_ACCESS_REMAINS' });
+  await waitFor(() => expect(screen.queryByText('Alex Editor')).toBeNull());
+});
+
+it('explains restricted membership access without querying private member or invitation data', () => {
+  const client: MembersSectionClient = {
+    listMembers: vi.fn(),
+    updateMembership: vi.fn(),
+    removeMember: vi.fn(),
+    transferOwnership: vi.fn(),
+    listInvitations: vi.fn(),
+    createInvitation: vi.fn(),
+    leaveTeam: vi.fn()
+  };
+  render(
+    <TeamProvider
+      initialTeams={[{ ...team, role: 'viewer', permissions: DEFAULT_ROLE_PERMISSIONS.viewer }]}
+      realtime={false}
+    >
+      <ToastProvider>
+        <MembersSection teamId={TEAM_ID} client={client} />
+      </ToastProvider>
+    </TeamProvider>
+  );
+  expect(
+    screen.getByText(
+      /Viewing the member list and changing access requires member management permission/
+    )
+  ).toBeTruthy();
+  expect(client.listMembers).not.toHaveBeenCalled();
+  expect(client.listInvitations).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: /Edit permissions/ })).toBeNull();
 });

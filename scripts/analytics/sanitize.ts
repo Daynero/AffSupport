@@ -37,7 +37,10 @@ export function sanitizeEventProperties(input: unknown): SanitizedProperties {
   const output: SanitizedProperties = {};
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
     if (!ALLOWED_KEYS.has(key)) continue;
-    if (key.startsWith('launch_') && !TEAM_ANALYTICS_PROPERTY_ENUMS[key]?.includes(String(value)))
+    if (
+      (key.startsWith('launch_') || key.startsWith('account_')) &&
+      !TEAM_ANALYTICS_PROPERTY_ENUMS[key]?.includes(String(value))
+    )
       continue;
     if (typeof value === 'number' && Number.isFinite(value)) output[key] = value;
     else if (typeof value === 'boolean') output[key] = value;

@@ -1,3 +1,4 @@
+import { diagnoseAccountEvents } from './accounts.js';
 import { getLaunchEvidence } from './launches.js';
 /**
  * 033 — `journal` and `investigate`: everything the database knows about one user's problem,
@@ -1589,6 +1590,34 @@ export async function getInvestigation(
       code_locations: fingerprint && location ? [{ ...location }] : [],
       next_step:
         'Inspect the generation and its child operations; reconcile durable receipts before retrying or cleaning resources.'
+    });
+  }
+  for (const diagnostic of diagnoseAccountEvents(
+    rows.map(row => ({
+      event_id: row.event_id ?? `row-${row.row_id}`,
+      event_name: row.event_name,
+      flow_id: row.flow_id,
+      properties: { ...row.props, ...(row.attempt_id ? { attempt_id: row.attempt_id } : {}) }
+    }))
+  )) {
+    if (diagnostic.state === 'visible') continue;
+    const fingerprint = `accounts:workspace:${diagnostic.code}`;
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: createHash('sha256')
+        .update(
+          `accounts:${diagnostic.flow_id}:${diagnostic.action}:${diagnostic.operation ?? ''}:${diagnostic.attempt_id ?? ''}:${diagnostic.state}`
+        )
+        .digest('hex'),
+      kind: diagnostic.kind,
+      severity: ['failed', 'partial'].includes(diagnostic.state) ? 'medium' : 'low',
+      rule: 'account_workspace_evidence',
+      title: `Accounts ${diagnostic.action}: ${diagnostic.state}; code: ${diagnostic.code}.`,
+      evidence: diagnostic.evidence,
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Inspect the diagnostic flow. Reconcile the canonical response before retrying; missing visibility is unknown.'
     });
   }
   const subject: InvestigateSubject = {

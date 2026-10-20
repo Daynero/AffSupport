@@ -12,6 +12,14 @@ import type { UnavailableReason } from './materials/actions';
  * it a sentence is a type error rather than a silent fallback in production.
  */
 const COPY: Record<TeamErrorCode, TranslationKey> = {
+  ACCOUNT_ORDER_CONFLICT: 'accountsOrderConflict',
+  ACCOUNT_LIFECYCLE_CONFLICT: 'accountsLifecycleConflict',
+  ACCOUNT_SCOPE_CHANGED: 'accountsOrderConflict',
+  ACCOUNT_ARCHIVED: 'accountsArchivedError',
+  PARENT_ARCHIVED: 'accountsParentArchived',
+  HISTORICAL_CORRECTION_REQUIRED: 'accountsHistoricalCorrectionRequired',
+  ACCOUNT_PREFERENCE_CONFLICT: 'accountsPreferenceConflict',
+  REQUEST_REPLAY_MISMATCH: 'accountsRequestReplayMismatch',
   LAUNCH_VERSION_CONFLICT: 'financeConflict',
   LAUNCH_BUSY: 'launchesBusyError',
   LAUNCH_URL_INVALID: 'launchesUrlInvalid',

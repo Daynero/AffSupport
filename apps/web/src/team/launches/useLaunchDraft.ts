@@ -38,8 +38,10 @@ export function newLaunchDraft(): LaunchDraft {
     catalog: newLaunchCatalogConfig()
   };
 }
-export function useLaunchDraft(detail: LaunchDetail | null) {
-  const [config, setConfig] = useState<LaunchDraft>(() => detail?.draft ?? newLaunchDraft());
+export function useLaunchDraft(detail: LaunchDetail | null, materialId?: string | null) {
+  const [config, setConfig] = useState<LaunchDraft>(
+    () => detail?.draft ?? { ...newLaunchDraft(), ...(materialId ? { materialId } : {}) }
+  );
   const [sources, setSources] = useState<LaunchSourceSnapshot | null>(
     detail?.expectedSourceSnapshot ?? null
   );

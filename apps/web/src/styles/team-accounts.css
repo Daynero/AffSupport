@@ -711,6 +711,15 @@
   list-style: none;
 }
 
+/* Offscreen controls are mounted near the viewport. Measured body height
+   preserves the scroll position; headings and the full data model remain. */
+.team-account-body.is-deferred {
+  height: var(
+    --account-deferred-height,
+    calc(var(--team-agent-row-height) * var(--account-deferred-units))
+  );
+}
+
 .team-agent-row {
   position: relative;
   display: grid;
@@ -2457,6 +2466,7 @@ button.team-task-agent-chip.is-selected {
 }
 .team-agent-state.is-free,
 .team-agent-state.is-busy,
+.team-agent-state.is-archived,
 :root:not([data-theme='dark']) .team-agent-state.is-free,
 :root:not([data-theme='dark']) .team-agent-state.is-busy {
   color: var(--color-text-muted);
@@ -2467,6 +2477,9 @@ button.team-task-agent-chip.is-selected {
 }
 .team-agent-state.is-busy .team-agent-state-dot {
   background: var(--color-warning);
+}
+.team-agent-state.is-archived .team-agent-state-dot {
+  background: var(--color-error);
 }
 
 .team-account-meta-free,
@@ -2543,5 +2556,597 @@ button.team-task-agent-chip.is-selected {
   .team-agent-menu,
   .team-account-head:not(.is-editing) .team-account-actions {
     opacity: 1;
+  }
+}
+
+/* 038: one account-first table, with one dated finance block per RK. */
+.team-account-space.is-unified {
+  --team-agent-row-height: var(--account-row-height);
+  --team-agent-actions-width: var(--account-actions-width);
+  --team-agent-status-width: var(--account-status-width);
+  grid-template-columns: minmax(0, 1fr);
+}
+.team-account-space.is-unified > *,
+.is-unified .unified-finance-toolbar,
+.is-unified .unified-finance-summary {
+  min-width: 0;
+  max-width: 100%;
+}
+.team-account-space.is-unified .team-accounts-table {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+  max-height: calc(
+    100dvh - var(--topbar-h) - var(--team-accounts-sticky-height) - calc(var(--space-4) * 2)
+  );
+  overscroll-behavior: contain;
+}
+.team-account-space.is-unified .team-accounts-columns,
+.team-account-space.is-unified .team-accounts-list {
+  min-width: 0;
+  width: 100%;
+}
+.team-account-space.is-unified .team-accounts-list {
+  align-content: start;
+}
+.team-account-space.is-unified .team-agent-row,
+.team-account-space.is-unified .team-accounts-columns {
+  grid-template-columns:
+    var(--team-agent-rail) minmax(0, 1fr) var(--team-agent-status-width)
+    minmax(0, 1.4fr) var(--team-agent-actions-width)
+    minmax(0, calc(var(--account-finance-cell) * 3 + var(--space-2) * 2));
+  gap: 0 var(--space-2);
+}
+.team-account-space.is-unified .team-agent-row {
+  grid-template-areas: 'rail id status note actions finance';
+  min-height: var(--team-agent-row-height);
+  height: auto;
+  padding-block: var(--space-1);
+}
+.team-account-space.is-unified .team-agent-row > .team-agent-rail {
+  grid-area: rail;
+}
+.team-account-space.is-unified .team-agent-row > .team-agent-id {
+  grid-area: id;
+}
+.team-account-space.is-unified .team-agent-row > .team-agent-status {
+  grid-area: status;
+}
+.team-account-space.is-unified .team-agent-row > .team-agent-runs {
+  grid-area: note;
+}
+.team-account-space.is-unified .team-agent-row > .unified-agent-finance {
+  grid-area: finance;
+}
+.team-account-space.is-unified .team-agent-row > .team-agent-actions {
+  grid-area: actions;
+}
+.team-account-space.is-unified .team-agent-row.is-editing {
+  grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) var(--team-agent-actions-width);
+  grid-template-areas: 'rail fields actions';
+}
+.team-account-space.is-unified .team-agent-row.is-editing > .team-agent-edit-fields {
+  grid-area: fields;
+}
+.team-account-space.is-unified .unified-finance-headings,
+.team-account-space.is-unified .unified-agent-finance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+  padding: 0;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+}
+@media (min-width: 1001px) {
+  .team-account-space.is-unified .team-accounts-columns > .unified-finance-headings {
+    grid-column: 6;
+    grid-row: 1;
+  }
+  .team-account-space.is-unified .team-accounts-columns > span:last-child {
+    grid-column: 5;
+    grid-row: 1;
+  }
+}
+.unified-finance-headings > span {
+  display: grid;
+  gap: var(--space-1);
+  text-align: left;
+  letter-spacing: normal;
+}
+.unified-finance-headings small {
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.unified-agent-finance .ui-input,
+.unified-agent-finance input {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.team-agent-tag[data-name-color] {
+  cursor: pointer;
+  font-family: var(--team-font-mono);
+  font-size: var(--text-caption);
+  font-weight: 650;
+}
+/* The selected decoration spans the identity cell from its left rail.
+   Solid palette tokens keep its colour unchanged over hover and drag surfaces. */
+.team-agent-row[data-name-color-value='green'] {
+  --account-name-fill: var(--account-name-green);
+  --account-name-line: var(--account-name-green-rail);
+  --account-name-ink: var(--account-name-green-ink);
+}
+.team-agent-row[data-name-color-value='yellow'] {
+  --account-name-fill: var(--account-name-yellow);
+  --account-name-line: var(--account-name-yellow-rail);
+  --account-name-ink: var(--account-name-yellow-ink);
+}
+.team-agent-row[data-name-color-value='red'] {
+  --account-name-fill: var(--account-name-red);
+  --account-name-line: var(--account-name-red-rail);
+  --account-name-ink: var(--account-name-red-ink);
+}
+.team-agent-row[data-name-color-value='blue'] {
+  --account-name-fill: var(--account-name-blue);
+  --account-name-line: var(--account-name-blue-rail);
+  --account-name-ink: var(--account-name-blue-ink);
+}
+.team-agent-row[data-name-color-value='purple'] {
+  --account-name-fill: var(--account-name-purple);
+  --account-name-line: var(--account-name-purple-rail);
+  --account-name-ink: var(--account-name-purple-ink);
+}
+.team-agent-row[data-name-color-value='pink'] {
+  --account-name-fill: var(--account-name-pink);
+  --account-name-line: var(--account-name-pink-rail);
+  --account-name-ink: var(--account-name-pink-ink);
+}
+.team-agent-row[data-name-color-value='orange'] {
+  --account-name-fill: var(--account-name-orange);
+  --account-name-line: var(--account-name-orange-rail);
+  --account-name-ink: var(--account-name-orange-ink);
+}
+.team-agent-row[data-name-color-value]:not([data-name-color-value='none']) > .team-agent-rail {
+  background: var(--account-name-line);
+}
+.team-agent-row[data-name-color-value]:not([data-name-color-value='none']) > .team-agent-id {
+  position: relative;
+  isolation: isolate;
+  color: var(--account-name-ink);
+}
+.team-agent-row[data-name-color-value]:not([data-name-color-value='none'])
+  > .team-agent-id::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: calc(0px - var(--space-2));
+  right: 0;
+  z-index: -1;
+  border-start-end-radius: var(--radius-sm);
+  border-end-end-radius: var(--radius-sm);
+  background: var(--account-name-fill);
+  pointer-events: none;
+}
+.team-agent-row[data-name-color-value]:not([data-name-color-value='none']) .team-agent-tag {
+  color: var(--account-name-ink);
+}
+.account-archive-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.account-archive-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.account-archive-row p {
+  margin: var(--space-1) 0 0;
+}
+
+.team-account-space.is-unified .team-accounts-columns {
+  top: 0;
+  z-index: calc(var(--layer-sticky) + 1);
+}
+.team-account-space.is-unified .team-agent-id {
+  position: sticky;
+  left: var(--team-agent-rail);
+  z-index: 1;
+  align-self: stretch;
+  align-content: center;
+  background: var(--color-surface);
+}
+.team-account-space.is-unified .team-accounts-columns > span:nth-child(2) {
+  position: sticky;
+  left: var(--team-agent-rail);
+  z-index: 1;
+  background: var(--color-surface);
+}
+.team-account-space.is-unified .team-account-title {
+  position: static;
+  background: transparent;
+}
+.account-linked-launch {
+  display: block;
+  padding: var(--space-1) 0;
+  color: var(--color-accent);
+  font-size: var(--text-label);
+}
+.finance-mobile-menu {
+  display: none;
+}
+@media (max-width: 768px) {
+  .team-account-space.is-unified .team-accounts-sticky {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+  .is-unified .finance-toolbar.is-compact [data-finance-secondary] {
+    display: none;
+  }
+  .is-unified .finance-toolbar.is-compact .finance-mobile-menu {
+    display: inline-flex;
+  }
+  .is-unified .finance-toolbar.is-compact > div {
+    min-width: 0;
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+  }
+  .is-unified .finance-toolbar.is-compact > div > div {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .is-unified .finance-toolbar.is-compact .task-date-filter-calendar,
+  .is-unified .finance-toolbar.is-compact .task-date-filter-trigger {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .is-unified .finance-toolbar.is-compact .task-date-filter-trigger span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .is-unified .finance-mobile-menu {
+    flex-shrink: 0;
+  }
+  .is-unified .finance-toolbar.is-compact > p {
+    margin: 0;
+  }
+  .is-unified .unified-finance-summary {
+    min-width: 0;
+    flex-wrap: wrap;
+    padding-bottom: var(--space-1);
+  }
+  .is-unified .unified-finance-summary > * {
+    flex-shrink: 0;
+  }
+  .is-unified [data-finance-copy] {
+    display: none;
+  }
+  .is-unified [data-finance-primary] {
+    order: -1;
+  }
+  .is-unified .unified-finance-summary > p {
+    flex: 1 1 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+  .is-unified .team-accounts-toolbar {
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .is-unified .team-accounts-search {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+  .is-unified .team-accounts-toolbar-end {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .is-unified .team-accounts-occupancy {
+    flex-wrap: nowrap;
+  }
+  .is-unified .team-accounts-fold-all span {
+    display: none;
+  }
+  .is-unified .team-accounts-table {
+    min-height: calc(var(--space-6) * 2);
+  }
+}
+
+.team-account-space.is-unified .team-accounts-table {
+  scroll-padding-block: calc(var(--space-6) * 3) var(--space-4);
+  scroll-padding-inline-start: calc(var(--team-agent-id-width) + var(--space-4));
+}
+.team-account-space.is-unified input {
+  scroll-margin-block: calc(var(--space-6) * 3) var(--space-4);
+}
+
+@media (max-width: 1000px) {
+  .team-account-space.is-unified .team-accounts-field {
+    flex-grow: 0;
+    flex-basis: min(calc(var(--space-6) * 12), calc(100vw - var(--space-6) * 4));
+    max-width: min(calc(var(--space-6) * 12), calc(100vw - var(--space-6) * 4));
+  }
+  .team-account-space.is-unified .team-accounts-table {
+    scroll-padding-inline-start: var(--space-4);
+  }
+}
+
+/* Dense selected-day table: identical tracks for every date, no side scrolling. */
+.team-account-space.is-unified .team-accounts-columns {
+  display: grid;
+}
+.team-account-space.is-unified .team-agent-id {
+  position: relative;
+  left: auto;
+  padding-block: 0;
+  gap: var(--space-1);
+  background: transparent;
+}
+.team-account-space.is-unified .team-agent-row > * {
+  min-width: 0;
+}
+.team-account-space.is-unified .unified-agent-finance .ui-field {
+  min-width: 0;
+  width: 100%;
+  gap: 0;
+}
+.team-account-space.is-unified .unified-agent-finance .ui-input {
+  min-height: var(--account-input-height);
+  height: var(--account-input-height);
+  padding-inline: var(--space-2);
+  font-size: var(--text-caption);
+}
+.team-account-space.is-unified .unified-agent-finance input {
+  font-size: var(--text-caption);
+}
+.team-account-space.is-unified .team-agent-actions {
+  min-width: 0;
+  gap: var(--space-1);
+}
+.team-account-space.is-unified .team-agent-actions-stack {
+  gap: var(--space-1);
+}
+.team-account-space.is-unified .team-agent-actions button {
+  width: var(--account-input-height);
+  min-width: var(--account-input-height);
+  height: var(--account-input-height);
+  min-height: var(--account-input-height);
+  padding: 0;
+}
+.team-account-space.is-unified .team-agent-run-add span,
+.team-account-space.is-unified .team-agent-release-label {
+  display: none;
+}
+.team-account-space.is-unified .team-account-head {
+  min-height: var(--account-row-height);
+  padding-block: var(--space-1);
+}
+.team-account-space.is-unified
+  :is(.team-agent-row, .team-account):is([data-dnd-dragging], [data-dnd-dropping]) {
+  background: var(--color-surface);
+  opacity: 1;
+  isolation: isolate;
+  box-shadow: var(--shadow-lg);
+}
+.team-account-space.is-unified .team-account-head:not(.is-editing) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+}
+.team-account-space.is-unified .team-account-head:not(.is-editing) .team-account-title {
+  grid-column: 1;
+}
+.team-account-space.is-unified .team-account-head:not(.is-editing) .team-account-actions {
+  grid-column: 2;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  padding: 0;
+  gap: var(--space-1);
+}
+.team-account-space.is-unified .team-account-actions :is(.icon-button, .ui-icon-button) {
+  width: var(--account-input-height);
+  min-width: var(--account-input-height);
+  height: var(--account-input-height);
+  min-height: var(--account-input-height);
+  padding: 0;
+}
+.team-account-space.is-unified .team-account-add-agent,
+.team-account-space.is-unified .team-account-two-factor {
+  min-height: var(--account-input-height);
+  height: var(--account-input-height);
+  padding-inline: var(--space-2);
+  margin-right: 0;
+  gap: var(--space-1);
+}
+.team-account-space.is-unified .team-agent-runs {
+  overflow: visible;
+}
+.team-account-space.is-unified .team-agent-run:not(.is-editing) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
+  width: 100%;
+  max-width: 100%;
+  min-height: var(--account-input-height);
+  transition: none;
+}
+.team-account-space.is-unified .team-agent-run-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-account-space.is-unified .team-agent-run-mark {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+.team-account-space.is-unified
+  :is(
+    .team-account-actions,
+    .team-agent-actions-stack,
+    .team-agent-menu,
+    .team-agent-run-actions,
+    .team-agent-copy
+  ) {
+  transition: none;
+}
+.team-account-space.is-unified .team-accounts-table {
+  scroll-padding-inline-start: 0;
+}
+@media (max-width: 1000px) {
+  .team-account-space.is-unified .team-agent-row,
+  .team-account-space.is-unified .team-accounts-columns {
+    grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) minmax(0, 1.5fr) calc(
+        var(--account-input-height) * 2 + var(--space-1)
+      );
+    gap: var(--space-1);
+  }
+  .team-account-space.is-unified .team-agent-row {
+    grid-template-areas: 'rail id finance actions' 'rail status note actions';
+  }
+  .team-account-space.is-unified .team-agent-status {
+    display: flex;
+  }
+  .team-account-space.is-unified .team-accounts-columns > span:nth-child(3),
+  .team-account-space.is-unified .team-accounts-columns > span:nth-child(4) {
+    display: none;
+  }
+  .team-account-space.is-unified .team-agent-actions {
+    flex-wrap: wrap;
+  }
+  .team-account-space.is-unified .team-agent-actions-stack {
+    display: contents;
+  }
+  .team-account-space.is-unified .unified-finance-headings {
+    font-size: var(--text-micro);
+    overflow-wrap: anywhere;
+  }
+}
+.team-account-space.is-unified .team-agent-id > button {
+  min-height: var(--account-input-height);
+  height: var(--account-input-height);
+  padding-block: 0;
+}
+.team-account-space.is-unified .team-agent-runs {
+  padding-block: 0;
+}
+.team-account-space.is-unified .team-agent-run-actions button {
+  width: var(--account-input-height);
+  min-width: var(--account-input-height);
+  min-height: var(--account-input-height);
+  height: var(--account-input-height);
+  padding: 0;
+}
+.team-account-space.is-unified .team-accounts-table {
+  scroll-behavior: auto;
+}
+@media (max-width: 560px) {
+  .team-account-space.is-unified .team-account-head:not(.is-editing) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .team-account-space.is-unified .team-account-head:not(.is-editing) .team-account-actions {
+    grid-column: 1;
+    justify-content: flex-end;
+  }
+  .team-account-space.is-unified .team-agent-row,
+  .team-account-space.is-unified .team-accounts-columns {
+    grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) calc(
+        var(--account-input-height) * 3 + var(--space-1) * 2
+      );
+  }
+  .team-account-space.is-unified .team-agent-row {
+    grid-template-areas:
+      'rail id actions'
+      'rail status actions'
+      'finance finance finance'
+      'note note note';
+  }
+  .team-account-space.is-unified .team-accounts-columns {
+    grid-template-areas: 'rail id actions' 'finance finance finance';
+  }
+  .team-account-space.is-unified .team-accounts-columns > span:nth-child(2) {
+    grid-area: id;
+  }
+  .team-account-space.is-unified .team-accounts-columns > span:last-child {
+    grid-area: actions;
+  }
+  .team-account-space.is-unified .team-agent-status {
+    display: flex;
+    padding-block: 0;
+  }
+  .team-account-space.is-unified .team-agent-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    align-self: start;
+  }
+  .team-account-space.is-unified .unified-finance-headings {
+    grid-area: finance;
+    font-size: var(--text-caption);
+    overflow-wrap: normal;
+  }
+}
+
+.account-hold-progress {
+  position: fixed;
+  left: var(--hold-x);
+  top: var(--hold-y);
+  width: var(--space-6);
+  height: var(--space-6);
+  transform: translate(-50%, -50%);
+  z-index: var(--z-index-toast);
+  pointer-events: none;
+  color: var(--color-accent);
+}
+.account-hold-progress svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.account-hold-progress circle {
+  stroke: currentColor;
+  stroke-width: 3;
+}
+.account-hold-fill {
+  opacity: 0;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  animation: account-hold-fill calc(var(--motion-account-hold) - var(--motion-account-hold-grace))
+    linear forwards;
+}
+@keyframes account-hold-fill {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  1% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
   }
 }

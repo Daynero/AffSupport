@@ -1,3 +1,4 @@
+import { ACCOUNT_ANALYTICS_CODES } from '../../packages/shared/src/team/analytics.js';
 /**
  * 033 FR-008 — where a failure starts in the code, by its fingerprint.
  *
@@ -854,6 +855,18 @@ function build(): Record<string, CodeLocation> {
     map[`${prefix}:*`] = { files: unique(files), check };
   }
 
+  map['team:library:LAUNCH_EDITOR_LOAD_FAILED'] = {
+    files: ['apps/web/src/team/launches/DeferredLaunchEditor.tsx', WEB_ERRORS],
+    check:
+      'Whether loading launch settings failed, was cancelled, or reached the committed editor; correlate the settings attempt before retrying.'
+  };
+
+  map['team:library:LAUNCH_SESSION_LOAD_FAILED'] = {
+    files: ['apps/web/src/team/launches/DeferredLaunchSession.tsx', WEB_ERRORS],
+    check:
+      'Whether loading the launch detail session failed, was cancelled, or reached the committed detail session; correlate the detail-session attempt before retrying.'
+  };
+
   // `investigate`'s stale-agent hypothesis: the user runs an older local app than others do.
   map['agent:stale_version'] = {
     files: ['apps/web/src/components/ReleaseUpdateNotice.tsx', WEB_AGENT_CONTEXT, AGENT_QUEUE],
@@ -1007,6 +1020,17 @@ function build(): Record<string, CodeLocation> {
         'Inspect the catalog intent receipt and current storage authority. Do not repeat provider creation while its outcome is unknown.'
     };
   }
+  for (const code of ACCOUNT_ANALYTICS_CODES) {
+    map[`accounts:workspace:${code}`] = {
+      files: [
+        'apps/web/src/team/accounts/analytics.ts',
+        'apps/web/src/team/accounts/AccountSpace.tsx',
+        'apps/web/src/api/team.ts'
+      ],
+      check:
+        'Inspect the correlated request and canonical response; acceptance proves persistence while a separate applied signal proves display. Reconcile an uncertain response before retrying.'
+    };
+  }
   for (const code of [
     'DELIVERY_UNAVAILABLE',
     'DRIVE_UNAVAILABLE',
@@ -1021,6 +1045,19 @@ function build(): Record<string, CodeLocation> {
       ],
       check:
         'Check the sheet readback and persisted attempt before retrying; an unknown provider reply is not delivery proof.'
+    };
+  }
+  for (const step of ['members_list', 'member_permissions_save', 'member_remove']) {
+    map[`members:${step}:*`] = {
+      files: [
+        'apps/web/src/team/members/MemberList.tsx',
+        'apps/web/src/team/members/MemberPermissionsDialog.tsx',
+        'apps/web/src/team/members/diagnostics.ts',
+        'apps/web/src/api/team.ts',
+        'supabase/migrations/20260801100000_team_membership_actions.sql'
+      ],
+      check:
+        'Inspect the correlated list or membership mutation attempt and current manage_members authority. A valid RPC response proves acceptance, while completion follows UI commit. For missing replies, read the existing protected membership audit and current permissions before retrying; no absence proves rollback.'
     };
   }
   return map;

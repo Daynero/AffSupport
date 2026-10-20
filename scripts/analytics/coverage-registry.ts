@@ -59,7 +59,14 @@ export interface CapabilitySignal {
   /** Optional `properties` discriminator when one event name serves several capabilities. */
   outcome?: string;
   /** Closed discriminator for a capability sharing generic 031 operation events. */
-  flowStep?: `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template'}`;
+  flowStep?:
+    | 'theme'
+    | 'launch_settings_editor'
+    | 'launch_detail_session'
+    | 'members_list'
+    | 'member_permissions_save'
+    | 'member_remove'
+    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template'}`;
 }
 
 export interface Capability {
@@ -96,6 +103,56 @@ const BOTH: CapabilityPlatform[] = ['macos', 'windows'];
 const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
+  ...(['members_list', 'member_permissions_save', 'member_remove'] as const).map(
+    (step): Capability => ({
+      id:
+        step === 'members_list'
+          ? 'members.list'
+          : step === 'member_permissions_save'
+            ? 'members.permissions'
+            : 'members.remove',
+      tool: 'team',
+      title:
+        step === 'members_list'
+          ? 'Members list delivery'
+          : step === 'member_permissions_save'
+            ? 'Member permissions save and delivery'
+            : 'Member removal and delivery',
+      stages: ['requested', ...(step === 'members_list' ? [] : ['accepted']), 'terminal'],
+      stageEvents: {
+        requested: ['operation_started'],
+        ...(step === 'members_list' ? {} : { accepted: ['operation_stage_completed' as const] }),
+        terminal: [
+          'operation_completed',
+          'operation_failed',
+          ...(step === 'members_list' ? ['operation_cancelled' as const] : [])
+        ]
+      },
+      start: [{ event: 'operation_started', correlate: 'attempt_id', flowStep: step }],
+      terminal: [
+        { event: 'operation_completed', correlate: 'attempt_id', flowStep: step },
+        { event: 'operation_failed', correlate: 'attempt_id', flowStep: step },
+        ...(step === 'members_list'
+          ? [
+              {
+                event: 'operation_cancelled' as const,
+                correlate: 'attempt_id' as const,
+                flowStep: step
+              }
+            ]
+          : [])
+      ],
+      error: { event: 'error_occurred', correlate: 'attempt_id', flowStep: step },
+      platforms: BOTH,
+      unobservable: [
+        'Unsaved permission values and draft gestures are deliberately uncollected.',
+        'A lost mutation reply or browser interruption cannot prove whether the server committed. Check the existing protected membership audit and read current permissions before retrying.'
+      ],
+      producerStatus: 'emitted',
+      source: 'events',
+      note: 'Only opaque flow and attempt IDs and closed failure codes are collected. List requests cancel when obsolete. Mutation acceptance proves a valid server response; completion follows React commit of the member list and success feedback. An absent terminal remains unknown, never success or a proved cancellation. Beta analytics is disabled; producer and CLI regressions provide local evidence. Existing membership.updated and membership.removed server audits remain authoritative. No new SQL or production writes.'
+    })
+  ),
   ...(['list', 'filter', 'profile', 'bulk', 'template'] as const).map(action => ({
     id: `team.catalog_manager_${action}`,
     tool: 'team' as const,
@@ -179,6 +236,109 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'Catalog and attempt IDs, profile version, trigger, result, safe code and readback confirmation are available through analytics_catalog_updates and the read-only catalog <id> command. Delivery proof means Drive readback of the stable sheet ID and version, not downstream ad ingestion.'
   },
   {
+    id: 'launches.editor',
+    tool: 'team',
+    title: 'Launch settings editor loading',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed', 'operation_cancelled']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'launch_settings_editor' }
+    ],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_settings_editor' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'launch_settings_editor' },
+      { event: 'operation_cancelled', correlate: 'attempt_id', flowStep: 'launch_settings_editor' }
+    ],
+    error: { event: 'error_occurred', correlate: 'attempt_id', flowStep: 'launch_settings_editor' },
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'Browser network/provider root cause; raw import errors and URLs are never collected.'
+    ],
+    note: 'flow_step=launch_settings_editor bounds generic operations to this capability. Completion proves the editor DOM committed, pending close cancels, retry keeps its flow and creates a new attempt; failure uses team:library:LAUNCH_EDITOR_LOAD_FAILED. A missing terminal remains unknown.'
+  },
+  {
+    id: 'launches.session',
+    tool: 'team',
+    title: 'Launch detail session loading',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed', 'operation_cancelled']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'launch_detail_session' }
+    ],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_detail_session' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'launch_detail_session' },
+      { event: 'operation_cancelled', correlate: 'attempt_id', flowStep: 'launch_detail_session' }
+    ],
+    error: { event: 'error_occurred', correlate: 'attempt_id', flowStep: 'launch_detail_session' },
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'Browser network/provider root cause; raw import errors and URLs are never collected.'
+    ],
+    note: 'flow_step=launch_detail_session bounds generic operations to this capability. Completion proves the session DOM committed, pending close cancels, retry keeps its flow and creates a new attempt; failure uses team:library:LAUNCH_SESSION_LOAD_FAILED. A missing terminal remains unknown.'
+  },
+  ...(
+    [
+      'overview',
+      'reorder',
+      'lifecycle',
+      'decoration',
+      'finance_edit',
+      'topup_copy',
+      'retained_action'
+    ] as const
+  ).map(action => ({
+    id: `accounts.${action}`,
+    tool: 'team' as const,
+    title: `Accounts · ${action}`,
+    stages: ['requested', 'accepted', 'applied'],
+    stageEvents: {
+      requested: ['team_account_stage' as const],
+      accepted: ['team_account_terminal' as const],
+      applied: ['team_account_visible' as const]
+    },
+    start: [
+      {
+        event: 'team_account_stage' as const,
+        correlate: action === 'finance_edit' ? ('attempt_id' as const) : ('flow_id' as const)
+      }
+    ],
+    terminal: [
+      {
+        event: 'team_account_terminal' as const,
+        correlate: action === 'finance_edit' ? ('attempt_id' as const) : ('flow_id' as const)
+      }
+    ],
+    readiness: {
+      event: 'team_account_visible' as const,
+      correlate: action === 'finance_edit' ? ('attempt_id' as const) : ('flow_id' as const)
+    },
+    platforms: BOTH,
+    unobservable: [
+      'A browser crash before collection is unobservable; absent events never prove success.',
+      'Commit acceptance does not prove browser visibility; external clipboard delivery is unobservable.',
+      'Local pre-request cancellations are session aggregates, not individual write attempts.',
+      ...(action === 'finance_edit'
+        ? [
+            'Older producers without attempt IDs cannot prove per-cell correlation; missing attempt evidence is unknown, never zero failures.'
+          ]
+        : [])
+    ],
+    producerStatus: 'emitted' as const,
+    source: 'events' as const,
+    note: 'Only independent diagnostic flow IDs and closed enums are collected. Creation retains the safe account_day bucket through requested/accepted/applied or failure, distinguishing selected-day creation without literal dates. Finance values, account IDs, preferences and clipboard contents are never read by diagnostics. Signal counts are transitions rather than unique actions; correlation proves an attempt.'
+  })),
+  {
     id: 'team.launches',
     tool: 'team',
     title: 'Launches · prepare an advertising launch',
@@ -200,7 +360,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'authoritative_table',
-    note: 'inspect joins the restricted Launch diagnostic projection. Server stages remain authoritative; missing browser events and unsettled child cleanup are not inferred as success. Launch creative preview reuses team.preview attempt correlation, safe error codes and protected media access; aliases, names and signed media URLs are never telemetry. Dictionary rename/archive/restore use closed action names and flow IDs without names or search content; permission, conflict and replay receipts prove commit, while missing UI delivery remains unknown. One persistent edit-status row exposes pending save and preparation state; Generate keeps its caption and links to this status, while copy waits for confirmed changes; indicator visibility is not commit evidence and URL content is never collected. The compact update review lists affected outputs and retains existing generate/abandon correlation; viewing it is not evidence that processing started, and no configuration content is collected. Autosave reuses save_draft action correlation and protected authoritative versions; retry reuses its request key, conflicts stop writes, and unacknowledged RAM edits remain an explicit reload blind spot. Literal SUB aliases sub1/sub_1 through sub3/sub_3 share the same detection and lossless patching; no URL content or credentials are added to diagnostics. Date shortcuts resolve in the launch timezone and use the existing saved revision, validation and generation lifecycle; unsaved date clicks are intentionally unobserved. Budget bounds share the typed preview and server validator; invalid or too narrow integer ranges stop at validation with LAUNCH_BUDGET_INVALID. Saved revisions prove the chosen bounds; unsaved field edits are intentionally unobserved. Unified Launch progress uses current-attempt durable receipts and matching native snapshots, never timer-estimated stage completion. Catalog cache invalidation is separate from connection health; a stale observation preserves confirmed fill without declaring failure or completion. Older generation versions are rejected, and observed fill resets for another attempt. Visual stability is verified by progress and workspace regressions, not inferred from telemetry. Quiet/disconnected observations trigger one bounded status read and remain last-confirmed/unknown; native media work has no network-reply deadline. Lost mutation replies keep their exact keys with LAUNCH_RESULT_UNCERTAIN, and authoritative terminal receipts release old UI waits without replaying processing. Scroll gestures and quiet-time notices are not independent executor evidence. Launches without saved restitch settings freeze automatic source-frame mode; automatic_frame_started/completed/failed journal records correlate to the child operation without media content. Frame completion does not prove video or catalog delivery; existing finalized-material and registered-catalog receipts remain authoritative. A pre-acceptance RESTITCH_INVALID refusal records generate/failure with the flow and saved launch IDs, releases the pending request and preserves the draft for correction; there is no accepted run to infer. Beta disables analytics, so hook regressions and local UI checks provide evidence for this path. Reuse provenance is projected as opaque video operation and origin generation IDs plus the source catalog revision; launch-state exercises actual SQL receipts through the read-only CLI, while launch-analytics covers unavailable and malformed evidence. Historical duration reuse is rejected against the original processing revision. A receipt proves origin, not browser visibility or the reason for an absent child. Duration bounds are validated configuration; a random duration is drawn once into durable restitch preparation and reused on retry. Missing Launch images retain RESTITCH_POOL_EMPTY at restitch_preparing in the diagnostic projection; tests/launch-state.test.ts covers shared, inherited, personal and truly empty pools. Image recovery links consume that same closed code. Parallel grant reads do not claim a measured end-to-end speedup; bounded coordination timeouts remain LAUNCH_RESULT_UNCERTAIN, and late replies cannot start obsolete native work. Pointer gestures and unsaved duration edits are intentionally unobserved; validation regressions and saved revision/preparation evidence cover the outcome without collecting pointer telemetry.'
+    note: 'Settings-editor loading uses generic 031 operation_started/completed/failed/cancelled with flow_step=launch_settings_editor, stable flow and distinct retry attempt IDs. Completion follows the committed editor subtree; pending close cancels. LAUNCH_EDITOR_LOAD_FAILED maps to team/library without collecting raw import messages or URLs. The launches.editor capability isolates these generic events by their closed flow_step discriminator in audit and inspect. inspect joins the restricted Launch diagnostic projection. Server stages remain authoritative; missing browser events and unsettled child cleanup are not inferred as success. Launch creative preview reuses team.preview attempt correlation, safe error codes and protected media access; aliases, names and signed media URLs are never telemetry. Dictionary rename/archive/restore use closed action names and flow IDs without names or search content; permission, conflict and replay receipts prove commit, while missing UI delivery remains unknown. One persistent edit-status row exposes pending save and preparation state; Generate keeps its caption and links to this status, while copy waits for confirmed changes; indicator visibility is not commit evidence and URL content is never collected. The compact update review lists affected outputs and retains existing generate/abandon correlation; viewing it is not evidence that processing started, and no configuration content is collected. Autosave reuses save_draft action correlation and protected authoritative versions; retry reuses its request key, conflicts stop writes, and unacknowledged RAM edits remain an explicit reload blind spot. Literal SUB aliases sub1/sub_1 through sub3/sub_3 share the same detection and lossless patching; no URL content or credentials are added to diagnostics. Date shortcuts resolve in the launch timezone and use the existing saved revision, validation and generation lifecycle; unsaved date clicks are intentionally unobserved. Budget bounds share the typed preview and server validator; invalid or too narrow integer ranges stop at validation with LAUNCH_BUDGET_INVALID. Saved revisions prove the chosen bounds; unsaved field edits are intentionally unobserved. Unified Launch progress uses current-attempt durable receipts and matching native snapshots, never timer-estimated stage completion. Catalog cache invalidation is separate from connection health; a stale observation preserves confirmed fill without declaring failure or completion. Older generation versions are rejected, and observed fill resets for another attempt. Visual stability is verified by progress and workspace regressions, not inferred from telemetry. Quiet/disconnected observations trigger one bounded status read and remain last-confirmed/unknown; native media work has no network-reply deadline. Lost mutation replies keep their exact keys with LAUNCH_RESULT_UNCERTAIN, and authoritative terminal receipts release old UI waits without replaying processing. Scroll gestures and quiet-time notices are not independent executor evidence. Launches without saved restitch settings freeze automatic source-frame mode; automatic_frame_started/completed/failed journal records correlate to the child operation without media content. Frame completion does not prove video or catalog delivery; existing finalized-material and registered-catalog receipts remain authoritative. A pre-acceptance RESTITCH_INVALID refusal records generate/failure with the flow and saved launch IDs, releases the pending request and preserves the draft for correction; there is no accepted run to infer. Beta disables analytics, so hook regressions and local UI checks provide evidence for this path. Reuse provenance is projected as opaque video operation and origin generation IDs plus the source catalog revision; launch-state exercises actual SQL receipts through the read-only CLI, while launch-analytics covers unavailable and malformed evidence. Historical duration reuse is rejected against the original processing revision. A receipt proves origin, not browser visibility or the reason for an absent child. Duration bounds are validated configuration; a random duration is drawn once into durable restitch preparation and reused on retry. Missing Launch images retain RESTITCH_POOL_EMPTY at restitch_preparing in the diagnostic projection; tests/launch-state.test.ts covers shared, inherited, personal and truly empty pools. Image recovery links consume that same closed code. Parallel grant reads do not claim a measured end-to-end speedup; bounded coordination timeouts remain LAUNCH_RESULT_UNCERTAIN, and late replies cannot start obsolete native work. Pointer gestures and unsaved duration edits are intentionally unobserved; validation regressions and saved revision/preparation evidence cover the outcome without collecting pointer telemetry.'
   },
   /* --------------------------------------------------------------------- *
    * Local tools
@@ -677,8 +837,10 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     start: [],
     terminal: [],
     platforms: BOTH,
-    unobservable: ['account and finance records (metadata only, never events)'],
-    producerStatus: 'unsupported_by_producer',
+    unobservable: [
+      'Full aggregate proof requires all accounts sub-capabilities and separate visible evidence; old builds and missing browser evidence stay unknown.'
+    ],
+    producerStatus: 'pending_producer',
     source: 'events'
   },
   {
@@ -1031,6 +1193,23 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     producerStatus: 'emitted',
     source: 'events',
     note: 'Emitted by the client queue (T005) once per session and on the next delivery after a loss.'
+  },
+  {
+    id: 'settings.theme',
+    tool: 'analytics',
+    title: 'Display theme preference',
+    stages: ['theme_observed'],
+    stageEvents: { theme_observed: ['setting_changed'] },
+    start: [{ event: 'setting_changed', correlate: 'none', flowStep: 'theme' }],
+    terminal: [],
+    platforms: BOTH,
+    unobservable: [
+      'Users on builds predating this signal and users who do not open the app during the period have no observed preference.',
+      'Only the latest received signal in a period is counted; an absent signal is unknown.'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    note: "Isolated by flow_step='theme' and setting_name='theme'; setting_value is light or dark. The `themes` command groups users by their latest signal in the period."
   }
 ];
 

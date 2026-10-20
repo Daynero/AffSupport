@@ -14,6 +14,8 @@ import {
   TEAM_INVITE_TTL_DAYS,
   TEAM_MAX_ACTIVE_MEMBERS,
   TEAM_PERMISSION_FLAGS,
+  TEAM_ACCOUNT_ERROR_CODES,
+  TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
   TRANSCRIPT_INDEX_MAX_BYTES,
   TRANSFER_GRANT_TTL_SECONDS,
@@ -34,6 +36,8 @@ import {
   WEB_TOOL_REQUIREMENTS,
   toolContractCompatible
 } from '../packages/shared/src/release';
+
+import { createTeamTestDb } from './support/team-db';
 
 const temporaryPaths: string[] = [];
 
@@ -203,6 +207,74 @@ describe('team contract', () => {
     expect(toolContractCompatible('compressor', { compressor: 3, imageEmbedding: 2 })).toBe(true);
   });
 
+  it('keeps the applied error-code seed immutable and verifies the complete additive catalog', async () => {
+    const basePath = 'supabase/migrations/20260801090000_team_contract_seed.sql';
+    const deltaPath = 'supabase/migrations/20261202143000_account_error_codes.sql';
+    const base = readFileSync(basePath, 'utf8');
+    const delta = readFileSync(deltaPath, 'utf8');
+    const codes = (sql: string) => {
+      const block =
+        /insert into public\.team_error_codes \(code\) values\n([\s\S]*?)(?:;\n|\non conflict)/u.exec(
+          sql
+        )?.[1] ?? '';
+      return [...block.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]!);
+    };
+    expect(codes(delta)).toEqual([...TEAM_ACCOUNT_ERROR_CODES]);
+    expect(
+      codes(base).filter(code => (TEAM_ACCOUNT_ERROR_CODES as readonly string[]).includes(code))
+    ).toEqual([]);
+    expect([...codes(base), ...codes(delta)].sort()).toEqual([...TEAM_ERROR_CODES].sort());
+    const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));
+    temporaryPaths.push(directory);
+    const temporaryBase = join(directory, 'base.sql');
+    const temporaryDelta = join(directory, 'delta.sql');
+    const rendered = spawnSync(
+      process.execPath,
+      [
+        'scripts/generate-team-contract-sql.mjs',
+        '--output',
+        temporaryBase,
+        '--extension-output',
+        temporaryDelta
+      ],
+      { encoding: 'utf8' }
+    );
+    expect(rendered.status, rendered.stderr).toBe(0);
+    expect(readFileSync(temporaryBase, 'utf8')).toBe(base);
+    expect(readFileSync(temporaryDelta, 'utf8')).toBe(delta);
+    expect(readFileSync(basePath, 'utf8')).toBe(base);
+    writeFileSync(temporaryDelta, delta.replaceAll('\n', '\r\n'));
+    expect(
+      spawnSync(
+        process.execPath,
+        ['scripts/generate-team-contract-sql.mjs', '--check', '--extension-output', temporaryDelta],
+        { encoding: 'utf8' }
+      ).status
+    ).toBe(0);
+    writeFileSync(temporaryDelta, delta.replace('ACCOUNT_ARCHIVED', 'STALE_ACCOUNT_ARCHIVED'));
+    const stale = spawnSync(
+      process.execPath,
+      ['scripts/generate-team-contract-sql.mjs', '--check', '--extension-output', temporaryDelta],
+      { encoding: 'utf8' }
+    );
+    expect(stale.status).not.toBe(0);
+    expect(stale.stderr).toContain('out of date');
+    const db = await createTeamTestDb();
+    try {
+      const catalog = await db.root<{ code: string }>(
+        'select code from public.team_error_codes order by code'
+      );
+      expect(catalog.map(row => row.code)).toEqual(expect.arrayContaining([...TEAM_ERROR_CODES]));
+      expect(
+        catalog
+          .map(row => row.code)
+          .filter(code => (TEAM_ACCOUNT_ERROR_CODES as readonly string[]).includes(code))
+      ).toEqual([...TEAM_ACCOUNT_ERROR_CODES].sort());
+    } finally {
+      await db.close();
+    }
+  }, 60000);
+
   it('keeps the committed SQL current and detects stale output', () => {
     // The npm script is what guarantees `shared` is rebuilt before the contract is read,
     // so the generator never validates against a stale dist. Assert the wiring; do not
@@ -341,6 +413,20 @@ describe("an operation's grants outlive the work they authorize", () => {
     const grants = start.slice(0, start.indexOf('return {'));
     const withOperationTtl = grants.match(/ttlSeconds:\s*OPERATION_GRANT_TTL_SECONDS/gu) ?? [];
     expect(withOperationTtl).toHaveLength(2);
+    expect(grants).toMatch(/const ranges = Math\.ceil\([\s\S]*?\) \+ 8;/u);
+    // Upload start consumes one use; three attempts of the same bound finalize must fit.
+    const finalize = grants.slice(grants.indexOf("purpose: 'finalize'"));
+    expect(finalize).toMatch(/maxUses:\s*4/u);
+    for (const binding of [
+      'operationId: authority.operationId',
+      'teamId',
+      'actorId',
+      'materialId',
+      'destinationFolderId',
+      'toolId'
+    ]) {
+      expect(finalize).toContain(binding);
+    }
   });
 });
 

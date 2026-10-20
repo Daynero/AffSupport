@@ -191,3 +191,64 @@ it('refuses a workbook wider than a spreadsheet allows instead of truncating it'
     ])
   ).rejects.toThrow('FINANCE_EXPORT_SIZE');
 });
+
+it('uses lifecycle visibility for matrices and summary sheets without losing archived financial facts', () => {
+  const snapshot: FinanceSnapshot = {
+    ...workbookFixture,
+    schemaVersion: 2,
+    timezone: 'Europe/Kyiv',
+    from: '2026-09-03',
+    to: '2026-09-03',
+    fields: [],
+    lifecycle: {
+      accounts: [
+        {
+          id: 'x',
+          createdAt: '2026-01-01T00:00:00Z',
+          archivedAt: null,
+          version: '0',
+          sortRank: '0'
+        }
+      ],
+      agents: [
+        {
+          id: 'a',
+          accountId: 'x',
+          createdAt: '2026-01-01T00:00:00Z',
+          archivedAt: '2026-09-02T07:00:00Z',
+          version: '1',
+          sortRank: '0'
+        },
+        {
+          id: 'b',
+          accountId: 'x',
+          createdAt: '2026-01-01T00:00:00Z',
+          archivedAt: null,
+          version: '0',
+          sortRank: '1'
+        }
+      ],
+      events: [
+        { entityKind: 'agent', entityId: 'a', archived: true, occurredAt: '2026-09-02T07:00:00Z' }
+      ],
+      parents: ['a', 'b'].map(agentRowId => ({
+        agentRowId,
+        accountId: 'x',
+        startsAt: '2026-01-01T00:00:00Z',
+        endsAt: null,
+        provenance: 'migration'
+      }))
+    }
+  };
+  const current = financeWorkbookSheets(snapshot);
+  expect(JSON.stringify(current)).not.toContain('001234');
+  const history = financeWorkbookSheets({
+    ...snapshot,
+    from: '2026-09-01',
+    to: '2026-09-02',
+    fields: workbookFixture.fields
+  });
+  expect(history[0]!.rows[4]).toContainEqual({ t: 'string', v: '001234' });
+  expect(history[1]!.rows.at(-1)).toContainEqual({ t: 'decimal', v: '100.25' });
+  expect(history[0]!.rows[5]).toContainEqual({ t: 'decimal', v: '0.00' });
+});

@@ -1,0 +1,103 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-10-18T07:28:38.743Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 1371062,
+    "totals": {
+      "gates": 14,
+      "passed": 14,
+      "failed": 0,
+      "tests": 5939,
+      "skipped_tests": 12,
+      "skip_reasons": {
+        "script:scripts/sign-mac-app.sh": 2,
+        "env:SOTY_TEST_EXPECT_NOTARIZED": 1,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "platform:darwin": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "env:RUN_REAL_TRANSLATION_SMOKE": 2,
+        "env:SOTY_POWER_LOAD": 2
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 4624
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 156409
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 142532
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 156934
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 164880
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 21107
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 1280
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 15097
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 1184
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 1173
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 1038
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 846
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 9784
+      },
+      {
+        "id": "suite",
+        "ok": true,
+        "duration_ms": 1201522
+      }
+    ]
+  }
+}

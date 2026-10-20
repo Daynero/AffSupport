@@ -1,0 +1,18 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select plan(12);
+select ok(has_function_privilege('authenticated','public.get_team_accounts_overview(uuid,date,date,text)','execute'),'members have overview boundary');
+select ok(not has_function_privilege('anon','public.get_team_accounts_overview(uuid,date,date,text)','execute'),'anonymous overview denied');
+select ok(not has_table_privilege('authenticated','public.team_account_mutation_receipts','SELECT'),'receipts only visible through authorized RPC');
+select ok(not has_table_privilege('authenticated','public.team_account_preferences','UPDATE'),'preference CAS cannot be bypassed');
+select ok(not has_table_privilege('authenticated','public.team_account_lifecycle_events','INSERT'),'lifecycle append only through RPC');
+select ok(not has_table_privilege('authenticated','public.team_account_order_scopes','UPDATE'),'scope revisions protected');
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.team_account_preferences'::regclass),'preferences force RLS');
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.team_account_lifecycle_events'::regclass),'lifecycle forces RLS');
+select ok(not has_function_privilege('authenticated','private.team_account_effectively_active(uuid,uuid)','execute'),'private lifecycle helper inaccessible');
+select ok(not has_function_privilege('authenticated','private.set_team_agent_finance_value(uuid,uuid,date,text,text,text,text,uuid)','execute'),'legacy setter stays private');
+select ok(has_function_privilege('authenticated','public.set_team_agent_finance_value(uuid,uuid,date,text,text,text,text,uuid,uuid,text)','execute'),'guarded setter supports correction intent');
+select ok(not has_function_privilege('anon','public.reorder_team_accounts(uuid,text,uuid,uuid,uuid,text,text,uuid)','execute'),'anonymous reorder denied');
+select * from finish();
+rollback;

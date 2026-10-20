@@ -40,7 +40,7 @@ async function invite(client: InvitationPanelClient) {
       <InvitationPanel teamId={TEAM_ID} client={client} canManage />
     </ToastProvider>
   );
-  await user.type(await screen.findByLabelText('Invite by email'), 'teammate@example.test');
+  await user.type(await screen.findByLabelText('Email'), 'teammate@example.test');
   await user.click(screen.getByRole('button', { name: 'Send invitation' }));
   return user;
 }
@@ -139,5 +139,35 @@ describe('an invitation row', () => {
         name: 'Revoke the invitation for pending@example.test?'
       })
     ).toBeTruthy();
+  });
+});
+
+describe('invitation form clarity', () => {
+  it('keeps full role permissions reachable by keyboard without constant long prose', async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <InvitationPanel teamId={TEAM_ID} client={makeClient()} canManage />
+      </ToastProvider>
+    );
+    expect(screen.getByText('Add, edit and process content.')).toBeTruthy();
+    const details = screen.getByRole('button', { name: 'Role permissions' });
+    details.focus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('dialog', { name: 'Role permissions' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Role permissions' })).toBeNull();
+  });
+
+  it('locks the submitted address and role while waiting for the server', async () => {
+    const client = makeClient();
+    client.createInvitation = vi.fn(
+      () => new Promise<Awaited<ReturnType<InvitationPanelClient['createInvitation']>>>(() => {})
+    );
+    const user = await invite(client);
+    expect((screen.getByLabelText('Email') as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: / Role$/ }).getAttribute('disabled')).not.toBeNull();
+    await user.keyboard('{Enter}{Enter}');
+    expect(client.createInvitation).toHaveBeenCalledTimes(1);
   });
 });

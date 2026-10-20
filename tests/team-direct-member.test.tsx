@@ -51,7 +51,7 @@ describe('temporary registered-member direct add', () => {
     expect(screen.getByText(/test mode/i)).toBeTruthy();
     await user.type(screen.getByLabelText('Registered Soty email'), ' MEMBER@EXAMPLE.TEST ');
     // Editor is where the picker starts (024); choosing it again leaves it there.
-    await user.click(screen.getByRole('button', { name: /Initial role/ }));
+    await user.click(screen.getByRole('button', { name: / Role$/ }));
     await user.click(await screen.findByRole('option', { name: 'Editor' }));
     await user.click(screen.getByRole('button', { name: 'Add member' }));
 

@@ -1,0 +1,143 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-10-18T02:38:13.581Z",
+  "form": "release",
+  "data": {
+    "duration_ms": 1174783,
+    "totals": {
+      "gates": 22,
+      "passed": 22,
+      "failed": 0,
+      "tests": 5926,
+      "skipped_tests": 12,
+      "skip_reasons": {
+        "script:scripts/sign-mac-app.sh": 2,
+        "env:SOTY_TEST_EXPECT_NOTARIZED": 1,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "platform:darwin": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "env:RUN_REAL_TRANSLATION_SMOKE": 2,
+        "env:SOTY_POWER_LOAD": 2
+      },
+      "coverage_lines": 76.69
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1506
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 65241
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 59843
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 64414
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 69143
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 10976
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 398
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 6168
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 421
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 470
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 463
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 304
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 4617
+      },
+      {
+        "id": "suite",
+        "ok": true,
+        "duration_ms": 958138
+      },
+      {
+        "id": "build:web",
+        "ok": true,
+        "duration_ms": 45237
+      },
+      {
+        "id": "build:agent",
+        "ok": true,
+        "duration_ms": 3759
+      },
+      {
+        "id": "contract:release",
+        "ok": true,
+        "duration_ms": 245
+      },
+      {
+        "id": "contract:team",
+        "ok": true,
+        "duration_ms": 2578
+      },
+      {
+        "id": "contract:web-env",
+        "ok": true,
+        "duration_ms": 569
+      },
+      {
+        "id": "database",
+        "ok": true,
+        "duration_ms": 71737
+      },
+      {
+        "id": "a11y",
+        "ok": true,
+        "duration_ms": 19261
+      },
+      {
+        "id": "csp:browser",
+        "ok": true,
+        "duration_ms": 2575
+      }
+    ]
+  }
+}

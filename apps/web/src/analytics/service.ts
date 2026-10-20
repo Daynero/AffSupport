@@ -129,6 +129,7 @@ const PROGRESS_EVENT_NAMES = new Set<string>([
   'feature_impression',
   'home_viewed',
   'screen_viewed',
+  'team_account_stage',
   'team_launch_stage'
 ]);
 const TERMINAL_EVENT_NAMES = new Set<string>([
@@ -137,6 +138,8 @@ const TERMINAL_EVENT_NAMES = new Set<string>([
   'link_lost',
   'link_recovered',
   'analytics_delivery_report',
+  'team_account_terminal',
+  'team_account_visible',
   'team_launch_terminal',
   'team_launch_visible'
 ]);

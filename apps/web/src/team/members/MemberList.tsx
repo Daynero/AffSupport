@@ -1,15 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal, Users } from 'lucide-react';
-import { DropdownMenu, IconButton } from '../../components/ui/index';
+import {
+  Button,
+  DropdownMenu,
+  ErrorState,
+  IconButton,
+  LoadingState,
+  Tooltip
+} from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type {
   TeamContextSnapshot,
   TeamMemberSummary,
   TeamPermissionOverrides
 } from '../../api/team';
-import type { TeamBaseRole } from '@video-compressor/shared';
+import {
+  ROLE_PERMISSIONS,
+  TEAM_PERMISSION_FLAGS,
+  type TeamBaseRole
+} from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { memberCountKey } from '../accounts/plural';
 import { useToasts } from '../../components/toast';
@@ -18,6 +28,7 @@ import { useTeam } from '../TeamContext';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
 import { OwnershipTransferDialog } from './OwnershipTransferDialog';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { memberAttempt } from './diagnostics';
 
 export interface MemberManagementClient {
   listMembers: (teamId: string) => Promise<TeamMemberSummary[]>;
@@ -64,30 +75,50 @@ export function MemberList({
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
   const [editing, setEditing] = useState<TeamMemberSummary | null>(null);
   const [removing, setRemoving] = useState<TeamMemberSummary | null>(null);
+  const [removingBusy, setRemovingBusy] = useState(false);
+  const removalPending = useRef(false);
   const [transferring, setTransferring] = useState<TeamMemberSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(Boolean(teamId && client));
+  const [retry, setRetry] = useState(0);
+  const [flowId] = useState(() => crypto.randomUUID());
+  const [delivered, setDelivered] = useState<ReturnType<typeof memberAttempt> | null>(null);
+
+  useEffect(() => {
+    delivered?.finish('success');
+  }, [delivered]);
 
   useEffect(() => {
     if (!teamId || !client) return;
     let active = true;
+    const attempt = memberAttempt('members_list', flowId);
+    setLoading(true);
+    setError(null);
     void client
       .listMembers(teamId)
       .then(value => {
         if (active) {
           setMembers(value);
+          setLoading(false);
           setError(null);
           onLoaded?.(value);
+          setDelivered(attempt);
         }
       })
-      .catch(() => {
-        if (active) setError(t('teamLoadFailed'));
+      .catch((cause: unknown) => {
+        attempt.finish('failure', cause);
+        if (active) {
+          setError(t('teamLoadFailed'));
+          setLoading(false);
+        }
       });
     return () => {
       active = false;
+      attempt.finish('cancelled');
     };
     // `onLoaded` is left out on purpose: a caller's inline callback would re-read
     // the list on every render.
-  }, [client, revision, t, teamId]);
+  }, [client, revision, retry, t, teamId, flowId]);
 
   const count = client && teamId ? members.length : activeCount;
   const canManage = activeTeam?.permissions.manage_members === true;
@@ -99,9 +130,13 @@ export function MemberList({
       title={t('teamMembers')}
       /* "1 of 50 members" read like paging (024). The limit is said once it is near. */
       aside={
-        count >= 40
-          ? t('teamMembersLimit', { count })
-          : t(memberCountKey(language, count), { count })
+        loading
+          ? t('teamMemberLoading')
+          : error
+            ? null
+            : count >= 40
+              ? t('teamMembersLimit', { count })
+              : t(memberCountKey(language, count), { count })
       }
       className="team-member-section"
     >
@@ -109,14 +144,24 @@ export function MemberList({
           nowhere near the choice it explains. What a role may do is said under the role
           picker when inviting. */}
       {error && (
-        <p className="team-inline-error" role="alert">
-          {error}
-        </p>
+        <ErrorState
+          title={t('teamMembers')}
+          message={error}
+          retryLabel={t('retry')}
+          onRetry={() => setRetry(value => value + 1)}
+        />
       )}
-      {client && teamId && (
+      {loading && <LoadingState shape="row" count={2} label={t('teamMemberLoading')} />}
+      {!loading && !error && client && teamId && (
         <ul className="team-member-list">
           {members.map(member => {
             const name = memberName(member, t('teamFormerMember'));
+            const custom =
+              member.role !== 'owner' &&
+              TEAM_PERMISSION_FLAGS.some(
+                flag =>
+                  member.effectivePermissions[flag] !== ROLE_PERMISSIONS[member.baseRole][flag]
+              );
             return (
               <li key={member.membershipId}>
                 <div>
@@ -133,12 +178,28 @@ export function MemberList({
                             : 'teamRoleViewer'
                     )}
                   </span>
+                  {custom && (
+                    <Tooltip
+                      label={t('teamMemberCustomCount', {
+                        count: TEAM_PERMISSION_FLAGS.filter(
+                          flag =>
+                            member.effectivePermissions[flag] !==
+                            ROLE_PERMISSIONS[member.baseRole][flag]
+                        ).length
+                      })}
+                    >
+                      <span className="team-member-custom" tabIndex={0}>
+                        {t('teamMemberCustom')}
+                      </span>
+                    </Tooltip>
+                  )}
                 </div>
                 {canManage && member.role !== 'owner' && (
                   <div className="team-inline-actions">
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="ghost"
+                      size="sm"
                       aria-label={t('teamMemberEditFor', { name })}
                       onClick={() => setEditing(member)}
                     >
@@ -180,15 +241,27 @@ export function MemberList({
           member={editing}
           onClose={() => setEditing(null)}
           onSave={async input => {
-            const updated = await client.updateMembership({
-              teamId,
-              userId: editing.userId,
-              ...input
-            });
-            setMembers(current =>
-              current.map(member => (member.userId === updated.userId ? updated : member))
-            );
-            onChanged?.();
+            const attempt = memberAttempt('member_permissions_save', flowId);
+            try {
+              const updated = await client.updateMembership({
+                teamId,
+                userId: editing.userId,
+                ...input
+              });
+              attempt.accepted();
+              setMembers(current =>
+                current.map(member => (member.userId === updated.userId ? updated : member))
+              );
+              push({
+                tone: 'success',
+                text: t('teamMemberSaved', { name: memberName(updated, t('teamFormerMember')) })
+              });
+              onChanged?.();
+              setDelivered(attempt);
+            } catch (cause) {
+              attempt.finish('failure', cause);
+              throw cause;
+            }
           }}
         />
       )}
@@ -196,7 +269,7 @@ export function MemberList({
       {removing && client && teamId && (
         <Modal
           labelledBy="remove-member-title"
-          onClose={() => setRemoving(null)}
+          onClose={removingBusy ? undefined : () => setRemoving(null)}
           closeLabel={t('teamCancel')}
           initialFocus="#confirm-remove-member"
           size="sm"
@@ -206,30 +279,48 @@ export function MemberList({
             <p>{t('teamMemberRemoveDescription', { name: memberName(removing, '') })}</p>
             <p className="team-drive-warning">{t('teamMemberExternalDriveWarning')}</p>
             <div className="team-dialog-actions">
-              <Button type="button" variant="ghost" onClick={() => setRemoving(null)}>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={removingBusy}
+                onClick={() => setRemoving(null)}
+              >
                 {t('teamCancel')}
               </Button>
               <Button
                 id="confirm-remove-member"
                 type="button"
                 variant="danger"
-                onClick={() =>
+                loading={removingBusy}
+                disabled={removingBusy}
+                onClick={() => {
+                  if (removalPending.current) return;
+                  removalPending.current = true;
+                  setRemovingBusy(true);
+                  const attempt = memberAttempt('member_remove', flowId);
                   void client
                     .removeMember(teamId, removing.userId)
                     .then(() => {
+                      attempt.accepted();
                       setMembers(current =>
                         current.filter(member => member.userId !== removing.userId)
                       );
                       setRemoving(null);
                       push({ tone: 'success', text: t('teamToastMemberRemoved') });
+                      setDelivered(attempt);
                       onChanged?.();
                     })
                     // Without this the dialog simply stayed open on failure and
                     // the person was left to guess whether it had worked.
                     .catch((cause: unknown) => {
+                      attempt.finish('failure', cause);
                       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
                     })
-                }
+                    .finally(() => {
+                      removalPending.current = false;
+                      setRemovingBusy(false);
+                    });
+                }}
               >
                 {t('teamMemberRemoveAction')}
               </Button>

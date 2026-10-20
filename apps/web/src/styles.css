@@ -19684,3 +19684,174 @@ a.history-subject {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* Members: one clear action per row, with the explanation reachable by touch or keyboard. */
+.team-member-permissions-dialog .team-dialog-form {
+  gap: var(--space-3);
+}
+.team-member-permissions-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-member-permission-groups {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.team-member-permission-groups > legend {
+  font-weight: 600;
+  padding: 0 0 var(--space-2);
+}
+.team-member-permission-group h3 {
+  margin: var(--space-2) 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+.team-member-permission-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--control-height-md);
+  border-bottom: 1px solid var(--color-border);
+}
+.team-member-permission-row .ui-checkbox {
+  flex: 1;
+  min-width: 0;
+}
+.team-member-permission-row .ui-checkbox-content {
+  min-height: var(--control-height-md);
+  width: 100%;
+}
+.team-member-owner-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-member-owner-note svg {
+  flex-shrink: 0;
+}
+.team-member-scope {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  white-space: normal;
+}
+.team-member-permission-footer {
+  flex-shrink: 0;
+  background: var(--color-surface);
+  padding-block: var(--space-3);
+  flex-wrap: wrap;
+}
+.team-member-draft-status {
+  margin-right: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.team-member-custom {
+  color: var(--color-accent);
+  font-size: var(--text-caption);
+  white-space: normal;
+}
+.team-member-list li > div:first-child {
+  flex-wrap: wrap;
+}
+.team-member-permission-row .ui-checkbox-content {
+  display: flex;
+  flex-direction: row;
+}
+.team-member-permission-help {
+  max-width: min(var(--dialog-sm), calc(100vw - var(--space-6) * 2));
+}
+.team-member-permission-help p {
+  margin: 0;
+  white-space: normal;
+  font-size: var(--text-caption);
+}
+
+.team-member-permissions-dialog {
+  overflow: hidden;
+}
+.team-member-permissions-dialog .team-dialog-form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - var(--modal-padding) * 2 - var(--space-6) * 2 - var(--space-px) * 2);
+  min-height: 0;
+}
+.team-member-permission-body {
+  display: grid;
+  gap: var(--space-3);
+  overflow-y: auto;
+  min-height: 0;
+  padding-inline: var(--space-1);
+}
+.team-member-permissions-dialog .team-member-permission-row label.ui-checkbox-content {
+  display: flex;
+  flex-direction: row;
+}
+
+/* Members keep the primary column; the invitation remains a compact companion. */
+@media (min-width: 1100px) {
+  .team-members-section > .team-space-settings-grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+.team-member-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  white-space: normal;
+}
+.team-member-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.team-member-list .team-inline-actions {
+  flex-shrink: 0;
+}
+.team-members-section .team-invite-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+.team-invite-form > .ui-button {
+  grid-column: 1 / -1;
+}
+.team-invite-form .team-member-scope {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.team-leave-panel .ui-card-title {
+  font-size: var(--text-body);
+}
+.team-leave-panel {
+  padding: var(--space-4) var(--space-5);
+}
+@media (max-width: 700px) {
+  .team-member-list li {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+}
+
+.team-invite-role-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.team-invite-role-summary > span {
+  flex: 1;
+}
+
+.team-members-section .team-member-list .team-inline-actions {
+  margin-top: 0;
+}

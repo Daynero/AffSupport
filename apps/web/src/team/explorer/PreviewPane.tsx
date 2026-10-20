@@ -1,3 +1,8 @@
+import { Rocket } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { Button } from '../../components/ui/index';
+import { buildTeamRoute } from '../routes';
+import { navigateTo } from '../../lib/navigation';
 import { useEffect, useState } from 'react';
 import type {
   LandingRenderPointer,
@@ -164,11 +169,38 @@ export function PreviewPane({
         }
         inTasks={
           row.kind === 'folder' ? null : (
-            <MaterialTasks
-              teamId={teamId}
-              material={{ id: row.id, name: row.name }}
-              revision={revision}
-            />
+            <>
+              <MaterialTasks
+                teamId={teamId}
+                material={{ id: row.id, name: row.name }}
+                revision={revision}
+              />
+              {(row.kind === 'video' || row.kind === 'image') &&
+                teams.find(team => team.id === teamId)?.permissions.edit && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="material-tasks-add"
+                    onClick={() =>
+                      navigateTo(
+                        buildTeamRoute({
+                          spaceId: teamId,
+                          section: 'launches',
+                          query: {
+                            launchId: 'new',
+                            launchTab: 'settings',
+                            launchMaterialId: row.id
+                          }
+                        })
+                      )
+                    }
+                  >
+                    <Rocket size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    {t('materialActionLaunch')}
+                  </Button>
+                )}
+            </>
           )
         }
         note={

@@ -105,6 +105,7 @@ describe('team Realtime invalidation', () => {
     const onRefetch = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
     expect([...events.keys()].sort()).toEqual([
+      'team_account_workspace_signals',
       'team_catalog_events',
       'team_launch_signals',
       'team_launch_workspace_signals',
@@ -117,7 +118,7 @@ describe('team Realtime invalidation', () => {
     expect(result.current).toBe('connected');
   });
 
-  it('coalesces Launch workspace invalidations without adding a second subscription', async () => {
+  it('coalesces account and Launch workspace invalidations without adding a second subscription', async () => {
     const onRefetch = vi.fn().mockResolvedValue(undefined);
     const { result, unmount } = renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
     const client = vi.mocked(getSupabaseClient).mock.results[0]?.value;
@@ -127,7 +128,8 @@ describe('team Realtime invalidation', () => {
     expect(result.current).toBe('connected');
     act(() => {
       events.get('team_launch_workspace_signals')!();
-      events.get('team_launch_workspace_signals')!();
+      events.get('team_account_workspace_signals')!();
+      events.get('team_account_workspace_signals')!();
     });
     await act(async () => vi.advanceTimersByTimeAsync(1_000));
     expect(onRefetch).toHaveBeenCalledTimes(2);

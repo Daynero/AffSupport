@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { financeDecimalComma, formatFinanceAmount } from './formatFinanceAmount';
-import { financeMoney, parseFinanceMoney } from '@video-compressor/shared';
+import { financeMoney, parseFinanceMoney, type FinanceMutation } from '@video-compressor/shared';
 import {
   Button,
   FormField,
@@ -15,6 +15,10 @@ import {
 } from '../../../components/ui/index';
 import { teamFinanceApi } from '../../../api/team-finance';
 import { useI18n } from '../../../i18n';
+import {
+  useRetainedFinanceDiagnostics,
+  type FinanceDiagnosticAttempt
+} from './useRetainedFinanceDiagnostics';
 
 export function LegacyFinanceReview({
   teamId,
@@ -29,9 +33,20 @@ export function LegacyFinanceReview({
   today: string;
   timezone: string;
   onClose: () => void;
-  onImported: () => void;
+  onImported: (receipt?: FinanceMutation, flowId?: string) => void;
 }) {
   const { t } = useI18n();
+  const diagnostics = useRetainedFinanceDiagnostics('financeLegacyImport', `${teamId}/${agent}`);
+  const {
+    start: readStart,
+    current: readCurrent,
+    accept: readAccept,
+    applied: readApplied,
+    fail: readFail
+  } = useRetainedFinanceDiagnostics('financeHistory', `${teamId}/${agent}`);
+  const [readProof, setReadProof] = useState<FinanceDiagnosticAttempt | null>(null);
+  const readValue = useRef<HTMLParagraphElement>(null);
+  const lastAttempt = useRef<FinanceDiagnosticAttempt | null>(null);
   const [legacy, setLegacy] = useState<Record<string, unknown>[]>([]);
   const [metric, setMetric] = useState<'balance' | 'topup'>('balance');
   const [date, setDate] = useState<string | null>(null);
@@ -48,27 +63,41 @@ export function LegacyFinanceReview({
   } | null>(null);
   useEffect(() => {
     let active = true;
+    const attempt = readStart();
     void teamFinanceApi
       .legacy(teamId, agent)
       .then(rows => {
-        if (active) setLegacy(rows);
+        if (active && readCurrent(attempt)) {
+          readAccept(attempt);
+          setLegacy(rows);
+          setReadProof(attempt);
+        }
       })
-      .catch(() => {
-        if (active) setError(true);
+      .catch(cause => {
+        if (active && readCurrent(attempt)) {
+          readFail(attempt, cause);
+          setError(true);
+        }
       });
     return () => {
       active = false;
     };
-  }, [teamId, agent]);
+  }, [teamId, agent, readStart, readCurrent, readAccept, readFail]);
   const row = legacy.find(l =>
     metric === 'balance'
       ? l.balance_units !== null && l.balance_imported_event_id === null
       : l.requested_topup_units !== null && l.topup_imported_event_id === null
   );
+  useEffect(() => {
+    if (readProof && !error && readValue.current) readApplied(readProof);
+  }, [readProof, readApplied, legacy, metric, error]);
   return (
     <Modal
       title={t('financeLegacy')}
-      onClose={onClose}
+      onClose={() => {
+        if (lastAttempt.current) diagnostics.cancel(lastAttempt.current);
+        onClose();
+      }}
       busy={busy}
       footer={
         <Button
@@ -103,7 +132,7 @@ export function LegacyFinanceReview({
           { value: 'topup', label: t('financeTopup') }
         ]}
       />
-      <p>
+      <p ref={readValue}>
         {formatFinanceAmount(
           row ? (metric === 'balance' ? row.balance_units : row.requested_topup_units) : null
         )}
@@ -157,6 +186,8 @@ export function LegacyFinanceReview({
           }}
           onConfirm={() => {
             if (busy) return;
+            const attempt = diagnostics.start();
+            lastAttempt.current = attempt;
             setBusy(true);
             setError(false);
             void teamFinanceApi
@@ -169,12 +200,24 @@ export function LegacyFinanceReview({
                 timezone,
                 confirmation.request
               )
-              .then(() => {
-                onImported();
+              .then(result => {
+                if (!diagnostics.current(attempt)) return;
+                diagnostics.accept(attempt);
+                // Closing this dialog proves no table delivery; parent may prove
+                // canonical field versions in a later committed row render.
+                diagnostics.partial(attempt);
+                onImported(result, attempt.flowId);
                 onClose();
               })
-              .catch(() => setError(true))
-              .finally(() => setBusy(false));
+              .catch(cause => {
+                if (diagnostics.current(attempt)) {
+                  diagnostics.fail(attempt, cause);
+                  setError(true);
+                }
+              })
+              .finally(() => {
+                if (diagnostics.current(attempt)) setBusy(false);
+              });
           }}
         />
       )}

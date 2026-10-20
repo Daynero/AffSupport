@@ -1,0 +1,37 @@
+{
+  "applicationHash": "7b457a1575537ecae15dd0d59e2c4eeb529660e54cb26c6aa2af04b95b91f927",
+  "affectedSuites": {
+    "passed": 87,
+    "files": 5,
+    "durationSeconds": 35.66,
+    "log": "scratchpad/038/compact-collapsed-canvas-green.log"
+  },
+  "static": {
+    "passed": 13,
+    "tests": 0,
+    "durationSeconds": 180,
+    "runnerResult": "specs/038-unified-accounts/reviews/verification-compact-final-static.json"
+  },
+  "webBuild": {
+    "ok": true,
+    "log": "scratchpad/038/compact-final-build.log"
+  },
+  "actualDistBudgets": {
+    "passed": 4,
+    "log": "scratchpad/038/compact-final-budget.log"
+  },
+  "independentScores": {
+    "buyer": 9.9,
+    "designer": 9.9,
+    "interactions": 9.9
+  },
+  "fullSuiteBaseline": {
+    "applicationHash": "b330a0350a23072527cefa870bf0ce9855ce826802d99bec5d226b0f0d25642e",
+    "passedGates": 14,
+    "passedTests": 5939,
+    "skippedTests": 12,
+    "exactFinalSource": false,
+    "runnerResult": "specs/038-unified-accounts/reviews/verification-compact-baseline-fast.json"
+  },
+  "finalBetaGeometry": "scratchpad/038/compact-final-main-geometry.json"
+}

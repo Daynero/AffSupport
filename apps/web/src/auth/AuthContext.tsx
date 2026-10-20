@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { analytics } from '../analytics/service';
+import { getInitialTheme, trackThemePreference } from '../lib/theme';
 import { publicConfig } from '../lib/config';
 import type { Database, Profile } from '../lib/database.types';
 import { getSupabaseClient } from '../lib/supabase';
@@ -31,6 +32,7 @@ export type EditableProfilePatch = Partial<
 >;
 
 type AuthErrorCode =
+  | 'beta_auth'
   | 'configuration'
   | 'oauth'
   | 'callback'
@@ -52,7 +54,7 @@ export type AuthSnapshot = {
 export type AuthContextValue = AuthSnapshot & {
   loading: boolean;
   signInWithGoogle: (returnPath?: string | null) => Promise<void>;
-  signInWithBetaFixture: () => Promise<void>;
+  signInWithBetaFixture: (fixture?: 'owner' | 'member') => Promise<void>;
   completeOAuthCallback: (code: string, state?: string | null) => Promise<void>;
   adoptHandedOverSession: (accessToken: string, refreshToken: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -222,6 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error: null
       });
       analytics.setUser(session.user.id);
+      trackThemePreference(getInitialTheme());
       analytics.setLocale(profile.language);
       if (profile.onboarding_completed) syncProfileLanguage(profile.language);
 
@@ -381,7 +384,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // The local beta stack has no Google provider credentials. Its fixture is
   // deliberately a password account so real Supabase authentication, session
   // handling, and entitlement checks remain testable without leaving localhost.
-  const signInWithBetaFixture = useCallback(async () => {
+  const signInWithBetaFixture = useCallback(async (fixture: 'owner' | 'member' = 'owner') => {
     if (!BETA_AUTH || LOCAL_DEV_AUTH) return;
     const supabase = getSupabaseClient();
     if (!supabase || !publicConfig.ok) {
@@ -390,10 +393,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setSnapshot(current => ({ ...current, status: 'authenticating', error: null }));
     const { error } = await supabase.auth.signInWithPassword({
-      email: 'beta@soty.local',
-      password: 'beta-password'
+      email: fixture === 'member' ? 'member@soty.local' : 'beta@soty.local',
+      password: fixture === 'member' ? 'beta-member-password' : 'beta-password'
     });
-    if (error) setSnapshot({ ...initialSnapshot, status: 'error', error: 'oauth' });
+    if (error) setSnapshot({ ...initialSnapshot, status: 'error', error: 'beta_auth' });
   }, []);
 
   /**

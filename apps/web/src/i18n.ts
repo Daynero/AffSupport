@@ -4,6 +4,64 @@ import { analytics } from './analytics/service';
 export type Language = 'en' | 'uk';
 
 const en = {
+  accountsMoveDropped: 'Position selected. Saving the order.',
+  accountsUnmatchedLaunches: 'Launches without a linked ad account',
+  accountsMoveInstructions:
+    'Hold to drag. For keyboard ordering, use Move up or Move down in the More menu, or Alt+ArrowUp and Alt+ArrowDown on its button.',
+  accountsMovePosition: '{name}: position {position} of {total}.',
+  accountsMoveCancelled: 'Move cancelled. Original position restored.',
+  accountsLaunchPartial:
+    'Some linked launches could not be loaded. Financial totals are unaffected.',
+  financeCorrect: 'Correct this day',
+  accountsLifecycleConflict:
+    'This account changed in another session. Review the current data and try again.',
+  accountsArchivedError: 'This account is archived. Restore it before starting new work.',
+  accountsHistoricalCorrectionRequired:
+    'Use historical correction to update an archived account’s existing history.',
+  accountsPreferenceConflict: 'The name color changed in another session. Try again.',
+  accountsRequestReplayMismatch:
+    'This request was already used for a different change. Refresh and try again.',
+
+  accountsOrderSaved: 'Order saved',
+  accountsOrderUnchanged: 'Order unchanged',
+  accountsNoActiveAgents: 'No active ad accounts',
+  accountsOrderFailed: 'Could not save order. The current order was restored.',
+  accountsMoveCaptured: 'Moving {name}. Choose a position, or press Escape to cancel.',
+  accountsMoveUp: 'Move up',
+  accountsMoveDown: 'Move down',
+  accountsArchive: 'Archive',
+  accountsArchiveTitle: 'Archive',
+  accountsArchiveAction: 'Archive {name}',
+  accountsArchived: 'Archived',
+  accountsRestore: 'Restore',
+  accountsRestoreAction: 'Restore {name}',
+  accountsArchiveBody:
+    'The history and financial records will be kept. Rows with financial data remain visible on their dates.',
+  accountsArchiveSaved: 'Archived. Financial history is preserved.',
+  accountsRestored: 'Restored',
+  accountsArchiveEmpty: 'The archive is empty',
+  accountsArchiveSearch: 'Find an archived social or ad account',
+  accountsArchiveFailed: 'Could not update the archive. Refresh and try again.',
+  accountsColor: 'Name color: {color}. Click for the next color.',
+  accountsColorNone: 'None',
+  accountsColorGreen: 'Green',
+  accountsColorYellow: 'Yellow',
+  accountsColorRed: 'Red',
+  accountsColorBlue: 'Blue',
+  accountsColorPurple: 'Purple',
+  accountsColorPink: 'Pink',
+  accountsColorOrange: 'Orange',
+  accountsSaveArchive: 'Save and archive',
+  accountsDiscardArchive: 'Discard drafts and archive',
+  accountsDraftArchive:
+    'There are unsaved financial entries. Save them before archiving, or explicitly discard the drafts.',
+  accountsParentArchived: 'Restore the parent social first.',
+  accountsOrderConflict:
+    'The list changed in another session. Review the current order and try again.',
+  accountsMenu: 'Account actions',
+  accountsHistorical: 'Historical data',
+  accountsArchiveDate: 'Archived {date}',
+
   launchesProgressPreparationFailed:
     'Could not finish the checks. Generation has not started. Try again.',
   launchesProgressPreparation: 'Preparation',
@@ -116,7 +174,7 @@ const en = {
   launchesPreparingCreative: 'Uploading creative…',
   launchesSavingSelection: 'Saving selection…',
   launchesDraftPending: 'Changes pending',
-  launchesDraftSaved: 'Draft saved',
+  launchesDraftSaved: 'Launch draft saved',
   launchesChangesSaved: 'Changes saved',
   launchesSavedVersion: 'Saved version',
   launchesAutosave: 'Autosave',
@@ -195,6 +253,7 @@ const en = {
   launchesCatalogName: 'Catalog name',
   launchesCatalogUrl: 'Catalog URL',
   launchesHistory: 'History',
+  launchesHistoryEmpty: 'No versions yet',
   launchesRestore: 'Restore configuration',
   launchesRestoreUnsaved:
     'There are unsaved configuration or result changes. Save or discard them before restoring this configuration.',
@@ -211,6 +270,8 @@ const en = {
   launchesReviewUnsavedOutputs: 'Unsaved manual edits won’t be included in the new result.',
   launchesDiscardRestore: 'Discard and restore',
   launchesDefaults: 'Save as defaults',
+  launchesDefaultsScope:
+    'Use these settings as the starting values for new launches in this workspace.',
   launchesDefaultsSaved: 'Defaults saved',
   launchesConflictTitle: 'This launch changed in another session',
   launchesConflictHelp:
@@ -262,6 +323,8 @@ const en = {
   financeConflictShort: 'Value changed',
   financeErrorShort: 'Could not save',
   financeDraftHelp: 'Save or cancel the draft before filtering or moving an ad account.',
+  financePeriodDetails: 'Period details',
+  financeReturnReport: 'Back to period report',
   financeMatrix: 'Monthly matrix',
   financeSummary: 'Totals',
   financeReturnMonth: 'Back to monthly report',
@@ -336,6 +399,8 @@ const en = {
   financeConflict:
     'This value changed. Your draft is retained; review the current value before saving again.',
   financeError: 'Could not complete the operation. Your draft is retained.',
+  financeContextChanged:
+    'The day or time zone changed. Save or discard your drafts to update the view.',
   financeEmpty: 'No financial entries for this period.',
   financeStatement: 'Top-up statement',
   financeTimezone:
@@ -1568,8 +1633,12 @@ const en = {
   teamInvitationResendShort: 'Send again',
   teamInviteTitle: 'Invite a member',
   teamDirectAddTitle: 'Add a member',
-  teamInviteEmail: 'Invite by email',
-  teamInviteRole: 'Initial role',
+  teamInviteEmail: 'Email',
+  teamInviteRole: 'Role',
+  teamInviteRoleDetails: 'Role permissions',
+  teamInviteAdminSummary: 'Manage content, shared settings and members.',
+  teamInviteEditorSummary: 'Add, edit and process content.',
+  teamInviteViewerSummary: 'View and download content.',
   teamInviteSend: 'Send invitation',
   teamInviteAlreadyInvited: 'This email already has a pending invitation to this space.',
   teamInviteAlreadyMember: 'This person is already in this space.',
@@ -1704,20 +1773,64 @@ const en = {
   teamRoleOwnerDescription:
     'All permissions, ownership transfer, and control of the connected storage root.',
   teamRoleAdminDescription:
-    'Member management and all file actions, except ownership transfer and storage-root changes.',
+    'Manage members, space content and shared settings. Ownership transfer and storage-root changes are owner-only.',
   teamRoleEditorDescription:
-    'View, upload, download, edit, process, and manage metadata; no member management or deletion by default.',
-  teamRoleViewerDescription: 'View and download visible files only by default.',
+    'View space content, download to computer, add files, edit, process, and change file details and shared settings. No deletion or member management by default.',
+  teamRoleViewerDescription: 'Default permissions: view space content and download files.',
   teamFormerMember: 'Former member',
   teamMemberEdit: 'Edit permissions',
   teamMemberEditFor: 'Edit permissions for {name}',
-  teamMemberRemove: 'Remove',
+  teamMemberRemove: 'Remove from space',
   teamMemberRemoveFor: 'Remove {name}',
   teamMemberPermissionsTitle: 'Member permissions',
-  teamMemberBaseRole: 'Base role',
-  teamMemberOverrides: 'Effective permissions',
+  teamMembersRestricted:
+    'Viewing the member list and changing access requires member management permission. Ask the space owner.',
+  loginBetaError:
+    'Could not sign in to the local beta account. Check that beta is running, then try again.',
+  loginBetaOwner: 'Beta: space owner',
+  loginBetaMember: 'Beta: member',
+  teamMemberBaseRole: 'Role',
+  teamMemberOverrides: 'Allowed actions',
   teamMemberSavePermissions: 'Save permissions',
   teamMemberUpdateFailed: 'Could not update this member.',
+  teamMemberCustom: 'Individual permissions',
+  teamMemberRoleDefaults: 'Standard role permissions',
+  teamMemberRoleHint: 'The role sets the defaults. Individual changes stay when you change roles.',
+  teamMemberReset: 'Restore role permissions',
+  teamMemberCustomCount: 'Individual changes: {count}',
+  teamMemberFiles: 'Space content',
+  teamMemberWorkspace: 'Space management',
+  teamMemberClose: 'Close permission editor',
+  teamMemberSaving: 'Saving permissions…',
+  teamMemberSaved: 'Permissions saved for {name}',
+  teamMemberUnsaved: 'Unsaved changes',
+  teamMemberDiscardTitle: 'Discard permission changes?',
+  teamMemberDiscardBody: 'The permissions you changed have not been saved.',
+  teamMemberDiscard: 'Discard changes',
+  teamMemberKeepEditing: 'Keep editing',
+  teamMemberLoading: 'Loading members…',
+  teamMemberScope:
+    'These permissions apply in Soty. Direct Google Drive access is managed separately and is not revoked here.',
+  teamMemberDependencies:
+    'File actions also require visible files, connected storage and available tools.',
+  teamMemberViewHint:
+    'Browse available files, previews and space data. Permissions for other actions are controlled separately.',
+  teamMemberDownloadHint: 'Save available files to your computer.',
+  teamMemberUploadHint: 'Add files from your computer to connected space storage.',
+  teamMemberEditHint:
+    'Edit files and folders, move files, and edit ad accounts and launches. File details have a separate permission.',
+  teamMemberDeleteHint:
+    'Delete files and other space items where deletion is supported. Ownership is not transferred.',
+  teamMemberProcessHint:
+    'Run available media tools on space files, such as compression and transcription.',
+  teamMemberManageHint:
+    'Invite, remove and change permissions of members, including granting member management. Only the owner can transfer ownership.',
+  teamMemberMetadataHint:
+    'Change file details and notes, catalog settings, launch dictionaries and shared space preferences. Colour tags remain owner-only.',
+  teamMemberDetails: 'About: {permission}',
+  teamInvitationBetaHint:
+    'No email is sent in beta. After creating the invitation, copy its link and share it with the person.',
+  teamInvitationCreateLink: 'Create invitation',
   teamTagRed: 'Red',
   teamTagOrange: 'Orange',
   teamTagYellow: 'Yellow',
@@ -1734,14 +1847,14 @@ const en = {
     'Tags belong to the space owner. Everyone else sees them and cannot change them.',
   teamTagFailed: 'Could not change the tag',
   teamExplorerSortTag: 'Tag',
-  teamPermissionView: 'View files',
-  teamPermissionDownload: 'Download files',
-  teamPermissionUpload: 'Upload files',
-  teamPermissionEdit: 'Edit files',
-  teamPermissionDelete: 'Delete files',
+  teamPermissionView: 'View space content',
+  teamPermissionDownload: 'Download to computer',
+  teamPermissionUpload: 'Add files to space',
+  teamPermissionEdit: 'Edit space content',
+  teamPermissionDelete: 'Delete space content',
   teamPermissionProcess: 'Run processing',
   teamPermissionManageMembers: 'Manage members',
-  teamPermissionManageMetadata: 'Manage metadata',
+  teamPermissionManageMetadata: 'File details and shared settings',
   teamMemberRemoveTitle: 'Remove member',
   teamMemberRemoveDescription: 'Remove {name} from this space?',
   teamMemberRemoveAction: 'Remove member',
@@ -2803,6 +2916,7 @@ const en = {
   teamAddToTaskCreate: 'Create task “{task}”',
   teamAddToTaskCreated: 'Created “{task}” with {count} file(s)',
   teamAddToTaskNone: 'There are no tasks in this space yet.',
+  materialActionLaunch: 'Launch',
   materialActionAddToTask: 'Add to a task…',
   materialActionCreateTask: 'Create a task',
   materialActionProvenance: 'Where it came from',
@@ -2957,7 +3071,7 @@ const en = {
   teamLeaveDone:
     'You have left the space. Files shared with you directly in Google Drive stay shared — ask an admin to remove that access if you need it revoked.',
   teamLeaveOwnerExplanation:
-    'A space cannot be left without an owner. Transfer ownership to a member in the list above first, then you can leave here.',
+    'To leave, transfer ownership first: open … beside a member → Transfer ownership.',
   teamDraftDeleteAction: 'Discard this draft',
   teamDraftDeleteConfirmTitle: 'Discard “{name}”?',
   teamDraftDeleteConfirmBody:
@@ -3428,6 +3542,7 @@ const en = {
   teamAgentConflict: 'This account already has that ad account.',
   teamAccountAgentsByTag: '{count} ad accounts tagged {tag}',
   teamAgentLabelAdd: 'Tag the ad account',
+  teamAgentLabelRemove: 'Remove tag "{name}" from {account}',
   teamAgentLabelsLabel: 'Ad account tags',
   teamAgentLabelsNoneYet:
     'This space has no ad account tags yet — make them in the space settings.',
@@ -3949,6 +4064,64 @@ const en = {
 } as const;
 
 const uk: Record<keyof typeof en, string> = {
+  accountsMoveDropped: 'Місце обрано. Зберігаємо порядок.',
+  accountsUnmatchedLaunches: 'Запуски без пов’язаного РК',
+  accountsMoveInstructions:
+    'Утримуйте для перенесення. З клавіатури оберіть «Перемістити вище» або «Перемістити нижче» в меню «Інші дії», або натисніть Alt+стрілка вгору чи вниз на його кнопці.',
+  accountsMovePosition: '{name}: місце {position} з {total}.',
+  accountsMoveCancelled: 'Переміщення скасовано. Початкове місце відновлено.',
+  accountsLaunchPartial:
+    'Частину пов’язаних запусків не вдалося завантажити. Фінансові підсумки доступні окремо.',
+  financeCorrect: 'Виправити за цей день',
+  accountsLifecycleConflict:
+    'Акаунт змінився в іншому сеансі. Перевірте актуальні дані й повторіть.',
+  accountsArchivedError: 'Акаунт в архіві. Відновіть його, щоб почати нову роботу.',
+  accountsHistoricalCorrectionRequired:
+    'Для зміни наявної історії архівного акаунта скористайтеся виправленням історії.',
+  accountsPreferenceConflict: 'Колір назви змінився в іншому сеансі. Повторіть спробу.',
+  accountsRequestReplayMismatch:
+    'Цей запит уже використано для іншої зміни. Оновіть сторінку й повторіть.',
+
+  accountsOrderSaved: 'Порядок збережено',
+  accountsOrderUnchanged: 'Порядок не змінився',
+  accountsNoActiveAgents: 'Немає активних РК',
+  accountsOrderFailed: 'Не вдалося зберегти порядок. Відновлено актуальний список.',
+  accountsMoveCaptured: 'Переміщення {name}. Оберіть місце або натисніть Escape для скасування.',
+  accountsMoveUp: 'Перемістити вище',
+  accountsMoveDown: 'Перемістити нижче',
+  accountsArchive: 'Архівувати',
+  accountsArchiveTitle: 'Архів',
+  accountsArchiveAction: 'Архівувати {name}',
+  accountsArchived: 'В архіві',
+  accountsRestore: 'Відновити',
+  accountsRestoreAction: 'Відновити {name}',
+  accountsArchiveBody:
+    'Історія та фінансові записи збережуться. Рядки з фінансовими даними залишаться видимими за відповідні дати.',
+  accountsArchiveSaved: 'Архівовано. Фінансову історію збережено.',
+  accountsRestored: 'Відновлено',
+  accountsArchiveEmpty: 'Архів порожній',
+  accountsArchiveSearch: 'Знайти архівний соц або РК',
+  accountsArchiveFailed: 'Не вдалося оновити архів. Оновіть дані й повторіть.',
+  accountsColor: 'Колір назви: {color}. Натисніть для наступного кольору.',
+  accountsColorNone: 'Без кольору',
+  accountsColorGreen: 'Зелений',
+  accountsColorYellow: 'Жовтий',
+  accountsColorRed: 'Червоний',
+  accountsColorBlue: 'Блакитний',
+  accountsColorPurple: 'Фіолетовий',
+  accountsColorPink: 'Рожевий',
+  accountsColorOrange: 'Помаранчевий',
+  accountsSaveArchive: 'Зберегти й архівувати',
+  accountsDiscardArchive: 'Відкинути чернетки й архівувати',
+  accountsDraftArchive:
+    'Є незбережені фінансові записи. Збережіть їх перед архівацією або явно відкиньте чернетки.',
+  accountsParentArchived: 'Спочатку відновіть батьківський соц.',
+  accountsOrderConflict:
+    'Список змінився в іншому сеансі. Перевірте актуальний порядок і повторіть.',
+  accountsMenu: 'Дії з акаунтами',
+  accountsHistorical: 'Історичні дані',
+  accountsArchiveDate: 'Архівовано {date}',
+
   launchesProgressPreparationFailed:
     'Не вдалося завершити перевірку. Генерація ще не розпочалась. Спробуйте ще раз.',
   launchesProgressPreparation: 'Підготовка',
@@ -4042,7 +4215,7 @@ const uk: Record<keyof typeof en, string> = {
   launchesSelectCreative: 'Обрати креатив',
   launchesSelectedCreative: 'Обраний креатив',
   launchesAlias: 'Назва креативу',
-  launchesAccount: 'Рекламний кабінет',
+  launchesAccount: 'РК',
   launchesAllAccounts: 'Усі рекламні кабінети',
   launchesFilterAccount: 'РК',
   launchesFilterAllAccounts: 'Усі',
@@ -4060,7 +4233,7 @@ const uk: Record<keyof typeof en, string> = {
   launchesPreparingCreative: 'Завантажуємо креатив…',
   launchesSavingSelection: 'Зберігаємо вибір…',
   launchesDraftPending: 'Є незбережені зміни',
-  launchesDraftSaved: 'Чернетку збережено',
+  launchesDraftSaved: 'Чернетку запуску збережено',
   launchesChangesSaved: 'Зміни збережено',
   launchesSavedVersion: 'Збережена версія',
   launchesAutosave: 'Автозбереження',
@@ -4139,6 +4312,7 @@ const uk: Record<keyof typeof en, string> = {
   launchesCatalogName: 'Назва каталогу',
   launchesCatalogUrl: 'Посилання на каталог',
   launchesHistory: 'Історія',
+  launchesHistoryEmpty: 'Версій ще немає',
   launchesRestore: 'Відновити конфігурацію',
   launchesRestoreUnsaved:
     'Є незбережені зміни конфігурації або результату. Збережіть або відкиньте їх перед відновленням цієї конфігурації.',
@@ -4155,6 +4329,8 @@ const uk: Record<keyof typeof en, string> = {
   launchesReviewUnsavedOutputs: 'Незбережені ручні правки не увійдуть у новий результат.',
   launchesDiscardRestore: 'Відкинути й відновити',
   launchesDefaults: 'Зберегти як стандартні',
+  launchesDefaultsScope:
+    'Використовувати ці налаштування як початкові для нових запусків у цьому просторі.',
   launchesDefaultsSaved: 'Стандартні налаштування збережено',
   launchesConflictTitle: 'Запуск змінився в іншій сесії',
   launchesConflictHelp:
@@ -4206,6 +4382,8 @@ const uk: Record<keyof typeof en, string> = {
   financeConflictShort: 'Значення змінено',
   financeErrorShort: 'Не вдалося зберегти',
   financeDraftHelp: 'Збережіть або скасуйте чернетку перед пошуком чи перенесенням РК.',
+  financePeriodDetails: 'Деталі періоду',
+  financeReturnReport: 'Назад до звіту за період',
   financeMatrix: 'Місячна таблиця',
   financeSummary: 'Підсумки',
   financeReturnMonth: 'Повернутися до місячного звіту',
@@ -4279,6 +4457,8 @@ const uk: Record<keyof typeof en, string> = {
   financeConflict:
     'Значення змінилося. Чернетку збережено; перевірте актуальну суму перед повторним збереженням.',
   financeError: 'Не вдалося виконати дію. Чернетку збережено.',
+  financeContextChanged:
+    'День або часовий пояс змінився. Збережіть або скасуйте чернетки, щоб оновити таблицю.',
   financeEmpty: 'За цей період фінансових записів немає.',
   financeStatement: 'Виписка поповнень',
   financeTimezone:
@@ -5504,8 +5684,12 @@ const uk: Record<keyof typeof en, string> = {
   teamInvitationResendShort: 'Надіслати ще раз',
   teamInviteTitle: 'Запросити учасника',
   teamDirectAddTitle: 'Додати учасника',
-  teamInviteEmail: 'Запросити за email',
-  teamInviteRole: 'Початкова роль',
+  teamInviteEmail: 'Email',
+  teamInviteRole: 'Роль',
+  teamInviteRoleDetails: 'Дозволи ролі',
+  teamInviteAdminSummary: 'Керування вмістом, спільними налаштуваннями й учасниками.',
+  teamInviteEditorSummary: 'Додавання, редагування й обробка вмісту.',
+  teamInviteViewerSummary: 'Перегляд і скачування вмісту.',
   teamInviteSend: 'Надіслати запрошення',
   teamInviteAlreadyInvited: 'Для цього email уже є активне запрошення до цього простору.',
   teamInviteAlreadyMember: 'Ця людина вже є учасником простору.',
@@ -5638,20 +5822,65 @@ const uk: Record<keyof typeof en, string> = {
   teamRoleOwnerDescription:
     'Усі дозволи, передача власності та керування підключеним коренем сховища.',
   teamRoleAdminDescription:
-    'Керування учасниками й усі файлові дії, крім передачі власності та зміни кореня сховища.',
+    'Керування учасниками, вмістом і спільними налаштуваннями. Передача володіння та зміна кореня сховища — лише власнику.',
   teamRoleEditorDescription:
-    'Перегляд, завантаження, скачування, редагування, обробка й метадані; без керування учасниками та видалення за замовчуванням.',
-  teamRoleViewerDescription: 'Лише перегляд і скачування доступних файлів за замовчуванням.',
+    'Перегляд вмісту простору, скачування на комп’ютер, додавання файлів, редагування, обробка, відомості й спільні налаштування. За замовчуванням — без видалення й керування учасниками.',
+  teamRoleViewerDescription: 'Стандартні дозволи: перегляд вмісту простору й скачування файлів.',
   teamFormerMember: 'Колишній учасник',
   teamMemberEdit: 'Змінити дозволи',
   teamMemberEditFor: 'Змінити дозволи для {name}',
-  teamMemberRemove: 'Видалити',
+  teamMemberRemove: 'Вилучити з простору',
   teamMemberRemoveFor: 'Видалити {name}',
   teamMemberPermissionsTitle: 'Дозволи учасника',
-  teamMemberBaseRole: 'Базова роль',
-  teamMemberOverrides: 'Ефективні дозволи',
+  teamMembersRestricted:
+    'Перегляд списку учасників і зміна доступів потребують дозволу на керування учасниками. Зверніться до власника простору.',
+  loginBetaError:
+    'Не вдалося ввійти в локальний beta-акаунт. Перевірте, що бета запущена, і спробуйте ще раз.',
+  loginBetaOwner: 'Бета: власник простору',
+  loginBetaMember: 'Бета: учасник',
+  teamMemberBaseRole: 'Роль',
+  teamMemberOverrides: 'Дозволені дії',
   teamMemberSavePermissions: 'Зберегти дозволи',
   teamMemberUpdateFailed: 'Не вдалося оновити цього учасника.',
+  teamMemberCustom: 'Індивідуальні дозволи',
+  teamMemberRoleDefaults: 'Стандартні дозволи ролі',
+  teamMemberRoleHint:
+    'Роль задає стандартні дозволи. Індивідуальні зміни зберігаються при зміні ролі.',
+  teamMemberReset: 'Відновити дозволи ролі',
+  teamMemberCustomCount: 'Індивідуальних змін: {count}',
+  teamMemberFiles: 'Вміст простору',
+  teamMemberWorkspace: 'Керування простором',
+  teamMemberClose: 'Закрити редактор дозволів',
+  teamMemberSaving: 'Зберігаємо дозволи…',
+  teamMemberSaved: 'Дозволи для {name} збережено',
+  teamMemberUnsaved: 'Є незбережені зміни',
+  teamMemberDiscardTitle: 'Відкинути зміни дозволів?',
+  teamMemberDiscardBody: 'Змінені вами дозволи ще не збережено.',
+  teamMemberDiscard: 'Відкинути зміни',
+  teamMemberKeepEditing: 'Продовжити редагування',
+  teamMemberLoading: 'Завантажуємо учасників…',
+  teamMemberScope:
+    'Ці дозволи діють у Soty. Прямий доступ до Google Drive керується окремо й тут не відкликається.',
+  teamMemberDependencies:
+    'Дії з файлами також потребують видимих файлів, підключеного сховища й доступних інструментів.',
+  teamMemberViewHint:
+    'Перегляд доступних файлів, прев’ю та даних простору. Дозволи на інші дії налаштовуються окремо.',
+  teamMemberDownloadHint: 'Зберігати доступні файли на свій комп’ютер.',
+  teamMemberUploadHint: 'Додавати файли зі свого комп’ютера в підключене сховище простору.',
+  teamMemberEditHint:
+    'Редагувати файли й папки, переміщувати файли, змінювати РК і запуски. Для відомостей про файли є окремий дозвіл.',
+  teamMemberDeleteHint:
+    'Видаляти файли та інші об’єкти простору, де доступне видалення. Це не передає право власності.',
+  teamMemberProcessHint:
+    'Запускати доступні медіаінструменти для файлів простору, наприклад стиснення й транскрибацію.',
+  teamMemberManageHint:
+    'Запрошувати, вилучати й змінювати дозволи учасників, зокрема надавати керування учасниками. Лише власник може передати володіння.',
+  teamMemberMetadataHint:
+    'Змінювати відомості й нотатки файлів, налаштування каталогів, довідники запусків і спільні налаштування простору. Кольорові маркери залишаються лише власнику.',
+  teamMemberDetails: 'Про дозвіл: {permission}',
+  teamInvitationBetaHint:
+    'Лист у беті не надсилається. Після створення скопіюйте посилання й передайте учаснику.',
+  teamInvitationCreateLink: 'Створити запрошення',
   teamTagRed: 'Червоний',
   teamTagOrange: 'Помаранчевий',
   teamTagYellow: 'Жовтий',
@@ -5667,14 +5896,14 @@ const uk: Record<keyof typeof en, string> = {
   teamTagOwnerOnlyHint: 'Маркери ставить власник простору. Решта їх бачить і змінити не може.',
   teamTagFailed: 'Не вдалося змінити маркер',
   teamExplorerSortTag: 'Маркер',
-  teamPermissionView: 'Перегляд файлів',
-  teamPermissionDownload: 'Скачування файлів',
-  teamPermissionUpload: 'Завантаження файлів',
-  teamPermissionEdit: 'Редагування файлів',
-  teamPermissionDelete: 'Видалення файлів',
+  teamPermissionView: 'Перегляд вмісту простору',
+  teamPermissionDownload: 'Скачувати на комп’ютер',
+  teamPermissionUpload: 'Додавати файли в простір',
+  teamPermissionEdit: 'Редагування вмісту простору',
+  teamPermissionDelete: 'Видалення вмісту простору',
   teamPermissionProcess: 'Запуск обробки',
   teamPermissionManageMembers: 'Керування учасниками',
-  teamPermissionManageMetadata: 'Керування метаданими',
+  teamPermissionManageMetadata: 'Відомості й спільні налаштування',
   teamMemberRemoveTitle: 'Видалити учасника',
   teamMemberRemoveDescription: 'Видалити {name} із цього простору?',
   teamMemberRemoveAction: 'Видалити учасника',
@@ -5689,7 +5918,7 @@ const uk: Record<keyof typeof en, string> = {
   teamOwnershipThenLeave:
     'Після цього можна лишитися в новій ролі або вийти з простору внизу екрана «Учасники».',
   teamOwnershipConfirm: 'Я розумію, що {name} стане власником',
-  teamOwnershipTransferAction: 'Передати власність',
+  teamOwnershipTransferAction: 'Передати володіння',
   teamOwnershipTransferFailed: 'Не вдалося передати власність.',
   teamAuditTitle: 'Історія простору',
   historyToday: 'Сьогодні',
@@ -6732,6 +6961,7 @@ const uk: Record<keyof typeof en, string> = {
   teamAddToTaskCreate: 'Створити завдання «{task}»',
   teamAddToTaskCreated: 'Створено «{task}», файлів: {count}',
   teamAddToTaskNone: 'У цьому просторі ще немає завдань.',
+  materialActionLaunch: 'Запустити',
   materialActionAddToTask: 'Додати до завдання…',
   materialActionCreateTask: 'Створити завдання',
   materialActionProvenance: 'Звідки він узявся',
@@ -6883,7 +7113,7 @@ const uk: Record<keyof typeof en, string> = {
   teamLeaveDone:
     'Ви вийшли з простору. Файли, якими з вами поділилися напряму в Google Drive, лишаються доступними — попросіть адміна забрати цей доступ, якщо його треба відкликати.',
   teamLeaveOwnerExplanation:
-    'Простір не може лишитися без власника. Спершу передайте володіння учаснику зі списку вище — тоді зможете вийти тут.',
+    'Щоб вийти, спершу передайте володіння: … біля учасника → Передати володіння.',
   teamDraftDeleteAction: 'Видалити чернетку',
   teamDraftDeleteConfirmTitle: 'Видалити «{name}»?',
   teamDraftDeleteConfirmBody:
@@ -7351,6 +7581,7 @@ const uk: Record<keyof typeof en, string> = {
   teamAgentConflict: 'Цей РК уже є в цьому соці.',
   teamAccountAgentsByTag: 'РК із тегом {tag}: {count}',
   teamAgentLabelAdd: 'Позначити РК',
+  teamAgentLabelRemove: 'Зняти тег «{name}» з РК {account}',
   teamAgentLabelsLabel: 'Теги РК',
   teamAgentLabelsNoneYet: 'У просторі ще немає тегів РК — створіть їх у налаштуваннях простору.',
   teamAgentLabelsUntagged: 'Без тега',

@@ -443,30 +443,45 @@ describe('the board', () => {
     expect(screen.queryAllByRole('slider')).toHaveLength(0);
   });
 
-  it('narrows to one person, and to the tasks nobody is on', async () => {
-    const user = userEvent.setup();
-    const api = client();
-    wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
-
-    await openMoreFilters(user);
-    await user.click(await screen.findByRole('button', { name: 'Only one person’s tasks' }));
-    await user.click(screen.getByRole('option', { name: /Анна/u }));
-    await waitFor(() =>
-      expect(api.listTasks).toHaveBeenCalledWith(
-        expect.objectContaining({ assigneeId: 'u-anna', unassigned: false })
-      )
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Only one person’s tasks' }));
-    await user.click(screen.getByRole('option', { name: 'Nobody yet' }));
-    await waitFor(() =>
-      expect(api.listTasks).toHaveBeenCalledWith(
-        expect.objectContaining({ assigneeId: null, unassigned: true })
-      )
-    );
-    // The pill offers the way back out, and it is not the same as "nobody".
-    expect(screen.getByRole('button', { name: 'Show everyone’s tasks' })).toBeTruthy();
-  });
+  it.each([{ kind: 'member', userId: 'u-anna' }, { kind: 'unassigned' }])(
+    'ignores the retired $kind assignee scope stored by an older board',
+    async legacyScope => {
+      const user = userEvent.setup();
+      const api = client();
+      localStorage.setItem(
+        `soty.team-view.v1:${TEAM_ID}:tasks.assignee`,
+        JSON.stringify(legacyScope)
+      );
+      const rows = [
+        task([], { id: 'anna-task', title: 'Anna task', assigneeId: 'u-anna' }),
+        task([], { id: 'bogdan-task', title: 'Bogdan task', assigneeId: 'u-bogdan' }),
+        task([], { id: 'unassigned-task', title: 'Unassigned task', assigneeId: null })
+      ];
+      // A hidden legacy scope would narrow the server response, not merely a
+      // caption. Keep all three assignments observable through the real board.
+      api.listTasks.mockImplementation(
+        async (input: { assigneeId?: string | null; unassigned?: boolean }) =>
+          rows.filter(
+            row =>
+              (!input.assigneeId || row.assigneeId === input.assigneeId) &&
+              (!input.unassigned || row.assigneeId === null)
+          )
+      );
+      wrap(<TaskSpace teamId={TEAM_ID} client={api} />);
+      await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(3));
+      for (const row of rows) expect(screen.getByText(row.title)).toBeTruthy();
+      await openMoreFilters(user);
+      expect(screen.queryByRole('button', { name: 'Only one person’s tasks' })).toBeNull();
+      expect(screen.queryByRole('option', { name: 'Nobody yet' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Show everyone’s tasks' })).toBeNull();
+      expect(api.listTasks).toHaveBeenCalled();
+      for (const [input] of api.listTasks.mock.calls) {
+        expect(input).not.toHaveProperty('assigneeId');
+        expect(input).not.toHaveProperty('unassigned');
+      }
+      expect(screen.getAllByRole('article')).toHaveLength(3);
+    }
+  );
 
   it('asks the server to order by tag when the board is switched to it', async () => {
     const user = userEvent.setup();

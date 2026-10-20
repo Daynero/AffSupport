@@ -1,3 +1,4 @@
+import { diagnoseAccountEvents } from './accounts.js';
 import { getLaunchEvidence, getLaunchAudit, type LaunchAuditEvidence } from './launches.js';
 import { createHash } from 'node:crypto';
 import { query, queryOne } from './db.js';
@@ -853,6 +854,32 @@ export async function getFeatures(period: ResolvedPeriod): Promise<FeatureMetric
   );
 }
 
+/** Users grouped by their most recently observed theme signal in the period. */
+export async function getThemeUsage(period: ResolvedPeriod): Promise<{
+  dark: number;
+  light: number;
+  users_with_theme_signal: number;
+}> {
+  const rows = await query<{ theme: string; users: number }>(
+    `with latest as (
+       select distinct on (e.user_id) e.user_id, e.properties ->> 'setting_value' as theme
+       from public.analytics_events e
+       where ${EVENTS_RANGE}
+         and e.event_name = 'setting_changed'
+         and e.properties ->> 'flow_step' = 'theme'
+         and e.properties ->> 'setting_name' = 'theme'
+         and e.properties ->> 'setting_value' in ('dark', 'light')
+         and e.user_id is not null
+       order by e.user_id, e.created_at desc, e.id desc
+     )
+     select theme, count(*)::int as users from latest group by theme`,
+    rangeParams(period)
+  );
+  const dark = rows.find(row => row.theme === 'dark')?.users ?? 0;
+  const light = rows.find(row => row.theme === 'light')?.users ?? 0;
+  return { dark, light, users_with_theme_signal: dark + light };
+}
+
 /** Interaction signals `features` declares but cannot count — nothing emits them. */
 export function featureUnsupportedSignals(): Array<UnsupportedSignal & { signal: string }> {
   return unsupportedRows(
@@ -1455,6 +1482,7 @@ const auditEventsCte = (attemptId: string) => `with reg as (
        from public.analytics_events e
        join reg r on r.event_name = e.event_name and (r.tool is null or e.tool = r.tool)
          and (r.flow_step is null or e.properties ->> 'flow_step' = r.flow_step)
+         and (r.capability not like 'accounts.%' or e.properties ->> 'account_action' = substring(r.capability from 10))
        where ${EVENTS_RANGE}
      )`;
 
@@ -1747,6 +1775,14 @@ function auditCapability(
     ...(capability.note ? { note: capability.note } : {})
   };
 
+  if (capability.id === 'team.accounts_finance') {
+    return {
+      ...base,
+      status: 'partial',
+      missing: ['aggregate_journey_and_visibility_proof'],
+      samples: 0
+    };
+  }
   if (capability.id === 'team.launches') {
     if (!launchAudit)
       return {
@@ -2000,7 +2036,10 @@ const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
   const events = await getEventInspect(id, asOf, limit);
   const launches = await getLaunchEvidence(id, asOf);
-  if (!launches.generations.length) return events;
+  if (!launches.generations.length)
+    return events.found && events.events.some(event => event.event_name.startsWith('team_account_'))
+      ? { ...events, accounts: diagnoseAccountEvents(events.events) }
+      : events;
   const latest = launches.generations[0];
   const stages = [...new Set(['accepted', ...latest.steps.map(s => s.stage), latest.stage])];
   const expected =
@@ -2152,13 +2191,27 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
   const capabilityRows =
     flowSteps.size > 0
       ? rows.filter(row => [...flowSteps].some(step => row.properties?.flow_step === step))
-      : rows;
-  const observedStages = capability
-    ? capability.stages.filter(stage =>
-        capabilityRows.some(row => stageOf.get(row.event_name) === stage)
-      )
+      : capability?.id.startsWith('accounts.')
+        ? rows.filter(
+            row => row.properties?.account_action === capability.id.slice('accounts.'.length)
+          )
+        : rows;
+  const observedStages = capability?.id.startsWith('accounts.')
+    ? [
+        ...new Set(
+          capabilityRows.flatMap(row =>
+            typeof row.properties?.account_stage === 'string' ? [row.properties.account_stage] : []
+          )
+        )
+      ]
+    : capability
+      ? capability.stages.filter(stage =>
+          capabilityRows.some(row => stageOf.get(row.event_name) === stage)
+        )
+      : [];
+  const expected = capability
+    ? capability.stages.filter(stage => (capability.stageEvents[stage] ?? []).length > 0)
     : [];
-  const expected = capability?.stages ?? [];
   const terminalEvents = new Set<string>(capability?.terminal.map(signal => signal.event) ?? []);
   const terminalRow =
     [...capabilityRows].reverse().find(row => terminalEvents.has(row.event_name)) ?? null;
@@ -2217,6 +2270,18 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
 
 /** The registry capability whose start/terminal events (and tool) the rows match best. */
 function inferCapability(rows: JourneyRow[]): Capability | null {
+  const accountAction = (
+    rows.find(
+      row =>
+        row.event_name.startsWith('team_account_') && row.properties?.account_action === 'lifecycle'
+    ) ?? rows.find(row => row.event_name.startsWith('team_account_'))
+  )?.properties?.account_action;
+  if (typeof accountAction === 'string') {
+    const account = COVERAGE_REGISTRY.find(
+      capability => capability.id === `accounts.${accountAction}`
+    );
+    if (account) return account;
+  }
   let best: { capability: Capability; score: number } | null = null;
   for (const capability of COVERAGE_REGISTRY) {
     if (capability.source !== 'events') continue;

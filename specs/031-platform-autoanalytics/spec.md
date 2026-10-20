@@ -279,6 +279,11 @@ capability: compressor.run
 
 ## Existing Foundation & Dependencies
 
+### Theme preference reporting
+
+- **FR-058**: The analytics CLI MUST report unique users by their latest observed light/dark theme signal within a selected period. The web client records the current theme after identity is established and records subsequent changes using the existing `setting_changed` event, with a closed `light|dark` value and a `theme` flow discriminator. Missing signals remain unknown and are excluded from both counts; no content or device-local storage is collected.
+- **Acceptance**: `npm run analytics -- themes --period 30d --json` returns dark, light, and users-with-signal counts; a user who switches themes is counted once under the latest received signal in the period.
+
 - [Analytics CLI](../../docs/ANALYTICS_CLI.md), `scripts/analytics/`, event v2 та typed web analytics — існуюча база. Розширювати її, не створювати паралельний analytics backend.
 - [028 manual sync lifecycle](../028-manual-sync-lifecycle/spec.md) і [026 reliable folder sync](../026-reliable-folder-sync/spec.md) визначають authoritative sync states; ця спека додає наскрізну діагностику, не змінює їхні workflows.
 - [Sync incident](../../docs/incidents/2026-10-07-folder-sync-diagnosis-and-plan.md) демонструє різницю між доведеним дефектом коду та недоведеним конкретним кейсом без request/job evidence.
@@ -303,3 +308,18 @@ capability: compressor.run
 Acceptance набір MUST відтворювати цей клас симптомів із незалежними причинами (picker launch failure, hidden dialog, limited resolver coverage, inaccessible original, initial-state failure) та зі спільним підтвердженим environmental failure. Агент має визначати різні причини там, де вони різні, і одну лише за достатнього доказу. Також потрібен healthy control: preflight success + pending request під час відкритого діалогу → explicit cancel/selection → завершена відповідь.
 
 До planning handoff включити coverage для shared picker, browser image upload, dropped resolver, tool state transport, local process diagnostics і support bundle. Історичний кейс не оголошується поясненим лише після додавання нових signals: новий збір допомагає майбутньому відтворенню, а не відновлює незібране минуле.
+
+### Members permissions editor diagnostic acceptance
+
+The Members list, permission save and removal journeys reuse generic typed operation signals with closed
+`members_list`, `member_permissions_save` and `member_remove` flow discriminators. Each request has an opaque attempt
+ID; retries retain the view's flow ID. The list must show loading rather than an unproven zero,
+provide retry after failure, and cancel obsolete reads. Save acceptance follows a valid membership
+response; completion follows React commit of the updated list and success feedback. Rejected saves
+retain the draft and expose a closed failure code. A missing mutation response or browser
+interruption remains unknown: the protected `membership.updated` or `membership.removed` audit and a fresh membership read
+are the safe fallback; no event proves that a lost mutation did not commit. Unsaved values, member
+identities, file content and provider responses are never collected. Beta disables event delivery;
+producer → sanitizer → stored events → CLI inspect/audit regressions cover success, refusal,
+cancellation and missing terminal evidence. UI regressions cover role changes with current overrides,
+explicit role reset, confirmed draft discard, pending lock, help-layer Escape and no-op save.

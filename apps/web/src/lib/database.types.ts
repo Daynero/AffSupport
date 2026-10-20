@@ -739,10 +739,14 @@ export type GeneratedDatabase = {
         Row: {
           account_id: string;
           agent_id: string;
+          archived_at: string | null;
           balance: number | null;
           created_at: string;
           created_by: string;
           id: string;
+          lifecycle_version: number;
+          sort_rank: number;
+          starts_on: string | null;
           team_id: string;
           topup: number | null;
           updated_at: string;
@@ -751,10 +755,14 @@ export type GeneratedDatabase = {
         Insert: {
           account_id: string;
           agent_id: string;
+          archived_at?: string | null;
           balance?: number | null;
           created_at?: string;
           created_by: string;
           id?: string;
+          lifecycle_version?: number;
+          sort_rank?: number;
+          starts_on?: string | null;
           team_id: string;
           topup?: number | null;
           updated_at?: string;
@@ -762,10 +770,14 @@ export type GeneratedDatabase = {
         Update: {
           account_id?: string;
           agent_id?: string;
+          archived_at?: string | null;
           balance?: number | null;
           created_at?: string;
           created_by?: string;
           id?: string;
+          lifecycle_version?: number;
+          sort_rank?: number;
+          starts_on?: string | null;
           team_id?: string;
           topup?: number | null;
           updated_at?: string;
@@ -787,29 +799,291 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      team_account_content_revisions: {
+        Row: {
+          entity_id: string;
+          entity_kind: string;
+          finance_revision: number;
+          membership_revision: number;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          entity_id: string;
+          entity_kind: string;
+          finance_revision?: number;
+          membership_revision?: number;
+          team_id: string;
+        };
+        Update: {
+          entity_id?: string;
+          entity_kind?: string;
+          finance_revision?: number;
+          membership_revision?: number;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_account_content_revisions_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_account_lifecycle_events: {
+        Row: {
+          actor_id: string;
+          archived: boolean;
+          entity_id: string;
+          entity_kind: string;
+          id: string;
+          occurred_at: string;
+          request_id: string;
+          team_id: string;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id: string;
+          archived: boolean;
+          entity_id: string;
+          entity_kind: string;
+          id?: string;
+          occurred_at?: string;
+          request_id: string;
+          team_id: string;
+          version: number;
+        };
+        Update: {
+          actor_id?: string;
+          archived?: boolean;
+          entity_id?: string;
+          entity_kind?: string;
+          id?: string;
+          occurred_at?: string;
+          request_id?: string;
+          team_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_account_lifecycle_events_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_account_mutation_receipts: {
+        Row: {
+          actor_id: string;
+          operation_id: string;
+          payload: NonNullable<Json>;
+          request_id: string;
+          result: NonNullable<Json>;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id: string;
+          operation_id?: string;
+          payload: NonNullable<Json>;
+          request_id: string;
+          result: NonNullable<Json>;
+          team_id: string;
+        };
+        Update: {
+          actor_id?: string;
+          operation_id?: string;
+          payload?: NonNullable<Json>;
+          request_id?: string;
+          result?: NonNullable<Json>;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_account_mutation_receipts_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_account_order_scopes: {
+        Row: {
+          parent_id: string;
+          scope: string;
+          team_id: string;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          parent_id: string;
+          scope: string;
+          team_id: string;
+          version?: number;
+        };
+        Update: {
+          parent_id?: string;
+          scope?: string;
+          team_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_account_order_scopes_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_account_parent_history: {
+        Row: {
+          account_id: string;
+          agent_row_id: string;
+          ends_at: string | null;
+          id: string;
+          provenance: string;
+          starts_at: string;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          account_id: string;
+          agent_row_id: string;
+          ends_at?: string | null;
+          id?: string;
+          provenance: string;
+          starts_at: string;
+          team_id: string;
+        };
+        Update: {
+          account_id?: string;
+          agent_row_id?: string;
+          ends_at?: string | null;
+          id?: string;
+          provenance?: string;
+          starts_at?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_account_parent_history_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_account_preferences: {
+        Row: {
+          agent_id: string;
+          name_color: number;
+          team_id: string;
+          user_id: string;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          agent_id: string;
+          name_color?: number;
+          team_id: string;
+          user_id: string;
+          version?: number;
+        };
+        Update: {
+          agent_id?: string;
+          name_color?: number;
+          team_id?: string;
+          user_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_account_preferences_agent_id_fkey';
+            columns: ['agent_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_account_preferences_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_account_workspace_signals: {
+        Row: {
+          change_kind: string;
+          revision: number;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          change_kind?: string;
+          revision?: number;
+          team_id: string;
+        };
+        Update: {
+          change_kind?: string;
+          revision?: number;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_account_workspace_signals_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_accounts: {
         Row: {
+          archived_at: string | null;
           created_at: string;
           created_by: string;
           id: string;
+          lifecycle_version: number;
           name: string;
+          sort_rank: number;
+          starts_on: string | null;
           team_id: string;
           updated_at: string;
         };
         ComputedFields: never;
         Insert: {
+          archived_at?: string | null;
           created_at?: string;
           created_by: string;
           id?: string;
+          lifecycle_version?: number;
           name: string;
+          sort_rank?: number;
+          starts_on?: string | null;
           team_id: string;
           updated_at?: string;
         };
         Update: {
+          archived_at?: string | null;
           created_at?: string;
           created_by?: string;
           id?: string;
+          lifecycle_version?: number;
           name?: string;
+          sort_rank?: number;
+          starts_on?: string | null;
           team_id?: string;
           updated_at?: string;
         };
@@ -4386,6 +4660,7 @@ export type GeneratedDatabase = {
           next_attempt_at: string | null;
           result_is_active: boolean | null;
           retryable: boolean | null;
+          reuse_evidence: Json | null;
           revision_id: string | null;
           safe_error_code: string | null;
           stage: string | null;
@@ -4516,6 +4791,7 @@ export type GeneratedDatabase = {
           p_account: string;
           p_agent_id: string;
           p_note?: string;
+          p_starts_on?: string;
           p_team: string;
           p_timezone?: string;
         };
@@ -4845,6 +5121,7 @@ export type GeneratedDatabase = {
         Args: {
           p_date: string;
           p_fields: Json;
+          p_intent?: string;
           p_metric: string;
           p_request_id: string;
           p_team: string;
@@ -4901,18 +5178,6 @@ export type GeneratedDatabase = {
           team_name: string;
         }[];
       };
-      edit_launch_dictionary: {
-        Args: {
-          p_team: string;
-          p_kind: string;
-          p_id: string;
-          p_expected_updated_at: string;
-          p_operation: string;
-          p_value: string;
-          p_request_key: string;
-        };
-        Returns: Json;
-      };
       create_launch_dictionary: {
         Args: { p_kind: string; p_request_key: string; p_team: string; p_value: string };
         Returns: Json;
@@ -4928,12 +5193,16 @@ export type GeneratedDatabase = {
         }[];
       };
       create_team_account: {
-        Args: { p_name: string; p_team: string };
+        Args: { p_name: string; p_starts_on?: string; p_team: string; p_timezone?: string };
         Returns: {
+          archived_at: string | null;
           created_at: string;
           created_by: string;
           id: string;
+          lifecycle_version: number;
           name: string;
+          sort_rank: number;
+          starts_on: string | null;
           team_id: string;
           updated_at: string;
         };
@@ -5071,6 +5340,18 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       draw_restitch_screens: { Args: { p_exclude?: string[]; p_team: string }; Returns: Json };
+      edit_launch_dictionary: {
+        Args: {
+          p_expected_updated_at: string;
+          p_id: string;
+          p_kind: string;
+          p_operation: string;
+          p_request_key: string;
+          p_team: string;
+          p_value: string;
+        };
+        Returns: Json;
+      };
       expire_team_invitations: { Args: Record<PropertyKey, never>; Returns: number };
       fail_library_job: {
         Args: {
@@ -5262,7 +5543,20 @@ export type GeneratedDatabase = {
       };
       get_share_preference: { Args: { p_team: string }; Returns: Json };
       get_task_progress_max_default: { Args: Record<PropertyKey, never>; Returns: number };
+      get_team_account_archive_preflight: {
+        Args: { p_entity: string; p_kind: string; p_team: string };
+        Returns: Json;
+      };
+      get_team_account_mutation: { Args: { p_request_id: string; p_team: string }; Returns: Json };
+      get_team_accounts_overview: {
+        Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
+        Returns: Json;
+      };
       get_team_agent_finance: {
+        Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
+        Returns: Json;
+      };
+      get_team_agent_finance_v2: {
         Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;
       };
@@ -5344,6 +5638,7 @@ export type GeneratedDatabase = {
         Args: {
           p_currency: string;
           p_date: string;
+          p_intent?: string;
           p_legacy: string;
           p_metric: string;
           p_request_id: string;
@@ -5528,6 +5823,10 @@ export type GeneratedDatabase = {
           parent_folder_id: string;
         }[];
       };
+      list_team_account_archive: {
+        Args: { p_cursor?: string; p_limit?: number; p_query?: string; p_team: string };
+        Returns: Json;
+      };
       list_team_account_two_factor_seeds: {
         Args: { p_team: string };
         Returns: {
@@ -5536,6 +5835,18 @@ export type GeneratedDatabase = {
         }[];
       };
       list_team_accounts: {
+        Args: { p_team: string };
+        Returns: {
+          agents: Json;
+          created_at: string;
+          id: string;
+          name: string;
+          task_count: number;
+          team_id: string;
+          updated_at: string;
+        }[];
+      };
+      list_team_accounts_legacy_038: {
         Args: { p_team: string };
         Returns: {
           agents: Json;
@@ -5848,10 +6159,14 @@ export type GeneratedDatabase = {
       rename_team_account: {
         Args: { p_account: string; p_name: string; p_team: string };
         Returns: {
+          archived_at: string | null;
           created_at: string;
           created_by: string;
           id: string;
+          lifecycle_version: number;
           name: string;
+          sort_rank: number;
+          starts_on: string | null;
           team_id: string;
           updated_at: string;
         };
@@ -5861,6 +6176,19 @@ export type GeneratedDatabase = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      reorder_team_accounts: {
+        Args: {
+          p_anchor: string;
+          p_expected_version: string;
+          p_moved: string;
+          p_parent: string;
+          p_relation: string;
+          p_request_id: string;
+          p_scope: string;
+          p_team: string;
+        };
+        Returns: Json;
       };
       replace_team_product_catalog_texts: {
         Args: { p_items: Json; p_team: string };
@@ -7600,6 +7928,28 @@ export type GeneratedDatabase = {
       };
       set_share_preference: { Args: { p_allow: boolean; p_team: string }; Returns: boolean };
       set_task_progress_max_default: { Args: { p_value: number }; Returns: undefined };
+      set_team_account_archived: {
+        Args: {
+          p_archived: boolean;
+          p_entity: string;
+          p_expected_version: string;
+          p_kind: string;
+          p_preflight_token: string;
+          p_request_id: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      set_team_account_name_color: {
+        Args: {
+          p_agent: string;
+          p_color: number;
+          p_expected_version: string;
+          p_request_id: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       set_team_account_two_factor_seed: {
         Args: { p_account: string; p_secret: string; p_team: string };
         Returns: boolean;
@@ -7624,6 +7974,7 @@ export type GeneratedDatabase = {
               p_date: string;
               p_expected_placement_id: string;
               p_expected_version: string;
+              p_intent?: string;
               p_metric: string;
               p_request_id: string;
               p_team: string;
@@ -7716,7 +8067,12 @@ export type GeneratedDatabase = {
         }[];
       };
       undo_team_agent_finance_clear: {
-        Args: { p_original_request_id: string; p_request_id: string; p_team: string };
+        Args: {
+          p_intent?: string;
+          p_original_request_id: string;
+          p_request_id: string;
+          p_team: string;
+        };
         Returns: Json;
       };
       update_launch_metadata: {

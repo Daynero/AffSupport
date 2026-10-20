@@ -108,15 +108,7 @@
   min-width: 0;
 }
 
-/* A Launch card uses the shared button as a multiline opening target. */
-.ui-button.launch-card-open {
-  height: auto;
-  align-items: flex-start;
-  white-space: normal;
-}
-.launch-card-open .ui-button-label {
-  max-width: 100%;
-}
+/* The launch has one opening surface; only selection and actions stand apart. */
 .team-task-card.launch-card {
   display: flex;
   flex-direction: column;
@@ -186,6 +178,10 @@
   gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--text-caption);
+}
+.launch-card-facts > span + span::before {
+  content: '·';
+  margin-right: var(--space-2);
 }
 .launch-card-date {
   color: var(--color-text-muted);
@@ -2437,8 +2433,6 @@
   display: inline-flex;
 }
 .ui-tooltip {
-  position: absolute;
-  left: 50%;
   z-index: var(--layer-tooltip);
   max-width: 280px;
   padding: var(--space-1) var(--space-2);
@@ -2449,27 +2443,7 @@
   font-size: var(--text-caption);
   white-space: normal;
   pointer-events: none;
-  animation: ui-tooltip-in var(--motion-fast) var(--ease-out-curve);
 }
-.ui-tooltip--top {
-  bottom: calc(100% + var(--space-1));
-  transform: translateX(-50%);
-}
-.ui-tooltip--bottom {
-  top: calc(100% + var(--space-1));
-  transform: translateX(-50%);
-}
-/* Within a delay group the neighbours open at once and without motion. */
-.ui-tooltip.is-instant {
-  animation: none;
-}
-@keyframes ui-tooltip-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) scale(0.95);
-  }
-}
-
 /* ============================================================
    Overlay
    ============================================================ */
@@ -3803,10 +3777,6 @@
 .finance-daily-table .finance-daily-actions {
   grid-area: auto;
 }
-.team-agent-tail {
-  background: var(--team-tag-orange);
-  color: var(--color-primary-on-solid);
-}
 @media (max-width: 900px) {
   .finance-daily-table .finance-daily-columns {
     display: none;
@@ -4027,4 +3997,256 @@
   .ui-stage-progress-segment > .is-waiting {
     animation: none;
   }
+}
+
+/* One draft, one save: the catalog schedule panel. */
+.team-updater-interval-menu.catalog-schedule-panel {
+  width: calc(440px * var(--catalog-schedule-panel-scale));
+  height: var(--catalog-schedule-panel-height);
+  max-width: calc(100vw - var(--space-5) * 2);
+  padding: calc(var(--space-4) * var(--catalog-schedule-panel-scale));
+  border-radius: calc(var(--radius-lg) * var(--catalog-schedule-panel-scale));
+  background: var(--color-surface-subtle);
+  overflow: visible;
+}
+.catalog-schedule-panel::before {
+  content: '';
+  position: absolute;
+  top: calc(-1 * var(--space-2) * var(--catalog-schedule-panel-scale));
+  left: 50%;
+  width: calc(var(--space-4) * var(--catalog-schedule-panel-scale));
+  height: calc(var(--space-4) * var(--catalog-schedule-panel-scale));
+  transform: translateX(-50%) rotate(45deg);
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+}
+.catalog-schedule-panel form {
+  zoom: var(--catalog-schedule-panel-scale);
+  position: relative;
+  display: grid;
+  gap: 0;
+  height: calc(
+    (var(--catalog-schedule-panel-height) - 2px) / var(--catalog-schedule-panel-scale) -
+      var(--space-4) * 2
+  );
+  grid-template-rows: auto minmax(0, 1fr) calc(var(--control-height-lg) + var(--space-5)) auto;
+}
+.catalog-schedule-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+.catalog-schedule-preset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--control-height-lg) + var(--space-3));
+  padding: var(--space-3) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-label);
+  cursor: pointer;
+}
+.catalog-schedule-preset:hover,
+.catalog-schedule-weekday:hover {
+  border-color: var(--color-border-strong);
+}
+.catalog-schedule-preset.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: color-mix(in srgb, var(--color-secondary-solid) 60%, var(--color-surface-subtle));
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-secondary-solid);
+}
+.catalog-schedule-preset:focus-visible,
+.catalog-schedule-weekday:focus-visible {
+  outline: 2px solid var(--color-secondary-solid);
+  outline-offset: 2px;
+}
+.catalog-schedule-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.catalog-schedule-fields {
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+}
+.catalog-schedule-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.catalog-schedule-weekday {
+  min-height: var(--control-height-lg);
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-label);
+  cursor: pointer;
+}
+.catalog-schedule-weekday.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
+}
+.catalog-schedule-fields.is-weekly {
+  grid-template-columns: minmax(0, 1fr) 123px;
+  column-gap: var(--space-3);
+}
+.catalog-schedule-weekday-field,
+.catalog-schedule-time {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+}
+.catalog-schedule-fields.is-weekly .catalog-schedule-time {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 1px solid var(--color-border);
+}
+.catalog-schedule-time .ui-input.is-narrow {
+  position: relative;
+  width: 110px;
+  min-height: var(--control-height-lg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-label);
+  background: transparent;
+}
+.catalog-schedule-time input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.catalog-schedule-time-open {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.catalog-schedule-time-open:focus-visible {
+  outline: 2px solid var(--color-secondary-solid);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.catalog-schedule-panel .team-updater-interval-custom {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: 0;
+  font-size: var(--text-lg);
+}
+.catalog-schedule-panel .team-updater-interval-custom .ui-input.is-narrow {
+  width: calc(var(--control-height-lg) * 2);
+  min-height: var(--control-height-lg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-label);
+}
+.catalog-schedule-panel .team-updater-interval-custom .soty-field-error {
+  flex-basis: 100%;
+}
+.catalog-schedule-preview,
+.catalog-schedule-error {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+.catalog-schedule-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--control-height-lg) + var(--space-5));
+  padding-block: var(--space-4);
+  border-block: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.catalog-schedule-preview svg {
+  flex-shrink: 0;
+}
+.catalog-schedule-preview strong {
+  color: var(--color-text);
+  font-weight: var(--weight-label);
+}
+.catalog-schedule-error {
+  padding-top: var(--space-3);
+  color: var(--color-error-text);
+}
+.catalog-schedule-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+}
+.catalog-schedule-footer .ui-button {
+  font-size: var(--text-lg);
+}
+.catalog-schedule-footer .catalog-schedule-save {
+  min-width: 128px;
+  min-height: calc(var(--control-height-lg) + var(--space-2));
+  border-radius: var(--radius-md);
+  background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
+}
+
+.catalog-schedule-feedback {
+  min-height: 0;
+  overflow-y: auto;
+  border-block: 1px solid var(--color-border);
+}
+.catalog-schedule-feedback .catalog-schedule-preview {
+  border: 0;
+}
+.catalog-schedule-feedback .catalog-schedule-error {
+  padding-block: var(--space-2);
+}
+
+/* Saving a setting never changes the catalog row's geometry. */
+.catalog-name-primary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.catalog-save-indicator {
+  display: grid;
+  place-items: center;
+  flex: 0 0 var(--space-5);
+  width: var(--space-5);
+  height: var(--space-5);
+  color: var(--color-text-muted);
+}
+.catalog-save-indicator[data-phase='saved'] {
+  color: var(--color-success-text);
+}
+.catalog-save-indicator .is-spinning {
+  animation: spin var(--duration-spinner) linear infinite;
+}
+.catalog-manager-dialog .ui-button[data-setting-save='true'] {
+  opacity: 1;
+}
+.catalog-recent-count {
+  display: inline-block;
+  min-width: 4ch;
+  text-align: start;
+}
+.catalog-manager-dialog > .catalog-undo-notice {
+  flex: 0 0 var(--control-height-xl);
+  height: var(--control-height-xl);
+  min-height: var(--control-height-xl);
+  overflow: hidden;
 }

@@ -319,3 +319,43 @@ describe('profile onboarding, account and blocked state', () => {
     expect(signOut).toHaveBeenCalledOnce();
   });
 });
+
+it('offers real beta identities only in beta and keeps their pending state distinct from Google', async () => {
+  vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
+  const signInWithBetaFixture = vi.fn().mockResolvedValue(undefined);
+  const value = authValue({ signInWithBetaFixture });
+  const view = render(
+    <AuthContextOverride value={value}>
+      <LoginPage />
+    </AuthContextOverride>
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Beta: member' }));
+  expect(signInWithBetaFixture).toHaveBeenCalledWith('member');
+  view.rerender(
+    <AuthContextOverride value={{ ...value, status: 'authenticating' }}>
+      <LoginPage />
+    </AuthContextOverride>
+  );
+  expect(screen.queryByText('Opening Google…')).toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'Continue with Google' }).hasAttribute('disabled')
+  ).toBe(true);
+  view.rerender(
+    <AuthContextOverride value={{ ...value, status: 'error', error: 'beta_auth' }}>
+      <LoginPage />
+    </AuthContextOverride>
+  );
+  expect(screen.getByRole('alert').textContent).toContain(
+    'Could not sign in to the local beta account'
+  );
+  expect(screen.getByRole('alert').textContent).not.toContain('Google');
+  cleanup();
+  vi.stubEnv('VITE_APP_ENVIRONMENT', 'production');
+  render(
+    <AuthContextOverride value={value}>
+      <LoginPage />
+    </AuthContextOverride>
+  );
+  expect(screen.queryByRole('button', { name: 'Beta: member' })).toBeNull();
+  vi.unstubAllEnvs();
+});

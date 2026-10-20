@@ -9,6 +9,10 @@ import { launchConfig, launchSources } from './fixtures/launches';
 import { launchPreview, type LaunchDetail } from '../packages/shared/src/team/launches';
 const TEAM = '79999999-0000-4000-8000-000000000001';
 const LAUNCH = '79999999-0000-4000-8000-000000000002';
+const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+function mockClipboard(writeText: (value: string) => Promise<void>) {
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+}
 const seams = vi.hoisted(() => ({
   actor: 'actor-a',
   revision: 0,
@@ -171,7 +175,11 @@ function clickLaunchClose() {
 }
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
+  if (originalClipboardDescriptor)
+    Object.defineProperty(navigator, 'clipboard', originalClipboardDescriptor);
+  else Reflect.deleteProperty(navigator, 'clipboard');
   seams.actor = 'actor-a';
   seams.revision = 0;
   seams.view = true;
@@ -567,7 +575,9 @@ it('keeps unsaved RAM edits after a retryable detail refresh error', async () =>
   seams.detail.mockResolvedValueOnce(detail('SYNTHETIC_LOCAL_DRAFT_URL'));
   const view = render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByText('SYNTHETIC_LOCAL_DRAFT_URL');
-  fireEvent.click(screen.getByRole('button', { name: 'Age 50' }));
+  const age = screen.getByRole('button', { name: 'Age 50' });
+  await waitFor(() => expect((age as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(age);
   expect(screen.getByText('Age: 50')).toBeTruthy();
   seams.detail.mockRejectedValueOnce(new TeamApiError('DRIVE_UNAVAILABLE', true));
   seams.revision++;
@@ -787,6 +797,7 @@ it('locks historical restore while a generation is unsettled', async () => {
 });
 
 it('stages an old date and budget in the draft while keeping the current result published', async () => {
+  seams.selection.mockResolvedValue(null);
   seams.edit = true;
   seams.realGeneration = true;
   const currentConfig = launchConfig({
@@ -846,25 +857,40 @@ it('stages an old date and budget in the draft while keeping the current result 
   ]);
   const view = render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByText('Date: 2026-10-20');
-  fireEvent.click(screen.getByRole('button', { name: 'Age 50' }));
-  fireEvent.click(screen.getByRole('button', { name: 'History' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Restore configuration' }));
-  fireEvent.click(
-    screen
-      .getAllByRole('button', { name: 'Cancel' })
-      .find(button => !(button as HTMLButtonElement).disabled)!
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'Age 50' }) as HTMLButtonElement).disabled).toBe(
+      false
+    )
   );
+  // Exercise the unsaved-decision branch before the genuine 500ms autosave.
+  // Wall-clock accessibility queries must not decide whether a draft is dirty.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  fireEvent.click(screen.getByRole('button', { name: 'Age 50' }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Restore configuration' }));
+  const cancelRestore = screen
+    .getAllByRole('button', { name: 'Cancel' })
+    .find(button => !(button as HTMLButtonElement).disabled);
+  if (!cancelRestore) throw new Error('Missing enabled restore-decision cancel');
+  fireEvent.click(cancelRestore);
   expect(screen.getByText('Age: 50')).toBeTruthy();
   expect(screen.getByText('Date: 2026-10-20')).toBeTruthy();
   expect(seams.detail).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole('button', { name: 'Restore configuration' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Discard and restore' }));
-  await screen.findByText('Date: 2025-02-03');
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Discard and restore' }));
+  });
+  expect(screen.getByText('Date: 2025-02-03')).toBeTruthy();
   expect(screen.getByText('Max budget: 90')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Generate launch' }));
-  expect(await screen.findByText('Check the value')).toBeTruthy();
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Generate launch' }));
+  });
+  expect(screen.getByText('Check the value')).toBeTruthy();
   expect(seams.save).not.toHaveBeenCalled();
   expect(seams.generate).not.toHaveBeenCalled();
+  vi.useRealTimers();
   view.rerender(<LaunchSpace teamId={TEAM} query={{ ...query, launchTab: 'result' }} />);
   expect(await screen.findByText(currentPreview.value.advertisingUrl)).toBeTruthy();
 });
@@ -1090,6 +1116,9 @@ it('requires reviewing newer defaults and preserves the Launch draft before anot
     .mockResolvedValueOnce({ version: '10' });
   render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByText('SYNTHETIC_OWN_DRAFT');
+  expect(screen.getByRole('button', { name: 'Save as defaults' }).getAttribute('title')).toBe(
+    'Use these settings as the starting values for new launches in this workspace.'
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Save as defaults' }));
   await screen.findByRole('button', { name: 'Review current defaults' });
   expect(
@@ -1251,7 +1280,7 @@ it('autosaves settings without disabling typing and restores the confirmed draft
     version: '2',
     config: { age: 50, originalUrl: 'https://example.invalid/?capi=SYNTHETIC_CANCEL_URL' }
   });
-  await screen.findByText('Draft saved');
+  await screen.findByText('Launch draft saved');
   expect(document.querySelector('.launch-draft-save-status')).toBe(statusRow);
   expect(document.querySelector('.launch-detail')!.children.length).toBe(detailChildren);
   expect(document.querySelector('.launch-detail-actions')!.children.length).toBe(actionChildren);
@@ -1315,4 +1344,106 @@ it('does not replace current generation state with an older workspace snapshot',
   await waitFor(() => expect(seams.detail).toHaveBeenCalledTimes(2));
   expect(screen.getByText('https://example.invalid/current-snapshot')).toBeTruthy();
   expect(screen.queryByText('https://example.invalid/stale-snapshot')).toBeNull();
+});
+
+function listLaunch(id = LAUNCH) {
+  return {
+    id,
+    version: '4',
+    launchDate: null,
+    offer: `Offer ${id}`,
+    social: 'g1',
+    creativeAlias: 'v5',
+    method: 'other' as const,
+    workStatus: 'todo' as const,
+    assigneeId: null,
+    budgets: [],
+    generationState: null
+  };
+}
+it('copies selected list links and deletes the exact selection with the chosen retention preference', async () => {
+  seams.delete = true;
+  const second = '79999999-0000-4000-8000-000000000003';
+  seams.list.mockResolvedValue({ items: [listLaunch(), listLaunch(second)], nextCursor: null });
+  seams.archiveWarning.mockResolvedValue({
+    hasCatalog: true,
+    hasRestitch: true,
+    suppressed: false
+  });
+  seams.archive.mockResolvedValue(undefined);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  mockClipboard(writeText);
+  render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  await screen.findAllByRole('checkbox', { name: 'Select launch' });
+  for (const checkbox of screen.getAllByRole('checkbox', { name: 'Select launch' }))
+    fireEvent.click(checkbox);
+  fireEvent.click(screen.getByRole('button', { name: 'Do to all' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Copy launch links' }));
+  expect(writeText).toHaveBeenCalledOnce();
+  const links = writeText.mock.calls[0][0].split('\n');
+  expect(links).toHaveLength(2);
+  expect(links[0]).toContain(LAUNCH);
+  expect(links[1]).toContain(second);
+  fireEvent.click(screen.getByRole('button', { name: 'Do to all' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete selected launches (2)' }));
+  await screen.findByText('The catalog and restitched video will remain in the workspace.');
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Do not show again' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete launch' }));
+  await waitFor(() => expect(seams.archive).toHaveBeenCalledTimes(2));
+  expect(seams.archive.mock.calls.map(call => [call[0], call[1], call[2], call[4]])).toEqual([
+    [TEAM, LAUNCH, '4', true],
+    [TEAM, second, '4', true]
+  ]);
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Do to all' })).toBeNull());
+  expect(seams.list.mock.calls.length).toBeGreaterThan(1);
+});
+it('keeps a failed list deletion retry tied to its original request and exposes clipboard errors', async () => {
+  seams.delete = true;
+  seams.list.mockResolvedValue({ items: [listLaunch()], nextCursor: null });
+  seams.archiveWarning.mockResolvedValue({
+    hasCatalog: true,
+    hasRestitch: false,
+    suppressed: false
+  });
+  seams.archive.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+  mockClipboard(vi.fn().mockRejectedValue(new Error('denied')));
+  render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  await screen.findByRole('button', { name: 'Launch actions' });
+  fireEvent.click(screen.getByRole('button', { name: 'Launch actions' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link to launch' }));
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: 'Launch actions' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete launch' }));
+  await screen.findByText('The catalog will remain in the workspace.');
+  fireEvent.click(screen.getByRole('button', { name: 'Delete launch' }));
+  await waitFor(() => expect(seams.archive).toHaveBeenCalledOnce());
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Delete launch' }) as HTMLButtonElement).disabled
+    ).toBe(false)
+  );
+  const first = [...seams.archive.mock.calls[0]];
+  fireEvent.click(screen.getByRole('button', { name: 'Delete launch' }));
+  await waitFor(() => expect(seams.archive).toHaveBeenCalledTimes(2));
+  expect(seams.archive.mock.calls[1]).toEqual(first);
+  expect(seams.archiveWarning).toHaveBeenCalledOnce();
+});
+it('appends a cursor page and clears a filter that has no matching launches', async () => {
+  const second = '79999999-0000-4000-8000-000000000003';
+  seams.list
+    .mockResolvedValueOnce({ items: [listLaunch()], nextCursor: { id: LAUNCH, date: null } })
+    .mockResolvedValueOnce({ items: [listLaunch(second)], nextCursor: null })
+    .mockResolvedValue({ items: [], nextCursor: null });
+  render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Show more' }));
+  await waitFor(() => expect(document.querySelectorAll('.launch-card')).toHaveLength(2));
+  expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+    search: '',
+    cursorId: LAUNCH,
+    cursorDate: null
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Today' }));
+  const clear = await screen.findByRole('button', { name: 'Clear filters' });
+  fireEvent.click(clear);
+  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
 });

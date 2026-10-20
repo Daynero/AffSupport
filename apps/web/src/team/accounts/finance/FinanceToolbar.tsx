@@ -1,11 +1,13 @@
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
-import { Button, IconButton } from '../../../components/ui/index';
+import { useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal } from 'lucide-react';
+import { Button, IconButton, DropdownMenu } from '../../../components/ui/index';
 import { TaskDateFilterControl } from '../../tasks/TaskDateFilter';
 import { ICON_SIZE, ICON_STROKE } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
 
 export function FinanceToolbar({
   date,
+  compact = false,
   today,
   monthly,
   from,
@@ -16,9 +18,11 @@ export function FinanceToolbar({
   canExport,
   navigate,
   onRange,
-  onExport
+  onExport,
+  mobileActions = []
 }: {
   date: string;
+  compact?: boolean;
   today: string;
   monthly: boolean;
   from: string;
@@ -30,8 +34,16 @@ export function FinanceToolbar({
   navigate: (date: string, monthly: boolean) => void;
   onRange?: (from: string, to: string) => void;
   onExport: () => void;
+  mobileActions?: readonly {
+    id: string;
+    label: string;
+    disabled?: boolean;
+    onSelect: () => void;
+  }[];
 }) {
   const { t } = useI18n();
+  const [more, setMore] = useState(false);
+  const menu = useRef<HTMLButtonElement>(null);
   const previousDay = new Date(`${today}T00:00:00Z`);
   previousDay.setUTCDate(previousDay.getUTCDate() - 1);
   const yesterday = previousDay.toISOString().slice(0, 10);
@@ -61,7 +73,7 @@ export function FinanceToolbar({
     navigate(next.toISOString().slice(0, 10), true);
   };
   return (
-    <div className="flex flex-col gap-2">
+    <div className={`finance-toolbar flex flex-col gap-2${compact ? ' is-compact' : ''}`}>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <IconButton
@@ -104,6 +116,7 @@ export function FinanceToolbar({
         <Button
           size="sm"
           variant="soft"
+          data-finance-secondary="true"
           aria-pressed={!monthly && date === yesterday}
           color={!monthly && date === yesterday ? 'secondary' : 'neutral'}
           disabled={pending}
@@ -114,6 +127,7 @@ export function FinanceToolbar({
         <Button
           size="sm"
           variant="soft"
+          data-finance-secondary="true"
           aria-pressed={!monthly && date === today}
           color={!monthly && date === today ? 'secondary' : 'neutral'}
           disabled={pending}
@@ -124,6 +138,7 @@ export function FinanceToolbar({
         <Button
           size="sm"
           variant="soft"
+          data-finance-secondary="true"
           aria-pressed={monthly && !customRange && date.slice(0, 7) === today.slice(0, 7)}
           color={
             monthly && !customRange && date.slice(0, 7) === today.slice(0, 7)
@@ -138,6 +153,7 @@ export function FinanceToolbar({
         <Button
           size="sm"
           variant="soft"
+          data-finance-secondary="true"
           aria-pressed={monthly && !customRange && shift(1).slice(0, 7) === today.slice(0, 7)}
           color={
             monthly && !customRange && shift(1).slice(0, 7) === today.slice(0, 7)
@@ -153,6 +169,7 @@ export function FinanceToolbar({
           size="sm"
           color="success"
           variant="soft"
+          data-finance-secondary="true"
           loading={exporting}
           disabled={pending || !canExport}
           onClick={onExport}
@@ -160,10 +177,54 @@ export function FinanceToolbar({
         >
           {t('financeExport')}
         </Button>
+        {compact && (
+          <span className="finance-mobile-menu">
+            <IconButton ref={menu} label={t('actions')} onClick={() => setMore(value => !value)}>
+              <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+            </IconButton>
+            <DropdownMenu
+              label={t('actions')}
+              open={more}
+              anchor={menu}
+              onClose={() => setMore(false)}
+              items={[
+                ...mobileActions,
+                {
+                  id: 'today',
+                  label: t('financeToday'),
+                  disabled: pending,
+                  onSelect: () => navigate(today, false)
+                },
+                {
+                  id: 'yesterday',
+                  label: t('financeYesterday'),
+                  disabled: pending,
+                  onSelect: () => navigate(yesterday, false)
+                },
+                {
+                  id: 'month',
+                  label: t('financeMonth'),
+                  disabled: pending,
+                  onSelect: () => chooseMonth(false)
+                },
+                {
+                  id: 'previous',
+                  label: t('financePrevious'),
+                  disabled: pending,
+                  onSelect: () => chooseMonth(true)
+                },
+                {
+                  id: 'export',
+                  label: t('financeExport'),
+                  disabled: pending || !canExport,
+                  onSelect: onExport
+                }
+              ]}
+            />
+          </span>
+        )}
       </div>
-      <p className="text-label text-ink-muted" title={t('financeTimezone', { timezone })}>
-        USD · {timezone}
-      </p>
+      <p className="text-label text-ink-muted">USD · {timezone}</p>
     </div>
   );
 }

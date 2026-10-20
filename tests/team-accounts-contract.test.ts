@@ -186,6 +186,66 @@ describe('ordering, counting and filtering', () => {
     });
   });
 
+  it('retains dated archived rows and their money in All while occupancy and marker chips count only active sources', () => {
+    const archivedAt = '2026-10-18T08:00:00.000Z';
+    const active = account(V31, 'active', [
+      ['free', null],
+      ['busy', 'Current'],
+      ['archived-free', null],
+      ['archived-busy', 'Old']
+    ]);
+    active.agents[1]!.runs[0]!.marker = 'green';
+    active.agents[2] = { ...active.agents[2]!, archivedAt, balance: 10, topup: 20 };
+    active.agents[3] = { ...active.agents[3]!, archivedAt, balance: 30, topup: 40 };
+    active.agents[3]!.runs[0]!.marker = 'green';
+    const archivedParent = {
+      ...account(V12, 'archived-parent', [
+        ['parent-free', null],
+        ['parent-busy', 'Old parent']
+      ]),
+      archivedAt
+    };
+    archivedParent.agents[1]!.runs[0]!.marker = 'green';
+    archivedParent.agents[1]!.balance = 50;
+    archivedParent.agents[1]!.topup = 60;
+    const dated = [active, archivedParent];
+    const original = structuredClone(dated);
+    expect(countTeamAccounts(dated)).toEqual({
+      accounts: 1,
+      agents: 2,
+      free: 1,
+      busy: 1,
+      markers: { green: 1, amber: 0, red: 0 }
+    });
+    const all = filterTeamAccounts(dated, { occupancy: 'all', search: '' });
+    expect(all.flatMap(social => social.agents)).toHaveLength(6);
+    expect(
+      all.flatMap(social => social.agents).reduce((total, row) => total + (row.topup ?? 0), 0)
+    ).toBe(120);
+    expect(
+      all.flatMap(social => social.agents).reduce((total, row) => total + (row.balance ?? 0), 0)
+    ).toBe(90);
+    expect(
+      filterTeamAccounts(dated, { occupancy: 'free', search: '' }).flatMap(social =>
+        social.agents.map(row => row.agentId)
+      )
+    ).toEqual(['free']);
+    expect(
+      filterTeamAccounts(dated, { occupancy: 'busy', search: '' }).flatMap(social =>
+        social.agents.map(row => row.agentId)
+      )
+    ).toEqual(['busy']);
+    expect(
+      filterTeamAccounts(dated, { occupancy: 'all', search: '', marker: 'green' }).flatMap(social =>
+        social.agents.map(row => row.agentId)
+      )
+    ).toEqual(['busy']);
+    expect(
+      filterTeamAccounts(dated, { occupancy: 'all', search: 'archived-parent' })[0]!.agents
+    ).toHaveLength(2);
+    expect(dated).toEqual(original);
+  });
+
   it('keeps only free agents and drops an account with none', () => {
     const free = filterTeamAccounts(SPACE, { occupancy: 'free', search: '' });
     expect(free.map(item => [item.name, item.agents.length])).toEqual([

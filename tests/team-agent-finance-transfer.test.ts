@@ -111,7 +111,7 @@ it('moves every sum the agent ever had to the new social account', async () => {
     expect.objectContaining({ from_account: 'X', to_account: 'Y' })
   ]);
 });
-it('rejects invalid targets and ID collisions, ignores dates and history, retries a move exactly once', async () => {
+it('rejects invalid targets, ID collisions and pre-birth dates, rehomes history and retries exactly once', async () => {
   const p = (
     await f.db.root<{ id: string; version: string }>(
       'select id,version::text from public.team_agent_placements where agent_row_id=$1 and ends_on is null',
@@ -144,7 +144,7 @@ it('rejects invalid targets and ID collisions, ignores dates and history, retrie
     duplicate
   ]);
   // Entries — even today's, even cleared ones — no longer hold a transfer back,
-  // and whatever date an older client sends is ignored.
+  // while a known destination birth remains the earliest valid requested day.
   for (const [value, version] of [
     ['10.00', '0'],
     [null, '1']
@@ -155,8 +155,9 @@ it('rejects invalid targets and ID collisions, ignores dates and history, retrie
       [f.team, f.agent, '2026-09-25', 'spend', value, version, 'UTC', randomUUID()]
     );
   const request = randomUUID();
-  const first = await call(f.accounts[1]!, '2025-12-31', request);
-  expect(await call(f.accounts[1]!, '2025-12-31', request)).toEqual(first);
+  await expect(call(f.accounts[1]!, '2025-12-31')).rejects.toThrow('TRANSFER_DATE_INVALID');
+  const first = await call(f.accounts[1]!, '2026-01-01', request);
+  expect(await call(f.accounts[1]!, '2026-01-01', request)).toEqual(first);
   expect(
     (
       await f.db.root<{ n: number }>(

@@ -49,6 +49,7 @@ import {
   getCohorts,
   getErrors,
   getFeatures,
+  getThemeUsage,
   getFriction,
   getInspect,
   getJourney,
@@ -110,6 +111,7 @@ Commands:
   errors              Error clusters by stage/build/fingerprint
   friction            Sessions where users became stuck
   features            Feature discovery and use
+  themes              Users by latest observed light/dark theme
   journey <email>     Ordered diagnostic timeline for one user (--period, default 30d)
   run <uuid>          Timeline for one operation
   inspect <id>        One attempt across every tool: stages, terminal, lag (flow/run/attempt id)
@@ -349,6 +351,14 @@ export async function executeCommand(
       const [features, delivery_lag_ms] = await Promise.all([getFeatures(period), lag()]);
       const full = { features, unsupported: featureUnsupportedSignals(), delivery_lag_ms };
       return done(full, formatFeatures(full, period));
+    }
+    case 'themes': {
+      const [usage, delivery_lag_ms] = await Promise.all([getThemeUsage(period), lag()]);
+      const data = { ...usage, delivery_lag_ms };
+      return done(
+        data,
+        `Theme usage · ${period.label}\nDark: ${data.dark}\nLight: ${data.light}\nUsers with a theme signal: ${data.users_with_theme_signal}`
+      );
     }
     case 'journey': {
       const email = requireArg(args, 0, 'journey <email>');

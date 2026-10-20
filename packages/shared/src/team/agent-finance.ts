@@ -57,8 +57,100 @@ export interface FinanceField {
   updatedAt: string;
   updatedBy: string | null;
 }
+export interface FinanceLifecycle {
+  accounts: {
+    id: string;
+    createdAt: string;
+    startsOn?: string;
+    archivedAt: string | null;
+    version: string;
+    sortRank: string | number;
+  }[];
+  agents: {
+    id: string;
+    accountId: string;
+    createdAt: string;
+    startsOn?: string;
+    archivedAt: string | null;
+    version: string;
+    sortRank: string | number;
+  }[];
+  events: {
+    entityKind: 'social' | 'agent';
+    entityId: string;
+    archived: boolean;
+    occurredAt: string;
+  }[];
+  parents: {
+    agentRowId: string;
+    accountId: string;
+    startsAt: string;
+    endsAt: string | null;
+    provenance: string;
+  }[];
+}
+function parseFinanceLifecycle(value: unknown): FinanceLifecycle | null {
+  if (!financeRecord(value)) return null;
+  const timestamp = (value: unknown) =>
+    typeof value === 'string' && Number.isFinite(Date.parse(value));
+  const entity = (row: unknown) =>
+    financeRecord(row) &&
+    string(row.id) &&
+    timestamp(row.createdAt) &&
+    (row.startsOn === undefined || validFinanceDate(row.startsOn)) &&
+    (row.archivedAt === null || timestamp(row.archivedAt)) &&
+    version(row.version) &&
+    (string(row.sortRank) || typeof row.sortRank === 'number');
+  if (
+    !Array.isArray(value.accounts) ||
+    !value.accounts.every(entity) ||
+    !Array.isArray(value.agents) ||
+    !value.agents.every(row => entity(row) && financeRecord(row) && string(row.accountId)) ||
+    !Array.isArray(value.events) ||
+    !value.events.every(
+      row =>
+        financeRecord(row) &&
+        ['social', 'agent'].includes(String(row.entityKind)) &&
+        string(row.entityId) &&
+        typeof row.archived === 'boolean' &&
+        timestamp(row.occurredAt)
+    ) ||
+    !Array.isArray(value.parents) ||
+    !value.parents.every(
+      row =>
+        financeRecord(row) &&
+        string(row.agentRowId) &&
+        string(row.accountId) &&
+        timestamp(row.startsAt) &&
+        (row.endsAt === null || timestamp(row.endsAt)) &&
+        string(row.provenance)
+    )
+  )
+    return null;
+  const parsed = value as unknown as FinanceLifecycle;
+  const accountIds = new Set(parsed.accounts.map(row => row.id));
+  const agentIds = new Set(parsed.agents.map(row => row.id));
+  if (
+    accountIds.size !== parsed.accounts.length ||
+    agentIds.size !== parsed.agents.length ||
+    parsed.agents.some(row => !accountIds.has(row.accountId)) ||
+    parsed.events.some(
+      row => !(row.entityKind === 'agent' ? agentIds : accountIds).has(row.entityId)
+    ) ||
+    parsed.parents.some(
+      row =>
+        !agentIds.has(row.agentRowId) ||
+        !accountIds.has(row.accountId) ||
+        (row.endsAt !== null && row.endsAt <= row.startsAt)
+    )
+  )
+    return null;
+  return parsed;
+}
 export interface FinanceSnapshot {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
+  lifecycle?: FinanceLifecycle;
+  timezone?: string;
   teamId: string;
   teamName: string;
   from: string;
@@ -100,7 +192,7 @@ export function isFinanceField(v: unknown): v is FinanceField {
 export function parseFinanceSnapshot(v: unknown): FinanceSnapshot | null {
   if (
     !financeRecord(v) ||
-    v.schemaVersion !== 1 ||
+    (v.schemaVersion !== 1 && v.schemaVersion !== 2) ||
     !string(v.teamId) ||
     !string(v.teamName) ||
     !validFinanceDate(v.from) ||
@@ -166,9 +258,25 @@ export function parseFinanceSnapshot(v: unknown): FinanceSnapshot | null {
       return null;
     fields.add(key);
   }
+  const lifecycle = v.schemaVersion === 2 ? parseFinanceLifecycle(v.lifecycle) : null;
+  if (v.schemaVersion === 2 && !lifecycle) return null;
+  if (
+    lifecycle &&
+    v.fields.some(field => {
+      const placement = placements.get(field.placementId);
+      const agent = lifecycle.agents.find(row => row.id === field.agentRowId);
+      const account = lifecycle.accounts.find(row => row.id === placement?.accountId);
+      return (
+        (agent?.startsOn !== undefined && field.date < agent.startsOn) ||
+        (account?.startsOn !== undefined && field.date < account.startsOn)
+      );
+    })
+  )
+    return null;
   // All nested values are narrowed above, including every money/date boundary.
   return {
-    schemaVersion: 1,
+    schemaVersion: v.schemaVersion,
+    ...(lifecycle ? { lifecycle } : {}),
     teamId: v.teamId,
     teamName: v.teamName,
     from: v.from,

@@ -25,7 +25,30 @@ function sum(values: readonly (string | null)[]): string | null {
 }
 export function buildFinanceReport(snapshot: FinanceSnapshot) {
   const pairs = new Map<string, FinanceColumn>();
+  const timezone = snapshot.timezone ?? 'UTC';
+  const lifecycleCandidates = snapshot.lifecycle
+    ? [
+        snapshot.from,
+        snapshot.to,
+        ...snapshot.lifecycle.events
+          .filter(event => !event.archived)
+          .map(event => financeDay(event.occurredAt, timezone)),
+        ...[...snapshot.lifecycle.agents, ...snapshot.lifecycle.accounts].map(
+          entity => entity.startsOn ?? financeDay(entity.createdAt, timezone)
+        )
+      ].filter(date => date >= snapshot.from && date <= snapshot.to)
+    : [];
+
   for (const p of snapshot.placements) {
+    if (p.startsOn > snapshot.to || (p.endsOn !== null && p.endsOn <= snapshot.from)) continue;
+    if (
+      snapshot.lifecycle &&
+      !snapshot.fields.some(f => f.placementId === p.id && f.value !== null) &&
+      !lifecycleCandidates.some(date =>
+        financeAgentVisible(snapshot, p.agentRowId, date, timezone, p.accountId)
+      )
+    )
+      continue;
     const a = snapshot.accounts.find(a => a.id === p.accountId);
     const agent = snapshot.agents.find(a => a.id === p.agentRowId);
     if (!a || !agent) throw new Error('INVALID_RESPONSE');
@@ -51,6 +74,7 @@ export function buildFinanceReport(snapshot: FinanceSnapshot) {
       !p ||
       p.agentRowId !== f.agentRowId ||
       f.date < p.startsOn ||
+      beforeExplicitBirth(snapshot, f.agentRowId, p.accountId, f.date) ||
       (p.endsOn !== null && f.date >= p.endsOn)
     )
       throw new Error('INVALID_RESPONSE');
@@ -72,20 +96,24 @@ export function buildFinanceReport(snapshot: FinanceSnapshot) {
     spend: sum(columns.map(c => c.totals.spend)),
     topup: sum(columns.map(c => c.totals.topup))
   };
-  const agents = snapshot.agents.map(a => ({
-    ...a,
-    totals: {
-      spend: sum(columns.filter(c => c.agentRowId === a.id).map(c => c.totals.spend)),
-      topup: sum(columns.filter(c => c.agentRowId === a.id).map(c => c.totals.topup))
-    }
-  }));
-  const accounts = snapshot.accounts.map(a => ({
-    ...a,
-    totals: {
-      spend: sum(columns.filter(c => c.accountId === a.id).map(c => c.totals.spend)),
-      topup: sum(columns.filter(c => c.accountId === a.id).map(c => c.totals.topup))
-    }
-  }));
+  const agents = snapshot.agents
+    .filter(a => !snapshot.lifecycle || columns.some(c => c.agentRowId === a.id))
+    .map(a => ({
+      ...a,
+      totals: {
+        spend: sum(columns.filter(c => c.agentRowId === a.id).map(c => c.totals.spend)),
+        topup: sum(columns.filter(c => c.agentRowId === a.id).map(c => c.totals.topup))
+      }
+    }));
+  const accounts = snapshot.accounts
+    .filter(a => !snapshot.lifecycle || columns.some(c => c.accountId === a.id))
+    .map(a => ({
+      ...a,
+      totals: {
+        spend: sum(columns.filter(c => c.accountId === a.id).map(c => c.totals.spend)),
+        topup: sum(columns.filter(c => c.accountId === a.id).map(c => c.totals.topup))
+      }
+    }));
   const topups = dates.flatMap(date =>
     columns.flatMap(c => {
       const value = cell(c.accountId, c.agentRowId, date, 'topup');
@@ -147,4 +175,87 @@ export function buildFinanceTopupCopy(
       ].join('\n\n')
     : '';
   return { text, count: rows.length, total };
+}
+
+/** A same-day saved zero is still data. Yesterday's amount never retains today. */
+export function financeAgentVisible(
+  snapshot: FinanceSnapshot,
+  agent: string,
+  date: string,
+  timezone = 'UTC',
+  accountId?: string
+): boolean {
+  const placement = snapshot.placements.find(
+    p =>
+      p.agentRowId === agent &&
+      (!accountId || p.accountId === accountId) &&
+      p.startsOn <= date &&
+      (p.endsOn === null || date < p.endsOn)
+  );
+  if (!placement || beforeExplicitBirth(snapshot, agent, placement.accountId, date)) return false;
+  if (
+    snapshot.fields.some(
+      f =>
+        f.agentRowId === agent &&
+        f.date === date &&
+        f.value !== null &&
+        f.placementId === placement.id
+    )
+  )
+    return true;
+  if (!snapshot.lifecycle) return true;
+  const day = (time: string) => financeDay(time, timezone);
+  const row = snapshot.lifecycle.agents.find(a => a.id === agent);
+  const parent = snapshot.lifecycle.accounts.find(a => a.id === placement.accountId);
+  if (
+    !row ||
+    !parent ||
+    (row.startsOn ?? day(row.createdAt)) > date ||
+    // An explicitly backdated child proves its legacy parent existed that day.
+    (parent.startsOn ?? (row.startsOn ? row.startsOn : day(parent.createdAt))) > date
+  )
+    return false;
+  const active = (kind: 'social' | 'agent', entity: typeof parent) => {
+    const events = snapshot
+      .lifecycle!.events.filter(
+        e => e.entityKind === kind && e.entityId === entity.id && day(e.occurredAt) <= date
+      )
+      .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    if (events.length) return !events[events.length - 1]!.archived;
+    return !entity.archivedAt || day(entity.archivedAt) > date;
+  };
+  return active('agent', row) && active('social', parent);
+}
+
+/** Explicit effective dates are authoritative; legacy saved history predates audit rows. */
+function beforeExplicitBirth(
+  snapshot: FinanceSnapshot,
+  agentId: string,
+  accountId: string,
+  date: string
+): boolean {
+  const agent = snapshot.lifecycle?.agents.find(row => row.id === agentId);
+  const account = snapshot.lifecycle?.accounts.find(row => row.id === accountId);
+  return (
+    (agent?.startsOn !== undefined && date < agent.startsOn) ||
+    (account?.startsOn !== undefined && date < account.startsOn)
+  );
+}
+
+const financeDateFormatters = new Map<string, Intl.DateTimeFormat>();
+function financeDay(time: string, timezone: string): string {
+  let formatter = financeDateFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    if (financeDateFormatters.size >= 32) financeDateFormatters.clear();
+    financeDateFormatters.set(timezone, formatter);
+  }
+  const parts = formatter.formatToParts(new Date(time));
+  const part = (name: string) => parts.find(p => p.type === name)!.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
 }

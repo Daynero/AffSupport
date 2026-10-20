@@ -51,6 +51,8 @@ import {
   normalizeTeamAccountName,
   normalizeTeamAgentId,
   validFinanceTimezone,
+  validFinanceDate,
+  financeToday,
   normalizeTeamAgentNote,
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
@@ -4739,18 +4741,34 @@ export const teamApi = {
     throwRpc(error);
   },
 
-  async createAccount(input: { teamId: string; name: string }): Promise<TeamAccountSummary> {
+  async createAccount(input: {
+    teamId: string;
+    name: string;
+    startsOn?: string;
+    timezone?: string;
+  }): Promise<TeamAccountSummary> {
     const name = normalizeTeamAccountName(input.name);
-    if (!name) throw new TeamApiError('INVALID_INPUT', false);
+    const timezone = input.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (
+      !name ||
+      !validFinanceTimezone(timezone) ||
+      (input.startsOn !== undefined && !validFinanceDate(input.startsOn))
+    )
+      throw new TeamApiError('INVALID_INPUT', false);
+    if (input.startsOn && input.startsOn > financeToday(timezone))
+      throw new TeamApiError('FUTURE_FINANCE_DATE', false);
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('create_team_account', {
         p_team: input.teamId,
-        p_name: name
+        p_name: name,
+        p_timezone: timezone,
+        ...(input.startsOn ? { p_starts_on: input.startsOn } : {})
       })
     );
     throwRpc(error);
     const account = parseTeamAccount({ ...(data as object), agents: [] });
-    if (!account) throw new TeamApiError('INVALID_RESPONSE', false);
+    if (!account || (input.startsOn !== undefined && account.startsOn !== input.startsOn))
+      throw new TeamApiError('INVALID_RESPONSE', false);
     return account;
   },
 
@@ -4795,12 +4813,20 @@ export const teamApi = {
     agentId: string;
     note?: string | null;
     timezone?: string;
+    startsOn?: string;
   }): Promise<TeamAccountAgentSummary> {
     const agentId = normalizeTeamAgentId(input.agentId);
     const note = normalizeTeamAgentNote(input.note);
     const timezone = input.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (!agentId || note === undefined || !validFinanceTimezone(timezone))
+    if (
+      !agentId ||
+      note === undefined ||
+      !validFinanceTimezone(timezone) ||
+      (input.startsOn !== undefined && !validFinanceDate(input.startsOn))
+    )
       throw new TeamApiError('INVALID_INPUT', false);
+    if (input.startsOn && input.startsOn > financeToday(timezone))
+      throw new TeamApiError('FUTURE_FINANCE_DATE', false);
     const { data, error } = await withFreshSession(() => {
       const supabase = requireSupabaseClient();
       return supabase.rpc('add_team_account_agent', {
@@ -4808,12 +4834,14 @@ export const teamApi = {
         p_account: input.accountId,
         p_agent_id: agentId,
         p_note: note ?? undefined,
-        p_timezone: timezone
+        p_timezone: timezone,
+        ...(input.startsOn ? { p_starts_on: input.startsOn } : {})
       });
     });
     throwRpc(error);
     const agent = parseTeamAccountAgent(data);
-    if (!agent) throw new TeamApiError('INVALID_RESPONSE', false);
+    if (!agent || (input.startsOn !== undefined && agent.startsOn !== input.startsOn))
+      throw new TeamApiError('INVALID_RESPONSE', false);
     return agent;
   },
 

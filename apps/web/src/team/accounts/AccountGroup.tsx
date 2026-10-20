@@ -1,3 +1,7 @@
+import { useAccountReorderItem } from './AccountReorderProvider';
+import { useDeferredAccountRows } from './useDeferredAccountRows';
+import type { ReactNode } from 'react';
+import type { TeamAccountNameColor } from '@video-compressor/shared';
 /**
  * One account and the agents inside it.
  *
@@ -21,7 +25,19 @@ import {
   type CSSProperties,
   type KeyboardEvent
 } from 'react';
-import { Check, ChevronDown, Pencil, Plus, Trash2, UserRound, X } from 'lucide-react';
+import {
+  Archive,
+  MoreHorizontal,
+  ArrowUp,
+  ArrowDown,
+  Check,
+  ChevronDown,
+  Pencil,
+  Plus,
+  Trash2,
+  UserRound,
+  X
+} from 'lucide-react';
 import {
   countTeamAccounts,
   generateTotp,
@@ -36,7 +52,8 @@ import {
   type TeamTaskLabelRef
 } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
-import { Button, IconButton } from '../../components/ui';
+import { Button, IconButton, DropdownMenu } from '../../components/ui';
+import { IconButton as MenuIconButton } from '../../components/ui/Button';
 import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
@@ -45,7 +62,6 @@ import { teamErrorMessageFor } from '../errors';
 import { copyText } from '../../two-factor/clipboard';
 import { buildTeamRoute } from '../routes';
 import { AgentEditRow, AgentRow, EditField } from './AgentRow';
-import { Marked } from './Marked';
 import { agentCountKey, busyCountKey, freeCountKey, taskCountKey } from './plural';
 
 const ICON = 18;
@@ -117,6 +133,16 @@ export type AgentEditing =
 export function AccountGroup({
   teamId,
   account,
+  index = 0,
+  reorderEnabled = false,
+  deferRows = false,
+  onRowsVisible,
+  rowFinance,
+  rowLaunches,
+  colorOf,
+  onCycleColor,
+  onArchive,
+  onHistory,
   /** The agents the filter left; the count in the head is of all of them. */
   visibleAgents,
   canEdit,
@@ -144,6 +170,16 @@ export function AccountGroup({
   onRelease
 }: {
   teamId: string;
+  index?: number;
+  reorderEnabled?: boolean;
+  deferRows?: boolean;
+  onRowsVisible?: () => void;
+  rowLaunches?: (agent: TeamAccountAgentSummary) => ReactNode;
+  rowFinance?: (agent: TeamAccountAgentSummary) => ReactNode;
+  colorOf?: (agent: TeamAccountAgentSummary) => TeamAccountNameColor;
+  onCycleColor?: (agent: TeamAccountAgentSummary) => void;
+  onArchive?: (agent?: TeamAccountAgentSummary) => void;
+  onHistory?: (agent: TeamAccountAgentSummary) => void;
   account: TeamAccountSummary;
   visibleAgents: TeamAccountAgentSummary[];
   canEdit: boolean;
@@ -180,6 +216,10 @@ export function AccountGroup({
   onRelease: (agent: TeamAccountAgentSummary) => Promise<void>;
 }) {
   const { t, language } = useI18n();
+  const reorder = useAccountReorderItem(
+    { kind: 'social', id: account.id, parent: null, index, label: account.name },
+    !canEdit || !reorderEnabled || Boolean(account.archivedAt)
+  );
   const { push } = useToasts();
   const titleId = useId();
   const nameId = useId();
@@ -236,7 +276,9 @@ export function AccountGroup({
    * busy beside it — the head describes the account, not what a filter has
    * left on screen.
    */
-  const labelCounts = countAgentsByLabel(account.agents);
+  const labelCounts = countAgentsByLabel(
+    account.archivedAt ? [] : account.agents.filter(agent => !agent.archivedAt)
+  );
   const filteredOut = visibleAgents.length < counts.agents;
   /*
    * Counted over what is on screen, not over what the account owns: under a
@@ -257,7 +299,19 @@ export function AccountGroup({
   });
   // Adding an agent opens the group: a row appearing inside a folded account
   // would be a row nobody can see.
-  const open = !collapsed || editing?.kind === 'add';
+  const open = !reorder.socialDragging && (!collapsed || editing?.kind === 'add');
+  const deferred = useDeferredAccountRows({
+    enabled: deferRows,
+    initialVisible: index === 0,
+    force: Boolean(editing) || reorder.activeParent === account.id,
+    estimatedUnits: visibleAgents.reduce(
+      (total, agent) => total + Math.max(1, (agent.runs.length + 1) / 2),
+      0
+    )
+  });
+  useEffect(() => {
+    if (open && deferred.renderRows) onRowsVisible?.();
+  }, [open, deferred.renderRows, onRowsVisible]);
 
   const confirmDelete = async () => {
     setDeleting(true);
@@ -287,6 +341,15 @@ export function AccountGroup({
    * page. Queued a frame, because the target renders in place of the editor.
    */
   const root = useRef<HTMLElement>(null);
+  const sortableRoot = useCallback(
+    (element: HTMLElement | null) => {
+      root.current = element;
+      reorder.ref(element);
+    },
+    [reorder.ref]
+  );
+  const archiveMenuAnchor = useRef<HTMLButtonElement>(null);
+  const [archiveMenuOpen, setArchiveMenuOpen] = useState(false);
   const closeEditor = useCallback(
     (...focus: string[]) => {
       onEditingChange(null);
@@ -333,10 +396,11 @@ export function AccountGroup({
 
   return (
     <section
-      ref={root}
+      ref={sortableRoot}
       className={`team-account${open ? '' : ' is-collapsed'}`}
       aria-labelledby={nameId}
       data-account-id={account.id}
+      data-account-member-order={visibleAgents.map(agent => agent.id).join(',')}
       style={{ '--team-account-hue': teamAccountHue(account.id) } as CSSProperties}
     >
       {renaming ? (
@@ -362,7 +426,31 @@ export function AccountGroup({
            only widens the target for a pointer. `role="presentation"` was
            worse than nothing here — it claims there is no semantics to
            remove, which is neither true nor the point. */
-        <div className="team-account-head" onClick={foldFromHead}>
+        <div
+          data-reorder-id={account.id}
+          className="team-account-head"
+          onKeyDownCapture={event => {
+            if (
+              reorderEnabled &&
+              !account.archivedAt &&
+              event.target instanceof Element &&
+              event.target.closest('[data-reorder-keyboard]') &&
+              event.altKey &&
+              (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+            ) {
+              event.preventDefault();
+              reorder.move(event.key === 'ArrowUp' ? -1 : 1);
+            }
+          }}
+          onClick={event => {
+            if (reorder.suppressClick()) {
+              event.preventDefault();
+              return;
+            }
+            foldFromHead();
+          }}
+        >
+          <span hidden ref={reorder.handleRef} />
           <div className="team-account-title">
             <button
               type="button"
@@ -384,11 +472,14 @@ export function AccountGroup({
               <UserRound size={ICON} strokeWidth={ICON_STROKE} />
             </span>
             <h3 className="team-account-name" id={nameId} title={account.name}>
-              <Marked text={account.name} term={search} />
+              {account.name}
             </h3>
             <span className="team-account-meta">
+              {account.archivedAt && <span>{t('accountsArchived')}</span>}
               {counts.agents === 0 ? (
-                <span>{t('teamAccountAgentsNone')}</span>
+                <span>
+                  {t(account.agents.length ? 'accountsNoActiveAgents' : 'teamAccountAgentsNone')}
+                </span>
               ) : (
                 <>
                   {/* Under a filter the head says how many of the agents are on
@@ -476,6 +567,64 @@ export function AccountGroup({
             )}
             {canEdit && (
               <>
+                {onArchive && (
+                  <>
+                    <MenuIconButton
+                      ref={archiveMenuAnchor}
+                      label={`${t('teamAgentMore')} ${account.name}`}
+                      aria-expanded={archiveMenuOpen}
+                      aria-haspopup="menu"
+                      data-reorder-keyboard={
+                        reorderEnabled && !account.archivedAt ? 'true' : undefined
+                      }
+                      aria-keyshortcuts={
+                        reorderEnabled && !account.archivedAt
+                          ? 'Alt+ArrowUp Alt+ArrowDown'
+                          : undefined
+                      }
+                      onClick={() => setArchiveMenuOpen(value => !value)}
+                    >
+                      <MoreHorizontal size={ICON} strokeWidth={ICON_STROKE} />
+                    </MenuIconButton>
+                    <DropdownMenu
+                      open={archiveMenuOpen}
+                      onClose={() => setArchiveMenuOpen(false)}
+                      anchor={archiveMenuAnchor}
+                      label={`${t('teamAgentMore')} ${account.name}`}
+                      items={[
+                        ...(reorder.canMove(-1)
+                          ? [
+                              {
+                                id: 'order-up',
+                                label: t('accountsMoveUp'),
+                                icon: <ArrowUp size={ICON} strokeWidth={ICON_STROKE} />,
+                                onSelect: () => reorder.move(-1)
+                              }
+                            ]
+                          : []),
+                        ...(reorder.canMove(1)
+                          ? [
+                              {
+                                id: 'order-down',
+                                label: t('accountsMoveDown'),
+                                icon: <ArrowDown size={ICON} strokeWidth={ICON_STROKE} />,
+                                onSelect: () => reorder.move(1)
+                              }
+                            ]
+                          : []),
+                        {
+                          id: 'archive',
+                          label: t('accountsArchiveAction', { name: account.name }),
+                          icon: <Archive size={ICON} strokeWidth={ICON_STROKE} />,
+                          onSelect: () => {
+                            setArchiveMenuOpen(false);
+                            onArchive();
+                          }
+                        }
+                      ]}
+                    />
+                  </>
+                )}
                 <button
                   type="button"
                   className="team-account-add-agent"
@@ -506,88 +655,111 @@ export function AccountGroup({
       )}
 
       {open && (
-        <>
-          {(visibleAgents.length > 0 || editing?.kind === 'add') && (
-            <ul className="team-account-agents">
-              {visibleAgents.map(agent =>
-                editing?.kind === 'edit' && editing.agentRowId === agent.id ? (
-                  <AgentEditRow
-                    key={agent.id}
-                    agent={agent}
-                    hold={hold}
-                    onDirtyChange={onDirtyChange}
-                    onCancel={() => closeEditor(...rowFocus(agent.id))}
-                    onSave={async value => {
-                      await onUpdateAgent(agent, value.agentId);
-                      closeEditor(...rowFocus(agent.id));
-                    }}
-                  />
-                ) : (
-                  <AgentRow
-                    key={agent.id}
-                    agent={agent}
-                    accountName={account.name}
-                    canEdit={canEdit}
-                    pending={pendingAgentIds?.has(agent.id) ?? false}
-                    search={search}
-                    tasksHref={buildTeamRoute({
-                      spaceId: teamId,
-                      section: 'tasks',
-                      query: { agentId: agent.id }
-                    })}
-                    runEditing={
-                      editing?.kind === 'run' && editing.agentRowId === agent.id
-                        ? { runId: editing.runId }
-                        : null
-                    }
-                    hold={hold && editing?.kind === 'run' && editing.agentRowId === agent.id}
-                    onDirtyChange={onDirtyChange}
-                    onRunEditingChange={state =>
-                      state
-                        ? onEditingChange({ kind: 'run', agentRowId: agent.id, runId: state.runId })
-                        : closeEditor(...rowFocus(agent.id))
-                    }
-                    onEdit={() => onEditingChange({ kind: 'edit', agentRowId: agent.id })}
-                    onAddRun={note => onAddRun(agent, note)}
-                    onUpdateRun={(runId, note) => onUpdateRun(agent, runId, note)}
-                    onDeleteRun={run => onDeleteRun(agent, run)}
-                    onSetRunMarker={(run, marker) => onSetRunMarker(agent, run, marker)}
-                    agentLabels={agentLabels}
-                    onToggleLabel={(labelId, next) => onToggleLabel(agent, labelId, next)}
-                    onRelease={() => onRelease(agent)}
-                    onMove={onMoveAgent ? () => onMoveAgent(agent) : undefined}
-                    onDelete={() => onDeleteAgent(agent)}
-                  />
-                )
-              )}
-              {/* Last, so a saved agent lands above the editor and the editor
+        <div
+          ref={deferred.ref}
+          className={deferred.renderRows ? 'team-account-body' : 'team-account-body is-deferred'}
+          style={deferred.renderRows ? undefined : deferred.placeholderStyle}
+          data-account-rows-deferred={deferred.renderRows ? undefined : 'true'}
+        >
+          {deferred.renderRows && (
+            <>
+              {(visibleAgents.length > 0 || editing?.kind === 'add') && (
+                <ul className="team-account-agents">
+                  {visibleAgents.map(agent =>
+                    editing?.kind === 'edit' && editing.agentRowId === agent.id ? (
+                      <AgentEditRow
+                        key={agent.id}
+                        agent={agent}
+                        hold={hold}
+                        onDirtyChange={onDirtyChange}
+                        onCancel={() => closeEditor(...rowFocus(agent.id))}
+                        onSave={async value => {
+                          await onUpdateAgent(agent, value.agentId);
+                          closeEditor(...rowFocus(agent.id));
+                        }}
+                      />
+                    ) : (
+                      <AgentRow
+                        key={agent.id}
+                        agent={agent}
+                        index={visibleAgents.findIndex(item => item.id === agent.id)}
+                        reorderEnabled={reorderEnabled}
+                        finance={rowFinance?.(agent)}
+                        onHistory={onHistory ? () => onHistory(agent) : undefined}
+                        linkedLaunches={rowLaunches?.(agent)}
+                        nameColor={colorOf?.(agent) ?? 0}
+                        onCycleColor={onCycleColor ? () => onCycleColor(agent) : undefined}
+                        onArchive={
+                          onArchive && !agent.archivedAt ? () => onArchive(agent) : undefined
+                        }
+                        accountName={account.name}
+                        canEdit={canEdit && !agent.archivedAt}
+                        pending={pendingAgentIds?.has(agent.id) ?? false}
+                        search={search}
+                        tasksHref={buildTeamRoute({
+                          spaceId: teamId,
+                          section: 'tasks',
+                          query: { agentId: agent.id }
+                        })}
+                        runEditing={
+                          editing?.kind === 'run' && editing.agentRowId === agent.id
+                            ? { runId: editing.runId }
+                            : null
+                        }
+                        hold={hold && editing?.kind === 'run' && editing.agentRowId === agent.id}
+                        onDirtyChange={onDirtyChange}
+                        onRunEditingChange={state =>
+                          state
+                            ? onEditingChange({
+                                kind: 'run',
+                                agentRowId: agent.id,
+                                runId: state.runId
+                              })
+                            : closeEditor(...rowFocus(agent.id))
+                        }
+                        onEdit={() => onEditingChange({ kind: 'edit', agentRowId: agent.id })}
+                        onAddRun={note => onAddRun(agent, note)}
+                        onUpdateRun={(runId, note) => onUpdateRun(agent, runId, note)}
+                        onDeleteRun={run => onDeleteRun(agent, run)}
+                        onSetRunMarker={(run, marker) => onSetRunMarker(agent, run, marker)}
+                        agentLabels={agentLabels}
+                        onToggleLabel={(labelId, next) => onToggleLabel(agent, labelId, next)}
+                        onRelease={() => onRelease(agent)}
+                        onMove={onMoveAgent ? () => onMoveAgent(agent) : undefined}
+                        onDelete={() => onDeleteAgent(agent)}
+                      />
+                    )
+                  )}
+                  {/* Last, so a saved agent lands above the editor and the editor
                   stays where the caret is. Saving keeps it open, emptied, for
                   the next one — agents are put in several at a time, and
                   Escape is the way to stop. The toast is the receipt. */}
-              {editing?.kind === 'add' && (
-                <AgentEditRow
-                  key={`add:${addedCount}`}
-                  hold={hold}
-                  onDirtyChange={onDirtyChange}
-                  onCancel={() => closeEditor('.team-account-add-agent')}
-                  onSave={async value => {
-                    await onAddAgent(value);
-                    setAddedCount(count => count + 1);
-                  }}
-                />
+                  {editing?.kind === 'add' && (
+                    <AgentEditRow
+                      key={`add:${addedCount}`}
+                      hold={hold}
+                      onDirtyChange={onDirtyChange}
+                      onCancel={() => closeEditor('.team-account-add-agent')}
+                      onSave={async value => {
+                        await onAddAgent(value);
+                        setAddedCount(count => count + 1);
+                      }}
+                    />
+                  )}
+                </ul>
               )}
-            </ul>
+              {visibleAgents.length === 0 && editing?.kind !== 'add' && (
+                <p className="team-account-agents-empty">
+                  {counts.agents > 0
+                    ? t('teamAccountAgentsAllHidden')
+                    : canEdit
+                      ? t('teamAccountAgentsEmptyHint')
+                      : t('teamAccountAgentsNone')}
+                </p>
+              )}
+            </>
           )}
-          {visibleAgents.length === 0 && editing?.kind !== 'add' && (
-            <p className="team-account-agents-empty">
-              {counts.agents > 0
-                ? t('teamAccountAgentsAllHidden')
-                : canEdit
-                  ? t('teamAccountAgentsEmptyHint')
-                  : t('teamAccountAgentsNone')}
-            </p>
-          )}
-        </>
+        </div>
       )}
 
       {confirming && (
@@ -650,6 +822,7 @@ export function AccountNameRow({
   const [name, setName] = useState(initialName);
   const [error, setError] = useState<TranslationKey | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [seed, setSeed] = useState(twoFactorSeed ?? '');
   const [savedSeed, setSavedSeed] = useState(twoFactorSeed ?? '');
   const [seedError, setSeedError] = useState<TranslationKey | null>(null);
@@ -660,12 +833,16 @@ export function AccountNameRow({
   const showSeed = !creating || seedOffered;
 
   useEffect(() => {
-    field.current?.focus();
+    field.current?.focus({ preventScroll: true });
+    field.current?.scrollIntoView?.({ block: 'center', inline: 'nearest' });
     field.current?.select();
   }, []);
 
   useEffect(() => {
-    if (creating && seedOffered) seedField.current?.focus();
+    if (creating && seedOffered) {
+      seedField.current?.focus({ preventScroll: true });
+      seedField.current?.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+    }
   }, [creating, seedOffered]);
 
   useEffect(() => {
@@ -679,6 +856,7 @@ export function AccountNameRow({
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const submit = async () => {
+    if (savingRef.current) return;
     const clean = normalizeTeamAccountName(name);
     if (!clean) {
       setError('teamAccountNameInvalid');
@@ -696,6 +874,7 @@ export function AccountNameRow({
       );
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       await onSave(clean, parsed?.ok ? parsed.secret : null);
@@ -707,6 +886,7 @@ export function AccountNameRow({
     } catch (cause) {
       setError(nameErrorKey(cause));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

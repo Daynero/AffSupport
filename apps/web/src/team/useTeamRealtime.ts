@@ -98,6 +98,16 @@ export function useTeamRealtime(input: {
         },
         refetch
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_account_workspace_signals',
+          filter: `team_id=eq.${teamId}`
+        },
+        refetch
+      )
       .subscribe(status => {
         if (!active) return;
         if (status === 'SUBSCRIBED') {

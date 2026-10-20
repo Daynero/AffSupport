@@ -13,6 +13,10 @@ import { teamFinanceApi } from '../../../api/team-finance';
 import { TeamApiError } from '../../../api/team';
 import { teamErrorMessageFor } from '../../errors';
 import { AgentIdentity } from '../AgentIdentity';
+import {
+  useRetainedFinanceDiagnostics,
+  type FinanceDiagnosticAttempt
+} from './useRetainedFinanceDiagnostics';
 
 type Eligibility = Awaited<ReturnType<typeof teamFinanceApi.transferEligibility>>;
 type Attempt = Parameters<typeof teamFinanceApi.move>;
@@ -34,6 +38,11 @@ export function MoveAgentDialog({
   onMoved: () => void;
 }) {
   const { t } = useI18n();
+  const diagnostics = useRetainedFinanceDiagnostics(
+    'financeTransfer',
+    `${snapshot.teamId}/${agent}`
+  );
+  const lastAttempt = useRef<FinanceDiagnosticAttempt | null>(null);
   const [target, setTarget] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,13 +108,22 @@ export function MoveAgentDialog({
         crypto.randomUUID()
       ];
     }
+    const diagnostic = diagnostics.start();
+    lastAttempt.current = diagnostic;
     setBusy(true);
     setError(null);
     try {
       await teamFinanceApi.move(...attempt.current);
+      if (!diagnostics.current(diagnostic)) return;
+      diagnostics.accept(diagnostic);
+      // The caller rereads/reparents the table after this dialog closes. That
+      // later render is outside this component's observation, so remain partial.
+      diagnostics.partial(diagnostic);
       onMoved();
       onClose();
     } catch (cause) {
+      if (!diagnostics.current(diagnostic)) return;
+      diagnostics.fail(diagnostic, cause);
       setError(teamErrorMessageFor(cause, t));
       if (cause instanceof TeamApiError && cause.code !== 'INVALID_RESPONSE' && !cause.retryable) {
         // A definite server rejection rolls back; recheck before a new attempt.
@@ -118,12 +136,15 @@ export function MoveAgentDialog({
         setUncertain(true);
       }
     } finally {
-      setBusy(false);
+      if (diagnostics.current(diagnostic)) setBusy(false);
     }
   };
   return (
     <Modal
-      onClose={onClose}
+      onClose={() => {
+        if (lastAttempt.current) diagnostics.cancel(lastAttempt.current);
+        onClose();
+      }}
       title={
         <span className="flex flex-wrap items-center gap-1">
           {t('financeMoveTitle')}{' '}

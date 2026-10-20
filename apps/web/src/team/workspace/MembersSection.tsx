@@ -4,6 +4,7 @@ import { useTeam } from '../TeamContext';
 import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
 import { MemberList, type MemberManagementClient } from '../members/MemberList';
 import { LeaveSpacePanel, type LeaveSpaceClient } from '../members/LeaveSpacePanel';
+import { PermissionState } from '../../components/ui/index';
 
 export type MembersSectionClient = MemberManagementClient &
   InvitationPanelClient &
@@ -42,27 +43,31 @@ export function MembersSection({
       <h2 id="team-members-title" className="visually-hidden">
         {t('teamSectionMembers')}
       </h2>
-      <div className="team-space-settings-grid">
-        <MemberList
-          teamId={teamId}
-          client={client}
-          revision={revision}
-          onLoaded={members => setMemberCount(members.length)}
-          onChanged={() => {
-            changed();
-            void refreshTeams();
-          }}
-        />
-        <InvitationPanel
-          key={`invitations:${teamId}`}
-          teamId={teamId}
-          client={client}
-          canManage={can('manage_members')}
-          directAddMode={directAddMode}
-          revision={revision}
-          onChanged={changed}
-        />
-      </div>
+      {can('manage_members') ? (
+        <div className="team-space-settings-grid">
+          <MemberList
+            teamId={teamId}
+            client={client}
+            revision={revision}
+            onLoaded={members => setMemberCount(members.length)}
+            onChanged={() => {
+              changed();
+              void refreshTeams();
+            }}
+          />
+          <InvitationPanel
+            key={`invitations:${teamId}`}
+            teamId={teamId}
+            client={client}
+            canManage={can('manage_members')}
+            directAddMode={directAddMode}
+            revision={revision}
+            onChanged={changed}
+          />
+        </div>
+      ) : (
+        <PermissionState message={t('teamMembersRestricted')} />
+      )}
       <LeaveSpacePanel
         teamId={teamId}
         client={client}

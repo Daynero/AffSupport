@@ -60,6 +60,7 @@ function queryErrorMessage(t: ReturnType<typeof useI18n>['t']) {
 
 export function LoginPage() {
   const { status, error, signInWithGoogle, signInWithBetaFixture } = useAuth();
+  const [betaFixture, setBetaFixture] = useState<'owner' | 'member' | null>(null);
   const { t } = useI18n();
   const returnPath = safeReturnPath(new URLSearchParams(location.search).get('returnTo'));
   const queryError = queryErrorMessage(t);
@@ -78,13 +79,15 @@ export function LoginPage() {
 
   const message =
     queryError ||
-    (error === 'oauth'
-      ? t('oauthError')
-      : error === 'network'
-        ? t('authNetworkError')
-        : error === 'callback'
-          ? t('callbackError')
-          : null);
+    (error === 'beta_auth'
+      ? t('loginBetaError')
+      : error === 'oauth'
+        ? t('oauthError')
+        : error === 'network'
+          ? t('authNetworkError')
+          : error === 'callback'
+            ? t('callbackError')
+            : null);
   const authenticating = status === 'authenticating';
   const beta = import.meta.env.VITE_APP_ENVIRONMENT === 'beta';
 
@@ -119,26 +122,33 @@ export function LoginPage() {
           <span className="google-logo" aria-hidden="true">
             <img src="/google-g-logo.svg" alt="" width="20" height="20" />
           </span>
-          <span>{authenticating ? t('oauthLoading') : t('continueGoogle')}</span>
-          {authenticating && (
+          <span>{authenticating && !betaFixture ? t('oauthLoading') : t('continueGoogle')}</span>
+          {authenticating && !betaFixture && (
             <span className="google-button-loader" aria-hidden="true">
               <SotyLoader size={20} />
             </span>
           )}
         </button>
         {beta && (
-          /* Secondary to the real sign-in, and on one line: this is the beta
-             build's convenience door, not the way in. */
-          <Button
-            color="neutral"
-            variant="outline"
-            size="lg"
-            block
-            disabled={authenticating}
-            onClick={() => void signInWithBetaFixture()}
-          >
-            {t('loginBetaFixture')}
-          </Button>
+          <div className="flex flex-col gap-2">
+            {(['owner', 'member'] as const).map(fixture => (
+              <Button
+                key={fixture}
+                color="neutral"
+                variant="outline"
+                size="lg"
+                block
+                disabled={authenticating}
+                loading={authenticating && betaFixture === fixture}
+                onClick={() => {
+                  setBetaFixture(fixture);
+                  void signInWithBetaFixture(fixture);
+                }}
+              >
+                {t(fixture === 'owner' ? 'loginBetaOwner' : 'loginBetaMember')}
+              </Button>
+            ))}
+          </div>
         )}
         <p className="login-legal">
           {t('loginFooterPrefix')}

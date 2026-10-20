@@ -123,7 +123,7 @@ it('explains an empty required Buyer after submit without tinting the field back
   expect(buyer.closest('.bg-warning-soft')).toBeNull();
   expect(buyer.closest('.ui-field')?.querySelector('.ui-field-required')).toBeNull();
   expect(
-    screen.getByText('Required values are checked when you generate the launch.')
+    screen.getByLabelText('Required values are checked when you generate the launch.')
   ).toBeTruthy();
   expect(screen.getByRole('alert').textContent).toBe('Check the value');
 });

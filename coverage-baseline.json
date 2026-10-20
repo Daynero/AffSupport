@@ -504,7 +504,6 @@
     "apps/web/src/team/tasks/TaskAccountFilter.tsx": 80.39,
     "apps/web/src/team/tasks/TaskAccountPicker.tsx": 91.41,
     "apps/web/src/team/tasks/TaskAgentTags.tsx": 96.81,
-    "apps/web/src/team/tasks/TaskAssigneeFilter.tsx": 80.91,
     "apps/web/src/team/tasks/TaskAttachmentPicker.tsx": 97.85,
     "apps/web/src/team/tasks/TaskAttachmentTile.tsx": 82.5,
     "apps/web/src/team/tasks/TaskAttachmentsPeek.tsx": 94.01,

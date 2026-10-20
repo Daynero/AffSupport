@@ -118,6 +118,8 @@ export interface ConfirmDialogProps {
   busy?: boolean;
   /** Raised over a dialog that is already open — a delete inside an editor. */
   nested?: boolean;
+  /** A dirty editor may put initial focus on keeping the draft. */
+  initialFocus?: 'cancel';
 }
 
 export function ConfirmDialog({
@@ -130,7 +132,8 @@ export function ConfirmDialog({
   cancelLabel,
   tone = 'destructive',
   busy = false,
-  nested = false
+  nested = false,
+  initialFocus
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -140,6 +143,7 @@ export function ConfirmDialog({
       size="sm"
       busy={busy}
       nested={nested}
+      initialFocus={initialFocus === 'cancel' ? '.ui-confirm-cancel' : undefined}
       footer={
         <>
           {/* The safe action carries the emphasis and sits where the eye lands
@@ -152,7 +156,13 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </Button>
-          <Button color="neutral" variant="outline" disabled={busy} onClick={onCancel}>
+          <Button
+            className="ui-confirm-cancel"
+            color="neutral"
+            variant="outline"
+            disabled={busy}
+            onClick={onCancel}
+          >
             {cancelLabel}
           </Button>
         </>

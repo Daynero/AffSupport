@@ -1,0 +1,16 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select plan(10);
+select has_column('public','team_accounts','starts_on','Social effective birth is separate from created_at');
+select has_column('public','team_account_agents','starts_on','RK effective birth is separate from created_at');
+select ok(has_function_privilege('authenticated','public.create_team_account(uuid,text,date,text)','execute'),'Authenticated callers use dated social creation');
+select ok(has_function_privilege('authenticated','public.add_team_account_agent(uuid,uuid,text,text,text,date)','execute'),'Authenticated callers use dated RK creation');
+select ok(not has_function_privilege('anon','public.create_team_account(uuid,text,date,text)','execute'),'Anonymous dated social creation denied');
+select ok(not has_function_privilege('authenticated','private.account_apply_agent_birth(uuid,uuid,date,text)','execute'),'Birth adjustment helper cannot mutate existing identities externally');
+select ok(not has_function_privilege('authenticated','private.create_team_account_birth_base_038(uuid,text)','execute'),'Old social body cannot bypass dated creation');
+select ok(not has_function_privilege('authenticated','private.add_team_account_agent_birth_base_038(uuid,uuid,text,text,text)','execute'),'Old RK body cannot bypass dated creation');
+select ok(to_regprocedure('public.create_team_account(uuid,text)') is null,'One optional public signature avoids PostgREST ambiguity');
+select ok(to_regprocedure('public.add_team_account_agent(uuid,uuid,text,text,text)') is null,'One optional RK signature avoids PostgREST ambiguity');
+select * from finish();
+rollback;

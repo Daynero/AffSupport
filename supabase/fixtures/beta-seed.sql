@@ -160,4 +160,84 @@ values (
 )
 on conflict (id) do nothing;
 
+-- Non-admin fixture for real access testing through the beta login screen.
+insert into auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  confirmation_token,
+  recovery_token,
+  email_change_token_new,
+  email_change,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values (
+  '00000000-0000-0000-0000-000000000000',
+  '55555555-5555-4555-8555-555555555551',
+  'authenticated',
+  'authenticated',
+  'member@soty.local',
+  extensions.crypt('beta-member-password', extensions.gen_salt('bf')),
+  now(),
+  '',
+  '',
+  '',
+  '',
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"full_name":"Beta Member"}'::jsonb,
+  now(),
+  now()
+)
+on conflict (id) do nothing;
+
+insert into auth.identities (
+  id,
+  user_id,
+  provider_id,
+  identity_data,
+  provider,
+  last_sign_in_at,
+  created_at,
+  updated_at
+)
+values (
+  '55555555-5555-4555-8555-555555555552',
+  '55555555-5555-4555-8555-555555555551',
+  '55555555-5555-4555-8555-555555555551',
+  '{"sub":"55555555-5555-4555-8555-555555555551","email":"member@soty.local","email_verified":true}'::jsonb,
+  'email',
+  now(),
+  now(),
+  now()
+)
+on conflict (id) do nothing;
+
+-- account_status must be 'active' or the entitlement path refuses to issue a
+-- token, which would make pairing untestable.
+insert into public.profiles (id, email, display_name, language, plan, account_status)
+values (
+  '55555555-5555-4555-8555-555555555551',
+  'member@soty.local',
+  'Beta Member',
+  'en',
+  'team',
+  'active'
+)
+on conflict (id) do update
+  set account_status = 'active',
+      plan = excluded.plan,
+      display_name = excluded.display_name;
+
+
+insert into public.team_members(id, team_id, user_id, base_role, status)
+values ('55555555-5555-4555-8555-555555555553', '22222222-2222-4222-8222-222222222222', '55555555-5555-4555-8555-555555555551', 'viewer', 'active')
+on conflict do nothing;
+
 commit;

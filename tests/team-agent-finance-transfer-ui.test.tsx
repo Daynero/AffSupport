@@ -3,8 +3,13 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { FinanceSnapshot } from '@video-compressor/shared';
+import { emitAccountSignal } from '../apps/web/src/team/accounts/analytics';
 import { MoveAgentDialog } from '../apps/web/src/team/accounts/finance/MoveAgentDialog';
 import { teamFinanceApi } from '../apps/web/src/api/team-finance';
+vi.mock('../apps/web/src/team/accounts/analytics', () => ({
+  accountFlowId: () => crypto.randomUUID(),
+  emitAccountSignal: vi.fn()
+}));
 vi.mock('../apps/web/src/api/team-finance', () => ({
   teamFinanceApi: { transferEligibility: vi.fn(), move: vi.fn() }
 }));
@@ -137,4 +142,17 @@ it('retries the exact original move after a lost response and a refreshed placem
   expect(move.mock.calls).toHaveLength(2);
   expect(move.mock.calls[1]).toEqual(move.mock.calls[0]);
   expect(move.mock.calls[0]!.slice(0, 6)).toEqual(['t', 'a', 'y', '2026-10-03', 'p', '1']);
+  const signals = vi
+    .mocked(emitAccountSignal)
+    .mock.calls.filter(call => call[2].operation === 'financeTransfer');
+  expect(signals.map(call => call[1])).toEqual([
+    'requested',
+    'terminal',
+    'requested',
+    'accepted',
+    'terminal'
+  ]);
+  expect(signals.at(-1)?.[2].result).toBe('partial');
+  expect(signals.some(call => call[1] === 'applied')).toBe(false);
+  expect(JSON.stringify(signals)).not.toContain('2026-10-03');
 });

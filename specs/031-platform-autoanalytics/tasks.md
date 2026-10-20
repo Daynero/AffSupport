@@ -61,3 +61,4 @@
 ## Restitch incident follow-up (2026-10-12)
 
 - [ ] T025 Перевірити на packaged beta та після релізу передачу журналу агента для завантаження з перезашивкою: прод 1.2.6 має `team:download:NO_SCREENS`, але `investigate` не отримав жодного agent journal record. Зв'язати workflow із локальною операцією та перевірити втрату/затримку журналу без збирання контенту, шляхів чи transfer grants; відсутність записів залишати явною сліпою зоною. Після релізу повторити `investigate --as-of` і `audit --as-of`, підтвердити відсутність `NO_SCREENS` та нових unknown-кодів.
+- [x] T026 Theme preference reporting (FR-058): emit the current light/dark value after identity setup and subsequent changes; add `themes` CLI aggregate, coverage registry entry, and CLI documentation. No user content or raw device storage is collected.

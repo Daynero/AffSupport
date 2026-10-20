@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Info, UserPlus } from 'lucide-react';
 import type { TeamBaseRole, TeamTariff } from '@video-compressor/shared';
 import { TeamApiError, type TeamInvitationSummary, type TeamMemberSummary } from '../../api/team';
@@ -10,7 +10,16 @@ import { useOptionalTeam } from '../TeamContext';
 import { ContactAdminButton } from '../tariffs/ContactAdminButton';
 import { planName, pluralForm } from '../tariffs/format';
 import { useOptionalSpaceAccess } from '../tariffs/useSpaceAccess';
-import { Alert, Button, FormField, Input, Select, Tooltip } from '../../components/ui/index';
+import {
+  Alert,
+  Button,
+  FormField,
+  Input,
+  Select,
+  Tooltip,
+  IconButton,
+  Popover
+} from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { SettingsSection } from '../workspace/SettingsSection';
@@ -108,6 +117,9 @@ export function InvitationPanel({
   const [role, setRole] = useState<TeamBaseRole>(() => rememberedRole(teamId));
   const emailId = useId();
   const roleId = useId();
+  const roleHelpAnchor = useRef<HTMLButtonElement>(null);
+  const [roleHelpOpen, setRoleHelpOpen] = useState(false);
+  const submitPending = useRef(false);
   const [invitations, setInvitations] = useState<TeamInvitationSummary[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +127,7 @@ export function InvitationPanel({
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const directAdd = directAddMode === 'testing';
+  const linkOnly = import.meta.env.VITE_APP_ENVIRONMENT === 'beta';
   const listId = useId();
 
   /* 034 — seats (US4.1–4.2). Read from the server, never counted here. */
@@ -158,8 +171,10 @@ export function InvitationPanel({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitPending.current || !canManage) return;
     const normalizedEmail = email.trim().toLocaleLowerCase('en-US');
     if (!normalizedEmail.includes('@') || normalizedEmail.length > 320) return;
+    submitPending.current = true;
     setSubmitting(true);
     setError(null);
     setSuccess(null);
@@ -212,6 +227,7 @@ export function InvitationPanel({
         setError(directAdd ? t('teamDirectAddFailed') : t('teamInviteCreateFailed'));
       }
     } finally {
+      submitPending.current = false;
       setSubmitting(false);
     }
   };
@@ -331,6 +347,8 @@ export function InvitationPanel({
             <Input
               id={emailId}
               type="email"
+              required
+              disabled={submitting}
               value={email}
               maxLength={320}
               onChange={event => setEmail(event.target.value)}
@@ -340,15 +358,55 @@ export function InvitationPanel({
             <Select
               aria-labelledby={roleId}
               value={role}
+              disabled={submitting}
               options={INVITE_ROLES.map(value => ({ value, label: t(ROLE_LABEL[value]) }))}
               onChange={next => setRole(next as TeamBaseRole)}
             />
           </FormField>
-          <Button type="submit" variant="primary" loading={submitting} disabled={!email.trim()}>
-            {directAdd ? t('teamDirectAddSubmit') : t('teamInviteSend')}
-          </Button>
           {/* What the chosen role may do, said where it is chosen (024). */}
-          <p className="team-invite-role-hint">{t(ROLE_DESCRIPTION[role])}</p>
+          <div className="team-invite-role-hint team-invite-role-summary">
+            <span>
+              {t(
+                role === 'admin'
+                  ? 'teamInviteAdminSummary'
+                  : role === 'editor'
+                    ? 'teamInviteEditorSummary'
+                    : 'teamInviteViewerSummary'
+              )}
+            </span>
+            <IconButton
+              ref={roleHelpAnchor}
+              type="button"
+              size="sm"
+              variant="ghost"
+              label={t('teamInviteRoleDetails')}
+              title=""
+              aria-expanded={roleHelpOpen}
+              aria-haspopup="dialog"
+              onClick={() => setRoleHelpOpen(value => !value)}
+            >
+              <Info size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </IconButton>
+            <Popover
+              open={roleHelpOpen}
+              onClose={() => setRoleHelpOpen(false)}
+              anchor={roleHelpAnchor}
+              label={t('teamInviteRoleDetails')}
+              className="team-member-permission-help"
+            >
+              <p>{t(ROLE_DESCRIPTION[role])}</p>
+            </Popover>
+          </div>
+          {!directAdd && linkOnly && (
+            <p className="team-member-scope">{t('teamInvitationBetaHint')}</p>
+          )}
+          <Button type="submit" variant="primary" loading={submitting} disabled={!email.trim()}>
+            {directAdd
+              ? t('teamDirectAddSubmit')
+              : linkOnly
+                ? t('teamInvitationCreateLink')
+                : t('teamInviteSend')}
+          </Button>
         </form>
       )}
       {error && (
@@ -417,7 +475,8 @@ export function InvitationPanel({
                           : t('teamInvitationPending')}
             </span>
             {/* A failed delivery shows its fix on the row (024), not behind "…". */}
-            {invitation.state === 'pending' &&
+            {canManage &&
+              invitation.state === 'pending' &&
               invitation.deliveryState === 'failed' &&
               client.resendInvitation && (
                 <Button
@@ -430,7 +489,8 @@ export function InvitationPanel({
                   {t('teamInvitationResendShort')}
                 </Button>
               )}
-            {invitation.state === 'pending' &&
+            {canManage &&
+              invitation.state === 'pending' &&
               (client.resendInvitation || client.revokeInvitation) && (
                 <MemberRowMenu
                   label={t('teamInvitationActionsFor', { email: invitation.targetEmail })}

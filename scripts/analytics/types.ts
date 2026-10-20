@@ -232,6 +232,7 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  accounts?: import('./accounts.js').AccountDiagnostic[];
   launches?: import('./launches.js').LaunchEvidenceResult;
   found: true;
   id: string;

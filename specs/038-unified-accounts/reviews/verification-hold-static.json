@@ -1,0 +1,94 @@
+{
+  "ok": false,
+  "command": "verify",
+  "generated_at": "2026-10-18T10:46:02.181Z",
+  "form": "fast",
+  "error": "format",
+  "data": {
+    "duration_ms": 348958,
+    "totals": {
+      "gates": 13,
+      "passed": 12,
+      "failed": 1,
+      "tests": 0,
+      "skipped_tests": 0,
+      "skip_reasons": {},
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 2401
+      },
+      {
+        "id": "format",
+        "ok": false,
+        "duration_ms": 300239
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 259650
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 331445
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 346511
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 30169
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 1194
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 18888
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 1213
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 1196
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 1150
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 310
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 13508
+      }
+    ],
+    "failure": {
+      "gate": "format",
+      "subject": "Gate 'format' exceeded its 300000 ms budget and was stopped. A gate that hangs fails; it does not hold the command open.",
+      "excerpt": [
+        "Checking formatting...",
+        "Gate 'format' exceeded its 300000 ms budget and was stopped. A gate that hangs fails; it does not hold the command open."
+      ]
+    }
+  }
+}

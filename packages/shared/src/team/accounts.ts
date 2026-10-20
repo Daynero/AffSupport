@@ -1,4 +1,6 @@
+import { validFinanceDate } from './agent-finance.js';
 import { isRecord } from './contract.js';
+import type { TeamAccountNameColor } from './account-lifecycle.js';
 import { parseTeamTaskLabelRefs, type TeamTaskLabelRef } from './task-labels.js';
 import {
   convertKeyboardLayout,
@@ -188,7 +190,17 @@ export function normalizeTeamAgentAmount(value: unknown): number | null | undefi
   return amount <= TEAM_AGENT_AMOUNT_MAX ? amount : undefined;
 }
 
-export interface TeamAccountAgentSummary {
+export interface TeamAccountWorkspaceMetadata {
+  /** Effective first reporting day, independent of the audit timestamp. */
+  startsOn?: string;
+  sortRank?: number;
+  archivedAt?: string | null;
+  lifecycleVersion?: string;
+  nameColor?: TeamAccountNameColor;
+  nameColorVersion?: string;
+}
+
+export interface TeamAccountAgentSummary extends TeamAccountWorkspaceMetadata {
   id: string;
   accountId: string;
   teamId: string;
@@ -277,7 +289,7 @@ export function teamTaskAgentTagLabel(tag: Pick<TeamTaskAgentTag, 'accountName' 
   return teamAgentLabel(tag.accountName, tag.agentId);
 }
 
-export interface TeamAccountSummary {
+export interface TeamAccountSummary extends TeamAccountWorkspaceMetadata {
   /** Distinct open tasks historically attached under this social account. */
   taskCount?: number;
   id: string;
@@ -300,6 +312,8 @@ export function teamAgentRunsSummary(agent: { runs: readonly TeamAgentRun[] }): 
 export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary | null {
   if (!isRecord(value)) return null;
   const { id, account_id, team_id, agent_id, runs, task_count, created_at, updated_at } = value;
+  const metadata = parseWorkspaceMetadata(value);
+  if (!metadata) return null;
   const parsedRuns = parseTeamAgentRuns(runs);
   const labels = parseTeamTaskLabelRefs(value.labels);
   const balance = normalizeTeamAgentAmount(value.balance);
@@ -322,6 +336,7 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
     return null;
   }
   return {
+    ...metadata,
     id,
     accountId: account_id,
     teamId: team_id,
@@ -346,6 +361,8 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
  */
 export function parseTeamAccount(value: unknown): TeamAccountSummary | null {
   if (!isRecord(value)) return null;
+  const metadata = parseWorkspaceMetadata(value);
+  if (!metadata) return null;
   const { id, team_id, name, created_at, updated_at, agents } = value;
   if (
     typeof id !== 'string' ||
@@ -367,6 +384,7 @@ export function parseTeamAccount(value: unknown): TeamAccountSummary | null {
     parsed.push(agent);
   }
   return {
+    ...metadata,
     id,
     teamId: team_id,
     name,
@@ -381,9 +399,15 @@ export function parseTeamAccount(value: unknown): TeamAccountSummary | null {
  * Accounts in the order a person scans them: natural, so `v3` sits before
  * `v31` and after `v2`, and case does not scatter them.
  */
-export function sortTeamAccounts<T extends { name: string }>(accounts: readonly T[]): T[] {
-  return [...accounts].sort((left, right) =>
-    left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
+export function sortTeamAccounts<T extends { name: string; sortRank?: number }>(
+  accounts: readonly T[]
+): T[] {
+  return [...accounts].sort(
+    (left, right) =>
+      (left.sortRank !== undefined && right.sortRank !== undefined
+        ? left.sortRank - right.sortRank
+        : 0) ||
+      left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
   );
 }
 
@@ -393,10 +417,12 @@ export function sortTeamAccounts<T extends { name: string }>(accounts: readonly 
  * opened with and a free agent found by eye is one filter press saved; then
  * naturally by id, so two reads of the same account never disagree.
  */
-export function sortTeamAgents<T extends { agentId: string; runs: readonly TeamAgentRun[] }>(
-  agents: readonly T[]
-): T[] {
+export function sortTeamAgents<
+  T extends { agentId: string; runs: readonly TeamAgentRun[]; sortRank?: number }
+>(agents: readonly T[]): T[] {
   return [...agents].sort((left, right) => {
+    if (left.sortRank !== undefined && right.sortRank !== undefined)
+      return left.sortRank - right.sortRank;
     const free = Number(right.runs.length === 0) - Number(left.runs.length === 0);
     if (free !== 0) return free;
     return left.agentId.localeCompare(right.agentId, undefined, {
@@ -453,9 +479,13 @@ function filterTeamAccountsBy(
 ): TeamAccountSummary[] {
   const kept: TeamAccountSummary[] = [];
   for (const account of accounts) {
+    const activeOnly =
+      input.occupancy !== 'all' || (input.marker !== undefined && input.marker !== 'all');
+    if (activeOnly && account.archivedAt) continue;
     // Every word has to be found, in any order (search rework, 2026-10).
     const nameMatches = matchesSearchTerms(account.name, terms);
-    let agents = account.agents;
+    let agents = activeOnly ? account.agents.filter(agent => !agent.archivedAt) : account.agents;
+    const emptyActiveAccount = activeOnly && agents.length === 0;
     if (!nameMatches) {
       agents = agents.filter(agent =>
         matchesSearchTerms([account.name, agent.agentId, ...agent.runs.map(run => run.note)], terms)
@@ -464,7 +494,7 @@ function filterTeamAccountsBy(
     }
     if (input.occupancy !== 'all') {
       const wantFree = input.occupancy === 'free';
-      const emptyAccount = account.agents.length === 0 && nameMatches;
+      const emptyAccount = emptyActiveAccount && nameMatches;
       agents = agents.filter(agent => isTeamAgentFree(agent) === wantFree);
       if (agents.length === 0 && !(wantFree && emptyAccount)) continue;
     }
@@ -494,11 +524,15 @@ export interface TeamAccountCounts {
 }
 
 export function countTeamAccounts(accounts: readonly TeamAccountSummary[]): TeamAccountCounts {
+  let activeAccounts = 0;
   let agents = 0;
   let free = 0;
   const markers: Record<TeamAgentRunMarker, number> = { green: 0, amber: 0, red: 0 };
   for (const account of accounts) {
+    if (account.archivedAt) continue;
+    activeAccounts += 1;
     for (const agent of account.agents) {
+      if (agent.archivedAt) continue;
       agents += 1;
       if (isTeamAgentFree(agent)) free += 1;
       for (const marker of TEAM_AGENT_RUN_MARKERS) {
@@ -506,5 +540,54 @@ export function countTeamAccounts(accounts: readonly TeamAccountSummary[]): Team
       }
     }
   }
-  return { accounts: accounts.length, agents, free, busy: agents - free, markers };
+  return { accounts: activeAccounts, agents, free, busy: agents - free, markers };
+}
+
+function parseWorkspaceMetadata(
+  value: Record<string, unknown>
+): TeamAccountWorkspaceMetadata | null {
+  if (
+    (value.starts_on !== undefined &&
+      value.starts_on !== null &&
+      !validFinanceDate(value.starts_on)) ||
+    (value.sort_rank !== undefined &&
+      (typeof value.sort_rank !== 'number' ||
+        !Number.isSafeInteger(value.sort_rank) ||
+        value.sort_rank < 0)) ||
+    (value.archived_at !== undefined &&
+      value.archived_at !== null &&
+      (typeof value.archived_at !== 'string' || !Number.isFinite(Date.parse(value.archived_at)))) ||
+    (value.lifecycle_version !== undefined && !validWorkspaceVersion(value.lifecycle_version)) ||
+    (value.name_color !== undefined &&
+      (typeof value.name_color !== 'number' ||
+        !Number.isInteger(value.name_color) ||
+        value.name_color < 0 ||
+        value.name_color > 7)) ||
+    (value.name_color_version !== undefined && !validWorkspaceVersion(value.name_color_version))
+  )
+    return null;
+  return {
+    ...(typeof value.starts_on === 'string' ? { startsOn: value.starts_on } : {}),
+    ...(typeof value.sort_rank === 'number' ? { sortRank: value.sort_rank } : {}),
+    ...(value.archived_at === null || typeof value.archived_at === 'string'
+      ? { archivedAt: value.archived_at }
+      : {}),
+    ...(value.lifecycle_version !== undefined
+      ? { lifecycleVersion: String(value.lifecycle_version) }
+      : {}),
+    ...(typeof value.name_color === 'number'
+      ? { nameColor: value.name_color as TeamAccountNameColor }
+      : {}),
+    ...(value.name_color_version !== undefined
+      ? { nameColorVersion: String(value.name_color_version) }
+      : {})
+  };
+}
+
+/** Composite row RPCs encode bigint as JSON numbers; overview encodes text. */
+function validWorkspaceVersion(value: unknown): boolean {
+  return (
+    (typeof value === 'string' && /^\d+$/.test(value)) ||
+    (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
+  );
 }

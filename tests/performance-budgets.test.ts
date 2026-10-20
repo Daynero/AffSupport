@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { describeRequiring, requirePath } from './support/requires.js';
+import { exclusiveLazyRouteAssets, sumAssetBytes } from '../scripts/lib/lazy-route-assets.mjs';
 
 /**
  * A budget for what the browser has to download before anything works.
@@ -21,6 +22,21 @@ import { describeRequiring, requirePath } from './support/requires.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = path.join(root, 'apps/web/dist/assets');
 const BASELINE = path.join(root, 'performance-baseline.json');
+const DIST = path.join(root, 'apps/web/dist');
+const MANIFEST = path.join(DIST, '.vite/manifest.json');
+const ACCOUNTS_BEFORE = path.join(
+  root,
+  'specs/038-unified-accounts/reviews/bundle-budget-baseline.json'
+);
+const ACCOUNT_ROUTE = 'src/team/accounts/AccountSpace.tsx';
+const LAUNCH_ROUTE = 'src/team/launches/LaunchSpace.tsx';
+// Explicit feature 038 allowance: unified finance/runs, archive and library drag
+// interactions are downloaded only upon entering Accounts. This revises route
+// budget accounting; it does not claim the complete application became smaller.
+const ACCOUNTS_INCREMENTAL_ALLOWANCE = 55_000;
+const ACCOUNTS_EXCLUSIVE_CEILING = 80_000;
+const LAUNCH_ROOT_CEILING = 20_000;
+const LAUNCH_EXCLUSIVE_CEILING = 40_000;
 
 /**
  * How far the total may drift before this fails.
@@ -35,6 +51,17 @@ interface Baseline {
   total_gzip_bytes: number;
   entry_gzip_bytes: number;
   largest_gzip_bytes: number;
+}
+
+interface AccountsBefore {
+  source_sha: string;
+  manifest: unknown;
+  assets: Array<{ file: string; gzip_bytes: number; sha256: string }>;
+  accounts: {
+    source: string;
+    exclusive_gzip_bytes: number;
+    files: Array<{ file: string; gzip_bytes: number; sha256: string }>;
+  };
 }
 
 /** Gzipped size of every built asset, plus the entry the document loads first. */
@@ -63,49 +90,83 @@ function measure() {
   return { total, largest, entry, lazyLaunch, lazyLaunchChunks, count: files.length };
 }
 
-describeRequiring(requirePath('apps/web/dist/assets'), 'download budget', () => {
-  const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline;
+describeRequiring(
+  requirePath('apps/web/dist/assets', MANIFEST, ACCOUNTS_BEFORE),
+  'download budget',
+  () => {
+    const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline;
 
-  it('measures something', () => {
-    // A guard on the guard: an empty asset directory would make every
-    // comparison below pass while measuring nothing.
-    const measured = measure();
-    expect(measured.count).toBeGreaterThan(3);
-    expect(measured.total).toBeGreaterThan(50_000);
-  });
+    it('measures something', () => {
+      // A guard on the guard: an empty asset directory would make every
+      // comparison below pass while measuring nothing.
+      const measured = measure();
+      expect(measured.count).toBeGreaterThan(3);
+      expect(measured.total).toBeGreaterThan(50_000);
+    });
 
-  it('keeps shared assets within the ratchet and separately bounds the lazy Launch screen', () => {
-    const measured = measure();
-    const ceiling = Math.round(baseline.total_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
-    // A person who never opens Launches does not download its route chunk. Keep
-    // that feature under its own small ceiling instead of treating it as shared
-    // bytes paid on every page; all dependencies it pulls into shared chunks
-    // remain inside the ordinary total ratchet.
-    expect(measured.lazyLaunchChunks).toBe(1);
-    expect(measured.lazyLaunch).toBeLessThanOrEqual(20_000);
-    expect(
-      measured.total - measured.lazyLaunch,
-      `shared and existing-route assets grew from ${baseline.total_gzip_bytes} to ${measured.total - measured.lazyLaunch} bytes excluding the separately budgeted lazy Launch route`
-    ).toBeLessThanOrEqual(ceiling);
-  });
+    it('preserves the existing ratchet while bounding complete exclusive route graphs', () => {
+      const measured = measure();
+      const ceiling = Math.round(baseline.total_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
+      const manifest: unknown = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+      const accounts = exclusiveLazyRouteAssets(manifest, ACCOUNT_ROUTE);
+      const launches = exclusiveLazyRouteAssets(manifest, LAUNCH_ROUTE);
+      const sizeOf = (file: string) => gzipSync(readFileSync(path.join(DIST, file))).length;
+      const accountBytes = sumAssetBytes(accounts.files, sizeOf);
+      const launchBytes = sumAssetBytes(launches.files, sizeOf);
+      const before = JSON.parse(readFileSync(ACCOUNTS_BEFORE, 'utf8')) as AccountsBefore;
+      const beforeGraph = exclusiveLazyRouteAssets(before.manifest, ACCOUNT_ROUTE);
+      expect(before.source_sha).toBe('4c392f6316a0a6ad1f02e4acc0b30bb1df91e10b');
+      expect(before.accounts.source).toBe(ACCOUNT_ROUTE);
+      expect(before.accounts.files.length).toBeGreaterThan(0);
+      expect(new Set(before.accounts.files.map(file => file.file)).size).toBe(
+        before.accounts.files.length
+      );
+      expect(before.accounts.files.map(file => file.file).sort()).toEqual(beforeGraph.files);
+      for (const file of before.accounts.files) {
+        expect(file.sha256).toMatch(/^[a-f0-9]{64}$/u);
+        expect(Number.isSafeInteger(file.gzip_bytes) && file.gzip_bytes > 0).toBe(true);
+        expect(before.assets.filter(asset => asset.file === file.file)).toEqual([file]);
+      }
+      expect(before.accounts.exclusive_gzip_bytes).toBe(
+        before.accounts.files.reduce((sum, file) => sum + file.gzip_bytes, 0)
+      );
+      // Only the growth of the COMPLETE exclusive Accounts graph is exempted.
+      // Its complete pre038 cost remains charged globally, including old private
+      // dependencies. Shared dependencies, orphan assets and all other routes
+      // remain charged in full; the baseline itself and its 5% tolerance stay fixed.
+      const accountsIncrement = Math.max(0, accountBytes - before.accounts.exclusive_gzip_bytes);
+      const existingBytes = measured.total - launchBytes - accountsIncrement;
+      expect(accounts.files.filter(file => launches.files.includes(file))).toEqual([]);
+      expect(measured.lazyLaunchChunks).toBe(1);
+      expect(measured.lazyLaunch).toBe(sizeOf(launches.rootFile));
+      expect(measured.lazyLaunch).toBeLessThanOrEqual(LAUNCH_ROOT_CEILING);
+      expect(launchBytes).toBeLessThanOrEqual(LAUNCH_EXCLUSIVE_CEILING);
+      expect(accountBytes).toBeLessThanOrEqual(ACCOUNTS_EXCLUSIVE_CEILING);
+      expect(accountsIncrement).toBeLessThanOrEqual(ACCOUNTS_INCREMENTAL_ALLOWANCE);
+      expect(
+        existingBytes,
+        `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; pre038 Accounts graph ${before.accounts.exclusive_gzip_bytes}B remains charged`
+      ).toBeLessThanOrEqual(ceiling);
+    });
 
-  it('has not grown the entry chunk beyond tolerance', () => {
-    const measured = measure();
-    const ceiling = Math.round(baseline.entry_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
-    // The entry is what runs before any lazy chunk can, so it is the number
-    // that decides how long the first screen takes on a slow connection.
-    expect(
-      measured.entry,
-      `entry chunk grew from ${baseline.entry_gzip_bytes} to ${measured.entry} bytes`
-    ).toBeLessThanOrEqual(ceiling);
-  });
+    it('has not grown the entry chunk beyond tolerance', () => {
+      const measured = measure();
+      const ceiling = Math.round(baseline.entry_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
+      // The entry is what runs before any lazy chunk can, so it is the number
+      // that decides how long the first screen takes on a slow connection.
+      expect(
+        measured.entry,
+        `entry chunk grew from ${baseline.entry_gzip_bytes} to ${measured.entry} bytes`
+      ).toBeLessThanOrEqual(ceiling);
+    });
 
-  it('has not grown the largest single chunk beyond tolerance', () => {
-    const measured = measure();
-    const ceiling = Math.round(baseline.largest_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
-    expect(
-      measured.largest,
-      `largest chunk grew from ${baseline.largest_gzip_bytes} to ${measured.largest} bytes`
-    ).toBeLessThanOrEqual(ceiling);
-  });
-});
+    it('has not grown the largest single chunk beyond tolerance', () => {
+      const measured = measure();
+      const ceiling = Math.round(baseline.largest_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
+      expect(
+        measured.largest,
+        `largest chunk grew from ${baseline.largest_gzip_bytes} to ${measured.largest} bytes`
+      ).toBeLessThanOrEqual(ceiling);
+    });
+  }
+);

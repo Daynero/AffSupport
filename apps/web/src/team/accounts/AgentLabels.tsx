@@ -56,6 +56,7 @@ export function AgentLabels({
           label={label}
           disabled={busy || !canEdit}
           onRemove={canEdit ? () => onToggle(label, false) : undefined}
+          removeLabel={t('teamAgentLabelRemove', { name: label.name, account: agentLabel })}
         />
       ))}
       {canEdit && (

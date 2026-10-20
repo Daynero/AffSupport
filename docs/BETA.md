@@ -191,6 +191,12 @@ The baseline after a reset:
 | Pilot gate    | that account is also in `public.admin_users`, which is what unlocks the workspace      |
 | Launch inputs | account `g1` with agent ID `1234567892`, offer `ProCaps TR`, Buyer `patrik`            |
 
+The beta login screen offers **space owner** (`beta@soty.local` / `beta-password`) and
+**member / Viewer** (`member@soty.local` / `beta-member-password`). Both authenticate against
+local Supabase; neither bypasses authentication or entitlement checks. The member is active in
+Beta Workspace with the standard Viewer permissions and is not a product admin. Change its
+permissions from the owner's Members tab to test real restrictions, then restore the role defaults.
+
 The Launch creative library stays empty until a test Google Drive account is connected and
 indexed. These local inputs let the Launch form and its validation be exercised without
 pretending that a Drive-backed Generate → result journey is available.

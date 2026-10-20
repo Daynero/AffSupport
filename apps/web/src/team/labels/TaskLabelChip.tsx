@@ -38,6 +38,7 @@ export function TaskLabelChip({
   selected = false,
   onSelect,
   onRemove,
+  removeLabel,
   disabled = false
 }: {
   label: TeamTaskLabelRef;
@@ -46,6 +47,7 @@ export function TaskLabelChip({
   onSelect?: () => void;
   /** Adds the × that takes the tag off a task. */
   onRemove?: () => void;
+  removeLabel?: string;
   disabled?: boolean;
 }) {
   const { t } = useI18n();
@@ -79,7 +81,7 @@ export function TaskLabelChip({
         <button
           type="button"
           className="team-task-label-chip-remove"
-          aria-label={t('teamTaskTagRemove', { name: label.name })}
+          aria-label={removeLabel ?? t('teamTaskTagRemove', { name: label.name })}
           disabled={disabled}
           onClick={onRemove}
         >

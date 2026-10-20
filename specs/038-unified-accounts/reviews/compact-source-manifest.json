@@ -1,0 +1,489 @@
+{
+  "baseline": "4c392f6316a0a6ad1f02e4acc0b30bb1df91e10b",
+  "generatedAt": "2026-10-18T07:52:23.420304+00:00",
+  "hashEncoding": "SHA-256 of sorted UTF-8 sha256 + two spaces + path + newline; application subset: apps, packages, migrations, functions, analytics scripts, package-lock",
+  "files": [
+    {
+      "path": "apps/web/package.json",
+      "sha256": "46f997ae67dee147671afbba1790cbeb12369842662aec5418574e6a7dfeb046"
+    },
+    {
+      "path": "apps/web/src/analytics/events.ts",
+      "sha256": "b6901be48f2008afc9aa81c55b1526a29dbdc7b4eae1abeae25950ded0031d19"
+    },
+    {
+      "path": "apps/web/src/analytics/service.ts",
+      "sha256": "5a65bbd79856dcd3b3e15844a1db9b0cec65809fdd640936b9f34b0d4f6e0d5d"
+    },
+    {
+      "path": "apps/web/src/api/team-accounts-workspace.ts",
+      "sha256": "51c34805f5f1a1593d0765b6a56c87a7b546f50f26efccb812bb1b50b6dfaba7"
+    },
+    {
+      "path": "apps/web/src/api/team-finance.ts",
+      "sha256": "8e0772cd2210613ecd54641f11f2f063894af1c58edbee4d68c7a60f76ca6eb8"
+    },
+    {
+      "path": "apps/web/src/i18n.ts",
+      "sha256": "b62aa2024a7783e263eb908cf2440481c53b460e7d19cf48d4a8b16337a9cadc"
+    },
+    {
+      "path": "apps/web/src/lib/database.compat.ts",
+      "sha256": "7eb8b36a7b2efd06a30eec63df465756a55eb76f2a1d830d9980c66a4c20cbe3"
+    },
+    {
+      "path": "apps/web/src/lib/database.types.ts",
+      "sha256": "ad7918606742bcea01c81afddb84dcf0b015ec2621f5bb3336f089366784967a"
+    },
+    {
+      "path": "apps/web/src/styles/components.css",
+      "sha256": "c49ce0312644a3b879d37bde21b71e5084454577f29f14457062fdd42df1e62d"
+    },
+    {
+      "path": "apps/web/src/styles/team-accounts.css",
+      "sha256": "5e77d83ab58f2d380b9c72963b2e5fe4711b02913607ec1877928a5a03add792"
+    },
+    {
+      "path": "apps/web/src/styles/tokens.css",
+      "sha256": "bd37b09a10427fdb4316ea427a5630fd2ceca72830bc8777f48e33e9b50269ef"
+    },
+    {
+      "path": "apps/web/src/team/TeamContext.tsx",
+      "sha256": "5c20093e3015f5c6fa1c9af0eeb790d49208074aa1e0a4a20bcffe008f03d9d2"
+    },
+    {
+      "path": "apps/web/src/team/accounts/AccountArchiveDrawer.tsx",
+      "sha256": "10fae996d69c44122e70daf60477f20b79ec0ee3b21001f175ceb793505c2ef6"
+    },
+    {
+      "path": "apps/web/src/team/accounts/AccountGroup.tsx",
+      "sha256": "08857fdd4ef6443f477791c68e35c81640efbef46b6fe069c27481a42ff0c76d"
+    },
+    {
+      "path": "apps/web/src/team/accounts/AccountReorderProvider.tsx",
+      "sha256": "8642881907c3207fc10f9f77b694d0615a2d96fe7a53ebdfcd1e65a6d76b0fef"
+    },
+    {
+      "path": "apps/web/src/team/accounts/AccountSpace.tsx",
+      "sha256": "96690c49465c8d191637ce0a004584a3e06e49d2f7f13607cf64346c67eaabaa"
+    },
+    {
+      "path": "apps/web/src/team/accounts/AgentLabels.tsx",
+      "sha256": "9fd4ebe5152ad6dd79e3885c4addd60c4145ac1adbc4531420b6dd5ad74db8c4"
+    },
+    {
+      "path": "apps/web/src/team/accounts/AgentRow.tsx",
+      "sha256": "4328bfda2c7bbfa2b4287fc66ca61fb74ef266bf6f3723c7fbcc47b67f6addc8"
+    },
+    {
+      "path": "apps/web/src/team/accounts/accountFocusAnchor.ts",
+      "sha256": "e9b5cc51dac46c731dcbc4a2577cedb56d208025876d91c75c6dd9ef72b88b38"
+    },
+    {
+      "path": "apps/web/src/team/accounts/analytics.ts",
+      "sha256": "07aef8e16b7187cabc7daa3068400edd8528a3a9b25c35d3426b39ffb2b878b7"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/FinanceHistoryDrawer.tsx",
+      "sha256": "06f2abf80b4c4e51b808352635dcf1a7909dc85b08f6a0acf48881601f8db76e"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/FinanceToolbar.tsx",
+      "sha256": "0e5928b49966dacaf91f959778b3bc888a1d5e4a5adbd58bc5b478530b67aaab"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/LegacyFinanceReview.tsx",
+      "sha256": "fdc8c40238a138adacd4fd87196370f9c145c0221b3bf1268bb4d4d4c14f0daa"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/MoveAgentDialog.tsx",
+      "sha256": "6300b50d3564996ca681a098c47835cb5054d4e8340e4b0fb9a3769ff0ae9df9"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/UnifiedFinance.tsx",
+      "sha256": "628859bbe94dc3a3f7d5b55e3f804be340755b5cf25d0a09d5ad33eb6d9c8fda"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/useAgentFinance.ts",
+      "sha256": "6916b86b8bfa5271e2673749e442b8def828fedfc65c78a08b0a8c4fd105dd8b"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/useFinanceDrafts.ts",
+      "sha256": "dd4d6a2765b7bd21844855104754066446e9de28ca46018e81fba619dc61c67d"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/useFinancePeriod.ts",
+      "sha256": "6ef5950478fba69c4362726af0f6d505370bd1775626f4304756d451dfa7efe5"
+    },
+    {
+      "path": "apps/web/src/team/accounts/finance/useRetainedFinanceDiagnostics.ts",
+      "sha256": "c6ebb3620f353b72eb9968ca597414d25830dc71777399d6aad915efd3aec191"
+    },
+    {
+      "path": "apps/web/src/team/accounts/useAccountPreferences.ts",
+      "sha256": "f82ed4eb3cb9b7697fcad90c669959e12f1c8265aae3d4a23825e29d8ed6ba38"
+    },
+    {
+      "path": "apps/web/src/team/accounts/useAccounts.ts",
+      "sha256": "de9d3924dd6fe098e6bcff2f403250875d39ad7397baf90515f2f35fa0b6459a"
+    },
+    {
+      "path": "apps/web/src/team/accounts/useDeferredAccountRows.ts",
+      "sha256": "09ed09b31b9bb98a76a7d32c8abc80553254a279c69f1fdc50796902b7d1c6d4"
+    },
+    {
+      "path": "apps/web/src/team/errors.ts",
+      "sha256": "499aa01c254d2852d380651c9b2c889737c1a79168a81fc9eaf810ba3dfa2810"
+    },
+    {
+      "path": "apps/web/src/team/labels/TaskLabelChip.tsx",
+      "sha256": "0cd8edd1c7760640dd9d638f72b8af9ee39402347c4ecc28a846aa479d8ff64b"
+    },
+    {
+      "path": "apps/web/src/team/launches/DeferredLaunchEditor.tsx",
+      "sha256": "8a07c074bce9c667c98c00c46e1f55e0e43b9b494f8ca03f4b493b363c4bbd2a"
+    },
+    {
+      "path": "apps/web/src/team/launches/DeferredLaunchSession.tsx",
+      "sha256": "a1924410415af608579582300796cac6182e4fa5407bce4ac3a4327a774fea23"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchSession.tsx",
+      "sha256": "66cf855e8c8a2a39f6b7868fd82a049ba17afca12230558d16c5c17b9afc35ff"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchSpace.tsx",
+      "sha256": "f681884c1dc8202acc778cd57cf372accbb07dd487714372ad35dcea58231bd9"
+    },
+    {
+      "path": "apps/web/src/team/useTeamRealtime.ts",
+      "sha256": "df297ba3980bf22b72ecfb81685f2d2b96a5ad2808eda0fb554f180c5d19e337"
+    },
+    {
+      "path": "apps/web/vite.config.ts",
+      "sha256": "b90f7f08d55242775f3b092dfaafb3c2480d1d5c6cb1856713498828c38da278"
+    },
+    {
+      "path": "coverage-baseline.json",
+      "sha256": "b7072eb0e047005680e0303c071168a8897b25036021e850127627cd11bba659"
+    },
+    {
+      "path": "coverage-critical.json",
+      "sha256": "597806441636fd778359ec206b08e9bed03751d436869bf4289ea60f113b084b"
+    },
+    {
+      "path": "docs/DESIGN.md",
+      "sha256": "8a36d37877b17174fb28d8197d8bf83a3e8a546ea3c47bc97d19f8caf9764e34"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "2a2d774466efe6a5794a037e8dccc8808cac7697007484f6fc2ddf32b192748a"
+    },
+    {
+      "path": "packages/shared/src/team/account-lifecycle.ts",
+      "sha256": "800970d66654a4b6ff024f445b198149bf947f481a0feef42904b1aeaf097517"
+    },
+    {
+      "path": "packages/shared/src/team/account-order.ts",
+      "sha256": "b2c40012052f18b8b3dcf062905dce1a58f46fd62cdfe83cf2470fe21c172066"
+    },
+    {
+      "path": "packages/shared/src/team/account-overview.ts",
+      "sha256": "0686a1fb06304f58df67d9171e87cde26bcd3e6e17813daca3b27b569b4e4300"
+    },
+    {
+      "path": "packages/shared/src/team/accounts.ts",
+      "sha256": "627cf45641cf981e8d50ca54427aa7a7441226f482717d6e6159145ad83fee83"
+    },
+    {
+      "path": "packages/shared/src/team/agent-finance-report.ts",
+      "sha256": "aa9efe20829d160642ec9a5f4942dccaf8aa515fa808c2c1ddc24b6e34db5d03"
+    },
+    {
+      "path": "packages/shared/src/team/agent-finance.ts",
+      "sha256": "7c53f1a0aec650f2ac6b45eae9f669ea07a0e12cf0bbb4960f9cff1c04cd7acc"
+    },
+    {
+      "path": "packages/shared/src/team/analytics.ts",
+      "sha256": "f92f05686cc2daa2bec460755f65bc7b22a3b2cb88cc262a9ff29fbedae6e8a8"
+    },
+    {
+      "path": "packages/shared/src/team/index.ts",
+      "sha256": "bf5fe95eb30fefd07c465070f94d679b30d0d14c36db6179301d44fc992eb193"
+    },
+    {
+      "path": "packages/shared/src/team/transport.ts",
+      "sha256": "1727c890edd6b20e5d0950fa66269357f5d9b7614ee56608d73089a984d6d2a5"
+    },
+    {
+      "path": "scripts/analytics/accounts.ts",
+      "sha256": "31b9b5b467e63c4235c68268efd9dc37cb4bdb7927e39173dd6df84031dcae0e"
+    },
+    {
+      "path": "scripts/analytics/code-map.ts",
+      "sha256": "3e06c300bc31a2e314e4595e86d4b30578e969387a0418d37dd7db2b9561b479"
+    },
+    {
+      "path": "scripts/analytics/coverage-registry.ts",
+      "sha256": "fb464d29b2763bcb36cd8c6980373912e3a9073b219f63bbc01e76a1a7788c01"
+    },
+    {
+      "path": "scripts/analytics/investigate.ts",
+      "sha256": "bad822b3d30a897b060492c1cbde05838569d8195abe8b1c6234c9d0a0918895"
+    },
+    {
+      "path": "scripts/analytics/queries.ts",
+      "sha256": "4d7a68214f03424290c943c701724c7da63ea7062d103a23b22d3297df04dc7e"
+    },
+    {
+      "path": "scripts/analytics/sanitize.ts",
+      "sha256": "6d68a73b46a6d764359f1c2cfe3de2e473f34076847aaed45ead636f2f571bfa"
+    },
+    {
+      "path": "scripts/analytics/types.ts",
+      "sha256": "a0895189f283c0bc325a2c1edf1a1d9527d48bd3bcb722ca7ef18f247cd901a6"
+    },
+    {
+      "path": "scripts/check-accounts-concurrency.mjs",
+      "sha256": "8afb0c036458b0f61a8c850811e848f3be22830e4815a19ecdf1343efc432eab"
+    },
+    {
+      "path": "scripts/check-accounts-interactions.mjs",
+      "sha256": "8bf0a2910473be8226dd96e679d46098592f2e602489a0e9d7e4e36889ddc4b6"
+    },
+    {
+      "path": "scripts/check-accounts-layout.mjs",
+      "sha256": "f44d4b44249b4c431b54e2455a669aae1d701e9c484f3692073a01428142f665"
+    },
+    {
+      "path": "scripts/generate-team-contract-sql.mjs",
+      "sha256": "fe3f87d7a4303d7783988d5a17310497422e90a27648f888b15dbca3ec5cfcef"
+    },
+    {
+      "path": "scripts/lib/accounts-browser.mjs",
+      "sha256": "2484c3ba5a051f8c23e617c927038e6d6b38f89da2329bbaebaede193f02cdbd"
+    },
+    {
+      "path": "scripts/lib/lazy-route-assets.mjs",
+      "sha256": "624f9ef4246dd5395f93a3b7a73807ebc66a3c03beda258063b8f75799a601e3"
+    },
+    {
+      "path": "scripts/seed-accounts-fixture.mjs",
+      "sha256": "c39ec2ead70c3a4f4c8a83a9acfd75fcc293cf91ab58568942ed302416b0b49e"
+    },
+    {
+      "path": "supabase/functions/_shared/errors.ts",
+      "sha256": "d2f0406bfbf8d9e4744c977b641251d1a847c1b6b67d64d3d172f05abf1dcf41"
+    },
+    {
+      "path": "supabase/functions/team-finance-export/handler.ts",
+      "sha256": "e71eab01624038c7f2ce4aeb342d60ff98d86068476006693b10dafed5a83376"
+    },
+    {
+      "path": "supabase/migrations/20261202138000_unified_accounts.sql",
+      "sha256": "a1b8864f00607c587d59aefb4b817ee0b25b3491e4a896f0187fdf4804734885"
+    },
+    {
+      "path": "supabase/migrations/20261202141000_account_analytics_guard.sql",
+      "sha256": "b4c67de17351dddbe41eb97a1c803305c95ee43c7b2fec0d6e2610657060744e"
+    },
+    {
+      "path": "supabase/migrations/20261202142000_account_mutation_locking.sql",
+      "sha256": "c324970647f6445bf2593f7ac2c767dfd20f05a3ed5398393c80019f71316544"
+    },
+    {
+      "path": "supabase/migrations/20261202143000_account_error_codes.sql",
+      "sha256": "643a295f1c14f3f49fc6926daf50f77cd2cc95e1eb349a05774adf269e502897"
+    },
+    {
+      "path": "supabase/migrations/20261202144000_account_retained_finance_guard.sql",
+      "sha256": "435a83d0ada3156348f66ac394a0a28ccab2f3b92a916f596b69865dba16020e"
+    },
+    {
+      "path": "supabase/migrations/20261202145000_account_mutation_metadata.sql",
+      "sha256": "9bb20f4d076829faa3fa328d723ed0f52479d83f4d09dca66d1c5d90d1dc166c"
+    },
+    {
+      "path": "supabase/tests/database/unified-accounts.test.sql",
+      "sha256": "489941965a1b677f88eb79d44cc3e3714721f9211681948fa5d0d75e33cf7f35"
+    },
+    {
+      "path": "tests/account-lifecycle-applied.test.tsx",
+      "sha256": "603cfccceceb579cb9365c22b898811248092ca867685d6cde38efe79e959076"
+    },
+    {
+      "path": "tests/account-overview-analytics.test.tsx",
+      "sha256": "c97cfcb749411796c9135ec42a95f7470b52987fb7e680ee21696f25c315d07c"
+    },
+    {
+      "path": "tests/account-workspace-analytics.test.ts",
+      "sha256": "a4710f4402f4b8dd4c33604c8948dadab117a685d7c01626de36d5113913d551"
+    },
+    {
+      "path": "tests/analytics-launch-editor-diagnostics.test.ts",
+      "sha256": "594221eb31fec18dce9ed2b5663f40c5f30916f361adbb337954e3ed89e71293"
+    },
+    {
+      "path": "tests/deferred-launch-editor.test.tsx",
+      "sha256": "fed537879bf5f53efa4c9650f7c5510e604517e9ae44779bccb997ff5037de09"
+    },
+    {
+      "path": "tests/deferred-launch-session.test.tsx",
+      "sha256": "efe6d3aceb5cc2c2b406dd858df28210c0cb8a104ccfef437c8c62dc48b8ef60"
+    },
+    {
+      "path": "tests/launch-card-interactions.test.tsx",
+      "sha256": "cc399c9c52b748162a4d90ed4f2e2e0e17e582fb6fbc4533621d742ee1e826e1"
+    },
+    {
+      "path": "tests/launch-defaults-review.test.tsx",
+      "sha256": "24a2f41c6a8ed23f7fe434ff80a5509d7db7d292e9fbe1fbde5103a0644b9a82"
+    },
+    {
+      "path": "tests/launch-workspace-ui.test.tsx",
+      "sha256": "5069eb04110e4586a365aa1a422d6123ea66edb9ccaf431f004a71c3e1885365"
+    },
+    {
+      "path": "tests/lazy-route-assets.test.ts",
+      "sha256": "f77aee0d8fdc17edc6c33d5ba25b2d4f360b0df05723b7cb3323ef82dee2b847"
+    },
+    {
+      "path": "tests/performance-budgets.test.ts",
+      "sha256": "f45b21efb32b92438ed892062618c017900c0fced6991f00898fc0dff70678e2"
+    },
+    {
+      "path": "tests/suite-hygiene.test.ts",
+      "sha256": "8766bd162e9a312f81fd102341690dd15c2488899923506e9b6efc481ed3e746"
+    },
+    {
+      "path": "tests/support/team-unified-accounts.ts",
+      "sha256": "2be541a6587890a6d5061160af90823e11cf46ca1b41c1df81a442f308cd9217"
+    },
+    {
+      "path": "tests/team-account-accepted-launch.test.ts",
+      "sha256": "69d4a04a5b7f94c59fbaca7172caa12a0ae4fa1d0c6b4985d3e44d9bea5f9a36"
+    },
+    {
+      "path": "tests/team-account-archive-drawer.test.tsx",
+      "sha256": "1e8e1fd05a7cdc0cf6ec1729a0b370a24afdccb30b47ea51d70caaef916b483d"
+    },
+    {
+      "path": "tests/team-account-deferred-rows.test.tsx",
+      "sha256": "1249f7719dcf10734ef4b7ba754a62884dc34df1769ade36dbd84e521524db58"
+    },
+    {
+      "path": "tests/team-account-focus-anchor.test.ts",
+      "sha256": "5660b7b415d577720ec4e0fd05b6de9a409300f8fe062d440b161c7bc257f454"
+    },
+    {
+      "path": "tests/team-account-lifecycle-contract.test.ts",
+      "sha256": "e7c0ebaa129138069158497ce17c59bdb2a73642681989dfd9fc693801c5ee87"
+    },
+    {
+      "path": "tests/team-account-mutation-metadata.test.ts",
+      "sha256": "da6c47bca37c4784dde0293f550b1982ee5d50a145e0bff815c8539faed50e38"
+    },
+    {
+      "path": "tests/team-account-overview-scope.test.tsx",
+      "sha256": "18a0af4fa22fb836dd7848bd7af9b2738a7a0e94bf73b3db3c2d86ca438e492c"
+    },
+    {
+      "path": "tests/team-account-period-parity.test.tsx",
+      "sha256": "9f9358d5fce058305e20f699885105f1b3f401cf9acc0032c36d76ef88680929"
+    },
+    {
+      "path": "tests/team-account-preferences.test.tsx",
+      "sha256": "360446a445723a5ca9b270a392c79d225e8cfd843d122a9d706ebfbf27311c12"
+    },
+    {
+      "path": "tests/team-account-social-order.test.tsx",
+      "sha256": "2deef2f63dac72a094c84604c42ae2f2e055c2061664d6b3e18cdca56b09add0"
+    },
+    {
+      "path": "tests/team-account-state-coverage.test.ts",
+      "sha256": "5bd3e2ad6e885a444d6efa3a44dd9423ba632a381c074d64440e3e990205963c"
+    },
+    {
+      "path": "tests/team-account-workspace-038.test.ts",
+      "sha256": "001106db35e640b6542614c523a098a4ffbaaa39c72bea1785403f643473c03d"
+    },
+    {
+      "path": "tests/team-account-workspace-upgrade.test.ts",
+      "sha256": "52850fe1ea79fd0270c38cac505423b6f671a34447c34ae6028c6565d88424e0"
+    },
+    {
+      "path": "tests/team-accounts-contract.test.ts",
+      "sha256": "ddf0a43605a5ba9d683d7a787df7f401390a598f65623eb26c108faae874b161"
+    },
+    {
+      "path": "tests/team-accounts-finance-visibility.test.ts",
+      "sha256": "5c1485ff875efce4a6233812e9998d6cc2fa4450a48624c60385c08ae498a887"
+    },
+    {
+      "path": "tests/team-accounts-live-finance.test.tsx",
+      "sha256": "59fb91e3ee32c88541b8431d76ff97ae7d4c9c47c2bf0d243764a6506bcc9f70"
+    },
+    {
+      "path": "tests/team-accounts-order.test.tsx",
+      "sha256": "09957de8665a561b8b3d021029db5a2b68282c5b1461991f2f079f320349b1e6"
+    },
+    {
+      "path": "tests/team-accounts-unified-finance.test.tsx",
+      "sha256": "87ad1f9b2e4b2bf0163a006fd8ebe1e5364ddaf9f2d8e76cfcacd7710c589be1"
+    },
+    {
+      "path": "tests/team-accounts.test.tsx",
+      "sha256": "814393bca2607f69428ecd0854a440f45bc91d801a028781531defb4b3dcff40"
+    },
+    {
+      "path": "tests/team-agent-finance-export.test.ts",
+      "sha256": "ba5b7a7f60714086329566a22fc16f1569d340eebb24d3b67a9d22cad03bf5ab"
+    },
+    {
+      "path": "tests/team-agent-finance-history.test.tsx",
+      "sha256": "1966c223e79b5d2a45db7afb8efe8fd822971896091f01fb615fec3347bf9a42"
+    },
+    {
+      "path": "tests/team-agent-finance-lifecycle.test.tsx",
+      "sha256": "fe48df145c8f113125985c7768778d4893be1d9f128bfb9f0a9b1510e27f6e15"
+    },
+    {
+      "path": "tests/team-agent-finance-period.test.tsx",
+      "sha256": "c25b041b4f9a97afded255dc1fb39c090f5b2a9fd614170f3be27295e82c97c4"
+    },
+    {
+      "path": "tests/team-agent-finance-prepared-period.test.tsx",
+      "sha256": "ecd8ac0912c589a1616906e0a0cb14ba874abc2a0456afa537a69c373b7c610f"
+    },
+    {
+      "path": "tests/team-agent-finance-transfer-ui.test.tsx",
+      "sha256": "c7940bf90b511a150843b5068a961b0b33f2bd7905756f73936b7d083a99c25b"
+    },
+    {
+      "path": "tests/team-agent-finance-xlsx.test.ts",
+      "sha256": "6f04d2fb1d25e4f39e01520acd8004616f044a93b2e74addd53d69369855961c"
+    },
+    {
+      "path": "tests/team-contract.test.ts",
+      "sha256": "5f1cf2f07c8b63510085e658225a8f93eee2eaa335f77bc3e0f36a1d51bded04"
+    },
+    {
+      "path": "tests/team-realtime.test.tsx",
+      "sha256": "baf549ff5da86b98c0c8e69762217e5a524251bdbb0a1da9c506aada0606c9d7"
+    },
+    {
+      "path": "tests/team-restitch-delivery.test.ts",
+      "sha256": "0dbe77ddc8084ca10704fa01ff41df20a3a31ed022a54837f901f3ad6b81d06e"
+    },
+    {
+      "path": "tests/team-task-tags.test.tsx",
+      "sha256": "1a786789279332e1eaddd93da7fc0426cf95ae02973e0f189059af9765e620ba"
+    },
+    {
+      "path": "tests/ui-choice-range.test.tsx",
+      "sha256": "49a2956d0a44baf5000da8f35035d084da3f286f6c5f077d749eb9d7b2cf9d7a"
+    }
+  ],
+  "sha256": "440d2140b1ce603d91a46aac2ffc4409d5fea2d36d75278860f85c5ba7d6b014",
+  "applicationSha256": "7b457a1575537ecae15dd0d59e2c4eeb529660e54cb26c6aa2af04b95b91f927"
+}

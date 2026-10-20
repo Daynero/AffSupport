@@ -17,6 +17,7 @@ export function useFinancePeriod(blocked: boolean, fixedTimezone?: string) {
     fixedTimezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const [today, setToday] = useState(() => financeToday(timezone));
+  const [observedTimezone, setObservedTimezone] = useState(timezone);
   const [selected, setSelected] = useState(today);
   const following = useRef(true);
   const blockedRef = useRef(blocked);
@@ -29,13 +30,17 @@ export function useFinancePeriod(blocked: boolean, fixedTimezone?: string) {
     [timezone]
   );
   useEffect(() => {
-    if (!blocked && following.current) setSelected(today);
-  }, [blocked, today]);
+    if (!blocked) {
+      setTimezone(observedTimezone);
+      if (following.current) setSelected(today);
+    }
+  }, [blocked, today, observedTimezone]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const refresh = () => {
       const zone = fixedTimezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-      setTimezone(zone);
+      setObservedTimezone(zone);
+      if (!blockedRef.current) setTimezone(zone);
       const current = financeToday(zone);
       setToday(current);
       if (!blockedRef.current && following.current) setSelected(current);
@@ -61,5 +66,7 @@ export function useFinancePeriod(blocked: boolean, fixedTimezone?: string) {
       document.removeEventListener('visibilitychange', foreground);
     };
   }, [fixedTimezone]);
-  return { date: selected, today, timezone, setDate };
+  const pendingContext =
+    blocked && (observedTimezone !== timezone || (following.current && selected !== today));
+  return { date: selected, today, timezone, pendingContext, setDate };
 }

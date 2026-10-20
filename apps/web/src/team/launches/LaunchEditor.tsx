@@ -1,3 +1,5 @@
+import { CircleHelp } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   launchBudgets,
@@ -18,6 +20,7 @@ import {
   Card,
   Accordion,
   FormField,
+  Tooltip,
   Input,
   Switch,
   SegmentedControl,
@@ -148,6 +151,13 @@ export function LaunchEditor({
     )
       errors.customFinalDurationSeconds = 'INVALID_INPUT';
   }
+  const helpHint = (text: string) => (
+    <Tooltip label={text} asChild>
+      <span tabIndex={0} aria-label={text} className="inline-flex text-ink-muted">
+        <CircleHelp size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </span>
+    </Tooltip>
+  );
   const field = (
     key: string,
     label: TranslationKey,
@@ -166,7 +176,7 @@ export function LaunchEditor({
       <FormField
         label={t(label)}
         htmlFor={`${prefix}-${key}`}
-        help={help ? t(help) : undefined}
+        hint={help ? helpHint(t(help)) : undefined}
         required={false}
         error={
           showError
@@ -314,8 +324,10 @@ export function LaunchEditor({
           <section className="launch-editor-section" aria-labelledby={`${prefix}-sources-heading`}>
             <div className="launch-editor-section-heading">
               <div>
-                <h3 id={`${prefix}-sources-heading`}>{t('launchesSectionSources')}</h3>
-                <p>{t('launchesRequiredHelp')}</p>
+                <h3 id={`${prefix}-sources-heading`} className="flex items-center gap-2">
+                  {t('launchesSectionSources')}
+                  {helpHint(t('launchesRequiredHelp'))}
+                </h3>
               </div>
               <Button variant="ghost" size="sm" disabled={disabled} onClick={onRefreshSources}>
                 {t('launchesRefreshSources')}
@@ -698,6 +710,7 @@ export function LaunchEditor({
               'launchesUrl',
               <Input
                 id={`${prefix}-originalUrl`}
+                aria-label={t('launchesUrl')}
                 type="text"
                 autoComplete="off"
                 autoCapitalize="none"

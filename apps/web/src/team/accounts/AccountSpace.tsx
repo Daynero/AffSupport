@@ -1,9 +1,12 @@
+import { useOptionalAuth } from '../../auth/AuthContext';
+import { buildTeamRoute } from '../routes';
+import { internalLink } from '../../lib/navigation';
 /**
  * The Accounts section of a space (017): which agent sits under which account,
  * which of them are free and what is running on the rest.
  *
  * Built as a list to be scanned and marked, not a form to be filled: one row
- * per agent, the free ones first and washed green, a run written in place. The
+ * per agent, in persisted manual order, a run written in place. The
  * two filters answer the two questions the list is opened for — "where can I
  * start something" and "what is running" — and each drops the accounts that
  * have no answer rather than greying them out.
@@ -15,8 +18,10 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronsDownUp, ChevronsUpDown, Plus, Search, UserRound, X } from 'lucide-react';
+import { Archive, ChevronsDownUp, ChevronsUpDown, Plus, Search, UserRound, X } from 'lucide-react';
 import {
+  buildFinanceReport,
+  financeAgentVisible,
   countTeamAccounts,
   filterTeamAccounts,
   sortTeamAccounts,
@@ -40,7 +45,20 @@ import { AccountGroup, AccountNameRow, type AgentEditing } from './AccountGroup'
 import { MarkerFilter } from './MarkerFilter';
 import { useTaskLabels, type TaskLabelsClient } from '../labels/useTaskLabels';
 import { useAccounts, type AccountsClient } from './useAccounts';
-import { FinanceWorkspace } from './finance/FinanceWorkspace';
+import {
+  UnifiedFinanceProvider,
+  UnifiedFinanceToolbar,
+  UnifiedAgentFinanceFields,
+  useUnifiedFinance
+} from './finance/UnifiedFinance';
+import { AccountReorderProvider, type ReorderRequest } from './AccountReorderProvider';
+import { AccountArchiveDrawer } from './AccountArchiveDrawer';
+import { useAccountPreferences } from './useAccountPreferences';
+import { accountsWorkspaceApi } from '../../api/team-accounts-workspace';
+import { accountFlowId, emitAccountSignal } from './analytics';
+import { Modal, DropdownMenu } from '../../components/ui/index';
+import { MoreHorizontal } from 'lucide-react';
+import type { TeamAccountEntityKind } from '@video-compressor/shared';
 import { MoveAgentDialog } from './finance/MoveAgentDialog';
 import { financeToday } from '@video-compressor/shared';
 
@@ -77,13 +95,289 @@ function writeCollapsed(teamId: string, collapsed: Set<string>): void {
 /** Which editor is open: the new-account row, or one row inside one account. */
 type Editor = { kind: 'create' } | { kind: 'account'; accountId: string; state: AgentEditing };
 
+type AppliedProof =
+  | {
+      action: 'lifecycle';
+      flowId: string;
+      kind: TeamAccountEntityKind;
+      id: string;
+      version: string;
+      archivedAt: string | null;
+      view: string;
+    }
+  | { action: 'reorder'; flowId: string; request: ReorderRequest; version: string; view: string };
+
 export function AccountSpace({ teamId, client }: { teamId: string; client?: AccountSpaceClient }) {
+  const { can, revision } = useTeam();
+  const auth = useOptionalAuth();
+  return (
+    <UnifiedFinanceProvider
+      key={`${teamId}/${auth?.user?.id ?? 'fixture'}`}
+      userId={auth?.user?.id}
+      teamId={teamId}
+      enabled={!client}
+      canEdit={can('edit')}
+      revision={revision}
+    >
+      <AccountSpaceContent teamId={teamId} client={client} />
+    </UnifiedFinanceProvider>
+  );
+}
+
+function AccountSpaceContent({ teamId, client }: { teamId: string; client?: AccountSpaceClient }) {
   const { t } = useI18n();
   const { push } = useToasts();
   const { can, revision } = useTeam();
   const canEdit = can('edit');
-  const [view, setView] = useState<'accounts' | 'finance'>('accounts');
-  const accounts = useAccounts({ teamId, revision, client });
+  const finance = useUnifiedFinance();
+  const accounts = useAccounts({
+    teamId,
+    revision,
+    client,
+    from: finance.reportRange?.[0] ?? finance.date,
+    to: finance.reportRange?.[1] ?? finance.date,
+    timezone: finance.timezone
+  });
+  useEffect(() => {
+    finance.setAgentLabels(
+      Object.fromEntries(
+        accounts.accounts.flatMap(account =>
+          account.agents.map(agent => [agent.id, agent.labels.map(label => label.name)])
+        )
+      )
+    );
+  }, [accounts.accounts, finance.setAgentLabels]);
+  const lifetime = useRef({ active: true, generation: 0 });
+  const writePermission = useRef(canEdit);
+  writePermission.current = canEdit;
+  useEffect(() => {
+    lifetime.current.active = true;
+    return () => {
+      lifetime.current.active = false;
+      lifetime.current.generation += 1;
+    };
+  }, []);
+  const [pendingProofs, setPendingProofs] = useState<AppliedProof[]>([]);
+  const proofPending = useRef(false);
+  const [rowVisibilityRevision, setRowVisibilityRevision] = useState(0);
+  const onRowsVisible = useCallback(() => {
+    if (proofPending.current) setRowVisibilityRevision(value => value + 1);
+  }, []);
+  const proofView = JSON.stringify([finance.reportRange, finance.date, finance.timezone]);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnchor = useRef<HTMLButtonElement>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{
+    kind: TeamAccountEntityKind;
+    id: string;
+    name: string;
+    agents: string[];
+  } | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
+  useEffect(() => {
+    if (!canEdit) {
+      setArchiveTarget(null);
+      setArchiveBusy(false);
+      finance.setFrozenAgents([]);
+    }
+  }, [canEdit, finance.setFrozenAgents]);
+  const fail = useCallback(
+    (cause: unknown) => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }),
+    [push, t]
+  );
+  const preferences = useAccountPreferences(
+    teamId,
+    accounts.accounts.flatMap(account => account.agents),
+    cause => {
+      fail(cause);
+      void accounts.refetch();
+    }
+  );
+  proofPending.current = pendingProofs.length > 0 || preferences.hasPresentationProof;
+  const doArchive = async (save: boolean) => {
+    const target = archiveTarget;
+    if (!target || archiveBusy || !lifetime.current.active || !writePermission.current) return;
+    const scope = lifetime.current.generation;
+    const current = () =>
+      lifetime.current.active && lifetime.current.generation === scope && writePermission.current;
+    setArchiveBusy(true);
+    setArchiveError('');
+    finance.setFrozenAgents(target.agents);
+    const flow = accountFlowId();
+    try {
+      emitAccountSignal('lifecycle', 'draft_resolution', {
+        flowId: flow,
+        entity: target.kind === 'agent' ? 'rk' : 'social'
+      });
+      if (save) {
+        let summary: { accepted: number; firstFailureCode?: string } | undefined;
+        const saved = await finance.saveSubset(target.agents, {
+          flowId: flow,
+          onSummary: result => {
+            summary = result;
+          }
+        });
+        if (!current()) return;
+        if (!saved) {
+          setArchiveError(t('financeError'));
+          emitAccountSignal('lifecycle', 'terminal', {
+            flowId: flow,
+            outcome: 'failure',
+            result: summary && summary.accepted > 0 ? 'partial' : 'failed',
+            code: summary?.firstFailureCode ?? 'UNKNOWN',
+            count: summary?.accepted ?? 0
+          });
+          return;
+        }
+      }
+      if (!save) finance.discardSubset(target.agents);
+      emitAccountSignal('lifecycle', 'preflight', {
+        flowId: flow,
+        entity: target.kind === 'agent' ? 'rk' : 'social'
+      });
+      const before = await accountsWorkspaceApi.preflight(teamId, target.kind, target.id);
+      if (!current()) return;
+      emitAccountSignal('lifecycle', 'requested', {
+        flowId: flow,
+        entity: target.kind === 'agent' ? 'rk' : 'social'
+      });
+      const result = await accountsWorkspaceApi.archive(
+        teamId,
+        target.kind,
+        target.id,
+        true,
+        before.lifecycleVersion,
+        before.token,
+        crypto.randomUUID()
+      );
+      if (!current()) return;
+      emitAccountSignal('lifecycle', 'accepted', {
+        flowId: flow,
+        outcome: 'success',
+        result: 'complete'
+      });
+      setArchiveTarget(null);
+      const canonical = await accounts.refetch();
+      if (!current()) return;
+      finance.refresh();
+      if (finance.reportRange) finance.reports.refresh();
+      // The overview intentionally includes archived entities. Only the dated
+      // projection, rendered with a matching lifecycle snapshot, can prove
+      // whether this operation left a visible row.
+      if (canonical)
+        setPendingProofs(current => [
+          ...current,
+          {
+            action: 'lifecycle',
+            flowId: flow,
+            kind: target.kind,
+            id: target.id,
+            version: result.lifecycleVersion,
+            archivedAt: result.archivedAt,
+            view: proofView
+          }
+        ]);
+      push({
+        tone: 'success',
+        text: t('accountsArchiveSaved'),
+        action: {
+          label: t('teamUndo'),
+          run: async () => {
+            if (!current()) return;
+            try {
+              await accountsWorkspaceApi.archive(
+                teamId,
+                target.kind,
+                target.id,
+                false,
+                result.lifecycleVersion,
+                result.token,
+                crypto.randomUUID()
+              );
+              if (!current()) return;
+              await accounts.refetch();
+              if (!current()) return;
+              finance.refresh();
+              if (finance.reportRange) finance.reports.refresh();
+            } catch (cause) {
+              if (current()) fail(cause);
+            }
+          }
+        }
+      });
+    } catch (cause) {
+      if (!current()) return;
+      setArchiveError(teamErrorMessageFor(cause, t));
+      emitAccountSignal('lifecycle', 'terminal', {
+        flowId: flow,
+        outcome: 'failure',
+        result: 'failed',
+        code: cause instanceof Error ? cause.message : 'UNKNOWN'
+      });
+    } finally {
+      if (lifetime.current.active && lifetime.current.generation === scope) {
+        setArchiveBusy(false);
+        finance.setFrozenAgents([]);
+      }
+    }
+  };
+  const reorder = async (request: ReorderRequest) => {
+    if (!lifetime.current.active || !writePermission.current) return;
+    const scope = lifetime.current.generation;
+    const current = () =>
+      lifetime.current.active && lifetime.current.generation === scope && writePermission.current;
+    const flow = request.flowId ?? accountFlowId();
+    try {
+      emitAccountSignal('reorder', 'requested', {
+        flowId: flow,
+        entity: request.kind === 'agent' ? 'rk' : 'social'
+      });
+      const result = await accountsWorkspaceApi.reorder(
+        teamId,
+        request.kind === 'social' ? 'socials' : 'agents',
+        request.parent,
+        request.moved,
+        request.anchor,
+        request.relation,
+        request.kind === 'social'
+          ? accounts.orderVersions.socials
+          : (accounts.orderVersions.agents[request.parent ?? ''] ?? '0'),
+        crypto.randomUUID()
+      );
+      if (!current()) return;
+      emitAccountSignal('reorder', 'accepted', {
+        flowId: flow,
+        outcome: 'success',
+        result: 'complete'
+      });
+      const canonical = await accounts.refetch();
+      if (!current()) return;
+      if (canonical)
+        setPendingProofs(current => [
+          ...current,
+          {
+            action: 'reorder',
+            flowId: flow,
+            request,
+            version: result.version,
+            view: proofView
+          }
+        ]);
+    } catch (cause) {
+      if (!current()) return;
+      await accounts.refetch();
+      if (!current()) return;
+      fail(cause);
+      emitAccountSignal('reorder', 'terminal', {
+        flowId: flow,
+        outcome: 'failure',
+        result: 'conflict',
+        code: cause instanceof Error ? cause.message : 'UNKNOWN'
+      });
+      throw cause;
+    }
+  };
   /**
    * The agent half of the space's tag dictionary (019). Read here, beside the
    * accounts, and handed down: every row's tag menu shows the same list, and
@@ -196,9 +490,62 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
    * many of the matching agents are free and running, which is the question
    * the chips answer, rather than a total for a list that is not on screen.
    */
+  const periodAccounts = useMemo(() => {
+    if (client) return accounts.accounts;
+    const snap = finance.reportRange ? finance.reports.snapshot : finance.snapshot;
+    const reportMembers =
+      snap && finance.reportRange
+        ? new Set(
+            buildFinanceReport(snap).columns.map(
+              column => `${column.accountId}/${column.agentRowId}`
+            )
+          )
+        : null;
+    return accounts.accounts
+      .map(social => ({
+        ...social,
+        agents: social.agents.filter(agent => {
+          const end = finance.reportRange?.[1] ?? finance.date;
+          if (agent.startsOn && agent.startsOn > end) return false;
+          if (social.startsOn && social.startsOn > end) return false;
+          if (finance.getAffectedDrafts([agent.id]).length > 0) return true;
+          if (
+            finance.date === finance.today &&
+            !finance.reportRange &&
+            !social.archivedAt &&
+            !agent.archivedAt
+          )
+            return true;
+          if (!snap) return !social.archivedAt && !agent.archivedAt;
+          if (finance.reportRange) return reportMembers?.has(`${social.id}/${agent.id}`) ?? false;
+          return financeAgentVisible(snap, agent.id, finance.date, finance.timezone, social.id);
+        })
+      }))
+      .filter(
+        social =>
+          (!social.startsOn || social.startsOn <= (finance.reportRange?.[1] ?? finance.date)) &&
+          (social.agents.length > 0 ||
+            (!social.archivedAt &&
+              accounts.accounts
+                .find(item => item.id === social.id)
+                ?.agents.every(
+                  agent =>
+                    agent.startsOn && agent.startsOn > (finance.reportRange?.[1] ?? finance.date)
+                )))
+      );
+  }, [
+    accounts.accounts,
+    client,
+    finance.snapshot,
+    finance.reports.snapshot,
+    finance.reportRange,
+    finance.date,
+    finance.timezone,
+    finance.drafts.records
+  ]);
   const counts = useMemo(
-    () => countTeamAccounts(filterTeamAccounts(accounts.accounts, { occupancy: 'all', search })),
-    [accounts.accounts, search]
+    () => countTeamAccounts(filterTeamAccounts(periodAccounts, { occupancy: 'all', search })),
+    [periodAccounts, search]
   );
 
   /**
@@ -213,11 +560,11 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       ? editor.state.agentRowId
       : null;
   const visible = useMemo(() => {
-    const filtered = filterTeamAccounts(accounts.accounts, { occupancy, search, marker });
+    const filtered = filterTeamAccounts(periodAccounts, { occupancy, search, marker });
     if (!editingAccountId || filtered.some(account => account.id === editingAccountId)) {
       return filtered;
     }
-    const held = accounts.accounts.find(account => account.id === editingAccountId);
+    const held = periodAccounts.find(account => account.id === editingAccountId);
     if (!held) return filtered;
     /*
      * The account comes back, but not with every agent it owns: the filter's
@@ -233,7 +580,9 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         : [];
     const agents = edited.length > 0 ? sortTeamAgents([...kept, ...edited]) : kept;
     return sortTeamAccounts([...filtered, { ...held, agents }]);
-  }, [accounts.accounts, editingAccountId, editingAgentRowId, marker, occupancy, search]);
+  }, [periodAccounts, editingAccountId, editingAgentRowId, marker, occupancy, search]);
+  const deferAccountRows =
+    periodAccounts.reduce((total, social) => total + social.agents.length, 0) > 100;
 
   /**
    * How many runs carry a marker anywhere in the space — what "Clear all
@@ -272,6 +621,128 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
     );
 
   const panel = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const surface = panel.current;
+    if (!surface?.classList.contains('is-unified')) return;
+    // The retained canvas belongs to day navigation. A new search/filter must
+    // reveal its results instead of keeping them above the old scroll offset.
+    surface.style.removeProperty('min-height');
+    surface.querySelector<HTMLElement>('.team-accounts-list')?.style.removeProperty('min-height');
+    const table = surface.querySelector<HTMLElement>('.team-accounts-table');
+    if (table) table.scrollTop = 0;
+  }, [search, occupancy, marker]);
+  useEffect(() => {
+    preferences.confirmPresentation(panel.current);
+  });
+  useEffect(() => {
+    if (!pendingProofs.length || accounts.loading || accounts.error || !panel.current) return;
+    const settled = new Set<AppliedProof>();
+    const surface = panel.current;
+    const socialElements = [
+      ...surface.querySelectorAll<HTMLElement>('.team-account[data-account-id]')
+    ];
+    const agentElements = [
+      ...surface.querySelectorAll<HTMLElement>('.team-agent-row[data-reorder-id]')
+    ];
+    const snapshot = finance.reportRange ? finance.reports.snapshot : finance.snapshot;
+    for (const proof of pendingProofs) {
+      if (proof.view !== proofView) continue;
+      if (proof.action === 'lifecycle') {
+        if (
+          !snapshot?.lifecycle ||
+          finance.loading ||
+          finance.error ||
+          (finance.reportRange && (finance.reports.loading || finance.reports.error))
+        )
+          continue;
+        const raw =
+          proof.kind === 'social'
+            ? accounts.accounts.find(social => social.id === proof.id)
+            : accounts.accounts
+                .flatMap(social => social.agents)
+                .find(agent => agent.id === proof.id);
+        const lifecycle =
+          proof.kind === 'social'
+            ? snapshot.lifecycle.accounts.find(social => social.id === proof.id)
+            : snapshot.lifecycle.agents.find(agent => agent.id === proof.id);
+        if (
+          raw?.lifecycleVersion !== proof.version ||
+          raw.archivedAt !== proof.archivedAt ||
+          lifecycle?.version !== proof.version ||
+          lifecycle.archivedAt !== proof.archivedAt
+        )
+          continue;
+        const retained =
+          proof.kind === 'social'
+            ? periodAccounts.some(social => social.id === proof.id)
+            : periodAccounts.some(social => social.agents.some(agent => agent.id === proof.id));
+        const rendered =
+          proof.kind === 'social'
+            ? socialElements.some(element => element.dataset.accountId === proof.id)
+            : agentElements.some(element => element.dataset.reorderId === proof.id);
+        // A retained row hidden by a filter or collapsed parent has not been
+        // shown. Conversely a stale retained row must disappear before hidden
+        // evidence can be emitted.
+        if (retained !== rendered) continue;
+        emitAccountSignal('lifecycle', 'applied', {
+          flowId: proof.flowId,
+          outcome: 'success',
+          result: retained ? 'retained_period_data' : 'hidden_no_period_data'
+        });
+      } else {
+        const { request } = proof;
+        const version =
+          request.kind === 'social'
+            ? accounts.orderVersions.socials
+            : accounts.orderVersions.agents[request.parent ?? ''];
+        if (version !== proof.version) continue;
+        const rendered =
+          request.kind === 'social'
+            ? socialElements.map(element => element.dataset.accountId)
+            : agentElements
+                .filter(
+                  element =>
+                    element.closest('[data-account-id]')?.getAttribute('data-account-id') ===
+                    request.parent
+                )
+                .map(element => element.dataset.reorderId);
+        const moved = rendered.indexOf(request.moved);
+        const anchor = rendered.indexOf(request.anchor);
+        if (
+          moved < 0 ||
+          anchor < 0 ||
+          (request.relation === 'before' ? moved >= anchor : moved <= anchor)
+        )
+          continue;
+        emitAccountSignal('reorder', 'applied', {
+          flowId: proof.flowId,
+          outcome: 'success',
+          result: 'complete'
+        });
+      }
+      settled.add(proof);
+    }
+    if (settled.size) setPendingProofs(current => current.filter(proof => !settled.has(proof)));
+  }, [
+    pendingProofs,
+    rowVisibilityRevision,
+    accounts.accounts,
+    accounts.orderVersions,
+    accounts.loading,
+    accounts.error,
+    periodAccounts,
+    proofView,
+    finance.snapshot,
+    finance.reportRange,
+    finance.reports.snapshot,
+    finance.reports.loading,
+    finance.reports.error,
+    finance.loading,
+    finance.error,
+    visible,
+    collapsed
+  ]);
+
   const stickyHeader = useRef<HTMLDivElement>(null);
   const startCreate = () => requestEditor({ kind: 'create' });
   /** Abandoning the name row hands focus back to the button that opened it. */
@@ -373,7 +844,7 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
 
   const listEmpty = !accounts.loading && !accounts.error && accounts.accounts.length === 0;
   const creating = editor?.kind === 'create';
-  const showToolbar = !listEmpty && (Boolean(client) || view === 'accounts');
+  const showToolbar = !listEmpty;
   const hasStickyHeader = !client || showToolbar;
   // The captions and the finance header stick below the tabs and the toolbar,
   // whose height changes as the toolbar wraps.
@@ -400,7 +871,11 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
   return (
     <section
       ref={panel}
-      className="team-panel team-account-space"
+      className={`team-panel team-account-space${client ? '' : ' is-unified'}`}
+      data-account-total-rows={periodAccounts.reduce(
+        (total, social) => total + social.agents.length,
+        0
+      )}
       aria-labelledby="team-accounts-title"
     >
       <div className="team-panel-heading team-account-space-heading">
@@ -411,40 +886,54 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
         </div>
         {/* While the list is empty the empty state carries this same invitation;
             two primaries for one act is one too many (024, FR-092). */}
-        {canEdit && !listEmpty && (client || view === 'accounts') && (
-          <Button type="button" variant="primary" data-account-create="true" onClick={startCreate}>
-            <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t('teamAccountsCreate')}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!client && (
+            <>
+              <IconButton
+                ref={menuAnchor}
+                label={t('accountsMenu')}
+                onClick={() => setMenuOpen(value => !value)}
+              >
+                <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+              </IconButton>
+              <DropdownMenu
+                label={t('accountsMenu')}
+                open={menuOpen}
+                anchor={menuAnchor}
+                onClose={() => setMenuOpen(false)}
+                items={[
+                  {
+                    id: 'archive',
+                    label: t('accountsArchiveTitle'),
+                    icon: <Archive size={ICON_SIZE} />,
+                    onSelect: () => {
+                      setMenuOpen(false);
+                      setArchiveOpen(true);
+                    }
+                  }
+                ]}
+              />
+            </>
+          )}
+          {canEdit && !listEmpty && (
+            <Button
+              type="button"
+              variant="primary"
+              data-account-create="true"
+              onClick={startCreate}
+            >
+              <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('teamAccountsCreate')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* The tabs, the search and the filters stay on screen while the list
           scrolls under them; the column captions stick just below (measured). */}
       {(!client || showToolbar) && (
         <div ref={stickyHeader} className="team-accounts-sticky">
-          {!client && (
-            <div className="flex flex-wrap gap-2" role="group" aria-label={t('financeView')}>
-              <Button
-                size="sm"
-                variant="soft"
-                aria-pressed={view === 'accounts'}
-                color={view === 'accounts' ? 'secondary' : 'neutral'}
-                onClick={() => setView('accounts')}
-              >
-                {t('financeAccountsView')}
-              </Button>
-              <Button
-                size="sm"
-                variant="soft"
-                aria-pressed={view === 'finance'}
-                color={view === 'finance' ? 'secondary' : 'neutral'}
-                onClick={() => setView('finance')}
-              >
-                {t('financeTitle')}
-              </Button>
-            </div>
-          )}
+          <UnifiedFinanceToolbar />
           {/* The search and the occupancy filter share one row, as the task filters
             do. The pills are the task filter's pills — same class, so the two
             toolbars cannot drift — with a count on each. */}
@@ -544,207 +1033,414 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
           )}
         </div>
       )}
-      {!client && (
-        <div className={view === 'finance' ? 'contents' : 'hidden'}>
-          <FinanceWorkspace
-            key={teamId}
-            teamId={teamId}
-            canEdit={canEdit}
-            revision={revision}
-            agents={accounts.accounts.flatMap(account => account.agents)}
-            labels={agentLabels.labels}
-            onToggleLabel={(agent, labelId, next) =>
-              (next
-                ? accounts.attachLabel(agent, labelId)
-                : accounts.detachLabel(agent, labelId)
-              ).then(() => undefined)
-            }
-          />
-        </div>
-      )}
-      <div className={!client && view === 'finance' ? 'hidden' : 'contents'}>
-        {accounts.loading && accounts.accounts.length === 0 && (
-          <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
-        )}
-        {accounts.error && (
-          <ErrorState
-            message={t('teamAccountsLoadFailed')}
-            onRetry={() => void accounts.refetch()}
-            retryLabel={t('retry')}
-          />
-        )}
+      <AccountReorderProvider
+        onReorder={reorder}
+        disabled={!canEdit || Boolean(client) || archiveBusy}
+        signature={JSON.stringify([
+          accounts.orderVersions,
+          visible.map(social => [
+            social.id,
+            social.archivedAt,
+            social.agents.map(agent => [agent.id, agent.archivedAt])
+          ])
+        ])}
+        items={visible.flatMap((social, index) => [
+          { kind: 'social' as const, id: social.id, parent: null, label: social.name, index },
+          ...social.agents.map((agent, agentIndex) => ({
+            kind: 'agent' as const,
+            id: agent.id,
+            parent: social.id,
+            label: agent.agentId,
+            index: agentIndex
+          }))
+        ])}
+      >
+        <div className="contents">
+          {accounts.loading && accounts.accounts.length === 0 && (
+            <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />
+          )}
+          {accounts.error && (
+            <ErrorState
+              message={t('teamAccountsLoadFailed')}
+              onRetry={() => void accounts.refetch()}
+              retryLabel={t('retry')}
+            />
+          )}
 
-        {(creating || accounts.accounts.length > 0) && (
-          <div className="team-accounts-table">
-            {/* Printed once, above every account, and left where it is while the
+          {!client && accounts.launchCoverage === 'partial' && (
+            <p className="text-label text-ink-muted">{t('accountsLaunchPartial')}</p>
+          )}
+          {(creating || accounts.accounts.length > 0) && (
+            <div className="team-accounts-table">
+              {/* Printed once, above every account, and left where it is while the
               list scrolls under it. Not hidden from a screen reader either:
               read once at the top it is orientation, which is what it was
               never able to be when every account repeated it. */}
-            <div className="team-accounts-columns">
-              <span />
-              <span>{t('teamAccountColumnAgent')}</span>
-              <span>{t('teamAccountColumnStatus')}</span>
-              <span>{t('teamAccountColumnRun')}</span>
-              {/* Named for a screen reader only; the row's buttons speak for
+              <div className="team-accounts-columns">
+                <span />
+                <span>{t('teamAccountColumnAgent')}</span>
+                <span>{t('teamAccountColumnStatus')}</span>
+                <span>{t('teamAccountColumnRun')}</span>
+                {!client && (
+                  <div className="unified-finance-headings">
+                    <span>{t('financeBalance')}</span>
+                    <span>{t('financeTopup')}</span>
+                    <span>{t('financeSpend')}</span>
+                  </div>
+                )}
+                {/* Named for a screen reader only; the row's buttons speak for
                 themselves, as they do in Airtable and Linear lists. */}
-              <span>
-                <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
-              </span>
-            </div>
-            <div className="team-accounts-list" id="team-accounts-list">
-              {creating && (
-                <section className="team-account is-new" aria-label={t('teamAccountsCreate')}>
-                  <AccountNameRow
-                    hold={hold}
-                    onDirtyChange={onDirtyChange}
-                    onCancel={cancelCreate}
-                    onSave={async (name, seed) => {
-                      const created = await accounts.createAccount(name);
-                      // The account exists from here on: a refused key is said,
-                      // not allowed to strand the editor on a name already taken.
-                      if (seed) {
-                        try {
-                          await accounts.setAccountTwoFactor(created.id, seed);
-                        } catch (cause) {
-                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                <span>
+                  <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
+                </span>
+              </div>
+              <div className="team-accounts-list" id="team-accounts-list">
+                {creating && (
+                  <section className="team-account is-new" aria-label={t('teamAccountsCreate')}>
+                    <AccountNameRow
+                      hold={hold}
+                      onDirtyChange={onDirtyChange}
+                      onCancel={cancelCreate}
+                      onSave={async (name, seed) => {
+                        const created = await accounts.createAccount(
+                          name,
+                          client ? undefined : finance.date
+                        );
+                        if (!client) {
+                          finance.refresh();
+                          if (finance.reportRange) finance.reports.refresh();
                         }
+                        // The account exists from here on: a refused key is said,
+                        // not allowed to strand the editor on a name already taken.
+                        if (seed) {
+                          try {
+                            await accounts.setAccountTwoFactor(created.id, seed);
+                          } catch (cause) {
+                            push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                          }
+                        }
+                        // The next thing after naming an account is putting an agent
+                        // in it, so the agent editor opens without another press.
+                        setEditor({
+                          kind: 'account',
+                          accountId: created.id,
+                          state: { kind: 'add' }
+                        });
+                        setAccountCollapsed(created.id, false);
+                      }}
+                    />
+                  </section>
+                )}
+                {visible.map((account, accountIndex) => (
+                  <AccountGroup
+                    key={account.id}
+                    index={accountIndex}
+                    deferRows={deferAccountRows}
+                    onRowsVisible={onRowsVisible}
+                    reorderEnabled={!client && !archiveBusy}
+                    colorOf={preferences.color}
+                    onCycleColor={client ? undefined : preferences.cycle}
+                    rowLaunches={agent => (
+                      <>
+                        {accounts.launchSummaries
+                          .filter(launch => launch.agentRowId === agent.id)
+                          .map(launch => (
+                            <a
+                              className="account-linked-launch"
+                              key={launch.id}
+                              href={buildTeamRoute({
+                                spaceId: teamId,
+                                section: 'launches',
+                                query: { launchId: launch.id }
+                              })}
+                              onClick={event =>
+                                internalLink(
+                                  event,
+                                  buildTeamRoute({
+                                    spaceId: teamId,
+                                    section: 'launches',
+                                    query: { launchId: launch.id }
+                                  })
+                                )
+                              }
+                            >
+                              {launch.creativeAlias || t('launchesTitle')} ·{' '}
+                              {launch.launchDate ?? launch.workStatus}
+                            </a>
+                          ))}
+                      </>
+                    )}
+                    onHistory={client ? undefined : agent => finance.setHistory(agent.id)}
+                    rowFinance={
+                      client
+                        ? undefined
+                        : agent => (
+                            <UnifiedAgentFinanceFields
+                              agentRowId={agent.id}
+                              accountId={agent.accountId}
+                              contextLabel={`${account.name} · ${agent.agentId}`}
+                            />
+                          )
+                    }
+                    onArchive={
+                      client || account.archivedAt
+                        ? undefined
+                        : agent => {
+                            if (dirty.current) {
+                              setHold(true);
+                              return;
+                            }
+                            setArchiveError('');
+                            setArchiveTarget(
+                              agent
+                                ? {
+                                    kind: 'agent',
+                                    id: agent.id,
+                                    name: teamAgentLabel(account.name, agent.agentId),
+                                    agents: [agent.id]
+                                  }
+                                : {
+                                    kind: 'social',
+                                    id: account.id,
+                                    name: account.name,
+                                    agents: account.agents.map(item => item.id)
+                                  }
+                            );
+                          }
+                    }
+                    teamId={teamId}
+                    account={periodAccounts.find(item => item.id === account.id) ?? account}
+                    visibleAgents={account.agents}
+                    canEdit={canEdit && !account.archivedAt}
+                    collapsed={collapsed.has(account.id)}
+                    onCollapsedChange={value => setAccountCollapsed(account.id, value)}
+                    editing={
+                      editingAccountId === account.id && editor?.kind === 'account'
+                        ? editor.state
+                        : null
+                    }
+                    hold={hold && editingAccountId === account.id}
+                    pendingAgentIds={pendingAgentIds}
+                    search={search}
+                    onDirtyChange={onDirtyChange}
+                    onEditingChange={state =>
+                      requestEditor(
+                        state ? { kind: 'account', accountId: account.id, state } : null
+                      )
+                    }
+                    onRename={name =>
+                      accounts.renameAccount(account.id, name).then(() => undefined)
+                    }
+                    onSetTwoFactor={seed => accounts.setAccountTwoFactor(account.id, seed)}
+                    onDelete={async () => {
+                      await accounts.deleteAccount(account.id);
+                      // The section is gone with its buttons; the dialog has nowhere
+                      // to return focus to, so it goes to the one control that is
+                      // always there.
+                      window.requestAnimationFrame(() =>
+                        panel.current?.querySelector<HTMLElement>('[data-account-create]')?.focus()
+                      );
+                    }}
+                    onAddAgent={async value => {
+                      const created = await accounts.addAgent(
+                        account.id,
+                        value.agentId,
+                        value.note,
+                        client ? value.timezone : finance.timezone,
+                        client ? undefined : finance.date
+                      );
+                      if (!client) {
+                        finance.refresh();
+                        if (finance.reportRange) finance.reports.refresh();
                       }
-                      // The next thing after naming an account is putting an agent
-                      // in it, so the agent editor opens without another press.
-                      setEditor({ kind: 'account', accountId: created.id, state: { kind: 'add' } });
-                      setAccountCollapsed(created.id, false);
+                      push({
+                        tone: 'success',
+                        text: t('teamAccountsToastAgentAdded', {
+                          tag: teamAgentLabel(account.name, created.agentId)
+                        })
+                      });
+                    }}
+                    onUpdateAgent={(agent, agentId) =>
+                      accounts.updateAgent(agent, agentId).then(() => undefined)
+                    }
+                    onAddRun={(agent, note) => accounts.addRun(agent, note).then(() => undefined)}
+                    onUpdateRun={(_agent, runId, note) =>
+                      accounts.updateRun(runId, note).then(() => undefined)
+                    }
+                    onDeleteRun={deleteRun}
+                    onSetRunMarker={(_agent, item, value) =>
+                      accounts.setRunMarker(item.id, value).then(() => undefined)
+                    }
+                    agentLabels={agentLabels.labels}
+                    onToggleLabel={(agent, labelId, next) =>
+                      (next
+                        ? accounts.attachLabel(agent, labelId)
+                        : accounts.detachLabel(agent, labelId)
+                      ).then(() => undefined)
+                    }
+                    onRelease={release}
+                    onMoveAgent={
+                      canEdit && accounts.accounts.length > 1
+                        ? agent => setMoving(agent.id)
+                        : undefined
+                    }
+                    onDeleteAgent={async agent => {
+                      await accounts.deleteAgent(agent);
+                      push({ tone: 'success', text: t('teamAccountsToastAgentDeleted') });
+                      /*
+                       * The row is gone and the dialog went with it, so the dialog's own
+                       * focus return points at a button that has left the document —
+                       * and `focus()` on a detached element is nothing at all. The focus
+                       * is handed on here instead, the way deleting an account hands it
+                       * back: to the account the agent was in, which is still on screen.
+                       */
+                      window.requestAnimationFrame(() => {
+                        const inGroup = panel.current?.querySelector<HTMLElement>(
+                          `[data-account-id="${agent.accountId}"] .team-account-add-agent`
+                        );
+                        (
+                          inGroup ??
+                          panel.current?.querySelector<HTMLElement>('[data-account-create]')
+                        )?.focus();
+                      });
                     }}
                   />
-                </section>
-              )}
-              {visible.map(account => (
-                <AccountGroup
-                  key={account.id}
-                  teamId={teamId}
-                  account={accounts.accounts.find(item => item.id === account.id) ?? account}
-                  visibleAgents={account.agents}
-                  canEdit={canEdit}
-                  collapsed={collapsed.has(account.id)}
-                  onCollapsedChange={value => setAccountCollapsed(account.id, value)}
-                  editing={
-                    editingAccountId === account.id && editor?.kind === 'account'
-                      ? editor.state
-                      : null
-                  }
-                  hold={hold && editingAccountId === account.id}
-                  pendingAgentIds={pendingAgentIds}
-                  search={search}
-                  onDirtyChange={onDirtyChange}
-                  onEditingChange={state =>
-                    requestEditor(state ? { kind: 'account', accountId: account.id, state } : null)
-                  }
-                  onRename={name => accounts.renameAccount(account.id, name).then(() => undefined)}
-                  onSetTwoFactor={seed => accounts.setAccountTwoFactor(account.id, seed)}
-                  onDelete={async () => {
-                    await accounts.deleteAccount(account.id);
-                    // The section is gone with its buttons; the dialog has nowhere
-                    // to return focus to, so it goes to the one control that is
-                    // always there.
-                    window.requestAnimationFrame(() =>
-                      panel.current?.querySelector<HTMLElement>('[data-account-create]')?.focus()
-                    );
-                  }}
-                  onAddAgent={async value => {
-                    const created = await accounts.addAgent(
-                      account.id,
-                      value.agentId,
-                      value.note,
-                      value.timezone
-                    );
-                    push({
-                      tone: 'success',
-                      text: t('teamAccountsToastAgentAdded', {
-                        tag: teamAgentLabel(account.name, created.agentId)
-                      })
-                    });
-                  }}
-                  onUpdateAgent={(agent, agentId) =>
-                    accounts.updateAgent(agent, agentId).then(() => undefined)
-                  }
-                  onAddRun={(agent, note) => accounts.addRun(agent, note).then(() => undefined)}
-                  onUpdateRun={(_agent, runId, note) =>
-                    accounts.updateRun(runId, note).then(() => undefined)
-                  }
-                  onDeleteRun={deleteRun}
-                  onSetRunMarker={(_agent, item, value) =>
-                    accounts.setRunMarker(item.id, value).then(() => undefined)
-                  }
-                  agentLabels={agentLabels.labels}
-                  onToggleLabel={(agent, labelId, next) =>
-                    (next
-                      ? accounts.attachLabel(agent, labelId)
-                      : accounts.detachLabel(agent, labelId)
-                    ).then(() => undefined)
-                  }
-                  onRelease={release}
-                  onMoveAgent={
-                    canEdit && accounts.accounts.length > 1
-                      ? agent => setMoving(agent.id)
-                      : undefined
-                  }
-                  onDeleteAgent={async agent => {
-                    await accounts.deleteAgent(agent);
-                    push({ tone: 'success', text: t('teamAccountsToastAgentDeleted') });
-                    /*
-                     * The row is gone and the dialog went with it, so the dialog's own
-                     * focus return points at a button that has left the document —
-                     * and `focus()` on a detached element is nothing at all. The focus
-                     * is handed on here instead, the way deleting an account hands it
-                     * back: to the account the agent was in, which is still on screen.
-                     */
-                    window.requestAnimationFrame(() => {
-                      const inGroup = panel.current?.querySelector<HTMLElement>(
-                        `[data-account-id="${agent.accountId}"] .team-account-add-agent`
-                      );
-                      (
-                        inGroup ??
-                        panel.current?.querySelector<HTMLElement>('[data-account-create]')
-                      )?.focus();
-                    });
-                  }}
-                />
-              ))}
-              {/* Three distinguishable answers: nothing matches the search, nothing
+                ))}
+                {/* Three distinguishable answers: nothing matches the search, nothing
               is free, nothing is running. Each names the filter in force. */}
-              {!creating && visible.length === 0 && accounts.accounts.length > 0 && (
-                <p className="team-accounts-notice">
-                  {search.trim() !== ''
-                    ? t('teamAccountsEmptySearch', { query: search.trim() })
-                    : occupancy === 'free'
-                      ? t('teamAccountsEmptyFree')
-                      : t('teamAccountsEmptyBusy')}
-                </p>
-              )}
+                {!creating && visible.length === 0 && accounts.accounts.length > 0 && (
+                  <p className="team-accounts-notice">
+                    {search.trim() !== ''
+                      ? t('teamAccountsEmptySearch', { query: search.trim() })
+                      : occupancy === 'free'
+                        ? t('teamAccountsEmptyFree')
+                        : t('teamAccountsEmptyBusy')}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {listEmpty && !creating && (
-          <Empty
-            className="team-accounts-empty"
-            icon={<UserRound size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-            title={t('teamAccountsEmpty')}
-            description={t('teamAccountsEmptyBody')}
-            action={
-              canEdit && (
+          {accounts.launchSummaries.some(launch => launch.unmatchedReason) && (
+            <section className="account-unmatched-launches">
+              <h3>{t('accountsUnmatchedLaunches')}</h3>
+              {accounts.launchSummaries
+                .filter(launch => launch.unmatchedReason)
+                .map(launch => (
+                  <a
+                    key={launch.id}
+                    className="account-linked-launch"
+                    href={buildTeamRoute({
+                      spaceId: teamId,
+                      section: 'launches',
+                      query: { launchId: launch.id }
+                    })}
+                    onClick={event =>
+                      internalLink(
+                        event,
+                        buildTeamRoute({
+                          spaceId: teamId,
+                          section: 'launches',
+                          query: { launchId: launch.id }
+                        })
+                      )
+                    }
+                  >
+                    {launch.creativeAlias || t('launchesTitle')} · {t('accountsHistorical')}
+                  </a>
+                ))}
+            </section>
+          )}
+          {listEmpty && !creating && (
+            <Empty
+              className="team-accounts-empty"
+              icon={<UserRound size={26} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+              title={t('teamAccountsEmpty')}
+              description={t('teamAccountsEmptyBody')}
+              action={
+                canEdit && (
+                  <Button
+                    type="button"
+                    color="primary"
+                    leading={<Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+                    onClick={startCreate}
+                  >
+                    {t('teamAccountsCreate')}
+                  </Button>
+                )
+              }
+            />
+          )}
+        </div>
+      </AccountReorderProvider>
+      {archiveOpen && (
+        <AccountArchiveDrawer
+          teamId={teamId}
+          canEdit={canEdit}
+          onClose={() => setArchiveOpen(false)}
+          onRestore={async () => {
+            await accounts.refetch();
+            finance.refresh();
+          }}
+        />
+      )}
+      {archiveTarget && (
+        <Modal
+          open
+          title={t('accountsArchiveAction', { name: archiveTarget.name })}
+          busy={archiveBusy}
+          onClose={() => {
+            if (!archiveBusy) setArchiveTarget(null);
+          }}
+          footer={
+            <>
+              <Button disabled={archiveBusy} onClick={() => setArchiveTarget(null)}>
+                {t('financeCancel')}
+              </Button>
+              {finance.getAffectedDrafts(archiveTarget.agents).length > 0 ? (
+                <>
+                  <Button
+                    color="error"
+                    variant="ghost"
+                    disabled={archiveBusy}
+                    onClick={() => void doArchive(false)}
+                  >
+                    {t('accountsDiscardArchive')}
+                  </Button>
+                  <Button
+                    color="success"
+                    loading={archiveBusy}
+                    onClick={() => void doArchive(true)}
+                  >
+                    {t('accountsSaveArchive')}
+                  </Button>
+                </>
+              ) : (
                 <Button
-                  type="button"
-                  color="primary"
-                  leading={<Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-                  onClick={startCreate}
+                  color="secondary"
+                  loading={archiveBusy}
+                  onClick={() => void doArchive(true)}
                 >
-                  {t('teamAccountsCreate')}
+                  {t('accountsArchive')}
                 </Button>
-              )
-            }
-          />
-        )}
-      </div>
+              )}
+            </>
+          }
+        >
+          <p>
+            {t(
+              finance.getAffectedDrafts(archiveTarget.agents).length > 0
+                ? 'accountsDraftArchive'
+                : 'accountsArchiveBody'
+            )}
+          </p>
+          {archiveError && (
+            <p className="field-error" role="alert">
+              {archiveError}
+            </p>
+          )}
+        </Modal>
+      )}
       {moving && (
         <MoveAgentDialog
           snapshot={moveSnapshot}
