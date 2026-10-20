@@ -1,10 +1,29 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, renameSync } from 'node:fs';
 
-// Only a running local stack can provide the schema; never fall back to --linked.
+// Only a running local stack or an explicitly isolated loopback test database.
+// Never fall back to a linked/hosted project.
+const isolatedUrl = process.env.SOTY_ISOLATED_DB_TYPES_URL;
+if (isolatedUrl) {
+  const url = new URL(isolatedUrl);
+  if (
+    !['postgres:', 'postgresql:'].includes(url.protocol) ||
+    !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
+    !/^\/soty_tariff_test_[a-f0-9]{32}$/u.test(url.pathname)
+  )
+    throw new Error('ISOLATED_LOCAL_DATABASE_REQUIRED');
+}
 const generated = execFileSync(
   'npx',
-  ['supabase', 'gen', 'types', 'typescript', '--local', '--schema', 'public'],
+  [
+    'supabase',
+    'gen',
+    'types',
+    'typescript',
+    ...(isolatedUrl ? ['--db-url', isolatedUrl] : ['--local']),
+    '--schema',
+    'public'
+  ],
   { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }
 );
 if (!generated.includes('export type Database =')) throw new Error('INVALID_DATABASE_TYPES');

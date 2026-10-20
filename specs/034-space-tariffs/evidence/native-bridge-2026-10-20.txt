@@ -1,0 +1,9 @@
+
+ RUN  v3.2.7 /Users/daynero/RiderProjects/AffSupport
+
+ ✓ |unit| tests/team-recovery-worker.test.ts (10 tests) 100ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  23:03:37
+   Duration  878ms (transform 322ms, setup 93ms, collect 449ms, tests 100ms, environment 0ms, prepare 41ms)

@@ -1,83 +1,121 @@
 import { useState } from 'react';
-import { PauseCircle } from 'lucide-react';
 import { spaceTariffApi } from '../../api/team';
-import { useToasts } from '../../components/toast';
+import { RefreshCw } from 'lucide-react';
+import type { RecoveryReason } from '@video-compressor/shared';
 import { Alert, Button } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { useI18n } from '../../i18n';
-import { teamErrorMessageFor } from '../errors';
+import { useI18n, type TranslationKey } from '../../i18n';
+import { navigateTo } from '../../lib/navigation';
 import { useTeam } from '../TeamContext';
+import { buildTeamRoute } from '../routes';
 import { useOptionalSpaceAccess } from './useSpaceAccess';
 
-/**
- * The catalog updater stayed off after the pause (034, US6.6, R7).
- *
- * A renewal opens the space, but it does not switch the updater back on by
- * itself: catalogs that had been updating hourly would otherwise all fire at
- * once in the first minute. Each catalog kept its interval; one press puts them
- * all back, with the first update straight away.
- *
- * For whoever may run the updater, and for nobody else — a line a person
- * cannot act on is not theirs to read.
- */
+const REASON_TEXT: Record<RecoveryReason, TranslationKey> = {
+  waiting_agent: 'tariffRecoveryAgent',
+  waiting_drive: 'tariffRecoveryDrive',
+  needs_agent_setup: 'tariffRecoverySetup',
+  permission_revoked: 'tariffRecoveryPermissions',
+  manually_disabled: 'tariffRecoveryManual',
+  user_cancelled: 'tariffRecoveryCancelled',
+  source_changed: 'tariffRecoverySource',
+  source_missing: 'tariffRecoverySource',
+  checkpoint_unavailable: 'tariffRecoveryCheckpoint',
+  queue_registration_failed: 'tariffRecoveryQueue',
+  retry_exhausted: 'tariffRecoveryRetry',
+  superseded: 'tariffRecoverySuperseded',
+  unknown: 'tariffRecoveryUnknown'
+};
+
+/** Server recovery projection; queued work never produces a completed toast. */
 export function UpdaterResumeNotice({
   teamId,
-  onResumed,
-  resume = id => spaceTariffApi.resumeCatalogUpdater(id),
   compact = false
 }: {
   teamId: string;
+  /** Compatibility props retained for older callers; normal recovery is server-owned. */
   onResumed?: () => void;
   resume?: (teamId: string) => Promise<boolean>;
-  /** Inside the updater's own panel: the same line, quieter. */
   compact?: boolean;
 }) {
   const { t } = useI18n();
-  const { push } = useToasts();
+  const [retrying, setRetrying] = useState(false);
+  const [retryFailed, setRetryFailed] = useState(false);
   const { can } = useTeam();
-  const spaceAccess = useOptionalSpaceAccess();
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  const paused =
-    spaceAccess?.access?.teams.find(team => team.teamId === teamId)?.tariff
-      .updaterPausedByTariff === true;
-
-  if (!paused || done || !can('process')) return null;
-
-  const turnOn = async () => {
-    setBusy(true);
+  const access = useOptionalSpaceAccess();
+  const tariff = access?.access?.teams.find(team => team.teamId === teamId)?.tariff;
+  const recovery = tariff?.recovery;
+  if (
+    !can('process') ||
+    (!recovery && !tariff?.updaterPausedByTariff) ||
+    recovery?.state === 'superseded'
+  )
+    return null;
+  const title = !recovery
+    ? 'tariffRecoveryUnknown'
+    : recovery.state === 'completed'
+      ? recovery.counts.skipped > 0
+        ? 'tariffRecoverySettled'
+        : 'tariffRecoveryComplete'
+      : recovery.state === 'partial' || recovery.state === 'waiting_dependency'
+        ? 'tariffRecoveryPartial'
+        : 'tariffRecoveryRunning';
+  const manageable =
+    recovery?.canManageRecovery &&
+    recovery.reasons.some(reason => reason.action === 'agent' || reason.action === 'drive');
+  const retryable =
+    recovery?.canManageRecovery && recovery.reasons.some(reason => reason.action === 'retry');
+  const retry = async () => {
+    if (!recovery || retrying) return;
+    setRetrying(true);
+    setRetryFailed(false);
     try {
-      await resume(teamId);
-      setDone(true);
-      push({ tone: 'success', text: t('tariffUpdaterResumed') });
-      onResumed?.();
-      spaceAccess?.recheck();
-    } catch (cause) {
-      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      if (!(await spaceTariffApi.retryRecovery(recovery.id))) throw new Error('INVALID_RESPONSE');
+      access?.recheck();
+    } catch {
+      setRetryFailed(true);
     } finally {
-      setBusy(false);
+      setRetrying(false);
     }
   };
-
   return (
     <Alert
       className={compact ? 'tariff-updater-notice is-compact' : 'tariff-updater-notice'}
       color="info"
       variant={compact ? 'subtle' : 'soft'}
-      icon={<PauseCircle size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+      icon={<RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
       action={
-        <Button
-          size="sm"
-          color="primary"
-          variant="soft"
-          loading={busy}
-          onClick={() => void turnOn()}
-        >
-          {t('tariffUpdaterResume')}
-        </Button>
+        manageable ? (
+          <Button
+            size="sm"
+            variant="soft"
+            onClick={() =>
+              navigateTo(
+                buildTeamRoute({ spaceId: teamId, section: 'explorer', query: { settings: true } })
+              )
+            }
+          >
+            {t('tariffRecoverySettings')}
+          </Button>
+        ) : retryable ? (
+          <Button size="sm" variant="soft" loading={retrying} onClick={() => void retry()}>
+            {t('tryAgain')}
+          </Button>
+        ) : undefined
       }
     >
-      {t('tariffUpdaterPaused')}
+      <span>{t(title)}</span>
+      {retryFailed && (
+        <span role="alert">
+          <br />
+          {t('tariffRecoveryQueue')}
+        </span>
+      )}
+      {recovery?.reasons.map(reason => (
+        <span key={reason.code}>
+          <br />
+          {t(REASON_TEXT[reason.code])}
+        </span>
+      ))}
     </Alert>
   );
 }

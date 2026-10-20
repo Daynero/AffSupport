@@ -137,6 +137,8 @@ export interface CatalogUpdaterDeps {
   unknown(catalogId: string, errorCode: string): Promise<boolean>;
   markNeedsReauth(credentialId: string): Promise<void>;
   claimRetired(limit: number): Promise<unknown[]>;
+  /** Recheck authority immediately before a destructive provider request. */
+  authorizeCleanup(materialId: string, kind: 'retired' | 'orphan'): Promise<boolean>;
   /** `deleted` false records one more failed try; the database gives up after five. */
   forgetCopy(materialId: string, deleted: boolean): Promise<boolean>;
   /** What a gone video left behind: its sheet and its text, a day after it went (024, US24). */
@@ -515,6 +517,7 @@ async function clearOrphans(deps: CatalogUpdaterDeps, summary: TickSummary): Pro
     if (!orphan) continue;
     try {
       const drive = await deps.driveFor(orphan.credentialId);
+      if (!(await deps.authorizeCleanup(orphan.materialId, 'orphan'))) continue;
       await drive.updateFileMetadata({ fileId: orphan.driveFileId, trashed: true });
       await deps.clearOrphan(orphan.materialId, true);
       summary.clearedOrphans += 1;
@@ -722,6 +725,7 @@ export async function runCatalogUpdaterTick(
       if (!copy) continue;
       try {
         const drive = await deps.driveFor(copy.credentialId);
+        if (!(await deps.authorizeCleanup(copy.materialId, 'retired'))) continue;
         await drive.deleteFile(copy.driveFileId);
         await deps.forgetCopy(copy.materialId, true);
         summary.deletedCopies += 1;

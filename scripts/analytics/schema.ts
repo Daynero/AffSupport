@@ -25,7 +25,8 @@ const TABLES = [
   'analytics_daily_tool_outcomes',
   'analytics_launch_generations',
   'analytics_catalog_sync_jobs',
-  'analytics_workspace_operations'
+  'analytics_workspace_operations',
+  'analytics_workspace_recovery'
 ] as const;
 
 let cached: { generation: number; schema: Promise<AnalyticsSchema> } | null = null;
@@ -51,6 +52,9 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...(has('table', 'analytics_workspace_recovery')
+        ? { analytics_workspace_recovery: true }
+        : {}),
       agent_journal_records: has('table', 'agent_journal_records'),
       analytics_daily_events: has('table', 'analytics_daily_events'),
       analytics_daily_tool_outcomes: has('table', 'analytics_daily_tool_outcomes'),
@@ -84,7 +88,12 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
     ...EVENT_COLUMNS.filter(column => !schema.events[column]).map(
       column => `analytics_events.${column}`
     ),
-    ...TABLES.filter(table => table !== 'analytics_launch_generations' && !schema.tables[table])
+    ...TABLES.filter(
+      table =>
+        table !== 'analytics_launch_generations' &&
+        table !== 'analytics_workspace_recovery' &&
+        !schema.tables[table]
+    )
   ];
 }
 

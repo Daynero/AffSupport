@@ -1,3 +1,4 @@
+import { useOptionalTeam } from '../TeamContext';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { SpaceAccess } from '@video-compressor/shared';
 import { SPACE_ACCESS_RECHECK_EVENT, fallbackSpaceAccess } from '../../api/team';
@@ -46,12 +47,14 @@ export function useSpaceAccess({
   enabled: boolean;
   poll: boolean;
 }): SpaceAccessState {
+  const team = useOptionalTeam();
   const [access, setAccess] = useState<SpaceAccess | null>(null);
   const [status, setStatus] = useState<SpaceAccessState['status']>(enabled ? 'loading' : 'idle');
   const live = useRef({ client, access });
   live.current = { client, access };
   const inFlight = useRef<Promise<void> | null>(null);
   const lastAsked = useRef(0);
+  const invalidated = useRef(false);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -83,6 +86,10 @@ export function useSpaceAccess({
       setStatus('ready');
     })().finally(() => {
       inFlight.current = null;
+      if (invalidated.current && mounted.current) {
+        invalidated.current = false;
+        void load();
+      }
     });
     inFlight.current = run;
     return run;
@@ -100,6 +107,19 @@ export function useSpaceAccess({
     }
     void load();
   }, [enabled, load]);
+
+  // The existing team Realtime owner invalidates the authoritative recovery projection.
+  // No additional subscription or interval is introduced.
+  const revision = team?.revision;
+  const previousRevision = useRef(revision);
+  useEffect(() => {
+    if (previousRevision.current === revision) return;
+    previousRevision.current = revision;
+    if (enabled && revision !== undefined) {
+      if (inFlight.current) invalidated.current = true;
+      else void load();
+    }
+  }, [enabled, revision, load]);
 
   useEffect(() => {
     if (!enabled || !poll) return;

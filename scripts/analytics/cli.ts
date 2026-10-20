@@ -407,7 +407,7 @@ export async function executeCommand(
     }
     case 'sync': {
       const target = requireArg(args, 0, 'sync <team-id | owner-email>');
-      const data = await getSyncJobs(target, args.limit ?? 50);
+      const data = await getSyncJobs(target, args.limit ?? 50, period.end);
       if (!data) throw new CommandError(`No sync jobs found for "${target}".`);
       if (!syncOutputIsPrivate(data)) {
         throw new CommandError('Sync diagnostics failed their privacy guard.');

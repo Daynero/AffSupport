@@ -26,6 +26,7 @@ export interface AnalyticsSchema {
     analytics_catalog_sync_jobs: boolean;
     analytics_launch_generations?: boolean;
     analytics_workspace_operations?: boolean;
+    analytics_workspace_recovery?: boolean;
   };
 }
 
@@ -233,6 +234,7 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   accounts?: import('./accounts.js').AccountDiagnostic[];
   launches?: import('./launches.js').LaunchEvidenceResult;
   found: true;
@@ -669,6 +671,7 @@ export interface SyncConnection {
 }
 
 export interface SyncData {
+  recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   team_id: string;
   connections: SyncConnection[];
 }
@@ -865,7 +868,8 @@ export interface InvestigateBlindSpot {
     | 'launch_diagnostics_unavailable'
     | 'launch_visibility_unknown'
     | 'launch_settlement_unknown'
-    | 'workspace_evidence_gap';
+    | 'workspace_evidence_gap'
+    | 'tariff_recovery_gap';
   detail: string;
   values: string[];
 }
@@ -887,6 +891,7 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   workspace?: import('./workspace.js').WorkspaceEvidenceResult;
   launches?: import('./launches.js').LaunchEvidenceResult;
   subject: InvestigateSubject;

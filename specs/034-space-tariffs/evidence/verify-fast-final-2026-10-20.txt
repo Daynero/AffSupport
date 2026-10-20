@@ -1,0 +1,22 @@
+
+> local-video-compressor@1.2.6 verify
+> node scripts/verify-all.mjs --form=fast
+
+verify (fast): 14/14 gates passed in 863s
+  ✓ build:shared 2.9s
+  ✓ format 47.6s
+  ✓ lint 42.4s
+  ✓ typecheck:projects 44.5s
+  ✓ typecheck:tests 50.9s
+  ✓ typecheck:scripts 9.3s
+  ✓ design-tokens 0.3s
+  ✓ tailwind-classes 4.7s
+  ✓ styles 0.4s
+  ✓ i18n 0.4s
+  ✓ env-registry 0.3s
+  ✓ csp 0.3s
+  ✓ audit 2.7s
+  ✓ suite 809.4s
+
+  tests 6257, skipped 17
+  coverage not measured

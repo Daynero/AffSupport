@@ -210,7 +210,7 @@ Supabase автоматично надає функції її server-side proje
 Задеплойте всі командні функції:
 
 ```bash
-for fn in team-invitations drive-connect drive-oauth-callback catalog-sync drive-transfer drive-ops library-ops tariff-notices; do
+for fn in team-invitations drive-connect drive-oauth-callback catalog-sync drive-transfer drive-ops library-ops tariff-notices team-recovery; do
   npx supabase functions deploy "$fn" --project-ref YOUR_PROJECT_REF --use-api
 done
 ```

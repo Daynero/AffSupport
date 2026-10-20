@@ -9,6 +9,7 @@ import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamApi, type RestitchClaim } from '../../api/team';
 import { ensureRestitchImages } from '../restitch/images';
+import { backgroundRecoveryStatus, RECOVERY_CHANGED } from '../../api/recovery';
 
 /**
  * This tab as a preparer of the catalog updater's spare copies (023).
@@ -192,8 +193,35 @@ export function useRestitchPreparer(input: {
     }
   });
 
+  const nativeSupported = agent?.capabilities?.includes('team-background-recovery') === true;
+  // Unknown native status must not start a competing browser executor.
+  const [nativeOwner, setNativeOwner] = useState<boolean | null>(null);
   useEffect(() => {
-    if (!enabled) return;
+    if (!nativeSupported) {
+      setNativeOwner(false);
+      return;
+    }
+    let live = true;
+    setNativeOwner(null);
+    const refresh = () => {
+      void backgroundRecoveryStatus(teamId)
+        .then(value => {
+          if (live) setNativeOwner(value.enabled);
+        })
+        .catch(() => {
+          if (live) setNativeOwner(null);
+        });
+    };
+    refresh();
+    window.addEventListener(RECOVERY_CHANGED, refresh);
+    return () => {
+      live = false;
+      window.removeEventListener(RECOVERY_CHANGED, refresh);
+    };
+  }, [teamId, nativeSupported]);
+
+  useEffect(() => {
+    if (!enabled || (nativeSupported && nativeOwner !== false)) return;
     let stopped = false;
     let timer: number | null = null;
     let failures = 0;
@@ -254,7 +282,7 @@ export function useRestitchPreparer(input: {
       if (timer !== null) window.clearTimeout(timer);
       setPreparing(false);
     };
-  }, [enabled, teamId]);
+  }, [enabled, teamId, nativeSupported, nativeOwner]);
 
   return { preparing };
 }

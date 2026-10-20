@@ -1192,6 +1192,23 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     source: 'events'
   },
   {
+    id: 'team.tariff_recovery',
+    tool: 'team',
+    title: 'Team · tariff pause and recovery',
+    stages: ['registered', 'queued', 'claimed', 'started', 'terminal', 'delivered'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    source: 'authoritative_table',
+    producerStatus: 'emitted',
+    unobservable: [
+      'A queued schedule is not a worker start.',
+      'A server terminal without a correlated output observation has unknown user delivery.'
+    ],
+    note: 'Durable pause provenance, actor checks, original attempts and recovery items are read through analytics_workspace_recovery. inspect and investigate expose safe reasons and last proven stages; audit refuses unrelated sync rows as recovery proof.'
+  },
+  {
     id: 'team.tariff',
     tool: 'team',
     title: 'Team · space tariff (showcase → contact → granted)',
@@ -1206,7 +1223,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     platforms: BOTH,
     unobservable: [
       'the conversation with the administrator outside Soty (Telegram, mail)',
-      'payment, which happens outside the product'
+      'payment, which happens outside the product',
+      'Tariff recovery is incomplete: recurring schedules restore server-side, but a restored interval does not prove first worker start, output or browser delivery. One-off checkpoints, background agent delegation and correlated recovery diagnosis remain unverified (034 T033–T038 / 036).'
     ],
     producerStatus: 'emitted',
     source: 'events',

@@ -1,3 +1,5 @@
+import { setQueryExecutor } from '../scripts/analytics/db';
+import { getRecoveryEvidence } from '../scripts/analytics/tariff-recovery';
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
@@ -1017,7 +1019,7 @@ describe('what the web sees (R10)', () => {
 });
 
 describe('background work (R6–R8)', () => {
-  it('pauses the updater of a closed space, skips its claims, and resumes by hand', async () => {
+  it('pauses the updater of a closed space, skips its claims, and resumes without a browser', async () => {
     const owner = await person('updater');
     const { team, tariff } = await tariffSpace(owner);
     const connection = await connect(team);
@@ -1027,7 +1029,17 @@ describe('background work (R6–R8)', () => {
       [sheet]
     ]);
 
+    const choicesBefore = await harness.root(
+      'select event_id from private.catalog_settings_journal where catalog_material_id=$1 order by observed_at,event_id',
+      [sheet]
+    );
     await asAdmin('public.admin_end_space_tariff($1, true)', [tariff]);
+    expect(
+      await harness.root(
+        'select event_id from private.catalog_settings_journal where catalog_material_id=$1 order by observed_at,event_id',
+        [sheet]
+      )
+    ).toEqual(choicesBefore);
     const item = await harness.root<{
       update_interval: string | null;
       paused_interval: string | null;
@@ -1046,7 +1058,7 @@ describe('background work (R6–R8)', () => {
     // Even a due round left behind is not opened or claimed while closed.
     await harness.root(
       `update public.team_catalog_updater_items
-          set update_interval = '1d', next_run_at = now() - interval '1 hour'
+          set round_due_at = now() - interval '1 hour'
         where catalog_material_id = $1`,
       [sheet]
     );
@@ -1055,7 +1067,7 @@ describe('background work (R6–R8)', () => {
       'select round_due_at from public.team_catalog_updater_items where catalog_material_id = $1',
       [sheet]
     );
-    expect(opened[0]!.round_due_at).toBeNull();
+    expect(opened[0]!.round_due_at).not.toBeNull();
     await harness.root(
       `update public.team_catalog_updater_items set round_due_at = now(), next_attempt_at = now()
        where catalog_material_id = $1`,
@@ -1068,7 +1080,7 @@ describe('background work (R6–R8)', () => {
     expect(claimed).toHaveLength(0);
     expect(await harness.root('select private.apply_tariff_pauses(null) as n')).toEqual([{ n: 1 }]);
 
-    // Reopened: one reconciliation, the updater still waits for a person.
+    // Reopened: one reconciliation and automatic recurring schedule restore.
     await asAdmin('public.admin_undo_space_tariff_event($1)', [
       (
         await asAdmin<Array<{ id: string }>>('public.admin_list_space_tariff_events($1)', [tariff])
@@ -1087,7 +1099,7 @@ describe('background work (R6–R8)', () => {
         [team]
       )
     )[0]!.r;
-    expect(tariffView.updaterPausedByTariff).toBe(true);
+    expect(tariffView.updaterPausedByTariff).toBe(false);
 
     expect(
       await harness.asUser(owner.id, 'select public.resume_team_catalog_updater($1) as ok', [team])
@@ -1107,6 +1119,425 @@ describe('background work (R6–R8)', () => {
       [team]
     );
     expect(mark[0]).toEqual({ paused_by_tariff_at: null, state: 'running' });
+    expect(
+      await harness.root(
+        'select event_id from private.catalog_settings_journal where catalog_material_id=$1 order by observed_at,event_id',
+        [sheet]
+      )
+    ).toEqual(choicesBefore);
+  });
+
+  it('captures expiry before the pause cron and renews only recurring enabled catalogs', async () => {
+    const owner = await person('expiry-recovery');
+    const { team, tariff } = await tariffSpace(owner);
+    const connection = await connect(team);
+    const daily = await catalog(team, connection, owner.id);
+    const weekly = await catalog(team, connection, owner.id);
+    const disabled = await catalog(team, connection, owner.id);
+    for (const [id, cadence] of [
+      [daily, '1d'],
+      [weekly, '1w'],
+      [disabled, '1h']
+    ]) {
+      await harness.asUser(owner.id, 'select public.set_team_catalog_update_interval($1,$2,$3)', [
+        team,
+        [id],
+        cadence
+      ]);
+    }
+    await harness.asUser(owner.id, 'select public.set_team_catalog_update_interval($1,$2,null)', [
+      team,
+      [disabled]
+    ]);
+    const schedule = { timeZone: 'Europe/Kyiv', weekday: 7, time: '09:30' };
+    await harness.root(
+      'update public.team_catalog_update_profiles set schedule=$2::jsonb where catalog_material_id=$1',
+      [weekly, JSON.stringify(schedule)]
+    );
+    const profiles = await harness.root(
+      'select catalog_material_id,version,schedule,restitch from public.team_catalog_update_profiles where team_id=$1 order by catalog_material_id',
+      [team]
+    );
+    // Root-only fixture clock: no admin transition/pause sweep has run yet.
+    await setTariff(tariff, 'ends_on = private.kyiv_today() - 10');
+    expect(await allowed(team)).toBe(false);
+    await asAdmin('public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    const restored = await harness.root<{
+      catalog_material_id: string;
+      update_interval: string;
+      paused_interval: null;
+      due: boolean;
+    }>(
+      `select catalog_material_id,update_interval,paused_interval,next_run_at <= clock_timestamp() as due
+       from public.team_catalog_updater_items where team_id=$1 order by catalog_material_id`,
+      [team]
+    );
+    expect(restored).toHaveLength(2);
+    expect(restored.find(row => row.catalog_material_id === daily)).toMatchObject({
+      update_interval: '1d',
+      paused_interval: null,
+      due: true
+    });
+    expect(restored.find(row => row.catalog_material_id === weekly)).toMatchObject({
+      update_interval: '1w',
+      paused_interval: null,
+      due: true
+    });
+    expect(
+      await harness.root(
+        'select catalog_material_id,version,schedule,restitch from public.team_catalog_update_profiles where team_id=$1 order by catalog_material_id',
+        [team]
+      )
+    ).toEqual(profiles);
+    await harness.root('select public.service_open_catalog_updater_rounds()');
+    const first = await harness.root(
+      'select catalog_material_id,round_due_at,next_run_at from public.team_catalog_updater_items where team_id=$1 order by catalog_material_id',
+      [team]
+    );
+    expect(first.every(row => row.round_due_at !== null)).toBe(true);
+    await asAdmin('public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    await harness.asUser(owner.id, 'select public.resume_team_catalog_updater($1)', [team]);
+    await harness.root('select public.service_open_catalog_updater_rounds()');
+    expect(
+      await harness.root(
+        'select catalog_material_id,round_due_at,next_run_at from public.team_catalog_updater_items where team_id=$1 order by catalog_material_id',
+        [team]
+      )
+    ).toEqual(first);
+    const calendar = await harness.root<{ civil: string }>(
+      "select to_char(next_run_at at time zone 'Europe/Kyiv','ID HH24:MI') as civil from public.team_catalog_updater_items where catalog_material_id=$1",
+      [weekly]
+    );
+    expect(calendar[0]!.civil).toBe('7 09:30');
+  });
+
+  it('does not let a late pause sweep stop a renewed tariff or resurrect a later manual stop', async () => {
+    const owner = await person('late-pause');
+    const { team, tariff } = await tariffSpace(owner);
+    const connection = await connect(team);
+    const sheet = await catalog(team, connection, owner.id);
+    await harness.asUser(owner.id, "select public.set_team_catalog_update_interval($1,$2,'1d')", [
+      team,
+      [sheet]
+    ]);
+    await asAdmin('public.admin_end_space_tariff($1,true)', [tariff]);
+    await asAdmin('public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    expect(await harness.root('select private.apply_tariff_pauses($1) as n', [team])).toEqual([
+      { n: 0 }
+    ]);
+    await harness.asUser(owner.id, 'select public.stop_team_catalog_updater($1)', [team]);
+    await harness.asUser(owner.id, 'select public.resume_team_catalog_updater($1)', [team]);
+    expect(
+      await harness.root(
+        'select catalog_material_id from public.team_catalog_updater_items where team_id=$1',
+        [team]
+      )
+    ).toEqual([]);
+  });
+
+  it('keeps a one-off attempt durable through pause and resumes the same round without a schedule', async () => {
+    const owner = await person('oneoff-durable');
+    const { team, tariff } = await tariffSpace(owner);
+    const connection = await connect(team);
+    const sheet = await catalog(team, connection, owner.id);
+    await harness.asUser(owner.id, 'select public.run_team_catalog_update_now($1,$2)', [
+      team,
+      [sheet]
+    ]);
+    const before = await harness.root(
+      'select attempt_id,round_due_at,result from public.team_catalog_update_attempts where catalog_material_id=$1',
+      [sheet]
+    );
+    await asAdmin('public.admin_end_space_tariff($1,true)', [tariff]);
+    expect(
+      await harness.root(
+        'select attempt_id,round_due_at,result from public.team_catalog_update_attempts where catalog_material_id=$1',
+        [sheet]
+      )
+    ).toEqual(before);
+    const snapshot = await harness.root(
+      'select id,resource_id,kind,round_due_at from private.workspace_pause_items where team_id=$1 order by id',
+      [team]
+    );
+    expect(snapshot.some(row => row.kind === 'catalog_round' && row.resource_id === sheet)).toBe(
+      true
+    );
+    await harness.root('select private.apply_tariff_pauses($1)', [team]);
+    expect(
+      await harness.root(
+        'select id,resource_id,kind,round_due_at from private.workspace_pause_items where team_id=$1 order by id',
+        [team]
+      )
+    ).toEqual(snapshot);
+    await asAdmin('public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    expect(
+      await harness.root(
+        'select attempt_id,round_due_at,result from public.team_catalog_update_attempts where catalog_material_id=$1',
+        [sheet]
+      )
+    ).toEqual(before);
+    const current = await harness.root(
+      'select update_interval,round_due_at,tariff_pause_id from public.team_catalog_updater_items where catalog_material_id=$1',
+      [sheet]
+    );
+    expect(current[0]).toMatchObject({
+      update_interval: null,
+      round_due_at: before[0]!.round_due_at,
+      tariff_pause_id: null
+    });
+    const recoveryItem = () =>
+      harness.root(
+        "select item.state,item.stage,item.delivered_at from private.workspace_recovery_items item join private.workspace_pause_items snapshot on snapshot.id=item.pause_item_id where item.team_id=$1 and snapshot.kind='catalog_round'",
+        [team]
+      );
+    expect((await recoveryItem())[0]).toMatchObject({
+      state: 'leased',
+      stage: 'queued',
+      delivered_at: null
+    });
+    await harness.root(
+      "update public.team_catalog_updater_items set lease_owner=$2,lease_expires_at=clock_timestamp()+interval '2 minutes' where catalog_material_id=$1",
+      [sheet, owner.id]
+    );
+    expect((await recoveryItem())[0]).toMatchObject({ state: 'leased', stage: 'claimed' });
+    await harness.root(
+      `update public.team_catalog_update_attempts set stage_history='["synthetic-start"]'::jsonb where catalog_material_id=$1`,
+      [sheet]
+    );
+    expect((await recoveryItem())[0]).toMatchObject({ state: 'resumed', stage: 'started' });
+    await harness.root(
+      "update public.team_catalog_update_attempts set result='success',ended_at=clock_timestamp() where catalog_material_id=$1",
+      [sheet]
+    );
+    expect((await recoveryItem())[0]).toMatchObject({
+      state: 'completed',
+      stage: 'terminal',
+      delivered_at: null
+    });
+    await harness.root('create role recovery_diagnosis_reader nologin');
+    await harness.root(
+      'grant select on public.analytics_workspace_recovery to recovery_diagnosis_reader'
+    );
+    setQueryExecutor((sql, params) =>
+      harness.db.transaction(async tx => {
+        await tx.exec('set local role recovery_diagnosis_reader');
+        return (await tx.query<Record<string, unknown>>(sql, params)).rows;
+      })
+    );
+    try {
+      const evidence = await getRecoveryEvidence(
+        team,
+        null,
+        new Date(Date.now() + 1000).toISOString()
+      );
+      expect(evidence.supported).toBe(true);
+      expect(
+        evidence.items.some(
+          item =>
+            item.kind === 'catalog_round' &&
+            item.state === 'completed' &&
+            item.delivery === 'unknown'
+        )
+      ).toBe(true);
+      expect(evidence.blind_spots.some(gap => gap.includes('not proof'))).toBe(true);
+    } finally {
+      setQueryExecutor(null);
+    }
+    const eventCount = () =>
+      harness.root('select count(*)::int n from public.team_catalog_events where team_id=$1', [
+        team
+      ]);
+    const unchanged = await eventCount();
+    await harness.root('select private.refresh_workspace_recovery($1)', [team]);
+    await harness.root('select private.refresh_workspace_recovery($1)', [team]);
+    expect(await eventCount()).toEqual(unchanged);
+  });
+
+  it('does not prepare a changed source from the tariff pause snapshot', async () => {
+    const owner = await person('changed-restitch');
+    const { team, tariff } = await tariffSpace(owner);
+    const connection = await connect(team);
+    const sheet = await catalog(team, connection, owner.id);
+    await harness.root(
+      "update public.team_materials set drive_version='source-1' where id=(select companion_of from public.team_materials where id=$1)",
+      [sheet]
+    );
+    await harness.root(
+      'update public.team_catalog_update_profiles set restitch=true where catalog_material_id=$1',
+      [sheet]
+    );
+    await harness.asUser(owner.id, "select public.set_team_catalog_update_interval($1,$2,'1w')", [
+      team,
+      [sheet]
+    ]);
+    await asAdmin('public.admin_end_space_tariff($1,true)', [tariff]);
+    await harness.root(
+      "update public.team_materials set drive_version='source-2' where id=(select companion_of from public.team_materials where id=$1)",
+      [sheet]
+    );
+    await asAdmin('public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    await harness.root('select private.observe_workspace_dependencies($1)', [team]);
+    expect(
+      (
+        await harness.root(
+          "select item.state,item.reason_code from private.workspace_recovery_items item join private.workspace_pause_items snapshot on snapshot.id=item.pause_item_id where item.team_id=$1 and snapshot.kind='restitch'",
+          [team]
+        )
+      )[0]
+    ).toEqual({ state: 'blocked', reason_code: 'source_changed' });
+    expect(
+      (
+        await harness.root<{ r: unknown }>(
+          "select public.service_claim_restitch_job($1,$2,decode(repeat('aa',32),'hex'),120) r",
+          [team, owner.id]
+        )
+      )[0]!.r
+    ).toBeNull();
+  });
+
+  it.each([
+    { operationState: 'canceled', state: 'skipped_manual', reason: 'user_cancelled' },
+    { operationState: 'failed', state: 'blocked', reason: 'unknown' }
+  ])(
+    'does not replay $operationState restitch after renewal but allows a new explicit manual round',
+    async ({ operationState, state, reason }) => {
+      const owner = await person('cancelled-restitch');
+      const { team, tariff } = await tariffSpace(owner);
+      const connection = await connect(team);
+      const sheet = await catalog(team, connection, owner.id);
+      await harness.root(
+        'update public.team_catalog_update_profiles set restitch=true where catalog_material_id=$1',
+        [sheet]
+      );
+      await harness.asUser(owner.id, "select public.set_team_catalog_update_interval($1,$2,'1w')", [
+        team,
+        [sheet]
+      ]);
+      const operation = (
+        await harness.root<{ id: string }>(
+          "insert into public.team_operations(team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce,finished_at) values($1,$2,'process',$4,(select companion_of from public.team_materials where id=$3),gen_random_uuid()::text,gen_random_uuid()::text,clock_timestamp()) returning id",
+          [team, owner.id, sheet, operationState]
+        )
+      )[0]!.id;
+      await harness.root(
+        'update private.catalog_restitch_jobs set operation_id=$2 where catalog_material_id=$1',
+        [sheet, operation]
+      );
+      await asAdmin('public.admin_end_space_tariff($1,true)', [tariff]);
+      await asAdmin('public.admin_extend_space_tariff($1,1,false)', [tariff]);
+      const claim = () =>
+        harness.root<{ r: unknown }>(
+          "select public.service_claim_restitch_job($1,$2,decode(repeat('aa',32),'hex'),120) r",
+          [team, owner.id]
+        );
+      expect((await claim())[0]!.r).toBeNull();
+      await harness.root('select private.observe_workspace_dependencies($1)', [team]);
+      expect(
+        (
+          await harness.root(
+            "select item.state,item.reason_code from private.workspace_recovery_items item join private.workspace_pause_items snapshot on snapshot.id=item.pause_item_id where item.team_id=$1 and snapshot.kind='restitch'",
+            [team]
+          )
+        )[0]
+      ).toEqual({ state, reason_code: reason });
+      await harness.asUser(owner.id, 'select public.run_team_catalog_update_now($1,$2)', [
+        team,
+        [sheet]
+      ]);
+      expect((await claim())[0]!.r).not.toBeNull();
+    }
+  );
+
+  it('keeps Drive-blocked recovery pending and continues once the dependency returns', async () => {
+    const owner = await person('drive-recovery');
+    const { team, tariff } = await tariffSpace(owner);
+    const connection = await connect(team);
+    const sheet = await catalog(team, connection, owner.id);
+    await harness.asUser(owner.id, "select public.set_team_catalog_update_interval($1,$2,'1w')", [
+      team,
+      [sheet]
+    ]);
+    await asAdmin('public.admin_end_space_tariff($1,true)', [tariff]);
+    await harness.root(
+      "update public.team_drive_connections set state='needs_reauth' where id=$1",
+      [connection]
+    );
+    await asAdmin('public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    expect(
+      await harness.root(
+        'select state,reason_code from public.analytics_workspace_recovery where team_id=$1 and kind=$2',
+        [team, 'catalog_schedule']
+      )
+    ).toEqual([{ state: 'waiting_dependency', reason_code: 'waiting_drive' }]);
+    await harness.root("update public.team_drive_connections set state='connected' where id=$1", [
+      connection
+    ]);
+    await harness.root(
+      'update private.workspace_recovery_items set next_attempt_at=now() where team_id=$1',
+      [team]
+    );
+    await harness.root('select private.sweep_workspace_recovery()');
+    expect(
+      (
+        await harness.root(
+          'select update_interval,paused_interval from public.team_catalog_updater_items where catalog_material_id=$1',
+          [sheet]
+        )
+      )[0]
+    ).toEqual({ update_interval: '1w', paused_interval: null });
+    expect(
+      (
+        await harness.root(
+          'select state,stage from public.analytics_workspace_recovery where team_id=$1 and kind=$2',
+          [team, 'catalog_schedule']
+        )
+      )[0]
+    ).toEqual({ state: 'leased', stage: 'queued' });
+  });
+
+  it('never restores the old permissions of a removed one-off author', async () => {
+    const owner = await person('rights-recovery');
+    const member = await person('removed-author');
+    const { team, tariff } = await tariffSpace(owner);
+    await addMember(team, member.id);
+    const connection = await connect(team);
+    const sheet = await catalog(team, connection, owner.id);
+    await harness.asUser(member.id, 'select public.run_team_catalog_update_now($1,$2)', [
+      team,
+      [sheet]
+    ]);
+    await asAdmin('public.admin_end_space_tariff($1,true)', [tariff]);
+    await harness.root(
+      "update public.team_members set status='removed',removed_at=now() where team_id=$1 and user_id=$2",
+      [team, member.id]
+    );
+    await asAdmin('public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    expect(
+      (
+        await harness.root(
+          'select state,reason_code from public.analytics_workspace_recovery where team_id=$1 and kind=$2',
+          [team, 'catalog_round']
+        )
+      )[0]
+    ).toEqual({ state: 'blocked', reason_code: 'permission_revoked' });
+    expect(
+      (
+        await harness.root(
+          'select round_due_at from public.team_catalog_updater_items where catalog_material_id=$1',
+          [sheet]
+        )
+      )[0]!.round_due_at
+    ).toBeNull();
+    const outsider = await person('recovery-outsider');
+    expect(
+      (
+        await harness.asUser<{ r: unknown }>(
+          outsider.id,
+          'select private.workspace_recovery_json($1,$2) as r',
+          [team, outsider.id]
+        )
+      )[0]!.r
+    ).toBeNull();
   });
 
   it('ends a catalog’s pause when someone schedules it again', async () => {
@@ -1160,6 +1591,12 @@ describe('background work (R6–R8)', () => {
       [copy]
     );
 
+    // Other cases in this suite deliberately leave reconciliation jobs queued.
+    // Isolate this claim-budget scenario without changing the production limit.
+    await harness.root(
+      "update private.catalog_sync_jobs set state='canceled',lease_expires_at=null where connection_id <> $1 and state in ('pending','retry','leased')",
+      [connection]
+    );
     const claims = async () => ({
       sync: (
         await harness.root<{ connection_id: string }>(

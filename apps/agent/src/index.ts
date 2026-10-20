@@ -1,3 +1,5 @@
+import { TeamRecoveryWorker } from './team-bridge/recovery-worker.js';
+import { RecoveryJournal } from './team-bridge/recovery-journal.js';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -511,6 +513,16 @@ const teamProcessBridge = new TeamProcessBridge({
   delegates: teamDelegates,
   events: teamOperationEvents
 });
+const teamRecoveryWorker = new TeamRecoveryWorker({
+  environment: config.environment,
+  journal: new RecoveryJournal(path.join(applicationSupportRoot(), 'Recovery', config.environment)),
+  process: teamProcessBridge,
+  allowed: () => entitlementGate.status().entitled,
+  record: (code, props) => diagnosticsLog.record('team', code, props)
+});
+await teamRecoveryWorker
+  .load()
+  .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
 const teamPosterBridge = new TeamPosterBridge({ transfer: teamTransfer });
 const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
   process: teamProcessBridge
@@ -550,6 +562,7 @@ const modules = createToolModules({
   teamWorkspace: {
     preview: teamPreviewBridge,
     process: teamProcessBridge,
+    recovery: teamRecoveryWorker,
     poster: teamPosterBridge,
     download: teamDownloadBridge,
     landings: teamLandingRenderBridge,

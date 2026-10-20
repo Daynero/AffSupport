@@ -1,0 +1,9 @@
+
+ RUN  v3.2.7 /Users/daynero/RiderProjects/AffSupport
+
+ ✓ |unit| tests/team-catalog-restitch-sql.test.ts (21 tests) 2813ms
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  23:02:57
+   Duration  3.17s (transform 59ms, setup 80ms, collect 61ms, tests 2.81s, environment 0ms, prepare 33ms)

@@ -83,6 +83,7 @@ describe('capabilities', () => {
   it('exposes the full macOS feature set', () => {
     setPlatform('darwin');
     expect(capabilities()).toEqual({
+      recoveryCredentials: true,
       nativeFilePicker: true,
       directoryIntake: true,
       revealInFileManager: true,
@@ -95,6 +96,7 @@ describe('capabilities', () => {
   it('keeps pickers, reveal and the file index on Windows', () => {
     setPlatform('win32');
     expect(capabilities()).toEqual({
+      recoveryCredentials: true,
       nativeFilePicker: true,
       directoryIntake: true,
       revealInFileManager: true,
@@ -112,6 +114,7 @@ describe('capabilities', () => {
   it('gates macOS-only features off on Linux', () => {
     setPlatform('linux');
     expect(capabilities()).toEqual({
+      recoveryCredentials: false,
       nativeFilePicker: false,
       directoryIntake: false,
       revealInFileManager: true,

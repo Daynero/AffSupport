@@ -1,3 +1,4 @@
+import { RECOVERY_REASONS } from '../../packages/shared/src/team/recovery.js';
 import { ACCOUNT_ANALYTICS_CODES } from '../../packages/shared/src/team/analytics.js';
 /**
  * 033 FR-008 — where a failure starts in the code, by its fingerprint.
@@ -1076,6 +1077,29 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
     ],
     check:
       'Reconcile the durable receipt, current rights and known references before retrying; missing provider or visible delivery remains unknown.'
+  },
+  ...Object.fromEntries(
+    RECOVERY_REASONS.map(reason => [
+      `tariff:recovery:${reason}`,
+      {
+        files: [
+          'supabase/migrations/20261205110000_tariff_recovery.sql',
+          'supabase/functions/team-recovery/handler.ts',
+          'apps/agent/src/team-bridge/recovery-worker.ts',
+          'apps/web/src/team/tariffs/UpdaterResumeNotice.tsx'
+        ],
+        check:
+          'Inspect pause provenance, current authority and the last durable checkpoint before retrying.'
+      }
+    ])
+  ),
+  'journal:team:recovery_state': {
+    files: ['apps/agent/src/team-bridge/recovery-worker.ts'],
+    check: 'Inspect the persisted recovery checkpoint and current dependency.'
+  },
+  'journal:team:recovery_unavailable': {
+    files: ['apps/agent/src/team-bridge/recovery-journal.ts'],
+    check: 'Check the local journal schema and secure storage availability.'
   }
 });
 

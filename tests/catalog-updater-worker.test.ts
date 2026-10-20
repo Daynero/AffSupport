@@ -168,6 +168,7 @@ function setup(
     unknown: vi.fn(async () => true),
     markNeedsReauth: vi.fn(async () => undefined),
     claimRetired: vi.fn(async () => options.retired ?? []),
+    authorizeCleanup: vi.fn(async () => true),
     forgetCopy: vi.fn(async () => true),
     now: () => clock,
     log: vi.fn()
@@ -352,6 +353,19 @@ describe('re-stitched copies', () => {
       parseClaimedCatalog(claimedRow('a', { spare_material_id: 'spare-a', spare_link: null }))
         ?.spare
     ).toBeNull();
+  });
+
+  it('does not delete a claimed copy when authority is lost before the provider request', async () => {
+    const { deps, drive } = setup({
+      batches: [[]],
+      retired: [{ material_id: 'm1', drive_file_id: 'f1', credential_id: 'cred' }]
+    });
+    deps.authorizeCleanup = vi.fn(async () => false);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.authorizeCleanup).toHaveBeenCalledWith('m1', 'retired');
+    expect(drive.deleteFile).not.toHaveBeenCalled();
+    expect(deps.forgetCopy).not.toHaveBeenCalled();
+    expect(summary.deletedCopies).toBe(0);
   });
 
   it('deletes only the retired copies it was handed, and records a failed try', async () => {

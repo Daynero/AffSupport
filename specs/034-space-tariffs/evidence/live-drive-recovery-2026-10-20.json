@@ -1,0 +1,137 @@
+{
+  "startedAt": "2026-10-20T20:15:39.505Z",
+  "environment": "local-beta",
+  "steps": [
+    {
+      "stage": "isolated_synthetic_drive_input_created",
+      "at": "2026-10-20T20:15:43.108Z"
+    },
+    {
+      "stage": "real_auth_paid_workspace",
+      "at": "2026-10-20T20:15:43.408Z"
+    },
+    {
+      "stage": "paid_pause_renewal_registered_before_browser_or_agent",
+      "at": "2026-10-20T20:15:43.631Z"
+    },
+    {
+      "stage": "native_pairing_and_enforced_entitlement",
+      "at": "2026-10-20T20:15:43.636Z"
+    },
+    {
+      "stage": "edge_delegation_native_redeem_keychain_ack",
+      "at": "2026-10-20T20:15:43.756Z"
+    },
+    {
+      "stage": "native_no_browser_process_drive_upload_and_durable_output_receipt",
+      "at": "2026-10-20T20:16:03.057Z"
+    },
+    {
+      "stage": "producer_to_restricted_read_only_cli_diagnosis",
+      "at": "2026-10-20T20:16:04.768Z"
+    },
+    {
+      "stage": "cloud_revoke_native_disable_keychain_delete",
+      "at": "2026-10-20T20:16:04.839Z"
+    }
+  ],
+  "ok": true,
+  "cliSummary": {
+    "ok": true,
+    "keys": [
+      "subject",
+      "recovery",
+      "workspace",
+      "launches",
+      "environment",
+      "sessions",
+      "operations",
+      "link",
+      "errors",
+      "journal_around_failures",
+      "sync",
+      "coverage",
+      "findings",
+      "schema"
+    ],
+    "recovery": {
+      "supported": true,
+      "items": [
+        {
+          "recovery_id": "b9cb7751-8b4e-4843-aa11-b8ef3bc0747f",
+          "item_id": "47a7915b-548b-4d9e-a2db-68d7656ae8de",
+          "kind": "preview",
+          "state": "blocked",
+          "stage": "queued",
+          "reason": "source_changed",
+          "registered_at": "2026-10-20T20:15:43.591Z",
+          "updated_at": "2026-10-20T20:15:58.663Z",
+          "operation_id": null,
+          "attempt_id": null,
+          "delivery": "unknown"
+        },
+        {
+          "recovery_id": "b9cb7751-8b4e-4843-aa11-b8ef3bc0747f",
+          "item_id": "689aa205-1680-4fd8-bc21-064346d4193c",
+          "kind": "restitch",
+          "state": "blocked",
+          "stage": "queued",
+          "reason": "source_changed",
+          "registered_at": "2026-10-20T20:15:43.591Z",
+          "updated_at": "2026-10-20T20:15:58.665Z",
+          "operation_id": null,
+          "attempt_id": null,
+          "delivery": "unknown"
+        },
+        {
+          "recovery_id": "b9cb7751-8b4e-4843-aa11-b8ef3bc0747f",
+          "item_id": "84967e9f-7730-447b-b909-a2c8ce670cf6",
+          "kind": "catalog_schedule",
+          "state": "resumed",
+          "stage": "started",
+          "reason": null,
+          "registered_at": "2026-10-20T20:15:43.591Z",
+          "updated_at": "2026-10-20T20:16:00.847Z",
+          "operation_id": null,
+          "attempt_id": "d175fc57-1bed-4000-99cb-6ec0cf51b402",
+          "delivery": "unknown"
+        },
+        {
+          "recovery_id": "b9cb7751-8b4e-4843-aa11-b8ef3bc0747f",
+          "item_id": "9a5774c6-3549-46ea-8131-5b99877f5d71",
+          "kind": "sync",
+          "state": "resumed",
+          "stage": "started",
+          "reason": null,
+          "registered_at": "2026-10-20T20:15:43.591Z",
+          "updated_at": "2026-10-20T20:15:58.662Z",
+          "operation_id": null,
+          "attempt_id": null,
+          "delivery": "unknown"
+        }
+      ],
+      "blind_spots": [
+        "A server recovery receipt is not proof that its output reached the user.",
+        "Mutable rows changed after as-of are omitted rather than reconstructed as historical success."
+      ]
+    },
+    "subject": {
+      "kind": "user",
+      "id": null,
+      "user_id": "e68afa62-7469-4a9f-bd5a-a7b6ec317ab9",
+      "installation_ids": [],
+      "agent_instance_ids": []
+    }
+  },
+  "diagnosis": {
+    "items": 4,
+    "states": [
+      "blocked",
+      "resumed"
+    ],
+    "deliveries": [
+      "unknown"
+    ]
+  },
+  "finishedAt": "2026-10-20T20:16:05.668Z"
+}

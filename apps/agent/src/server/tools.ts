@@ -1,3 +1,5 @@
+import { registerRecoveryRoutes } from '../team-bridge/recovery-enrollment.js';
+import type { TeamRecoveryWorker } from '../team-bridge/recovery-worker.js';
 import type { FastifyInstance } from 'fastify';
 import {
   COMPRESSION_LIFECYCLE,
@@ -103,6 +105,7 @@ export interface ToolModulesDeps {
   teamWorkspace: {
     preview: TeamPreviewBridge;
     process: TeamProcessBridge;
+    recovery?: TeamRecoveryWorker;
     poster: TeamPosterBridge;
     download: TeamDownloadBridge;
     landings: TeamLandingRenderBridge;
@@ -224,7 +227,9 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
       // those enforces its own lifecycle. A lifecycle here would be a second, redundant
       // declaration of the same runs.
       lifecycle: null,
-      register: (app, ctx) =>
+      register: (app, ctx) => {
+        if (teamWorkspace.recovery)
+          registerRecoveryRoutes(app, teamWorkspace.recovery, ctx.acceptingNewTasks);
         registerTeamBridgeRoutes(app, {
           preview: teamWorkspace.preview,
           process: teamWorkspace.process,
@@ -235,7 +240,8 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           restitch: teamWorkspace.restitch,
           events: teamWorkspace.events,
           acceptingNewTasks: ctx.acceptingNewTasks
-        }),
+        });
+      },
       busy: () =>
         teamWorkspace.preview.busy() ||
         teamWorkspace.process.busy() ||
@@ -249,6 +255,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
       cancel: async () => false,
       cancelAll: async () => 0,
       shutdown: async () => {
+        await teamWorkspace.recovery?.shutdown();
         await teamWorkspace.restitch.shutdown();
         await teamWorkspace.poster.shutdown();
         await teamWorkspace.library.shutdown();

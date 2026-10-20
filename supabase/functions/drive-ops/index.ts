@@ -1,3 +1,4 @@
+import { recoveryTokenHash } from '../team-recovery/digest.ts';
 import { publicFunctionEndpoint } from '../_shared/function-endpoints.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
 import {
@@ -2899,7 +2900,16 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
 
 function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterRestitchDeps {
   return {
-    rpc: (name, parameters) => rpcValue(service, name, parameters),
+    rpc: async (name, parameters) => {
+      const credential = request.headers.get('x-team-recovery-credential');
+      if (name === 'service_claim_restitch_job' && credential) {
+        return rpcValue(service, 'service_recovery_claim_restitch', {
+          ...parameters,
+          p_hash: await recoveryTokenHash(credential)
+        });
+      }
+      return rpcValue(service, name, parameters);
+    },
     restitchedFolder: async (teamId, actorId) => {
       // A Drive folder must also be registered as a material before process-start can resolve it.
       const folder = await handleEnsureRestitchedFolder(request, { teamId }, service, actorId);
@@ -3056,7 +3066,33 @@ Deno.serve(async request => {
       return successResponse(value, cors, path.endsWith('/start') ? 202 : 200);
     }
 
-    const { userId } = await authorizeCaller(request, configured.service);
+    let userId: string;
+    const recoveryCredential = request.headers.get('x-team-recovery-credential');
+    if (recoveryCredential !== null) {
+      // This credential cannot authorize any ordinary user or provider route.
+      if (
+        request.headers.has('origin') ||
+        !['/updater/claim', '/updater/heartbeat', '/updater/complete'].includes(path) ||
+        !/^[A-Za-z0-9_-]{43}$/u.test(recoveryCredential)
+      )
+        throw new TeamFunctionError('AUTH_REQUIRED');
+      const scoped = await parseJsonBody(request.clone());
+      if (!scoped.ok) throw new TeamFunctionError('INVALID_INPUT');
+      const context = await rpcValue(configured.service, 'service_team_recovery', {
+        p_action: path === '/updater/claim' ? 'authorize_claim' : 'authorize_execute',
+        p_hash: await recoveryTokenHash(recoveryCredential),
+        p_input: path === '/updater/claim' ? {} : { jobId: scoped.value.jobId }
+      });
+      if (
+        !isRecord(context) ||
+        typeof context.actorId !== 'string' ||
+        (path === '/updater/claim' && scoped.value.teamId !== context.teamId)
+      )
+        throw new TeamFunctionError('PERMISSION_DENIED');
+      userId = context.actorId;
+    } else {
+      userId = (await authorizeCaller(request, configured.service)).userId;
+    }
     const relay = /^\/uploads\/([0-9a-f-]{36})\/relay$/iu.exec(path);
     if (relay) {
       const value = await handleRelay(request, requireUuid(relay[1]), configured.service, userId);

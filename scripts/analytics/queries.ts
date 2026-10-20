@@ -1,3 +1,8 @@
+import {
+  getRecoveryEvidence,
+  inspectRecovery,
+  type RecoveryEvidenceResult
+} from './tariff-recovery.js';
 import { diagnoseAccountEvents } from './accounts.js';
 import { getLaunchEvidence, getLaunchAudit, type LaunchAuditEvidence } from './launches.js';
 import { createHash } from 'node:crypto';
@@ -1255,7 +1260,11 @@ const SYNC_COLUMNS = `job_id::text, connection_id::text, connection_state, job_k
  * the connection's canonical feed job beside them. `teamOrEmail` is a team id
  * or the owner's email; the owner's email itself is never returned.
  */
-export async function getSyncJobs(teamOrEmail: string, limit = 50): Promise<SyncData | null> {
+export async function getSyncJobs(
+  teamOrEmail: string,
+  limit = 50,
+  asOf = new Date().toISOString()
+): Promise<SyncData | null> {
   const bounded = Math.min(Math.max(Math.trunc(limit), 1), 500);
   const byTeam = UUID.test(teamOrEmail);
   const rows = await query<SyncJobRow & { team_id: string }>(
@@ -1292,7 +1301,11 @@ export async function getSyncJobs(teamOrEmail: string, limit = 50): Promise<Sync
     }
     connection.jobs.push(row);
   }
-  return { team_id: teamId, connections: [...connections.values()] };
+  return {
+    team_id: teamId,
+    connections: [...connections.values()],
+    recovery: await getRecoveryEvidence(teamId, null, asOf)
+  };
 }
 
 /* ---------------------------------------------------------------------------
@@ -1683,6 +1696,7 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const eventStatuses = registryEventStatuses();
   const launchAudit = await getLaunchAudit(period.start, period.end);
   const catalogSettingsAudit = await getCatalogSettingsAudit(period);
+  const recoveryAudit = await getRecoveryEvidence(null, period.start, period.end);
   const capabilities = COVERAGE_REGISTRY.map(capability =>
     auditCapability(
       capability,
@@ -1692,6 +1706,7 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
       syncJobs ? syncJobs.jobs : null,
       launchAudit,
       catalogSettingsAudit,
+      recoveryAudit,
       period
     )
   );
@@ -1755,6 +1770,7 @@ function auditCapability(
   syncJobs: number | null,
   launchAudit: LaunchAuditEvidence | null,
   catalogSettingsAudit: CatalogSettingsAuditEvidence,
+  recoveryAudit: RecoveryEvidenceResult,
   period: ResolvedPeriod
 ): AuditCapability {
   const base = {
@@ -1801,6 +1817,28 @@ function auditCapability(
       status: missing.length ? 'partial' : launchAudit.generations ? 'covered' : 'uncovered',
       missing: launchAudit.generations ? missing : ['launch_evidence_in_period'],
       samples: launchAudit.generations
+    };
+  }
+  if (capability.id === 'team.tariff_recovery') {
+    const missing = [
+      ...(!recoveryAudit.supported ? ['analytics_workspace_recovery'] : []),
+      ...(recoveryAudit.items.some(item => item.delivery === 'unknown')
+        ? ['output_delivery_unknown']
+        : []),
+      ...(recoveryAudit.items.some(item => ['queued', 'claimed'].includes(item.stage))
+        ? ['worker_start_or_terminal_pending']
+        : [])
+    ];
+    return {
+      ...base,
+      status:
+        !recoveryAudit.supported || !recoveryAudit.items.length
+          ? 'uncovered'
+          : missing.length
+            ? 'partial'
+            : 'covered',
+      missing: recoveryAudit.items.length ? missing : [...missing, 'recovery_evidence_in_period'],
+      samples: recoveryAudit.items.length
     };
   }
   if (capability.id === 'team.catalog_settings') {
@@ -2035,6 +2073,12 @@ const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
   const events = await getEventInspect(id, asOf, limit);
+  const recovery = await getRecoveryEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z');
+  if (recovery.items.length) {
+    if (events.found) return { ...events, recovery };
+    const found = inspectRecovery(id, recovery);
+    if (found) return found;
+  }
   const launches = await getLaunchEvidence(id, asOf);
   if (!launches.generations.length)
     return events.found && events.events.some(event => event.event_name.startsWith('team_account_'))

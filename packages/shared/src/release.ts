@@ -75,6 +75,7 @@ export const RELEASE_DOWNLOAD_URLS: Partial<Record<ReleasePlatform, string>> = {
  */
 export const CORE_CONTRACT_VERSION = 1;
 export const AGENT_TOOL_CONTRACTS = {
+  teamBackgroundRecovery: 1,
   compressor: 3,
   imageEmbedding: 2,
   // Optional explicit gallery choice; old agents keep their existing random mode.

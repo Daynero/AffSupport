@@ -1,0 +1,13 @@
+
+ RUN  v3.2.7 /Users/daynero/RiderProjects/AffSupport
+
+ ✓ |unit| tests/tariff-catalog-recovery-postgres.test.ts (5 tests) 32480ms
+   ✓ 034 recurring recovery on two real PostgreSQL sessions > a pause sweep skips a locked renewal and cannot pause its committed active tariff  4311ms
+   ✓ 034 recurring recovery on two real PostgreSQL sessions > a manual stop committed while renewal waits wins over the old pause snapshot  4203ms
+   ✓ 034 recurring recovery on two real PostgreSQL sessions > refuses a stale worker lease after closure and keeps one recovery on repeated renewal  488ms
+   ✓ 034 recurring recovery on two real PostgreSQL sessions > renews ten five-member spaces without duplicate catch-up jobs or exceeding twelve worker leases  661ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  23:05:20
+   Duration  32.78s (transform 41ms, setup 77ms, collect 27ms, tests 32.48s, environment 0ms, prepare 35ms)

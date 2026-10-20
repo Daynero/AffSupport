@@ -23,5 +23,6 @@ export * from './account-order.js';
 export * from './account-lifecycle.js';
 export * from './account-overview.js';
 
+export * from './recovery.js';
 export * from './bulk-trash.js';
 export * from './task-cleanup.js';

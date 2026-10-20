@@ -5499,6 +5499,10 @@ export const spaceTariffApi = {
     );
   },
 
+  async retryRecovery(recoveryId: string): Promise<boolean> {
+    return (await tariffRpc('retry_workspace_recovery', { p_recovery: recoveryId })) === true;
+  },
+
   async resumeCatalogUpdater(teamId: string): Promise<boolean> {
     return (await tariffRpc('resume_team_catalog_updater', { p_team: teamId })) === true;
   }

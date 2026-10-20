@@ -1,0 +1,10 @@
+
+ RUN  v3.2.7 /Users/daynero/RiderProjects/AffSupport
+
+ ✓ |unit| tests/team-recovery-delegation.test.ts (9 tests) 2569ms
+ ✓ |unit| tests/team-recovery-handler.test.ts (8 tests) 12ms
+
+ Test Files  2 passed (2)
+      Tests  17 passed (17)
+   Start at  23:12:29
+   Duration  3.41s (transform 151ms, setup 153ms, collect 242ms, tests 2.58s, environment 0ms, prepare 77ms)

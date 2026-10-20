@@ -280,6 +280,12 @@ Deno.serve(async request => {
           });
           return Array.isArray(rows) ? rows : [];
         },
+        authorizeCleanup: async (materialId, kind) =>
+          (await rpcValue(service, 'service_authorize_catalog_cleanup', {
+            p_material: materialId,
+            p_kind: kind,
+            p_worker: workerId
+          })) === true,
         forgetCopy: async (materialId, deleted) =>
           (await rpcValue(service, 'service_forget_restitch_copy', {
             p_material: materialId,

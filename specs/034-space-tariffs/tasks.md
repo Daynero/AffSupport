@@ -78,19 +78,76 @@
 - [x] T022 (docs/ADMIN-TARIFFS.md; ROLLBACK.md — у міграціях) `docs/ADMIN-TARIFFS.md` (як видати, продовжити, перевести простори, вимкнути старе правило),
       `supabase/migrations/ROLLBACK.md`.
 
-## Фаза 5 — уточнення автоматичного відновлення, 2026-10-14 (не реалізовано)
+## Фаза 5 — автоматичне відновлення (umbrella milestones; актуалізація 2026-10-20)
 
-- [ ] T023 Уточнити contracts/data-model для US6.6: snapshot активних процесів, причина паузи, індивідуальні інтервали,
+- [x] T023 Уточнити contracts/data-model для US6.6: snapshot активних процесів, причина паузи, індивідуальні інтервали,
       ручне вимкнення, checkpoints, часткове відновлення, межі 60 с / 5 хв та залежності Drive/агента.
-- [ ] T024 Додати спочатку failing DB/regression тести: renewal без браузера, два renewal, pause/renew race,
+- [x] T024 Додати спочатку failing DB/regression тести: renewal без браузера, два renewal, pause/renew race,
       disabled catalog, змінені права, expired dependencies, старий worker та відсутність дубльованих побічних дій.
-- [ ] T025 Реалізувати додатковою міграцією серверне автоматичне відновлення на чинному переході доступу;
+- [x] T025 Реалізувати додатковою міграцією серверне автоматичне відновлення на чинному переході доступу;
       зберегти інтервали, одноразовий catch-up та bounded scheduling. Вимкнене/скасоване вручну не відновлювати.
-- [ ] T026 Узгодити автоматичне відновлення sync, restitch, preview/cleanup та незавершеної агентної роботи;
+- [x] T026 Узгодити автоматичне відновлення sync, restitch, preview/cleanup та незавершеної агентної роботи;
       перевірити checkpoint, актуальні права й результат до retry, не перезапускати завершене/скасоване.
-- [ ] T027 Замінити нормальний ручний UpdaterResumeNotice на правдивий стан автоматичного/часткового відновлення;
+- [x] T027 Замінити нормальний ручний UpdaterResumeNotice на правдивий стан автоматичного/часткового відновлення;
       зберегти попередження про зупинку, додати uk/en тексти та UI регресії.
-- [ ] T028 Розширити typed signals, code map/capability inventory та read-only diagnosis відновлення;
+- [x] T028 Розширити typed signals, code map/capability inventory та read-only diagnosis відновлення;
       довести terminal і delivery, missing/delayed signals, безпечні bounded retries та приватність.
-- [ ] T029 Виконати single-worker регресії, npm run verify, beta LIFE-021–036/LOAD-08; після доказів оновити
-      docs/ADMIN-TARIFFS.md та прибрати позначку «ще не реалізовано». Готовність підтвердити exact-SHA beta.
+- [x] T029 Виконати single-worker регресії, npm run verify та оновити docs/ADMIN-TARIFFS.md. Релізні LIFE/LOAD і exact-SHA packaged beta винесені в T044 за прямим рішенням власника.
+
+## Фаза 6 — виконувані інкременти, 2026-10-20
+
+T001–T022 зберігають історію. Рішення власника нижче відділяє завершення розробки від відкладеної релізної кампанії.
+Канон повного виконання: [036 T024–T048](../036-production-acceptance/tasks.md).
+
+- [x] T030 Оновити `specs/034-space-tariffs/plan.md`, `research.md`, `data-model.md`, `contracts/recovery.md`, `quickstart.md` за HEAD; звірити 036 ownership, поточні calendar/profile/lease seams. (T023)
+- [x] T031 [US6] Додати failing regressions у `tests/space-tariffs-sql.test.ts`: automatic no-browser undo/renewal, expiry до cron, повторний renewal без нового run, manual disabled та per-catalog calendar preservation. (FR-009/010, T024)
+- [x] T032 [US6] Реалізувати recurring capture-before-renewal, lock/recheck та idempotent restore у `supabase/migrations/20261205100000_tariff_catalog_recovery.sql`; compatibility RPC, rollback у `supabase/migrations/ROLLBACK.md`; довести T031 та двосесійні recurring regressions у `tests/tariff-catalog-recovery-postgres.test.ts`. (T025, інкремент 1)
+- [x] T033 [US6] Реалізувати повні WorkspacePause/PauseItem/RecoveryItem, generation/epoch, one-off receipts, durable queue failures і concurrency у файлах 036 T024–T032/T041/T047; синхронізувати `specs/034-space-tariffs/data-model.md`. (T024–T026)
+- [x] T034 [US6] Реалізувати scoped Edge enrollment/delegation/worker, платформне credential storage, agent journal/executor та capability за 036 T026–T027/T033–T040 у `supabase/functions/team-recovery/`, `apps/agent/src/team-bridge/recovery-*.ts`, `apps/agent/src/platform/`; перевірити source/rights/output receipts. (T026)
+- [x] T035 [US6] Реалізувати projection і truthful UI/warnings за 036 T041–T044 у `apps/web/src/team/tariffs/UpdaterResumeNotice.tsx`, shared DTO, i18n та `tests/tariff-recovery-ui.test.tsx`; не позначати restored schedule як completed process. (T027)
+- [x] T036 [US6] Реалізувати typed recovery diagnostics, read-only investigate/inspect/audit і retention за 036 T045–T047 у `scripts/analytics/`, `packages/shared/src/team/analytics.ts`, `tests/analytics-tariff-recovery.test.ts`. (T028)
+- [x] T037 Виконати targeted single-worker тести інкремента 1, записати реальні результати й межі у `specs/034-space-tariffs/findings.md`; повні T029/036 acceptance не закривати цим прогоном.
+- [x] T038 Виконати development builds/verify, local DB type generation та оновити ADMIN-TARIFFS/findings. Релізні LIFE/LOAD і exact-SHA beta перенесені до T044; вони не виконані й не позначені PASS. (T029)
+
+## Залежності та independent checks
+
+T030 → T031 → T032 → T037; далі T033 → T034 → T035/T036 → T038.
+US1–US5/US7: чинні T001–T022 регресії; US6: independent tests у quickstart + 036 LIFE.
+T035 й T036 можна паралелити після стабілізації DTO/серверних lifecycle stages; до того виконання послідовне.
+MVP інкремента 1 — automatic recurring restore без браузера; це не production-ready повна US6.6.
+
+### Реалізація наступного інкремента — 2026-10-20
+
+T033/T034/T036 завершені як реалізація: код, локальні регресії та живий broker/native/Drive → CLI proof. Релізний proof mapping 036 відкладений власником.
+
+- T033: durable pause/items, one-off actor/round, epoch, generation, dependency dispatcher, queue failure receipts.
+- T034: scoped delegation Edge/native executor, credential storage, durable journal, claim replay, operation fences.
+  Live Windows виключено власником (T039). Drive output receipt і staged restart/cancel/concurrency acceptance відстежуються окремо.
+- T035: shared projection, автоматичний стан/причини, explicit retry, capability/settings, browser/native ownership.
+  UI 6/6 + browser ownership 3/3; queued не оголошується completed.
+- T036: restricted view і read-only investigate/inspect/sync/audit; невідома доставка лишається blind spot.
+  Producer→CLI proof на local beta виконано; зовнішній delivery лишається unknown. Релізна LIFE/LOAD кампанія відкладена.
+- T038: production не змінювався; exact-SHA acceptance не можна підмінити dirty-tree unit tests.
+
+## Phase 7: Convergence
+
+- [x] T039 За прямим рішенням власника від 2026-10-20 виключити live Windows acceptance з completion 034; зберегти Windows implementation/automated contracts, не називати виключений кейс PASS; синхронізувати plan/spec і recovery mapping 036. (plan: acceptance scope, partial)
+- [x] T040 Перевірити й виправити старі worker finalize/cleanup fences та broker→native process happy path, terminal/output receipts без повторної обробки; додати regressions для фактичних прогалин. (FR-009/FR-010/US6.6, partial, HIGH)
+- [x] T041 Виконати локальні no-browser/restart/dependency/partial lifecycle і bounded mass-renewal сценарії на migrated PostgreSQL + native agent; перевірити read-only diagnosis, штатно згенерувати локальні DB types, зберегти evidence та межі спостереження. (US6.6/SC-004, partial, HIGH)
+- [x] T042 Зібрати актуальний web, усунути bundle-budget failure без підняття ratchet, перевірити збереження artwork/UI structural styles, виконати повний verify та потрібні builds. (Constitution I/VI, plan: verification, partial)
+- [x] T043 Оновити findings/ADMIN-TARIFFS та закрити виконані 034 milestones за фактичними доказами; зафіксувати відкладення final packaged beta до релізу за рішенням власника; не комітити чужу роботу автоматично й не змішувати feature completion з незалежною загальнорелізною кампанією 036. (T029/T038, partial)
+
+## Підсумок поточного обсягу — 2026-10-20
+
+Розробка 034 та звичайні перевірки завершені. `npm run verify`: 14/14 gates, 6257 tests,
+17 opt-in/platform skips, 0 failures. Окремий actual PostgreSQL/Vault proof: 5/5 до останнього
+посилення preflight fences; нові fences перевірені повним migration-chain SQL suite та 40 targeted tests.
+Живий local-beta broker/native/Keychain/Drive та restricted CLI proof збережені в evidence.
+Часткові source_changed/unknown delivery показані чесно, а не як повний успіх.
+
+- [ ] T044 [DEFERRED_BY_OWNER — RELEASE ONLY] Перед релізом виконати релізні gates,
+      packaged beta на чистому точному commit та повну LIFE/LOAD кампанію 036.
+      Пряма вказівка власника: «релізні то перевірки тільки не роби то вже перед релізом потім».
+      Цей пункт не входить у поточний обсяг завершення розробки. Live Windows виключено окремо в T039.
+
+**034 CLOSED — 2026-10-20.** Розробку прийнято та закрито за прямою вказівкою власника «коміть пуш закривай спєку». T044 зберігає відкладені релізні перевірки; його відкритий прапорець не означає незавершену реалізацію 034.

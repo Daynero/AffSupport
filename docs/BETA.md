@@ -313,3 +313,15 @@ Recorded from a real run so the success criteria have evidence rather than an as
 
 These require a machine with the container runtime, Supabase CLI, and FFmpeg installed. Fill them in
 on the first real run — `npm run beta:doctor` names anything still missing.
+
+### Native tariff recovery (034)
+
+The staged code adds `team-recovery` alongside `drive-ops`. Use real beta authentication and the beta
+entitlement key; never enable local dev auth to test enrollment. Enrollment/redeem, rotation replay,
+claim/execute audiences and tariff epoch fences must run against the same local schema. A beta agent
+accepts only loopback HTTP recovery endpoints. Production HTTPS endpoints are refused.
+
+Enable background recovery explicitly in space settings. Verify with the browser closed, then revoke
+from settings and confirm local credential deletion. A corrupt journal requires explicit setup and must
+not replay an uncertain operation. macOS Keychain has a local synthetic roundtrip proof; Windows DPAPI,
+real Drive side effects and exact-SHA packaged LIFE/LOAD evidence remain separate acceptance work.

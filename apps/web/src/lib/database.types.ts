@@ -1727,17 +1727,152 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      team_catalog_update_attempts: {
+        Row: {
+          actual_changes: Json | null;
+          attempt_id: string;
+          catalog_material_id: string;
+          delivery_verified_at: string | null;
+          ended_at: string | null;
+          failure_code: string | null;
+          profile_snapshot: Json | null;
+          profile_version: number | null;
+          requested_by: string | null;
+          result: string;
+          round_due_at: string;
+          source_attempt_id: string | null;
+          stage_history: NonNullable<Json>;
+          started_at: string;
+          team_id: string;
+          trigger_kind: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          actual_changes?: Json | null;
+          attempt_id?: string;
+          catalog_material_id: string;
+          delivery_verified_at?: string | null;
+          ended_at?: string | null;
+          failure_code?: string | null;
+          profile_snapshot?: Json | null;
+          profile_version?: number | null;
+          requested_by?: string | null;
+          result?: string;
+          round_due_at: string;
+          source_attempt_id?: string | null;
+          stage_history?: NonNullable<Json>;
+          started_at?: string;
+          team_id: string;
+          trigger_kind: string;
+        };
+        Update: {
+          actual_changes?: Json | null;
+          attempt_id?: string;
+          catalog_material_id?: string;
+          delivery_verified_at?: string | null;
+          ended_at?: string | null;
+          failure_code?: string | null;
+          profile_snapshot?: Json | null;
+          profile_version?: number | null;
+          requested_by?: string | null;
+          result?: string;
+          round_due_at?: string;
+          source_attempt_id?: string | null;
+          stage_history?: NonNullable<Json>;
+          started_at?: string;
+          team_id?: string;
+          trigger_kind?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_update_attempts_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_product_catalogs';
+            referencedColumns: ['material_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_update_attempts_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_catalog_update_profiles: {
+        Row: {
+          catalog_material_id: string;
+          grow_products: boolean;
+          random_link_variation: boolean;
+          refresh_images: boolean;
+          refresh_texts: boolean;
+          restitch: boolean;
+          schedule: Json | null;
+          team_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          catalog_material_id: string;
+          grow_products: boolean;
+          random_link_variation: boolean;
+          refresh_images: boolean;
+          refresh_texts: boolean;
+          restitch: boolean;
+          schedule?: Json | null;
+          team_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          version?: number;
+        };
+        Update: {
+          catalog_material_id?: string;
+          grow_products?: boolean;
+          random_link_variation?: boolean;
+          refresh_images?: boolean;
+          refresh_texts?: boolean;
+          restitch?: boolean;
+          schedule?: Json | null;
+          team_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_update_profiles_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_product_catalogs';
+            referencedColumns: ['material_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_update_profiles_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_catalog_updater_items: {
         Row: {
           added_at: string;
           attempts: number;
           catalog_material_id: string;
+          config_generation: number;
           lease_expires_at: string | null;
           lease_owner: string | null;
           next_attempt_at: string;
           next_run_at: string | null;
           paused_interval: string | null;
+          reconciliation_required: boolean;
           round_due_at: string | null;
+          tariff_pause_id: string | null;
+          tariff_paused_round_at: string | null;
           team_id: string;
           update_interval: string | null;
         };
@@ -1746,12 +1881,16 @@ export type GeneratedDatabase = {
           added_at?: string;
           attempts?: number;
           catalog_material_id: string;
+          config_generation?: number;
           lease_expires_at?: string | null;
           lease_owner?: string | null;
           next_attempt_at?: string;
           next_run_at?: string | null;
           paused_interval?: string | null;
+          reconciliation_required?: boolean;
           round_due_at?: string | null;
+          tariff_pause_id?: string | null;
+          tariff_paused_round_at?: string | null;
           team_id: string;
           update_interval?: string | null;
         };
@@ -1759,12 +1898,16 @@ export type GeneratedDatabase = {
           added_at?: string;
           attempts?: number;
           catalog_material_id?: string;
+          config_generation?: number;
           lease_expires_at?: string | null;
           lease_owner?: string | null;
           next_attempt_at?: string;
           next_run_at?: string | null;
           paused_interval?: string | null;
+          reconciliation_required?: boolean;
           round_due_at?: string | null;
+          tariff_pause_id?: string | null;
+          tariff_paused_round_at?: string | null;
           team_id?: string;
           update_interval?: string | null;
         };
@@ -1787,6 +1930,7 @@ export type GeneratedDatabase = {
       };
       team_catalog_updaters: {
         Row: {
+          default_restitch: boolean;
           grow_products: boolean;
           next_run_at: string | null;
           paused_by_tariff_at: string | null;
@@ -1804,6 +1948,7 @@ export type GeneratedDatabase = {
         };
         ComputedFields: never;
         Insert: {
+          default_restitch?: boolean;
           grow_products?: boolean;
           next_run_at?: string | null;
           paused_by_tariff_at?: string | null;
@@ -1820,6 +1965,7 @@ export type GeneratedDatabase = {
           updated_by?: string | null;
         };
         Update: {
+          default_restitch?: boolean;
           grow_products?: boolean;
           next_run_at?: string | null;
           paused_by_tariff_at?: string | null;
@@ -3811,6 +3957,7 @@ export type GeneratedDatabase = {
           created_by: string | null;
           current_video_link: string | null;
           last_update_error: string | null;
+          last_update_error_at: string | null;
           last_updated_at: string | null;
           material_id: string;
           product_count: number;
@@ -3829,6 +3976,7 @@ export type GeneratedDatabase = {
           created_by?: string | null;
           current_video_link?: string | null;
           last_update_error?: string | null;
+          last_update_error_at?: string | null;
           last_updated_at?: string | null;
           material_id: string;
           product_count: number;
@@ -3846,6 +3994,7 @@ export type GeneratedDatabase = {
           created_by?: string | null;
           current_video_link?: string | null;
           last_update_error?: string | null;
+          last_update_error_at?: string | null;
           last_updated_at?: string | null;
           material_id?: string;
           product_count?: number;
@@ -4587,6 +4736,89 @@ export type GeneratedDatabase = {
       };
     };
     Views: {
+      analytics_catalog_settings_coverage: {
+        Row: {
+          capture_enabled: boolean | null;
+          installed_at: string | null;
+          schema_version: number | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          capture_enabled?: never;
+          installed_at?: string | null;
+          schema_version?: number | null;
+        };
+        Update: {
+          capture_enabled?: never;
+          installed_at?: string | null;
+          schema_version?: number | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_settings_current: {
+        Row: {
+          catalog_material_id: string | null;
+          creator_id: string | null;
+          observed_at: string | null;
+          profile_version: number | null;
+          state: Json | null;
+          team_id: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
+      analytics_catalog_settings_history: {
+        Row: {
+          actor_id: string | null;
+          actor_kind: string | null;
+          after_state: Json | null;
+          baseline_kind: string | null;
+          before_state: Json | null;
+          catalog_material_id: string | null;
+          changed_fields: string[] | null;
+          creator_id: string | null;
+          event_id: string | null;
+          observed_at: string | null;
+          profile_version: number | null;
+          source: string | null;
+          team_id: string | null;
+          transaction_id: number | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          actor_kind?: string | null;
+          after_state?: Json | null;
+          baseline_kind?: string | null;
+          before_state?: Json | null;
+          catalog_material_id?: string | null;
+          changed_fields?: string[] | null;
+          creator_id?: string | null;
+          event_id?: string | null;
+          observed_at?: string | null;
+          profile_version?: number | null;
+          source?: string | null;
+          team_id?: string | null;
+          transaction_id?: number | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          actor_kind?: string | null;
+          after_state?: Json | null;
+          baseline_kind?: string | null;
+          before_state?: Json | null;
+          catalog_material_id?: string | null;
+          changed_fields?: string[] | null;
+          creator_id?: string | null;
+          event_id?: string | null;
+          observed_at?: string | null;
+          profile_version?: number | null;
+          source?: string | null;
+          team_id?: string | null;
+          transaction_id?: number | null;
+        };
+        Relationships: [];
+      };
       analytics_catalog_sync_jobs: {
         Row: {
           attempts: number | null;
@@ -4638,6 +4870,55 @@ export type GeneratedDatabase = {
         Relationships: [
           {
             foreignKeyName: 'team_drive_connections_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_catalog_updates: {
+        Row: {
+          actual_changes: Json | null;
+          attempt_id: string | null;
+          attempt_schedule: Json | null;
+          catalog_material_id: string | null;
+          current_profile_version: number | null;
+          delivery_verified_at: string | null;
+          ended_at: string | null;
+          failure_code: string | null;
+          last_error_at: string | null;
+          last_error_code: string | null;
+          last_success_at: string | null;
+          next_run_at: string | null;
+          profile_version: number | null;
+          reconciliation_required: boolean | null;
+          result: string | null;
+          schedule: Json | null;
+          source_attempt_id: string | null;
+          stage_history: Json | null;
+          started_at: string | null;
+          team_id: string | null;
+          trigger_kind: string | null;
+          update_interval: string | null;
+          video_operation_stage: string | null;
+          video_operation_state: string | null;
+          video_preparation_error: string | null;
+          video_preparation_lease_until: string | null;
+          video_preparation_retry_at: string | null;
+          video_preparation_state: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_update_attempts_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_product_catalogs';
+            referencedColumns: ['material_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_update_attempts_team_id_fkey';
             columns: ['team_id'];
             isOneToOne: false;
             referencedRelation: 'teams';
@@ -4735,63 +5016,35 @@ export type GeneratedDatabase = {
         ComputedFields: never;
         Relationships: [];
       };
+      analytics_workspace_recovery: {
+        Row: {
+          actor_id: string | null;
+          attempt_id: string | null;
+          attempts: number | null;
+          delivered_at: string | null;
+          epoch: number | null;
+          finished_at: string | null;
+          item_id: string | null;
+          kind: string | null;
+          last_progress_at: string | null;
+          member_ids: string[] | null;
+          operation_id: string | null;
+          reason_code: string | null;
+          recovery_id: string | null;
+          recovery_state: string | null;
+          registered_at: string | null;
+          resource_id: string | null;
+          stage: string | null;
+          started_at: string | null;
+          state: string | null;
+          team_id: string | null;
+          updated_at: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
     };
     Functions: {
-      get_team_catalog_updater_restitch_default: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
-      cancel_team_catalog_update: {
-        Args: { p_team: string; p_catalog: string };
-        Returns: boolean;
-      };
-      list_team_catalog_update_profiles: {
-        Args: { p_team: string };
-        Returns: {
-          catalog_material_id: string;
-          refresh_images: boolean;
-          refresh_texts: boolean;
-          grow_products: boolean;
-          random_link_variation: boolean;
-          restitch: boolean;
-          version: number;
-          updated_at: string;
-          last_error_at: string | null;
-          reconciliation_required: boolean;
-          last_result: string | null;
-          latest_attempt_at: string | null;
-          last_successful_at: string | null;
-          restitch_status: string;
-          restitch_blocked_code: string | null;
-        }[];
-      };
-      list_team_bulk_trash: { Args: { p_team: string }; Returns: Json };
-      list_team_catalog_update_attempts: {
-        Args: { p_team: string; p_catalog: string; p_limit?: number };
-        Returns: {
-          attempt_id: string;
-          catalog_material_id: string;
-          trigger_kind: string;
-          started_at: string;
-          ended_at: string | null;
-          result: string;
-          failure_code: string | null;
-          delivery_verified_at: string | null;
-          profile_version: number | null;
-          source_attempt_id: string | null;
-          profile_snapshot: Json | null;
-          stage_history: Json;
-          actual_changes: Json | null;
-        }[];
-      };
-      retry_team_catalog_update: {
-        Args: { p_team: string; p_catalog: string; p_source_attempt: string };
-        Returns: number;
-      };
-      patch_team_catalog_update_profile: {
-        Args: { p_team: string; p_catalog: string; p_expected_version: number; p_patch: Json };
-        Returns: Json;
-      };
       accept_invitation: {
         Args: { p_invitation: string; p_plain_token?: string };
         Returns: {
@@ -5097,6 +5350,7 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
+      cancel_team_catalog_update: { Args: { p_catalog: string; p_team: string }; Returns: boolean };
       cancel_team_folder_sync: {
         Args: { p_request: string; p_team: string };
         Returns: {
@@ -5601,6 +5855,7 @@ export type GeneratedDatabase = {
       };
       get_team_catalog_updater_refresh_images: { Args: { p_team: string }; Returns: boolean };
       get_team_catalog_updater_refresh_texts: { Args: { p_team: string }; Returns: boolean };
+      get_team_catalog_updater_restitch_default: { Args: { p_team: string }; Returns: boolean };
       get_team_folder_resync_status: {
         Args: { p_job: string; p_team: string };
         Returns: {
@@ -5907,6 +6162,46 @@ export type GeneratedDatabase = {
           target: Json;
         }[];
       };
+      list_team_bulk_trash: { Args: { p_team: string }; Returns: Json };
+      list_team_catalog_update_attempts: {
+        Args: { p_catalog: string; p_limit?: number; p_team: string };
+        Returns: {
+          actual_changes: Json;
+          attempt_id: string;
+          catalog_material_id: string;
+          delivery_verified_at: string;
+          ended_at: string;
+          failure_code: string;
+          profile_snapshot: Json;
+          profile_version: number;
+          result: string;
+          source_attempt_id: string;
+          stage_history: Json;
+          started_at: string;
+          trigger_kind: string;
+        }[];
+      };
+      list_team_catalog_update_profiles: {
+        Args: { p_team: string };
+        Returns: {
+          catalog_material_id: string;
+          grow_products: boolean;
+          last_error_at: string;
+          last_result: string;
+          last_successful_at: string;
+          latest_attempt_at: string;
+          random_link_variation: boolean;
+          reconciliation_required: boolean;
+          refresh_images: boolean;
+          refresh_texts: boolean;
+          restitch: boolean;
+          restitch_blocked_code: string;
+          restitch_status: string;
+          schedule: Json;
+          updated_at: string;
+          version: number;
+        }[];
+      };
       list_team_drive_selections: {
         Args: { p_team: string };
         Returns: {
@@ -6140,6 +6435,10 @@ export type GeneratedDatabase = {
       };
       next_product_catalog_variant: { Args: { p_team: string; p_video: string }; Returns: number };
       owned_team_count: { Args: { p_user: string }; Returns: number };
+      patch_team_catalog_update_profile: {
+        Args: { p_catalog: string; p_expected_version: number; p_patch: Json; p_team: string };
+        Returns: Json;
+      };
       pause_launch_restitch: {
         Args: { p_code: string; p_generation: string; p_team: string };
         Returns: undefined;
@@ -6300,7 +6599,13 @@ export type GeneratedDatabase = {
         Args: { p_generation: string; p_key: string; p_team: string };
         Returns: Json;
       };
+      retry_team_catalog_update: {
+        Args: { p_catalog: string; p_source_attempt: string; p_team: string };
+        Returns: number;
+      };
+      retry_workspace_recovery: { Args: { p_recovery: string }; Returns: boolean };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
+      revoke_team_recovery: { Args: { p_installation: string; p_team: string }; Returns: boolean };
       run_team_catalog_update_now: {
         Args: { p_catalogs: string[]; p_team: string };
         Returns: number;
@@ -6432,6 +6737,10 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
+      service_authorize_catalog_cleanup: {
+        Args: { p_kind: string; p_material: string; p_worker: string };
+        Returns: boolean;
+      };
       service_authorize_launch_cleanup: {
         Args: {
           p_fence: string;
@@ -6491,6 +6800,19 @@ export type GeneratedDatabase = {
           p_video: string;
         };
         Returns: Json;
+      };
+      service_begin_catalog_update_write: {
+        Args: {
+          p_baseline_version: string;
+          p_expected_count: number;
+          p_item: string;
+          p_marker: string;
+          p_product_count: number;
+          p_settings_snapshot: Json;
+          p_swapped_copy: string;
+          p_worker: string;
+        };
+        Returns: boolean;
       };
       service_begin_change_replay: {
         Args: { p_connection: string; p_job: string };
@@ -6582,6 +6904,17 @@ export type GeneratedDatabase = {
           resource_key: string;
           size_bytes: number;
           team_id: string;
+        }[];
+      };
+      service_claim_catalog_reconciliations: {
+        Args: { p_limit?: number };
+        Returns: {
+          baseline_version: string;
+          catalog_material_id: string;
+          credential_id: string;
+          drive_file_id: string;
+          marker: string;
+          resource_key: string;
         }[];
       };
       service_claim_catalog_sync_jobs: {
@@ -7101,6 +7434,7 @@ export type GeneratedDatabase = {
         Args: { p_epoch: number; p_generation: string; p_job: string; p_worker: string };
         Returns: boolean;
       };
+      service_finish_catalog_update_write: { Args: { p_item: string }; Returns: boolean };
       service_finish_launch_cleanup: {
         Args: {
           p_cleaned_file?: string;
@@ -7473,6 +7807,10 @@ export type GeneratedDatabase = {
         }[];
       };
       service_list_user_restitch_objects: { Args: { p_user: string }; Returns: string[] };
+      service_mark_catalog_update_unknown: {
+        Args: { p_error: string; p_item: string; p_worker: string };
+        Returns: boolean;
+      };
       service_mark_drive_needs_reauth: { Args: { p_credential: string }; Returns: number };
       service_mark_folder_indexed:
         | { Args: { p_connection: string; p_drive_folder_id: string }; Returns: number }
@@ -7595,6 +7933,10 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
+      service_record_catalog_update_changes: {
+        Args: { p_changes: Json; p_item: string; p_worker: string };
+        Returns: boolean;
+      };
       service_record_restitch_output: {
         Args: {
           p_drive_file_id: string;
@@ -7603,6 +7945,16 @@ export type GeneratedDatabase = {
           p_shared_link: string;
         };
         Returns: string;
+      };
+      service_recovery_claim_restitch: {
+        Args: {
+          p_actor: string;
+          p_hash: string;
+          p_lease_seconds: number;
+          p_lease_token_hash: string;
+          p_team: string;
+        };
+        Returns: Json;
       };
       service_refresh_material_revision: {
         Args: {
@@ -7681,6 +8033,10 @@ export type GeneratedDatabase = {
           p_outcome: string;
           p_worker: string;
         };
+        Returns: boolean;
+      };
+      service_resolve_catalog_reconciliation: {
+        Args: { p_item: string; p_marker: string; p_outcome: string; p_worker: string };
         Returns: boolean;
       };
       service_resolve_team_folder: {
@@ -7851,6 +8207,10 @@ export type GeneratedDatabase = {
           p_scope: string;
         };
         Returns: string;
+      };
+      service_team_recovery: {
+        Args: { p_action: string; p_hash: string; p_input?: Json };
+        Returns: Json;
       };
       service_tombstone_catalog_files:
         | { Args: { p_connection: string; p_items: Json }; Returns: number }

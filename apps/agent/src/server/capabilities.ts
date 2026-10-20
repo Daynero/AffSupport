@@ -11,6 +11,7 @@ import { capabilities, type PlatformCapabilities } from '../platform/platform.js
  * serve it (which is exactly what a static list used to allow).
  */
 const PLATFORM_REQUIREMENTS: Partial<Record<AgentCapability, keyof PlatformCapabilities>> = {
+  'team-background-recovery': 'recoveryCredentials',
   'finder-image-conversion': 'shellContextMenuIntegration',
   'native-file-picker': 'nativeFilePicker',
   'directory-intake': 'directoryIntake'
@@ -25,7 +26,7 @@ export function advertisedCapabilities(
 ): AgentCapability[] {
   return AGENT_CAPABILITIES.filter(capability => {
     const requirement = PLATFORM_REQUIREMENTS[capability];
-    return requirement === undefined || platform[requirement];
+    return requirement === undefined || platform[requirement] === true;
   });
 }
 
@@ -35,5 +36,5 @@ export function hasCapability(
   platform: PlatformCapabilities = capabilities()
 ): boolean {
   const requirement = PLATFORM_REQUIREMENTS[capability];
-  return requirement === undefined || platform[requirement];
+  return requirement === undefined || platform[requirement] === true;
 }

@@ -1,0 +1,28 @@
+{
+  "startedAt": "2026-10-20T20:09:11.364Z",
+  "environment": "local-beta",
+  "steps": [
+    {
+      "stage": "real_auth_paid_workspace",
+      "at": "2026-10-20T20:09:11.635Z"
+    },
+    {
+      "stage": "native_pairing_and_enforced_entitlement",
+      "at": "2026-10-20T20:09:11.641Z"
+    },
+    {
+      "stage": "edge_delegation_native_redeem_keychain_ack",
+      "at": "2026-10-20T20:09:11.740Z"
+    },
+    {
+      "stage": "no_browser_claim_rotated_and_settled_idle",
+      "at": "2026-10-20T20:09:12.747Z"
+    },
+    {
+      "stage": "cloud_revoke_native_disable_keychain_delete",
+      "at": "2026-10-20T20:09:12.784Z"
+    }
+  ],
+  "ok": true,
+  "finishedAt": "2026-10-20T20:09:12.848Z"
+}

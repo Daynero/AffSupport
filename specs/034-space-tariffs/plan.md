@@ -1,3 +1,75 @@
+# План реалізації: тарифи простору та автоматичне відновлення
+
+**Оновлено**: 2026-10-20 · **Checkout**: `beta`, `154210f6` (до змін цієї роботи).
+**Вимоги**: [spec.md](spec.md), US6.6 / FR-009–010; повний recovery-контракт —
+[036](../036-production-acceptance/contracts/recovery.md). Це одна реалізація, не два проєкти.
+
+## Підсумок
+
+Базові тарифи вже реалізовано (T001–T022). Новий обсяг — durable фіксація тарифної паузи,
+серверне відновлення без браузера, актуальні права, safe checkpoints, правдивий UI й read-only діагноз.
+Повний acceptance лишається у 036; виконання її recovery-задач не дублюється в 034.
+Попередні описи ручного ввімкнення нижче — історія, не чинний план.
+
+## Технічний контекст
+
+TypeScript strict / Node 22–24, PL/pgSQL Supabase, Deno Edge, React 19 / HeroUI v3.
+Дані: PostgreSQL private recovery records, чинні catalog profiles/items/attempts, sync authority/epoch;
+локальний atomic журнал і платформне захищене сховище для майбутнього executor.
+Тести: Vitest single worker + PGlite з усіма міграціями; справжні двосесійні PostgreSQL тести;
+packaged beta на macOS/Windows. PGlite не доводить concurrency, cron, Vault чи реальний Drive.
+Цілі: recovery registration ≤60 с, перший актуальний старт ≤5 хв за здорових залежностей;
+чинні бюджети updater 12 / sync 3 не підвищувати. LOAD-08 є виміром, не unit-test обіцянкою.
+
+## Constitution Check (до і після design)
+
+I: shared typed DTO/closed reasons та boundary parsers. II: additive migrations, без version/manifest/deploy.
+III: private RLS/revoke, security definer/search_path, актуальні права на side effects, SELECT-only CLI.
+IV: executor через PowerGovernor, atomic checkpoint, cancel/holds і scaled local deadlines.
+V: чинні RPC/error envelopes; старий resume RPC ідемпотентний. VI: чинний Realtime invalidation,
+foreground catch-up, UI inventory/tokens; нове client polling не вводити.
+Design відповідає принципам; незакриті proofs — задачі, не винятки.
+
+## Phase 0 — Research
+
+[research.md](research.md): код змінився після 14.10: per-catalog profiles, civil schedules,
+settings journal, attempt snapshots, sync authority та restitch leases. Ручний resume застарів;
+наївне повторення jobs небезпечне. Невідомих продуктових рішень немає; зовнішні середовища — acceptance prerequisites.
+
+## Phase 1 — Design
+
+[data-model.md](data-model.md), [contracts/recovery.md](contracts/recovery.md),
+[quickstart.md](quickstart.md). Чинні базові RPC — [contracts.md](contracts.md).
+Повний дизайн делегації, credential audiences та budgets успадковано з 036 без послаблень.
+
+## Інкременти та залежності
+
+1. Durable recurring-catalog pause/resume: capture до зміни тарифу (включно з expiry до cron),
+   lock tariff→updater→items; відновлення лише paused_interval, без повторного запуску вимкнених;
+   одна поточна round; profile.schedule/version не змінюються; старі lease не приймаються.
+2. Повний WorkspacePause/PauseItem/recovery epoch/generation та one-off receipts; sync enqueue failure
+   не губиться. Довести двосесійні гонки та рестарти. Інкремент 1 сам по собі НЕ закриває US6.6.
+3. Scoped enrollment/delegation/rotation, secure platform storage, durable agent executor й checkpoints
+   за 036 T033–T040. Без цих задач browser-led restitch не називається no-browser recovery.
+4. Recovery projection, Realtime UI, typed diagnostics/CLI й retention; queue≠started≠terminal≠delivered.
+5. Повна beta LIFE-021–036/LOAD-08, актуальні DB types/build/verify, exact-SHA packaged acceptance.
+
+## Файли
+
+- Нова міграція після `20261204180000`: `supabase/migrations/20261205100000_tariff_catalog_recovery.sql`.
+- SQL regressions `tests/space-tariffs-sql.test.ts`; повні concurrency/receipt regressions за 036.
+- UI `apps/web/src/team/tariffs/UpdaterResumeNotice.tsx`; shared `team/tariffs.ts`.
+- Recovery Edge/agent/analytics — точні шляхи у 036 tasks T030–T048.
+- Нові файли/міграції наступних інкрементів мають унікальні пізні timestamp: у 036 tasks
+  повний recovery перенесено на `20261205110000`, delegation — на `20261206100000`, після першого інкремента.
+
+## Межі готовності
+
+T001–T022 не доводять US6.6. T023–T029 — umbrella milestones; T030+ — виконувані задачі,
+зі збереженням історичних ID. 036 лишається канонічною кампанією acceptance. Не розгортати production.
+
+## Історичний план базових тарифів (2026-10-11)
+
 # План реалізації: тарифи на простір
 
 **Специфікація**: [spec.md](./spec.md) · **Гілка**: `beta`
@@ -142,3 +214,19 @@ p_extra_seats, p_note, p_external_ref)`, `admin_extend_space_tariff(p_id, p_mont
 
 Докази: реальні DB concurrency/regression tests, тест повідомлень UI, read-only diagnosis до доставки результату,
 ручні LIFE-021–036 та LOAD-08. Завершені задачі нижче/в tasks.md не доводять готовність цієї поправки.
+
+### Рішення власника: live Windows, 2026-10-20
+
+Власник прямо виключив перевірку на живій Windows-машині: стенду немає. Для завершення **034**
+цей варіант має статус EXCLUDED_BY_OWNER, не PASS і не блокер. Windows implementation, platform
+capability та автоматичні regression/contract checks залишаються. Це рішення не змінює платформний
+склад production artifacts і не підмінює інші незалежні release gates. Решту recovery acceptance
+виконувати на доступному macOS/local beta, із явними межами зовнішнього Drive evidence.
+
+### Рішення власника: релізні перевірки відкладено, 2026-10-20
+
+Пряма вказівка: «релізні то перевірки тільки не роби то вже перед релізом потім».
+Поточне завершення 034 охоплює реалізацію та звичайний `npm run verify`.
+`verify:release`, пакування, exact-SHA packaged beta та релізна LIFE/LOAD кампанія відкладені
+до підготовки релізу (T044), не виконуються зараз і не позначаються PASS.
+Це не послаблює production promotion gates. Production не змінювався.

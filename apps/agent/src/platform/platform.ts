@@ -21,6 +21,7 @@ import { WindowsSuspendHelper } from './windows-suspend.js';
 
 /** Feature switches for behavior that only some platforms can offer. */
 export interface PlatformCapabilities {
+  recoveryCredentials?: boolean;
   /** Native OS file/folder pickers (osascript on macOS). */
   nativeFilePicker: boolean;
   /** Scoped native directory intake routes; enabled when their module is registered. */
@@ -48,6 +49,7 @@ export function capabilities(): PlatformCapabilities {
   switch (process.platform) {
     case 'darwin':
       return {
+        recoveryCredentials: true,
         nativeFilePicker: true,
         directoryIntake: true,
         revealInFileManager: true,
@@ -58,6 +60,7 @@ export function capabilities(): PlatformCapabilities {
     case 'win32':
       // Pickers are PowerShell WinForms dialogs (files/picker.ts).
       return {
+        recoveryCredentials: true,
         nativeFilePicker: true,
         directoryIntake: true,
         revealInFileManager: true,
@@ -71,6 +74,7 @@ export function capabilities(): PlatformCapabilities {
       };
     default:
       return {
+        recoveryCredentials: false,
         nativeFilePicker: false,
         directoryIntake: false,
         revealInFileManager: true,
@@ -845,4 +849,118 @@ export function indexedFileSearch(root: string, fileName: string): Promise<strin
     default:
       return Promise.resolve([]);
   }
+}
+
+/** User-bound secret storage; plaintext travels on stdin, never process arguments. */
+export async function recoveryCredential(
+  action: 'read' | 'write' | 'delete',
+  account: string,
+  value?: string
+): Promise<string | null> {
+  if (
+    !/^soty-recovery-[a-z0-9-]{1,100}$/u.test(account) ||
+    (value !== undefined && !/^[A-Za-z0-9_-]{1,524288}$/u.test(value))
+  )
+    throw new Error('INVALID_INPUT');
+  if (process.platform === 'darwin') {
+    if (action === 'read') {
+      const result = await nativeSecretCommand('/usr/bin/security', [
+        'find-generic-password',
+        '-s',
+        'com.soty.recovery',
+        '-a',
+        account,
+        '-w'
+      ]);
+      if (result.code === 44) return null;
+      if (result.code !== 0) throw new Error('AGENT_REQUIRED');
+      return result.output.trim();
+    }
+    if (action === 'delete') {
+      const result = await nativeSecretCommand('/usr/bin/security', [
+        'delete-generic-password',
+        '-s',
+        'com.soty.recovery',
+        '-a',
+        account
+      ]);
+      if (result.code !== 0 && result.code !== 44) throw new Error('AGENT_REQUIRED');
+      return null;
+    }
+    if (!value) throw new Error('INVALID_INPUT');
+    const result = await nativeSecretCommand(
+      '/usr/bin/security',
+      ['-i'],
+      `add-generic-password -U -s com.soty.recovery -a ${account} -w ${value}\n`
+    );
+    if (result.code !== 0 || (await recoveryCredential('read', account)) !== value)
+      throw new Error('AGENT_REQUIRED');
+    return null;
+  }
+  if (process.platform !== 'win32') throw new Error('AGENT_REQUIRED');
+  const file = path.join(appSupportRoot(), 'SotyRecovery', `${account}.bin`);
+  // DPAPI CurrentUser binds ciphertext to this Windows account. No secret enters
+  // the command line or a temporary plaintext file; replacement is atomic.
+  const script = `$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Security
+$r = [Console]::In.ReadToEnd() | ConvertFrom-Json
+$p = $r.file
+if ($r.action -eq 'delete') { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p }; exit }
+if ($r.action -eq 'read') {
+ if (!(Test-Path -LiteralPath $p)) { exit }
+ $b = [Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($p),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
+ [Console]::Out.Write([Text.Encoding]::UTF8.GetString($b)); exit
+}
+$b = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($r.value),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
+[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($p)) | Out-Null
+$t = $p + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+try { [IO.File]::WriteAllBytes($t,$b); Move-Item -LiteralPath $t -Destination $p -Force } finally { if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t } }`;
+  const result = await nativeSecretCommand(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-EncodedCommand',
+      Buffer.from(script, 'utf16le').toString('base64')
+    ],
+    JSON.stringify({ action, file, value })
+  );
+  if (result.code !== 0) throw new Error('AGENT_REQUIRED');
+  return action === 'read' ? result.output || null : null;
+}
+
+function nativeSecretCommand(
+  command: string,
+  args: string[],
+  input?: string
+): Promise<{ code: number; output: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
+    });
+    let output = '';
+    let oversized = false;
+    const timeout = setTimeout(() => child.kill(), 10_000);
+    timeout.unref();
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (output.length + chunk.length > 524288) {
+        oversized = true;
+        child.kill();
+      } else output += chunk.toString('utf8');
+    });
+    child.stderr.resume();
+    child.once('error', () => {
+      clearTimeout(timeout);
+      reject(new Error('AGENT_REQUIRED'));
+    });
+    child.once('close', code => {
+      clearTimeout(timeout);
+      if (oversized) reject(new Error('TOO_LARGE'));
+      else resolve({ code: code ?? 1, output });
+    });
+    child.stdin.on('error', () => undefined);
+    child.stdin.end(input);
+  });
 }

@@ -511,3 +511,11 @@ The source is the restricted, transaction-backed settings journal, not clicks. I
 Current stock counts active/nondeleted catalogs at `as_of`. Current actor scope means the latest known settings editor, not workspace ownership; baselines or system changes may have no known actor. Selection counts count committed cadence changes; distinct actors are deduplicated per interval and can occur in multiple intervals. Aliases such as 24h/daily share comparison buckets and retain raw keys. A user's first/latest observed settings states span the requested evidence and multiple catalogs, not an asserted universal preference. Per-catalog point timelines show edits that user actually performed; they do not assert that no other editor changed the catalog between points. Historical records may remain after archival so old trends still have closure.
 
 Apply `20261204170000_catalog_settings_journal.sql` through the normal release process before production reporting. It captures current settings as migration observations and grants only the existing read-only analytics role access to the bounded whitelist views. The browser's correlated `catalog_manager_*` flows remain the separate source for attempted/failed/cancelled changes and visible delivery; a journal row proves commit, not browser visibility. CLI output contains opaque user/catalog IDs and bounded setting values, not catalog names, content, paths, URLs or secrets.
+
+### Відновлення тарифної паузи (034)
+
+`investigate`, `inspect`, `sync` та `audit` додатково читають `analytics_workspace_recovery`, якщо
+projection доступна. Registered/queued не означає started або completed. Відсутня projection,
+невідомий код, обрізаний список і непідтверджена доставка явно вказуються як blind spots.
+`--as-of` не реконструює попередній стан зміненого recovery item: новіший mutable запис пропускається.
+Результат обмежений 100 items; жодні credentials чи користувацький контент не читаються.

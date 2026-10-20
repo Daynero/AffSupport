@@ -58,3 +58,7 @@ verify_jwt = false
 
 [functions.team-finance-export]
 verify_jwt = false
+
+# Per-action user JWT or scoped desktop credential is verified by the handler.
+[functions.team-recovery]
+verify_jwt = false

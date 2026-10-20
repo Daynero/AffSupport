@@ -1,3 +1,4 @@
+import { parseWorkspaceRecovery, type WorkspaceRecovery } from './recovery.js';
 import { isRecord } from './contract.js';
 
 /**
@@ -104,6 +105,7 @@ export interface TeamTariff {
   daysLeft: number | null;
   isOwner: boolean;
   updaterPausedByTariff: boolean;
+  recovery?: WorkspaceRecovery | null;
 }
 
 export interface SpaceAccessTeam {
@@ -428,7 +430,8 @@ export function parseTeamTariff(value: unknown): TeamTariff | null {
     graceUntil: moment(row.graceUntil) ?? day(row.graceUntil),
     daysLeft: integer(row.daysLeft),
     isOwner: flag(row.isOwner),
-    updaterPausedByTariff: flag(row.updaterPausedByTariff)
+    updaterPausedByTariff: flag(row.updaterPausedByTariff),
+    ...(row.recovery !== undefined ? { recovery: parseWorkspaceRecovery(row.recovery) } : {})
   };
 }
 

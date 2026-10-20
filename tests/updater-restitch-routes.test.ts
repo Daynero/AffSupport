@@ -352,6 +352,7 @@ describe('claiming', () => {
   it('gives nothing out when the lease was lost before the operation was bound', async () => {
     const { deps } = setup({ bound: false });
     expect(await claimRestitchJob(deps, ACTOR, { teamId: TEAM })).toEqual({ job: null });
+    expect(deps.abandonOperation).toHaveBeenCalledOnce();
   });
 });
 

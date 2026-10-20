@@ -1,0 +1,18 @@
+{
+  "head": {
+    "total": 1123630,
+    "launch": 47740,
+    "accounts": 80404,
+    "existing": 1019899
+  },
+  "working": {
+    "total": 1133717,
+    "launch": 37826,
+    "accounts": 76507,
+    "existing": 1043797
+  },
+  "ceiling": 1004788,
+  "config_loader": "bundle",
+  "source_sha": "154210f65a6b",
+  "shared_dependency_note": "HEAD shared package built separately; third-party node_modules reused"
+}

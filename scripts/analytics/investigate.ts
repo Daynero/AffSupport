@@ -1,3 +1,4 @@
+import { getRecoveryEvidence } from './tariff-recovery.js';
 import { getWorkspaceEvidence } from './workspace.js';
 import { diagnoseAccountEvents } from './accounts.js';
 import { getLaunchEvidence } from './launches.js';
@@ -581,7 +582,7 @@ async function syncSummary(
   }
   let data;
   try {
-    data = await getSyncJobs(email, 200);
+    data = await getSyncJobs(email, 200, period.end);
   } catch {
     return { status: 'unavailable', team_id: null, connections: [], note };
   }
@@ -1524,6 +1525,28 @@ export async function getInvestigation(
     errors
   });
 
+  const recovery = await getRecoveryEvidence(scope.userId ?? input, period.start, period.end);
+  for (const detail of recovery.blind_spots)
+    blindSpots.push({ kind: 'tariff_recovery_gap', detail, values: [] });
+  for (const item of recovery.items.filter(
+    item => item.reason !== null || item.delivery === 'unknown'
+  )) {
+    const fingerprint = `tariff:recovery:${item.reason ?? 'unknown'}`;
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['tariff_recovery', item.item_id, item.state, item.reason ?? 'unknown']),
+      kind: item.reason && item.reason !== 'unknown' ? 'fact' : 'insufficient',
+      severity: item.state === 'blocked' ? 'medium' : 'low',
+      rule: 'tariff_recovery_state',
+      title: `Recovery ${item.kind}: ${item.state}; last proven stage: ${item.stage}; reason: ${item.reason ?? 'delivery_unknown'}.`,
+      evidence: [`recovery:${item.recovery_id}:${item.item_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Inspect the recovery and its original operation. Verify the result before retrying; a missing receipt remains unknown.'
+    });
+  }
+
   const workspaceLocation = lookupCodeLocations('workspace:receipt');
   const workspace = await getWorkspaceEvidence(scope.userId, period.start, period.end);
   for (const detail of workspace.blind_spots)
@@ -1648,6 +1671,7 @@ export async function getInvestigation(
   };
   return {
     subject,
+    recovery,
     workspace,
     launches,
     environment,

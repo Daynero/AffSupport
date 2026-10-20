@@ -317,7 +317,14 @@ export async function claimRestitchJob(
     p_lease_token_hash: leaseHash,
     p_operation: grants.operationId
   });
-  if (bound !== true) return { job: null };
+  if (bound !== true) {
+    // Source/permission/lease may have changed during provider preflight. No
+    // native process received these grants, so abandon them instead of leaving
+    // a phantom running operation that blocks safe recovery.
+    await deps.abandonOperation(grants.operationId).catch(() => undefined);
+    await fail(deps, actorId, job.jobId, leaseHash, 'SOURCE_CHANGED');
+    return { job: null };
+  }
 
   return {
     job: {

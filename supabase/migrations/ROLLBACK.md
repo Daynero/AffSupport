@@ -1953,6 +1953,20 @@ them. No product profile, schedule, material or credential needs to be deleted.
 
 Forward-only additive RPC field. To roll back presentation, deploy the prior web; it ignores `activeCount`. If reverting the database separately, restore `public.get_team_catalog_updater(uuid)` from `20260915140000_catalog_updater.sql` (the same authentication/view permission guard and `private.catalog_updater_state(p_team)` return). Do not reset catalog schedules, attempts or history. Apply through the normal release process; local beta application is not production promotion.
 
+
+## 20261205100000_tariff_catalog_recovery
+
+034 recurring-catalog increment. No new tables or columns. Before rollback stop candidate rollout;
+keep current data and profile/calendar schedules. Forward compensation must restore the definitions
+of `private.apply_tariff_pauses`, `private.after_space_tariff_change` and
+`public.resume_team_catalog_updater` from `20261130110000_space_tariffs_background.sql` /
+`20261130100000_space_tariffs.sql`, and `private.catalog_settings_observation` from
+`20261204170000_catalog_settings_journal.sql`. Drop trigger `space_tariff_capture_catalog_pause`
+on `public.space_tariffs`, then functions `private.capture_tariff_catalog_pause()` and
+`private.restore_tariff_catalog_schedules(uuid)`. Previously restored schedules remain active;
+do not turn them off or replay their catch-up rounds. Review false preference observations if
+restoring the historical observation function. Full one-off/agent recovery has not shipped in this migration.
+
 ### 037 workspace UX receipts and image choice (20261205120000–20261205127000)
 
 Forward-only. Before any rollback, stop the existing catalog-updater lane from claiming
@@ -1968,3 +1982,31 @@ analytics-property guard. Keep every pre-existing catalog/Launch recovery lane. 
 `team_operations`, user materials, task links or the existing upload journal. Removing
 optional image settings fields does not rewrite historical frozen jobs. Validate the
 compensation in an isolated database before any separately authorized release.
+
+## 034 durable recovery and native delegation (20261205110000, 20261206100000–110000)
+
+Stop `soty-workspace-recovery` and the `team-recovery` endpoint before a local rollback. Revoke native
+delegations and stop participating agents before restoring older claim/heartbeat routes. Never weaken
+current tariff checks while a previously leased worker is running. Keep WorkspacePause/PauseItem,
+RecoveryItem, original one-off attempts and operation receipts until every unresolved item is reconciled;
+do not delete snapshots to make a rollback appear clean.
+
+Roll the web/agent capability back together with Edge routing. The browser preparer must not compete
+with a still-authorized native delegation. Restore the exact pre-migration functions from the prior
+migration chain, including catalog settings/attempt hooks and sync dispatch. Retain unresolved private
+records; deleting terminal history is only permitted after the documented 30-day retention and no live
+updater reference. Vault replay responses and expired credentials can be removed independently after
+revocation. Keychain/DPAPI deletion is per explicit installation disable, never a production-wide reset.
+
+These migrations have only local implementation evidence here; this is not a production rollback command.
+
+
+### 034 late-output fence (`20261206120000`)
+
+Keep the source/version/configuration receipt columns on `private.catalog_restitch_operations`.
+They fence promotion of uploaded files after a lease, permission, source or configuration change.
+Existing operations without a receipt become retired cleanup entries. Do not roll back to an
+unfenced `service_record_restitch_output` while old workers can still finish. The cleanup worker
+must deploy with `service_authorize_catalog_cleanup`; a missing/failed authorization stops deletion.
+A provider HTTP request already sent cannot be canceled atomically by PostgreSQL: retain its actual
+completion receipt even if access closes in flight. Never report such a receipt as a resumed job.
