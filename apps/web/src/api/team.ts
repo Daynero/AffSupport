@@ -1,4 +1,8 @@
 import {
+  isTaskCleanupReceipt,
+  type TaskCleanupReceipt,
+  isBulkTrashGroup,
+  type BulkTrashGroup,
   MATERIAL_CATEGORIES,
   TEAM_BASE_ROLES,
   TEAM_ERROR_CODES,
@@ -4035,11 +4039,75 @@ export const teamApi = {
     );
   },
 
-  async copyTasks(input: { teamId: string; taskIds: string[] }): Promise<string[]> {
+  async prepareBulkTrashItem(
+    teamId: string,
+    groupId: string,
+    materialId: string
+  ): Promise<BulkTrashGroup> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('copy_team_tasks', {
+      requireSupabaseClient().rpc('prepare_team_bulk_trash_item', {
+        p_team: teamId,
+        p_group: groupId,
+        p_material: materialId
+      })
+    );
+    throwRpc(error);
+    if (!isBulkTrashGroup(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+  async startBulkTrash(
+    teamId: string,
+    groupId: string,
+    materialIds: string[]
+  ): Promise<BulkTrashGroup> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('start_team_bulk_trash', {
+        p_team: teamId,
+        p_group: groupId,
+        p_materials: materialIds
+      })
+    );
+    throwRpc(error);
+    if (!isBulkTrashGroup(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+  async listBulkTrash(teamId: string): Promise<BulkTrashGroup[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_bulk_trash', { p_team: teamId })
+    );
+    throwRpc(error);
+    const candidate: unknown = data;
+    if (!Array.isArray(candidate) || !candidate.every(isBulkTrashGroup))
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return candidate;
+  },
+  async markBulkTrashRequest(
+    teamId: string,
+    groupId: string,
+    materialId: string,
+    errorCode: string | null = null
+  ): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('mark_team_bulk_trash_request', {
+        p_team: teamId,
+        p_group: groupId,
+        p_material: materialId,
+        p_error: errorCode ?? undefined
+      })
+    );
+    throwRpc(error);
+  },
+
+  async copyTasks(input: {
+    teamId: string;
+    taskIds: string[];
+    idempotencyKey?: string;
+  }): Promise<string[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('copy_team_tasks_once', {
         p_team: input.teamId,
-        p_tasks: input.taskIds
+        p_tasks: input.taskIds,
+        p_request: input.idempotencyKey ?? crypto.randomUUID()
       })
     );
     throwRpc(error);
@@ -4188,6 +4256,57 @@ export const teamApi = {
     const result = taskAttachmentMutationResult(data);
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
     return result;
+  },
+
+  async beginTaskUpload(teamId: string, taskId: string, requestKey: string): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('begin_task_upload', {
+        p_team: teamId,
+        p_task: taskId,
+        p_request: requestKey
+      })
+    );
+    throwRpc(error);
+  },
+  async detachTaskMaterialSafely(
+    teamId: string,
+    taskId: string,
+    materialId: string
+  ): Promise<TaskCleanupReceipt> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('detach_task_material_safely', {
+        p_team: teamId,
+        p_task: taskId,
+        p_material: materialId
+      })
+    );
+    throwRpc(error);
+    if (!isTaskCleanupReceipt(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+  async undoTaskMaterialDetach(teamId: string, receiptId: string): Promise<TaskCleanupReceipt> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('undo_task_material_detach', {
+        p_team: teamId,
+        p_receipt: receiptId
+      })
+    );
+    throwRpc(error);
+    if (!isTaskCleanupReceipt(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+  async listTaskAttachmentCleanup(teamId: string, taskId: string): Promise<TaskCleanupReceipt[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_task_attachment_cleanup', {
+        p_team: teamId,
+        p_task: taskId
+      })
+    );
+    throwRpc(error);
+    const candidate: unknown = data;
+    if (!Array.isArray(candidate) || !candidate.every(isTaskCleanupReceipt))
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return candidate;
   },
 
   async detachTaskMaterial(teamId: string, taskId: string, materialId: string): Promise<boolean> {

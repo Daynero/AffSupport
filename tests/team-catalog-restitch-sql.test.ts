@@ -93,14 +93,27 @@ const state = async () =>
 
 const enroll = (actor = OWNER): Device => ({ actor });
 
-const save = async (catalogs: string[], restitch: boolean) =>
-  (
-    await harness.asUser<{ result: State }>(
-      OWNER,
-      'select public.save_team_catalog_updater($1, $2, $3, $4) as result',
-      [teamId, catalogs, '1h', restitch]
-    )
-  )[0]!.result;
+// Catalog profiles own restitch choice since 039; the space default only
+// seeds catalogs created later and cannot toggle an existing catalog.
+const setRestitch = (catalogs: string[], restitch: boolean) =>
+  harness.asUser(
+    OWNER,
+    `select public.patch_team_catalog_update_profile(
+    $1, profile.catalog_material_id, profile.version, jsonb_build_object('restitch', $3::boolean))
+    from public.team_catalog_update_profiles profile
+    where profile.team_id=$1 and profile.catalog_material_id=any($2::uuid[])`,
+    [teamId, catalogs, restitch]
+  );
+const save = async (catalogs: string[], restitch: boolean) => {
+  await harness.asUser(OWNER, 'select public.save_team_catalog_updater($1, $2, $3, $4)', [
+    teamId,
+    catalogs,
+    '1h',
+    restitch
+  ]);
+  await setRestitch(catalogs, restitch);
+  return state();
+};
 
 const stop = () => harness.asUser(OWNER, 'select public.stop_team_catalog_updater($1)', [teamId]);
 
@@ -270,11 +283,72 @@ describe('who prepares', () => {
 });
 
 describe('spares', () => {
+  it('refuses binding when the source changes after claim but before native handoff', async () => {
+    const { sheet, video } = await catalog('preflight-source-change');
+    await save([sheet], true);
+    const lease = token();
+    expect((await claimJob(enroll(), lease))?.jobId).toBe(sheet);
+    await harness.root("update public.team_materials set drive_version='8' where id=$1", [video]);
+    const { operationId } = await operation(sheet);
+    expect(await bind(sheet, lease, operationId)).toBe(false);
+    expect(
+      await harness.root(
+        'select * from private.catalog_restitch_operations where operation_id=$1',
+        [operationId]
+      )
+    ).toHaveLength(0);
+    await stop();
+  }, 60_000);
+
+  it.each(['expired lease', 'revoked member', 'changed source', 'changed configuration'] as const)(
+    'records a late upload for cleanup instead of promoting it after %s',
+    async reason => {
+      const { sheet } = await catalog(`late-${reason}`);
+      await save([sheet], true);
+      const lease = token();
+      expect((await claimJob(enroll(EDITOR), lease))?.jobId).toBe(sheet);
+      const { operationId } = await operation(sheet);
+      expect(await bind(sheet, lease, operationId)).toBe(true);
+      if (reason === 'expired lease') {
+        await harness.root(
+          `update private.catalog_restitch_jobs set lease_expires_at=now()-interval '1 second'
+           where catalog_material_id=$1`,
+          [sheet]
+        );
+      } else if (reason === 'changed source') {
+        await harness.root(
+          `update public.team_materials set drive_version='8' where id=(select companion_of from public.team_materials where id=$1)`,
+          [sheet]
+        );
+      } else if (reason === 'changed configuration') {
+        await harness.root(
+          `update public.team_catalog_updater_items set config_generation=config_generation+1 where catalog_material_id=$1`,
+          [sheet]
+        );
+      } else {
+        await harness.root(
+          `update public.team_members set base_role='viewer' where team_id=$1 and user_id=$2`,
+          [teamId, EDITOR]
+        );
+      }
+      try {
+        const made = await output(operationId);
+        expect(made.result).toBe('retired');
+        expect(await copies(sheet)).toMatchObject([{ material_id: made.copy, role: 'retired' }]);
+      } finally {
+        await harness.root(
+          `update public.team_members set base_role='admin' where team_id=$1 and user_id=$2`,
+          [teamId, EDITOR]
+        );
+        await stop();
+      }
+    },
+    60_000
+  );
+
   it('prepares a video before a one-off update, then stops when that update finishes', async () => {
     const { sheet } = await catalog('one-off');
-    await harness.asUser(OWNER, 'select public.set_team_catalog_updater_restitch($1, true)', [
-      teamId
-    ]);
+    await setRestitch([sheet], true);
     expect((await state()).state).toBe('stopped');
     const opened = await harness.asUser<{ count: number }>(
       OWNER,
@@ -313,9 +387,7 @@ describe('spares', () => {
 
   it('uses the existing video after the one-off wait expires, unless a copy is still running', async () => {
     const { sheet } = await catalog('one-off-timeout');
-    await harness.asUser(OWNER, 'select public.set_team_catalog_updater_restitch($1, true)', [
-      teamId
-    ]);
+    await setRestitch([sheet], true);
     await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1, $2)', [
       teamId,
       [sheet]
@@ -427,9 +499,7 @@ describe('spares', () => {
 
   it('shows the measured video progress on a pending catalog without moving backwards', async () => {
     const { sheet } = await catalog('visible-progress');
-    await harness.asUser(OWNER, 'select public.set_team_catalog_updater_restitch($1, true)', [
-      teamId
-    ]);
+    await setRestitch([sheet], true);
     await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1, $2)', [
       teamId,
       [sheet]
@@ -582,15 +652,15 @@ describe('rounds', () => {
     expect(await jobs(sheet)).toHaveLength(0);
   }, 60_000);
 
-  it('brings a retired spare back when the round that used it completes', async () => {
+  it('keeps the frozen spare through completion when the next round disables restitch', async () => {
     const { sheet } = await catalog('revive');
     const device = enroll();
     await save([sheet], true);
     const spare = await prepareSpare(device, sheet, 'https://drive.google.com/file/d/revive/view');
     const item = await round(sheet);
-    // Re-stitching turned off during the round: the spare is retired, the item stays in the updater.
+    // Disabling affects the next round; the accepted round keeps its frozen spare.
     await save([sheet], false);
-    expect((await copies(sheet))[0]!.role).toBe('retired');
+    expect((await copies(sheet))[0]!.role).toBe('spare');
     expect(await completeRound(sheet, item.update_count + 1, spare)).toBe(true);
     expect(await copies(sheet)).toMatchObject([{ material_id: spare, role: 'in_use' }]);
     expect(await jobs(sheet)).toHaveLength(0);

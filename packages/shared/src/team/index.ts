@@ -22,3 +22,6 @@ export * from './launches.js';
 export * from './account-order.js';
 export * from './account-lifecycle.js';
 export * from './account-overview.js';
+
+export * from './bulk-trash.js';
+export * from './task-cleanup.js';

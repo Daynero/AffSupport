@@ -210,6 +210,14 @@ npm run verify           # static gates and the suite — about a minute
 npm run verify:release   # adds the builds, release contracts and database tests
 ```
 
+`npm run test:db` uses `scripts/test-db-isolated.mjs`: it takes only schema and
+role definitions from the running local Supabase container, starts a disposable
+PostgreSQL container on loopback, replays the complete application migration chain,
+runs pgTAP and removes that container and its volumes. It copies no application
+rows, credentials or role passwords and disables scheduled job execution. The
+existing local database and cluster roles are unchanged. A local Supabase stack
+must be running, as in CI; no remote database URL is accepted by this runner.
+
 Both run every gate through `scripts/verify-all.mjs` and report one
 machine-readable result, written to `verification-result.json` whichever form
 ran. The two forms differ **only** in which gates run, never in how a result is

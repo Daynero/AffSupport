@@ -129,8 +129,9 @@ export const COMPRESSOR_CODES: Readonly<Record<string, CodeSpec>> = {
   },
   IMAGE_UNAVAILABLE: {
     stage: 'image_embedding',
-    agent: [AGENT_IMAGES, AGENT_QUEUE],
-    check: 'Whether the screen image referenced by the job still exists in the image library.'
+    agent: [AGENT_IMAGES, AGENT_QUEUE, 'apps/agent/src/compressor/settings-validation.ts'],
+    check:
+      'Whether the explicit start or end choice still belongs to its enabled gallery and the frozen job image remains available.'
   },
   IMAGE_FILTER_GRAPH_INVALID: {
     stage: 'image_embedding',
@@ -1063,7 +1064,20 @@ function build(): Record<string, CodeLocation> {
   return map;
 }
 
-export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze(build());
+export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
+  ...build(),
+  'workspace:receipt': {
+    files: [
+      'supabase/migrations/20261205122000_task_attachment_cleanup.sql',
+      'supabase/migrations/20261205121000_bulk_trash_receipts.sql',
+      'supabase/functions/drive-ops/task-cleanup.ts',
+      'apps/web/src/team/tasks/TaskEditor.tsx',
+      'apps/web/src/team/explorer/useBulkTrash.ts'
+    ],
+    check:
+      'Reconcile the durable receipt, current rights and known references before retrying; missing provider or visible delivery remains unknown.'
+  }
+});
 
 /**
  * The entry for a fingerprint, falling back by prefix: `a:b:c` → `a:b:*` → `a:*`. A link

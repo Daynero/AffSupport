@@ -489,3 +489,26 @@ describe('embedding image activity toggle (013 A2)', () => {
     expect(update).toHaveBeenCalledWith({ disabledImageIds: ['img-1'] });
   });
 });
+it('shows explicit image choice only when supported and sends the selected slot ID', async () => {
+  const update = vi.fn();
+  const props = {
+    settings: makeEmbeddingSettings({
+      enabled: true,
+      startImages: [asset('first.png', 'first'), asset('second.png', 'second')]
+    }),
+    disabled: false,
+    update,
+    uploadImages: async () => {},
+    removeImage: async () => {},
+    onValidityChange: vi.fn(),
+    t: t('en')
+  };
+  const view = render(<ImageEmbeddingSection {...props} explicitChoiceAllowed={false} />);
+  expect(document.querySelectorAll('.ui-select')).toHaveLength(0);
+  view.rerender(<ImageEmbeddingSection {...props} explicitChoiceAllowed />);
+  expect(document.querySelectorAll('.ui-select')).toHaveLength(2);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: /choose.*opening/i }));
+  await user.click(screen.getByRole('option', { name: 'second.png' }));
+  expect(update).toHaveBeenCalledWith({ selectedStartImageId: 'second' });
+});

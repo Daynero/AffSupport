@@ -353,6 +353,9 @@ function migrateImageEmbeddingSettings(value: unknown): ImageEmbeddingSettings {
   const duration = Number(raw.customFinalDurationSeconds);
   return {
     enabled: raw.enabled === true,
+    selectedStartImageId:
+      typeof raw.selectedStartImageId === 'string' ? raw.selectedStartImageId : null,
+    selectedEndImageId: typeof raw.selectedEndImageId === 'string' ? raw.selectedEndImageId : null,
     startEnabled: raw.startEnabled !== false,
     endEnabled: raw.endEnabled !== false,
     startImages: migrateImageAssets(raw.startImages, raw.startImage),
@@ -405,6 +408,12 @@ function migrateJobImageEmbedding(value: unknown): JobImageEmbedding | null {
   return {
     startImage,
     endImage,
+    ...(raw.startImageSelection === 'explicit' || raw.startImageSelection === 'random'
+      ? { startImageSelection: raw.startImageSelection }
+      : {}),
+    ...(raw.endImageSelection === 'explicit' || raw.endImageSelection === 'random'
+      ? { endImageSelection: raw.endImageSelection }
+      : {}),
     startDurationMode: settings.startDurationMode,
     customStartDurationMs: settings.customStartDurationMs,
     finalDurationMode: settings.finalDurationMode,

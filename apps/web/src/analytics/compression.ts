@@ -58,6 +58,12 @@ export function safeCompressionProperties(job: CompressionJob) {
       : {}),
     ...(job.encoding.resolutionLimit ? { target_resolution: job.encoding.resolutionLimit } : {}),
     image_embedding: Boolean(job.imageEmbedding),
+    ...(job.imageEmbedding?.startImageSelection
+      ? { explicit_start_image: job.imageEmbedding.startImageSelection === 'explicit' }
+      : {}),
+    ...(job.imageEmbedding?.endImageSelection
+      ? { explicit_end_image: job.imageEmbedding.endImageSelection === 'explicit' }
+      : {}),
     tool_identifier: 'compressor' as const
   };
 }
@@ -77,6 +83,8 @@ export function safeBatchProperties(
     ...(settings.frameRate ? { output_fps: settings.frameRate } : {}),
     ...(settings.resolutionLimit ? { target_resolution: settings.resolutionLimit } : {}),
     image_embedding: settings.imageEmbedding.enabled,
+    explicit_start_image: Boolean(settings.imageEmbedding.selectedStartImageId),
+    explicit_end_image: Boolean(settings.imageEmbedding.selectedEndImageId),
     tool_identifier: 'compressor' as const
   };
 }

@@ -1,0 +1,29 @@
+{
+  "measured_at": "2026-10-20T19:35:35.767352+00:00",
+  "source_sha": "154210f65a6bca27c4ec4846cc68fc045cff1cf8",
+  "method": "Isolated git archive HEAD and working build; same installed dependencies and environment. Node gzip; existing exclusive-route accounting; unchanged budget.",
+  "ceiling_bytes": 1004788,
+  "head": {
+    "total_gzip_bytes": 1126563,
+    "accounts_gzip_bytes": 76547,
+    "launch_gzip_bytes": 37766,
+    "charged_gzip_bytes": 1036663
+  },
+  "working": {
+    "total_gzip_bytes": 1133717,
+    "accounts_gzip_bytes": 76507,
+    "launch_gzip_bytes": 37826,
+    "charged_gzip_bytes": 1043797
+  },
+  "head_excess_bytes": 31875,
+  "working_excess_bytes": 39009,
+  "scope": "Working tree includes concurrent 034 changes; incremental difference is not attributed solely to 037.",
+  "final_working": {
+    "total_gzip_bytes": 1133841,
+    "accounts_gzip_bytes": 76507,
+    "launch_gzip_bytes": 37826,
+    "charged_gzip_bytes": 1043921
+  },
+  "final_working_excess_bytes": 39133,
+  "final_build_measured_at": "2026-10-20T19:47:35.529Z"
+}

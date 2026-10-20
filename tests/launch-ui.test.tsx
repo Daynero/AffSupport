@@ -335,7 +335,7 @@ it('opens a Launch from its heading, padding and date while keeping selection an
   fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link to launch' }));
   expect(open).toHaveBeenCalledTimes(3);
   const user = userEvent.setup();
-  const button = screen.getByRole('button', { name: /v5/u });
+  const button = screen.getByRole('button', { name: 'Whole card' });
   button.focus();
   await user.keyboard('{Enter}');
   expect(open).toHaveBeenCalledTimes(4);

@@ -142,7 +142,7 @@ describe('leaving a space', () => {
 
     expect(
       await screen.findByText(
-        'A space cannot be left without an owner. Transfer ownership to a member in the list above first, then you can leave here.'
+        'To leave, transfer ownership first: open … beside a member → Transfer ownership.'
       )
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Leave this space' })).toBeNull();

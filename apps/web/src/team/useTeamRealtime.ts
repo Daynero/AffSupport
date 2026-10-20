@@ -25,6 +25,7 @@ export function useTeamRealtime(input: {
     let active = true;
     let subscribed = false;
     let dirty = false;
+    let urgentDirty = false;
     let refreshing = false;
     let failedReads = 0;
     let refetchTimer: number | null = null;
@@ -32,6 +33,7 @@ export function useTeamRealtime(input: {
       refetchTimer = null;
       if (!active || refreshing || !dirty) return;
       dirty = false;
+      urgentDirty = false;
       refreshing = true;
       try {
         await onRefetch();
@@ -47,12 +49,16 @@ export function useTeamRealtime(input: {
         refreshing = false;
         // A change delivered during the read must get a later authoritative
         // snapshot; event IDs are not contiguous replay positions.
-        if (dirty) schedule();
+        if (dirty) schedule(urgentDirty);
       }
     };
-    const schedule = () => {
+    const schedule = (urgent = false) => {
+      if (urgent && refetchTimer !== null) {
+        window.clearTimeout(refetchTimer);
+        refetchTimer = null;
+      }
       if (!active || refetchTimer !== null) return;
-      refetchTimer = window.setTimeout(() => void flush(), 1_000);
+      refetchTimer = window.setTimeout(() => void flush(), urgent ? 0 : 1_000);
     };
     const refetch = () => {
       if (!active) return;
@@ -76,7 +82,17 @@ export function useTeamRealtime(input: {
           // changes to the user's catalog and must not trigger another read.
           filter: `team_id=eq.${teamId}`
         },
-        refetch
+        payload => {
+          if (
+            payload?.new &&
+            'event_kind' in payload.new &&
+            payload.new.event_kind === 'bulk_trash_changed'
+          ) {
+            dirty = true;
+            urgentDirty = true;
+            if (!refreshing) schedule(true);
+          } else refetch();
+        }
       )
       .on(
         'postgres_changes',

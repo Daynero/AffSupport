@@ -1,0 +1,88 @@
+{
+  "ok": false,
+  "form": "release",
+  "generated_at": "2026-10-20T19:44:21.824Z",
+  "error": "suite",
+  "totals": {
+    "gates": 14,
+    "passed": 13,
+    "failed": 1,
+    "tests": 0,
+    "skipped_tests": 0,
+    "skip_reasons": {},
+    "coverage_lines": null
+  },
+  "gates": [
+    {
+      "id": "build:shared",
+      "ok": true,
+      "duration_ms": 3062
+    },
+    {
+      "id": "format",
+      "ok": true,
+      "duration_ms": 86000
+    },
+    {
+      "id": "lint",
+      "ok": true,
+      "duration_ms": 75707
+    },
+    {
+      "id": "typecheck:projects",
+      "ok": true,
+      "duration_ms": 89515
+    },
+    {
+      "id": "typecheck:tests",
+      "ok": true,
+      "duration_ms": 99719
+    },
+    {
+      "id": "typecheck:scripts",
+      "ok": true,
+      "duration_ms": 13799
+    },
+    {
+      "id": "design-tokens",
+      "ok": true,
+      "duration_ms": 669
+    },
+    {
+      "id": "tailwind-classes",
+      "ok": true,
+      "duration_ms": 9428
+    },
+    {
+      "id": "styles",
+      "ok": true,
+      "duration_ms": 750
+    },
+    {
+      "id": "i18n",
+      "ok": true,
+      "duration_ms": 781
+    },
+    {
+      "id": "env-registry",
+      "ok": true,
+      "duration_ms": 746
+    },
+    {
+      "id": "csp",
+      "ok": true,
+      "duration_ms": 529
+    },
+    {
+      "id": "audit",
+      "ok": true,
+      "duration_ms": 5226
+    },
+    {
+      "id": "suite",
+      "ok": false,
+      "duration_ms": 1100504
+    }
+  ],
+  "scope": "Full release invocation stopped at suite shard 6 on the pre-existing download-budget failure; shards 7\u20138 and later phases were not reached by this invocation."
+}

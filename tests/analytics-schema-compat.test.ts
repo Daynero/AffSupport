@@ -76,7 +76,7 @@ const COMMANDS: string[][] = [
 
 describe.each([
   { label: 'pre-031 schema', schema: 'pre-031' as const, post031: false },
-  { label: 'current schema', schema: 'current' as const, post031: true }
+  { label: '031/033 schema without the 037 projection', schema: 'current' as const, post031: true }
 ])('analytics CLI on the $label', ({ schema, post031 }) => {
   let db: AnalyticsTestDb;
 
@@ -122,7 +122,8 @@ describe.each([
     if (post031) {
       expect(kinds).not.toContain('journal_table_missing');
       expect(kinds).not.toContain('envelope_v3_missing');
-      expect(data.schema.missing).toEqual([]);
+      // This compatibility fixture intentionally predates the 037 diagnostic view.
+      expect(data.schema.missing).toEqual(['analytics_workspace_operations']);
       expect(data.coverage.journal_records).toBe(1);
       expect(data.subject.agent_instance_ids).toEqual([AGENT]);
     } else {
@@ -140,7 +141,8 @@ describe.each([
         'analytics_events.agent_platform',
         'agent_journal_records',
         'analytics_daily_events',
-        'analytics_daily_tool_outcomes'
+        'analytics_daily_tool_outcomes',
+        'analytics_workspace_operations'
       ]);
       expect(data.coverage.journal_records).toBe(0);
       expect(data.subject.agent_instance_ids).toEqual([]);
@@ -191,8 +193,9 @@ describe.each([
     const data = (await run('audit', '--period', '30d')).data as AuditData;
     expect(data.capabilities.length).toBe(data.registry_size);
     if (post031) {
-      expect(data.schema.missing).toEqual([]);
-      expect(data.schema.note).toBeUndefined();
+      // This compatibility fixture intentionally predates the 037 diagnostic view.
+      expect(data.schema.missing).toEqual(['analytics_workspace_operations']);
+      expect(data.schema.note).toMatch(/lacks/);
     } else {
       expect(data.schema.missing).toContain('analytics_events.attempt_id');
       expect(data.schema.missing).toContain('agent_journal_records');

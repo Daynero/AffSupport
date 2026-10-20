@@ -371,14 +371,23 @@ export async function trashMaterialWithTail(input: {
   teamId: string;
   material: TailMaterial;
   client: TrashTailClient;
+  idempotencyKey?: string;
 }): Promise<void> {
   const { teamId, material, client } = input;
   const tail = await tailOf(teamId, material);
-  await client.trashMaterial({ teamId, materialId: material.id, idempotencyKey: key() });
+  await client.trashMaterial({
+    teamId,
+    materialId: material.id,
+    idempotencyKey: input.idempotencyKey ?? key()
+  });
   for (const companion of [tail.transcript, ...tail.catalogs]) {
     if (!companion) continue;
     await client
-      .trashMaterial({ teamId, materialId: companion.id, idempotencyKey: key() })
+      .trashMaterial({
+        teamId,
+        materialId: companion.id,
+        idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:${companion.id}` : key()
+      })
       .catch(() => undefined);
   }
 }

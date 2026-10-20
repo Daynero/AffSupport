@@ -1,3 +1,4 @@
+import { getWorkspaceEvidence } from './workspace.js';
 import { diagnoseAccountEvents } from './accounts.js';
 import { getLaunchEvidence } from './launches.js';
 /**
@@ -1523,6 +1524,24 @@ export async function getInvestigation(
     errors
   });
 
+  const workspaceLocation = lookupCodeLocations('workspace:receipt');
+  const workspace = await getWorkspaceEvidence(scope.userId, period.start, period.end);
+  for (const detail of workspace.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const operation of workspace.operations.filter(
+    op => !['confirmed', 'trashed', 'cancelled'].includes(op.state)
+  ))
+    findings.push({
+      id: hashId(['workspace_receipt', operation.id, operation.state]),
+      kind: 'fact',
+      severity: 'medium',
+      rule: 'workspace_receipt',
+      title: `Workspace ${operation.action}: ${operation.state}${operation.code ? ` (${operation.code})` : ''}`,
+      evidence: [`workspace:${operation.id}`],
+      code_locations: workspaceLocation ? [workspaceLocation] : [],
+      next_step:
+        'Inspect the safe receipt; retain unverified files and reconcile unknown operations before retrying.'
+    });
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   if (!launches.supported)
     blindSpots.push({
@@ -1629,6 +1648,7 @@ export async function getInvestigation(
   };
   return {
     subject,
+    workspace,
     launches,
     environment,
     sessions: sessionsOf(rows, sessionLimit),

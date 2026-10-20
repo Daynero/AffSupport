@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "generated_at": "2026-10-20T19:47:23.174Z",
+  "gates": [
+    {
+      "id": "build:shared",
+      "ok": true,
+      "duration_ms": 1412
+    },
+    {
+      "id": "contract:web-env",
+      "ok": true,
+      "duration_ms": 165
+    }
+  ],
+  "scope": "Environment group only; does not override the failed full release or database results."
+}

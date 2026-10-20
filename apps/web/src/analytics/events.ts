@@ -328,6 +328,8 @@ export type AnalyticsProperties = {
   output_fps?: number;
   target_resolution?: number;
   image_embedding?: boolean;
+  explicit_start_image?: boolean;
+  explicit_end_image?: boolean;
   has_audio?: boolean;
   language?: 'en' | 'uk';
   marketing_consent?: boolean;
@@ -557,6 +559,8 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   output_fps: { kind: 'number', range: [1, 1000] },
   target_resolution: { kind: 'number', range: [16, 32_768] },
   image_embedding: { kind: 'boolean' },
+  explicit_start_image: { kind: 'boolean' },
+  explicit_end_image: { kind: 'boolean' },
   has_audio: { kind: 'boolean' },
   language: { kind: 'enum', values: ['en', 'uk'] },
   marketing_consent: { kind: 'boolean' },

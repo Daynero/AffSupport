@@ -93,9 +93,7 @@ it('labels the RK, filters actual targets and warns that every amount moves with
   expect(screen.getByRole('heading', { name: /Transfer ad account/ }).textContent).toContain(
     'Transfer ad account 001234 from social account Source'
   );
-  expect(screen.getByLabelText('001234').querySelector('.team-agent-tail')?.textContent).toBe(
-    '234'
-  );
+  expect(screen.getByLabelText('001234').textContent).toBe('001234');
   expect(screen.getByRole('note').textContent).toBe(
     'All of this ad account’s amounts — balances, top-ups and spend, for all time — will move to the new social account and will no longer count toward Source.'
   );

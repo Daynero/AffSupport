@@ -8,10 +8,14 @@ it('rolls back every row on a stale batch member and refuses an Undo after a new
     const second = (
       await f.db.asUser<{ id: string }>(
         FINANCE_OWNER,
-        "select public.add_team_account_agent($1,$2,$3)->>'id' as id",
+        "select public.add_team_account_agent($1,$2,$3,p_starts_on => date '2026-01-01')->>'id' as id",
         [f.team, f.accounts[0], 'Second']
       )
     )[0]!.id;
+    await f.db.root(
+      "update public.team_account_agents set created_at='2026-01-01T12:00:00Z' where id=$1",
+      [second]
+    );
     await f.db.root(
       "update public.team_agent_placements set starts_on='2026-01-01' where agent_row_id=$1",
       [second]

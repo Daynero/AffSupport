@@ -45,6 +45,7 @@ export {
 } from './release.js';
 
 export {
+  imageSelectionSupported,
   compareProductVersions,
   isPinnedReleaseArtifact,
   normalizeToolContracts,
@@ -131,6 +132,9 @@ export interface ImageEmbeddingSettings {
   endImages: ImageAsset[];
   /** Images excluded from the random pick (toggled off by clicking the tile). */
   disabledImageIds: string[];
+  /** Null preserves the random enabled gallery; a missing explicit choice is never replaced. */
+  selectedStartImageId?: string | null;
+  selectedEndImageId?: string | null;
   replaceExisting: boolean;
   finalDurationMode: FinalImageDurationMode;
   customFinalDurationSeconds: number;
@@ -140,6 +144,9 @@ export interface ImageEmbeddingSettings {
 }
 
 export interface JobImageEmbedding {
+  /** Absent on historical frozen jobs: selection mode is then unknown. */
+  startImageSelection?: 'explicit' | 'random';
+  endImageSelection?: 'explicit' | 'random';
   startImage: ImageAsset | null;
   endImage: ImageAsset | null;
   startDurationMode: StartImageDurationMode;
@@ -207,6 +214,8 @@ export function defaultImageEmbeddingSettings(): ImageEmbeddingSettings {
     startImages: [],
     endImages: [],
     disabledImageIds: [],
+    selectedStartImageId: null,
+    selectedEndImageId: null,
     replaceExisting: true,
     finalDurationMode: 'random-40-50',
     customFinalDurationSeconds: DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
@@ -334,7 +343,21 @@ export function activeEmbeddingImages(settings: ImageEmbeddingSettings, slot: 's
   }
   const disabled = new Set(settings.disabledImageIds ?? []);
   const assets = slot === 'start' ? settings.startImages : settings.endImages;
-  return assets.filter(asset => !disabled.has(asset.id));
+  const selected = slot === 'start' ? settings.selectedStartImageId : settings.selectedEndImageId;
+  return assets.filter(asset => !disabled.has(asset.id) && (!selected || asset.id === selected));
+}
+
+/** A stale explicit choice remains visible for correction, without breaking state snapshots. */
+export function imageEmbeddingSelectionError(
+  settings: ImageEmbeddingSettings
+): 'start' | 'end' | null {
+  if (!settings.enabled) return null;
+  for (const slot of ['start', 'end'] as const) {
+    const enabled = slot === 'start' ? settings.startEnabled : settings.endEnabled;
+    const selected = slot === 'start' ? settings.selectedStartImageId : settings.selectedEndImageId;
+    if (enabled && selected && !activeEmbeddingImages(settings, slot).length) return slot;
+  }
+  return null;
 }
 
 export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageEmbedding | null {
@@ -342,6 +365,8 @@ export function draftImageEmbedding(settings: ImageEmbeddingSettings): JobImageE
   const endImage = activeEmbeddingImages(settings, 'end')[0] ?? null;
   if (!settings.enabled || (!startImage && !endImage)) return null;
   return {
+    startImageSelection: settings.selectedStartImageId ? 'explicit' : 'random',
+    endImageSelection: settings.selectedEndImageId ? 'explicit' : 'random',
     startImage: startImage ? { ...startImage } : null,
     endImage: endImage ? { ...endImage } : null,
     startDurationMode: settings.startDurationMode,
@@ -782,6 +807,7 @@ export interface HealthResponse {
  * absent entry as "not offered" and an unknown entry as harmless.
  */
 export const AGENT_CAPABILITIES = [
+  'team-background-recovery',
   /**
    * One connection carries every channel, instead of one connection per tool.
    *

@@ -47,7 +47,7 @@
  * a reset worth having — and cannot reach anything it had.
  */
 @import 'tailwindcss';
-@import '@heroui/styles';
+@import './heroui.css';
 
 /* The token layer. Unlayered on purpose — see above. */
 @import './tokens.css';

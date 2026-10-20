@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { teamTaskDate } from '@video-compressor/shared';
+import {
+  teamTaskDate,
+  canOfferTaskDetachUndo,
+  type TaskCleanupReceipt
+} from '@video-compressor/shared';
 import type {
   TeamTaskAgentTag,
   TeamTaskAttachmentSummary,
@@ -8,6 +12,10 @@ import type {
   TeamTaskPatch,
   TeamTaskSummary
 } from '@video-compressor/shared';
+import {
+  beginWorkspaceOperation,
+  type WorkspaceOperationFlow
+} from '../workspace/operationAnalytics';
 import { teamApi, type TeamMemberSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
@@ -80,6 +88,10 @@ export interface TaskEditorClient
   }): Promise<{ task: TeamTaskSummary; attachments: TeamTaskAttachmentSummary[] }>;
   updateTask(teamId: string, taskId: string, patch: TeamTaskPatch): Promise<TeamTaskSummary>;
 
+  beginTaskUpload?: typeof teamApi.beginTaskUpload;
+  detachTaskMaterialSafely?: typeof teamApi.detachTaskMaterialSafely;
+  undoTaskMaterialDetach?: typeof teamApi.undoTaskMaterialDetach;
+  listTaskAttachmentCleanup?: typeof teamApi.listTaskAttachmentCleanup;
   detachTaskMaterial(teamId: string, taskId: string, materialId: string): Promise<boolean>;
   /** The space's one folder for dropped files; made on first use (011). */
   ensureTaskDropFolder?: (
@@ -92,6 +104,7 @@ export interface TaskEditorClient
     conflictMode: 'cancel' | 'keep_both';
     replaceMaterialId: string | null;
     versionOfMaterialId: string | null;
+    idempotencyKey?: string;
     onProgress?: (sentBytes: number, totalBytes: number) => void;
   }) => Promise<{ materialId: string | null }>;
 }
@@ -234,7 +247,7 @@ export function TaskEditor({
 }) {
   const { t } = useI18n();
   const { push, update } = useToasts();
-  const { can } = useTeam();
+  const { can, revision } = useTeam();
   /**
    * A re-stitched download of an attached video, from this editor. The same
    * delivery the explorer runs — one at a time, the folder remembered per
@@ -326,6 +339,50 @@ export function TaskEditor({
   const [progressMax, setProgressMax] = useState(initialTask.progressMax);
   const [progressMaxInput, setProgressMaxInput] = useState(String(initialTask.progressMax));
   const [progressValue, setProgressValue] = useState(initialTask.progressValue);
+  const [detachDelivered, setDetachDelivered] = useState<WorkspaceOperationFlow | null>(null);
+  useEffect(() => {
+    if (document.visibilityState === 'visible') detachDelivered?.visible();
+  }, [detachDelivered]);
+  const detaching = useRef(new Set<string>());
+  const [pendingDetaches, setPendingDetaches] = useState(0);
+  const cleanupFlows = useRef(new Map<string, WorkspaceOperationFlow>());
+  const [cleanupReceipts, setCleanupReceipts] = useState<TaskCleanupReceipt[]>([]);
+  const [cleanupReadFailed, setCleanupReadFailed] = useState(false);
+  useEffect(() => {
+    if (document.visibilityState !== 'visible') return;
+    for (const receipt of cleanupReceipts) {
+      let flow = cleanupFlows.current.get(receipt.id);
+      if (!flow) {
+        flow = beginWorkspaceOperation('task_cleanup', receipt.id, 1, undefined, true);
+        cleanupFlows.current.set(receipt.id, flow);
+      }
+      if (
+        receipt.state === 'trashed' ||
+        receipt.state === 'retained' ||
+        receipt.state === 'cancelled'
+      )
+        flow.visible();
+      else flow.stage(receipt.state === 'claimed' ? 'running' : 'accepted');
+    }
+  }, [cleanupReceipts]);
+  useEffect(() => {
+    let live = true;
+    if (!client.listTaskAttachmentCleanup) return;
+    void client
+      .listTaskAttachmentCleanup(teamId, task.id)
+      .then(receipts => {
+        if (live) {
+          setCleanupReceipts(receipts);
+          setCleanupReadFailed(false);
+        }
+      })
+      .catch(() => {
+        if (live) setCleanupReadFailed(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [client, teamId, task.id, revision]);
   const [persistedAttachments, setPersistedAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState(false);
@@ -665,7 +722,10 @@ export function TaskEditor({
         text: t('teamTaskAttachmentUploading', { name: file.name })
       });
       try {
+        const idempotencyKey = crypto.randomUUID();
+        await client.beginTaskUpload?.(teamId, task.id, idempotencyKey);
         const uploaded = await sendFile({
+          idempotencyKey,
           teamId,
           destinationFolderId: destinationMaterialId,
           file,
@@ -834,32 +894,65 @@ export function TaskEditor({
    * reason there is still no confirmation dialog in front of it (FR-028).
    */
   const detach = async (attachment: TeamTaskAttachmentSummary) => {
+    if (detaching.current.has(attachment.materialId)) return;
+    detaching.current.add(attachment.materialId);
+    setPendingDetaches(current => current + 1);
+    const flow = beginWorkspaceOperation('task_detach', crypto.randomUUID(), 1);
     setPersistedAttachments(current =>
       current.filter(item => item.materialId !== attachment.materialId)
     );
+    let receipt: TaskCleanupReceipt | null = null;
     try {
-      await client.detachTaskMaterial(teamId, task.id, attachment.materialId);
+      if (client.detachTaskMaterialSafely) {
+        receipt = await client.detachTaskMaterialSafely(teamId, task.id, attachment.materialId);
+        flow.receipt(receipt.id);
+        const saved = receipt;
+        const cleanupFlow = beginWorkspaceOperation('task_cleanup', saved.id, 1);
+        cleanupFlow.stage('accepted');
+        cleanupFlows.current.set(saved.id, cleanupFlow);
+        setCleanupReceipts(current => [saved, ...current.filter(item => item.id !== saved.id)]);
+      } else await client.detachTaskMaterial(teamId, task.id, attachment.materialId);
+      flow.stage('confirmed');
       onChanged({ ...task, attachmentCount: Math.max(0, persistedAttachments.length - 1) });
     } catch (cause) {
+      flow.fail(cause);
       setPersistedAttachments(current => uniqueAttachments(current, [attachment]));
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
       return;
+    } finally {
+      detaching.current.delete(attachment.materialId);
+      setPendingDetaches(current => current - 1);
     }
-    push({
-      tone: 'info',
-      text: t('teamToastAttachmentDetached', { name: attachment.name }),
-      action: {
-        label: t('teamUndo'),
-        run: () =>
-          void addAttachments([
+    const undo = async () => {
+      try {
+        if (receipt && client.undoTaskMaterialDetach) {
+          const restored = await client.undoTaskMaterialDetach(teamId, receipt.id);
+          setCleanupReceipts(current =>
+            current.map(item => (item.id === restored.id ? restored : item))
+          );
+          setPersistedAttachments(current => uniqueAttachments(current, [attachment]));
+          onChanged({ ...task, attachmentCount: persistedAttachments.length });
+        } else
+          await addAttachments([
             {
               id: attachment.materialId,
               name: attachment.name,
               category: attachment.category,
               kind: attachment.kind
             } as TaskAttachmentCandidate
-          ])
+          ]);
+      } catch (cause) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
       }
+    };
+    setDetachDelivered(flow);
+    push({
+      tone: 'info',
+      text: t('teamToastAttachmentDetached', { name: attachment.name }),
+      action:
+        !receipt || (client.undoTaskMaterialDetach && canOfferTaskDetachUndo(receipt))
+          ? { label: t('teamUndo'), run: () => void undo() }
+          : undefined
     });
   };
 
@@ -1521,6 +1614,25 @@ export function TaskEditor({
                     />
                   )}
                 </div>
+                {pendingDetaches > 0 && <p role="status">{t('teamTaskDetachPending')}</p>}
+                {(cleanupReceipts.length > 0 || cleanupReadFailed) && (
+                  <div role="status" aria-live="polite">
+                    {cleanupReadFailed && <p>{t('teamBulkTrashUnknown')}</p>}
+                    {cleanupReceipts
+                      .filter(item => item.state !== 'cancelled')
+                      .map(item => (
+                        <p key={item.id}>
+                          {t(
+                            item.state === 'trashed'
+                              ? 'teamTaskCleanupTrashed'
+                              : item.state === 'retained'
+                                ? 'teamTaskCleanupRetained'
+                                : 'teamTaskCleanupWaiting'
+                          )}
+                        </p>
+                      ))}
+                  </div>
+                )}
                 {!holdAttachments && persistedAttachments.length < task.attachmentCount && (
                   <Button
                     color="neutral"

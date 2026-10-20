@@ -13,6 +13,7 @@ import {
   TeamFunctionError
 } from '../_shared/errors.ts';
 import { classifyCatalogReadback, runCatalogUpdaterTick } from './worker.ts';
+import { runTaskCleanupTick } from '../drive-ops/task-cleanup.ts';
 import { runLaunchCleanupTick, runLaunchVideoCleanupTick } from '../drive-ops/launch-recovery.ts';
 
 /**
@@ -139,6 +140,7 @@ Deno.serve(async request => {
     }
     // Cleanup failures retain their durable leases and must not starve regular
     // catalog rounds or the other Launch cleanup lane.
+    await runTaskCleanupTick(service, driveFor).catch(() => ({ completed: 0, pending: 1 }));
     const launchCleanup = await runLaunchCleanupTick(service, driveFor).catch(() => ({
       completed: 0,
       pending: 1,

@@ -93,6 +93,7 @@ import {
   type UploadConflictChoice,
   type UploadConflictRequest
 } from './UploadConflictDialog';
+import { BulkTrashPanel } from './BulkTrashPanel';
 import { ProcessPanel } from './ProcessPanel';
 import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
@@ -1351,6 +1352,12 @@ function ExplorerBody({
   const trashRows = useCallback(
     async (rows: TeamMaterialRow[]) => {
       if (!permissions?.delete) return;
+      if (workspaceOperations?.bulkTrash) {
+        await workspaceOperations.bulkTrash
+          .start(rows, tailClient)
+          .catch(cause => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }));
+        return;
+      }
       const trashed: string[] = [];
       const selectedFolders = new Set(
         rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
@@ -1371,7 +1378,7 @@ function ExplorerBody({
           trashed.push(row.id);
         } catch (cause) {
           push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-          break;
+          continue;
         }
       }
       if (trashed.length === 0) return;
@@ -1405,6 +1412,7 @@ function ExplorerBody({
     },
     [
       actionsClient,
+      workspaceOperations,
       changed,
       clearSelection,
       permissions?.delete,
@@ -2241,6 +2249,27 @@ function ExplorerBody({
           selection, and pinned to the same pixel the second hid the first. */}
       {processStack(
         <>
+          {workspaceOperations?.bulkTrash?.groups.slice(0, 3).map(group => (
+            <BulkTrashPanel
+              key={group.id}
+              group={group}
+              rows={page.rows}
+              uncertain={workspaceOperations.bulkTrash?.uncertain ?? true}
+              onVisible={workspaceOperations.bulkTrash!.acknowledgeVisible}
+              onRetry={
+                permissions?.delete && workspaceOperations.bulkTrash?.owns(group)
+                  ? () => {
+                      void workspaceOperations.bulkTrash
+                        ?.retry(group, page.rows, tailClient)
+                        .then(changed)
+                        .catch(cause =>
+                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) })
+                        );
+                    }
+                  : undefined
+              }
+            />
+          ))}
           {!space && (queue.active || queue.queued.length > 0) && (
             <AgentQueuePanel queue={queue} t={t} />
           )}

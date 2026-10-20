@@ -145,3 +145,22 @@ describe('the board filter row', () => {
     ).toEqual(['Yesterday', 'Today']);
   });
 });
+
+it('resolves quick days as civil days across midnight and month boundaries', async () => {
+  const { quickRangeValue } = await import('../apps/web/src/team/tasks/useTasks');
+  expect(quickRangeValue('today', new Date(2026, 2, 29, 0, 1))).toEqual({
+    kind: 'range',
+    from: '2026-03-29',
+    to: '2026-03-29'
+  });
+  expect(quickRangeValue('yesterday', new Date(2026, 2, 29, 0, 1))).toEqual({
+    kind: 'range',
+    from: '2026-03-28',
+    to: '2026-03-28'
+  });
+  expect(quickRangeValue('yesterday', new Date(2026, 0, 1, 0, 1))).toEqual({
+    kind: 'range',
+    from: '2025-12-31',
+    to: '2025-12-31'
+  });
+});

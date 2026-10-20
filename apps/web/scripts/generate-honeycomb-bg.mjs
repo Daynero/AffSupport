@@ -190,7 +190,6 @@ for (let ry = 0; ry < gRows && traces.length < N; ry++) {
   }
 }
 
-const gridD = grid.join('');
 const cellData = cells.map(c => ({
   d: c.d,
   cx: Math.round(c.cx),
@@ -204,8 +203,33 @@ export type HoneycombCell = { d: string; cx: number; cy: number; tier: CellTier 
 export type HoneycombTrace = { d: string; dur: number; delay: number; rev: boolean };
 
 export const honeycombViewBox = { width: ${W}, height: ${H} };
-export const honeycombGrid = ${JSON.stringify(gridD)};
-export const honeycombCells: HoneycombCell[] = ${JSON.stringify(cellData)};
+// Keep the repeated hexagon geometry procedural; tiers and traces retain the
+// generated artwork exactly. Reconstruct once when the lazy backdrop loads.
+const tiers = ['bright', 'a', 'b', 'field'] as const;
+const tierData = ${JSON.stringify(cellData.map(c => ['bright', 'a', 'b', 'field'].indexOf(c.tier)).join(''))};
+const grid: string[] = [];
+export const honeycombCells: HoneycombCell[] = [];
+const hexWidth = ${hexW};
+// Serialize the exact build-time offsets: browser math libraries cannot
+// introduce different rounding at half-tenth SVG coordinates.
+const offsets = ${JSON.stringify([verts(0, 0, r), verts(0, 0, r - 1.5)])} as const;
+function path(cx: number, cy: number, slot: 0 | 1): string {
+  const points = offsets[slot].map(([dx, dy]) =>
+    (cx + dx).toFixed(1) + ' ' + (cy + dy).toFixed(1));
+  return 'M' + points.join('L') + 'Z';
+}
+let index = 0;
+for (let row = -1; row < ${rows}; row++) {
+  const cy = row * ${vert};
+  const offset = row & 1 ? hexWidth / 2 : 0;
+  for (let col = -1; col < ${cols}; col++) {
+    const cx = col * hexWidth + offset + hexWidth / 2;
+    grid.push(path(cx, cy, 0));
+    honeycombCells.push({d: path(cx, cy, 1), cx: Math.round(cx), cy: Math.round(cy),
+      tier: tiers[Number(tierData[index++])]!});
+  }
+}
+export const honeycombGrid = grid.join('');
 export const honeycombTraces: HoneycombTrace[] = ${JSON.stringify(traces)};
 `;
 writeFileSync(

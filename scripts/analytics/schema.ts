@@ -24,7 +24,8 @@ const TABLES = [
   'analytics_daily_events',
   'analytics_daily_tool_outcomes',
   'analytics_launch_generations',
-  'analytics_catalog_sync_jobs'
+  'analytics_catalog_sync_jobs',
+  'analytics_workspace_operations'
 ] as const;
 
 let cached: { generation: number; schema: Promise<AnalyticsSchema> } | null = null;
@@ -54,6 +55,9 @@ async function probe(): Promise<AnalyticsSchema> {
       analytics_daily_events: has('table', 'analytics_daily_events'),
       analytics_daily_tool_outcomes: has('table', 'analytics_daily_tool_outcomes'),
       analytics_catalog_sync_jobs: has('table', 'analytics_catalog_sync_jobs'),
+      ...(has('table', 'analytics_workspace_operations')
+        ? { analytics_workspace_operations: true }
+        : {}),
       ...(has('table', 'analytics_launch_generations')
         ? { analytics_launch_generations: true }
         : {})

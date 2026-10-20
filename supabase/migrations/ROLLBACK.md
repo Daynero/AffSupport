@@ -1952,3 +1952,19 @@ them. No product profile, schedule, material or credential needs to be deleted.
 ## 20261204180000 — catalog manager active count
 
 Forward-only additive RPC field. To roll back presentation, deploy the prior web; it ignores `activeCount`. If reverting the database separately, restore `public.get_team_catalog_updater(uuid)` from `20260915140000_catalog_updater.sql` (the same authentication/view permission guard and `private.catalog_updater_state(p_team)` return). Do not reset catalog schedules, attempts or history. Apply through the normal release process; local beta application is not production promotion.
+
+### 037 workspace UX receipts and image choice (20261205120000–20261205127000)
+
+Forward-only. Before any rollback, stop the existing catalog-updater lane from claiming
+new task cleanup and reconcile every `claimed` receipt against the exact Drive object.
+Do not clear its reference fence while the provider outcome is unknown. Restore trashed
+files only through the ordinary authorized restore flow; never infer reclaimed quota.
+Retain task-upload provenance, copy receipts and bulk item keys until all accepted work
+has settled and the corresponding client has been rolled back. A compensating migration
+may then remove the diagnostic view and revoke the new client/service RPCs, drop the
+new receipt tables and their triggers, and restore the previous dispatcher body and
+analytics-property guard. Keep every pre-existing catalog/Launch recovery lane. Remove
+`task_cleanup_reference_fence` triggers only after no cleanup claim remains. Never drop
+`team_operations`, user materials, task links or the existing upload journal. Removing
+optional image settings fields does not rewrite historical frozen jobs. Validate the
+compensation in an isolated database before any separately authorized release.

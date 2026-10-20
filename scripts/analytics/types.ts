@@ -25,6 +25,7 @@ export interface AnalyticsSchema {
     analytics_daily_tool_outcomes: boolean;
     analytics_catalog_sync_jobs: boolean;
     analytics_launch_generations?: boolean;
+    analytics_workspace_operations?: boolean;
   };
 }
 
@@ -863,7 +864,8 @@ export interface InvestigateBlindSpot {
     | 'envelope_v3_missing'
     | 'launch_diagnostics_unavailable'
     | 'launch_visibility_unknown'
-    | 'launch_settlement_unknown';
+    | 'launch_settlement_unknown'
+    | 'workspace_evidence_gap';
   detail: string;
   values: string[];
 }
@@ -885,6 +887,7 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  workspace?: import('./workspace.js').WorkspaceEvidenceResult;
   launches?: import('./launches.js').LaunchEvidenceResult;
   subject: InvestigateSubject;
   environment: InvestigateEnvironment;

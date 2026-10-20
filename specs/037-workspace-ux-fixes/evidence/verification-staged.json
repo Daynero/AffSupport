@@ -1,0 +1,19 @@
+{
+  "scope": "037-only staged snapshot, excluding concurrent 034 work",
+  "result": "PASS",
+  "test_files": 6,
+  "tests_passed": 45,
+  "workers": 1,
+  "priority": "nice -n 15",
+  "duration_seconds": 5.26,
+  "tests": [
+    "workspace-ux-sql",
+    "task-cleanup-worker",
+    "workspace-operation-analytics",
+    "team-task-clipboard",
+    "team-realtime",
+    "image-embedding-selection"
+  ],
+  "release_checks": "deferred by owner",
+  "live_windows": "excluded by owner"
+}

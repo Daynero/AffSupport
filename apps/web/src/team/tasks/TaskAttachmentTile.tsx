@@ -41,6 +41,9 @@ function kindOfCategory(category: TeamTaskAttachmentSummary['category']): TeamMa
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+import { X } from 'lucide-react';
+import { IconButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { FadeImage } from '../../components/ui/index';
 
 /* A member the space has not told us about may read and nothing more. */
@@ -549,6 +552,20 @@ export function TaskAttachmentTile({
             )}
           </div>
         </div>
+        {onDetach && (
+          <IconButton
+            title=""
+            label={t('materialActionDetach')}
+            size="sm"
+            variant="ghost"
+            onClick={event => {
+              event.stopPropagation();
+              onDetach();
+            }}
+          >
+            <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        )}
         <MaterialInlineActions
           list={actions}
           name={attachment.name}

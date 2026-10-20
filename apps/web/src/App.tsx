@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Broom, Pause, Play, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
+  imageSelectionSupported,
   calculateQueueSummary,
   isSettled,
   type AgentSettingsPatch,
@@ -93,7 +94,8 @@ interface ToastMessage {
 
 export default function CompressorPage() {
   const { language, t } = useI18n();
-  const { state, setState, connection, connectedOnce, reconnect, capabilities } = useAgent();
+  const { state, setState, connection, connectedOnce, reconnect, capabilities, toolContracts } =
+    useAgent();
   const entering = usePageEntrance();
   const [selected, setSelected] = useState<Set<string>>(storedCompressorSelection);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
@@ -639,6 +641,7 @@ export default function CompressorPage() {
         </section>
 
         <SettingsPanel
+          explicitImageChoice={imageSelectionSupported(toolContracts)}
           settings={state.settings}
           disabled={!connected}
           updateSettings={updateSettings}

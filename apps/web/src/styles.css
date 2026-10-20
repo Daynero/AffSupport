@@ -19498,7 +19498,7 @@ a.history-subject {
 }
 
 .catalog-readiness-dialog {
-  width: min(560px, calc(100vw - var(--space-5) * 2));
+  width: min(var(--dialog-sm), calc(100vw - var(--space-5) * 2));
   padding: var(--space-5);
   display: grid;
   gap: var(--space-4);

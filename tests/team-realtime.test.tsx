@@ -11,7 +11,7 @@ import { useFolderPage } from '../apps/web/src/team/explorer/useFolderPage';
 
 vi.mock('../apps/web/src/lib/supabase', () => ({ getSupabaseClient: vi.fn() }));
 
-type Callback = () => void;
+type Callback = (payload?: { new?: { event_kind?: string } }) => void;
 let events: Map<string, Callback>;
 let status: (value: string) => void;
 let removeChannel: ReturnType<typeof vi.fn>;
@@ -361,4 +361,31 @@ describe('delivery does not wait for membership (028, release C)', () => {
     });
     expect(onRefetch).not.toHaveBeenCalled();
   });
+});
+
+it('keeps bulk-trash invalidation urgent when it arrives during an authoritative read', async () => {
+  let finish: () => void = () => {};
+  const pending = new Promise<void>(resolve => {
+    finish = resolve;
+  });
+  const onRefetch = vi.fn().mockReturnValueOnce(pending).mockResolvedValue(undefined);
+  renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
+  act(() => status('SUBSCRIBED'));
+  await act(async () => vi.advanceTimersByTimeAsync(1000));
+  expect(onRefetch).toHaveBeenCalledTimes(1);
+  act(() => events.get('team_catalog_events')!({ new: { event_kind: 'bulk_trash_changed' } }));
+  await act(async () => {
+    finish();
+    await Promise.resolve();
+  });
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  expect(onRefetch).toHaveBeenCalledTimes(2);
+});
+it('preempts an ordinary pending debounce for a hosted bulk-trash receipt', async () => {
+  const onRefetch = vi.fn().mockResolvedValue(undefined);
+  renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
+  act(() => status('SUBSCRIBED'));
+  act(() => events.get('team_catalog_events')!({ new: { event_kind: 'bulk_trash_changed' } }));
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  expect(onRefetch).toHaveBeenCalledTimes(1);
 });

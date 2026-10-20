@@ -36,6 +36,7 @@ import type {
   StitchOperation,
   StitchSettings
 } from '@video-compressor/shared';
+import { imageSelectionSupported } from '@video-compressor/shared';
 import { useAgent } from '../AgentContext';
 import { useI18n, type Language } from '../i18n';
 import { analytics } from '../analytics/service';
@@ -534,6 +535,7 @@ function StitchSettingsPanel({
   disabled: boolean;
   t: Translate;
 }) {
+  const { toolContracts } = useAgent();
   const [open, setOpen] = useState(() => {
     try {
       return localStorage.getItem(SETTINGS_OPEN_KEY) !== 'closed';
@@ -675,6 +677,7 @@ function StitchSettingsPanel({
 
         {compressor && operation !== 'unstitch' && (
           <ImageEmbeddingSection
+            explicitChoiceAllowed={imageSelectionSupported(toolContracts)}
             settings={compressor.imageEmbedding}
             disabled={disabled}
             update={updateEmbedding}

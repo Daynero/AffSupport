@@ -77,6 +77,8 @@ export const CORE_CONTRACT_VERSION = 1;
 export const AGENT_TOOL_CONTRACTS = {
   compressor: 3,
   imageEmbedding: 2,
+  // Optional explicit gallery choice; old agents keep their existing random mode.
+  imageSelection: 1,
   landingOptimizer: 2,
   landingPreview: 2,
   transcription: 5,
@@ -275,6 +277,10 @@ export function normalizeToolContracts(
  * `WEB_TOOL_REQUIREMENTS` is the map of user-facing tool pages, byte-compared
  * against the signed release manifest, and a capability is not a page.
  */
+export function imageSelectionSupported(contracts: ToolContracts | null): boolean {
+  return (contracts?.imageSelection ?? 0) >= AGENT_TOOL_CONTRACTS.imageSelection;
+}
+
 export function teamProcessPauseSupported(contracts: ToolContracts | null): boolean {
   return (contracts?.teamProcessPause ?? 0) >= AGENT_TOOL_CONTRACTS.teamProcessPause;
 }

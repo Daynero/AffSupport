@@ -915,3 +915,56 @@ it('reuses the media browser in single Creative mode with Launch-specific words 
   ]);
   expect(api.attachTaskMaterials).not.toHaveBeenCalled();
 });
+it('keeps the board search during copy and allows selecting the next card with one click', async () => {
+  localStorage.setItem('language', 'en');
+  localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+  const api = client();
+  const next = { ...task(), id: '31000000-0000-4000-8000-000000000099', title: 'Task: second' };
+  api.listTasks = vi.fn().mockResolvedValue([task(), next]);
+  api.copyTasks = vi.fn().mockResolvedValue(['31000000-0000-4000-8000-000000000098']);
+  render(<TaskSpace teamId={TEAM_ID} client={api} />);
+  const search = await screen.findByRole('searchbox');
+  fireEvent.change(search, { target: { value: 'Task:' } });
+  const first = await screen.findByRole('checkbox', { name: /launch.mp4/ });
+  fireEvent.click(first);
+  const data = {
+    getData: () => 'SOTY_TASKS_V1:' + JSON.stringify({ teamId: TEAM_ID, taskIds: [TASK_ID] })
+  };
+  fireEvent.paste(document, { clipboardData: data });
+  await waitFor(() => expect(api.copyTasks).toHaveBeenCalledOnce());
+  await waitFor(() => expect((first as HTMLInputElement).checked).toBe(false));
+  expect((search as HTMLInputElement).value).toBe('Task:');
+  const second = screen.getByRole('checkbox', { name: /Task: second/ });
+  fireEvent.click(second);
+  expect((second as HTMLInputElement).checked).toBe(true);
+});
+it('does not promise Undo for a delayed detach receipt and shows cleanup separately', async () => {
+  localStorage.setItem('language', 'en');
+  localStorage.setItem('wishly.active-team.v1', TEAM_ID);
+  const api = client();
+  api.detachTaskMaterialSafely = vi.fn().mockResolvedValue({
+    id: '37000000-0000-4000-8000-000000000088',
+    materialId: ASSET_ID,
+    undoUntil: new Date(Date.now() + 5000).toISOString(),
+    state: 'waiting',
+    reason: null
+  });
+  api.undoTaskMaterialDetach = vi.fn();
+  render(
+    <TaskEditor
+      teamId={TEAM_ID}
+      task={task()}
+      members={[]}
+      canEdit
+      client={api}
+      onChanged={vi.fn()}
+      onClose={vi.fn()}
+    />
+  );
+  const detach = await screen.findByRole('button', { name: 'Take off the task' });
+  fireEvent.click(detach);
+  await waitFor(() => expect(api.detachTaskMaterialSafely).toHaveBeenCalledOnce());
+  await screen.findByText('Attachment removed. File cleanup is awaiting confirmation.');
+  expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  expect(api.detachTaskMaterial).not.toHaveBeenCalled();
+});

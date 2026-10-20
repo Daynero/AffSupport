@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import {
   activeEmbeddingImages,
+  imageEmbeddingSelectionError,
   clampCrf,
   clampFrameRate,
   clampResolutionLimit,
@@ -855,6 +856,7 @@ export class JobQueue {
   }
 
   embeddingConfigurationError() {
+    if (imageEmbeddingSelectionError(this.settings.imageEmbedding)) return 'IMAGE_UNAVAILABLE';
     const embedding = this.settings.imageEmbedding;
     if (embedding.enabled && !embedding.startImages.length && !embedding.endImages.length) {
       return 'EMBED_IMAGES_REQUIRED';
@@ -949,6 +951,15 @@ export class JobQueue {
       return false;
     }
 
+    for (const job of jobs) {
+      if (
+        imageEmbeddingSelectionError(
+          (this.teamJobSettings.get(job.id) ?? this.settings).imageEmbedding
+        )
+      ) {
+        throw new Error('IMAGE_UNAVAILABLE');
+      }
+    }
     const batch: QueueBatch = {
       id: randomUUID(),
       jobIds: jobs.map(job => job.id),

@@ -1,0 +1,62 @@
+{
+  "ok": false,
+  "form": "release",
+  "generated_at": "2026-10-20T19:46:54.141Z",
+  "error": "database",
+  "totals": {
+    "gates": 8,
+    "passed": 7,
+    "failed": 1,
+    "tests": 0,
+    "skipped_tests": 0,
+    "skip_reasons": {},
+    "coverage_lines": null
+  },
+  "gates": [
+    {
+      "id": "build:shared",
+      "ok": true,
+      "duration_ms": 1300
+    },
+    {
+      "id": "build:web",
+      "ok": true,
+      "duration_ms": 14664
+    },
+    {
+      "id": "build:agent",
+      "ok": true,
+      "duration_ms": 2497
+    },
+    {
+      "id": "contract:release",
+      "ok": true,
+      "duration_ms": 202
+    },
+    {
+      "id": "contract:team",
+      "ok": true,
+      "duration_ms": 1668
+    },
+    {
+      "id": "database",
+      "ok": false,
+      "duration_ms": 37090
+    },
+    {
+      "id": "a11y",
+      "ok": true,
+      "duration_ms": 16773
+    },
+    {
+      "id": "csp:browser",
+      "ok": true,
+      "duration_ms": 2326
+    }
+  ],
+  "scope": "Release e2e group includes builds and contracts. Database runs against the existing local wishly stack; no migrations, resets or role changes were applied to that stack.",
+  "database_blockers": [
+    "postgres cannot SET ROLE wishly_analytics_ro in journal/retention tests",
+    "existing background catalog job changes globally claimed fixture job in discovered-subtree/fairness tests"
+  ]
+}

@@ -51,6 +51,7 @@ export function SettingsPanel({
   uploadImages = async () => {},
   removeImage = async () => {},
   onEmbeddingValidityChange = () => {},
+  explicitImageChoice = false,
   t
 }: {
   settings: AgentSettings;
@@ -61,6 +62,7 @@ export function SettingsPanel({
   removeImage?: (slot: 'start' | 'end', id: string) => Promise<void>;
   imageUrl?: (id: string) => string;
   onEmbeddingValidityChange?: (valid: boolean) => void;
+  explicitImageChoice?: boolean;
   t: Translate;
 }) {
   // The whole panel folds down to its title line so the file list can own
@@ -203,6 +205,7 @@ export function SettingsPanel({
           </Collapse>
         </div>
         <ImageEmbeddingSection
+          explicitChoiceAllowed={explicitImageChoice}
           settings={settings.imageEmbedding}
           disabled={disabled}
           update={(patch, debounce) => updateSettings({ imageEmbedding: patch }, debounce)}

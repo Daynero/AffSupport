@@ -125,6 +125,16 @@ export function parseSettingsPatch(
       return { ok: false, error: 'Image assets must be selected through the image API.' };
     }
     const imageEmbedding = { ...currentImageEmbedding };
+    for (const key of ['selectedStartImageId', 'selectedEndImageId'] as const) {
+      const id = body.imageEmbedding[key];
+      if (id === undefined) continue;
+      const assets =
+        key === 'selectedStartImageId' ? imageEmbedding.startImages : imageEmbedding.endImages;
+      if (id !== null && (typeof id !== 'string' || !assets.some(asset => asset.id === id))) {
+        return { ok: false, error: 'IMAGE_UNAVAILABLE' };
+      }
+      imageEmbedding[key] = id;
+    }
     if (body.imageEmbedding.enabled !== undefined) {
       if (typeof body.imageEmbedding.enabled !== 'boolean') {
         return { ok: false, error: 'Invalid image embedding mode.' };

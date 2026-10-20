@@ -9,6 +9,7 @@ import {
   useLayoutEffect
 } from 'react';
 import {
+  imageEmbeddingSelectionError,
   MAX_CUSTOM_FINAL_IMAGE_DURATION_SECONDS,
   MAX_CUSTOM_START_IMAGE_DURATION_MS,
   MIN_CUSTOM_START_IMAGE_DURATION_MS,
@@ -18,7 +19,7 @@ import {
   type ImageSlot
 } from '@video-compressor/shared';
 import type { TranslationKey } from '../i18n';
-import { Checkbox, Collapse, IconButton, Spinner, Tooltip, type Translate } from './ui';
+import { Checkbox, Collapse, IconButton, Select, Spinner, Tooltip, type Translate } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
 import {
   Crop,
@@ -44,6 +45,7 @@ export function ImageEmbeddingSection({
   uploadImages,
   removeImage,
   onValidityChange,
+  explicitChoiceAllowed = false,
   /**
    * Whether embedding is a choice on this screen.
    *
@@ -62,6 +64,7 @@ export function ImageEmbeddingSection({
   uploadImages: (slot: ImageSlot, files: File[]) => Promise<void>;
   removeImage: (slot: ImageSlot, id: string) => Promise<void>;
   onValidityChange: (valid: boolean) => void;
+  explicitChoiceAllowed?: boolean;
   optional?: boolean;
   /**
    * What a slot shows in place of its gallery (030). A space's settings draw from Drive
@@ -89,9 +92,12 @@ export function ImageEmbeddingSection({
     !settings.endImages.length || settings.finalDurationMode !== 'custom' || customTimeValid;
   const startDurationValid =
     !settings.startImages.length || settings.startDurationMode !== 'custom' || customStartMsValid;
+  const selectionError = imageEmbeddingSelectionError(settings);
   useEffect(() => {
-    onValidityChange(!settings.enabled || (finalDurationValid && startDurationValid));
-  }, [settings.enabled, finalDurationValid, startDurationValid, onValidityChange]);
+    onValidityChange(
+      !settings.enabled || (finalDurationValid && startDurationValid && !selectionError)
+    );
+  }, [settings.enabled, finalDurationValid, startDurationValid, selectionError, onValidityChange]);
 
   const disabledIds = new Set(settings.disabledImageIds ?? []);
   const toggleImage = (id: string) => {
@@ -200,6 +206,28 @@ export function ImageEmbeddingSection({
               t={t}
             >
               <div className="embedding-column-fields">
+                {!slotContent && explicitChoiceAllowed && (
+                  <>
+                    <Select
+                      aria-label={t('chooseStartImage')}
+                      value={settings.selectedStartImageId ?? 'random'}
+                      disabled={disabled}
+                      options={[
+                        { value: 'random', label: t('imageSelectionRandom') },
+                        ...settings.startImages
+                          .filter(asset => !disabledIds.has(asset.id))
+                          .map(asset => ({ value: asset.id, label: asset.fileName }))
+                      ]}
+                      onChange={id => update({ selectedStartImageId: id === 'random' ? null : id })}
+                    />
+                    {selectionError === 'start' && (
+                      <Alert color="warning" variant="soft" live="alert">
+                        {t('imageUnavailable')}
+                      </Alert>
+                    )}
+                  </>
+                )}
+
                 <div className="field-group start-duration-field">
                   <div className="start-duration-row">
                     <div
@@ -284,6 +312,28 @@ export function ImageEmbeddingSection({
               t={t}
             >
               <div className="embedding-column-fields">
+                {!slotContent && explicitChoiceAllowed && (
+                  <>
+                    <Select
+                      aria-label={t('chooseEndImage')}
+                      value={settings.selectedEndImageId ?? 'random'}
+                      disabled={disabled}
+                      options={[
+                        { value: 'random', label: t('imageSelectionRandom') },
+                        ...settings.endImages
+                          .filter(asset => !disabledIds.has(asset.id))
+                          .map(asset => ({ value: asset.id, label: asset.fileName }))
+                      ]}
+                      onChange={id => update({ selectedEndImageId: id === 'random' ? null : id })}
+                    />
+                    {selectionError === 'end' && (
+                      <Alert color="warning" variant="soft" live="alert">
+                        {t('imageUnavailable')}
+                      </Alert>
+                    )}
+                  </>
+                )}
+
                 <div className="field-group final-duration-field">
                   <div className="start-duration-row">
                     <div

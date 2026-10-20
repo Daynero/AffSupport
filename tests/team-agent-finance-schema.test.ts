@@ -85,7 +85,7 @@ describe('finance foundation', () => {
       await fixture.db.root('reset role');
     }
   });
-  it('allows history before registration in every creation timezone', async () => {
+  it('honors an explicit history start independently of the creation timezone', async () => {
     await fixture.db.db.exec(`
       alter function private.finance_create_agent(uuid,uuid,text,text) rename to finance_create_agent_test_original;
       create function private.finance_create_agent(p_team uuid,p_account uuid,p_agent_id text,p_note text) returns jsonb language plpgsql security definer set search_path='' as $$
@@ -98,14 +98,14 @@ describe('finance foundation', () => {
     const utc = (
       await fixture.db.asUser<{ id: string }>(
         FINANCE_OWNER,
-        "select public.add_team_account_agent($1,$2,'utc-test')->>'id' as id",
+        "select public.add_team_account_agent($1,$2,'utc-test',p_starts_on => date '2026-01-01')->>'id' as id",
         [fixture.team, fixture.accounts[0]]
       )
     )[0]!.id;
     const west = (
       await fixture.db.asUser<{ id: string }>(
         FINANCE_OWNER,
-        "select public.add_team_account_agent($1,$2,'west-test',null,'America/Los_Angeles')->>'id' as id",
+        "select public.add_team_account_agent($1,$2,'west-test',null,'America/Los_Angeles',p_starts_on => date '2026-01-01')->>'id' as id",
         [fixture.team, fixture.accounts[0]]
       )
     )[0]!.id;
@@ -113,7 +113,7 @@ describe('finance foundation', () => {
       'select agent_row_id,starts_on::text as date from public.team_agent_placements where agent_row_id in($1,$2)',
       [utc, west]
     );
-    expect(rows.find(r => r.agent_row_id === utc)?.date).toBe('0001-01-01');
-    expect(rows.find(r => r.agent_row_id === west)?.date).toBe('0001-01-01');
+    expect(rows.find(r => r.agent_row_id === utc)?.date).toBe('2026-01-01');
+    expect(rows.find(r => r.agent_row_id === west)?.date).toBe('2026-01-01');
   });
 });

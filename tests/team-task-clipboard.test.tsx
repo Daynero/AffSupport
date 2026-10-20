@@ -42,7 +42,11 @@ it('copies selected tasks through native events and pastes a single batch, ignor
   });
   fireEvent.paste(document, { clipboardData: data });
   await waitFor(() => expect(onPasted).toHaveBeenCalledWith(['copy-1', 'copy-2']));
-  expect(client.copyTasks).toHaveBeenCalledWith({ teamId: TEAM, taskIds: IDS });
+  expect(client.copyTasks).toHaveBeenCalledWith({
+    teamId: TEAM,
+    taskIds: IDS,
+    idempotencyKey: expect.any(String)
+  });
   const input = document.createElement('textarea');
   document.body.append(input);
   fireEvent.paste(input, { clipboardData: data });
@@ -101,4 +105,42 @@ it('leaves copy and paste alone while the board is hidden behind another section
   fireEvent.copy(document, { clipboardData: data });
   expect(data.getData()).toContain(IDS[0]);
   section.remove();
+});
+it('keeps one attempt key after a lost reply and suppresses concurrent paste', async () => {
+  let reject: (cause: Error) => void = () => {};
+  const client = {
+    copyTasks: vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, fail) => {
+            reject = fail;
+          })
+      )
+      .mockResolvedValue(['copied'])
+  };
+  const onPasted = vi.fn();
+  renderHook(
+    () =>
+      useTaskClipboard({
+        teamId: TEAM,
+        selected: IDS.map(id => ({ id }) as TeamTaskSummary),
+        canEdit: true,
+        client,
+        onPasted
+      }),
+    { wrapper }
+  );
+  const data = clipboard();
+  fireEvent.copy(document, { clipboardData: data });
+  fireEvent.paste(document, { clipboardData: data });
+  fireEvent.paste(document, { clipboardData: data });
+  expect(client.copyTasks).toHaveBeenCalledTimes(1);
+  await act(async () => reject(new Error('reply lost')));
+  fireEvent.paste(document, { clipboardData: data });
+  await waitFor(() => expect(onPasted).toHaveBeenCalled());
+  expect(client.copyTasks.mock.calls[0][0].idempotencyKey).toEqual(expect.any(String));
+  expect(client.copyTasks.mock.calls[1][0].idempotencyKey).toBe(
+    client.copyTasks.mock.calls[0][0].idempotencyKey
+  );
 });

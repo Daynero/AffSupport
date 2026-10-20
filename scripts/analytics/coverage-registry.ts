@@ -60,6 +60,7 @@ export interface CapabilitySignal {
   outcome?: string;
   /** Closed discriminator for a capability sharing generic 031 operation events. */
   flowStep?:
+    | `workspace_${'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash'}`
     | 'theme'
     | 'launch_settings_editor'
     | 'launch_detail_session'
@@ -153,6 +154,37 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       note: 'Only opaque flow and attempt IDs and closed failure codes are collected. List requests cancel when obsolete. Mutation acceptance proves a valid server response; completion follows React commit of the member list and success feedback. An absent terminal remains unknown, never success or a proved cancellation. Beta analytics is disabled; producer and CLI regressions provide local evidence. Existing membership.updated and membership.removed server audits remain authoritative. No new SQL or production writes.'
     })
   ),
+  ...(['task_copy', 'task_detach', 'task_cleanup', 'bulk_trash'] as const).map(action => ({
+    id: `team.workspace_${action}`,
+    tool: 'team' as const,
+    title: `Workspace · ${action}`,
+    stages: ['requested', 'observed_stage', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started' as const],
+      observed_stage: ['operation_stage_completed' as const],
+      terminal: ['operation_completed' as const, 'operation_failed' as const]
+    },
+    start: [
+      {
+        event: 'operation_started' as const,
+        correlate: 'attempt_id' as const,
+        flowStep: `workspace_${action}` as const
+      }
+    ],
+    terminal: (['operation_completed', 'operation_failed'] as const).map(event => ({
+      event,
+      correlate: 'attempt_id' as const,
+      flowStep: `workspace_${action}` as const
+    })),
+    platforms: BOTH,
+    producerStatus: 'emitted' as const,
+    source: 'events' as const,
+    unobservable: [
+      'Missing visible completion is unknown. A retained cleanup is an observed retention outcome, never proof that a file was trashed.',
+      'A browser interrupted before rendering leaves its request unfinished; server receipts remain authoritative. Beta disables analytics.'
+    ],
+    note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. Neither a toast nor an emitted event substitutes for provider readback.'
+  })),
   ...(['list', 'filter', 'profile', 'bulk', 'template'] as const).map(action => ({
     id: `team.catalog_manager_${action}`,
     tool: 'team' as const,
@@ -394,7 +426,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'Preparation caching and frame-rate filter ordering retain the existing run_id start/terminal signals. Local benchmarks prove measured cases only; production speedup cannot be attributed to either optimization from these events.'
+    note: 'Explicit image jobs retain frozen start/end selection-mode booleans in correlated compression run events, without asset identifiers or content. Historical jobs lacking those flags remain unknown. IMAGE_UNAVAILABLE rejects stale explicit choices before native work; a missing run start is not proof of execution. Preparation caching and frame-rate filter ordering retain the existing run_id start/terminal signals. Local benchmarks prove measured cases only; production speedup cannot be attributed to either optimization from these events.'
   },
   {
     id: 'compressor.estimate',

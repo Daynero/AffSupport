@@ -13,6 +13,8 @@ import type {
   LocalOperationStage,
   LocalOperationState
 } from '@video-compressor/shared';
+import { useOptionalTeam } from '../TeamContext';
+import { useBulkTrash } from './useBulkTrash';
 import { teamApi } from '../../api/team';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { useOptionalToasts } from '../../components/toast';
@@ -77,6 +79,7 @@ export interface WorkspaceUploadRequest {
 }
 export interface WorkspaceOperationsValue {
   groups: WorkspaceOperationGroup[];
+  bulkTrash?: ReturnType<typeof useBulkTrash>;
   /** IndexedDB failed; recovery is limited to this browser session. */
   sessionOnly?: boolean;
   startUploadGroup: (request: WorkspaceUploadRequest) => Promise<WorkspaceOperationGroup>;
@@ -176,6 +179,8 @@ export function WorkspaceOperationsProvider({
   journal?: WorkspaceOperationJournal;
   children: ReactNode;
 }) {
+  const team = useOptionalTeam();
+  const bulkTrash = useBulkTrash(teamId, team?.revision ?? 0, teamApi, actorId);
   const [groups, setGroups] = useState<WorkspaceOperationGroup[]>([]);
   const [sessionOnly, setSessionOnly] = useState(false);
   const { t } = useI18n();
@@ -797,8 +802,8 @@ export function WorkspaceOperationsProvider({
   }, []);
 
   const value = useMemo<WorkspaceOperationsValue>(
-    () => ({ groups, sessionOnly, startUploadGroup, retryUploadGroup, cancelGroup }),
-    [groups, sessionOnly, startUploadGroup, retryUploadGroup, cancelGroup]
+    () => ({ groups, bulkTrash, sessionOnly, startUploadGroup, retryUploadGroup, cancelGroup }),
+    [groups, bulkTrash, sessionOnly, startUploadGroup, retryUploadGroup, cancelGroup]
   );
   return (
     <WorkspaceOperationsContext.Provider value={value}>

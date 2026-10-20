@@ -1,0 +1,111 @@
+{
+  "scope": "Normal fast verification shared with the concurrent repository session; own duplicate stopped to preserve resource headroom. Release checks deferred by owner; live Windows acceptance excluded.",
+  "source_sha": "154210f65a6bca27c4ec4846cc68fc045cff1cf8",
+  "working_tree": "Contains concurrent uncommitted 034 and 037 work.",
+  "passed_tests": 6240,
+  "failed_tests": 0,
+  "verification": {
+    "ok": true,
+    "command": "verify",
+    "generated_at": "2026-10-20T20:42:45.848Z",
+    "form": "fast",
+    "data": {
+      "duration_ms": 863184,
+      "totals": {
+        "gates": 14,
+        "passed": 14,
+        "failed": 0,
+        "tests": 6257,
+        "skipped_tests": 17,
+        "skip_reasons": {
+          "script:scripts/sign-mac-app.sh": 2,
+          "env:SOTY_TEST_EXPECT_NOTARIZED": 1,
+          "SOTY_TARIFF_POSTGRES_CONTAINER": 5,
+          "env:RUN_REAL_KARAOKE_SMOKE": 1,
+          "platform:darwin": 1,
+          "env:RUN_REAL_MEDIA_SMOKE": 1,
+          "ffmpeg": 2,
+          "ffprobe": 2,
+          "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+          "HINDI_TRANSCRIPTION_SAMPLE": 1,
+          "SOTY_TRANSITION_REPORT": 1,
+          "env:RUN_REAL_TRANSLATION_SMOKE": 2,
+          "env:SOTY_POWER_LOAD": 2
+        },
+        "coverage_lines": null
+      },
+      "gates": [
+        {
+          "id": "build:shared",
+          "ok": true,
+          "duration_ms": 2911
+        },
+        {
+          "id": "format",
+          "ok": true,
+          "duration_ms": 47552
+        },
+        {
+          "id": "lint",
+          "ok": true,
+          "duration_ms": 42448
+        },
+        {
+          "id": "typecheck:projects",
+          "ok": true,
+          "duration_ms": 44531
+        },
+        {
+          "id": "typecheck:tests",
+          "ok": true,
+          "duration_ms": 50897
+        },
+        {
+          "id": "typecheck:scripts",
+          "ok": true,
+          "duration_ms": 9323
+        },
+        {
+          "id": "design-tokens",
+          "ok": true,
+          "duration_ms": 295
+        },
+        {
+          "id": "tailwind-classes",
+          "ok": true,
+          "duration_ms": 4682
+        },
+        {
+          "id": "styles",
+          "ok": true,
+          "duration_ms": 381
+        },
+        {
+          "id": "i18n",
+          "ok": true,
+          "duration_ms": 406
+        },
+        {
+          "id": "env-registry",
+          "ok": true,
+          "duration_ms": 269
+        },
+        {
+          "id": "csp",
+          "ok": true,
+          "duration_ms": 346
+        },
+        {
+          "id": "audit",
+          "ok": true,
+          "duration_ms": 2734
+        },
+        {
+          "id": "suite",
+          "ok": true,
+          "duration_ms": 809354
+        }
+      ]
+    }
+  }
+}

@@ -4719,6 +4719,22 @@ export type GeneratedDatabase = {
         ComputedFields: never;
         Relationships: [];
       };
+      analytics_workspace_operations: {
+        Row: {
+          action: string | null;
+          actor_id: string | null;
+          code: string | null;
+          confirmed_count: number | null;
+          created_at: string | null;
+          id: string | null;
+          item_count: number | null;
+          state: string | null;
+          team_id: string | null;
+          updated_at: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
     };
     Functions: {
       get_team_catalog_updater_restitch_default: {
@@ -4749,6 +4765,7 @@ export type GeneratedDatabase = {
           restitch_blocked_code: string | null;
         }[];
       };
+      list_team_bulk_trash: { Args: { p_team: string }; Returns: Json };
       list_team_catalog_update_attempts: {
         Args: { p_team: string; p_catalog: string; p_limit?: number };
         Returns: {
@@ -5054,6 +5071,10 @@ export type GeneratedDatabase = {
         Args: { p_materials: string[]; p_task: string; p_team: string };
         Returns: Json;
       };
+      begin_task_upload: {
+        Args: { p_request: string; p_task: string; p_team: string };
+        Returns: undefined;
+      };
       bind_launch_restitch: {
         Args: { p_generation: string; p_operation: string; p_team: string };
         Returns: undefined;
@@ -5163,6 +5184,10 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       copy_team_tasks: { Args: { p_tasks: string[]; p_team: string }; Returns: string[] };
+      copy_team_tasks_once: {
+        Args: { p_request: string; p_tasks: string[]; p_team: string };
+        Returns: string[];
+      };
       create_invitation: {
         Args: { p_email: string; p_initial_role: string; p_team: string; p_token_hash: string };
         Returns: {
@@ -5323,6 +5348,10 @@ export type GeneratedDatabase = {
         }[];
       };
       delete_two_factor_entry: { Args: { p_entry: string }; Returns: undefined };
+      detach_task_material_safely: {
+        Args: { p_material: string; p_task: string; p_team: string };
+        Returns: Json;
+      };
       detach_team_agent_label: {
         Args: { p_agent: string; p_label: string; p_team: string };
         Returns: Json;
@@ -5816,6 +5845,7 @@ export type GeneratedDatabase = {
         }[];
       };
       list_restitch_sources: { Args: { p_scope: string; p_team: string }; Returns: Json };
+      list_task_attachment_cleanup: { Args: { p_task: string; p_team: string }; Returns: Json };
       list_task_attachment_folders: {
         Args: { p_task: string; p_team: string };
         Returns: {
@@ -6091,6 +6121,10 @@ export type GeneratedDatabase = {
           user_id: string;
         }[];
       };
+      mark_team_bulk_trash_request: {
+        Args: { p_error?: string; p_group: string; p_material: string; p_team: string };
+        Returns: undefined;
+      };
       move_team_account_agent: {
         Args: {
           p_agent: string;
@@ -6116,6 +6150,10 @@ export type GeneratedDatabase = {
       };
       prepare_launch_restitch_unchecked: {
         Args: { p_exclude?: string[]; p_generation: string; p_team: string };
+        Returns: Json;
+      };
+      prepare_team_bulk_trash_item: {
+        Args: { p_group: string; p_material: string; p_team: string };
         Returns: Json;
       };
       read_google_drive_credential: {
@@ -6429,6 +6467,7 @@ export type GeneratedDatabase = {
         };
         Returns: string;
       };
+      service_authorize_task_cleanup: { Args: { p_id: string }; Returns: boolean };
       service_begin_catalog_folder: {
         Args: {
           p_epoch: number;
@@ -6660,6 +6699,7 @@ export type GeneratedDatabase = {
         }[];
       };
       service_claim_tariff_notices: { Args: { p_limit?: number }; Returns: Json };
+      service_claim_task_cleanup: { Args: { p_limit?: number }; Returns: Json };
       service_claim_upload_folder: {
         Args: { p_actor: string; p_key: string; p_name: string; p_parent: string; p_team: string };
         Returns: {
@@ -7766,6 +7806,7 @@ export type GeneratedDatabase = {
       service_settle_launch_batch: { Args: { p_limit?: number }; Returns: Json };
       service_settle_launch_restitch_batch: { Args: { p_limit?: number }; Returns: number };
       service_settle_launch_restitch_cancellations: { Args: { p_limit?: number }; Returns: number };
+      service_settle_task_cleanup: { Args: { p_id: string; p_result: string }; Returns: undefined };
       service_start_landing_render: {
         Args: {
           p_actor: string;
@@ -8050,6 +8091,10 @@ export type GeneratedDatabase = {
       };
       set_transcript_delete_pref: { Args: { p_pref: string }; Returns: string };
       settle_launch_restitch: { Args: { p_generation: string; p_team: string }; Returns: boolean };
+      start_team_bulk_trash: {
+        Args: { p_group: string; p_materials: string[]; p_team: string };
+        Returns: Json;
+      };
       stop_team_catalog_updater: { Args: { p_team: string }; Returns: Json };
       team_material_kind: {
         Args: { p_category: string; p_kind: string; p_mime_type: string };
@@ -8066,6 +8111,7 @@ export type GeneratedDatabase = {
           role: string;
         }[];
       };
+      undo_task_material_detach: { Args: { p_receipt: string; p_team: string }; Returns: Json };
       undo_team_agent_finance_clear: {
         Args: {
           p_intent?: string;

@@ -26,6 +26,7 @@ import type {
   StitchOperation,
   TeamRestitchDefaults
 } from '@video-compressor/shared';
+import { imageSelectionSupported } from '@video-compressor/shared';
 import { ImageEmbeddingSection } from '../../components/ImageEmbeddingSection';
 import { Button } from '../../components/ui';
 import { ICON_STROKE } from '../../components/icons';
@@ -440,6 +441,7 @@ export function RestitchDefaultsSection({
           <>
             <p className="team-inline-note">{t('teamRestitchOwnerPoolsNote')}</p>
             <ImageEmbeddingSection
+              explicitChoiceAllowed={imageSelectionSupported(agent?.toolContracts ?? null)}
               settings={embeddingOf(formOf(defaults))}
               disabled
               update={() => {}}
@@ -550,6 +552,7 @@ export function RestitchDefaultsSection({
           pools where the galleries would be. The form is the panel's; no library is read. */}
       <div ref={poolsRef}>
         <ImageEmbeddingSection
+          explicitChoiceAllowed={imageSelectionSupported(agent?.toolContracts ?? null)}
           settings={embeddingOf(form)}
           disabled={!editable || saving}
           update={updateForm}

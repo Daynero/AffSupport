@@ -1,8 +1,13 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { TeamTaskSummary } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
+
+import {
+  beginWorkspaceOperation,
+  type WorkspaceOperationFlow
+} from '../workspace/operationAnalytics';
 
 const PREFIX = 'SOTY_TASKS_V1:';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -19,7 +24,11 @@ function editing(target: EventTarget | null): boolean {
 }
 
 export interface TaskCopyClient {
-  copyTasks?: (input: { teamId: string; taskIds: string[] }) => Promise<string[]>;
+  copyTasks?: (input: {
+    teamId: string;
+    taskIds: string[];
+    idempotencyKey?: string;
+  }) => Promise<string[]>;
 }
 
 /** Native copy/paste events support Cmd on macOS and Ctrl on Windows without
@@ -30,7 +39,8 @@ export function useTaskClipboard({
   canEdit,
   client,
   onPasted,
-  anchor
+  anchor,
+  onSettled
 }: {
   /** An element inside the task board: while the board is hidden (another
       section is showing) copy and paste are not the board's to answer. */
@@ -40,10 +50,45 @@ export function useTaskClipboard({
   canEdit: boolean;
   client: TaskCopyClient;
   onPasted: (ids: string[]) => Promise<void> | void;
+  onSettled?: () => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
+  const [delivered, setDelivered] = useState<WorkspaceOperationFlow | null>(null);
+  useEffect(() => {
+    if (document.visibilityState === 'visible') delivered?.visible();
+  }, [delivered]);
   const pasting = useRef(false);
+  const pending = useRef<{ signature: string; key: string } | null>(null);
+  const attemptFor = (signature: string) => {
+    const storageKey = `soty.task-copy.${teamId}`;
+    if (!pending.current) {
+      try {
+        const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
+        if (
+          stored &&
+          typeof stored === 'object' &&
+          'signature' in stored &&
+          'key' in stored &&
+          typeof stored.signature === 'string' &&
+          typeof stored.key === 'string' &&
+          UUID.test(stored.key)
+        ) {
+          pending.current = { signature: stored.signature, key: stored.key };
+        }
+      } catch {
+        /* An unavailable intent store never becomes evidence of server success. */
+      }
+    }
+    if (pending.current?.signature !== signature)
+      pending.current = { signature, key: crypto.randomUUID() };
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(pending.current));
+    } catch {
+      /* Keep the in-memory key. */
+    }
+    return pending.current.key;
+  };
   useEffect(() => {
     if (!canEdit || !client.copyTasks) return;
     const blocked = (event: ClipboardEvent) =>
@@ -91,14 +136,28 @@ export function useTaskClipboard({
       }
       if (pasting.current) return;
       pasting.current = true;
-      void client.copyTasks!({ teamId, taskIds: payload.taskIds })
+      const idempotencyKey = attemptFor(JSON.stringify(payload.taskIds));
+      const flow = beginWorkspaceOperation('task_copy', idempotencyKey, payload.taskIds.length);
+      void client.copyTasks!({ teamId, taskIds: payload.taskIds, idempotencyKey })
         .then(async ids => {
+          flow.stage('confirmed');
           await onPasted(ids);
+          pending.current = null;
+          try {
+            sessionStorage.removeItem(`soty.task-copy.${teamId}`);
+          } catch {
+            /* Retrying a completed receipt remains safe. */
+          }
           push({ tone: 'success', text: t('teamTasksPasted', { count: ids.length }) });
+          setDelivered(flow);
         })
-        .catch(cause => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }))
+        .catch(cause => {
+          flow.fail(cause);
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        })
         .finally(() => {
           pasting.current = false;
+          onSettled?.();
         });
     };
     document.addEventListener('copy', copy);
@@ -107,5 +166,5 @@ export function useTaskClipboard({
       document.removeEventListener('copy', copy);
       document.removeEventListener('paste', paste);
     };
-  }, [canEdit, client, onPasted, push, selected, t, teamId]);
+  }, [canEdit, client, onPasted, onSettled, push, selected, t, teamId]);
 }

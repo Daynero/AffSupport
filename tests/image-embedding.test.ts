@@ -428,3 +428,45 @@ function poolAsset(hex: string): ImageAsset {
     fileName: `${hex}.png`
   };
 }
+
+it('uses the explicit image in every queued job and leaves those jobs frozen after settings change', async () => {
+  directory = await mkdtemp(path.join(os.tmpdir(), 'embedding-explicit-'));
+  const images = [poolAsset('3'), poolAsset('4')];
+  const jobs = ['explicit-one', 'explicit-two'].map(id =>
+    makeJob(id, 'ready', { inputPath: path.join(directory, `${id}.mp4`) })
+  );
+  const settings = {
+    ...optimalSettings,
+    outputMode: 'chosen-folder' as const,
+    outputFolder: directory,
+    imageEmbedding: makeEmbeddingSettings({
+      enabled: true,
+      startImages: images,
+      selectedStartImageId: images[1]!.id
+    })
+  };
+  const queue = new JobQueue(
+    { ffmpeg: true, ffprobe: true },
+    () => {},
+    jobs,
+    settings,
+    null,
+    new ImageAssetStore(path.join(directory, 'images')),
+    () => 0
+  );
+  await createSources(jobs);
+  expect(await queue.start(jobs.map(job => job.id))).toBe(true);
+  expect(
+    queue.state().jobs.every(job => job.imageEmbedding?.startImage?.id === images[1]!.id)
+  ).toBe(true);
+  await queue.updateSettings({
+    imageEmbedding: { ...settings.imageEmbedding, selectedStartImageId: images[0]!.id }
+  });
+  expect(
+    queue.state().jobs.every(job => job.imageEmbedding?.startImage?.id === images[1]!.id)
+  ).toBe(true);
+  await waitFor(() => !queue.state().running, {
+    timeoutMs: 3000,
+    describe: 'the explicit queue to settle'
+  });
+});
