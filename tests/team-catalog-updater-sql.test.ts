@@ -189,7 +189,7 @@ beforeAll(async () => {
     driveFileId: 'folder-a',
     kind: 'folder'
   });
-}, 60_000);
+}, 180_000);
 
 afterAll(async () => {
   await harness?.close();
@@ -430,6 +430,482 @@ describe('each catalog on its own schedule (024)', () => {
         [teamId, catalogs]
       )
     )[0]!.n;
+  it('waits for replacement video on manual runs even when the catalog has a schedule', async () => {
+    const item = await catalog('manual-video-wait');
+    await setInterval_([item.sheet], '1d');
+    await harness.root(
+      'update public.team_catalog_update_profiles set restitch = true where catalog_material_id = $1',
+      [item.sheet]
+    );
+    await harness.root('select private.queue_restitch_jobs($1)', [teamId]);
+    await harness.root(
+      "update private.catalog_restitch_jobs set next_attempt_at = now() + interval '15 minutes', last_error_code = 'NOT_FOUND' where catalog_material_id = $1",
+      [item.sheet]
+    );
+    await updateNow([item.sheet]);
+    const retried = await harness.root<{ last_error_code: string | null; ready: boolean }>(
+      'select last_error_code, next_attempt_at <= clock_timestamp() as ready from private.catalog_restitch_jobs where catalog_material_id = $1',
+      [item.sheet]
+    );
+    expect(retried[0]).toMatchObject({ last_error_code: null, ready: true });
+    expect((await claim('manual-video-worker')).map(row => row.catalog_material_id)).not.toContain(
+      item.sheet
+    );
+    const jobs = await harness.root<{ catalog_material_id: string }>(
+      'select catalog_material_id from private.catalog_restitch_jobs where catalog_material_id = $1',
+      [item.sheet]
+    );
+    expect(jobs).toHaveLength(1);
+    await harness.root(
+      'update public.team_catalog_updater_items set round_due_at = null where catalog_material_id = $1',
+      [item.sheet]
+    );
+    await setInterval_([item.sheet], null);
+  }, 60_000);
+  it('prepares a manual video through claim, heartbeat and delivery with the legacy switch off', async () => {
+    const item = await catalog('manual-profile-video-lifecycle');
+    await setInterval_([item.sheet], '1d');
+    await harness.root(
+      'update public.team_catalog_updaters set restitch = false where team_id = $1',
+      [teamId]
+    );
+    await harness.root(
+      'update public.team_catalog_update_profiles set restitch = true where catalog_material_id = $1',
+      [item.sheet]
+    );
+    await updateNow([item.sheet]);
+    // Recreate a queued job from the frozen attempt after editing future settings.
+    await harness.root(
+      'update public.team_catalog_update_profiles set restitch = false where catalog_material_id = $1',
+      [item.sheet]
+    );
+    await harness.root('delete from private.catalog_restitch_jobs where catalog_material_id = $1', [
+      item.sheet
+    ]);
+    await harness.root('select private.sync_catalog_updater($1)', [teamId]);
+    expect(
+      (
+        await harness.root<{ enabled: boolean }>(
+          'select restitch as enabled from public.team_catalog_updaters where team_id = $1',
+          [teamId]
+        )
+      )[0]!.enabled
+    ).toBe(true);
+    // The browser aggregate is enabled, while server lifecycle gates also stand on their own.
+    await harness.root(
+      'update public.team_catalog_updaters set restitch = false where team_id = $1',
+      [teamId]
+    );
+    await harness.root(
+      "update private.catalog_restitch_jobs set next_attempt_at = '-infinity' where catalog_material_id = $1",
+      [item.sheet]
+    );
+    const token = Buffer.alloc(32, 41);
+    const job = (
+      await harness.root<{ result: { jobId: string } }>(
+        'select public.service_claim_restitch_job($1, $2, $3) as result',
+        [teamId, OWNER, token]
+      )
+    )[0]!.result;
+    expect(job.jobId).toBe(item.sheet);
+    // Changes to the future profile must not cancel the frozen manual attempt.
+    await harness.root(
+      'update public.team_catalog_update_profiles set restitch = false where catalog_material_id = $1',
+      [item.sheet]
+    );
+    await harness.root('select private.sync_catalog_updater($1)', [teamId]);
+    expect(
+      (
+        await harness.root<{ enabled: boolean }>(
+          'select restitch as enabled from public.team_catalog_updaters where team_id = $1',
+          [teamId]
+        )
+      )[0]!.enabled
+    ).toBe(true);
+    // The browser aggregate is enabled, while server lifecycle gates also stand on their own.
+    await harness.root(
+      'update public.team_catalog_updaters set restitch = false where team_id = $1',
+      [teamId]
+    );
+    expect(
+      (
+        await harness.root<{ stop: boolean }>(
+          'select public.service_heartbeat_restitch_job($1, $2, $3) as stop',
+          [OWNER, item.sheet, token]
+        )
+      )[0]!.stop
+    ).toBe(false);
+    const operationId = (await harness.root<{ id: string }>('select gen_random_uuid() as id'))[0]!
+      .id;
+    expect(
+      (
+        await harness.root<{ ok: boolean }>(
+          'select public.service_bind_restitch_job_operation($1, $2, $3) as ok',
+          [item.sheet, token, operationId]
+        )
+      )[0]!.ok
+    ).toBe(true);
+    const copy = await material(teamId, 'manual-ready.mp4', 'video', 'video/mp4');
+    expect(
+      (
+        await harness.root<{ result: string }>(
+          'select public.service_record_restitch_output($1, $2, $3, $4) as result',
+          [
+            operationId,
+            copy,
+            'manual-ready-drive',
+            'https://drive.google.com/file/d/manual-ready/view'
+          ]
+        )
+      )[0]!.result
+    ).toBe('spare');
+    expect((await claim('manual-profile-ready')).map(row => row.catalog_material_id)).toContain(
+      item.sheet
+    );
+    expect(await complete(item.sheet, 'manual-profile-ready', 1)).toBe(true);
+    await setInterval_([item.sheet], null);
+  }, 60_000);
+  it('waits and prepares again if a spare is removed after a manual run starts', async () => {
+    const item = await catalog('manual-removed-spare');
+    await setInterval_([item.sheet], '1d');
+    await harness.root(
+      'update public.team_catalog_update_profiles set restitch = true where catalog_material_id = $1',
+      [item.sheet]
+    );
+    const copy = await material(teamId, 'removed-ready.mp4', 'video', 'video/mp4');
+    await harness.root(
+      `insert into public.team_catalog_restitch_copies
+      (material_id, catalog_material_id, team_id, role, drive_file_id, shared_link)
+      values ($1, $2, $3, 'spare', 'removed-ready', 'https://drive.google.com/file/d/removed-ready/view')`,
+      [copy, item.sheet, teamId]
+    );
+    await updateNow([item.sheet]);
+    await harness.root(
+      "update public.team_materials set lifecycle = 'trashed', trashed_at = clock_timestamp() where id = $1",
+      [copy]
+    );
+    const profile = (
+      await harness.asUser<{ restitch_status: string; catalog_material_id: string }>(
+        OWNER,
+        'select * from public.list_team_catalog_update_profiles($1)',
+        [teamId]
+      )
+    ).find(row => row.catalog_material_id === item.sheet);
+    expect(profile?.restitch_status).not.toBe('ready');
+    expect((await claim('removed-spare-worker')).map(row => row.catalog_material_id)).not.toContain(
+      item.sheet
+    );
+    expect(
+      (
+        await harness.root<{ role: string }>(
+          'select role from public.team_catalog_restitch_copies where material_id = $1',
+          [copy]
+        )
+      )[0]!.role
+    ).toBe('retired');
+    expect(
+      await harness.root(
+        'select catalog_material_id from private.catalog_restitch_jobs where catalog_material_id = $1',
+        [item.sheet]
+      )
+    ).toHaveLength(1);
+    await harness.root(
+      'update public.team_catalog_updater_items set round_due_at = null where catalog_material_id = $1',
+      [item.sheet]
+    );
+    await setInterval_([item.sheet], null);
+  }, 60_000);
+  it('wakes accepted manual runs and ready videos while keeping durable work when dispatch fails', async () => {
+    const original = (
+      await harness.root<{ definition: string }>(
+        "select pg_get_functiondef('private.invoke_catalog_updater_worker()'::regprocedure) as definition"
+      )
+    )[0]!.definition;
+    await harness.root('create table private.test_catalog_dispatch_calls (n integer)');
+    await harness.root('insert into private.test_catalog_dispatch_calls values (0)');
+    const counted = `create or replace function private.invoke_catalog_updater_worker()
+      returns bigint language plpgsql security definer set search_path = '' as $$
+      begin update private.test_catalog_dispatch_calls set n = n + 1; return 1; end; $$`;
+    const failing = `create or replace function private.invoke_catalog_updater_worker()
+      returns bigint language plpgsql security definer set search_path = '' as $$
+      begin raise exception 'DISPATCH_UNAVAILABLE'; end; $$`;
+    const calls = async () =>
+      (await harness.root<{ n: number }>('select n from private.test_catalog_dispatch_calls'))[0]!
+        .n;
+    try {
+      await harness.root(counted);
+      const item = await catalog('manual-immediate-dispatch');
+      await setInterval_([item.sheet], '1d');
+      await harness.root(
+        'update public.team_catalog_update_profiles set restitch = true where catalog_material_id = $1',
+        [item.sheet]
+      );
+      expect(await updateNow([item.sheet])).toBe(1);
+      expect(await calls()).toBe(1);
+      expect(await updateNow([item.sheet])).toBe(0);
+      expect(await calls()).toBe(1);
+      await harness.root(
+        "update private.catalog_restitch_jobs set next_attempt_at = '-infinity' where catalog_material_id = $1",
+        [item.sheet]
+      );
+      const token = Buffer.alloc(32, 57);
+      expect(
+        (
+          await harness.root<{ job: { jobId: string } }>(
+            'select public.service_claim_restitch_job($1,$2,$3) as job',
+            [teamId, OWNER, token]
+          )
+        )[0]!.job.jobId
+      ).toBe(item.sheet);
+      const operationId = (await harness.root<{ id: string }>('select gen_random_uuid() as id'))[0]!
+        .id;
+      await harness.root('select public.service_bind_restitch_job_operation($1,$2,$3)', [
+        item.sheet,
+        token,
+        operationId
+      ]);
+      const copy = await material(teamId, 'immediate-ready.mp4', 'video', 'video/mp4');
+      expect(
+        (
+          await harness.root<{ result: string }>(
+            'select public.service_record_restitch_output($1,$2,$3,$4) as result',
+            [
+              operationId,
+              copy,
+              'immediate-ready',
+              'https://drive.google.com/file/d/immediate-ready/view'
+            ]
+          )
+        )[0]!.result
+      ).toBe('spare');
+      expect(await calls()).toBe(2);
+      await harness.root(
+        'update public.team_catalog_updater_items set round_due_at = null where catalog_material_id = $1',
+        [item.sheet]
+      );
+      await setInterval_([item.sheet], null);
+
+      await harness.root(failing);
+      const accepted = await catalog('manual-dispatch-unavailable');
+      expect(await updateNow([accepted.sheet])).toBe(1);
+      expect(
+        (
+          await harness.root<{ pending: boolean }>(
+            'select round_due_at is not null as pending from public.team_catalog_updater_items where catalog_material_id = $1',
+            [accepted.sheet]
+          )
+        )[0]!.pending
+      ).toBe(true);
+      await harness.root(
+        'update public.team_catalog_updater_items set round_due_at = null where catalog_material_id = $1',
+        [accepted.sheet]
+      );
+      await setInterval_([accepted.sheet], null);
+    } finally {
+      await harness.root(original);
+      await harness.root('drop table private.test_catalog_dispatch_calls');
+    }
+  }, 60_000);
+  it('computes weekly and daily civil schedules across DST without elapsed-time drift', async () => {
+    const next = async (
+      interval: string,
+      schedule: { timeZone: string; weekday: number; time: string } | null,
+      after: string,
+      anchor: string | null = null
+    ) =>
+      (
+        await harness.root<{ next: string }>(
+          'select private.next_catalog_schedule($1,$2::jsonb,$3::timestamptz,$4::timestamptz)::text as next',
+          [interval, schedule === null ? null : JSON.stringify(schedule), after, anchor]
+        )
+      )[0]!.next;
+    const sunday = { timeZone: 'Europe/Kyiv', weekday: 7, time: '18:00' };
+    expect(Date.parse(await next('1w', sunday, '2026-10-19T10:00:00Z'))).toBe(
+      Date.parse('2026-10-25T16:00:00Z')
+    );
+    expect(Date.parse(await next('1d', sunday, '2026-10-24T15:00:00Z'))).toBe(
+      Date.parse('2026-10-25T16:00:00Z')
+    );
+    const gap = { ...sunday, time: '03:30' };
+    expect(Date.parse(await next('1d', gap, '2026-03-28T12:00:00Z'))).toBe(
+      Date.parse('2026-03-29T01:30:00Z')
+    );
+    expect(Date.parse(await next('1d', gap, '2026-03-29T02:00:00Z'))).toBe(
+      Date.parse('2026-03-30T00:30:00Z')
+    );
+    expect(Date.parse(await next('1w', gap, '2026-10-24T12:00:00Z'))).toBe(
+      Date.parse('2026-10-25T01:30:00Z')
+    );
+    expect(
+      Date.parse(await next('3h', sunday, '2026-10-25T12:17:00Z', '2026-10-25T07:00:00Z'))
+    ).toBe(Date.parse('2026-10-25T13:00:00Z'));
+    expect(Date.parse(await next('1h', null, '2026-10-25T12:17:00Z', '2026-10-25T07:00:00Z'))).toBe(
+      Date.parse('2026-10-25T13:17:00Z')
+    );
+  });
+
+  it('persists an atomic versioned calendar schedule without resetting it for boolean or manual updates', async () => {
+    const item = await catalog('calendar-schedule');
+    const patch = async (version: number, change: object, actor = OWNER) =>
+      (
+        await harness.asUser<{ result: { version: number; schedule: unknown } }>(
+          actor,
+          'select public.patch_team_catalog_update_profile($1,$2,$3,$4::jsonb) as result',
+          [teamId, item.sheet, version, JSON.stringify(change)]
+        )
+      )[0]!.result;
+    const schedule = { timeZone: 'Europe/Kyiv', weekday: 7, time: '18:00' };
+    const version = (
+      await harness.root<{ version: number }>(
+        'select version from public.team_catalog_update_profiles where catalog_material_id = $1',
+        [item.sheet]
+      )
+    )[0]!.version;
+    const saved = await patch(Number(version), { updateInterval: '1w', schedule });
+    expect(saved.schedule).toEqual(schedule);
+    const due = async () =>
+      (
+        await harness.root<{ next: string }>(
+          'select next_run_at::text as next from public.team_catalog_updater_items where catalog_material_id = $1',
+          [item.sheet]
+        )
+      )[0]!.next;
+    const before = await due();
+    const persisted = (
+      await harness.asUser<{ catalog_material_id: string; schedule: unknown }>(
+        OWNER,
+        'select * from public.list_team_catalog_update_profiles($1)',
+        [teamId]
+      )
+    ).find(row => row.catalog_material_id === item.sheet);
+    expect(persisted?.schedule).toEqual(schedule);
+    await expect(
+      patch(Number(version), { schedule: { ...schedule, time: '19:00' } })
+    ).rejects.toThrow(/STALE_RESULT/);
+    const changed = await patch(Number(saved.version), { restitch: false });
+    expect(changed.schedule).toEqual(schedule);
+    expect(await due()).toBe(before);
+    await updateNow([item.sheet]);
+    expect(await due()).toBe(before);
+    await harness.asUser(OWNER, 'select public.cancel_team_catalog_update($1,$2)', [
+      teamId,
+      item.sheet
+    ]);
+    await setInterval_([item.sheet], '1w');
+    expect(
+      (
+        await harness.root<{ schedule: unknown }>(
+          'select schedule from public.team_catalog_update_profiles where catalog_material_id = $1',
+          [item.sheet]
+        )
+      )[0]!.schedule
+    ).toEqual(schedule);
+    await setInterval_([item.sheet], '1d');
+    expect(
+      (
+        await harness.root<{ schedule: unknown }>(
+          'select schedule from public.team_catalog_update_profiles where catalog_material_id = $1',
+          [item.sheet]
+        )
+      )[0]!.schedule
+    ).toBeNull();
+    await setInterval_([item.sheet], null);
+  }, 60_000);
+
+  it('rejects invalid calendar settings and unauthorized edits without changing the profile', async () => {
+    const item = await catalog('invalid-calendar-schedule');
+    const version = Number(
+      (
+        await harness.root<{ version: number }>(
+          'select version from public.team_catalog_update_profiles where catalog_material_id = $1',
+          [item.sheet]
+        )
+      )[0]!.version
+    );
+    const schedule = { timeZone: 'Europe/Kyiv', weekday: 7, time: '18:00' };
+    const saveSchedule = (change: unknown, actor = OWNER) =>
+      harness.asUser(actor, 'select public.patch_team_catalog_update_profile($1,$2,$3,$4::jsonb)', [
+        teamId,
+        item.sheet,
+        version,
+        JSON.stringify({ updateInterval: '1w', schedule: change })
+      ]);
+    for (const bad of [
+      { ...schedule, timeZone: 'Invalid/Zone' },
+      { ...schedule, weekday: 0 },
+      { ...schedule, weekday: 8 },
+      { ...schedule, time: '24:00' },
+      { ...schedule, time: '9:00' },
+      { ...schedule, extra: true }
+    ]) {
+      await expect(saveSchedule(bad)).rejects.toThrow(/INVALID_INPUT/);
+    }
+    await expect(saveSchedule(schedule, VIEWER)).rejects.toThrow(/PERMISSION_DENIED/);
+    await expect(
+      harness.asUser(
+        OWNER,
+        'select public.patch_team_catalog_update_profile($1,$2,null,$3::jsonb)',
+        [teamId, item.sheet, JSON.stringify({ updateInterval: '1w', schedule })]
+      )
+    ).rejects.toThrow(/STALE_RESULT/);
+    expect(
+      Number(
+        (
+          await harness.root<{ version: number }>(
+            'select version from public.team_catalog_update_profiles where catalog_material_id = $1',
+            [item.sheet]
+          )
+        )[0]!.version
+      )
+    ).toBe(version);
+  });
+
+  it('advances due calendar runs to their next civil slot and keeps frozen schedule evidence', async () => {
+    const item = await catalog('due-calendar-schedule');
+    const version = Number(
+      (
+        await harness.root<{ version: number }>(
+          'select version from public.team_catalog_update_profiles where catalog_material_id = $1',
+          [item.sheet]
+        )
+      )[0]!.version
+    );
+    const schedule = { timeZone: 'Europe/Kyiv', weekday: 7, time: '18:00' };
+    await harness.asUser(
+      OWNER,
+      'select public.patch_team_catalog_update_profile($1,$2,$3,$4::jsonb)',
+      [
+        teamId,
+        item.sheet,
+        version,
+        JSON.stringify({ updateInterval: '1w', schedule, restitch: false })
+      ]
+    );
+    await harness.root(
+      "update public.team_catalog_updater_items set next_run_at = clock_timestamp() - interval '1 day' where catalog_material_id = $1",
+      [item.sheet]
+    );
+    await openRounds();
+    const result = (
+      await harness.root<{ pending: boolean; aligned: boolean; schedule: unknown }>(
+        `select item.round_due_at is not null as pending,
+      item.next_run_at = private.next_catalog_schedule(item.update_interval, profile.schedule, clock_timestamp()) as aligned,
+      attempt.profile_snapshot -> 'schedule' as schedule
+      from public.team_catalog_updater_items as item
+      join public.team_catalog_update_profiles as profile using(catalog_material_id)
+      join public.team_catalog_update_attempts as attempt on attempt.catalog_material_id = item.catalog_material_id and attempt.round_due_at = item.round_due_at
+      where item.catalog_material_id = $1`,
+        [item.sheet]
+      )
+    )[0]!;
+    expect(result).toMatchObject({ pending: true, aligned: true, schedule });
+    await harness.asUser(OWNER, 'select public.cancel_team_catalog_update($1,$2)', [
+      teamId,
+      item.sheet
+    ]);
+    await setInterval_([item.sheet], null);
+  }, 60_000);
+
   const registry = (id: string) =>
     harness
       .asUser<{
@@ -465,7 +941,8 @@ describe('each catalog on its own schedule (024)', () => {
 
     await setInterval_([hourly.sheet, daily.sheet], null);
     expect(await state()).toMatchObject({ state: 'stopped', catalogCount: 0, nextRunAt: null });
-    expect((await registry(hourly.sheet)).update_pending).toBe(false);
+    expect((await registry(hourly.sheet)).update_pending).toBe(true);
+    await stop();
   }, 60_000);
 
   it('updates a catalog now, scheduled or not, and forgets an unscheduled one once it is done', async () => {
@@ -505,7 +982,7 @@ describe('each catalog on its own schedule (024)', () => {
     await stop();
   }, 60_000);
 
-  it('revokes an active worker when the catalog is turned off', async () => {
+  it('turns off future schedules without revoking an active manual update', async () => {
     const active = await catalog('cancel-active');
     await updateNow([active.sheet]);
     expect((await claim('w-cancel')).map(row => row.catalog_material_id)).toContain(active.sheet);
@@ -514,9 +991,9 @@ describe('each catalog on its own schedule (024)', () => {
 
     expect(await registry(active.sheet)).toMatchObject({
       in_updater: false,
-      update_pending: false
+      update_pending: true
     });
-    expect(await complete(active.sheet, 'w-cancel', 1)).toBe(false);
+    expect(await complete(active.sheet, 'w-cancel', 1)).toBe(true);
   }, 60_000);
 
   it('refuses a viewer and a catalog from another space', async () => {

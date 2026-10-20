@@ -3,6 +3,7 @@ export * from './agent-finance.js';
 export * from './agent-finance-report.js';
 export * from './analytics.js';
 export * from './catalog-search.js';
+export * from './catalog-updater.js';
 export * from './contract.js';
 export * from './creative-library.js';
 export * from './landing-gallery.js';

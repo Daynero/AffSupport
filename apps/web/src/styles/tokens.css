@@ -350,6 +350,7 @@
   --motion-base: 220ms;
   --motion-slow: 300ms;
   --motion-progress: 750ms;
+  --motion-catalog-success: 1500ms;
   --ease-out-curve: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-curve: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-linear: linear;
@@ -728,4 +729,17 @@
   /* Shadow aliases the old sheet still names */
   --shadow-xl: var(--shadow-lg);
   --shadow-raise: var(--shadow-md);
+}
+
+:root {
+  --catalog-disabled-opacity: 0.55;
+  --catalog-manager-width: 1240px;
+  --catalog-schedule-panel-scale: 0.825;
+  --catalog-schedule-panel-height: 338.8px;
+  --catalog-manager-height: 680px;
+  --catalog-toggle-column: 264px;
+  --catalog-schedule-column: 224px;
+  --catalog-success-column: 128px;
+  --catalog-actions-column: 108px;
+  --duration-spinner: 900ms;
 }

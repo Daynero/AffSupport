@@ -1,3 +1,4 @@
+import { publicFunctionEndpoint } from '../_shared/function-endpoints.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
 import {
   parseLaunchSources,
@@ -782,11 +783,7 @@ function relayEndpoint(request: Request, operationId: string) {
 }
 
 function rangeEndpoint(request: Request) {
-  const url = new URL(request.url);
-  url.search = '';
-  url.hash = '';
-  url.pathname = url.pathname.replace(/\/drive-ops(?:\/.*)?$/u, '/drive-transfer/range');
-  return url.toString();
+  return publicFunctionEndpoint(request, 'drive-transfer/range');
 }
 
 async function handleUploadStart(
@@ -1981,6 +1978,7 @@ async function handleProcessStart(
     stage: 'awaiting_agent',
     progress: 0
   });
+  // Existing headroom also covers the bounded four range retries.
   const ranges = Math.ceil((liveSource.size ?? source.sizeBytes) / RANGE_REQUEST_MAX_BYTES) + 8;
   const [sourceGrant, finalizeGrant] = await Promise.all([
     operationGrant({
@@ -2004,7 +2002,8 @@ async function handleProcessStart(
       materialId,
       destinationFolderId,
       toolId,
-      maxUses: 2,
+      // One upload start and up to three idempotent finalize requests.
+      maxUses: 4,
       ttlSeconds: OPERATION_GRANT_TTL_SECONDS
     })
   ]);
@@ -2902,18 +2901,9 @@ function updaterRestitchDeps(request: Request, service: RpcClient): UpdaterResti
   return {
     rpc: (name, parameters) => rpcValue(service, name, parameters),
     restitchedFolder: async (teamId, actorId) => {
-      const root = await rootDestination({ service, teamId, actorId, permission: 'upload' });
-      const drive = await driveClient(service, root.credentialId, request);
-      const cacheId = await ensureDriveCacheRoot(drive, teamId, root.rootFolderId);
-      const resolved = await resolveRestitchedFolder({
-        teamId,
-        rootFolderId: cacheId,
-        legacyRootFolderId: root.rootFolderId,
-        drive
-      });
-      await moveGeneratedFolderToCache(drive, resolved.folder, root.rootFolderId, cacheId);
-      await noteRestitchedFolder(service, teamId, resolved.folder.id);
-      return resolved.folder.id;
+      // A Drive folder must also be registered as a material before process-start can resolve it.
+      const folder = await handleEnsureRestitchedFolder(request, { teamId }, service, actorId);
+      return folder.folderId;
     },
     startProcess: async (actorId, body) => {
       const started = await handleProcessStart(request, body, service, actorId);

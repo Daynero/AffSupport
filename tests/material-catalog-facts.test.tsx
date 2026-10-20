@@ -50,7 +50,7 @@ describe('a catalog sheet in its card', () => {
     expect(await screen.findByText('A catalog for “clip.MP4”')).toBeTruthy();
     expect(screen.getByText(/Products: 5/)).toBeTruthy();
     expect(screen.getByText(/updated/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Open the updater' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Open the catalog manager' }).getAttribute('href')).toBe(
       '/team/space?updater=1'
     );
   });

@@ -16,6 +16,10 @@ import {
   ProductCatalogSettingsSection,
   type ProductCatalogSettingsClient
 } from '../product-catalog/ProductCatalogSettingsSection';
+import {
+  CatalogDefaultsEditor,
+  type CatalogDefaultsClient
+} from '../catalog-updater/CatalogDefaultsEditor';
 import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
 import { SpaceTariffSection } from '../tariffs/SpaceTariffSection';
 import type { TeamSettingsTab } from '../routes';
@@ -40,6 +44,7 @@ export type SpaceSettingsClient = MemberManagementClient &
   TaskLabelsSectionClient &
   TeamPreferencesClient &
   ProductCatalogSettingsClient &
+  CatalogDefaultsClient &
   SpaceNameClient;
 
 /**
@@ -130,6 +135,7 @@ export function SpaceSettings({
   health,
   initialTab,
   onTabChange,
+  onBeforeCloseChange,
   onBack
 }: {
   teamId: string;
@@ -139,11 +145,24 @@ export function SpaceSettings({
   initialTab?: TeamSettingsTab | null;
   /** The room now open — so the address names it, and a reload comes back to it. */
   onTabChange?: (tab: TeamSettingsTab) => void;
+  onBeforeCloseChange?: (guard: () => boolean) => void;
   onBack: () => void;
 }) {
   const { t } = useI18n();
   const { activeTeam, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
+  const [catalogDraft, setCatalogDraft] = useState({ dirty: false, saving: false });
+  const allowLeave = () =>
+    !catalogDraft.saving &&
+    (!catalogDraft.dirty || window.confirm(t('catalogUpdaterDiscardDraft')));
+  useEffect(() => {
+    onBeforeCloseChange?.(
+      () =>
+        !catalogDraft.saving &&
+        (!catalogDraft.dirty || window.confirm(t('catalogUpdaterDiscardDraft')))
+    );
+    return () => onBeforeCloseChange?.(() => true);
+  }, [catalogDraft, onBeforeCloseChange, t]);
   const tabs = [
     { id: 'general' as const, label: t('teamSettingsTabGeneral') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },
@@ -166,7 +185,13 @@ export function SpaceSettings({
       <div className="team-space-settings-bar">
         <header className="team-space-settings-header">
           <h2 id="team-space-settings-title">{t('teamSpaceSettings')}</h2>
-          <Button type="button" variant="secondary" onClick={onBack}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              if (allowLeave()) onBack();
+            }}
+          >
             {t('teamSpaceSettingsBack')}
           </Button>
         </header>
@@ -186,6 +211,7 @@ export function SpaceSettings({
           label={t('teamSettingsTabsLabel')}
           value={tab}
           onChange={next => {
+            if (!allowLeave()) return;
             setTab(next);
             onTabChange?.(next);
           }}
@@ -246,7 +272,14 @@ export function SpaceSettings({
         {tab === 'restitch' && <RestitchDefaultsSection teamId={teamId} client={client} />}
 
         {tab === 'product-catalog' && (
-          <ProductCatalogSettingsSection teamId={teamId} client={client} />
+          <>
+            <CatalogDefaultsEditor
+              teamId={teamId}
+              client={client}
+              onDraftChange={setCatalogDraft}
+            />
+            <ProductCatalogSettingsSection teamId={teamId} client={client} />
+          </>
         )}
       </div>
     </section>

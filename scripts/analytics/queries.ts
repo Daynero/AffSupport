@@ -862,7 +862,7 @@ export function featureUnsupportedSignals(): Array<UnsupportedSignal & { signal:
   );
 }
 
-const JOURNEY_COLUMNS = `e.event_id::text, e.occurred_at::text, e.created_at::text, e.session_sequence, e.session_id::text,
+const JOURNEY_COLUMNS = `coalesce(e.event_id::text, 'row-' || e.id::text) as event_id, e.occurred_at::text, e.created_at::text, e.session_sequence, e.session_id::text,
        e.installation_id::text, e.flow_id::text, e.run_id::text, e.event_name, e.tool,
        e.local_app_version, e.local_app_build, e.web_build_id, e.platform, e.architecture, e.properties`;
 
@@ -1416,6 +1416,7 @@ interface RegistryTuple {
   role: SignalRole;
   correlate: string;
   tool: string | null;
+  flowStep: string | null;
 }
 
 function registryTuples(): RegistryTuple[] {
@@ -1427,7 +1428,8 @@ function registryTuples(): RegistryTuple[] {
         event: signal.event,
         role,
         correlate: signal.correlate,
-        tool: capability.toolColumn ?? null
+        tool: capability.toolColumn ?? null,
+        flowStep: signal.flowStep ?? null
       });
     capability.start.forEach(signal => push(signal, 'start'));
     capability.terminal.forEach(signal => push(signal, 'terminal'));
@@ -1437,10 +1439,10 @@ function registryTuples(): RegistryTuple[] {
   return tuples;
 }
 
-/** `$1/$2` range, `$3..$7` the registry as parallel arrays; `attemptId` from `eventColumnSql`. */
+/** `$1/$2` range, `$3..$8` the registry as parallel arrays; `attemptId` from `eventColumnSql`. */
 const auditEventsCte = (attemptId: string) => `with reg as (
-       select * from unnest($3::text[], $4::text[], $5::text[], $6::text[], $7::text[])
-         as r(capability, event_name, role, correlate, tool)
+       select * from unnest($3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[])
+         as r(capability, event_name, role, correlate, tool, flow_step)
      ), ev as (
        select r.capability, r.role, r.event_name, e.user_id,
          case r.correlate
@@ -1452,8 +1454,69 @@ const auditEventsCte = (attemptId: string) => `with reg as (
          end as cid
        from public.analytics_events e
        join reg r on r.event_name = e.event_name and (r.tool is null or e.tool = r.tool)
+         and (r.flow_step is null or e.properties ->> 'flow_step' = r.flow_step)
        where ${EVENTS_RANGE}
      )`;
+
+interface CatalogSettingsAuditEvidence {
+  missing: string[];
+  installed_at: string | null;
+  capture_enabled: boolean | null;
+  schema_version: number | null;
+  observations: number;
+  changes: number;
+}
+
+async function getCatalogSettingsAudit(
+  period: ResolvedPeriod
+): Promise<CatalogSettingsAuditEvidence> {
+  const expected = [
+    'analytics_catalog_settings_history',
+    'analytics_catalog_settings_current',
+    'analytics_catalog_settings_coverage'
+  ];
+  const visible = await query<{ table_name: string }>(
+    `select table_name from information_schema.tables
+     where table_schema = 'public' and table_name = any($1::text[])`,
+    [expected]
+  );
+  const missing = expected.filter(name => !visible.some(row => row.table_name === name));
+  const absent = {
+    missing,
+    installed_at: null,
+    capture_enabled: null,
+    schema_version: null,
+    observations: 0,
+    changes: 0
+  };
+  if (missing.length) return absent;
+  const evidence = await queryOne<{
+    installed_at: string | Date;
+    capture_enabled: boolean;
+    schema_version: number;
+    observations: number;
+    changes: number;
+  }>(
+    `select coverage.installed_at, coverage.capture_enabled, coverage.schema_version,
+       (select count(*)::int from public.analytics_catalog_settings_history as history
+         where ($1::timestamptz is null or history.observed_at >= $1::timestamptz)
+           and history.observed_at <= $2::timestamptz) as observations,
+       (select count(*)::int from public.analytics_catalog_settings_history as history
+         where history.source = 'change'
+           and ($1::timestamptz is null or history.observed_at >= $1::timestamptz)
+           and history.observed_at <= $2::timestamptz) as changes
+     from public.analytics_catalog_settings_coverage as coverage limit 1`,
+    rangeParams(period)
+  );
+  if (!evidence) return { ...absent, missing: ['catalog_settings_coverage_metadata'] };
+  const installedAt =
+    evidence.installed_at instanceof Date ? evidence.installed_at : new Date(evidence.installed_at);
+  return {
+    missing: [],
+    ...evidence,
+    installed_at: Number.isFinite(installedAt.getTime()) ? installedAt.toISOString() : null
+  };
+}
 
 export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const schema = await getSchema();
@@ -1465,7 +1528,8 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     tuples.map(t => t.event),
     tuples.map(t => t.role),
     tuples.map(t => t.correlate),
-    tuples.map(t => t.tool)
+    tuples.map(t => t.tool),
+    tuples.map(t => t.flowStep)
   ];
 
   const observed = await query<{
@@ -1590,6 +1654,7 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
 
   const eventStatuses = registryEventStatuses();
   const launchAudit = await getLaunchAudit(period.start, period.end);
+  const catalogSettingsAudit = await getCatalogSettingsAudit(period);
   const capabilities = COVERAGE_REGISTRY.map(capability =>
     auditCapability(
       capability,
@@ -1597,7 +1662,9 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
       observedBy.get(capability.id) ?? [],
       pairsBy.get(capability.id),
       syncJobs ? syncJobs.jobs : null,
-      launchAudit
+      launchAudit,
+      catalogSettingsAudit,
+      period
     )
   );
 
@@ -1658,7 +1725,9 @@ function auditCapability(
   pairs: { orphan_starts: number; correlated_pairs: number } | undefined,
   /** Jobs in the sync view, or null when this connection cannot see the view. */
   syncJobs: number | null,
-  launchAudit: LaunchAuditEvidence | null
+  launchAudit: LaunchAuditEvidence | null,
+  catalogSettingsAudit: CatalogSettingsAuditEvidence,
+  period: ResolvedPeriod
 ): AuditCapability {
   const base = {
     id: capability.id,
@@ -1696,6 +1765,28 @@ function auditCapability(
       status: missing.length ? 'partial' : launchAudit.generations ? 'covered' : 'uncovered',
       missing: launchAudit.generations ? missing : ['launch_evidence_in_period'],
       samples: launchAudit.generations
+    };
+  }
+  if (capability.id === 'team.catalog_settings') {
+    const evidence = catalogSettingsAudit;
+    const missing = [...evidence.missing];
+    if (!missing.length) {
+      if (evidence.schema_version !== 1) missing.push('catalog_settings_schema_version');
+      if (evidence.capture_enabled !== true) missing.push('catalog_settings_capture_disabled');
+      if (!evidence.installed_at || Date.parse(evidence.installed_at) > Date.parse(period.end))
+        missing.push('catalog_settings_not_installed_at_snapshot');
+      else if (
+        period.start === null ||
+        Date.parse(period.start) < Date.parse(evidence.installed_at)
+      )
+        missing.push('catalog_settings_before_installation_unobserved');
+    }
+    return {
+      ...base,
+      status: missing.length ? (evidence.observations > 0 ? 'partial' : 'uncovered') : 'covered',
+      missing,
+      samples: evidence.observations,
+      note: `${capability.note ?? ''} Installed observation boundary: ${evidence.installed_at ?? 'unknown'}. Observed changes in period: ${evidence.changes}; baseline observations are not changes.`
     };
   }
   if (capability.source === 'authoritative_table') {
@@ -2040,10 +2131,10 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
 
   const capability = inferCapability(rows);
   const events = sanitizeJourney(
-    rows.map(
-      ({ attempt_id: _attempt, agent_instance_id: _instance, agent_platform: _platform, ...row }) =>
-        row
-    )
+    rows.map(({ attempt_id, agent_instance_id: _instance, agent_platform: _platform, ...row }) => ({
+      ...row,
+      properties: { ...row.properties, ...(attempt_id ? { attempt_id } : {}) }
+    }))
   );
   const stageOf = new Map<string, string>();
   if (capability) {
@@ -2053,14 +2144,24 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
       }
     }
   }
+  const flowSteps = new Set(
+    capability
+      ? capabilitySignals(capability).flatMap(signal => (signal.flowStep ? [signal.flowStep] : []))
+      : []
+  );
+  const capabilityRows =
+    flowSteps.size > 0
+      ? rows.filter(row => [...flowSteps].some(step => row.properties?.flow_step === step))
+      : rows;
   const observedStages = capability
-    ? capability.stages.filter(stage => rows.some(row => stageOf.get(row.event_name) === stage))
+    ? capability.stages.filter(stage =>
+        capabilityRows.some(row => stageOf.get(row.event_name) === stage)
+      )
     : [];
-  const expected = capability
-    ? capability.stages.filter(stage => (capability.stageEvents[stage] ?? []).length > 0)
-    : [];
+  const expected = capability?.stages ?? [];
   const terminalEvents = new Set<string>(capability?.terminal.map(signal => signal.event) ?? []);
-  const terminalRow = [...rows].reverse().find(row => terminalEvents.has(row.event_name)) ?? null;
+  const terminalRow =
+    [...capabilityRows].reverse().find(row => terminalEvents.has(row.event_name)) ?? null;
 
   // Build numbers arrive as text from Postgres; `String()` keeps them text if a
   // driver ever coerces them, so the JSON shape never flips type.
@@ -2119,19 +2220,22 @@ function inferCapability(rows: JourneyRow[]): Capability | null {
   let best: { capability: Capability; score: number } | null = null;
   for (const capability of COVERAGE_REGISTRY) {
     if (capability.source !== 'events') continue;
-    const signals = new Set<string>(
-      [...capability.start, ...capability.terminal].map(signal => signal.event)
-    );
+    const signals = [...capability.start, ...capability.terminal];
     const matching = rows.filter(
       row =>
-        signals.has(row.event_name) &&
+        signals.some(
+          signal =>
+            signal.event === row.event_name &&
+            (!signal.flowStep || row.properties?.flow_step === signal.flowStep)
+        ) &&
         (!capability.toolColumn || row.tool === null || row.tool === capability.toolColumn)
     );
     if (matching.length === 0) continue;
     // Prefer a tool-specific capability when the rows carry that tool.
     const toolBonus =
       capability.toolColumn && matching.some(row => row.tool === capability.toolColumn) ? 1 : 0;
-    const score = matching.length * 2 + toolBonus;
+    const discriminatorBonus = signals.some(signal => signal.flowStep) ? 2 : 0;
+    const score = matching.length * 2 + toolBonus + discriminatorBonus;
     if (!best || score > best.score) best = { capability, score };
   }
   return best?.capability ?? null;

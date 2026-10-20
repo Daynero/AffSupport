@@ -4446,6 +4446,60 @@ export type GeneratedDatabase = {
       };
     };
     Functions: {
+      get_team_catalog_updater_restitch_default: {
+        Args: { p_team: string };
+        Returns: boolean;
+      };
+      cancel_team_catalog_update: {
+        Args: { p_team: string; p_catalog: string };
+        Returns: boolean;
+      };
+      list_team_catalog_update_profiles: {
+        Args: { p_team: string };
+        Returns: {
+          catalog_material_id: string;
+          refresh_images: boolean;
+          refresh_texts: boolean;
+          grow_products: boolean;
+          random_link_variation: boolean;
+          restitch: boolean;
+          version: number;
+          updated_at: string;
+          last_error_at: string | null;
+          reconciliation_required: boolean;
+          last_result: string | null;
+          latest_attempt_at: string | null;
+          last_successful_at: string | null;
+          restitch_status: string;
+          restitch_blocked_code: string | null;
+        }[];
+      };
+      list_team_catalog_update_attempts: {
+        Args: { p_team: string; p_catalog: string; p_limit?: number };
+        Returns: {
+          attempt_id: string;
+          catalog_material_id: string;
+          trigger_kind: string;
+          started_at: string;
+          ended_at: string | null;
+          result: string;
+          failure_code: string | null;
+          delivery_verified_at: string | null;
+          profile_version: number | null;
+          source_attempt_id: string | null;
+          profile_snapshot: Json | null;
+          stage_history: Json;
+          actual_changes: Json | null;
+        }[];
+      };
+      retry_team_catalog_update: {
+        Args: { p_team: string; p_catalog: string; p_source_attempt: string };
+        Returns: number;
+      };
+      patch_team_catalog_update_profile: {
+        Args: { p_team: string; p_catalog: string; p_expected_version: number; p_patch: Json };
+        Returns: Json;
+      };
       accept_invitation: {
         Args: { p_invitation: string; p_plain_token?: string };
         Returns: {

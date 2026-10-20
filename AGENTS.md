@@ -59,6 +59,7 @@ npm run analytics -- cohorts [--cohort-by local-app-version|platform|web-build] 
 npm run analytics -- retention  [--period ...] [--json]
 npm run analytics -- team-workspace [--period ...] [--json]
 npm run analytics -- sync <team-id|owner-email> [--limit N] [--json]
+npm run analytics -- catalog-trends [user-email|user-id] [--period ...] [--as-of <iso>] [--limit N] [--html <path>] [--json]
 npm run analytics -- connection [--period ...] [--json]
 npm run analytics -- audit      [--period ...] [--as-of <iso>] [--write] [--json]
 npm run analytics -- investigate <email|installation_id|run_id|flow_id|attempt_id> [--period ... (default 30d)] [--as-of <iso>] [--json]
@@ -100,6 +101,10 @@ means no client emits that event today — treat it as unknown, never as zero.
 | Why does a user's Soty link drop / not reconnect?         | `connection` (losses, recovery p50/p95, reasons, coverage), then `journey <email>`                  |
 | Що не так у user@x? / What is wrong for this user?        | `investigate <email> --json` → `data.findings` (fact / hypothesis / insufficient, `code_locations`) |
 | Що записав агент на комп'ютері користувача?               | `journal <email\|installation_id\|agent_instance_id> --json` → `data.records`                       |
+
+### Catalog schedule trends
+
+For schedule popularity, how users change daily/hourly/weekly/custom intervals, or visual trends, use `npm run analytics -- catalog-trends --period 7d --html /tmp/catalog-trends.html --json`. An optional user email or ID scopes the report. Return the local report link and explain the observation start and any truncated detail. Server journal baselines are observed current settings, never reconstructed historical choices. Current catalog counts, confirmed selection counts and distinct actors have different denominators. Unknown actors and missing capture remain explicit. Do not write ad-hoc SQL or deploy migrations to production to answer a report request.
 
 ### Examples
 

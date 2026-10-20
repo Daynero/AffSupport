@@ -353,13 +353,15 @@ if (existsSync(ownershipPath)) {
 // exactly the command it always was.
 const admission = admissionFromEnvironment();
 const bringStackUp = async () => {
+  // Studio is an optional database dashboard, not a beta runtime dependency; its
+  // health probe must not block the authenticated app when all serving APIs are healthy.
   // Beta disables product analytics, so the local log collector is not part of
   // its verification surface. Its Vector container needs a Docker socket bind
   // mount, which Colima exposes through a host-side forwarded socket that is
   // not available inside the VM's containers; excluding both services keeps
   // the auth, database, and Edge Function stack usable on the documented
   // Colima runtime.
-  const stack = spawnSync('npx', ['supabase', 'start', '--exclude', 'logflare,vector'], {
+  const stack = spawnSync('npx', ['supabase', 'start', '--exclude', 'studio,logflare,vector'], {
     shell: false,
     stdio: 'inherit'
   });

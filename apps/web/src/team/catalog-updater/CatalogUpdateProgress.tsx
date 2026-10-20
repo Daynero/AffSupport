@@ -6,6 +6,7 @@ const STAGES: ReadonlyArray<{ stage: CatalogUpdateStage; key: TranslationKey }> 
   { stage: 'refreshing', key: 'catalogUpdaterStageRefreshing' },
   { stage: 'building', key: 'catalogUpdaterStageBuilding' },
   { stage: 'uploading', key: 'catalogUpdaterStageUploading' },
+  { stage: 'verifying', key: 'catalogUpdaterStageVerifying' },
   { stage: 'finalizing', key: 'catalogUpdaterStageFinalizing' }
 ];
 

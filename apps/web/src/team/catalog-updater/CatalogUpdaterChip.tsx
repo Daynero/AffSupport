@@ -1,17 +1,14 @@
 import type { MouseEvent } from 'react';
+import { CalendarClock, TriangleAlert } from 'lucide-react';
 import { catalogCountKey, useI18n } from '../../i18n';
 import type { CatalogUpdaterState } from '../../api/team';
-import { UpdaterCountdown } from './UpdaterCountdown';
+import { useRemaining } from './UpdaterCountdown';
 import { WorkspaceChip } from '../workspace/WorkspaceChip';
 import { teamErrorMessageFor } from '../errors';
+import { Tooltip } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
-/**
- * The catalog updater beside the space settings (023, US3).
- *
- * While it runs: that it runs, the time to the next round, how many catalogs, and a warning tone
- * when a sheet keeps failing. While it does not: a plain link into the updater, the same size as
- * the space-settings link next to it, so the header does not jump when it starts.
- */
+/** Scheduled work is waiting, not continuously running. Spare copies are preparation, not progress. */
 export function CatalogUpdaterChip({
   state,
   offsetMs,
@@ -24,50 +21,70 @@ export function CatalogUpdaterChip({
   onNavigate: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const { t, language } = useI18n();
+  const remaining = useRemaining(state?.nextRunAt ?? null, offsetMs);
+  if (!state || (state.state !== 'running' && !state.activeCount)) return null;
 
-  // Idle, the updater is a line in the space's menu (024, FR-094); running,
-  // it is news, and says so here.
-  if (!state || state.state !== 'running') return null;
-
-  const attention = state.failingCount > 0;
+  const attention = state.failingCount > 0 || Boolean(state.restitchBlockedCode);
   const oneOff = state.nextRunAt === null;
+  const active = (state.activeCount ?? 0) > 0;
   const catalogs = t(catalogCountKey(language, state.catalogCount), { count: state.catalogCount });
+  const minutes =
+    remaining !== null && Number.isFinite(remaining)
+      ? Math.max(1, Math.ceil(remaining / 60000))
+      : null;
+  const duration =
+    minutes === null
+      ? null
+      : minutes >= 60
+        ? t('catalogChipHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
+        : t('catalogChipMinutes', { minutes });
+  const activeCatalogs = t(catalogCountKey(language, state.activeCount ?? 0), {
+    count: state.activeCount ?? 0
+  });
+  const status = active
+    ? t('catalogChipActive', { catalogs: activeCatalogs })
+    : attention
+      ? t('catalogUpdaterChipAttention')
+      : oneOff
+        ? t('catalogUpdaterUpdatingNow')
+        : remaining === null || !Number.isFinite(remaining)
+          ? t('catalogIconsNextUnknown')
+          : remaining <= 0
+            ? t('catalogChipWaiting')
+            : t('catalogChipNext', { time: duration ?? '' });
+  const details = [
+    catalogs,
+    !oneOff && state.restitch && state.spareReadyCount !== null
+      ? t('catalogChipReadyVideos', { count: state.spareReadyCount })
+      : null,
+    state.restitchBlockedCode ? teamErrorMessageFor(new Error(state.restitchBlockedCode), t) : null,
+    t('catalogUpdaterChipOpen')
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const Icon = attention ? TriangleAlert : CalendarClock;
+
   return (
-    <WorkspaceChip
-      tone={attention ? 'warn' : 'busy'}
-      busy={!attention}
-      className="team-updater-chip"
-      href={href}
-      onPress={onNavigate}
-      label={`${t('catalogUpdaterChipOpen')}: ${oneOff ? t('catalogUpdaterUpdatingNow') : catalogs}`}
-    >
-      <span>{t('catalogUpdaterChipLabel')}</span>
-      {oneOff ? (
-        <span>{t('catalogUpdaterUpdatingNow')}</span>
-      ) : (
-        <>
-          <UpdaterCountdown
-            targetIso={state.nextRunAt}
-            offsetMs={offsetMs}
-            dueLabel={t('catalogUpdaterChipDue')}
-          />
-          <span>{catalogs}</span>
-        </>
-      )}
-      {!oneOff && state.restitch && state.spareReadyCount !== null && (
-        <span>
-          {t('catalogUpdaterChipSpares', {
-            ready: state.spareReadyCount,
-            count: state.catalogCount
-          })}
+    <Tooltip label={details}>
+      <WorkspaceChip
+        tone={attention ? 'warn' : 'quiet'}
+        busy={active || (oneOff && !attention)}
+        className="team-updater-chip"
+        href={href}
+        onPress={onNavigate}
+        label={`${t('catalogUpdaterChipOpen')}: ${catalogs}. ${status}`}
+      >
+        {!(active || (oneOff && !attention)) && (
+          <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        )}
+        <span className="catalog-chip-copy">
+          <span className="catalog-chip-title">
+            {t('catalogChipTitle')}
+            <span className="catalog-chip-count">{state.catalogCount}</span>
+          </span>
+          <span className="catalog-chip-status">{status}</span>
         </span>
-      )}
-      {/* The one reason a person can act on when the spares stand still (030): the pool the
-          copies draw pictures from is empty, or the claimer may not download them. */}
-      {!oneOff && state.restitch && state.restitchBlockedCode && (
-        <span>{teamErrorMessageFor(new Error(state.restitchBlockedCode), t)}</span>
-      )}
-      {attention && <span>{t('catalogUpdaterChipAttention')}</span>}
-    </WorkspaceChip>
+      </WorkspaceChip>
+    </Tooltip>
   );
 }

@@ -61,23 +61,24 @@ describe('the updater chip', () => {
 
   it('shows the countdown and the number of catalogs while running', () => {
     renderChip(running);
-    const link = screen.getByRole('link', { name: 'Open the catalog updater: 3 catalogs' });
-    expect(link.className).toContain('ui-chip-busy');
-    expect(link.textContent).toContain('0:01:05');
+    const link = screen.getByRole('link', { name: /Open the catalog manager: 3 catalogs/ });
+    expect(link.className).not.toContain('ui-chip-busy');
+    expect(link.querySelector('.ui-chip-spinner')).toBeNull();
+    expect(link.textContent).toContain('Next update in 2 min');
     act(() => {
       vi.advanceTimersByTime(5_000);
     });
-    expect(link.textContent).toContain('0:01:00');
+    expect(link.textContent).toContain('Next update in 1 min');
   });
 
   it('counts down on the server clock, not the local one', () => {
     renderChip(running, 30_000);
-    expect(screen.getByRole('link').textContent).toContain('0:00:35');
+    expect(screen.getByRole('link').textContent).toContain('Next update in 1 min');
   });
 
-  it('says the round is under way once the time runs out', () => {
+  it('does not infer execution just because the scheduled time passed', () => {
     renderChip({ ...running, nextRunAt: new Date(NOW - 1_000).toISOString() });
-    expect(screen.getByRole('link').textContent).toContain('updating now');
+    expect(screen.getByRole('link').textContent).toContain('Waiting to start');
   });
 
   it('turns to a warning when sheets keep failing', () => {
@@ -85,14 +86,15 @@ describe('the updater chip', () => {
     const link = screen.getByRole('link');
     expect(link.className).toContain('ui-chip-warn');
     expect(link.textContent).toContain('needs attention');
-    expect(link.textContent).toContain('1 catalog');
+    expect(link.getAttribute('aria-label')).toContain('1 catalog');
   });
 });
 
 describe('the chip while re-stitching', () => {
   it('counts the ready copies', () => {
     renderChip({ ...running, restitch: true, spareReadyCount: 2 });
-    expect(screen.getByRole('link').textContent).toContain('copies 2/3');
+    expect(screen.getByRole('link').textContent).not.toContain('copies 2/3');
+    expect(screen.getByRole('link').textContent).toContain('Next update in');
   });
 });
 
@@ -116,7 +118,7 @@ describe('why the spares stand still (030)', () => {
       spareReadyCount: 1,
       restitchBlockedCode: 'RESTITCH_POOL_EMPTY'
     });
-    expect(screen.getByText(/No pictures are available for re-stitching/)).toBeTruthy();
+    expect(screen.getByRole('link').className).toContain('ui-chip-warn');
     cleanup();
     renderChip({
       ...running,
@@ -124,9 +126,30 @@ describe('why the spares stand still (030)', () => {
       spareReadyCount: 1,
       restitchBlockedCode: 'RESTITCH_SOURCE_FORBIDDEN'
     });
-    expect(screen.getByText(/not download its files/)).toBeTruthy();
+    expect(screen.getByRole('link').className).toContain('ui-chip-warn');
     cleanup();
     renderChip({ ...running, restitch: true, spareReadyCount: 1 });
     expect(screen.queryByText(/No pictures are available/)).toBeNull();
   });
+});
+
+it('prioritizes actual work over the future schedule, including a manually started unscheduled run', () => {
+  renderChip({ ...running, activeCount: 2 });
+  expect(screen.getByRole('link').textContent).toContain('Updating 2 catalogs');
+  expect(screen.getByRole('link').textContent).not.toContain('Next update in');
+  expect(document.querySelector('.ui-chip-spinner')).toBeTruthy();
+  cleanup();
+  renderChip({ ...running, state: 'stopped', activeCount: 1 });
+  expect(screen.getByRole('link').textContent).toContain('Updating 1 catalog');
+});
+
+it('returns to the next scheduled update when the server reports no remaining active work', () => {
+  const props = { offsetMs: 0, href: '/team/s?updater=1', onNavigate: vi.fn() };
+  const { rerender } = render(
+    <CatalogUpdaterChip {...props} state={{ ...running, activeCount: 1 }} />
+  );
+  expect(screen.getByRole('link').textContent).toContain('Updating 1 catalog');
+  rerender(<CatalogUpdaterChip {...props} state={{ ...running, activeCount: 0 }} />);
+  expect(screen.getByRole('link').textContent).toContain('Next update in');
+  expect(document.querySelector('.ui-chip-spinner')).toBeNull();
 });

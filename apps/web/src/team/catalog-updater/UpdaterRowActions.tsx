@@ -1,10 +1,15 @@
+import { useRef, useState } from 'react';
+import { MoreHorizontal } from 'lucide-react';
+import { DropdownMenu, IconButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { useI18n } from '../../i18n';
+import { materialMenuEntries } from '../materials/MaterialActionMenu';
 import type { TeamPermissions } from '@video-compressor/shared';
 import type { CatalogRegistryRow } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
-import { MaterialInlineActions } from '../materials/MaterialInlineActions';
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
 import { useMaterialActionList } from '../materials/useMaterialActionList';
 
@@ -34,7 +39,9 @@ export function UpdaterRowActions({
   teamId,
   permissions,
   onChanged,
-  onReveal
+  onReveal,
+  onHistory,
+  onConfigure
 }: {
   row: CatalogRegistryRow;
   teamId: string;
@@ -42,7 +49,12 @@ export function UpdaterRowActions({
   onChanged: () => void;
   /** Close the dialog and show the sheet where it lives. */
   onReveal?: (row: CatalogRegistryRow) => void;
+  onHistory?: () => void;
+  onConfigure?: () => void;
 }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, teamId);
   const agent = useOptionalAgent();
@@ -86,12 +98,35 @@ export function UpdaterRowActions({
       // four unlabelled icons on every row of a list of catalogs was a toolbar
       // repeated forty times.
     },
-    { maxInline: 1 }
+    { maxInline: 0 }
   );
 
   return (
     <div className="team-updater-row-actions">
-      <MaterialInlineActions list={list} name={row.name} />
+      <IconButton
+        ref={anchor}
+        size="sm"
+        variant="ghost"
+        label={t('materialActionsFor', { name: row.name })}
+        onClick={() => setOpen(true)}
+      >
+        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </IconButton>
+      <DropdownMenu
+        open={open}
+        anchor={anchor}
+        onClose={() => setOpen(false)}
+        label={t('materialActionsFor', { name: row.name })}
+        items={[
+          ...(onConfigure
+            ? [{ id: 'configure', label: t('catalogUpdaterConfigure'), onSelect: onConfigure }]
+            : []),
+          ...(onHistory
+            ? [{ id: 'update-history', label: t('catalogUpdaterHistory'), onSelect: onHistory }]
+            : []),
+          ...materialMenuEntries(list, t)
+        ]}
+      />
       {host.dialogs}
     </div>
   );

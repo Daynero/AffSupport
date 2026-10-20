@@ -132,7 +132,6 @@ export function CreateProductCatalogDialog({
   const [touched, setTouched] = useState({ link: false, count: false });
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
   const [restitch, setRestitch] = useState(false);
-  const [randomLinkVariation, setRandomLinkVariation] = useState(true);
   const [restitchDefaults, setRestitchDefaults] = useState<TeamRestitchDefaults | null | undefined>(
     undefined
   );
@@ -275,7 +274,7 @@ export function CreateProductCatalogDialog({
         videoMaterialId: video.id,
         sourceLink: linkCheck.value,
         productCount: countCheck.value,
-        randomLinkVariation,
+        randomLinkVariation: true,
         replacesMaterialId: replaces?.id ?? null,
         ...(restitchOperationId ? { restitchOperationId } : {}),
         // A retry after the video finished must reuse the same catalog operation.
@@ -447,15 +446,6 @@ export function CreateProductCatalogDialog({
         <p className={countError ? 'team-inline-error' : 'field-hint'}>
           {t(countError ? 'productCatalogCountInvalid' : 'productCatalogCountHint')}
         </p>
-
-        <div className="product-catalog-restitch">
-          <Checkbox
-            checked={randomLinkVariation}
-            disabled={busy}
-            onChange={event => setRandomLinkVariation(event.target.checked)}
-            label={t('catalogRandomLinkVariation')}
-          />
-        </div>
 
         <div className="product-catalog-restitch">
           <Checkbox

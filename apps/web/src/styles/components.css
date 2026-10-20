@@ -118,8 +118,30 @@
   max-width: 100%;
 }
 .team-task-card.launch-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0;
+  gap: var(--space-2);
+  padding: var(--space-3);
   border-color: color-mix(in oklab, var(--color-accent) 30%, var(--color-border));
   box-shadow: var(--shadow-sm);
+}
+.launch-card .team-task-card-strip {
+  flex-wrap: nowrap;
+}
+.launch-card-body {
+  min-width: 0;
+}
+.launch-card .team-task-card-footer {
+  margin: 0;
+  padding: 0;
+}
+.launch-card .team-task-card-footer .team-task-card-date {
+  margin-left: 0;
+}
+.launch-list-toolbar > .ui-button {
+  margin-left: auto;
 }
 .launch-card-content {
   display: flex;
@@ -131,6 +153,11 @@
   white-space: normal;
 }
 .launch-card-heading {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
   flex: 1 1 auto;
   overflow: hidden;
   min-width: 0;
@@ -1069,6 +1096,11 @@
   }
   .launch-editor-section-heading {
     align-items: flex-start;
+    flex-direction: column;
+  }
+  .launch-editor-section-heading > button {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
   .launch-preview-row {
     grid-template-columns: auto auto minmax(0, 1fr);

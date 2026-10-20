@@ -1,12 +1,20 @@
+import { OVERLAY_OPEN_EVENT, tooltipAnchorAllowed } from '../../lib/overlayTips';
+import { mergeProps, mergeRefs } from '@react-aria/utils';
 import { Tooltip as HeroTooltip } from '@heroui/react/tooltip';
 import {
   forwardRef,
+  cloneElement,
+  isValidElement,
   useCallback,
   useEffect,
   useState,
+  useRef,
+  useMemo,
   type HTMLAttributes,
   type ImgHTMLAttributes,
   type ReactNode,
+  type ReactElement,
+  type Ref,
   type SyntheticEvent
 } from 'react';
 import { uiClasses, type UiColor, type UiSize } from './types';
@@ -176,6 +184,10 @@ export function Spinner({ size = 'sm', label }: { size?: 'sm' | 'md'; label?: st
  * `.ui-tooltip-anchor`.
  */
 export interface TooltipProps {
+  /** Temporarily suspend tooltips while their control is being changed. */
+  disabled?: boolean;
+  /** Attach directly to an existing control without a second interactive wrapper. */
+  asChild?: boolean;
   label: ReactNode;
   children: ReactNode;
   /** ms before the first tooltip of a group appears. */
@@ -184,25 +196,105 @@ export interface TooltipProps {
   className?: string;
 }
 
+type TooltipTriggerProps = HTMLAttributes<HTMLElement> & { ref?: Ref<HTMLElement> };
+
+/** HeroUI supplies its positioning ref through render props; preserve the child's ref as well. */
+function TooltipAnchor({
+  triggerProps,
+  children,
+  asChild,
+  className,
+  dismiss,
+  anchorRef
+}: {
+  triggerProps: TooltipTriggerProps;
+  children: ReactNode;
+  asChild: boolean;
+  className?: string;
+  dismiss: () => void;
+  anchorRef: Ref<HTMLElement>;
+}) {
+  const child =
+    asChild && isValidElement(children) ? (children as ReactElement<TooltipTriggerProps>) : null;
+  const childRef = child?.props.ref;
+  const ref = useMemo(
+    () => mergeRefs(triggerProps.ref, childRef, anchorRef),
+    [triggerProps.ref, childRef, anchorRef]
+  );
+  const props = mergeProps(triggerProps, child?.props ?? {}, {
+    onPointerDown: dismiss,
+    onClick: dismiss,
+    onKeyDown: dismiss
+  });
+  if (child) return cloneElement(child, { ...props, ref });
+  return (
+    <span {...props} ref={ref} className={uiClasses('tooltip-anchor', { className })}>
+      {children}
+    </span>
+  );
+}
+
 export function Tooltip({
   label,
   children,
   delay = 400,
   placement = 'top',
-  className
+  className,
+  asChild = false,
+  disabled = false
 }: TooltipProps) {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLElement | null>(null);
+  const dismiss = useCallback(() => setOpen(false), []);
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+  useEffect(() => {
+    window.addEventListener(OVERLAY_OPEN_EVENT, dismiss);
+    return () => window.removeEventListener(OVERLAY_OPEN_EVENT, dismiss);
+  }, [dismiss]);
+  useEffect(() => {
+    if (!open) return;
+    const observer = new MutationObserver(() => {
+      if (!anchor.current || !tooltipAnchorAllowed(anchor.current)) dismiss();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [open, dismiss]);
   return (
-    <HeroTooltip delay={delay} closeDelay={0} shouldSkipAnimation>
+    <HeroTooltip
+      delay={delay}
+      closeDelay={0}
+      shouldSkipAnimation
+      isOpen={open && !disabled}
+      isDisabled={disabled}
+      onOpenChange={next =>
+        setOpen(
+          next && !disabled && Boolean(anchor.current && tooltipAnchorAllowed(anchor.current))
+        )
+      }
+    >
       <HeroTooltip.Trigger
         render={props => (
-          <span {...props} className={uiClasses('tooltip-anchor', { className })}>
+          <TooltipAnchor
+            triggerProps={props}
+            asChild={asChild}
+            className={className}
+            dismiss={dismiss}
+            anchorRef={anchor}
+          >
             {children}
-          </span>
+          </TooltipAnchor>
         )}
       />
-      <HeroTooltip.Content placement={placement} className={`ui-tooltip ui-tooltip--${placement}`}>
-        {label}
-      </HeroTooltip.Content>
+      {open && !disabled && anchor.current?.isConnected && (
+        <HeroTooltip.Content
+          placement={placement}
+          className={`ui-tooltip ui-tooltip--${placement}`}
+        >
+          {label}
+        </HeroTooltip.Content>
+      )}
     </HeroTooltip>
   );
 }

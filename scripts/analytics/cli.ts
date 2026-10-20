@@ -3,13 +3,16 @@
  * the process entry (`index.ts`) so tests can run a command end to end against
  * an in-process Postgres and read the exact envelope the agent will see.
  *
- * Everything here is read-only: the only file this module ever writes is the
- * `audit --write` artifact under `specs/031-platform-autoanalytics/analysis/`,
- * and only when asked.
+ * Database access is read-only. Files are written only when explicitly requested:
+ * the `audit --write` artifact under `specs/031-platform-autoanalytics/analysis/`
+ * or a local `catalog-trends --html` report at the chosen output path.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { getDatabaseHealth, getDatabaseRetention, getDatabaseTables } from './database-health.js';
+import { getCatalogUpdateDiagnosis } from './catalog-updates.js';
+import { getCatalogScheduleTrends } from './catalog-schedule-trends.js';
+import { renderCatalogScheduleReport } from './catalog-schedule-report.js';
 import {
   formatAudit,
   formatCompressor,
@@ -86,6 +89,7 @@ export interface ParsedArgs {
   write: boolean;
   help: boolean;
   management?: boolean;
+  html?: string;
 }
 
 export const HELP = `Soty analytics CLI (read-only)
@@ -114,6 +118,8 @@ Commands:
   retention           Return activity after registration
   team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
+  catalog <catalog-id|attempt-id>  Catalog update history and delivery proof
+  catalog-trends [user] Schedule popularity, transitions and user timelines (--html report.html)
   connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage
   database-health     Database sizes, churn and grant expiry (read-only)
   database-tables     Exact counts and index inventory via read-only management API
@@ -135,6 +141,7 @@ Options:
   --cohort-by <v> local-app-version | platform | web-build
   --write        audit: save specs/031-platform-autoanalytics/analysis/<date>.json
   --management   database-health only: privileged aggregates via read-only Supabase API
+  --html <path> catalog-trends: write an offline visual HTML report
   --json         machine-readable JSON only
   -h, --help     this help
 
@@ -159,6 +166,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
   while (rest.length) {
     const token = rest.shift() as string;
     switch (token) {
+      case '--html':
+        parsed.html = rest.shift();
+        if (!parsed.html || parsed.html.startsWith('--'))
+          throw new Error('--html needs an output file path');
+        break;
       case '--json':
         parsed.json = true;
         break;
@@ -246,6 +258,8 @@ export async function executeCommand(
   options: ExecuteOptions = {}
 ): Promise<CommandResult> {
   const command = args.command;
+  if (args.html && command !== 'catalog-trends')
+    throw new CommandError('--html is supported only by catalog-trends.');
   const period = resolvePeriod(args.period, args.days, args.asOf);
   const lag = () => getDeliveryLag(period);
   const done = <T>(data: T, human: string, written: string[] = []): CommandResult<T> => ({
@@ -389,6 +403,31 @@ export async function executeCommand(
         throw new CommandError('Sync diagnostics failed their privacy guard.');
       }
       return done(data, formatSyncJobs(data, period));
+    }
+    case 'catalog-trends': {
+      if (args.positional.length > 1)
+        throw new CommandError('Usage: catalog-trends [user-email|user-id]');
+      const data = await subjectCommand(() =>
+        getCatalogScheduleTrends(period, { user: args.positional[0], limit: args.limit })
+      );
+      const written: string[] = [];
+      if (args.html) {
+        const path = resolve(args.html);
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, renderCatalogScheduleReport(data), 'utf8');
+        written.push(path);
+      }
+      return done(
+        { ...data, report_path: written[0] ?? null },
+        JSON.stringify({ ...data, report_path: written[0] ?? null }, null, 2),
+        written
+      );
+    }
+    case 'catalog': {
+      const id = requireArg(args, 0, 'catalog <catalog-id | attempt-id>');
+      const data = await getCatalogUpdateDiagnosis(id, args.limit ?? 10);
+      if (!data.subject) throw new CommandError(`No catalog update attempts found for "${id}".`);
+      return done(data, JSON.stringify(data, null, 2));
     }
     case 'connection': {
       const [data, delivery_lag_ms] = await Promise.all([getConnection(period), lag()]);

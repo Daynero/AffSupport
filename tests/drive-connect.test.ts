@@ -170,6 +170,28 @@ describe('Drive OAuth release gate', () => {
     ).toMatchObject({ ready: false, oauthMode: 'testing' });
   });
 
+  it('accepts the documented beta loopback callback but rejects insecure remote callbacks', () => {
+    const environment = {
+      DRIVE_OAUTH_MODE: 'testing',
+      GOOGLE_CLIENT_ID: 'google-client-id',
+      GOOGLE_CLIENT_SECRET: 'google-client-secret',
+      GOOGLE_REDIRECT_URI: 'http://127.0.0.1:54321/functions/v1/drive-oauth-callback',
+      TEAM_DIRECT_ADD_MODE: 'testing',
+      CATALOG_SYNC_SECRET: 'c'.repeat(32)
+    };
+    const signals = { siteUrl: 'http://127.0.0.1:5175', requestOrigin: 'http://127.0.0.1:5175' };
+    expect(evaluateTeamProviderReadiness(environment, signals).services.googleDrive).toBe(true);
+    expect(
+      evaluateTeamProviderReadiness(
+        {
+          ...environment,
+          GOOGLE_REDIRECT_URI: 'http://example.test/functions/v1/drive-oauth-callback'
+        },
+        signals
+      ).services.googleDrive
+    ).toBe(false);
+  });
+
   it('asks for drive.file only, and the restricted scope solely on recorded approval (011)', () => {
     const signals = { siteUrl: productionOrigin, requestOrigin: productionOrigin };
     const complete = {

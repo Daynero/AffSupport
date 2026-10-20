@@ -1893,3 +1893,62 @@ Restore only `public.service_reuse_launch_catalog` from
 `20261202135000_launch_reuse_input_identity.sql`. This preserves the corrected
 input guards but restores the premature catalog-registering checkpoint. No data
 changes need reversing.
+
+# 039 Catalog manager profiles (`20261203110000_catalog_manager_profiles.sql`)
+
+This migration copies each catalog's effective content switches into
+`team_catalog_update_profiles`. Before reverting, export those rows: reverting loses
+independent per-catalog choices and attempt history. Drop the
+`analytics_catalog_updates` view, `retry_team_catalog_update`,
+`cancel_team_catalog_update`, `patch_team_catalog_update_profile`,
+`list_team_catalog_update_profiles`, `list_team_catalog_update_attempts` and
+`track_catalog_update_result`/`track_catalog_update_round` triggers and functions.
+Drop `seed_catalog_update_profile` and its trigger, then the attempt/profile tables
+and private `catalog_update_reconciliations` table. Remove the
+`reconciliation_required`, `default_restitch` and `last_update_error_at` columns.
+Drop the service begin/finish/unknown/claim/resolve reconciliation functions.
+Restore all replaced
+`private` and `public` updater function bodies from their immediately preceding
+migrations, including claim, queue, sync, retry, interval, manual run and
+restitch setter. This is a local rollback guide, not an authorization to modify
+production data.
+
+## 20261204160000 — Catalog calendar schedules
+
+Prefer a forward correction. Export `team_catalog_update_profiles.schedule` before
+any rollback; these are user choices, not disposable cache entries. To disable
+calendar execution without deleting choices, replace only the scheduled worker's
+`next_catalog_schedule(...)` expression with the preceding elapsed interval
+expression. Retain its workspace entitlement, reconciliation, due-time and lease
+checks. Restore the preceding profile patch/interval-setter behavior from
+`20261203110000_catalog_manager_profiles.sql` if reverting the corresponding UI,
+so old clients cannot edit calendar schedules. Keep the additive schedule column,
+its validation helper, the appended profile-list field and analytics view fields;
+older callers ignore them. Removing view fields requires replacing the view and
+its grants/dependencies and is unnecessary for a behavior rollback. Remove the
+new timing helper only after no function references it. This guide does not
+authorize resetting beta or modifying production.
+
+## 20261204170000 — Authoritative catalog settings observations
+
+Prefer a forward fix. The journal is committed history: export it before any
+schema removal, and never recreate historical changes from present-day settings.
+To stop capture, disable the five constraint triggers
+`catalog_profile_settings_journal`, `catalog_interval_settings_journal`,
+`catalog_record_settings_journal`, `catalog_material_settings_journal` and
+`catalog_material_deleted_journal` on their profile/item/catalog/material tables.
+Keep the private journal, lock-head and installation-metadata tables and the three read-only analytics views;
+`analytics_catalog_settings_coverage.capture_enabled` becomes false when any of
+those triggers is disabled. Report capture as unavailable from that point rather
+than treating the retained latest rows as fresh settings. Re-enabling triggers does not reconstruct changes
+during the gap: record fresh observation baselines with an explicit new coverage
+boundary through a forward migration before making trend claims again. If full
+removal is required, first remove the analytics views and their grants, then the
+triggers, `private.track_catalog_settings_observation`,
+`private.record_catalog_settings_observation` and
+`private.catalog_settings_observation`, then the private tables after exporting
+them. No product profile, schedule, material or credential needs to be deleted.
+
+## 20261204180000 — catalog manager active count
+
+Forward-only additive RPC field. To roll back presentation, deploy the prior web; it ignores `activeCount`. If reverting the database separately, restore `public.get_team_catalog_updater(uuid)` from `20260915140000_catalog_updater.sql` (the same authentication/view permission guard and `private.catalog_updater_state(p_team)` return). Do not reset catalog schedules, attempts or history. Apply through the normal release process; local beta application is not production promotion.

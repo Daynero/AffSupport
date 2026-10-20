@@ -24,6 +24,8 @@ function read(name: string): string {
  * before asserting nothing else happened.
  */
 const SLEEP_IS_THE_POINT: Record<string, string> = {
+  'catalog-image-sharing.test.ts':
+    'fake provider latency proves bounded concurrency, wave duration and receipt draining',
   'catalog-sync.test.ts': 'a staggered delay that is the ordering assertion',
   'task-filter-follows-edits.test.tsx': 'a debounce window that is the assertion',
   'compressor-activity.test.ts':

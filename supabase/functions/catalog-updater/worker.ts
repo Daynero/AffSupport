@@ -48,6 +48,7 @@ const ORPHAN_LIMIT = 10;
 
 export type UpdaterDrive = Pick<
   GoogleDriveClient,
+  | 'getFile'
   | 'updateConvertedFile'
   | 'deleteFile'
   | 'updateFileMetadata'
@@ -104,6 +105,27 @@ export interface CatalogUpdaterDeps {
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
   progress(catalogId: string, stage: CatalogUpdateStage): Promise<boolean>;
+  beginWrite(
+    catalogId: string,
+    input: {
+      marker: string;
+      baselineVersion: string | null;
+      expectedCount: number;
+      swappedCopy: string | null;
+      became: { productCount: number; snapshot: Record<string, unknown> };
+    }
+  ): Promise<boolean>;
+  finishWrite(catalogId: string): Promise<boolean>;
+  recordChanges(
+    catalogId: string,
+    changes: {
+      productIds: boolean;
+      linksVaried: boolean;
+      imagesRefreshed: boolean;
+      textsRefreshed: boolean;
+      productsAdded: boolean;
+    }
+  ): Promise<boolean>;
   complete(
     catalogId: string,
     updateCount: number,
@@ -112,6 +134,7 @@ export interface CatalogUpdaterDeps {
     became?: { productCount: number; snapshot: Record<string, unknown> }
   ): Promise<boolean>;
   retry(catalogId: string, errorCode: string, nextAttemptAt: Date): Promise<boolean>;
+  unknown(catalogId: string, errorCode: string): Promise<boolean>;
   markNeedsReauth(credentialId: string): Promise<void>;
   claimRetired(limit: number): Promise<unknown[]>;
   /** `deleted` false records one more failed try; the database gives up after five. */
@@ -124,7 +147,25 @@ export interface CatalogUpdaterDeps {
 }
 
 export type CatalogUpdateStage =
-  'preparing' | 'refreshing' | 'building' | 'uploading' | 'finalizing';
+  'preparing' | 'refreshing' | 'building' | 'uploading' | 'verifying' | 'finalizing';
+
+export function classifyCatalogReadback(
+  file: {
+    id: string;
+    trashed: boolean;
+    mimeType: string;
+    version: string | null;
+    appProperties: Record<string, string>;
+  },
+  expected: { fileId: string; marker: string; baselineVersion: string | null }
+): 'delivered' | 'unchanged' | 'inconclusive' {
+  if (file.id !== expected.fileId || file.trashed || file.mimeType !== SPREADSHEET_MIME_TYPE)
+    return 'inconclusive';
+  if (file.appProperties.sotyCatalogAttempt === expected.marker) return 'delivered';
+  if (expected.baselineVersion !== null && file.version === expected.baselineVersion)
+    return 'unchanged';
+  return 'inconclusive';
+}
 
 export interface TickSummary {
   rounds: number;
@@ -494,6 +535,7 @@ async function updateOne(
   summary: TickSummary
 ): Promise<void> {
   const nextCount = item.updateCount + 1;
+  let writeStarted = false;
   try {
     await deps.progress(item.catalogId, 'preparing').catch(() => false);
     const drive = await deps.driveFor(item.credentialId);
@@ -526,14 +568,6 @@ async function updateOne(
       })
     });
     await deps.progress(item.catalogId, 'uploading').catch(() => false);
-    await drive.updateConvertedFile({
-      fileId: item.driveFileId,
-      resourceKey: item.resourceKey,
-      sourceMimeType: XLSX_MIME_TYPE,
-      targetMimeType: SPREADSHEET_MIME_TYPE,
-      bytes
-    });
-    await deps.progress(item.catalogId, 'finalizing').catch(() => false);
     const first = rows?.[0];
     const became = first
       ? {
@@ -551,7 +585,57 @@ async function updateOne(
           productCount: count,
           snapshot: { ...item.settings, randomLinkVariation: item.randomLinkVariation !== false }
         };
+    const before = await drive.getFile(item.driveFileId, item.resourceKey);
+    const marker = crypto.randomUUID();
+    if (
+      !(await deps.beginWrite(item.catalogId, {
+        marker,
+        baselineVersion: before.version,
+        expectedCount: nextCount,
+        swappedCopy: item.spare?.materialId ?? null,
+        became
+      }))
+    )
+      throw new TeamFunctionError('DELIVERY_UNAVAILABLE', { retryable: true });
+    writeStarted = true;
+    await drive.updateConvertedFile({
+      fileId: item.driveFileId,
+      resourceKey: item.resourceKey,
+      sourceMimeType: XLSX_MIME_TYPE,
+      targetMimeType: SPREADSHEET_MIME_TYPE,
+      bytes,
+      appProperties: { ...(before.appProperties ?? {}), sotyCatalogAttempt: marker }
+    });
+    await deps.progress(item.catalogId, 'verifying').catch(() => false);
+    const delivered = await drive.getFile(item.driveFileId, item.resourceKey);
+    if (
+      delivered.id !== item.driveFileId ||
+      delivered.trashed ||
+      delivered.mimeType !== SPREADSHEET_MIME_TYPE ||
+      delivered.appProperties?.sotyCatalogAttempt !== marker
+    ) {
+      throw new TeamFunctionError('DELIVERY_UNAVAILABLE', { retryable: true });
+    }
+    await deps
+      .recordChanges(item.catalogId, {
+        productIds: true,
+        linksVaried: item.randomLinkVariation !== false,
+        imagesRefreshed: Boolean(
+          pictures.value?.some(
+            (row, index) =>
+              row.imageLink !==
+              (grown?.[index]?.imageLink ??
+                item.rows?.[index]?.imageLink ??
+                item.settings.imageLink)
+          )
+        ),
+        textsRefreshed: texts.value.length > 0,
+        productsAdded: count > item.productCount
+      })
+      .catch(() => false);
+    await deps.progress(item.catalogId, 'finalizing').catch(() => false);
     if (await deps.complete(item.catalogId, nextCount, item.spare?.materialId ?? null, became)) {
+      await deps.finishWrite(item.catalogId);
       summary.updated += 1;
     } else {
       // The sheet was written, but someone else holds the lease now; their write wins.
@@ -563,9 +647,22 @@ async function updateOne(
     if (code === 'NEEDS_REAUTH') {
       await deps.markNeedsReauth(item.credentialId).catch(() => undefined);
     }
-    const next = new Date(deps.now() + retryDelaySeconds(item.attempts) * 1000);
-    const recorded = await deps.retry(item.catalogId, code, next).catch(() => false);
-    if (!recorded) deps.log('[catalog-updater] retry not recorded', `${item.catalogId} ${code}`);
+    const recorded = writeStarted
+      ? await deps.unknown(item.catalogId, code).catch(() => false)
+      : await deps
+          .retry(
+            item.catalogId,
+            code,
+            new Date(deps.now() + retryDelaySeconds(item.attempts) * 1000)
+          )
+          .catch(() => false);
+    if (!recorded)
+      deps.log(
+        writeStarted
+          ? '[catalog-updater] unknown result not recorded'
+          : '[catalog-updater] retry not recorded',
+        `${item.catalogId} ${code}`
+      );
     summary.failed += 1;
   }
 }

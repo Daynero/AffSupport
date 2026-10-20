@@ -390,3 +390,52 @@ describe('a video and its catalog', () => {
     expect(await liveCatalog(v, OUTSIDER)).toHaveLength(0);
   }, 60_000);
 });
+
+describe('catalog manager outcome evidence (040)', () => {
+  it('keeps the last verified full success while newer partial, cancelled and unknown attempts change the current result', async () => {
+    const v = await video('outcome-evidence.mp4');
+    const s = await sheet('outcome-evidence catalog');
+    await link(v, s);
+    const read = async () =>
+      (
+        await harness.asUser<{
+          last_result: string | null;
+          last_successful_at: Date | null;
+          latest_attempt_at: Date | null;
+        }>(
+          OWNER,
+          'select * from public.list_team_catalog_update_profiles($1) where catalog_material_id=$2',
+          [teamId, s]
+        )
+      )[0]!;
+    expect(await read()).toMatchObject({
+      last_result: null,
+      last_successful_at: null,
+      latest_attempt_at: null
+    });
+    await harness.root(
+      `insert into public.team_catalog_update_attempts (catalog_material_id, team_id, round_due_at, trigger_kind, started_at, result, delivery_verified_at) values ($1,$2,'2026-10-01T00:00:00Z','manual','2026-10-01T00:00:00Z','success','2026-10-01T00:01:00Z')`,
+      [s, teamId]
+    );
+    const first = await read();
+    expect(first.last_result).toBe('success');
+    expect(first.last_successful_at).not.toBeNull();
+    for (const [index, result] of ['partial', 'cancelled', 'unknown'].entries()) {
+      const day = index + 2;
+      await harness.root(
+        `insert into public.team_catalog_update_attempts (catalog_material_id, team_id, round_due_at, trigger_kind, started_at, result, delivery_verified_at) values ($1,$2,$3,'manual',$3,$4,$3)`,
+        [s, teamId, `2026-10-0${day}T00:00:00Z`, result]
+      );
+      const current = await read();
+      expect(current.last_result).toBe(result);
+      expect(current.last_successful_at).toEqual(first.last_successful_at);
+      expect(current.latest_attempt_at).not.toEqual(first.latest_attempt_at);
+    }
+    // A claimed success without delivery verification must not move the success timestamp.
+    await harness.root(
+      `insert into public.team_catalog_update_attempts (catalog_material_id, team_id, round_due_at, trigger_kind, started_at, result) values ($1,$2,'2026-10-05T00:00:00Z','manual','2026-10-05T00:00:00Z','success')`,
+      [s, teamId]
+    );
+    expect((await read()).last_successful_at).toEqual(first.last_successful_at);
+  });
+});

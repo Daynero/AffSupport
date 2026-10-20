@@ -62,12 +62,15 @@ function configured(value: string | undefined, minimumLength = 1): boolean {
   return typeof value === 'string' && value.trim().length >= minimumLength;
 }
 
-function validRedirect(value: string | null): boolean {
+function validRedirect(value: string | null, production: boolean): boolean {
   if (!configured(value ?? undefined)) return false;
   try {
     const redirect = new URL(value!);
     return (
-      redirect.protocol === 'https:' &&
+      (redirect.protocol === 'https:' ||
+        (!production &&
+          redirect.protocol === 'http:' &&
+          (redirect.hostname === '127.0.0.1' || redirect.hostname === 'localhost'))) &&
       (redirect.pathname.endsWith('/functions/v1/drive-oauth-callback') ||
         redirect.pathname === DRIVE_CALLBACK_PATH)
     );
@@ -93,7 +96,7 @@ export function evaluateTeamProviderReadiness(
     scopeGate === null &&
     configured(environment.GOOGLE_CLIENT_ID) &&
     configured(environment.GOOGLE_CLIENT_SECRET) &&
-    validRedirect(redirectUri);
+    validRedirect(redirectUri, gate.production);
   const invitationEmail =
     configured(environment.RESEND_API_KEY) && configured(environment.INVITE_EMAIL_FROM);
   const directMemberAdd = environment.TEAM_DIRECT_ADD_MODE === 'testing';

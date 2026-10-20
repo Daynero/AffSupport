@@ -4,11 +4,43 @@ import { describe, expect, it, vi } from 'vitest';
 import yauzl from 'yauzl';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors.js';
 import {
+  classifyCatalogReadback,
   parseClaimedCatalog,
   grownCount,
   runCatalogUpdaterTick,
   type CatalogUpdaterDeps
 } from '../supabase/functions/catalog-updater/worker.js';
+
+describe('Drive write reconciliation', () => {
+  const file = {
+    id: 'sheet',
+    trashed: false,
+    mimeType: 'application/vnd.google-apps.spreadsheet',
+    version: '8',
+    appProperties: {} as Record<string, string>
+  };
+  const expected = { fileId: 'sheet', marker: 'attempt', baselineVersion: '7' };
+  it('accepts only the matching private marker as delivered', () => {
+    expect(
+      classifyCatalogReadback(
+        { ...file, appProperties: { sotyCatalogAttempt: 'attempt' } },
+        expected
+      )
+    ).toBe('delivered');
+    expect(
+      classifyCatalogReadback({ ...file, appProperties: { sotyCatalogAttempt: 'other' } }, expected)
+    ).toBe('inconclusive');
+  });
+  it('permits replay only when Drive still has the baseline version', () => {
+    expect(classifyCatalogReadback({ ...file, version: '7' }, expected)).toBe('unchanged');
+    expect(classifyCatalogReadback(file, { ...expected, baselineVersion: null })).toBe(
+      'inconclusive'
+    );
+    expect(classifyCatalogReadback({ ...file, trashed: true, version: '7' }, expected)).toBe(
+      'inconclusive'
+    );
+  });
+});
 
 /**
  * Feature 023: one tick of the scheduled worker, with the database, Drive and the clock replaced by
@@ -76,19 +108,44 @@ function setup(
     clockStepMs?: number;
     retired?: unknown[];
     deleteFails?: string[];
+    readbackMismatch?: boolean;
+    readbackVersion?: string;
   } = {}
 ) {
   const batches = [...(options.batches ?? [[claimedRow('a'), claimedRow('b')]])];
   let clock = 0;
   const written: Array<{ fileId: string; bytes: Uint8Array }> = [];
+  let lastAppProperties: Record<string, string> = {};
   const drive = {
-    updateConvertedFile: vi.fn(async (input: { fileId: string; bytes: Uint8Array }) => {
-      const id = input.fileId.replace('drive-', '');
-      const failure = options.failFor?.[id];
-      if (failure) throw failure;
-      written.push({ fileId: input.fileId, bytes: input.bytes });
-      return {} as never;
-    }),
+    updateConvertedFile: vi.fn(
+      async (input: {
+        fileId: string;
+        bytes: Uint8Array;
+        appProperties?: Record<string, string>;
+      }) => {
+        const id = input.fileId.replace('drive-', '');
+        const failure = options.failFor?.[id];
+        if (failure) throw failure;
+        lastAppProperties = input.appProperties ?? {};
+        written.push({ fileId: input.fileId, bytes: input.bytes });
+        return {
+          id: input.fileId,
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+          version: '2',
+          trashed: false
+        } as never;
+      }
+    ),
+    getFile: vi.fn(
+      async (fileId: string) =>
+        ({
+          id: fileId,
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+          version: options.readbackVersion ?? (options.readbackMismatch ? '1' : '2'),
+          appProperties: options.readbackMismatch ? {} : lastAppProperties,
+          trashed: false
+        }) as never
+    ),
     deleteFile: vi.fn(async (fileId: string) => {
       if ((options.deleteFails ?? []).includes(fileId)) throw new TeamFunctionError('RATE_LIMITED');
       return { deleted: true };
@@ -103,8 +160,12 @@ function setup(
     }),
     driveFor: vi.fn(async () => drive),
     progress: vi.fn(async () => true),
+    beginWrite: vi.fn(async () => true),
+    finishWrite: vi.fn(async () => true),
+    recordChanges: vi.fn(async () => true),
     complete: vi.fn(async (id: string) => !(options.completeFalse ?? []).includes(id)),
     retry: vi.fn(async () => true),
+    unknown: vi.fn(async () => true),
     markNeedsReauth: vi.fn(async () => undefined),
     claimRetired: vi.fn(async () => options.retired ?? []),
     forgetCopy: vi.fn(async () => true),
@@ -115,11 +176,48 @@ function setup(
 }
 
 describe('a tick', () => {
+  it('accepts the matching delivery marker when Drive conversion advances the version again', async () => {
+    const { deps } = setup({ readbackVersion: '3', batches: [[claimedRow('a')]] });
+    const result = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(result.updated).toBe(1);
+    expect(deps.unknown).not.toHaveBeenCalled();
+  });
+  it('keeps an ambiguous timeout after Drive write unknown without replaying growth', async () => {
+    const { deps, drive } = setup({ batches: [[claimedRow('a', { grow_products: true })]] });
+    drive.updateConvertedFile = vi.fn(async () => {
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+    });
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.unknown).toHaveBeenCalledWith('a', 'DRIVE_UNAVAILABLE');
+    expect(deps.retry).not.toHaveBeenCalled();
+    expect(deps.complete).not.toHaveBeenCalled();
+  });
+  it('does not confirm success when Drive readback disagrees with the write', async () => {
+    const { deps } = setup({ readbackMismatch: true, batches: [[claimedRow('a')]] });
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary).toMatchObject({ updated: 0, failed: 1 });
+    expect(deps.complete).not.toHaveBeenCalled();
+    expect(deps.recordChanges).not.toHaveBeenCalled();
+    expect(deps.beginWrite).toHaveBeenCalledOnce();
+    expect(deps.finishWrite).not.toHaveBeenCalled();
+    expect(deps.unknown).toHaveBeenCalledWith('a', 'DELIVERY_UNAVAILABLE');
+    expect(deps.retry).not.toHaveBeenCalled();
+  });
   it('writes original video links and retains the opt-out for later updates', async () => {
     const { deps, written } = setup({
       batches: [[claimedRow('a', { random_link_variation: false })]]
     });
     await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.recordChanges).toHaveBeenCalledWith(
+      'a',
+      expect.objectContaining({
+        productIds: true,
+        linksVaried: false,
+        productsAdded: false
+      })
+    );
+    expect(deps.beginWrite).toHaveBeenCalledOnce();
+    expect(deps.finishWrite).toHaveBeenCalledWith('a');
     const strings = await zipEntry(written[0]!.bytes, 'xl/sharedStrings.xml');
     expect(strings).toContain('https://drive.google.com/file/d/video/view?usp=sharing');
     expect(strings).not.toContain('?v=');
@@ -169,17 +267,15 @@ describe('a tick', () => {
     );
   });
 
-  it('retries only the sheet that failed, with its back-off, and still updates the others', async () => {
+  it('holds only the sheet with an uncertain Drive write and still updates the others', async () => {
     const { deps } = setup({
       batches: [[claimedRow('a'), claimedRow('b', { attempts: 2 }), claimedRow('c')]],
       failFor: { b: new TeamFunctionError('RATE_LIMITED') }
     });
     const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
     expect(summary).toMatchObject({ updated: 2, failed: 1 });
-    expect(deps.retry).toHaveBeenCalledTimes(1);
-    const [id, code, next] = vi.mocked(deps.retry).mock.calls[0]!;
-    expect([id, code]).toEqual(['b', 'RATE_LIMITED']);
-    expect((next as Date).getTime()).toBe(300_000); // second attempt → 5 minutes
+    expect(deps.unknown).toHaveBeenCalledWith('b', 'RATE_LIMITED');
+    expect(deps.retry).not.toHaveBeenCalled();
   });
 
   it('marks the credential when Google wants the space reconnected', async () => {
@@ -189,7 +285,7 @@ describe('a tick', () => {
     });
     await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
     expect(deps.markNeedsReauth).toHaveBeenCalledWith('cred');
-    expect(deps.retry).toHaveBeenCalledWith('a', 'NEEDS_REAUTH', expect.any(Date));
+    expect(deps.unknown).toHaveBeenCalledWith('a', 'NEEDS_REAUTH');
   });
 
   it('does not count a lost lease as a failure', async () => {

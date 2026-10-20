@@ -58,6 +58,8 @@ export interface CapabilitySignal {
   producerStatus?: ProducerStatus;
   /** Optional `properties` discriminator when one event name serves several capabilities. */
   outcome?: string;
+  /** Closed discriminator for a capability sharing generic 031 operation events. */
+  flowStep?: `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template'}`;
 }
 
 export interface Capability {
@@ -94,6 +96,88 @@ const BOTH: CapabilityPlatform[] = ['macos', 'windows'];
 const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
+  ...(['list', 'filter', 'profile', 'bulk', 'template'] as const).map(action => ({
+    id: `team.catalog_manager_${action}`,
+    tool: 'team' as const,
+    title: `Catalog manager · ${action}`,
+    stages: ['requested', 'observed_stage', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started' as const],
+      observed_stage: ['operation_stage_completed' as const],
+      terminal: [
+        'operation_completed' as const,
+        'operation_failed' as const,
+        'operation_cancelled' as const
+      ]
+    },
+    start: [
+      {
+        event: 'operation_started' as const,
+        correlate: 'attempt_id' as const,
+        flowStep: `catalog_manager_${action}` as const
+      }
+    ],
+    terminal: (['operation_completed', 'operation_failed', 'operation_cancelled'] as const).map(
+      event => ({
+        event,
+        correlate: 'attempt_id' as const,
+        flowStep: `catalog_manager_${action}` as const
+      })
+    ),
+    platforms: BOTH,
+    unobservable: [
+      'Missing browser completion means visible delivery is unknown, even when the authoritative mutation succeeded.',
+      'Unsaved field values, search text and visual comprehension are intentionally unobserved. Beta disables analytics.'
+    ],
+    producerStatus: 'emitted' as const,
+    source: 'events' as const,
+    note: 'Generic operation lifecycle is isolated by flow_step and correlated by flow_id/attempt_id. action_identifier is a closed UI stage; save_confirmed precedes result_visible. inspect reconstructs the UI observation separately from catalog update receipts. Creation-period filtering records setting_name=createdAt and visible result count, never date bounds; cleared ranges use the same filter lifecycle. Inline changes include only a closed setting_name field; undo_requested and readback_requested expose recovery attempts. Runtime status is read independently of profile version. The catalog-trends read-only command separately projects authoritative committed schedule/option history, baseline observation, actor attribution, transitions and as-of state into JSON/offline charts; private journal event IDs and transaction IDs identify server evidence. Legacy/bulk/undo writers are covered at the DB boundary. Baselines do not prove historical choices, missing client completion remains unknown, and bounded user/timeline samples declare truncation. Counts contain no catalog names, queries or provider content. Completion is only emitted after visible UI commit; silence is unknown, never success.'
+  })),
+  {
+    id: 'team.catalog_settings',
+    tool: 'team',
+    title: 'Team · committed catalog settings',
+    stages: ['observed_baseline', 'committed_change'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    unobservable: [
+      'Settings before the installation/first-observation boundary are unknown; baselines are not user choices.',
+      'A nullable actor is explicitly system_unknown; a creator is not necessarily the editor or workspace owner.',
+      'The journal proves committed settings, not browser delivery or downstream advertising results.'
+    ],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'Deferred database triggers observe final interval, civil schedule and five content switches across profile/legacy/bulk/undo writers. analytics_catalog_settings_history/current/coverage provide source-specific evidence; capture health checks all five profile/item/catalog/material lifecycle triggers. Samples include baseline observations, not only edits. catalog-trends separates actions, baselines, active/archived state and as-of coverage without names, content or credentials.'
+  },
+  {
+    id: 'team.catalog_update',
+    tool: 'team',
+    title: 'Team · product catalog update',
+    stages: [
+      'requested',
+      'claimed',
+      'preparing',
+      'refreshing',
+      'building',
+      'uploading',
+      'verifying',
+      'finalizing',
+      'terminal'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    unobservable: [
+      'Video preparation before a worker claim is not in the sheet stage history.',
+      'An unknown terminal has no delivery proof; external ad-platform ingestion is not observable.'
+    ],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'Catalog and attempt IDs, profile version, trigger, result, safe code and readback confirmation are available through analytics_catalog_updates and the read-only catalog <id> command. Delivery proof means Drive readback of the stable sheet ID and version, not downstream ad ingestion.'
+  },
   {
     id: 'team.launches',
     tool: 'team',

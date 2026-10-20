@@ -57,7 +57,7 @@ export function UpdaterCountdown({
   const remaining = useRemaining(targetIso, offsetMs);
   if (remaining === null) return null;
   return (
-    <span className="team-updater-countdown">
+    <span className="team-updater-countdown" aria-hidden="true">
       {remaining > 0 ? formatRemaining(remaining) : dueLabel}
     </span>
   );

@@ -141,21 +141,17 @@ function renderDialog(
 const confirm = () => screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement;
 
 describe('creating a catalog', () => {
-  it('defaults link variation on and sends an explicit opt-out', async () => {
+  it('always enables link variation without showing a choice', async () => {
     const client = dialogClient();
     renderDialog(client);
     const user = userEvent.setup();
-    const checkbox = screen.getByRole('checkbox', {
-      name: 'Random link variation'
-    }) as HTMLInputElement;
-    expect(checkbox.checked).toBe(true);
-    await user.click(checkbox);
+    expect(screen.queryByRole('checkbox', { name: 'Random link variation' })).toBeNull();
     await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     await waitFor(() =>
       expect(client.createProductCatalog).toHaveBeenCalledWith(
-        expect.objectContaining({ randomLinkVariation: false })
+        expect.objectContaining({ randomLinkVariation: true })
       )
     );
   });

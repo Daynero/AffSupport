@@ -485,3 +485,28 @@ identifies a prior revision whose exact catalog reference was reused. Null IDs
 do not prove fresh processing: the operation may be pending or its provenance
 unavailable. A null `reuse_evidence` object is an explicit coverage gap. These
 opaque IDs contain no configuration, media content, URLs, or file names.
+
+# Product catalog update diagnosis (039)
+
+`npm run analytics -- catalog <catalog-id|attempt-id> --json` reads the bounded,
+content-free `analytics_catalog_updates` projection. It reports the current
+schedule, last verified success, later failure, and recent attempts with source,
+profile version, result, safe error code and Drive readback evidence. `unknown`
+and missing per-stage timing remain explicit blind spots. The command uses the
+same SELECT-only connection as the other analytics commands.
+
+## Catalog schedule trends and visual reports
+
+```bash
+npm run analytics -- catalog-trends --period 7d --html /tmp/catalog-trends.html --json
+npm run analytics -- catalog-trends user@example.com --period 30d --html /tmp/catalog-user.html --json
+npm run analytics -- catalog-trends --days 14 --as-of 2026-10-20T00:00:00Z --limit 50 --json
+```
+
+The optional `--html` creates a self-contained local report with SVG charts: current schedule distribution, distinct selecting actors, confirmed selections, daily changes, daily end-state distribution, interval transitions, custom hours, option adoption, saved clock/day settings and per-user catalog change tracks. It makes no network requests. The report path is returned in `data.report_path`; without `--html` no report file is written. `--limit` controls detailed users (default 20, maximum 500); timeline details and daily series declare their own bounds. Population aggregates are not capped. A user dropdown selects among included user histories; request a scoped CLI report for a specific user outside that sample.
+
+The source is the restricted, transaction-backed settings journal, not clicks. Individual, bulk, legacy interval and undo writers share that capture boundary. No-op, rolled-back, failed and ordinary next-run updates are not preferences. A baseline is a dated observation and is excluded from selection/transition counts. Collection cannot recover choices made before installation. Missing access or disabled capture is reported explicitly; it must not be read as zero usage. UTC defines report day boundaries; saved wall clocks retain their own IANA zone.
+
+Current stock counts active/nondeleted catalogs at `as_of`. Current actor scope means the latest known settings editor, not workspace ownership; baselines or system changes may have no known actor. Selection counts count committed cadence changes; distinct actors are deduplicated per interval and can occur in multiple intervals. Aliases such as 24h/daily share comparison buckets and retain raw keys. A user's first/latest observed settings states span the requested evidence and multiple catalogs, not an asserted universal preference. Per-catalog point timelines show edits that user actually performed; they do not assert that no other editor changed the catalog between points. Historical records may remain after archival so old trends still have closure.
+
+Apply `20261204170000_catalog_settings_journal.sql` through the normal release process before production reporting. It captures current settings as migration observations and grants only the existing read-only analytics role access to the bounded whitelist views. The browser's correlated `catalog_manager_*` flows remain the separate source for attempted/failed/cancelled changes and visible delivery; a journal row proves commit, not browser visibility. CLI output contains opaque user/catalog IDs and bounded setting values, not catalog names, content, paths, URLs or secrets.

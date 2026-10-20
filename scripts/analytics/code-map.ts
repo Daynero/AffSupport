@@ -332,6 +332,21 @@ export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
     agent: [AGENT_STITCH_PIPELINE],
     check: 'Which post-stitch verification (duration, streams) disagreed with the plan.'
   },
+  RESTITCH_SCREEN_UNAVAILABLE: {
+    stage: 'stitch',
+    agent: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/agent/src/team-bridge/restitch.ts'],
+    check: 'Verify the granted picture is available to the local preparation.'
+  },
+  RESTITCH_SCREEN_FETCH_FAILED: {
+    stage: 'stitch',
+    agent: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/agent/src/team-bridge/restitch.ts'],
+    check: 'Check the picture transfer endpoint, grant and checksum before retrying preparation.'
+  },
+  RESTITCH_SCREEN_UNSUPPORTED: {
+    stage: 'stitch',
+    agent: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/agent/src/team-bridge/restitch.ts'],
+    check: 'Check that the selected picture is a supported static image within the size limit.'
+  },
   STITCH_IMAGE_UNAVAILABLE: {
     stage: 'stitch',
     agent: [AGENT_STITCH_PIPELINE, AGENT_IMAGES],
@@ -940,6 +955,9 @@ function build(): Record<string, CodeLocation> {
     'RESTITCH_POOL_EMPTY',
     'RESTITCH_SOURCES_INVALID',
     'RESTITCH_CLIENT_OUTDATED',
+    'RESTITCH_SCREEN_UNAVAILABLE',
+    'RESTITCH_SCREEN_FETCH_FAILED',
+    'RESTITCH_SCREEN_UNSUPPORTED',
     'RESTITCH_DEFAULTS_INVALID',
     'RESTITCH_SOURCE_FORBIDDEN',
     'WRONG_STATE'
@@ -987,6 +1005,22 @@ function build(): Record<string, CodeLocation> {
       ],
       check:
         'Inspect the catalog intent receipt and current storage authority. Do not repeat provider creation while its outcome is unknown.'
+    };
+  }
+  for (const code of [
+    'DELIVERY_UNAVAILABLE',
+    'DRIVE_UNAVAILABLE',
+    'NEEDS_REAUTH',
+    'INVALID_RESPONSE'
+  ]) {
+    map[`catalog:update:${code}`] = {
+      files: [
+        'supabase/functions/catalog-updater/worker.ts',
+        'supabase/functions/_shared/drive.ts',
+        'apps/web/src/team/catalog-updater/CatalogStatusDetails.tsx'
+      ],
+      check:
+        'Check the sheet readback and persisted attempt before retrying; an unknown provider reply is not delivery proof.'
     };
   }
   return map;

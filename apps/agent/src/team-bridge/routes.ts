@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   LIBRARY_JOB_KINDS,
+  STITCH_ERROR_CODES,
   parseTeamTransferGrant,
   type TeamLandingRenderJob
 } from '@video-compressor/shared';
@@ -602,28 +603,29 @@ function safeErrorCode(
     | 'PREPARE_FAILED'
 ) {
   const value = error instanceof Error ? error.message : '';
-  return [
-    'INVALID_INPUT',
-    'PERMISSION_DENIED',
-    'TOO_LARGE',
-    'WRONG_STATE',
-    'PREVIEW_CANCELED',
-    'PROCESS_CANCELED',
-    'DOWNLOAD_CANCELED',
-    'DOWNLOAD_FAILED',
-    'RENDER_FAILED',
-    'PROCESS_TIMEOUT',
-    'PROCESS_FAILED',
-    'AGENT_UPDATE_REQUIRED',
-    // Stitching asked for with no pictures in the library: the person can fix that, and
-    // "the download failed" would send them looking at the network instead.
-    'EMBED_IMAGES_REQUIRED',
-    'UNSUPPORTED_MEDIA',
-    'DRIVE_UNAVAILABLE',
-    'SOURCE_CHANGED',
-    'INVALID_RESPONSE',
-    'NOT_FOUND'
-  ].includes(value)
+  return (STITCH_ERROR_CODES as readonly string[]).includes(value) ||
+    [
+      'INVALID_INPUT',
+      'PERMISSION_DENIED',
+      'TOO_LARGE',
+      'WRONG_STATE',
+      'PREVIEW_CANCELED',
+      'PROCESS_CANCELED',
+      'DOWNLOAD_CANCELED',
+      'DOWNLOAD_FAILED',
+      'RENDER_FAILED',
+      'PROCESS_TIMEOUT',
+      'PROCESS_FAILED',
+      'AGENT_UPDATE_REQUIRED',
+      // Stitching asked for with no pictures in the library: the person can fix that, and
+      // "the download failed" would send them looking at the network instead.
+      'EMBED_IMAGES_REQUIRED',
+      'UNSUPPORTED_MEDIA',
+      'DRIVE_UNAVAILABLE',
+      'SOURCE_CHANGED',
+      'INVALID_RESPONSE',
+      'NOT_FOUND'
+    ].includes(value)
     ? value
     : fallback;
 }

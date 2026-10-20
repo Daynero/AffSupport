@@ -1,3 +1,4 @@
+import { OVERLAY_OPEN_EVENT, tooltipAnchorAllowed } from '../lib/overlayTips';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -31,11 +32,8 @@ export function InstantTips() {
 
   useEffect(() => {
     let activeHost: HTMLElement | null = null;
-    const allowed = (host: HTMLElement) => {
-      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
-      const top = dialogs[dialogs.length - 1];
-      return host.isConnected && (!top || top.contains(host));
-    };
+    let activeText = '';
+    const allowed = tooltipAnchorAllowed;
     const place = (host: HTMLElement, text: string) => {
       const rect = host.getBoundingClientRect();
       // Matches the CSS cap, so a long name is centred against the control
@@ -80,12 +78,19 @@ export function InstantTips() {
         clear();
         return;
       }
+      // Names already readable in full need no duplicate bubble. Measure on
+      // each hover so resizing or newly revealed actions cannot leave stale hints.
+      if (host.hasAttribute('data-tip-overflow') && host.scrollWidth <= host.clientWidth) {
+        clear();
+        return;
+      }
       const text = host.getAttribute('data-tip');
       if (!text) {
         clear();
         return;
       }
       activeHost = host;
+      activeText = text;
       place(host, text);
     };
     const onOut = (event: MouseEvent) => {
@@ -94,19 +99,27 @@ export function InstantTips() {
     };
     const clear = () => {
       activeHost = null;
+      activeText = '';
       setTip(null);
     };
     // Opening a modal via keyboard can leave the pointer and its old tip
     // stationary. Clear it as soon as that anchor becomes background content.
     const observer = new MutationObserver(() => {
-      if (activeHost && !allowed(activeHost)) clear();
+      if (!activeHost) return;
+      const text = activeHost.getAttribute('data-tip');
+      if (!allowed(activeHost) || !text) clear();
+      else if (text !== activeText) {
+        activeText = text;
+        place(activeHost, text);
+      }
     });
     observer.observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['aria-modal']
+      attributeFilter: ['aria-modal', 'aria-hidden', 'role', 'data-tip']
     });
+    window.addEventListener(OVERLAY_OPEN_EVENT, clear);
     document.addEventListener('mouseover', onOver);
     document.addEventListener('mouseout', onOut);
     document.addEventListener('pointerdown', clear);
@@ -114,6 +127,7 @@ export function InstantTips() {
     window.addEventListener('resize', clear);
     return () => {
       observer.disconnect();
+      window.removeEventListener(OVERLAY_OPEN_EVENT, clear);
       document.removeEventListener('mouseover', onOver);
       document.removeEventListener('mouseout', onOut);
       document.removeEventListener('pointerdown', clear);

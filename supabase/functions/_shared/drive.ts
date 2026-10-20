@@ -617,6 +617,7 @@ export class GoogleDriveClient {
     sourceMimeType: string;
     targetMimeType: string;
     bytes: Uint8Array<ArrayBuffer>;
+    appProperties?: Record<string, string>;
   }): Promise<DriveFileMetadata> {
     if (input.fileId.length < 1) {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
@@ -628,7 +629,10 @@ export class GoogleDriveClient {
     const encoder = new TextEncoder();
     const head = encoder.encode(
       `--${boundary}\r\ncontent-type: application/json; charset=utf-8\r\n\r\n` +
-        JSON.stringify({ mimeType: input.targetMimeType }) +
+        JSON.stringify({
+          mimeType: input.targetMimeType,
+          ...(input.appProperties ? { appProperties: input.appProperties } : {})
+        }) +
         `\r\n--${boundary}\r\ncontent-type: ${input.sourceMimeType}\r\n\r\n`
     );
     const tail = encoder.encode(`\r\n--${boundary}--\r\n`);

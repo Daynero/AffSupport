@@ -12,7 +12,7 @@ import {
   successResponse,
   TeamFunctionError
 } from '../_shared/errors.ts';
-import { runCatalogUpdaterTick } from './worker.ts';
+import { classifyCatalogReadback, runCatalogUpdaterTick } from './worker.ts';
 import { runLaunchCleanupTick, runLaunchVideoCleanupTick } from '../drive-ops/launch-recovery.ts';
 
 /**
@@ -97,6 +97,46 @@ Deno.serve(async request => {
       }
       return drive;
     };
+    const pending = await rpcValue(service, 'service_claim_catalog_reconciliations', {
+      p_limit: 3
+    });
+    for (const row of Array.isArray(pending) ? pending : []) {
+      if (!row || typeof row !== 'object') continue;
+      const item = row as Record<string, unknown>;
+      if (
+        typeof item.catalog_material_id !== 'string' ||
+        typeof item.marker !== 'string' ||
+        typeof item.drive_file_id !== 'string' ||
+        typeof item.credential_id !== 'string'
+      )
+        continue;
+      try {
+        const drive = await driveFor(item.credential_id);
+        const file = await drive.getFile(
+          item.drive_file_id,
+          typeof item.resource_key === 'string' ? item.resource_key : null
+        );
+        const outcome = classifyCatalogReadback(file, {
+          fileId: item.drive_file_id,
+          marker: item.marker,
+          baselineVersion: typeof item.baseline_version === 'string' ? item.baseline_version : null
+        });
+        if (outcome !== 'inconclusive') {
+          await rpcValue(service, 'service_resolve_catalog_reconciliation', {
+            p_item: item.catalog_material_id,
+            p_marker: item.marker,
+            p_outcome: outcome,
+            p_worker: workerId
+          });
+        }
+      } catch (error) {
+        console.error(
+          '[catalog-updater] reconciliation readback pending',
+          item.catalog_material_id,
+          mapUnknownError(error).code
+        );
+      }
+    }
     // Cleanup failures retain their durable leases and must not starve regular
     // catalog rounds or the other Launch cleanup lane.
     const launchCleanup = await runLaunchCleanupTick(service, driveFor).catch(() => ({
@@ -169,6 +209,27 @@ Deno.serve(async request => {
             p_worker: workerId,
             p_stage: stage
           })) === true,
+        beginWrite: async (catalogId, input) =>
+          (await rpcValue(service, 'service_begin_catalog_update_write', {
+            p_item: catalogId,
+            p_worker: workerId,
+            p_marker: input.marker,
+            p_baseline_version: input.baselineVersion,
+            p_expected_count: input.expectedCount,
+            p_swapped_copy: input.swappedCopy,
+            p_product_count: input.became.productCount,
+            p_settings_snapshot: input.became.snapshot
+          })) === true,
+        finishWrite: async catalogId =>
+          (await rpcValue(service, 'service_finish_catalog_update_write', {
+            p_item: catalogId
+          })) === true,
+        recordChanges: async (catalogId, changes) =>
+          (await rpcValue(service, 'service_record_catalog_update_changes', {
+            p_item: catalogId,
+            p_worker: workerId,
+            p_changes: changes
+          })) === true,
         complete: async (catalogId, updateCount, swappedCopy, became) =>
           (await rpcValue(service, 'service_complete_catalog_update', {
             p_item: catalogId,
@@ -199,6 +260,12 @@ Deno.serve(async request => {
             p_worker: workerId,
             p_error: errorCode,
             p_next_attempt_at: nextAttemptAt.toISOString()
+          })) === true,
+        unknown: async (catalogId, errorCode) =>
+          (await rpcValue(service, 'service_mark_catalog_update_unknown', {
+            p_item: catalogId,
+            p_worker: workerId,
+            p_error: errorCode
           })) === true,
         markNeedsReauth: async credentialId => {
           await rpcValue(service, 'service_mark_drive_needs_reauth', {

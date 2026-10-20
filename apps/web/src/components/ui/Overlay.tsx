@@ -1,3 +1,4 @@
+import { OVERLAY_OPEN_EVENT } from '../../lib/overlayTips';
 import { useCallback, useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu as HeroMenu } from '@heroui/react/menu';
@@ -142,6 +143,7 @@ export function useDialogBehaviour({
       surface: modal ? node : undefined
     };
     openStack.push(entry);
+    window.dispatchEvent(new Event(OVERLAY_OPEN_EVENT));
     const previouslyFocused =
       typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
         ? document.activeElement

@@ -129,7 +129,8 @@ describe('the token layer', () => {
       '--motion-spin',
       '--motion-spin-reduced',
       '--motion-sheen',
-      '--motion-progress'
+      '--motion-progress',
+      '--motion-catalog-success'
     ]);
     for (const [name, value] of light) {
       if (!name.startsWith('--motion-') || AMBIENT.has(name)) continue;

@@ -16,6 +16,9 @@ import {
   parseTeamProcessStartResult,
   parseTeamTransferGrant,
   type TeamTransferGrant,
+  type CatalogUpdateProfile,
+  type CatalogUpdateProfilePatch,
+  type CatalogUpdateAttempt,
   parseTeamUploadSession,
   parseLibraryJobClaim,
   parseLibraryJobFinalize,
@@ -282,6 +285,91 @@ export interface CatalogRegistryRow {
   restitchStage: 'downloading' | 'processing' | 'uploading' | 'finalizing' | null;
   /** The provider id of the folder the sheet is in; null at the space root. */
   folderDriveId: string | null;
+  profile?: CatalogUpdateProfile;
+}
+
+function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpdateProfile | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const get = (camel: string, snake: string): unknown => row[snakeCase ? snake : camel];
+  const catalogId = get('catalogId', 'catalog_material_id');
+  const refreshImages = get('refreshImages', 'refresh_images');
+  const refreshTexts = get('refreshTexts', 'refresh_texts');
+  const growProducts = get('growProducts', 'grow_products');
+  const randomLinkVariation = get('randomLinkVariation', 'random_link_variation');
+  const restitch = row.restitch;
+  const updatedAt = get('updatedAt', 'updated_at');
+  const lastErrorAt = get('lastErrorAt', 'last_error_at');
+  const lastResult = get('lastResult', 'last_result');
+  const optionalDate = (value: unknown): string | null | undefined =>
+    value === null
+      ? null
+      : typeof value === 'string' && Number.isFinite(Date.parse(value))
+        ? value
+        : undefined;
+  if (
+    typeof catalogId !== 'string' ||
+    typeof refreshImages !== 'boolean' ||
+    typeof refreshTexts !== 'boolean' ||
+    typeof growProducts !== 'boolean' ||
+    typeof randomLinkVariation !== 'boolean' ||
+    typeof restitch !== 'boolean' ||
+    typeof row.version !== 'number' ||
+    !Number.isSafeInteger(row.version) ||
+    typeof updatedAt !== 'string'
+  )
+    return null;
+  const schedule = asRecord(row.schedule);
+  if (
+    row.schedule != null &&
+    (!schedule ||
+      typeof schedule.timeZone !== 'string' ||
+      typeof schedule.weekday !== 'number' ||
+      !Number.isInteger(schedule.weekday) ||
+      schedule.weekday < 1 ||
+      schedule.weekday > 7 ||
+      typeof schedule.time !== 'string' ||
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.time))
+  )
+    return null;
+  return {
+    schedule: schedule
+      ? {
+          timeZone: schedule.timeZone as string,
+          weekday: schedule.weekday as number,
+          time: schedule.time as string
+        }
+      : null,
+    catalogId,
+    refreshImages,
+    refreshTexts,
+    growProducts,
+    randomLinkVariation,
+    restitch,
+    version: row.version,
+    updatedAt,
+    lastErrorAt: typeof lastErrorAt === 'string' ? lastErrorAt : null,
+    lastResult:
+      lastResult === undefined
+        ? undefined
+        : lastResult === null
+          ? null
+          : ['running', 'success', 'partial', 'failed', 'cancelled', 'unknown'].includes(
+                String(lastResult)
+              )
+            ? (lastResult as CatalogUpdateProfile['lastResult'])
+            : 'unknown',
+    latestAttemptAt: optionalDate(get('latestAttemptAt', 'latest_attempt_at')),
+    lastSuccessfulAt: optionalDate(get('lastSuccessfulAt', 'last_successful_at')),
+    restitchStatus:
+      snakeCase &&
+      ['ready', 'preparing', 'blocked', 'waiting'].includes(String(row.restitch_status))
+        ? (row.restitch_status as CatalogUpdateProfile['restitchStatus'])
+        : undefined,
+    restitchBlockedCode:
+      snakeCase && typeof row.restitch_blocked_code === 'string' ? row.restitch_blocked_code : null,
+    reconciliationRequired: snakeCase && row.reconciliation_required === true
+  };
 }
 
 export type CatalogUpdateStage =
@@ -291,6 +379,7 @@ export type CatalogUpdateStage =
   | 'refreshing'
   | 'building'
   | 'uploading'
+  | 'verifying'
   | 'finalizing';
 
 export type CatalogUpdaterInterval = UpdaterInterval;
@@ -345,6 +434,8 @@ export interface CatalogUpdaterState {
   catalogCount: number;
   failingCount: number;
   spareReadyCount: number | null;
+  /** Actual queued/running updates; absent on an older server means unknown. */
+  activeCount?: number | null;
   /** Why the spare copies stand still, when a job was given back for a reason a person can fix (030). */
   restitchBlockedCode: TeamErrorCode | null;
   serverNow: string;
@@ -373,6 +464,12 @@ function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
     startedAt: row.startedAt as string | null,
     catalogCount: row.catalogCount,
     failingCount: row.failingCount,
+    activeCount:
+      typeof row.activeCount === 'number' &&
+      Number.isInteger(row.activeCount) &&
+      row.activeCount >= 0
+        ? row.activeCount
+        : null,
     spareReadyCount: typeof row.spareReadyCount === 'number' ? row.spareReadyCount : null,
     restitchBlockedCode:
       typeof row.restitchBlockedCode === 'string' &&
@@ -423,6 +520,7 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
       row.update_stage === 'refreshing' ||
       row.update_stage === 'building' ||
       row.update_stage === 'uploading' ||
+      row.update_stage === 'verifying' ||
       row.update_stage === 'finalizing'
         ? row.update_stage
         : null,
@@ -2138,6 +2236,145 @@ export const teamApi = {
     });
   },
 
+  async listCatalogUpdateProfiles(teamId: string): Promise<CatalogUpdateProfile[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_catalog_update_profiles', { p_team: teamId })
+    );
+    throwRpc(error);
+    if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data
+      .map(row => catalogUpdateProfileFrom(row, true))
+      .filter((profile): profile is CatalogUpdateProfile => profile !== null);
+  },
+
+  async listCatalogUpdateAttempts(
+    teamId: string,
+    catalogId: string
+  ): Promise<CatalogUpdateAttempt[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_catalog_update_attempts', {
+        p_team: teamId,
+        p_catalog: catalogId,
+        p_limit: 10
+      })
+    );
+    throwRpc(error);
+    if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    const allowed = new Set(['running', 'success', 'partial', 'failed', 'cancelled', 'unknown']);
+    return data.flatMap(value => {
+      const row = asRecord(value);
+      if (
+        !row ||
+        typeof row.attempt_id !== 'string' ||
+        typeof row.catalog_material_id !== 'string' ||
+        (row.trigger_kind !== 'schedule' &&
+          row.trigger_kind !== 'manual' &&
+          row.trigger_kind !== 'retry' &&
+          row.trigger_kind !== 'unknown') ||
+        typeof row.started_at !== 'string' ||
+        typeof row.result !== 'string' ||
+        !allowed.has(row.result)
+      )
+        return [];
+      return [
+        {
+          attemptId: row.attempt_id,
+          catalogId: row.catalog_material_id,
+          trigger: row.trigger_kind,
+          startedAt: row.started_at,
+          endedAt: typeof row.ended_at === 'string' ? row.ended_at : null,
+          stage: null,
+          stages: Array.isArray(row.stage_history)
+            ? row.stage_history.flatMap(value => {
+                const stage = asRecord(value);
+                return stage &&
+                  typeof stage.stage === 'string' &&
+                  [
+                    'preparing',
+                    'refreshing',
+                    'building',
+                    'uploading',
+                    'verifying',
+                    'finalizing'
+                  ].includes(stage.stage) &&
+                  typeof stage.at === 'string'
+                  ? [
+                      {
+                        stage: stage.stage as NonNullable<
+                          CatalogUpdateAttempt['stages']
+                        >[number]['stage'],
+                        at: stage.at
+                      }
+                    ]
+                  : [];
+              })
+            : [],
+          result: row.result as CatalogUpdateAttempt['result'],
+          failureCode: typeof row.failure_code === 'string' ? row.failure_code : null,
+          deliveryVerifiedAt:
+            typeof row.delivery_verified_at === 'string' ? row.delivery_verified_at : null,
+          profileVersion: typeof row.profile_version === 'number' ? row.profile_version : null,
+          sourceAttemptId: typeof row.source_attempt_id === 'string' ? row.source_attempt_id : null,
+          actualChanges: (() => {
+            const changes = asRecord(row.actual_changes);
+            if (!changes) return null;
+            const parsed: NonNullable<CatalogUpdateAttempt['actualChanges']> = {};
+            for (const key of [
+              'productIds',
+              'linksVaried',
+              'imagesRefreshed',
+              'textsRefreshed',
+              'productsAdded',
+              'videoReplaced'
+            ] as const) {
+              if (typeof changes[key] === 'boolean') parsed[key] = changes[key];
+            }
+            return parsed;
+          })(),
+          profileSnapshot: (() => {
+            const snapshot = asRecord(row.profile_snapshot);
+            if (
+              !snapshot ||
+              typeof snapshot.refreshImages !== 'boolean' ||
+              typeof snapshot.refreshTexts !== 'boolean' ||
+              typeof snapshot.growProducts !== 'boolean' ||
+              typeof snapshot.randomLinkVariation !== 'boolean' ||
+              typeof snapshot.restitch !== 'boolean'
+            )
+              return null;
+            return {
+              refreshImages: snapshot.refreshImages,
+              refreshTexts: snapshot.refreshTexts,
+              growProducts: snapshot.growProducts,
+              randomLinkVariation: snapshot.randomLinkVariation,
+              restitch: snapshot.restitch
+            };
+          })()
+        }
+      ];
+    });
+  },
+
+  async patchCatalogUpdateProfile(
+    teamId: string,
+    catalogId: string,
+    expectedVersion: number,
+    patch: CatalogUpdateProfilePatch
+  ): Promise<CatalogUpdateProfile> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('patch_team_catalog_update_profile', {
+        p_team: teamId,
+        p_catalog: catalogId,
+        p_expected_version: expectedVersion,
+        p_patch: { ...patch, schedule: patch.schedule ? { ...patch.schedule } : patch.schedule }
+      })
+    );
+    throwRpc(error);
+    const parsed = catalogUpdateProfileFrom(data);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed;
+  },
+
   async getCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('get_team_catalog_updater', { p_team: teamId })
@@ -2156,7 +2393,23 @@ export const teamApi = {
       { teamId, restitchContractVersion: RESTITCH_CONTRACT_VERSION },
       restitchClaimGuard
     );
-    return value.job;
+    const job = value.job;
+    if (!job || !Array.isArray(job.options.screens)) return job;
+    return {
+      ...job,
+      options: {
+        ...job.options,
+        screens: job.options.screens.map((screen: unknown) => {
+          const row = asRecord(screen);
+          const transfer = asRecord(row?.transfer);
+          if (!row || !transfer || typeof transfer.transferUrl !== 'string') return screen;
+          return {
+            ...row,
+            transfer: { ...transfer, transferUrl: browserFunctionUrl(transfer.transferUrl) }
+          };
+        })
+      }
+    };
   },
 
   /** Keeps the lease; true means the updater no longer wants this copy. */
@@ -2221,6 +2474,33 @@ export const teamApi = {
     return typeof data === 'number' ? data : 0;
   },
 
+  async cancelCatalogUpdate(teamId: string, catalogId: string): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('cancel_team_catalog_update', {
+        p_team: teamId,
+        p_catalog: catalogId
+      })
+    );
+    throwRpc(error);
+    return data === true;
+  },
+
+  async retryCatalogUpdate(
+    teamId: string,
+    catalogId: string,
+    sourceAttemptId: string
+  ): Promise<number> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('retry_team_catalog_update', {
+        p_team: teamId,
+        p_catalog: catalogId,
+        p_source_attempt: sourceAttemptId
+      })
+    );
+    throwRpc(error);
+    return typeof data === 'number' ? data : 0;
+  },
+
   async setCatalogUpdaterRestitch(teamId: string, restitch: boolean): Promise<CatalogUpdaterState> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('set_team_catalog_updater_restitch', {
@@ -2232,6 +2512,15 @@ export const teamApi = {
     const parsed = catalogUpdaterStateFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed;
+  },
+
+  async getCatalogUpdaterRestitchDefault(teamId: string): Promise<boolean> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_catalog_updater_restitch_default', { p_team: teamId })
+    );
+    throwRpc(error);
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async getProductCatalogSettings(teamId: string): Promise<ProductCatalogSettings | null> {

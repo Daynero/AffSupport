@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { teamApi, type CatalogRegistryRow, type CatalogUpdaterState } from '../../api/team';
+import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
 import { useTeam } from '../TeamContext';
 
 /**
@@ -17,6 +18,13 @@ const REVISION_DEBOUNCE_MS = 500;
 export interface CatalogUpdaterClient {
   getCatalogUpdater: (teamId: string) => Promise<CatalogUpdaterState>;
   listTeamProductCatalogs: (teamId: string) => Promise<CatalogRegistryRow[]>;
+  listCatalogUpdateProfiles?: (teamId: string) => Promise<CatalogUpdateProfile[]>;
+  patchCatalogUpdateProfile?: (
+    teamId: string,
+    catalogId: string,
+    expectedVersion: number,
+    patch: CatalogUpdateProfilePatch
+  ) => Promise<CatalogUpdateProfile>;
 }
 
 const defaultClient: CatalogUpdaterClient = teamApi;
@@ -24,32 +32,34 @@ const defaultClient: CatalogUpdaterClient = teamApi;
 function useRefreshing<T>(
   load: () => Promise<T>,
   enabled: boolean
-): { value: T | null; error: boolean; reload: () => void } {
+): { value: T | null; error: boolean; lastLoadedAt: string | null; reload: () => void } {
   const { revision } = useTeam();
   const [value, setValue] = useState<T | null>(null);
   const [error, setError] = useState(false);
+  const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const loadRef = useRef(load);
+  const hasStarted = useRef(false);
   loadRef.current = load;
 
   useEffect(() => {
     if (!enabled) return;
     let active = true;
-    const timer = window.setTimeout(
-      () => {
-        void loadRef
-          .current()
-          .then(next => {
-            if (!active) return;
-            setValue(next);
-            setError(false);
-          })
-          .catch(() => {
-            if (active) setError(true);
-          });
-      },
-      tick === 0 && revision === 0 ? 0 : REVISION_DEBOUNCE_MS
-    );
+    const delay = hasStarted.current ? REVISION_DEBOUNCE_MS : 0;
+    const timer = window.setTimeout(() => {
+      hasStarted.current = true;
+      void loadRef
+        .current()
+        .then(next => {
+          if (!active) return;
+          setValue(next);
+          setError(false);
+          setLastLoadedAt(new Date().toISOString());
+        })
+        .catch(() => {
+          if (active) setError(true);
+        });
+    }, delay);
     return () => {
       active = false;
       window.clearTimeout(timer);
@@ -63,12 +73,17 @@ function useRefreshing<T>(
   }, [enabled]);
 
   const reload = useCallback(() => setTick(value => value + 1), []);
-  return { value, error, reload };
+  return { value, error, lastLoadedAt, reload };
 }
 
 export function useCatalogUpdater(teamId: string, client: CatalogUpdaterClient = defaultClient) {
   const { value, error, reload } = useRefreshing(() => client.getCatalogUpdater(teamId), true);
   // Server time minus local time when the state was read; applied to every countdown tick.
+  useEffect(() => {
+    if (!value?.activeCount) return;
+    const timer = window.setInterval(reload, ACTIVE_UPDATE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [value?.activeCount, reload]);
   const offsetMs = useMemo(
     () => (value ? Date.parse(value.serverNow) - Date.now() : 0),
     // Recomputed per read: a state object is a new read.
@@ -82,17 +97,21 @@ export function useCatalogRegistry(
   enabled: boolean,
   client: CatalogUpdaterClient = defaultClient
 ) {
-  const { value, error, reload } = useRefreshing(
-    () => client.listTeamProductCatalogs(teamId),
-    enabled
-  );
+  const { value, error, lastLoadedAt, reload } = useRefreshing(async () => {
+    const [rows, profiles] = await Promise.all([
+      client.listTeamProductCatalogs(teamId),
+      client.listCatalogUpdateProfiles?.(teamId) ?? Promise.resolve([])
+    ]);
+    const byId = new Map(profiles.map(profile => [profile.catalogId, profile]));
+    return rows.map(row => ({ ...row, profile: byId.get(row.catalogId) ?? row.profile }));
+  }, enabled);
   const hasPendingUpdate = value?.some(row => row.updatePending) ?? false;
   useEffect(() => {
     if (!enabled || !hasPendingUpdate) return;
     const timer = window.setInterval(reload, ACTIVE_UPDATE_POLL_MS);
     return () => window.clearInterval(timer);
   }, [enabled, hasPendingUpdate, reload]);
-  return { rows: value, error, reload };
+  return { rows: value, error, lastLoadedAt, reload };
 }
 
 /** Matches a search against the video's and the sheet's names, ignoring case and outer spaces. */

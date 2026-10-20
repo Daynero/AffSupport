@@ -1057,21 +1057,6 @@ export function WorkspaceShell({
                   </div>
                 </Suspense>
 
-                {query?.settings && (
-                  <SettingsDialog
-                    teamId={teamId}
-                    client={client}
-                    health={health}
-                    initialTab={query.settingsTab}
-                    onTabChange={tab =>
-                      navigateTo(explorerRoute({ settings: true, settingsTab: tab }), true, false)
-                    }
-                    onClose={() =>
-                      navigateTo(explorerRoute({ settings: false, settingsTab: null }))
-                    }
-                  />
-                )}
-
                 {/*
                  * One way in, to anything (024, US6). In the address like the
                  * settings and the updater, so Back closes it — a surface the
@@ -1115,6 +1100,33 @@ export function WorkspaceShell({
                           spaceId: teamId,
                           section: 'explorer',
                           query: { folderId: row.folderDriveId, itemId: row.catalogId }
+                        })
+                      )
+                    }
+                  />
+                )}
+
+                {/* Settings opened from the manager sit above its retained list and draft. */}
+                {query?.settings && (
+                  <SettingsDialog
+                    teamId={teamId}
+                    client={client}
+                    health={health}
+                    nested={Boolean(query.updater)}
+                    initialTab={query.settingsTab}
+                    onTabChange={tab =>
+                      navigateTo(
+                        explorerRoute({ settings: true, settingsTab: tab, updater: query.updater }),
+                        true,
+                        false
+                      )
+                    }
+                    onClose={() =>
+                      navigateTo(
+                        explorerRoute({
+                          settings: false,
+                          settingsTab: null,
+                          updater: query.updater
                         })
                       )
                     }

@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, open, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { TeamFileOperationResult, TeamTransferGrant } from '@video-compressor/shared';
 
 const MAX_RANGE_BYTES = 32 * 1024 * 1024;
@@ -76,82 +77,128 @@ export class TeamTransferClient {
     let sourceVersion: string | null = null;
     let sourceChecksum: string | null = null;
     let uses = 0;
+    let retries = 0;
+    let identityKnown = false;
     try {
       while (totalBytes === null || offset < totalBytes) {
         throwIfAborted(signal);
-        uses += 1;
-        if (uses > request.grant.maxUses) throw new Error('PERMISSION_DENIED');
-        const end = Math.min(offset + request.grant.maxRangeBytes - 1, MAX_TRANSFER_BYTES - 1);
-        if (end < offset) throw new Error('TOO_LARGE');
-        const response = await this.#fetch(endpoint, {
-          method: 'GET',
-          headers: {
-            range: `bytes=${offset}-${end}`,
-            'x-wishly-transfer-grant': request.grant.ticket
-          },
-          cache: 'no-store',
-          redirect: 'error',
-          signal
-        });
-        if (response.status !== 200 && response.status !== 206) {
-          throw new Error(await edgeError(response));
-        }
-        const responseVersion = response.headers.get('x-wishly-source-version');
-        const responseChecksum = response.headers.get('x-wishly-source-checksum');
-        if (offset === 0) {
-          sourceVersion = responseVersion;
-          sourceChecksum = responseChecksum;
-        } else if (sourceVersion !== responseVersion || sourceChecksum !== responseChecksum) {
-          throw new Error('SOURCE_CHANGED');
-        }
-        const length = numericHeader(response.headers.get('content-length'));
-        const range = response.headers.get('content-range');
-        const rangeMatch = range ? /^bytes (\d+)-(\d+)\/(\d+)$/u.exec(range) : null;
-        if (response.status === 206) {
-          if (!rangeMatch || Number(rangeMatch[1]) !== offset) throw new Error('INVALID_RESPONSE');
-          const responseEnd = Number(rangeMatch[2]);
-          const declaredTotal = Number(rangeMatch[3]);
-          if (
-            !Number.isSafeInteger(responseEnd) ||
-            !Number.isSafeInteger(declaredTotal) ||
-            responseEnd < offset ||
-            responseEnd > end ||
-            declaredTotal <= responseEnd ||
-            declaredTotal > MAX_TRANSFER_BYTES ||
-            length !== responseEnd - offset + 1
-          ) {
-            throw new Error(declaredTotal > MAX_TRANSFER_BYTES ? 'TOO_LARGE' : 'INVALID_RESPONSE');
+        let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+        try {
+          uses += 1;
+          if (uses > request.grant.maxUses) throw new Error('PERMISSION_DENIED');
+          const end = Math.min(offset + request.grant.maxRangeBytes - 1, MAX_TRANSFER_BYTES - 1);
+          if (end < offset) throw new Error('TOO_LARGE');
+          const response = await this.#fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              range: `bytes=${offset}-${end}`,
+              'x-wishly-transfer-grant': request.grant.ticket
+            },
+            cache: 'no-store',
+            redirect: 'error',
+            signal
+          });
+          if (response.status !== 200 && response.status !== 206) {
+            const payload: unknown = await response.json().catch(() => null);
+            const retryable =
+              isRecord(payload) &&
+              isRecord(payload.error) &&
+              typeof payload.error.retryable === 'boolean'
+                ? payload.error.retryable
+                : undefined;
+            throw Object.assign(new Error(edgePayloadError(payload, response.status)), {
+              retryable
+            });
           }
-          totalBytes = declaredTotal;
-          const requiredUses = Math.ceil(totalBytes / request.grant.maxRangeBytes);
-          if (requiredUses > request.grant.maxUses) throw new Error('PERMISSION_DENIED');
-        } else {
-          if (offset !== 0 || length === null || length > request.grant.maxRangeBytes) {
-            throw new Error('INVALID_RESPONSE');
+          const responseVersion = response.headers.get('x-wishly-source-version');
+          const responseChecksum = response.headers.get('x-wishly-source-checksum');
+          if (!identityKnown) {
+            identityKnown = true;
+            sourceVersion = responseVersion;
+            sourceChecksum = responseChecksum;
+          } else if (sourceVersion !== responseVersion || sourceChecksum !== responseChecksum) {
+            throw new Error('SOURCE_CHANGED');
           }
-          totalBytes = length;
-        }
-        const reader = response.body?.getReader();
-        if (!reader || length === null || length < 1) throw new Error('INVALID_RESPONSE');
-        let responseBytes = 0;
-        while (true) {
+          const length = numericHeader(response.headers.get('content-length'));
+          const range = response.headers.get('content-range');
+          const rangeMatch = range ? /^bytes (\d+)-(\d+)\/(\d+)$/u.exec(range) : null;
+          if (response.status === 206) {
+            if (!rangeMatch || Number(rangeMatch[1]) !== offset)
+              throw new Error('INVALID_RESPONSE');
+            const responseEnd = Number(rangeMatch[2]);
+            const declaredTotal = Number(rangeMatch[3]);
+            if (
+              !Number.isSafeInteger(responseEnd) ||
+              !Number.isSafeInteger(declaredTotal) ||
+              responseEnd < offset ||
+              responseEnd > end ||
+              declaredTotal <= responseEnd ||
+              declaredTotal > MAX_TRANSFER_BYTES ||
+              length !== responseEnd - offset + 1
+            ) {
+              throw new Error(
+                declaredTotal > MAX_TRANSFER_BYTES ? 'TOO_LARGE' : 'INVALID_RESPONSE'
+              );
+            }
+            if (totalBytes !== null && totalBytes !== declaredTotal)
+              throw new Error('SOURCE_CHANGED');
+            totalBytes = declaredTotal;
+            const requiredUses = Math.ceil(totalBytes / request.grant.maxRangeBytes);
+            if (requiredUses > request.grant.maxUses) throw new Error('PERMISSION_DENIED');
+          } else {
+            if (offset !== 0 || length === null || length > request.grant.maxRangeBytes) {
+              throw new Error('INVALID_RESPONSE');
+            }
+            if (totalBytes !== null && totalBytes !== length) throw new Error('SOURCE_CHANGED');
+            totalBytes = length;
+          }
+          reader = response.body?.getReader();
+          if (!reader || length === null || length < 1) throw new Error('INVALID_RESPONSE');
+          let responseBytes = 0;
+          while (true) {
+            throwIfAborted(signal);
+            const { done, value } = await reader.read();
+            if (done) break;
+            responseBytes += value.byteLength;
+            if (
+              responseBytes > request.grant.maxRangeBytes ||
+              responseBytes > length ||
+              offset + responseBytes > MAX_TRANSFER_BYTES
+            ) {
+              await reader.cancel();
+              throw new Error('TOO_LARGE');
+            }
+            await handle.write(
+              value,
+              0,
+              value.byteLength,
+              offset + responseBytes - value.byteLength
+            );
+          }
+          if (responseBytes !== length) throw new Error('INVALID_RESPONSE');
+          offset += responseBytes;
+          request.onProgress?.(offset, totalBytes);
+        } catch (error) {
           throwIfAborted(signal);
-          const { done, value } = await reader.read();
-          if (done) break;
-          responseBytes += value.byteLength;
+          // A failed stream may already have written a prefix. Remove it before replaying this range.
+          await handle.truncate(offset);
+          const remainingUses =
+            totalBytes === null
+              ? 1
+              : Math.ceil((totalBytes - offset) / request.grant.maxRangeBytes);
           if (
-            responseBytes > request.grant.maxRangeBytes ||
-            responseBytes > length ||
-            offset + responseBytes > MAX_TRANSFER_BYTES
+            uses + remainingUses > request.grant.maxUses ||
+            !transientTransferError(error) ||
+            retries >= 4 ||
+            uses >= request.grant.maxUses
           ) {
-            await reader.cancel();
-            throw new Error('TOO_LARGE');
+            throw error instanceof TypeError ? new Error('DRIVE_UNAVAILABLE') : error;
           }
-          await handle.write(value, 0, value.byteLength, offset + responseBytes - value.byteLength);
+          retries += 1;
+          await transferRetryDelay(Math.min(retries, 2) * 1000, signal);
+        } finally {
+          await reader?.cancel().catch(() => undefined);
         }
-        if (responseBytes !== length) throw new Error('INVALID_RESPONSE');
-        offset += responseBytes;
-        request.onProgress?.(offset, totalBytes);
       }
       if (totalBytes === null || totalBytes < 1 || offset !== totalBytes) {
         throw new Error('INVALID_RESPONSE');
@@ -255,7 +302,7 @@ export class TeamTransferClient {
       await handle.close().catch(() => undefined);
     }
     if (!driveFileId) throw new Error('INVALID_RESPONSE');
-    const finalized = await this.#edgeJson(
+    const finalized = await this.#finalizeJson(
       `${baseUrl}/process/output/finalize`,
       {
         operationId: request.operationId,
@@ -300,6 +347,38 @@ export class TeamTransferClient {
     }
   }
 
+  /** Finalization is idempotent for this uploaded file; retries never restart its upload. */
+  async #finalizeJson(url: string, body: unknown, signal: AbortSignal): Promise<unknown> {
+    for (let attempt = 0; ; attempt += 1) {
+      throwIfAborted(signal);
+      try {
+        return await this.#edgeJson(url, body, signal);
+      } catch (error) {
+        throwIfAborted(signal);
+        const code = error instanceof Error ? error.message : '';
+        const retryable = !(
+          error &&
+          typeof error === 'object' &&
+          'retryable' in error &&
+          error.retryable === false
+        );
+        const transportFailure = error instanceof TypeError;
+        if (
+          attempt >= 2 ||
+          !retryable ||
+          (!transportFailure && code !== 'DRIVE_UNAVAILABLE' && code !== 'RATE_LIMITED')
+        )
+          throw error instanceof TypeError ? new Error('DRIVE_UNAVAILABLE') : error;
+        try {
+          await delay((attempt + 1) * 1000, undefined, { signal });
+        } catch (delayError) {
+          throwIfAborted(signal);
+          throw delayError;
+        }
+      }
+    }
+  }
+
   async #edgeJson(url: string, body: unknown, signal: AbortSignal): Promise<unknown> {
     const response = await this.#fetch(url, {
       method: 'POST',
@@ -310,7 +389,13 @@ export class TeamTransferClient {
       signal
     });
     const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(edgePayloadError(payload, response.status));
+    if (!response.ok) {
+      const retryable =
+        isRecord(payload) && isRecord(payload.error) && typeof payload.error.retryable === 'boolean'
+          ? payload.error.retryable
+          : undefined;
+      throw Object.assign(new Error(edgePayloadError(payload, response.status)), { retryable });
+    }
     if (!isRecord(payload) || payload.ok !== true || !('value' in payload)) {
       throw new Error('INVALID_RESPONSE');
     }
@@ -431,4 +516,23 @@ async function edgeError(response: Response) {
 
 function throwIfAborted(signal: AbortSignal) {
   if (signal.aborted) throw signal.reason ?? new Error('PROCESS_CANCELED');
+}
+
+function transientTransferError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'retryable' in error && error.retryable === false)
+    return false;
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error &&
+      (error.message === 'DRIVE_UNAVAILABLE' || error.message === 'RATE_LIMITED'))
+  );
+}
+
+async function transferRetryDelay(ms: number, signal: AbortSignal): Promise<void> {
+  try {
+    await delay(ms, undefined, { signal });
+  } catch (error) {
+    throwIfAborted(signal);
+    throw error;
+  }
 }

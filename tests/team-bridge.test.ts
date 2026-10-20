@@ -252,6 +252,82 @@ describe('team cloud/local transfer bridge', () => {
     expect(await readdir(root)).toEqual([]);
   });
 
+  it.each(['recover', 'changed', 'cancelled', 'permanent', 'exhausted', 'exact-budget'] as const)(
+    'replays only the interrupted source range without corrupting bytes: %s',
+    async mode => {
+      const root = await temporaryRoot();
+      const controller = new AbortController();
+      const requested: string[] = [];
+      const progress: number[] = [];
+      const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
+        requested.push(new Headers(init?.headers).get('range')!);
+        if (mode === 'exhausted') throw new TypeError('terminated');
+        if (mode === 'permanent')
+          return new Response(
+            JSON.stringify({
+              error: {
+                code: 'DRIVE_UNAVAILABLE',
+                retryable: false
+              }
+            }),
+            { status: 503 }
+          );
+        const first = requested.length === 1;
+        if (first && mode === 'cancelled')
+          setTimeout(() => controller.abort(new Error('PROCESS_CANCELED')), 10);
+        let pulls = 0;
+        const body = first
+          ? new ReadableStream<Uint8Array>({
+              pull(stream) {
+                if (pulls++ === 0) stream.enqueue(new TextEncoder().encode('ab'));
+                else stream.error(new TypeError('terminated'));
+              }
+            })
+          : new TextEncoder().encode(requested.at(-1) === 'bytes=0-3' ? 'abcd' : 'efgh');
+        const start = requested.at(-1) === 'bytes=0-3' ? 0 : 4;
+        return new Response(body, {
+          status: 206,
+          headers: {
+            'content-range': `bytes ${start}-${start + 3}/8`,
+            'content-length': '4',
+            'x-wishly-source-version': mode === 'changed' && !first ? 'v2' : 'v1',
+            'x-wishly-source-checksum': 'same-source'
+          }
+        });
+      });
+      const client = new TeamTransferClient({ fetchImpl, temporaryRoot: root });
+      const result = client.downloadSource(
+        {
+          operationId: 'source-retry',
+          transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
+          grant: { ...grant(), maxUses: mode === 'exact-budget' ? 2 : 8 },
+          onProgress: bytes => progress.push(bytes)
+        },
+        controller.signal
+      );
+      if (mode === 'recover') {
+        const downloaded = await result;
+        expect(await readFile(downloaded.file, 'utf8')).toBe('abcdefgh');
+        expect(progress).toEqual([4, 8]);
+        expect(downloaded.sourceVersion).toBe('v1');
+        expect(requested).toEqual(['bytes=0-3', 'bytes=0-3', 'bytes=4-7']);
+        await downloaded.cleanup();
+      } else {
+        await expect(result).rejects.toThrow(
+          mode === 'changed'
+            ? 'SOURCE_CHANGED'
+            : mode === 'cancelled'
+              ? 'PROCESS_CANCELED'
+              : 'DRIVE_UNAVAILABLE'
+        );
+        expect(requested).toHaveLength(mode === 'exhausted' ? 5 : mode === 'changed' ? 2 : 1);
+        expect(progress).toEqual([]);
+      }
+      expect(await readdir(root)).toEqual([]);
+    },
+    20_000
+  );
+
   it('resends the unacknowledged suffix after a partial upload and finalizes exactly once', async () => {
     const root = await temporaryRoot();
     const output = path.join(root, 'output.bin');
@@ -315,6 +391,111 @@ describe('team cloud/local transfer bridge', () => {
       fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/process/output/finalize'))
     ).toHaveLength(1);
   });
+
+  it.each([
+    'transient',
+    'rate-limited',
+    'transport',
+    'permanent',
+    'exhausted',
+    'cancelled'
+  ] as const)(
+    'retries only the identical finalize request: %s',
+    async mode => {
+      const root = await temporaryRoot();
+      const output = path.join(root, 'finalize.bin');
+      await writeFile(output, 'result');
+      const controller = new AbortController();
+      const finalBodies: unknown[] = [];
+      let uploads = 0;
+      let starts = 0;
+      const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+        const url = String(input);
+        if (url.endsWith('/start')) {
+          starts += 1;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              value: {
+                sessionUri: 'https://www.googleapis.com/upload/result',
+                chunkMultiple: 256 * 1024
+              }
+            })
+          );
+        }
+        if (url.startsWith('https://www.googleapis.com/')) {
+          uploads += 1;
+          return new Response(JSON.stringify({ id: 'same-drive-file' }));
+        }
+        finalBodies.push(JSON.parse(String(init?.body)));
+        if (mode === 'cancelled')
+          setTimeout(() => controller.abort(new Error('PROCESS_CANCELED')), 10);
+        if (mode === 'transport' && finalBodies.length === 1) throw new TypeError('fetch failed');
+        if (
+          mode === 'permanent' ||
+          mode === 'exhausted' ||
+          mode === 'cancelled' ||
+          ((mode === 'transient' || mode === 'rate-limited') && finalBodies.length === 1)
+        ) {
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error: {
+                code: mode === 'rate-limited' ? 'RATE_LIMITED' : 'DRIVE_UNAVAILABLE',
+                retryable: mode !== 'permanent'
+              }
+            }),
+            { status: 503 }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            value: {
+              operationId: 'same-operation',
+              state: 'succeeded',
+              materialId: 'material',
+              reused: true
+            }
+          })
+        );
+      });
+      const client = new TeamTransferClient({ fetchImpl });
+      const result = client.uploadResult(
+        {
+          operationId: 'same-operation',
+          cloudBaseUrl: 'https://project.supabase.co/functions/v1/drive-ops',
+          finalizeGrant: grant('finalize'),
+          file: output,
+          mimeType: 'video/mp4',
+          sizeBytes: 6
+        },
+        controller.signal
+      );
+      if (mode === 'transient' || mode === 'rate-limited' || mode === 'transport')
+        await expect(result).resolves.toMatchObject({ state: 'succeeded' });
+      else
+        await expect(result).rejects.toThrow(
+          mode === 'cancelled' ? 'PROCESS_CANCELED' : 'DRIVE_UNAVAILABLE'
+        );
+      expect(starts).toBe(1);
+      expect(uploads).toBe(1);
+      expect(finalBodies).toHaveLength(
+        mode === 'exhausted'
+          ? 3
+          : mode === 'transient' || mode === 'rate-limited' || mode === 'transport'
+            ? 2
+            : 1
+      );
+      for (const body of finalBodies)
+        expect(body).toEqual({
+          operationId: 'same-operation',
+          ticket: grant('finalize').ticket,
+          driveFileId: 'same-drive-file'
+        });
+    },
+    15_000
+  );
 
   it('sends a separate short-lived quiescence receipt after a canceled upload', async () => {
     const fetchImpl = vi
@@ -778,6 +959,26 @@ describe('team processing orchestration and SSE state', () => {
     await expect(bridge.process({ ...processRequest(), toolId: 'restitch' })).rejects.toThrow();
     expect(order).toEqual(['upload', 'quiesced']);
     expect(transfer.ackUploadQuiescence).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    'RESTITCH_SCREEN_UNAVAILABLE',
+    'RESTITCH_SCREEN_FETCH_FAILED',
+    'RESTITCH_SCREEN_UNSUPPORTED'
+  ])('preserves the actionable screen preparation failure %s', async code => {
+    const events = new TeamOperationEvents();
+    const bridge = new TeamProcessBridge({
+      events,
+      transfer: {
+        downloadSource: async () => {
+          throw new Error(code);
+        },
+        uploadResult: vi.fn()
+      },
+      delegates: { compressor: vi.fn() }
+    });
+    await expect(bridge.process(processRequest())).rejects.toThrow(code);
+    expect(events.snapshot().operations[0]).toMatchObject({ state: 'failed', errorCode: code });
   });
 
   it.each(['provider token=secret https://example.invalid/ /private/path', 'PRIVATE_CAPI_SECRET'])(

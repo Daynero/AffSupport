@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useCallback, useId, useRef } from 'react';
 import { useI18n } from '../../i18n';
 import { Modal } from '../../components/Modal';
 import { SpaceSettings, type SpaceSettingsClient } from './SpaceSettings';
@@ -15,6 +15,7 @@ export function SettingsDialog({
   client,
   health,
   initialTab,
+  nested = false,
   onTabChange,
   onClose
 }: {
@@ -22,13 +23,26 @@ export function SettingsDialog({
   client: SpaceSettingsClient;
   health?: StorageHealth | null;
   initialTab?: TeamSettingsTab | null;
+  nested?: boolean;
   onTabChange?: (tab: TeamSettingsTab) => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
   const titleId = useId();
+  const closeGuard = useRef<() => boolean>(() => true);
+  const registerGuard = useCallback((guard: () => boolean) => {
+    closeGuard.current = guard;
+  }, []);
   return (
-    <Modal labelledBy={titleId} size="xl" onClose={onClose} className="team-settings-dialog">
+    <Modal
+      labelledBy={titleId}
+      nested={nested}
+      size="xl"
+      onClose={() => {
+        if (closeGuard.current()) onClose();
+      }}
+      className="team-settings-dialog"
+    >
       <span id={titleId} className="visually-hidden">
         {t('teamSpaceSettings')}
       </span>
@@ -38,6 +52,7 @@ export function SettingsDialog({
         health={health}
         initialTab={initialTab}
         onTabChange={onTabChange}
+        onBeforeCloseChange={registerGuard}
         onBack={onClose}
       />
     </Modal>

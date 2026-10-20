@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ImageEmbeddingSettings } from '../packages/shared/src/types.js';
 import type { TeamRestitchDefaults } from '../packages/shared/src/team/restitch.js';
 import { createRestitchDelegate } from '../apps/agent/src/team-bridge/restitch.js';
+import type { ToolResult, runTool as runToolType } from '../apps/agent/src/stitcher/run.js';
+import { diagnostics } from '../apps/agent/src/server/diagnostics-log.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 /**
@@ -19,6 +21,11 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const probeSource = vi.hoisted(() => vi.fn());
 const detectStitching = vi.hoisted(() => vi.fn());
+const runTool = vi.hoisted(() => vi.fn<typeof runToolType>());
+vi.mock('../apps/agent/src/stitcher/run.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../apps/agent/src/stitcher/run.js')>();
+  return { ...actual, runTool };
+});
 
 vi.mock('../apps/agent/src/stitcher/probe.js', () => ({ probeSource }));
 vi.mock('../apps/agent/src/stitcher/plan.js', async importOriginal => {
@@ -146,6 +153,7 @@ function run(input: string, options: unknown, signal = new AbortController().sig
 
 beforeEach(async () => {
   workspace = await mkdtemp(path.join(os.tmpdir(), 'restitch-delivery-'));
+  runTool.mockReset();
   probeSource.mockReset();
   detectStitching.mockReset();
   staging.mockClear();
@@ -289,4 +297,81 @@ describe('the photos a space draws from', () => {
 /** Keeps the workspace tidy even when a test throws before its own cleanup. */
 afterEach(async () => {
   await rm(path.join(workspace, 'result.mp4'), { force: true }).catch(() => undefined);
+});
+
+describe('automatic source end-frame safety', () => {
+  const exit = (code: number): ToolResult => ({
+    code,
+    stdout: '',
+    stderr: '',
+    spawnErrorCode: null,
+    cancelled: false
+  });
+  it.each([false, true])(
+    'does not enter stitching after extraction fails (cancelled=%s)',
+    async cancelled => {
+      const input = await source();
+      const journal = vi.spyOn(diagnostics, 'record').mockReturnValue(true);
+      const controller = new AbortController();
+      if (cancelled) controller.abort();
+      runTool.mockResolvedValue(exit(1));
+      await expect(
+        run(
+          input,
+          { defaults: { ...defaults, automaticEndFrame: true }, prepared: null },
+          controller.signal
+        )
+      ).rejects.toThrow(cancelled ? 'PROCESS_CANCELED' : 'PROCESS_FAILED');
+      expect(staging).not.toHaveBeenCalled();
+      expect(journal).toHaveBeenCalledWith('stitcher', 'automatic_frame_failed', {
+        runId: 'op-1',
+        cancelled
+      });
+      expect(journal.mock.calls.some(([, code]) => code === 'automatic_frame_completed')).toBe(
+        false
+      );
+    }
+  );
+  it.each(['absent', 'empty'] as const)(
+    'refuses an extraction success receipt with an %s image',
+    async state => {
+      const input = await source();
+      const journal = vi.spyOn(diagnostics, 'record').mockReturnValue(true);
+      runTool.mockImplementation(async () => {
+        if (state === 'empty') await writeFile(path.join(workspace, 'launch-end-frame.png'), '');
+        return exit(0);
+      });
+      await expect(
+        run(input, { defaults: { ...defaults, automaticEndFrame: true }, prepared: null })
+      ).rejects.toThrow('PROCESS_FAILED');
+      expect(staging).not.toHaveBeenCalled();
+      expect(journal).toHaveBeenCalledWith('stitcher', 'automatic_frame_failed', {
+        runId: 'op-1',
+        cancelled: false
+      });
+    }
+  );
+  it.each([0, 30])(
+    'hands the extracted frame to stitching with bounded decoding for detected end %ss',
+    async endSeconds => {
+      const input = await source();
+      detectStitching.mockResolvedValue({ startSeconds: 0, endSeconds, adjustedByUser: false });
+      const journal = vi.spyOn(diagnostics, 'record').mockReturnValue(true);
+      runTool.mockImplementation(async () => {
+        await writeFile(path.join(workspace, 'launch-end-frame.png'), 'frame-bytes');
+        return exit(0);
+      });
+      await run(input, { defaults: { ...defaults, automaticEndFrame: true }, prepared: null });
+      const args = runTool.mock.calls[0]?.[1];
+      expect(args).toContain(endSeconds ? '-frames:v' : '-update');
+      expect(args).not.toContain(endSeconds ? '-update' : '-frames:v');
+      expect(staging.mock.calls[0]?.[0].request.screens).toMatchObject({
+        startImageId: null,
+        endImageId: 'launch-source-end-frame'
+      });
+      expect(journal).toHaveBeenCalledWith('stitcher', 'automatic_frame_completed', {
+        runId: 'op-1'
+      });
+    }
+  );
 });
