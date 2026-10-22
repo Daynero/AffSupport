@@ -33,6 +33,19 @@
    ============================================================ */
 
 :root {
+  /* Workspace introduction: reference composition at 85% of its original size. */
+  --showcase-unit: clamp(0.5525px, 0.074184cqw, 0.85px);
+  --text-showcase-title: calc(72 * var(--showcase-unit));
+  --text-showcase-lead: calc(32 * var(--showcase-unit));
+  --text-showcase-heading: calc(38 * var(--showcase-unit));
+  --text-showcase-price: calc(40 * var(--showcase-unit));
+  --text-showcase-feature: calc(24 * var(--showcase-unit));
+  --text-showcase-detail: calc(22 * var(--showcase-unit));
+  --text-showcase-small: calc(20 * var(--showcase-unit));
+  --text-showcase-action: calc(26 * var(--showcase-unit));
+  --radius-showcase-panel: calc(26 * var(--showcase-unit));
+  --radius-showcase-plan: calc(18 * var(--showcase-unit));
+
   color-scheme: light;
 
   /* ---- Palette (private) --------------------------------------------------

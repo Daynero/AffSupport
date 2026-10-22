@@ -35,7 +35,8 @@ export function ContactAdminButton({
   variant = 'solid',
   size = 'md',
   icon = true,
-  className
+  className,
+  directTelegram = false
 }: {
   contact: AdminContact | null | undefined;
   /** The text the administrator receives, already in the reader's language. */
@@ -48,6 +49,8 @@ export function ContactAdminButton({
   size?: UiSize;
   icon?: boolean;
   className?: string;
+  /** Open the prepared Telegram draft directly instead of the channel picker. */
+  directTelegram?: boolean;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -77,10 +80,17 @@ export function ContactAdminButton({
         variant={variant}
         size={size}
         className={className}
-        aria-haspopup="dialog"
-        aria-expanded={open}
+        aria-haspopup={directTelegram && links.telegram ? undefined : 'dialog'}
+        aria-expanded={directTelegram && links.telegram ? undefined : open}
         leading={icon ? <MessageCircle size={ICON_SIZE} strokeWidth={ICON_STROKE} /> : undefined}
-        onClick={() => setOpen(current => !current)}
+        onClick={() => {
+          if (directTelegram && links.telegram) {
+            window.open(links.telegram, '_blank', 'noopener,noreferrer');
+            onContact?.('telegram');
+            return;
+          }
+          setOpen(current => !current);
+        }}
       >
         {label ?? t('tariffContactAdmin')}
       </Button>

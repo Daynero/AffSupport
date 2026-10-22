@@ -1,43 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  CheckCircle2,
-  Copy,
-  FolderOpen,
-  ListChecks,
-  RefreshCw,
-  UserPlus,
-  Users,
-  Wallet
-} from 'lucide-react';
+import { Check, Hexagon, FolderOpen, ListChecks, RefreshCw, UserPlus, Wallet } from 'lucide-react';
 import type {
   SpaceAccess,
   SpaceAccessInvitation,
-  TariffContactChannel,
-  TariffPlan
+  TariffContactChannel
 } from '@video-compressor/shared';
 import { analytics } from '../../analytics/service';
 import { useToasts } from '../../components/toast';
-import { Alert, Button, Card, IconButton, RadioGroup } from '../../components/ui/index';
+import { Alert, Button, Card, RadioGroup } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
+import { supportConfig } from '../../lib/support';
 import { ContactAdminButton } from './ContactAdminButton';
-import { copyText } from './contactLinks';
-import { formatTariffMoment } from './format';
-
-/**
- * The showcase (034, US7): what a space is, for someone who does not have one.
- *
- * A page, not a modal — it is where `/team` leads for this person, and a page
- * can be read, linked and come back to. One action on it: write to the
- * administrator. Choosing where to write is the request (US7.3), and the page
- * then says what was asked and when, with a way to write again.
- *
- * An invitation outranks all of it (US7.4): accepted, it opens a space without
- * a tariff of one's own, so it is the first thing on the page.
- *
- * No prices, anywhere (FR-011): a plan is its name, its words and its seats.
- */
 
 export interface SpaceShowcaseClient {
   joinWaitlist: (plan: string | null, channel: TariffContactChannel | null) => Promise<boolean>;
@@ -48,13 +23,12 @@ const FEATURES: ReadonlyArray<{ key: TranslationKey; icon: typeof FolderOpen }> 
   { key: 'tariffShowcaseFeatureExplorer', icon: FolderOpen },
   { key: 'tariffShowcaseFeatureTasks', icon: ListChecks },
   { key: 'tariffShowcaseFeatureFinance', icon: Wallet },
-  { key: 'tariffShowcaseFeatureUpdater', icon: RefreshCw },
-  { key: 'tariffShowcaseFeaturePeople', icon: Users }
+  { key: 'tariffShowcaseFeatureUpdater', icon: RefreshCw }
 ];
 
 export function SpaceShowcase({
   access,
-  email: emailFallback,
+  email: _email,
   client,
   onAccepted
 }: {
@@ -64,22 +38,14 @@ export function SpaceShowcase({
   client: SpaceShowcaseClient;
   onAccepted: (teamId: string) => void;
 }) {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const { push } = useToasts();
   const showcase = access.showcase;
   const plans = showcase?.plans ?? [];
-  const email = showcase?.email || emailFallback || '';
-  const request = showcase?.request ?? null;
 
-  const [plan, setPlan] = useState<string | null>(
-    () =>
-      plans.find(item => item.code === request?.planInterest)?.code ??
-      plans.find(item => item.highlight)?.code ??
-      plans[0]?.code ??
-      null
+  const [plan, setPlan] = useState<string>(
+    () => plans.find(item => item.code === 'solo')?.code ?? 'solo'
   );
-  // What this tab sent; the server's record wins once the next poll brings it.
-  const [sent, setSent] = useState<{ plan: string | null; at: string } | null>(null);
   const [accepting, setAccepting] = useState<string | null>(null);
 
   const viewed = useRef(false);
@@ -89,27 +55,19 @@ export function SpaceShowcase({
     analytics.track('space_showcase_viewed', { screen_identifier: 'space_showcase' });
   }, []);
 
-  const selected = plans.find(item => item.code === plan) ?? null;
-  const name = (value: TariffPlan | null) =>
-    value ? (language === 'uk' ? value.nameUk : value.nameEn) : '';
+  const isSolo = plan === 'solo';
 
-  const message = selected
-    ? t('tariffMessageWant', { plan: name(selected), email })
-    : t('tariffMessageWantSpace', { email });
-
-  const requested =
-    sent ??
-    (request?.lastContactAt ? { plan: request.planInterest, at: request.lastContactAt } : null);
-  const requestedPlan = plans.find(item => item.code === requested?.plan) ?? null;
+  const message = t('tariffShowcaseMessage', {
+    plan: t(isSolo ? 'tariffShowcaseSolo' : 'tariffShowcaseTeam'),
+    price: t(isSolo ? 'tariffShowcaseSoloPrice' : 'tariffShowcaseTeamPrice')
+  });
 
   const contacted = (channel: TariffContactChannel) => {
     analytics.track('space_contact_clicked', {
       feature_identifier: plan ?? 'none',
       input_method: channel
     });
-    setSent({ plan, at: new Date().toISOString() });
-    // Recorded quietly: the message has already left through the channel the
-    // person chose, and a failed note on our side is not theirs to fix.
+    // Record the chosen handoff; opening a channel does not prove delivery.
     void client.joinWaitlist(plan, channel).catch(() => undefined);
   };
 
@@ -126,28 +84,41 @@ export function SpaceShowcase({
     }
   };
 
-  const copyEmail = async () => {
-    const copied = await copyText(email);
-    push({
-      tone: copied ? 'success' : 'error',
-      text: t(copied ? 'tariffEmailCopied' : 'tariffContactCopyFailed')
-    });
-  };
-
   const planOptions = useMemo(
     () =>
-      plans.map(item => ({
-        value: item.code,
-        label: name(item),
-        description: [
-          language === 'uk' ? item.summaryUk : item.summaryEn,
-          t('tariffPlanSeats', { count: item.baseSeats })
-        ]
-          .filter(Boolean)
-          .join(' · ')
+      [
+        { value: 'solo', solo: true },
+        { value: plans.find(item => item.code !== 'solo')?.code ?? 'lead', solo: false }
+      ].map(item => ({
+        value: item.value,
+        label: (
+          <span className="tariff-plan-heading">
+            <span>{t(item.solo ? 'tariffShowcaseSolo' : 'tariffShowcaseTeam')}</span>
+            <span className="tariff-plan-price">
+              {!item.solo && <small>{t('tariffShowcaseFrom')} </small>}
+              <strong>{item.solo ? '$20' : '$30'}</strong>{' '}
+              <small>/ {t('tariffShowcaseMonth')}</small>
+            </span>
+            <span className="tariff-plan-indicator" aria-hidden="true">
+              {plan === item.value && <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+            </span>
+          </span>
+        ),
+        description: (
+          <span className="tariff-plan-details">
+            <span>
+              {t(item.solo ? 'tariffShowcaseSoloDescription' : 'tariffShowcaseTeamDescription')}
+            </span>
+            <span>{t(item.solo ? 'tariffShowcaseSoloSeats' : 'tariffShowcaseTeamSeats')}</span>
+            {!item.solo && (
+              <span>
+                {t('tariffShowcaseExtraSeat')} <strong>+$5 / {t('tariffShowcaseMonth')}.</strong>
+              </span>
+            )}
+          </span>
+        )
       })),
-    // `name` reads `language`, which is in the list.
-    [plans, language, t]
+    [plans, plan, t]
   );
 
   return (
@@ -182,29 +153,34 @@ export function SpaceShowcase({
         </div>
       )}
 
-      <Card role="panel" className="tariff-showcase-card">
-        <div className="tariff-showcase-hero">
-          <img className="tariff-showcase-art" src="/workspace-banner.png" alt="" />
-          <div className="flex flex-col gap-2">
-            <h1 id="tariff-showcase-title" className="tariff-showcase-title">
-              {t('tariffShowcaseTitle')}
-            </h1>
-            <p className="text-ink-muted prose">{t('tariffShowcaseLead')}</p>
+      <Card role="surface" className="tariff-showcase-card">
+        <div className="tariff-showcase-intro">
+          <div className="tariff-showcase-brand">
+            <Hexagon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <span>SOTY</span>
           </div>
+          <h1 id="tariff-showcase-title" className="tariff-showcase-title">
+            {t('tariffShowcaseTitle')}
+          </h1>
+          <p className="tariff-showcase-lead">{t('tariffShowcaseLead').replace(' — ', ' —\n')}</p>
+          <ul className="tariff-feature-list">
+            {FEATURES.map(feature => (
+              <li key={feature.key} className="tariff-feature">
+                <span className="tariff-feature-icon" aria-hidden="true">
+                  <feature.icon size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                </span>
+                <span>
+                  <strong>{t(feature.key)}</strong>
+                  <span className="tariff-feature-description">
+                    {t(`${feature.key}Description` as TranslationKey)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
-
-        <ul className="tariff-feature-list">
-          {FEATURES.map(feature => (
-            <li key={feature.key} className="tariff-feature">
-              <span className="tariff-feature-icon" aria-hidden="true">
-                <feature.icon size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-              </span>
-              <span>{t(feature.key)}</span>
-            </li>
-          ))}
-        </ul>
-
-        {planOptions.length > 0 && (
+        <div className="tariff-showcase-offer">
+          <h2>{t('tariffShowcasePlans')}</h2>
           <RadioGroup
             variant="cards"
             label={t('tariffShowcasePlans')}
@@ -213,56 +189,22 @@ export function SpaceShowcase({
             onChange={setPlan}
             className="tariff-plan-choice"
           />
-        )}
-
-        {requested ? (
-          <div className="tariff-showcase-sent" role="status">
-            <CheckCircle2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            <p className="prose">
-              {requestedPlan
-                ? t('tariffShowcaseSent', {
-                    plan: name(requestedPlan),
-                    date: formatTariffMoment(requested.at, language),
-                    email
-                  })
-                : t('tariffShowcaseSentNoPlan', {
-                    date: formatTariffMoment(requested.at, language),
-                    email
-                  })}
-            </p>
-            <ContactAdminButton
-              contact={showcase?.contact}
-              message={message}
-              subject={t('tariffMessageSubject')}
-              label={t('tariffShowcaseWriteAgain')}
-              color="neutral"
-              variant="outline"
-              onContact={contacted}
-            />
-          </div>
-        ) : (
-          <div className="tariff-showcase-action">
-            <p className="tariff-showcase-email text-caption text-ink-muted">
-              {t('tariffShowcaseOpensOn', { email })}
-              {email && (
-                <IconButton
-                  label={t('tariffCopyEmail')}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void copyEmail()}
-                >
-                  <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                </IconButton>
-              )}
-            </p>
-            <ContactAdminButton
-              contact={showcase?.contact}
-              message={message}
-              subject={t('tariffMessageSubject')}
-              onContact={contacted}
-            />
-          </div>
-        )}
+          <ContactAdminButton
+            contact={{
+              ...showcase?.contact,
+              telegram: supportConfig.spaceAdminTelegram,
+              email: showcase?.contact.email ?? null
+            }}
+            directTelegram
+            message={message}
+            subject={t('tariffMessageSubject')}
+            onContact={contacted}
+            icon={false}
+            size="lg"
+            className="tariff-showcase-contact"
+          />
+          <p className="tariff-showcase-note">{t('tariffShowcaseContactNote')}</p>
+        </div>
       </Card>
     </section>
   );

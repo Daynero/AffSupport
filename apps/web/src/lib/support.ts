@@ -12,6 +12,9 @@ export type CryptoWallet = {
 };
 
 export const supportConfig = {
+  // Workspace subscription enquiries: opens a draft, never sends it.
+  spaceAdminTelegram: 'Roma_mbuyer',
+
   // Email that receives feedback messages. Used to build a mailto: link.
   // Leave empty to hide the message form until it is ready.
   email: 'Soty.support@gmail.com',

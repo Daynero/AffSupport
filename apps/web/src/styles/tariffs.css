@@ -153,3 +153,208 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+/* Scale the reference's typography and spacing as one composition. */
+.tariff-showcase {
+  container-type: inline-size;
+  width: min(85%, 1145.8px);
+}
+.tariff-showcase .tariff-showcase-card {
+  grid-template-columns: minmax(0, 544fr) minmax(0, 650fr);
+  gap: calc(60 * var(--showcase-unit));
+  min-height: calc(800 * var(--showcase-unit));
+  padding: calc(48 * var(--showcase-unit)) calc(28 * var(--showcase-unit))
+    calc(48 * var(--showcase-unit)) calc(64 * var(--showcase-unit));
+  border-radius: var(--radius-showcase-panel);
+  background: var(--color-neutral-surface-subtle);
+  box-shadow: none;
+}
+.tariff-showcase-brand {
+  display: flex;
+  align-items: center;
+  gap: calc(24 * var(--showcase-unit));
+  height: calc(32 * var(--showcase-unit));
+  color: var(--color-secondary-text);
+  font-size: var(--text-showcase-small);
+  letter-spacing: 0.25em;
+  font-weight: var(--weight-heading);
+}
+.tariff-showcase-brand svg {
+  width: calc(32 * var(--showcase-unit));
+  height: calc(32 * var(--showcase-unit));
+  color: var(--color-primary-solid);
+}
+.tariff-showcase .tariff-showcase-title {
+  max-width: 9em;
+  margin: calc(24 * var(--showcase-unit)) 0 calc(16 * var(--showcase-unit));
+  font-size: var(--text-showcase-title);
+  line-height: 0.9;
+  letter-spacing: -0.025em;
+  font-weight: var(--weight-heading);
+}
+.tariff-showcase-lead {
+  margin: 0;
+  max-width: 32ch;
+  white-space: pre-line;
+  color: var(--color-text-muted);
+  font-size: var(--text-showcase-lead);
+  line-height: 1.25;
+}
+.tariff-showcase .tariff-feature-list {
+  grid-template-columns: 1fr;
+  gap: calc(35 * var(--showcase-unit));
+  margin-top: calc(43 * var(--showcase-unit));
+}
+.tariff-showcase .tariff-feature {
+  gap: calc(60 * var(--showcase-unit));
+  align-items: flex-start;
+  font-size: var(--text-showcase-feature);
+  line-height: 1.3;
+}
+.tariff-showcase .tariff-feature-icon {
+  width: calc(50 * var(--showcase-unit));
+  height: calc(50 * var(--showcase-unit));
+  background: none;
+  color: var(--color-secondary-solid);
+}
+.tariff-showcase .tariff-feature-icon svg {
+  width: 100%;
+  height: 100%;
+}
+.tariff-feature-description {
+  display: block;
+  margin-top: calc(6 * var(--showcase-unit));
+  color: var(--color-text-muted);
+  font-size: var(--text-showcase-detail);
+  line-height: 1.4;
+}
+.tariff-showcase-offer {
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(16 * var(--showcase-unit));
+  min-width: 0;
+}
+.tariff-showcase-offer h2 {
+  margin: 0 0 calc(24 * var(--showcase-unit)) calc(10 * var(--showcase-unit));
+  font-size: var(--text-showcase-heading);
+  line-height: 1.2;
+  font-weight: var(--weight-heading);
+}
+.tariff-showcase .tariff-plan-choice {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  gap: calc(18 * var(--showcase-unit));
+}
+.tariff-plan-choice .ui-radio {
+  position: relative;
+  min-height: calc(194 * var(--showcase-unit));
+  padding: calc(30 * var(--showcase-unit));
+  border-radius: var(--radius-showcase-plan);
+  border-width: 2px;
+}
+.tariff-plan-choice .ui-radio + .ui-radio {
+  min-height: calc(228 * var(--showcase-unit));
+}
+.tariff-plan-choice .ui-radio input {
+  position: absolute;
+  opacity: 0;
+}
+.tariff-plan-choice .ui-radio:focus-within {
+  outline: 2px solid var(--color-secondary-solid);
+  outline-offset: 3px;
+}
+.tariff-plan-choice .ui-radio-copy {
+  width: 100%;
+  gap: calc(18 * var(--showcase-unit));
+}
+.tariff-plan-heading {
+  display: flex;
+  align-items: center;
+  gap: calc(24 * var(--showcase-unit));
+  font-size: var(--text-showcase-heading);
+  line-height: 1.2;
+}
+.tariff-plan-price {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.tariff-plan-price strong {
+  font-size: var(--text-showcase-price);
+}
+.tariff-plan-price small {
+  font-size: var(--text-showcase-small);
+  font-weight: var(--weight-body);
+  color: var(--color-text-muted);
+}
+.tariff-plan-indicator {
+  display: grid;
+  place-items: center;
+  width: calc(44 * var(--showcase-unit));
+  height: calc(44 * var(--showcase-unit));
+  flex: none;
+  border: 2px solid var(--color-neutral-border);
+  border-radius: var(--radius-full);
+}
+.tariff-plan-indicator svg {
+  width: 70%;
+  height: 70%;
+}
+.is-selected .tariff-plan-indicator {
+  background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
+  border-color: var(--color-secondary-solid);
+}
+.tariff-plan-details {
+  display: grid;
+  gap: calc(2 * var(--showcase-unit));
+  font-size: var(--text-showcase-detail);
+  line-height: 1.4;
+}
+.tariff-plan-details strong {
+  color: var(--color-text);
+}
+.tariff-showcase .tariff-showcase-contact {
+  width: 100%;
+  min-height: calc(80 * var(--showcase-unit));
+  margin-top: calc(28 * var(--showcase-unit));
+  border-radius: var(--radius-showcase-plan);
+  font-size: var(--text-showcase-action);
+  font-weight: var(--weight-heading);
+}
+.tariff-showcase-note {
+  margin: calc(22 * var(--showcase-unit)) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-showcase-detail);
+  line-height: 1.4;
+}
+@container (max-width: 760px) {
+  .tariff-showcase .tariff-showcase-card {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--space-6);
+    min-height: auto;
+    gap: calc(var(--space-6) * 2);
+  }
+  .tariff-showcase .tariff-feature-list {
+    gap: var(--space-6);
+    margin-top: var(--space-6);
+  }
+  .tariff-showcase .tariff-feature {
+    gap: var(--space-5);
+  }
+  .tariff-showcase-offer {
+    padding-top: 0;
+  }
+  .tariff-showcase-offer h2 {
+    margin-left: 0;
+  }
+  .tariff-plan-heading {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .tariff-plan-price {
+    font-size: var(--text-showcase-small);
+  }
+  .tariff-plan-choice .ui-radio {
+    padding: var(--space-4);
+  }
+}

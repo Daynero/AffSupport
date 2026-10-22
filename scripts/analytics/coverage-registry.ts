@@ -1222,7 +1222,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     terminal: [{ event: 'space_tariff_granted', correlate: 'none' }],
     platforms: BOTH,
     unobservable: [
-      'the conversation with the administrator outside Soty (Telegram, mail)',
+      'unsent plan selection; external message sending, delivery and conversation (Telegram, mail)',
       'payment, which happens outside the product',
       'Tariff recovery is incomplete: recurring schedules restore server-side, but a restored interval does not prove first worker start, output or browser delivery. One-off checkpoints, background agent delegation and correlated recovery diagnosis remain unverified (034 T033–T038 / 036).'
     ],

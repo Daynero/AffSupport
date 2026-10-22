@@ -249,3 +249,21 @@ capability та автоматичні regression/contract checks залишаю
 `verify:release`, пакування, exact-SHA packaged beta та релізна LIFE/LOAD кампанія відкладені
 до підготовки релізу (T044), не виконуються зараз і не позначаються PASS.
 Це не послаблює production promotion gates. Production не змінювався.
+
+### Subscription showcase refresh
+
+The unsubscribed workspace uses a responsive two-column panel with four feature
+summaries, Solo ($20/month, one seat) and Team (from $30/month, two seats,
++$5/month per additional seat). Solo is selected on entry. Full-card radio
+activation and keyboard selection are exclusive and preserve card dimensions.
+The Team presentation retains the existing server plan code; this screen does
+not grant access or change billing/activation rules. The contact action prepares
+the selected name and price in a Telegram draft addressed to @Roma_mbuyer, without sending.
+
+Diagnostic acceptance reuses `space_showcase_viewed` → `space_contact_clicked`
+(plan code + channel) → the existing administrator grant evidence. Merely opening
+the picker is not a contact. Switching plans without contacting is ephemeral;
+external sending, delivery, conversation and payment remain unobservable. No
+message contents or email are collected. The plan regression verifies default,
+exclusive switching, current price in the prepared message and no waitlist write
+before contact activation. The regression also verifies the Telegram recipient and both draft prices. Mobile stacks the offer beneath the introduction.
