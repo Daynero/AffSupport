@@ -33,6 +33,9 @@ export async function prepareCatalogRestitch(input: {
   defaults: TeamRestitchDefaults;
   durationMode: FinalImageDurationMode;
   customSeconds: number | null;
+  /** Explicit UI bounds, frozen to one exact duration before handing the job to the agent. */
+  durationRangeSeconds?: readonly [number, number];
+  random?: () => number;
   catalogKey: string;
   processKey?: string;
   previous?: CatalogRestitchReceipt | null;
@@ -48,13 +51,29 @@ export async function prepareCatalogRestitch(input: {
     | 'cancelOperation'
   >;
 }): Promise<CatalogRestitchReceipt> {
-  const { teamId, video, durationMode, customSeconds, client } = input;
+  const { teamId, video, durationMode, customSeconds, durationRangeSeconds, client } = input;
   const defaults = structuredClone(input.defaults);
-  const choice = JSON.stringify({ durationMode, customSeconds, defaults });
+  const choice = JSON.stringify({
+    durationMode,
+    customSeconds,
+    defaults,
+    ...(durationRangeSeconds ? { durationRangeSeconds } : {})
+  });
+  if (
+    durationRangeSeconds &&
+    (durationMode !== 'random-centered' ||
+      !Array.isArray(durationRangeSeconds) ||
+      durationRangeSeconds.length !== 2 ||
+      !durationRangeSeconds.every(
+        n => Number.isInteger(n) && n >= 60 && n <= 3600 && n % 60 === 0
+      ) ||
+      durationRangeSeconds[0] > durationRangeSeconds[1])
+  )
+    throw new Error('RESTITCH_DEFAULTS_INVALID');
   const previous = input.checkpoint ? await input.checkpoint.completed(choice) : input.previous;
   if (previous?.choice === choice) return previous;
   if (
-    durationMode === 'custom' &&
+    (durationMode === 'custom' || (durationMode === 'random-centered' && !durationRangeSeconds)) &&
     (!Number.isInteger(customSeconds) ||
       customSeconds === null ||
       customSeconds < 1 ||
@@ -95,11 +114,21 @@ export async function prepareCatalogRestitch(input: {
     catalogKey: input.catalogKey
   });
   const stem = video.name.replace(/\.[^.]+$/u, '') || video.name;
+  // The existing agent contract accepts exact seconds. Sampling here preserves independent
+  // bounds without silently reducing the user's range to the old ten-minute window.
+  const effectiveMode = durationRangeSeconds ? 'custom' : durationMode;
+  const effectiveSeconds = durationRangeSeconds
+    ? durationRangeSeconds[0] +
+      Math.floor(
+        Math.min(0.999999999, Math.max(0, (input.random ?? Math.random)())) *
+          (durationRangeSeconds[1] - durationRangeSeconds[0] + 1)
+      )
+    : customSeconds;
   const started = await (client.startProcess ?? teamApi.startProcess)({
     teamId,
     materialId: video.id,
     toolId: 'restitch',
-    optionsSummary: { finalDurationMode: durationMode },
+    optionsSummary: { finalDurationMode: effectiveMode },
     destinationFolderId: destination.materialId,
     outputName: `${stem} restitched.mp4`,
     conflictMode: 'keep_both',
@@ -117,9 +146,11 @@ export async function prepareCatalogRestitch(input: {
         defaults: {
           ...defaults,
           operation: 'restitch',
-          finalDurationMode: durationMode,
+          finalDurationMode: effectiveMode,
           customFinalDurationSeconds:
-            durationMode === 'custom' ? customSeconds! : defaults.customFinalDurationSeconds
+            effectiveMode === 'custom' || effectiveMode === 'random-centered'
+              ? (effectiveSeconds ?? defaults.customFinalDurationSeconds)
+              : defaults.customFinalDurationSeconds
         },
         prepared: null,
         ...(drawn.kind === 'ready' ? { screens: drawn.screens, teamId } : {})

@@ -5,11 +5,13 @@ import { useI18n } from '../../i18n';
 /** Review a concurrent workspace change without replacing the Launch draft. */
 export function LaunchDefaultsReview({
   current,
+  offerName,
   buyer,
   disabled,
   onReview
 }: {
   current: { config: LaunchDraft; subConfig: LaunchSubConfig } | null;
+  offerName?: string;
   buyer: string;
   disabled: boolean;
   onReview: () => void;
@@ -36,7 +38,14 @@ export function LaunchDefaultsReview({
             ? '40–50'
             : '50–60';
   return (
-    <Card role="section" title={t('launchesDefaultsConflict')}>
+    <Card
+      role="section"
+      title={
+        offerName
+          ? t('launchesDefaultsOfferConflict', { value: offerName })
+          : t('launchesDefaultsConflict')
+      }
+    >
       <p>{t('launchesDefaultsReviewHelp')}</p>
       {config ? (
         <dl>
@@ -50,10 +59,15 @@ export function LaunchDefaultsReview({
               ? config.maxBudget
               : `${config.minBudget}–${config.maxBudget}`}
           </dd>
+          <dt>{t('launchesBudgetMode')}</dt>
+          <dd>
+            {t(config.budgetMode === 'manual' ? 'launchesCustomBudgets' : 'launchesAutomatic')}
+          </dd>
+          {config.budgetMode === 'manual' && <dd>{config.budgets?.join(' · ')}</dd>}
           <dt>{t('launchesAdsCount')}</dt>
           <dd>{config.adsCount}</dd>
           <dt>{t('launchesAge')}</dt>
-          <dd>{config.age}+</dd>
+          <dd>{config.age === undefined ? '—' : `${config.age}+`}</dd>
           <dt>{t('launchesGender')}</dt>
           <dd>{config.gender}</dd>
           <dt>{t('launchesMethod')}</dt>
@@ -83,7 +97,7 @@ export function LaunchDefaultsReview({
             ))}
         </dl>
       ) : (
-        <p>{t('launchesDefaultsMissing')}</p>
+        <p>{t(offerName ? 'launchesDefaultsOfferMissing' : 'launchesDefaultsMissing')}</p>
       )}
       <Button disabled={disabled} onClick={onReview}>
         {t('launchesDefaultsReviewed')}

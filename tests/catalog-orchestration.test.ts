@@ -131,3 +131,73 @@ it('does not cancel a child after a lost bind reply before local execution', asy
   expect(f.client.runAgentProcess).not.toHaveBeenCalled();
   expect(f.client.cancelOperation).not.toHaveBeenCalled();
 });
+
+it('freezes independent range bounds and reuses the finished video on a catalog retry', async () => {
+  const f = fixture();
+  const random = vi.fn(() => 0.5);
+  const input = {
+    ...f.input,
+    durationMode: 'random-centered' as const,
+    customSeconds: 1800,
+    durationRangeSeconds: [600, 3000] as const,
+    random
+  };
+  const receipt = await prepareCatalogRestitch(input);
+  expect(f.client.runAgentProcess).toHaveBeenCalledWith(
+    expect.objectContaining({
+      options: expect.objectContaining({
+        defaults: expect.objectContaining({
+          finalDurationMode: 'custom',
+          customFinalDurationSeconds: 1800
+        })
+      })
+    })
+  );
+  vi.mocked(f.checkpoint.completed).mockResolvedValue(receipt);
+  expect(await prepareCatalogRestitch(input)).toEqual(receipt);
+  expect(random).toHaveBeenCalledOnce();
+  expect(f.client.runAgentProcess).toHaveBeenCalledOnce();
+  // The same center with different bounds describes a different video request.
+  await prepareCatalogRestitch({
+    ...input,
+    durationRangeSeconds: [1200, 2400],
+    processKey: 'changed-process-request'
+  });
+  expect(f.client.runAgentProcess).toHaveBeenCalledTimes(2);
+});
+
+it.each([
+  [0, 1200],
+  [1800, 1200],
+  [60, 3660],
+  [61, 1200]
+])('rejects invalid range %s–%s before any preparation or operation', async (low, high) => {
+  const f = fixture();
+  await expect(
+    prepareCatalogRestitch({
+      ...f.input,
+      durationMode: 'random-centered',
+      customSeconds: 1800,
+      durationRangeSeconds: [low, high]
+    })
+  ).rejects.toThrow('RESTITCH_DEFAULTS_INVALID');
+  expect(f.client.prepareRestitchScreens).not.toHaveBeenCalled();
+  expect(f.client.startProcess).not.toHaveBeenCalled();
+});
+
+it('uses the selected exact seconds and the selected legacy random center', async () => {
+  for (const durationMode of ['custom', 'random-centered'] as const) {
+    const f = fixture();
+    await prepareCatalogRestitch({ ...f.input, durationMode, customSeconds: 1200 });
+    expect(f.client.runAgentProcess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          defaults: expect.objectContaining({
+            finalDurationMode: durationMode,
+            customFinalDurationSeconds: 1200
+          })
+        })
+      })
+    );
+  }
+});

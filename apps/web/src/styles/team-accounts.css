@@ -2677,40 +2677,51 @@ button.team-task-agent-chip.is-selected {
 }
 /* The selected decoration spans the identity cell from its left rail.
    Solid palette tokens keep its colour unchanged over hover and drag surfaces. */
-.team-agent-row[data-name-color-value='green'] {
+.team-agent-row[data-name-color-value='green'],
+.launch-account-suffix[data-name-color-value='green'] {
   --account-name-fill: var(--account-name-green);
   --account-name-line: var(--account-name-green-rail);
   --account-name-ink: var(--account-name-green-ink);
 }
-.team-agent-row[data-name-color-value='yellow'] {
+.team-agent-row[data-name-color-value='yellow'],
+.launch-account-suffix[data-name-color-value='yellow'] {
   --account-name-fill: var(--account-name-yellow);
   --account-name-line: var(--account-name-yellow-rail);
   --account-name-ink: var(--account-name-yellow-ink);
 }
-.team-agent-row[data-name-color-value='red'] {
+.team-agent-row[data-name-color-value='red'],
+.launch-account-suffix[data-name-color-value='red'] {
   --account-name-fill: var(--account-name-red);
   --account-name-line: var(--account-name-red-rail);
   --account-name-ink: var(--account-name-red-ink);
 }
-.team-agent-row[data-name-color-value='blue'] {
+.team-agent-row[data-name-color-value='blue'],
+.launch-account-suffix[data-name-color-value='blue'] {
   --account-name-fill: var(--account-name-blue);
   --account-name-line: var(--account-name-blue-rail);
   --account-name-ink: var(--account-name-blue-ink);
 }
-.team-agent-row[data-name-color-value='purple'] {
+.team-agent-row[data-name-color-value='purple'],
+.launch-account-suffix[data-name-color-value='purple'] {
   --account-name-fill: var(--account-name-purple);
   --account-name-line: var(--account-name-purple-rail);
   --account-name-ink: var(--account-name-purple-ink);
 }
-.team-agent-row[data-name-color-value='pink'] {
+.team-agent-row[data-name-color-value='pink'],
+.launch-account-suffix[data-name-color-value='pink'] {
   --account-name-fill: var(--account-name-pink);
   --account-name-line: var(--account-name-pink-rail);
   --account-name-ink: var(--account-name-pink-ink);
 }
-.team-agent-row[data-name-color-value='orange'] {
+.team-agent-row[data-name-color-value='orange'],
+.launch-account-suffix[data-name-color-value='orange'] {
   --account-name-fill: var(--account-name-orange);
   --account-name-line: var(--account-name-orange-rail);
   --account-name-ink: var(--account-name-orange-ink);
+}
+.launch-account-suffix[data-name-color-value]:not([data-name-color-value='none']) {
+  background: var(--account-name-fill);
+  color: var(--account-name-ink);
 }
 .team-agent-row[data-name-color-value]:not([data-name-color-value='none']) > .team-agent-rail {
   background: var(--account-name-line);

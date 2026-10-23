@@ -2010,3 +2010,12 @@ unfenced `service_record_restitch_output` while old workers can still finish. Th
 must deploy with `service_authorize_catalog_cleanup`; a missing/failed authorization stops deletion.
 A provider HTTP request already sent cannot be canceled atomically by PostgreSQL: retain its actual
 completion receipt even if access closes in flight. Never report such a receipt as a resumed job.
+
+## 20261206140000 — launch offer defaults
+
+Source migration only; no production application is implied. Roll back the web feature first and retain the new table, RPCs, validation and content-free invalidation trigger: older clients continue using the unchanged workspace RPC signature and replay digests. Keeping dormant offer profiles preserves saved settings. Do not drop the table or narrow the budget validator while saved manual-budget profiles exist. A destructive schema downgrade requires an explicit data-preservation plan; ordinary application rollback requires no database writes.
+
+
+## 20261206140500 — Launch offer defaults reference fence
+
+Retain `task_cleanup_reference_fence` while `team_launch_offer_defaults` exists. It registers this consumer with the existing conservative reference scan and rejects late material references after cleanup has been claimed. An application rollback requires no schema action. Removing or disabling this trigger makes cleanup coverage unknown and retains files as `cleanup_unverified`; do not bypass that check or exempt this table. A complete offer-defaults feature removal must preserve saved profiles as described above. This source fix does not authorize a production migration.

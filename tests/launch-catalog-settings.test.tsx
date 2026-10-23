@@ -87,9 +87,9 @@ it('keeps invalid catalog controls neutral until validation and excludes hidden 
   const count = screen.getByRole('spinbutton', { name: 'Products in catalog' });
   const duration = screen.getByRole('slider', { name: 'Duration, minutes' });
   expect(count.closest('.ui-field')?.classList.contains('bg-warning-soft')).toBe(false);
-  expect(duration.closest('.launch-duration-control')?.classList.contains('bg-warning-soft')).toBe(
-    false
-  );
+  expect(
+    duration.closest('.restitch-duration-control')?.classList.contains('bg-warning-soft')
+  ).toBe(false);
   view.rerender(
     <LaunchEditor
       {...props}
@@ -100,9 +100,9 @@ it('keeps invalid catalog controls neutral until validation and excludes hidden 
     />
   );
   expect(count.closest('.ui-field')?.classList.contains('bg-warning-soft')).toBe(false);
-  expect(duration.closest('.launch-duration-control')?.classList.contains('bg-warning-soft')).toBe(
-    false
-  );
+  expect(
+    duration.closest('.restitch-duration-control')?.classList.contains('bg-warning-soft')
+  ).toBe(false);
   view.rerender(<LaunchEditor {...props} config={{ ...draft, method: 'other' }} />);
   expect(screen.queryByRole('spinbutton', { name: 'Products in catalog' })).toBeNull();
   expect(screen.queryByRole('slider', { name: 'Duration, minutes' })).toBeNull();

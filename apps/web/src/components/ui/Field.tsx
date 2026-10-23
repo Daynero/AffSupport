@@ -16,6 +16,7 @@ import {
   type ReactNode,
   type TextareaHTMLAttributes
 } from 'react';
+import { ICON_SIZE, ICON_STROKE } from '../icons';
 import { uiClasses, type UiSize } from './types';
 
 /**
@@ -461,6 +462,13 @@ export function InputTags({
 }
 
 /** The searchable closed-choice control in the inventory contract (024). */
+export interface SelectMenuOption {
+  value: string;
+  label: string;
+  description?: string;
+  /** Additional local search terms; never passed to telemetry. */
+  searchText?: string;
+}
 export function SelectMenu({
   id,
   label,
@@ -472,12 +480,20 @@ export function SelectMenu({
   disabled = false,
   createLabel,
   errorLabel,
-  size = 'md'
+  size = 'md',
+  renderOption,
+  emptyLabel,
+  noResultsLabel,
+  showSearchIcon = false
 }: {
   id?: string;
   label: string;
   value: string;
-  options: ReadonlyArray<{ value: string; label: string }>;
+  options: ReadonlyArray<SelectMenuOption>;
+  renderOption?: (option: SelectMenuOption, selected: boolean) => ReactNode;
+  emptyLabel?: string;
+  noResultsLabel?: string;
+  showSearchIcon?: boolean;
   onChange: (value: string) => void;
   onCreate?: (value: string) => Promise<string | void>;
   placeholder: string;
@@ -505,7 +521,15 @@ export function SelectMenu({
     query === selectedLabel
       ? options
       : options.filter(option =>
-          option.label.toLocaleLowerCase().includes(query.toLocaleLowerCase())
+          option.searchText === undefined
+            ? option.label.toLocaleLowerCase().includes(query.toLocaleLowerCase())
+            : query
+                .trim()
+                .toLocaleLowerCase()
+                .split(/\s+/u)
+                .every(term =>
+                  `${option.label} ${option.searchText}`.toLocaleLowerCase().includes(term)
+                )
         );
   const candidate = query.trim();
   const mayCreate = Boolean(
@@ -520,6 +544,8 @@ export function SelectMenu({
         aria-label={label}
         selectedKey={value || null}
         inputValue={query}
+        // Filtering already includes metadata; React Aria must not re-filter by label alone.
+        defaultFilter={() => true}
         isDisabled={disabled || creating}
         allowsCustomValue={false}
         allowsEmptyCollection
@@ -561,21 +587,50 @@ export function SelectMenu({
         className={uiClasses('select', { size, states: { disabled: disabled || creating } })}
       >
         <HeroComboBox.InputGroup className="ui-select-trigger">
-          <HeroInput id={id} className="ui-select-value" placeholder={placeholder} />
+          {showSearchIcon && (
+            <Search
+              size={ICON_SIZE}
+              strokeWidth={ICON_STROKE}
+              aria-hidden="true"
+              className="shrink-0 text-muted"
+            />
+          )}
+          <HeroInput
+            id={id}
+            className="ui-select-value"
+            placeholder={placeholder}
+            onFocus={event => {
+              if (showSearchIcon) event.currentTarget.select();
+            }}
+          />
           <HeroComboBox.Trigger aria-label={label}>
             <ChevronDown size={16} strokeWidth={1.75} />
           </HeroComboBox.Trigger>
         </HeroComboBox.InputGroup>
         <HeroComboBox.Popover className="ui-select-popover">
-          <ListBox className="ui-select-list">
+          <ListBox
+            className="ui-select-list"
+            renderEmptyState={
+              emptyLabel || noResultsLabel
+                ? () => (
+                    <p role="status" className="m-0 px-3 py-2 text-caption text-muted">
+                      {options.length ? noResultsLabel : emptyLabel}
+                    </p>
+                  )
+                : undefined
+            }
+          >
             {filtered.map(option => (
               <ListBoxItem
                 key={option.value}
                 id={option.value}
                 className="ui-select-option"
                 textValue={option.label}
+                aria-label={
+                  option.description ? `${option.label}, ${option.description}` : undefined
+                }
               >
-                {option.label}
+                {renderOption ? renderOption(option, option.value === value) : option.label}
               </ListBoxItem>
             ))}
             {mayCreate && (

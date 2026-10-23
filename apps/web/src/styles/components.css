@@ -823,7 +823,7 @@
 .launch-editor-budget-currency {
   color: var(--color-text-muted);
 }
-.launch-duration-control {
+.restitch-duration-control {
   width: 100%;
   min-width: 0;
   padding: var(--space-3) var(--space-4);
@@ -929,12 +929,7 @@
   top: 0;
   left: 0;
   width: max-content;
-  transition: transform var(--motion-fast) var(--ease-out-curve);
-}
-@media (prefers-reduced-motion: reduce) {
-  .duration-slider-mode {
-    transition: none;
-  }
+  /* Initial collision positioning must settle before paint, without a slide on every open. */
 }
 .launch-editor-fields-row {
   display: flex;
@@ -1009,11 +1004,32 @@
 .launch-editor-sub-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   padding: var(--space-3) 0;
 }
 .launch-editor-sub-content > p {
   margin: 0;
+}
+.launch-sub-field,
+.launch-sub-field > .ui-field-control {
+  min-width: 0;
+}
+.launch-sub-field > .ui-field-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.launch-sub-field > .ui-field-control > .ui-button {
+  max-width: 100%;
+  white-space: normal;
+  text-align: start;
+}
+.launch-sub-preview {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
 }
 .launch-editor-sub-accordion .ui-accordion-item {
   border-color: var(--color-neutral-border);
@@ -1107,21 +1123,6 @@
   .launch-detail-toolbar .ui-tabs {
     order: -1;
     width: 100%;
-  }
-  .launch-detail-actions {
-    display: flex;
-    flex-wrap: wrap;
-    position: sticky;
-    bottom: var(--space-2);
-    z-index: var(--layer-sticky);
-    box-shadow: var(--shadow-sm);
-  }
-  .launch-detail-actions > .ui-button {
-    flex: 1 1 0;
-    min-width: 0;
-    padding-inline: var(--space-2);
-    white-space: nowrap;
-    overflow-wrap: normal;
   }
 }
 
@@ -3851,11 +3852,18 @@
   }
 }
 
-.launch-draft-save-status {
+.launch-detail-header {
   position: sticky;
   top: 0;
   z-index: var(--layer-sticky);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   background: var(--color-neutral-surface-raised);
+  border-bottom: 1px solid var(--color-neutral-border);
+  padding-bottom: var(--space-2);
+}
+.launch-draft-save-status {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -3863,6 +3871,12 @@
   min-height: var(--control-height-sm);
   color: var(--color-text-muted);
   font-size: var(--text-caption);
+}
+.team-launch-modal .launch-detail-header {
+  /* Cover the dialog's scroll padding too: form fields must not peek above the header. */
+  top: calc(0px - var(--space-5));
+  margin-top: calc(0px - var(--space-5));
+  padding-top: var(--space-5);
 }
 
 .launch-draft-save-indicator {
@@ -4249,4 +4263,40 @@
   height: var(--control-height-xl);
   min-height: var(--control-height-xl);
   overflow: hidden;
+}
+.launch-defaults-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-neutral-border);
+}
+.launch-defaults-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+}
+.launch-defaults-scope {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+}
+.launch-defaults-proposal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-neutral-border);
+}
+
+.launch-defaults-scopes > .launch-detail-actions {
+  display: flex;
+  align-self: flex-start;
+  margin-inline-start: auto;
+  max-width: 100%;
 }

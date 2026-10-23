@@ -1,11 +1,8 @@
 import { prepareCatalogRestitch } from './catalog-orchestration';
-import { useEffect, useId, useState, type FormEvent } from 'react';
-import { Dices, Timer } from 'lucide-react';
-import {
-  restitchDefaultsSaveable,
-  type FinalImageDurationMode,
-  type TeamRestitchDefaults
-} from '@video-compressor/shared';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { Copy } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { restitchDefaultsSaveable, type TeamRestitchDefaults } from '@video-compressor/shared';
 import type {
   ProductCatalogCreateResult,
   ProductCatalogSettings,
@@ -13,14 +10,18 @@ import type {
 } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Button, Checkbox } from '../../components/ui';
-import { Button as InventoryButton } from '../../components/ui/index';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import {
+  Button as InventoryButton,
+  IconButton,
+  Skeleton,
+  RestitchDurationControl,
+  type RestitchDurationValue
+} from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { useBrowserRoute } from '../../lib/navigation';
 import { startTeamAgentProcess, agentCanRestitch } from '../../api/client';
 import { teamApi } from '../../api/team';
-import { formatMinutesInput, parseMinutesInput } from '../../components/ImageEmbeddingSection';
 import { teamErrorMessageFor } from '../errors';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { useTeam } from '../TeamContext';
@@ -32,6 +33,12 @@ import {
   validateProductCount,
   validateWebLink
 } from './limits';
+import { useOptionalAuth } from '../../auth/AuthContext';
+import {
+  catalogDurationPreferenceKey,
+  readCatalogDurationPreference,
+  saveCatalogDurationPreference
+} from './duration-preference';
 import { ProductCatalogProgress } from './ProductCatalogProgress';
 import { PRICE_RANGE_DEFAULT } from './ProductCatalogSettingsSection';
 import { ensureRestitchImages } from '../restitch/images';
@@ -119,6 +126,11 @@ export function CreateProductCatalogDialog({
   const { t } = useI18n();
   const { push } = useToasts();
   const { can } = useTeam();
+  const preferenceKey = catalogDurationPreferenceKey(useOptionalAuth()?.user?.id ?? null, teamId);
+  const durationPreference = useRef<{
+    key: string | null;
+    value: RestitchDurationValue | null;
+  } | null>(null);
   const route = parseTeamRoute(useBrowserRoute());
   const settingsOpen = route?.kind === 'space' && route.query.settings;
   const titleId = useId();
@@ -132,11 +144,18 @@ export function CreateProductCatalogDialog({
   const [touched, setTouched] = useState({ link: false, count: false });
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
   const [restitch, setRestitch] = useState(false);
+  // Once requested, a read belongs to this dialog, not to the checkbox's visibility.
+  const [restitchRequested, setRestitchRequested] = useState(false);
+  const [restitchLoadError, setRestitchLoadError] = useState(false);
+  const [restitchReadRevision, setRestitchReadRevision] = useState(0);
+  const getRestitchDefaults = client.getRestitchDefaults ?? teamApi.getRestitchDefaults;
   const [restitchDefaults, setRestitchDefaults] = useState<TeamRestitchDefaults | null | undefined>(
     undefined
   );
-  const [durationMode, setDurationMode] = useState<FinalImageDurationMode>('random-40-50');
-  const [customMinutes, setCustomMinutes] = useState('45');
+  const [duration, setDuration] = useState<RestitchDurationValue>({
+    finalDurationMode: 'random-40-50',
+    customFinalDurationSeconds: 45 * 60
+  });
   const [processed, setProcessed] = useState<{
     operationId: string;
     choice: string;
@@ -183,30 +202,55 @@ export function CreateProductCatalogDialog({
   }, [client, teamId, settingsOpen]);
 
   useEffect(() => {
-    if (!restitch) return;
+    if (!durationPreference.current || durationPreference.current.key !== preferenceKey) {
+      durationPreference.current = {
+        key: preferenceKey,
+        value: readCatalogDurationPreference(preferenceKey)
+      };
+    }
+    if (!restitchRequested || settingsOpen) return;
     let active = true;
+    setRestitchLoadError(false);
     setRestitchDefaults(undefined);
-    void (client.getRestitchDefaults ?? teamApi.getRestitchDefaults)(teamId)
+    void getRestitchDefaults(teamId)
       .then(found => {
         if (!active) return;
         setRestitchDefaults(found);
         if (found) {
-          setDurationMode(found.finalDurationMode);
-          setCustomMinutes(formatMinutesInput(found.customFinalDurationSeconds));
+          setDuration(
+            durationPreference.current?.value ?? {
+              finalDurationMode: found.finalDurationMode,
+              customFinalDurationSeconds:
+                Math.max(1, Math.round(found.customFinalDurationSeconds / 60)) * 60
+            }
+          );
         }
       })
       .catch(() => {
-        if (active) setRestitchDefaults(null);
+        if (active) setRestitchLoadError(true);
       });
     return () => {
       active = false;
     };
-  }, [client, restitch, teamId]);
+  }, [
+    getRestitchDefaults,
+    restitchRequested,
+    teamId,
+    preferenceKey,
+    settingsOpen,
+    restitchReadRevision
+  ]);
 
   const linkCheck = validateWebLink(link, SOURCE_LINK_MAX);
   const countCheck = validateProductCount(count);
-  const customSeconds = parseMinutesInput(customMinutes);
-  const durationValid = durationMode !== 'custom' || customSeconds !== null;
+  const durationMode = duration.finalDurationMode;
+  const customSeconds = duration.customFinalDurationSeconds ?? null;
+  const durationValid =
+    (durationMode !== 'custom' && durationMode !== 'random-centered') ||
+    (customSeconds !== null &&
+      Number.isInteger(customSeconds) &&
+      customSeconds >= 60 &&
+      customSeconds <= 3600);
   const canConfirm =
     linkCheck.ok &&
     countCheck.ok &&
@@ -260,6 +304,7 @@ export function CreateProductCatalogDialog({
           defaults,
           durationMode,
           customSeconds,
+          durationRangeSeconds: duration.finalDurationRangeSeconds,
           catalogKey,
           previous: processed,
           client
@@ -365,193 +410,199 @@ export function CreateProductCatalogDialog({
       closeLabel={t('productCatalogCancel')}
       initialFocus={`[id="${linkId}"]`}
       size="md"
+      className="product-catalog-create-surface"
     >
       <form
         noValidate
         className="team-dialog-form product-catalog-dialog"
         onSubmit={event => void submit(event)}
       >
-        <h2 id={titleId}>
-          {t(
-            replaces
-              ? 'productCatalogRecreate'
-              : variation
-                ? 'productCatalogCreateVariation'
-                : 'productCatalogCreate'
+        <header className="product-catalog-create-header">
+          <h2 id={titleId}>
+            {t(
+              replaces
+                ? 'productCatalogRecreate'
+                : variation
+                  ? 'productCatalogCreateVariation'
+                  : 'productCatalogCreate'
+            )}
+          </h2>
+          {plannedName ? (
+            <div className="product-catalog-dialog-name-row">
+              <p className="product-catalog-dialog-name" title={plannedName}>
+                {plannedName}
+              </p>
+              <IconButton
+                size="sm"
+                variant="outline"
+                label={t('productCatalogCopyNameOf', { name: plannedName })}
+                title={t('productCatalogCopyName')}
+                onClick={() => void copy(plannedName, 'productCatalogNameCopied')}
+              >
+                <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </IconButton>
+            </div>
+          ) : (
+            <p className="product-catalog-dialog-name">{video.name}</p>
           )}
-        </h2>
-        {plannedName ? (
-          <div className="product-catalog-dialog-name-row">
-            <p className="product-catalog-dialog-name" title={video.name}>
-              {plannedName}
-            </p>
-            <InventoryButton
-              type="button"
-              size="sm"
-              variant="secondary"
-              aria-label={t('productCatalogCopyNameOf', { name: plannedName })}
-              onClick={() => void copy(plannedName, 'productCatalogNameCopied')}
-            >
-              {t('productCatalogCopyName')}
-            </InventoryButton>
-          </div>
-        ) : (
-          <p className="product-catalog-dialog-name">{video.name}</p>
-        )}
+        </header>
+        <div className="product-catalog-create-body">
+          {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}
 
-        {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}
+          {settings === null && !can('manage_metadata') && (
+            <p className="team-inline-note">{t('productCatalogMissingSettingsNoAccess')}</p>
+          )}
 
-        {settings === null && !can('manage_metadata') && (
-          <p className="team-inline-note">{t('productCatalogMissingSettingsNoAccess')}</p>
-        )}
-
-        <label htmlFor={linkId}>
-          <span>
-            {t('productCatalogSourceLinkLabel')} · {t('productCatalogRequiredLabel')}
-          </span>
-          <input
-            id={linkId}
-            type="text"
-            inputMode="url"
-            autoComplete="off"
-            value={link}
-            disabled={busy}
-            aria-invalid={linkError}
-            onChange={event => setLink(event.target.value)}
-            onBlur={() => setTouched(current => ({ ...current, link: true }))}
-          />
-        </label>
-        {linkError ? (
-          <p className="team-inline-error">{t('productCatalogLinkInvalid')}</p>
-        ) : (
-          <p className="field-hint">{t('productCatalogSourceLinkHint')}</p>
-        )}
-
-        <label htmlFor={countId}>
-          <span>
-            {t('productCatalogCountLabel')} · {t('productCatalogRequiredLabel')}
-          </span>
-          <input
-            id={countId}
-            className="product-catalog-count"
-            inputMode="numeric"
-            maxLength={3}
-            value={count}
-            disabled={busy}
-            aria-invalid={countError}
-            onChange={event => setCount(event.target.value.replace(/[^\d]/gu, '').slice(0, 3))}
-            onBlur={() => setTouched(current => ({ ...current, count: true }))}
-          />
-        </label>
-        <p className={countError ? 'team-inline-error' : 'field-hint'}>
-          {t(countError ? 'productCatalogCountInvalid' : 'productCatalogCountHint')}
-        </p>
-
-        <div className="product-catalog-restitch">
-          <Checkbox
-            checked={restitch}
-            disabled={busy}
-            onChange={event => {
-              setRestitch(event.target.checked);
-              setProcessed(null);
-            }}
-            label={t('productCatalogRestitch')}
-          />
-          {restitch &&
-            restitchDefaults !== undefined &&
-            (!restitchDefaults ||
-              !restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' })) && (
-              <div className="product-catalog-dialog-missing" role="status">
-                <p className="team-inline-note">{t('teamRestitchNotConfigured')}</p>
-                <SpaceSettingsLink
-                  target={{ kind: 'settings', tab: 'restitch' }}
-                  label={t('productCatalogOpenSettings')}
+          <div className="product-catalog-create-fields">
+            <div className="product-catalog-link-field">
+              <label htmlFor={linkId}>
+                <span>{t('productCatalogSourceLinkLabel')}</span>
+                <input
+                  id={linkId}
+                  type="text"
+                  inputMode="url"
+                  autoComplete="off"
+                  required
+                  value={link}
+                  placeholder={t('productCatalogSourceLinkPlaceholder')}
+                  disabled={busy}
+                  aria-invalid={linkError}
+                  aria-describedby={`${linkId}-help`}
+                  onChange={event => setLink(event.target.value)}
+                  onBlur={() => setTouched(current => ({ ...current, link: true }))}
                 />
+              </label>
+              <p
+                id={`${linkId}-help`}
+                className={linkError ? 'team-inline-error' : 'sr-only'}
+                role={linkError ? 'alert' : undefined}
+              >
+                {t(linkError ? 'productCatalogLinkInvalid' : 'productCatalogSourceLinkHint')}
+              </p>
+            </div>
+            <div className="product-catalog-count-field">
+              <label htmlFor={countId}>
+                <span>
+                  {t('productCatalogCountLabel')}{' '}
+                  <span className="product-catalog-count-limit" aria-hidden="true">
+                    1–400
+                  </span>
+                </span>
+                <input
+                  id={countId}
+                  className="product-catalog-count"
+                  inputMode="numeric"
+                  required
+                  maxLength={3}
+                  value={count}
+                  disabled={busy}
+                  aria-invalid={countError}
+                  aria-describedby={`${countId}-help`}
+                  onChange={event =>
+                    setCount(event.target.value.replace(/[^\d]/gu, '').slice(0, 3))
+                  }
+                  onBlur={() => setTouched(current => ({ ...current, count: true }))}
+                />
+              </label>
+              <p
+                id={`${countId}-help`}
+                className={countError ? 'team-inline-error' : 'sr-only'}
+                role={countError ? 'alert' : undefined}
+              >
+                {t(countError ? 'productCatalogCountInvalid' : 'productCatalogCountHint')}
+              </p>
+            </div>
+          </div>
+
+          <div className="product-catalog-restitch">
+            <Checkbox
+              checked={restitch}
+              disabled={busy}
+              onChange={event => {
+                setRestitch(event.target.checked);
+                if (event.target.checked) setRestitchRequested(true);
+                setProcessed(null);
+              }}
+              label={t('productCatalogRestitch')}
+            />
+            {restitch && restitchDefaults === undefined && !restitchLoadError && (
+              <Skeleton
+                className="product-catalog-restitch-loading"
+                shape="block"
+                label={t('loading')}
+              />
+            )}
+            {restitch && restitchLoadError && (
+              <div className="product-catalog-dialog-missing" role="alert">
+                <p className="team-inline-note">{t('productCatalogRestitchLoadFailed')}</p>
+                <InventoryButton
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setRestitchReadRevision(value => value + 1)}
+                >
+                  {t('retry')}
+                </InventoryButton>
               </div>
             )}
-          {restitch &&
-            restitchDefaults &&
-            restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' }) && (
-              <div className="start-duration-row">
-                <div className="fit-mode-pictos" role="group" aria-label={t('finalImageDuration')}>
-                  {(
-                    [
-                      ['random-30-40', 'randomDuration30To40', '30–40'],
-                      ['random-40-50', 'randomDuration40To50', '40–50'],
-                      ['random-50-60', 'randomDuration50To60', '50–60']
-                    ] as const
-                  ).map(([mode, label, range]) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      className={`is-labeled${durationMode === mode ? ' is-selected' : ''}`}
-                      disabled={busy}
-                      data-tip={t(label)}
-                      title={t(label)}
-                      aria-label={t(label)}
-                      aria-pressed={durationMode === mode}
-                      onClick={() => setDurationMode(mode)}
-                    >
-                      <Dices size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                      <span>{range}</span>
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className={durationMode === 'custom' ? 'is-selected' : ''}
-                    disabled={busy}
-                    data-tip={t('customDuration')}
-                    title={t('customDuration')}
-                    aria-label={t('customDuration')}
-                    aria-pressed={durationMode === 'custom'}
-                    onClick={() => setDurationMode('custom')}
-                  >
-                    <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </button>
+            {restitch &&
+              restitchDefaults !== undefined &&
+              (!restitchDefaults ||
+                !restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' })) && (
+                <div className="product-catalog-dialog-missing" role="status">
+                  <p className="team-inline-note">{t('teamRestitchNotConfigured')}</p>
+                  <SpaceSettingsLink
+                    target={{ kind: 'settings', tab: 'restitch' }}
+                    label={t('productCatalogOpenSettings')}
+                  />
                 </div>
-                {durationMode === 'custom' && (
-                  <div className="custom-duration-input">
-                    <input
-                      className={`time-input${customMinutes && !durationValid ? ' is-invalid' : ''}`}
-                      type="text"
-                      inputMode="numeric"
-                      value={customMinutes}
-                      disabled={busy}
-                      aria-label={t('customDurationInput')}
-                      aria-invalid={customMinutes !== '' && !durationValid}
-                      onChange={event => setCustomMinutes(event.target.value)}
-                    />
-                    <span>{t('minutesUnit')}</span>
-                  </div>
-                )}
-                {customMinutes !== '' && !durationValid && (
-                  <span className="soty-field-error">{t('invalidCustomDuration')}</span>
-                )}
-              </div>
+              )}
+            {restitch &&
+              restitchDefaults &&
+              restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' }) && (
+                <RestitchDurationControl
+                  value={duration}
+                  disabled={busy}
+                  labels={{
+                    duration: t('launchesDuration'),
+                    range: t('launchesDurationRange'),
+                    exact: t('launchesDurationExact'),
+                    unit: t('launchesMinutesShort')
+                  }}
+                  onChange={value => {
+                    durationPreference.current = { key: preferenceKey, value };
+                    setDuration(value);
+                    saveCatalogDurationPreference(preferenceKey, value);
+                  }}
+                />
+              )}
+            {restitch && restitchDefaults && !durationValid && (
+              <p className="team-inline-error" role="alert">
+                {t('launchesDurationInvalid')}
+              </p>
             )}
-        </div>
+          </div>
 
-        {phase.kind === 'busy' && phase.step === 'restitch' && (
-          <p className="field-hint" role="status">
-            {t('productCatalogRestitching')}
-          </p>
-        )}
-        <ProductCatalogProgress
-          active={phase.kind === 'busy' && phase.step === 'catalog'}
-          productTotal={productTotal}
-        />
-        {failure && (
-          <p className="team-inline-error" role="alert">
-            {failure}
-          </p>
-        )}
-        {failure && failureNeedsSettings && can('manage_metadata') && (
-          <SpaceSettingsLink
-            target={{ kind: 'settings', tab: 'product-catalog' }}
-            label={t('productCatalogOpenSettings')}
+          {phase.kind === 'busy' && phase.step === 'restitch' && (
+            <p className="field-hint" role="status">
+              {t('productCatalogRestitching')}
+            </p>
+          )}
+          <ProductCatalogProgress
+            active={phase.kind === 'busy' && phase.step === 'catalog'}
+            productTotal={productTotal}
           />
-        )}
-
+          {failure && (
+            <p className="team-inline-error" role="alert">
+              {failure}
+            </p>
+          )}
+          {failure && failureNeedsSettings && can('manage_metadata') && (
+            <SpaceSettingsLink
+              target={{ kind: 'settings', tab: 'product-catalog' }}
+              label={t('productCatalogOpenSettings')}
+            />
+          )}
+        </div>
         <div className="team-dialog-actions">
           <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
             {t('productCatalogCancel')}

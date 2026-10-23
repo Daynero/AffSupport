@@ -61,3 +61,13 @@ Generate читає snapshot з draft, сервер сам resolve-ить дос
 ## Відновлення конфігурації з історії
 
 Окремий RPC не потрібний: authorized getLaunch(revisionId) → локальна робоча копія historical config → saveLaunchDraft з expectedVersion і новим requestKey → Generate після звичайного diff/confirmation. Перед save поточні sources явно звіряються, як описано вище. Відновлення переносить конфігурацію, включно зі збереженою датою та ручними config budgets, але не result overrides/outputs/operations; assignee/workStatus не змінює. Для manual revision береться її config snapshot, не effective output fields. Save draft не створює result revision; лише успішна генерація публікує нову. Existing active result і всі historical revisions залишаються доступними. edit ACL, generation lock і optimistic conflicts ті самі, що для звичайного редагування.
+
+## Offer defaults extension
+
+`get_launch_offer_defaults(p_team, p_offer)` returns the same nullable `{ config, subConfig, version }` shape as workspace defaults. The offer must be active and belong to the requested team. No automatic fallback is hidden in this endpoint: the client distinguishes a missing profile from a failed read.
+
+`set_launch_offer_defaults(p_team, p_offer, p_expected_version, p_key, p_config, p_sub_config)` uses the same protected version and idempotency rules as `set_launch_defaults`. A null offer is invalid and cannot target the workspace profile. Offers retain their profile when renamed or archived/restored. The two scopes never overwrite each other. General defaults remain compatible with existing clients and request digests.
+
+The reusable whitelist adds `minBudget`, `budgetMode` and `budgets`; a manual profile requires an ordered, strictly increasing integer budget per campaign, ending at `maxBudget`, within the supplied bounds. Automatic profiles use null budgets. SUB order and catalog options remain part of the profile; nested unknown keys are refused. Neither endpoint accepts launch-specific identity, date, URL, creatives or results.
+
+Browser diagnostics use generic typed operations with closed `launch_defaults_{read|apply|save}_{offer|workspace}` flow steps. A request has an opaque attempt ID; save retries retain the idempotency flow ID. Read success means a protected response; apply success follows matching draft commit; save success follows visible feedback. A lost response cannot prove absence of a committed save. The CLI `inspect` and `audit` report incomplete attempts explicitly; values and names never enter telemetry.

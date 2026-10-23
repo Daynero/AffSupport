@@ -133,4 +133,9 @@ export {
 } from './DateField';
 
 export { DurationSlider } from './DurationSlider';
+export { RestitchDurationControl } from './RestitchDurationControl';
+export type {
+  RestitchDurationValue,
+  RestitchDurationControlProps
+} from './RestitchDurationControl';
 export { StageProgress, type ProgressStage } from './StageProgress';

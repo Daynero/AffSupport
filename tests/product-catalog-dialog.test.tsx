@@ -18,6 +18,10 @@ import type {
  * what it says when the space is not set up, and what it shows once there is a sheet.
  */
 
+const { AuthContextOverride } = await import('../apps/web/src/auth/AuthContext');
+const { catalogDurationPreferenceKey } =
+  await import('../apps/web/src/team/product-catalog/duration-preference');
+let preferenceUserId = 'catalog-user-a';
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
 const { TeamApiError } = await import('../apps/web/src/api/team');
@@ -88,6 +92,7 @@ const restitchDefaults = {
 };
 
 beforeEach(() => {
+  preferenceUserId = 'catalog-user-a';
   localStorage.setItem('wishly.active-team.v1', TEAM_ID);
   localStorage.setItem('language', 'en');
 });
@@ -100,9 +105,11 @@ afterEach(() => {
 
 function wrap(children: React.ReactNode, team: TeamContextSnapshot = owned) {
   return (
-    <TeamProvider initialTeams={[team]} realtime={false}>
-      <ToastProvider>{children}</ToastProvider>
-    </TeamProvider>
+    <AuthContextOverride value={{ user: { id: preferenceUserId } }}>
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <ToastProvider>{children}</ToastProvider>
+      </TeamProvider>
+    </AuthContextOverride>
   );
 }
 
@@ -146,7 +153,7 @@ describe('creating a catalog', () => {
     renderDialog(client);
     const user = userEvent.setup();
     expect(screen.queryByRole('checkbox', { name: 'Random link variation' })).toBeNull();
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     await waitFor(() =>
@@ -184,9 +191,13 @@ describe('creating a catalog', () => {
     expect(checkbox.checked).toBe(false);
     expect(screen.queryByRole('button', { name: 'Random 30–40 minutes' })).toBeNull();
     await user.click(checkbox);
-    expect(await screen.findByRole('button', { name: /30.*40/u })).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: /30.*40/u }));
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
+    const bounds = await screen.findAllByRole('slider');
+    fireEvent.keyDown(bounds[0], { key: 'PageDown' });
+    fireEvent.keyDown(bounds[0], { key: 'PageDown' });
+    fireEvent.keyDown(bounds[1], { key: 'PageDown' });
+    fireEvent.keyDown(bounds[1], { key: 'PageDown' });
+    expect(screen.getByText('30–40 min')).toBeTruthy();
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(await screen.findByText('The catalog is ready')).toBeTruthy();
@@ -198,10 +209,14 @@ describe('creating a catalog', () => {
       expect.objectContaining({
         toolId: 'restitch',
         options: expect.objectContaining({
-          defaults: expect.objectContaining({ finalDurationMode: 'random-30-40' })
+          defaults: expect.objectContaining({ finalDurationMode: 'custom' })
         })
       })
     );
+    const frozenSeconds =
+      client.runAgentProcess.mock.calls[0][0].options.defaults.customFinalDurationSeconds;
+    expect(frozenSeconds).toBeGreaterThanOrEqual(1800);
+    expect(frozenSeconds).toBeLessThanOrEqual(2400);
     expect(client.createProductCatalog).toHaveBeenCalledWith(
       expect.objectContaining({ videoMaterialId: VIDEO.id, restitchOperationId: 'restitch-op' })
     );
@@ -221,8 +236,8 @@ describe('creating a catalog', () => {
     renderDialog(client, { video: { ...VIDEO, parentFolderId: 'source-drive-folder' } });
     const user = userEvent.setup();
     await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
-    await screen.findByRole('button', { name: /30.*40/u });
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
+    await screen.findAllByRole('slider');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     await waitFor(() => expect(client.ensureRestitchedFolder).toHaveBeenCalledWith(TEAM_ID));
@@ -230,7 +245,7 @@ describe('creating a catalog', () => {
     expect(client.createProductCatalog).not.toHaveBeenCalled();
   });
 
-  it('validates a custom end duration before starting the re-stitch', async () => {
+  it('keeps exact duration within the shared 1–60 minute scale without starting a job', async () => {
     const client = dialogClient({
       getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
       canRestitch: vi.fn().mockResolvedValue('yes'),
@@ -239,14 +254,147 @@ describe('creating a catalog', () => {
     renderDialog(client);
     const user = userEvent.setup();
     await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
-    await screen.findByRole('button', { name: 'Custom duration' });
-    await user.click(screen.getByRole('button', { name: 'Custom duration' }));
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
-    const minutes = screen.getByRole('textbox', { name: /custom.*duration/iu });
-    await user.clear(minutes);
-    await user.type(minutes, '0');
+    await user.click(await screen.findByRole('button', { name: 'Exact' }));
+    const minutes = screen.getByRole('slider', { name: 'Duration, minutes' });
+    fireEvent.keyDown(minutes, { key: 'Home' });
+    fireEvent.keyDown(minutes, { key: 'ArrowLeft' });
+    expect(minutes.getAttribute('aria-valuenow')).toBe('1');
+    fireEvent.keyDown(minutes, { key: 'End' });
+    fireEvent.keyDown(minutes, { key: 'ArrowRight' });
+    expect(minutes.getAttribute('aria-valuenow')).toBe('60');
     expect(confirm().disabled).toBe(true);
     expect(client.startProcess).not.toHaveBeenCalled();
+  });
+
+  it('reuses loaded defaults through eight toggle cycles without requests or a loading gap', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults)
+    });
+    const user = userEvent.setup();
+    renderDialog(client);
+    const toggle = screen.getByRole('checkbox', { name: 'Re-stitch video' });
+    await user.click(toggle);
+    await screen.findAllByRole('slider');
+    for (let cycle = 0; cycle < 8; cycle += 1) {
+      await user.click(toggle);
+      await user.click(toggle);
+      expect(screen.getAllByRole('slider')).toHaveLength(2);
+    }
+    expect(client.getRestitchDefaults).toHaveBeenCalledTimes(1);
+    expect(client.createProductCatalog).not.toHaveBeenCalled();
+  });
+
+  it('keeps one pending defaults read through rapid toggle cycles', async () => {
+    let finish;
+    const pending = new Promise(resolve => {
+      finish = resolve;
+    });
+    const client = dialogClient({ getRestitchDefaults: vi.fn().mockReturnValue(pending) });
+    const user = userEvent.setup();
+    renderDialog(client);
+    const toggle = screen.getByRole('checkbox', { name: 'Re-stitch video' });
+    await user.click(toggle);
+    for (let cycle = 0; cycle < 5; cycle += 1) {
+      await user.click(toggle);
+      await user.click(toggle);
+    }
+    expect(client.getRestitchDefaults).toHaveBeenCalledTimes(1);
+    finish(restitchDefaults);
+    expect(await screen.findAllByRole('slider')).toHaveLength(2);
+  });
+
+  it('shows a failed defaults read as retryable instead of claiming settings are missing', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValue(restitchDefaults)
+    });
+    const user = userEvent.setup();
+    renderDialog(client);
+    const toggle = screen.getByRole('checkbox', { name: 'Re-stitch video' });
+    await user.click(toggle);
+    expect(await screen.findByText('Could not load re-stitch settings.')).toBeTruthy();
+    expect(screen.queryByText('Not set up yet')).toBeNull();
+    await user.click(toggle);
+    await user.click(toggle);
+    expect(client.getRestitchDefaults).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Repeat' }));
+    expect(await screen.findAllByRole('slider')).toHaveLength(2);
+    expect(client.getRestitchDefaults).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('remembers exact time immediately across toggles and reopening, isolated by user', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults)
+    });
+    const user = userEvent.setup();
+    renderDialog(client);
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await user.click(await screen.findByRole('button', { name: 'Exact' }));
+    fireEvent.keyDown(screen.getByRole('slider'), { key: 'Home' });
+    fireEvent.keyDown(screen.getByRole('slider'), { key: 'ArrowRight' });
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    expect((await screen.findByRole('slider')).getAttribute('aria-valuenow')).toBe('2');
+    cleanup();
+    client.getRestitchDefaults.mockResolvedValue({
+      ...restitchDefaults,
+      finalDurationMode: 'random-50-60'
+    });
+    renderDialog(client, { video: { ...VIDEO, name: 'another.mp4' } });
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    expect((await screen.findByRole('slider')).getAttribute('aria-valuenow')).toBe('2');
+    expect(client.createProductCatalog).not.toHaveBeenCalled();
+    cleanup();
+    preferenceUserId = 'catalog-user-b';
+    renderDialog(client);
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    expect(
+      (await screen.findAllByRole('slider')).map(n => n.getAttribute('aria-valuenow'))
+    ).toEqual(['50', '60']);
+  });
+
+  it('remembers both independent range bounds and the selected mode', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults)
+    });
+    const user = userEvent.setup();
+    renderDialog(client);
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    const sliders = await screen.findAllByRole('slider');
+    fireEvent.keyDown(sliders[0], { key: 'PageDown' });
+    fireEvent.keyDown(sliders[1], { key: 'PageDown' });
+    cleanup();
+    renderDialog(client);
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    expect(
+      (await screen.findAllByRole('slider')).map(n => n.getAttribute('aria-valuenow'))
+    ).toEqual(['35', '45']);
+    expect(screen.getByRole('button', { name: 'Exact' })).toBeTruthy();
+  });
+
+  it('keeps following space defaults until the user actually changes duration', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults)
+    });
+    const user = userEvent.setup();
+    renderDialog(client);
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await screen.findAllByRole('slider');
+    expect(
+      localStorage.getItem(catalogDurationPreferenceKey(preferenceUserId, TEAM_ID))
+    ).toBeNull();
+    cleanup();
+    client.getRestitchDefaults.mockResolvedValue({
+      ...restitchDefaults,
+      finalDurationMode: 'custom',
+      customFinalDurationSeconds: 17 * 60
+    });
+    renderDialog(client);
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    expect((await screen.findByRole('slider')).getAttribute('aria-valuenow')).toBe('17');
   });
 
   it('shows the name the catalog will have, with a copy, before it is made (024)', async () => {
@@ -260,15 +408,21 @@ describe('creating a catalog', () => {
 
   it('opens with the count at 100 and confirm waiting for a link', async () => {
     renderDialog(dialogClient());
-    expect((screen.getByLabelText(/^Products · Required$/) as HTMLInputElement).value).toBe('100');
+    expect(
+      (screen.getByRole('textbox', { name: /^Products(?: · Required)?$/ }) as HTMLInputElement)
+        .value
+    ).toBe('100');
     await waitFor(() => expect(confirm().disabled).toBe(true));
   });
 
   it.each(['0', '401', ''])('keeps confirm unavailable for the count %j', async value => {
     renderDialog(dialogClient());
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/?a=1');
-    const count = screen.getByLabelText(/^Products · Required$/);
+    await user.type(
+      screen.getByLabelText(/^Link(?: · Required)?$/),
+      'https://offer.example.test/?a=1'
+    );
+    const count = screen.getByRole('textbox', { name: /^Products(?: · Required)?$/ });
     await user.clear(count);
     if (value) await user.type(count, value);
     await user.tab();
@@ -278,7 +432,9 @@ describe('creating a catalog', () => {
 
   it('does not let a fourth digit or a letter into the count', () => {
     renderDialog(dialogClient());
-    const count = screen.getByLabelText(/^Products · Required$/) as HTMLInputElement;
+    const count = screen.getByRole('textbox', {
+      name: /^Products(?: · Required)?$/
+    }) as HTMLInputElement;
     // A change event rather than typed keys: what is asserted is the field's own filter, and
     // simulated typing into a controlled field races under load.
     fireEvent.change(count, { target: { value: '12345' } });
@@ -291,7 +447,7 @@ describe('creating a catalog', () => {
     const client = dialogClient();
     renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'offer.example.test/?sub=1');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'offer.example.test/?sub=1');
     await user.tab();
     expect(screen.queryByText(/Paste a link/)).toBeNull();
     await waitFor(() => expect(confirm().disabled).toBe(false));
@@ -308,10 +464,10 @@ describe('creating a catalog', () => {
     renderDialog(client);
     const user = userEvent.setup();
     await user.type(
-      screen.getByLabelText(/^Link · Required$/),
+      screen.getByLabelText(/^Link(?: · Required)?$/),
       ' https://offer.example.test/?a=1 '
     );
-    const count = screen.getByLabelText(/^Products · Required$/);
+    const count = screen.getByRole('textbox', { name: /^Products(?: · Required)?$/ });
     await user.clear(count);
     await user.type(count, '3');
     await waitFor(() => expect(confirm().disabled).toBe(false));
@@ -348,7 +504,7 @@ describe('creating a catalog', () => {
     });
     renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
 
@@ -372,7 +528,7 @@ describe('creating a catalog', () => {
       })
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(await screen.findByText('This video already has a catalog')).toBeTruthy();
@@ -387,7 +543,7 @@ describe('creating a catalog', () => {
       })
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(
@@ -407,7 +563,7 @@ describe('creating a catalog', () => {
       })
     );
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(await screen.findByText('This space has no catalog settings yet.')).toBeTruthy();
@@ -424,7 +580,7 @@ describe('a space without catalog settings', () => {
     });
     renderDialog(client);
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test/');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     await waitFor(() => expect(setProductCatalogSettings).toHaveBeenCalledOnce());
@@ -447,10 +603,13 @@ describe('re-creating a catalog', () => {
       createProductCatalog: vi.fn().mockResolvedValue({ ...created, outcome: 'recreated' })
     });
     renderDialog(client, { replaces: catalog });
-    expect((screen.getByLabelText(/^Link · Required$/) as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText(/^Link(?: · Required)?$/) as HTMLInputElement).value).toBe(
       catalog.sourceLink
     );
-    expect((screen.getByLabelText(/^Products · Required$/) as HTMLInputElement).value).toBe('100');
+    expect(
+      (screen.getByRole('textbox', { name: /^Products(?: · Required)?$/ }) as HTMLInputElement)
+        .value
+    ).toBe('100');
     expect(
       screen.getByText(
         'The current catalog goes to the trash, and its link will not show the new products.'
@@ -537,8 +696,11 @@ describe('a video’s catalogs (024, US15)', () => {
     await user.click(await screen.findByRole('button', { name: 'New variation' }));
 
     expect(screen.getByRole('heading', { name: 'New catalog variation' })).toBeTruthy();
-    expect((screen.getByLabelText(/^Products · Required$/) as HTMLInputElement).value).toBe('40');
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://third.example.test/');
+    expect(
+      (screen.getByRole('textbox', { name: /^Products(?: · Required)?$/ }) as HTMLInputElement)
+        .value
+    ).toBe('40');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://third.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
 
@@ -557,7 +719,7 @@ describe('a video’s catalogs (024, US15)', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Actions for clip_v2_catalog' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Re-create catalog' }));
-    expect((screen.getByLabelText(/^Link · Required$/) as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText(/^Link(?: · Required)?$/) as HTMLInputElement).value).toBe(
       second.sourceLink
     );
     const button = screen.getByRole('button', { name: 'Re-create' }) as HTMLButtonElement;
@@ -589,7 +751,7 @@ describe('a video’s catalogs (024, US15)', () => {
       listProductCatalogs: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([catalog])
     });
     const { onClose } = renderList(api);
-    const link = await screen.findByLabelText(/^Link · Required$/);
+    const link = await screen.findByLabelText(/^Link(?: · Required)?$/);
     fireEvent.change(link, { target: { value: 'https://offer.example.test/' } });
     await waitFor(() => expect(confirm().disabled).toBe(false));
     fireEvent.click(confirm());
@@ -653,8 +815,8 @@ describe('a catalog re-stitched with pictures from the space (030)', () => {
     renderDialog(client, { video: { ...VIDEO, parentFolderId: 'source-drive-folder' } });
     const user = userEvent.setup();
     await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
-    await user.click(await screen.findByRole('button', { name: /30.*40/u }));
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
+    await screen.findAllByRole('slider');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     expect(await screen.findByText('The catalog is ready')).toBeTruthy();
@@ -684,7 +846,7 @@ describe('a catalog re-stitched with pictures from the space (030)', () => {
     renderDialog(client, { video: { ...VIDEO, parentFolderId: 'source-drive-folder' } });
     const user = userEvent.setup();
     await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
-    await user.type(screen.getByLabelText(/^Link · Required$/), 'https://offer.example.test');
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
     await waitFor(() => expect(screen.queryByText('The catalog is ready')).toBeNull());

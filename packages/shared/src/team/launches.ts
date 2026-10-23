@@ -200,3 +200,5 @@ export * from './launches/revisions.js';
 export * from './launches/persistence.js';
 
 export * from './launches/lifecycle.js';
+
+export * from './launches/defaults.js';

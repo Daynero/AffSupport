@@ -147,6 +147,13 @@
 `specs/021-design-system-redesign/contracts/components.md` як історія),
 живий показ — маршрут `/design` (тільки в dev-збірці).
 
+- `RestitchDurationControl` — спільний блок тривалості перезашивки: точний час
+  або незалежні межі діапазону на шкалі 1–60 хвилин. Приймає `value`,
+  `onChange`, `disabled` і локалізовані `labels`; значення на межі компонента
+  передаються в секундах. Екран відповідає за валідацію, збереження та діагностику.
+  Перемикання режимів, підписи, рамка й `DurationSlider` живуть усередині,
+  тому нове місце використання не копіює логіку запусків.
+
 - `Button`, `IconButton` — `color` × `variant` (`solid`/`outline`/`soft`/
   `subtle`/`ghost`/`link`) × `size` (`xs`–`xl`).
 - `Badge`, `Chip`, `Card`, `Separator`, `Alert`.

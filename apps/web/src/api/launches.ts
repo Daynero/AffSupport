@@ -1,5 +1,6 @@
 import {
   isRecord,
+  launchDefaultValues,
   parseLaunchDetail,
   parseLaunchSummary,
   parseLaunchSources,
@@ -355,9 +356,14 @@ export const launchApi = {
     throwRpc(error);
     return dictionary([data])[0];
   },
-  async defaults(teamId: string) {
+  async defaults(teamId: string, offerId?: string) {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_launch_defaults', { p_team: teamId })
+      offerId
+        ? requireSupabaseClient().rpc('get_launch_offer_defaults', {
+            p_team: teamId,
+            p_offer: offerId
+          })
+        : requireSupabaseClient().rpc('get_launch_defaults', { p_team: teamId })
     );
     throwRpc(error);
     if (data === null) return null;
@@ -368,30 +374,30 @@ export const launchApi = {
     if (!config || !subConfig) throw new TeamApiError('INVALID_RESPONSE', false);
     return { config, subConfig, version: data.version };
   },
-  async setDefaults(teamId: string, version: string | null, key: string, config: LaunchDraft) {
-    const allowed = {
-      buyerId: config.buyerId,
-      campaignCount: config.campaignCount,
-      maxBudget: config.maxBudget,
-      minBudget: config.minBudget,
-      adsCount: config.adsCount,
-      age: config.age,
-      gender: config.gender,
-      method: config.method,
-      advantagePlus: config.advantagePlus,
-      catalog: config.catalog
+  async setDefaults(
+    teamId: string,
+    version: string | null,
+    key: string,
+    config: LaunchDraft,
+    offerId?: string
+  ) {
+    const { subConfig, ...allowed } = launchDefaultValues(config);
+    const args = {
+      p_team: teamId,
+      p_expected_version: version,
+      p_key: key,
+      p_config: wire(allowed),
+      p_sub_config: wire(subConfig)
     };
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_launch_defaults', {
-        p_team: teamId,
-        p_expected_version: version,
-        p_key: key,
-        p_config: wire(allowed),
-        p_sub_config: wire(config.subConfig)
-      })
+      offerId
+        ? requireSupabaseClient().rpc('set_launch_offer_defaults', { ...args, p_offer: offerId })
+        : requireSupabaseClient().rpc('set_launch_defaults', args)
     );
     throwRpc(error);
-    return data;
+    if (!isRecord(data) || typeof data.version !== 'string')
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return { version: data.version };
   },
   async cancelRequest(teamId: string, id: string, requestKey: string, cancelKey: string) {
     const { data, error } = await withFreshSession(() =>

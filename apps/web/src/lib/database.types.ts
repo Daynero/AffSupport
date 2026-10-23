@@ -2509,6 +2509,52 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      team_launch_offer_defaults: {
+        Row: {
+          config: NonNullable<Json>;
+          offer_id: string;
+          sub_config: NonNullable<Json>;
+          team_id: string;
+          updated_at: string;
+          updated_by: string;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          config?: NonNullable<Json>;
+          offer_id: string;
+          sub_config?: NonNullable<Json>;
+          team_id: string;
+          updated_at?: string;
+          updated_by: string;
+          version?: number;
+        };
+        Update: {
+          config?: NonNullable<Json>;
+          offer_id?: string;
+          sub_config?: NonNullable<Json>;
+          team_id?: string;
+          updated_at?: string;
+          updated_by?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_offer_defaults_offer_id_team_id_fkey';
+            columns: ['offer_id', 'team_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_launch_offers';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_offer_defaults_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_launch_generation_steps: {
         Row: {
           attempt_no: number;
@@ -5685,6 +5731,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       get_launch_archive_warning: { Args: { p_launch: string; p_team: string }; Returns: Json };
+      get_launch_offer_defaults: { Args: { p_team: string; p_offer: string }; Returns: Json };
       get_launch_defaults: { Args: { p_team: string }; Returns: Json };
       get_launch_restitch_preparation: {
         Args: { p_generation: string; p_team: string };
@@ -8280,6 +8327,17 @@ export type GeneratedDatabase = {
           p_key: string;
           p_sub_config: Json;
           p_team: string;
+        };
+        Returns: Json;
+      };
+      set_launch_offer_defaults: {
+        Args: {
+          p_config: Json;
+          p_expected_version: string | null;
+          p_key: string;
+          p_sub_config: Json;
+          p_team: string;
+          p_offer: string;
         };
         Returns: Json;
       };

@@ -43,9 +43,9 @@ it('distinguishes equal account suffixes and updates campaign names without IO',
     screen.getByRole('combobox', { name: 'Ad account' }).id
   );
   fireEvent.click(screen.getByRole('button', { name: 'Ad account' }));
-  expect(screen.getByRole('option', { name: 'g1 · 892' })).toBeTruthy();
-  expect(screen.getByRole('option', { name: 'g2 · 892' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('option', { name: 'g1 · 892' }));
+  expect(screen.getByRole('option', { name: 'g1 · 892, ID 1234567892' })).toBeTruthy();
+  expect(screen.getByRole('option', { name: 'g2 · 892, ID 9876543892' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('option', { name: 'g1 · 892, ID 1234567892' }));
   fireEvent.change(screen.getByRole('spinbutton', { name: 'Campaign count' }), {
     target: { value: '5' }
   });
@@ -123,8 +123,8 @@ it('explains an empty required Buyer after submit without tinting the field back
   expect(buyer.closest('.bg-warning-soft')).toBeNull();
   expect(buyer.closest('.ui-field')?.querySelector('.ui-field-required')).toBeNull();
   expect(
-    screen.getByLabelText('Required values are checked when you generate the launch.')
-  ).toBeTruthy();
+    screen.queryByLabelText('Required values are checked when you generate the launch.')
+  ).toBeNull();
   expect(screen.getByRole('alert').textContent).toBe('Check the value');
 });
 

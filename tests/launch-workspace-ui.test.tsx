@@ -1116,19 +1116,21 @@ it('requires reviewing newer defaults and preserves the Launch draft before anot
     .mockResolvedValueOnce({ version: '10' });
   render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByText('SYNTHETIC_OWN_DRAFT');
-  expect(screen.getByRole('button', { name: 'Save as defaults' }).getAttribute('title')).toBe(
-    'Use these settings as the starting values for new launches in this workspace.'
+  expect(
+    screen.getByRole('button', { name: 'Save as general defaults' }).getAttribute('title')
+  ).toBe(
+    'For new launches in this workspace when the offer has no saved settings. Other offer profiles stay unchanged.'
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Save as defaults' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save as general defaults' }));
   await screen.findByRole('button', { name: 'Review current defaults' });
   expect(
-    (screen.getByRole('button', { name: 'Save as defaults' }) as HTMLButtonElement).disabled
+    (screen.getByRole('button', { name: 'Save as general defaults' }) as HTMLButtonElement).disabled
   ).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: 'Review current defaults' }));
   await screen.findByText('Workspace defaults changed');
   expect(screen.getByText('SYNTHETIC_OWN_DRAFT')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Reviewed; keep my Launch draft' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Save as defaults' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save as general defaults' }));
   await waitFor(() => expect(seams.setDefaults).toHaveBeenCalledTimes(2));
   expect(seams.setDefaults.mock.calls[1][1]).toBe('9');
   expect(seams.setDefaults.mock.calls[1][3].originalUrl).toBe('SYNTHETIC_OWN_DRAFT');
@@ -1148,7 +1150,9 @@ it('keeps an existing draft unchanged when workspace defaults are refreshed', as
   await screen.findByText('Age: 45');
   seams.revision++;
   view.rerender(<LaunchSpace teamId={TEAM} query={query} />);
-  await waitFor(() => expect(seams.defaults).toHaveBeenCalledTimes(2));
+  await waitFor(() =>
+    expect(seams.defaults.mock.calls.filter(args => args.length === 1)).toHaveLength(2)
+  );
   expect(screen.getByText('Age: 45')).toBeTruthy();
   expect(screen.getByText('Max budget: 30')).toBeTruthy();
   expect(seams.save).not.toHaveBeenCalled();
@@ -1251,6 +1255,7 @@ it('autosaves settings without disabling typing and restores the confirmed draft
   seams.save.mockResolvedValue({ id: LAUNCH, version: '3' });
   const view = render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByRole('button', { name: 'Age 50' });
+  await waitFor(() => expect(screen.queryByText('Loading default settings…')).toBeNull());
   const statusRow = document.querySelector('.launch-draft-save-status')!;
   const detailChildren = document.querySelector('.launch-detail')!.children.length;
   const actionChildren = document.querySelector('.launch-detail-actions')!.children.length;
@@ -1446,4 +1451,98 @@ it('appends a cursor page and clears a filter that has no matching launches', as
   const clear = await screen.findByRole('button', { name: 'Clear filters' });
   fireEvent.click(clear);
   await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
+});
+
+it('saves an offer with its own version, clears the old proposal, and preserves an uncertain request for retry', async () => {
+  const { TeamApiError } = await import('../apps/web/src/api/team');
+  seams.edit = true;
+  seams.manage = true;
+  const current = detail('SYNTHETIC_OFFER_URL');
+  seams.detail.mockResolvedValue(current);
+  seams.offers = [{ id: current.draft.offerId, value: 'Offer A', updatedAt: 'now' }];
+  seams.defaults.mockImplementation(async (_team, offerId) =>
+    offerId
+      ? {
+          config: launchConfig({ campaignCount: 8 }),
+          subConfig: launchConfig().subConfig,
+          version: '17'
+        }
+      : null
+  );
+  seams.setDefaults
+    .mockRejectedValueOnce(new TeamApiError('INVALID_RESPONSE', true))
+    .mockResolvedValueOnce({ version: '18' });
+  render(<LaunchSpace teamId={TEAM} query={query} />);
+  await screen.findByRole('button', { name: 'Apply offer settings' });
+  const save = screen.getByRole('button', { name: 'Save for offer' });
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(save);
+  await waitFor(() => expect(seams.setDefaults).toHaveBeenCalledOnce());
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  expect(
+    (screen.getByRole('button', { name: 'Save as general defaults' }) as HTMLButtonElement).disabled
+  ).toBe(true);
+  expect((screen.getByRole('button', { name: 'Age 50' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(save);
+  await screen.findByText('Offer settings saved');
+  expect(seams.setDefaults.mock.calls[1]).toEqual(seams.setDefaults.mock.calls[0]);
+  expect(seams.setDefaults.mock.calls[0][1]).toBe('17');
+  expect(seams.setDefaults.mock.calls[0][4]).toBe(current.draft.offerId);
+  expect(screen.queryByRole('button', { name: 'Apply offer settings' })).toBeNull();
+});
+
+it('reviews a conflict in the selected offer rather than the workspace profile', async () => {
+  const { TeamApiError } = await import('../apps/web/src/api/team');
+  seams.edit = true;
+  seams.manage = true;
+  const current = detail('SYNTHETIC_OFFER_CONFLICT');
+  seams.detail.mockResolvedValue(current);
+  seams.offers = [{ id: current.draft.offerId, value: 'Offer A', updatedAt: 'now' }];
+  seams.defaults.mockImplementation(async (_team, offerId) =>
+    offerId
+      ? {
+          config: launchConfig({ minBudget: 10, budgetMode: 'manual', budgets: [10, 25, 30] }),
+          subConfig: launchConfig().subConfig,
+          version: '17'
+        }
+      : null
+  );
+  seams.setDefaults
+    .mockRejectedValueOnce(new TeamApiError('LAUNCH_VERSION_CONFLICT', false))
+    .mockResolvedValueOnce({ version: '18' });
+  render(<LaunchSpace teamId={TEAM} query={query} />);
+  await screen.findByRole('button', { name: 'Apply offer settings' });
+  const save = screen.getByRole('button', { name: 'Save for offer' });
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(save);
+  fireEvent.click(await screen.findByRole('button', { name: 'Review current defaults' }));
+  await screen.findByText('Settings changed for offer “Offer A”');
+  expect(screen.getByText('10 · 25 · 30')).toBeTruthy();
+  expect(seams.defaults).toHaveBeenLastCalledWith(TEAM, current.draft.offerId);
+  fireEvent.click(screen.getByRole('button', { name: 'Reviewed; keep my Launch draft' }));
+  fireEvent.click(save);
+  await screen.findByText('Offer settings saved');
+  expect(seams.setDefaults.mock.calls[1][1]).toBe('17');
+  expect(seams.setDefaults.mock.calls[1][4]).toBe(current.draft.offerId);
+  expect(screen.getByText('Age: 45')).toBeTruthy();
+});
+
+it('initializes a new launch from a legacy general budget without inventing a minimum', async () => {
+  seams.edit = true;
+  seams.manage = true;
+  seams.defaults.mockResolvedValue({
+    config: { campaignCount: 3, maxBudget: 6 },
+    subConfig: launchConfig().subConfig,
+    version: '2'
+  });
+  seams.setDefaults.mockResolvedValue({ version: '3' });
+  render(<LaunchSpace teamId={TEAM} query={{ ...query, launchId: 'new' }} />);
+  await screen.findByText('Max budget: 6');
+  fireEvent.click(screen.getByRole('button', { name: 'Save as general defaults' }));
+  await screen.findByText('General settings saved');
+  expect(seams.setDefaults.mock.calls[0][3].minBudget).toBeUndefined();
+  expect(seams.setDefaults.mock.calls[0][3].campaignCount).toBe(3);
+  expect(
+    (screen.getByRole('button', { name: 'Save for offer' }) as HTMLButtonElement).disabled
+  ).toBe(true);
 });

@@ -2,6 +2,7 @@ import { launchMutation, launchObservedGeneration, launchVisible } from './analy
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Copy, History as HistoryIcon, Trash2, X } from 'lucide-react';
 import {
+  applyLaunchDefaultValues,
   launchInputsLocked,
   launchPreview,
   launchRevisionImpact,
@@ -27,7 +28,10 @@ import { DeferredLaunchEditor } from './DeferredLaunchEditor';
 import { LaunchResult } from './LaunchResult';
 import { LaunchHistory } from './LaunchHistory';
 import { LaunchChangeReview } from './LaunchChangeReview';
+import { resolvedLaunchDefaults, useOfferDefaults } from './useOfferDefaults';
+import { observeLaunchDefaults } from '../../analytics/launch-defaults';
 import { LaunchDefaultsReview } from './LaunchDefaultsReview';
+import { LaunchDefaultsActions } from './LaunchDefaultsActions';
 import { LaunchConflictReview } from './LaunchConflictReview';
 import { restitchSettingsError } from './recovery';
 import { LaunchGenerationProgress } from './LaunchGenerationProgress';
@@ -123,12 +127,17 @@ export function LaunchSession({
     suppressed: boolean;
   } | null>(null);
   const [suppress, setSuppress] = useState(false);
+  const [defaultsFeedback, setDefaultsFeedback] = useState<string | null>(null);
+  useEffect(() => setDefaultsFeedback(null), [draft.config]);
+  const defaultsObservation = useRef<ReturnType<typeof observeLaunchDefaults> | null>(null);
+  useEffect(() => () => defaultsObservation.current?.finish('cancelled'), []);
   const [defaultsVersion, setDefaultsVersion] = useState(defaults?.version ?? null);
   const [versionRejected, setVersionRejected] = useState(false);
   const [conflictReview, setConflictReview] = useState<LaunchDetail | null>(null);
-  const [defaultsConflict, setDefaultsConflict] = useState(false);
+  const [defaultsConflict, setDefaultsConflict] = useState<{ offerId?: string } | null>(null);
   const [defaultsReview, setDefaultsReview] = useState<{
     current: Awaited<ReturnType<typeof launchApi.defaults>>;
+    offerId?: string;
   } | null>(null);
   const copying = useLaunchCopy(teamId, next => onChange(next, 'settings'));
   const saveIntent = useRef<Parameters<typeof launchApi.save>[0] | null>(null);
@@ -246,6 +255,15 @@ export function LaunchSession({
     restoreTarget !== null ||
     changeReview !== null;
   const locked = inputLocked || autosaving;
+  const offerDefaults = useOfferDefaults({
+    teamId,
+    config: draft.config,
+    workspace: defaults,
+    existing: detail !== null,
+    disabled: !editable || inputLocked || historical || Boolean(defaultsConflict),
+    buyers,
+    onApply: next => draft.setConfig(next)
+  });
   const generationLocked =
     preflighting ||
     launchInputsLocked(detail?.generation?.state ?? null) ||
@@ -333,9 +351,7 @@ export function LaunchSession({
     initial.current = true;
     if (!detail && defaults) {
       const next = {
-        ...newLaunchDraft(),
-        ...defaults.config,
-        subConfig: defaults.subConfig,
+        ...applyLaunchDefaultValues(newLaunchDraft(), resolvedLaunchDefaults(defaults)),
         ...(initialMaterialId ? { materialId: initialMaterialId } : {})
       };
       if (next.buyerId && !buyers.some(buyer => buyer.id === next.buyerId)) {
@@ -457,7 +473,7 @@ export function LaunchSession({
         ].includes(e.code)
       ) {
         if (defaultsIntent.current && e.code === 'LAUNCH_VERSION_CONFLICT')
-          setDefaultsConflict(true);
+          setDefaultsConflict({ offerId: defaultsIntent.current[4] });
         if (!defaultsIntent.current && e.code === 'LAUNCH_VERSION_CONFLICT')
           setVersionRejected(true);
         saveIntent.current = null;
@@ -643,7 +659,7 @@ export function LaunchSession({
     });
   };
   const generate = async () => {
-    if (generationClick.current || generation.busy) return;
+    if (generationClick.current || generation.busy || offerDefaults.loading) return;
     generationClick.current = true;
     const preflight = new AbortController();
     preflightAbort.current = preflight;
@@ -964,104 +980,166 @@ export function LaunchSession({
               : detail
                 ? t(tab === 'result' ? 'launchesChangesSaved' : 'launchesDraftSaved')
                 : t('launchesAutosave')));
+  const pendingDefaultsScope = defaultsIntent.current?.[4] ? 'offer' : 'workspace';
+  const saveDefaultsDisabled = (scope: 'offer' | 'workspace') =>
+    historical ||
+    working ||
+    dictionaryBusy ||
+    Boolean(defaultsConflict) ||
+    generation.busy ||
+    (scope === 'offer' &&
+      (!draft.config.offerId || offerDefaults.loading || Boolean(offerDefaults.error))) ||
+    (defaultsIntent.current !== null && pendingDefaultsScope !== scope) ||
+    (locked && defaultsIntent.current === null);
+  const saveDefaults = (scope: 'offer' | 'workspace') => {
+    const offerId = scope === 'offer' ? draft.config.offerId : undefined;
+    void run(async () => {
+      defaultsIntent.current ??= [
+        teamId,
+        offerId ? (offerDefaults.profile?.version ?? null) : defaultsVersion,
+        crypto.randomUUID(),
+        draft.config,
+        offerId
+      ];
+      const intended = defaultsIntent.current;
+      setDefaultsFeedback(null);
+      const observation = observeLaunchDefaults(
+        'save',
+        intended[4] ? 'offer' : 'workspace',
+        intended[2]
+      );
+      try {
+        const result = await launchMutation({ flowId: intended[2] }, 'save_defaults', () =>
+          launchApi.setDefaults(...intended)
+        );
+        defaultsIntent.current = null;
+        if (!inputAuthority.current.mounted) {
+          observation.finish('cancelled');
+          return;
+        }
+        offerDefaults.saved(
+          {
+            version: result.version,
+            config: intended[3],
+            subConfig: intended[3].subConfig!
+          },
+          intended[4] ? 'offer' : 'workspace'
+        );
+        if (!intended[4]) setDefaultsVersion(result.version);
+        toasts?.push({
+          tone: 'success',
+          text: t(intended[4] ? 'launchesDefaultsOfferSaved' : 'launchesDefaultsGeneralSaved')
+        });
+        setDefaultsFeedback(
+          t(intended[4] ? 'launchesDefaultsOfferSaved' : 'launchesDefaultsGeneralSaved')
+        );
+        defaultsObservation.current = observation;
+      } catch (error) {
+        observation.finish('failure', error);
+        throw error;
+      }
+    });
+  };
   return (
     <div
       ref={progressScroll.anchor}
       className="launch-detail mx-auto box-border flex w-full min-w-0 max-w-none flex-col gap-3 p-3 sm:p-4"
     >
-      <div className="launch-detail-toolbar flex flex-wrap items-center gap-2 rounded-control bg-surface p-2">
-        <Button
-          variant="ghost"
-          className="launch-detail-close"
-          disabled={locked}
-          onClick={close}
-          aria-label={t('teamCancel')}
-        >
-          <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </Button>
-        <Tabs
-          label={t('launchesTitle')}
-          value={tab}
-          onChange={next => {
-            if (next === 'result' || next === 'settings') onTab(next);
-          }}
-          items={[
-            { id: 'result', label: t('launchesResult'), disabled: !displayedRevision },
-            { id: 'settings', label: t('launchesSettings') }
-          ]}
-        />
-        {detail && editable && (
+      <header className="launch-detail-header">
+        <div className="launch-detail-toolbar flex flex-wrap items-center gap-2 rounded-control bg-surface p-2">
           <Button
             variant="ghost"
-            color="neutral"
-            className="launch-detail-copy"
-            aria-label={t('launchesCopy')}
-            title={t(
-              unsavedChanges || preparationStatus ? 'launchesCopySavedNotice' : 'launchesCopy'
-            )}
-            disabled={
-              working ||
-              copying.busy ||
-              generation.busy ||
-              ((locked || unsavedChanges || Boolean(preparationStatus)) &&
-                !copying.hasUnresolvedRequest)
-            }
-            onClick={() =>
-              void run(async () => {
-                await copy();
-              })
-            }
+            className="launch-detail-close"
+            disabled={locked}
+            onClick={close}
+            aria-label={t('teamCancel')}
           >
-            <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </Button>
-        )}
-        {detail && deletable && (
-          <IconButton
-            label={t('launchesArchive')}
-            title=""
-            variant="ghost"
-            color="error"
-            className="launch-detail-delete"
-            disabled={working || generation.busy || (locked && archiveIntent.current === null)}
-            onClick={() =>
-              void run(async () => {
-                if (archiveIntent.current) {
-                  await archive(archiveIntent.current[4]);
-                  return;
-                }
-                const warning = await launchApi.archiveWarning(teamId, detail.id);
-                if (!inputAuthority.current.mounted) return;
-                if (warning.hasCatalog && !warning.suppressed) {
-                  setRetention(warning);
-                  setSuppress(false);
-                } else {
-                  await archive(false);
-                }
-              })
-            }
-          >
-            <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </IconButton>
-        )}
-      </div>
-      <div
-        className="launch-draft-save-status"
-        id={preparationStatusId}
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        <span className="launch-draft-save-indicator" aria-hidden="true">
-          {statusBusy ? (
-            <span className="ui-spinner" />
-          ) : !unsavedChanges && detail ? (
-            <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-          ) : null}
-        </span>
-        <span className="launch-draft-save-label" title={saveStatus}>
-          {saveStatus}
-        </span>
-      </div>
+          <Tabs
+            label={t('launchesTitle')}
+            value={tab}
+            onChange={next => {
+              if (next === 'result' || next === 'settings') onTab(next);
+            }}
+            items={[
+              { id: 'result', label: t('launchesResult'), disabled: !displayedRevision },
+              { id: 'settings', label: t('launchesSettings') }
+            ]}
+          />
+          {detail && editable && (
+            <Button
+              variant="ghost"
+              color="neutral"
+              className="launch-detail-copy"
+              aria-label={t('launchesCopy')}
+              title={t(
+                unsavedChanges || preparationStatus ? 'launchesCopySavedNotice' : 'launchesCopy'
+              )}
+              disabled={
+                working ||
+                copying.busy ||
+                generation.busy ||
+                ((locked || unsavedChanges || Boolean(preparationStatus)) &&
+                  !copying.hasUnresolvedRequest)
+              }
+              onClick={() =>
+                void run(async () => {
+                  await copy();
+                })
+              }
+            >
+              <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </Button>
+          )}
+          {detail && deletable && (
+            <IconButton
+              label={t('launchesArchive')}
+              title=""
+              variant="ghost"
+              color="error"
+              className="launch-detail-delete"
+              disabled={working || generation.busy || (locked && archiveIntent.current === null)}
+              onClick={() =>
+                void run(async () => {
+                  if (archiveIntent.current) {
+                    await archive(archiveIntent.current[4]);
+                    return;
+                  }
+                  const warning = await launchApi.archiveWarning(teamId, detail.id);
+                  if (!inputAuthority.current.mounted) return;
+                  if (warning.hasCatalog && !warning.suppressed) {
+                    setRetention(warning);
+                    setSuppress(false);
+                  } else {
+                    await archive(false);
+                  }
+                })
+              }
+            >
+              <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </IconButton>
+          )}
+        </div>
+        <div
+          className="launch-draft-save-status"
+          id={preparationStatusId}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span className="launch-draft-save-indicator" aria-hidden="true">
+            {statusBusy ? (
+              <span className="ui-spinner" />
+            ) : !unsavedChanges && detail ? (
+              <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+            ) : null}
+          </span>
+          <span className="launch-draft-save-label" title={saveStatus}>
+            {saveStatus}
+          </span>
+        </div>
+      </header>
       {sourceChanged && (
         <p role="status" className="text-warning-text">
           {t('launchesSourceChanged')}
@@ -1174,8 +1252,9 @@ export function LaunchSession({
           disabled={locked}
           onClick={() =>
             void run(async () => {
-              const current = await launchApi.defaults(teamId);
-              if (inputAuthority.current.mounted) setDefaultsReview({ current });
+              const current = await launchApi.defaults(teamId, defaultsConflict.offerId);
+              if (inputAuthority.current.mounted)
+                setDefaultsReview({ current, offerId: defaultsConflict.offerId });
             })
           }
         >
@@ -1185,13 +1264,23 @@ export function LaunchSession({
       {defaultsReview && manage && (
         <LaunchDefaultsReview
           current={defaultsReview.current}
+          offerName={
+            defaultsReview.offerId
+              ? (offers.find(row => row.id === defaultsReview.offerId)?.value ?? t('launchesOffer'))
+              : undefined
+          }
           buyer={
             buyers.find(item => item.id === defaultsReview.current?.config.buyerId)?.value ?? ''
           }
           disabled={locked}
           onReview={() => {
-            setDefaultsVersion(defaultsReview.current?.version ?? null);
-            setDefaultsConflict(false);
+            if (defaultsReview.offerId === draft.config.offerId && defaultsReview.offerId)
+              offerDefaults.reviewed(defaultsReview.current, 'offer');
+            else if (!defaultsReview.offerId) {
+              setDefaultsVersion(defaultsReview.current?.version ?? null);
+              offerDefaults.reviewed(defaultsReview.current, 'workspace');
+            }
+            setDefaultsConflict(null);
             setDefaultsReview(null);
           }}
         />
@@ -1361,7 +1450,7 @@ export function LaunchSession({
             accounts={accounts}
             offers={offers}
             buyers={buyers}
-            disabled={!editable || inputLocked || historical}
+            disabled={!editable || inputLocked || historical || Boolean(defaultsConflict)}
             onRefreshSources={() => void refreshSources(true)}
             onDictionaryBusyChange={setDictionaryBusy}
             onDictionaryChanged={
@@ -1409,71 +1498,65 @@ export function LaunchSession({
             }
           />
           {editable && (
-            <div className="launch-detail-actions flex flex-wrap justify-end gap-2 rounded-control bg-surface p-3">
-              {manage && (
+            <LaunchDefaultsActions
+              manage={manage}
+              hasOffer={Boolean(draft.config.offerId)}
+              offerName={offers.find(row => row.id === draft.config.offerId)?.value}
+              loading={offerDefaults.loading}
+              loadError={Boolean(offerDefaults.error)}
+              buyerMissing={offerDefaults.buyerMissing}
+              proposalSource={offerDefaults.proposal?.source}
+              disabled={inputLocked || historical || Boolean(defaultsConflict)}
+              saveDisabled={{
+                offer: saveDefaultsDisabled('offer'),
+                workspace: saveDefaultsDisabled('workspace')
+              }}
+              savingScope={
+                working && defaultsIntent.current !== null ? pendingDefaultsScope : undefined
+              }
+              primaryAction={
                 <Button
-                  variant="ghost"
-                  aria-label={t('launchesDefaults')}
-                  title={t('launchesDefaultsScope')}
+                  color="primary"
+                  variant="solid"
+                  aria-label={t('launchesGenerate')}
+                  aria-describedby={preparationStatus ? preparationStatusId : undefined}
                   disabled={
-                    working ||
+                    locked ||
+                    offerDefaults.loading ||
+                    historical ||
+                    uploading ||
                     dictionaryBusy ||
-                    defaultsConflict ||
-                    generation.busy ||
-                    (locked && defaultsIntent.current === null)
+                    sourcesPending ||
+                    sourceChanged ||
+                    detail?.generation?.state === 'failed'
                   }
-                  onClick={() =>
-                    void run(async () => {
-                      defaultsIntent.current ??= [
-                        teamId,
-                        defaultsVersion,
-                        crypto.randomUUID(),
-                        draft.config
-                      ];
-                      const intended = defaultsIntent.current;
-                      const result = await launchMutation(
-                        { flowId: intended[2] },
-                        'save_defaults',
-                        () => launchApi.setDefaults(...intended)
-                      );
-                      defaultsIntent.current = null;
-                      if (!inputAuthority.current.mounted) return;
-                      if (
-                        result &&
-                        typeof result === 'object' &&
-                        !Array.isArray(result) &&
-                        'version' in result &&
-                        typeof result.version === 'string'
-                      )
-                        setDefaultsVersion(result.version);
-                      toasts?.push({ tone: 'success', text: t('launchesDefaultsSaved') });
-                    })
-                  }
+                  onClick={() => void generate()}
                 >
-                  <span className="sm:hidden">{t('launchesDefaultsShort')}</span>
-                  <span className="hidden sm:inline">{t('launchesDefaults')}</span>
+                  <span className="sm:hidden">{t('launchesGenerateShort')}</span>
+                  <span className="hidden sm:inline">{t('launchesGenerate')}</span>
                 </Button>
-              )}
-              <Button
-                color="primary"
-                variant="solid"
-                aria-label={t('launchesGenerate')}
-                aria-describedby={preparationStatus ? preparationStatusId : undefined}
-                disabled={
-                  locked ||
-                  historical ||
-                  uploading ||
-                  dictionaryBusy ||
-                  sourcesPending ||
-                  sourceChanged ||
-                  detail?.generation?.state === 'failed'
-                }
-                onClick={() => void generate()}
-              >
-                <span className="sm:hidden">{t('launchesGenerateShort')}</span>
-                <span className="hidden sm:inline">{t('launchesGenerate')}</span>
-              </Button>
-            </div>
+              }
+              onSave={saveDefaults}
+              onApply={offerDefaults.apply}
+              onKeep={offerDefaults.keep}
+              onRetry={offerDefaults.retry}
+              feedback={
+                defaultsFeedback && (
+                  <p
+                    role="status"
+                    className="m-0 text-caption text-success-text"
+                    ref={node => {
+                      if (node) {
+                        defaultsObservation.current?.finish('success');
+                        defaultsObservation.current = null;
+                      }
+                    }}
+                  >
+                    {defaultsFeedback}
+                  </p>
+                )
+              }
+            />
           )}
         </>
       )}

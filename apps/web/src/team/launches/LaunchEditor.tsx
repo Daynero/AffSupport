@@ -24,10 +24,11 @@ import {
   Input,
   Switch,
   SegmentedControl,
-  DurationSlider
+  RestitchDurationControl
 } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { LaunchDictionaryManager } from './LaunchDictionaryManager';
+import { LaunchAccountSelector } from './LaunchAccountSelector';
 import { LaunchSelector } from './LaunchSelectors';
 import { LaunchCreativePicker } from './LaunchCreativePicker';
 import { SubBuilder } from './SubBuilder';
@@ -74,36 +75,10 @@ export function LaunchEditor({
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
   const [manualBudgetDraft, setManualBudgetDraft] = useState<number[]>(config.budgets ?? []);
-  const [durationSliderValue, setDurationSliderValue] = useState<readonly [number, number]>(() =>
-    config.catalog?.finalDurationMode === 'custom'
-      ? [Math.round((config.catalog.customFinalDurationSeconds ?? 30 * 60) / 60), 0]
-      : durationModeRange(
-          config.catalog?.finalDurationMode ?? 'random-30-40',
-          config.catalog?.customFinalDurationSeconds,
-          config.catalog?.finalDurationRangeSeconds
-        )
-  );
   const editorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (config.budgetMode === 'manual' && config.budgets) setManualBudgetDraft([...config.budgets]);
   }, [config.budgetMode, config.budgets]);
-  useEffect(() => {
-    if (!config.catalog) return;
-    setDurationSliderValue(
-      config.catalog.finalDurationMode === 'custom'
-        ? [Math.round((config.catalog.customFinalDurationSeconds ?? 30 * 60) / 60), 0]
-        : durationModeRange(
-            config.catalog.finalDurationMode,
-            config.catalog.customFinalDurationSeconds,
-            config.catalog.finalDurationRangeSeconds
-          )
-    );
-  }, [
-    config.catalog?.finalDurationMode,
-    config.catalog?.customFinalDurationSeconds,
-    config.catalog?.finalDurationRangeSeconds?.[0],
-    config.catalog?.finalDurationRangeSeconds?.[1]
-  ]);
   useEffect(() => {
     if (!submitted) return;
     const firstError = [
@@ -326,7 +301,6 @@ export function LaunchEditor({
               <div>
                 <h3 id={`${prefix}-sources-heading`} className="flex items-center gap-2">
                   {t('launchesSectionSources')}
-                  {helpHint(t('launchesRequiredHelp'))}
                 </h3>
               </div>
               <Button variant="ghost" size="sm" disabled={disabled} onClick={onRefreshSources}>
@@ -338,17 +312,11 @@ export function LaunchEditor({
                 {field(
                   'agentRowId',
                   'launchesAccount',
-                  <LaunchSelector
+                  <LaunchAccountSelector
                     id={`${prefix}-agentRowId`}
-                    label={t('launchesAccount')}
                     value={config.agentRowId ?? ''}
                     disabled={disabled}
-                    options={accounts.flatMap(a =>
-                      a.agents.map(g => ({
-                        value: g.id,
-                        label: `${a.name} · ${g.agentId.slice(-3)}`
-                      }))
-                    )}
+                    accounts={accounts}
                     onChange={agentRowId => changed({ agentRowId })}
                   />
                 )}
@@ -583,75 +551,19 @@ export function LaunchEditor({
                     }
                   />
                   {config.catalog.restitchEnabled && (
-                    <div className="launch-duration-control">
-                      <DurationSlider
-                        value={durationSliderValue}
-                        range={config.catalog.finalDurationMode !== 'custom'}
-                        disabled={disabled}
-                        label={t(
-                          config.catalog.finalDurationMode === 'custom'
-                            ? 'launchesDuration'
-                            : 'launchesDurationRange'
-                        )}
-                        unit={t('launchesMinutesShort')}
-                        modeAction={
-                          <Button
-                            size="xs"
-                            variant="secondary"
-                            disabled={disabled}
-                            onClick={() => {
-                              const center =
-                                config.catalog!.finalDurationMode === 'custom'
-                                  ? durationSliderValue[0]
-                                  : durationRangeCenter(durationSliderValue);
-                              const nextMode =
-                                config.catalog!.finalDurationMode === 'custom'
-                                  ? 'random-centered'
-                                  : 'custom';
-                              setDurationSliderValue(
-                                nextMode === 'custom' ? [center, 0] : centeredDurationRange(center)
-                              );
-                              changed({
-                                catalog: {
-                                  ...config.catalog!,
-                                  finalDurationMode: nextMode,
-                                  customFinalDurationSeconds: center * 60,
-                                  finalDurationRangeSeconds:
-                                    nextMode === 'custom'
-                                      ? undefined
-                                      : (centeredDurationRange(center).map(n => n * 60) as [
-                                          number,
-                                          number
-                                        ])
-                                }
-                              });
-                            }}
-                          >
-                            {config.catalog.finalDurationMode === 'custom'
-                              ? t('launchesDurationRange')
-                              : t('launchesDurationExact')}
-                          </Button>
-                        }
-                        onCommit={range => {
-                          setDurationSliderValue(range);
-                          changed({
-                            catalog: {
-                              ...config.catalog!,
-                              customFinalDurationSeconds:
-                                (config.catalog!.finalDurationMode === 'custom'
-                                  ? range[0]
-                                  : durationRangeCenter(range)) * 60,
-                              ...(config.catalog!.finalDurationMode !== 'custom'
-                                ? {
-                                    finalDurationMode: 'random-centered',
-                                    finalDurationRangeSeconds: [range[0] * 60, range[1] * 60]
-                                  }
-                                : { finalDurationRangeSeconds: undefined })
-                            }
-                          });
-                        }}
-                      />
-                    </div>
+                    <RestitchDurationControl
+                      value={config.catalog}
+                      disabled={disabled}
+                      labels={{
+                        duration: t('launchesDuration'),
+                        range: t('launchesDurationRange'),
+                        exact: t('launchesDurationExact'),
+                        unit: t('launchesMinutesShort')
+                      }}
+                      onChange={duration =>
+                        changed({ catalog: { ...config.catalog!, ...duration } })
+                      }
+                    />
                   )}
                 </div>
               </div>
@@ -758,7 +670,7 @@ export function LaunchEditor({
                     content: (
                       <div className="launch-editor-sub-content">
                         <p>{t('launchesSubSettingsHelp')}</p>
-                        <div className="grid min-w-0 gap-3 lg:grid-cols-3">
+                        <div className="grid min-w-0 gap-6 lg:grid-cols-3">
                           {(['sub1', 'sub2', 'sub3'] as const).map(slot => (
                             <SubBuilder
                               key={slot}
@@ -789,24 +701,4 @@ export function LaunchEditor({
       <LaunchPreview value={null} rows={previewRows} />
     </div>
   );
-}
-
-function durationModeRange(
-  mode: string,
-  centerSeconds?: number | null,
-  rangeSeconds?: readonly [number, number]
-): readonly [number, number] {
-  if (mode === 'random-centered' && rangeSeconds)
-    return [rangeSeconds[0] / 60, rangeSeconds[1] / 60];
-  if (mode === 'random-centered')
-    return centeredDurationRange(Math.round((centerSeconds ?? 30 * 60) / 60));
-  if (mode === 'random-50-60') return [50, 60];
-  if (mode === 'random-40-50') return [40, 50];
-  return [30, 40];
-}
-function centeredDurationRange(center: number): readonly [number, number] {
-  return [Math.max(1, center - 5), Math.min(60, center + 5)];
-}
-function durationRangeCenter(range: readonly [number, number]): number {
-  return Math.round((range[0] + range[1]) / 2);
 }

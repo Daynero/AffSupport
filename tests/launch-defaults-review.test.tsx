@@ -88,3 +88,24 @@ it('reviews a catalog with restitch disabled rather than inventing a duration', 
   );
   expect(screen.getByText('—')).toBeTruthy();
 });
+
+it('shows the exact manual budgets and offer scope before acknowledging a conflict', () => {
+  const config = launchConfig({
+    minBudget: 10,
+    maxBudget: 30,
+    budgetMode: 'manual',
+    budgets: [10, 25, 30]
+  });
+  render(
+    <LaunchDefaultsReview
+      current={{ config, subConfig: config.subConfig }}
+      offerName="Offer A"
+      buyer=""
+      disabled={false}
+      onReview={vi.fn()}
+    />
+  );
+  expect(screen.getByText('Settings changed for offer “Offer A”')).toBeTruthy();
+  expect(screen.getByText('Manual')).toBeTruthy();
+  expect(screen.getByText('10 · 25 · 30')).toBeTruthy();
+});

@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import {
   LAUNCH_SUB_VARIABLES,
   type LaunchSubSlot,
   type LaunchSubVariable
 } from '@video-compressor/shared';
-import { Button, Popover } from '../../components/ui/index';
+import { Button, FormField, Popover } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 const labels: Record<LaunchSubVariable, TranslationKey> = {
   buyer: 'launchesBuyer',
@@ -29,6 +29,7 @@ export function SubBuilder({
   disabled?: boolean;
 }) {
   const { t } = useI18n();
+  const id = useId();
   const anchor = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -44,9 +45,18 @@ export function SubBuilder({
     changed(next);
   };
   return (
-    <div className="flex flex-col gap-2">
-      <span>{slot.toUpperCase()}</span>
+    <FormField
+      className="launch-sub-field"
+      label={slot.toUpperCase()}
+      htmlFor={id}
+      error={
+        selected.length && preview === null && (submitted || touched)
+          ? t('launchesSubInvalid')
+          : undefined
+      }
+    >
       <Button
+        id={id}
         ref={anchor}
         variant="secondary"
         disabled={disabled}
@@ -114,12 +124,12 @@ export function SubBuilder({
           ))}
         </div>
       </Popover>
-      <output aria-live="polite" className="text-label">
+      <output aria-live="polite" className="launch-sub-preview text-label">
         {preview ??
           (selected.length && (submitted || touched)
             ? t('launchesRequired')
             : t('launchesPreserve'))}
       </output>
-    </div>
+    </FormField>
   );
 }
