@@ -5,6 +5,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { User } from '@supabase/supabase-js';
 
 const rpc = vi.hoisted(() => vi.fn());
+const track = vi.hoisted(() => vi.fn());
+vi.mock('../apps/web/src/analytics/service', () => ({ analytics: { track } }));
 
 vi.mock('../apps/web/src/lib/supabase', () => ({
   withFreshSession: <T,>(run: () => PromiseLike<T>) => run(),
@@ -29,6 +31,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   rpc.mockReset();
+  track.mockReset();
 });
 
 const showcaseAccess = {
@@ -78,7 +81,7 @@ describe('team workspace access (034 — the showcase replaces the waiting-list 
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('shows the showcase page, not the workspace, to a user with an unrelated legacy team', async () => {
+  it('keeps the entry closed for a user with an unrelated legacy team', async () => {
     rpc.mockImplementation(answer(showcaseAccess));
     const legacyTeam = makeTeam({ name: 'A user-created legacy team' });
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([legacyTeam]) });
@@ -91,12 +94,13 @@ describe('team workspace access (034 — the showcase replaces the waiting-list 
       </AuthContextOverride>
     );
 
-    expect(await screen.findByRole('heading', { name: 'Your workspace' })).toBeTruthy();
-    // The accepted showcase stays a page with a plan choice and one contact action.
+    expect(await screen.findByRole('heading', { name: 'Workspace in development' })).toBeTruthy();
+    // The pre-announcement entry offers neither plans nor a contact action.
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Write to the administrator' })).toBeTruthy();
-    expect((screen.getByRole('radio', { name: /Solo/ }) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByRole('radio', { name: /Team/ }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Write to the administrator' })).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(track).toHaveBeenCalledWith('screen_viewed', { screen_identifier: 'space_coming_soon' });
+    expect(track.mock.calls.some(([event]) => event === 'space_showcase_viewed')).toBe(false);
     expect(rpc).toHaveBeenCalledWith('get_my_space_access', {});
     expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
   });

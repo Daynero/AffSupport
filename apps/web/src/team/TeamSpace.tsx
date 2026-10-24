@@ -1,3 +1,5 @@
+import { workspaceAnnouncementEnabled } from '../lib/feature-flags';
+import { SpaceComingSoon } from './SpaceComingSoon';
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { LockKeyhole } from 'lucide-react';
 import { useOptionalAuth } from '../auth/AuthContext';
@@ -456,6 +458,10 @@ export function TeamSpace({
         </p>
       </section>
     );
+  }
+
+  if (showsShowcase && !workspaceAnnouncementEnabled) {
+    return wrap(<SpaceComingSoon />);
   }
 
   if (showsShowcase) {

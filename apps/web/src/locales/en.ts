@@ -4007,6 +4007,9 @@ export const en = {
   tariffSettingsPlanUntil: '{plan} · runs until {date} inclusive',
   tariffSettingsSeats: 'Seats: {used} of {total} (you included)',
   tariffSettingsContact: 'Renew or add seats — write to the administrator',
+  spaceComingSoonTitle: 'Workspace in development',
+  spaceComingSoonBody:
+    'We’re preparing the workspace for launch. We’ll announce when it becomes available.',
   tariffHomeTitle: 'A space to work together',
   tariffHomeCaption: 'Creatives on your Drive, tasks, ad accounts and catalogs — together',
   tariffHomeHow: 'How to get one',

@@ -3991,6 +3991,8 @@ export const uk: Record<keyof typeof en, string> = {
   tariffSettingsPlanUntil: '{plan} · діє до {date} включно',
   tariffSettingsSeats: 'Місць: {used} з {total} (разом із вами)',
   tariffSettingsContact: 'Продовжити чи додати місця — написати адміністратору',
+  spaceComingSoonTitle: 'Простір у розробці',
+  spaceComingSoonBody: 'Готуємо простір до відкриття. Повідомимо, коли він стане доступним.',
   tariffHomeTitle: 'Простір для спільної роботи',
   tariffHomeCaption: 'Креативи на вашому Диску, завдання, РК і каталоги — разом',
   tariffHomeHow: 'Як підключити',

@@ -1540,7 +1540,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'The grant is emitted by the administrator’s browser, not the owner’s; the authoritative record is space_tariffs / space_tariff_events. Local acceptance mail capture reports its own claim, capture and database-commit result. A skipped notice and a matching redacted local artifact prove neither provider delivery nor user receipt; an unconfirmed commit and absent artifact remain explicit. This tooling evidence is separate from production mail diagnostics.'
+    note: 'Before the workspace announcement, the public entry emits screen_viewed with screen_identifier=space_coming_soon instead of space_showcase_viewed; no contact or grant is expected from that screen. Missing screen delivery remains unknown. The grant is emitted by the administrator’s browser, not the owner’s; the authoritative record is space_tariffs / space_tariff_events. Local acceptance mail capture reports its own claim, capture and database-commit result. A skipped notice and a matching redacted local artifact prove neither provider delivery nor user receipt; an unconfirmed commit and absent artifact remain explicit. This tooling evidence is separate from production mail diagnostics.'
   },
   {
     id: 'analytics.delivery',

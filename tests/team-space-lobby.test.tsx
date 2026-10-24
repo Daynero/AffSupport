@@ -50,14 +50,15 @@ describe('team space lobby', () => {
     expect(await screen.findByRole('heading', { name: 'Your spaces' })).toBeTruthy();
   });
 
-  it('shows the showcase page — not a gate, not a donation — to someone without a space (034)', async () => {
+  it('keeps the public entry closed before the announcement without offering plans or creation', async () => {
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
     renderSpace(client);
 
-    expect(await screen.findByRole('heading', { name: 'Your workspace' })).toBeTruthy();
-    // A page with one way forward: no modal, no waiting list, no "speed up development".
+    expect(await screen.findByRole('heading', { name: 'Workspace in development' })).toBeTruthy();
+    // Keep the closed entry quiet until the announcement.
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Write to the administrator' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Write to the administrator' })).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Speed up development' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Create your first space' })).toBeNull();
   });

@@ -267,3 +267,24 @@ external sending, delivery, conversation and payment remain unobservable. No
 message contents or email are collected. The plan regression verifies default,
 exclusive switching, current price in the prepared message and no waitlist write
 before contact activation. The regression also verifies the Telegram recipient and both draft prices. Mobile stacks the offer beneath the introduction.
+
+## Temporary pre-announcement entry (2026-10-24)
+
+Until the workspace announcement, `workspaceAnnouncementEnabled` in
+`apps/web/src/lib/feature-flags.ts` stays false. The home tile and denied `/team`
+entry show a development notice without plans, contact or creation actions.
+The showcase implementation is retained. Server authorization, existing members,
+admin access, tariffs and blocked-space recovery remain unchanged; this switch
+controls presentation and does not grant or revoke access.
+
+Acceptance: an unauthorized user (including one with an unrelated cached legacy
+team) sees the closed entry; an existing authorized member still enters their
+space. The retained showcase keeps its own plan/contact regression coverage.
+For the announcement, enable the switch and restore the public-entry assertions.
+
+Diagnostics: the closed page emits the existing typed `screen_viewed` event with
+`screen_identifier=space_coming_soon`. It must not emit `space_showcase_viewed` or
+start the tariff contact funnel. Existing analytics `events` can read the signal;
+a missing event is unknown delivery, not proof that the user did not visit.
+There is no background operation, cancellation or recovery in this static notice;
+access polling and existing authorized-operation diagnostics remain unchanged.

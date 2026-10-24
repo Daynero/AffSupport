@@ -1,3 +1,4 @@
+import { workspaceAnnouncementEnabled } from './lib/feature-flags';
 /*
  * The tools home (024, US28) — rethought from the daily visit, not the first one.
  *
@@ -559,18 +560,29 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       ) : (
         <ul className="home-grid">
           {/* Outside the gate the tile says what a space is and how to get one (034, US7.5): it
-              leads to the showcase, not to a waiting list. Not dimmed — it is a real way
-              somewhere, only the last row rather than the first. */}
+              leads to the closed entry until the announcement, then to the retained showcase. */}
           <Tile
             href={spacesOpen ? createSpaceHref : allSpacesHref}
             onFollow={() => navigate(spacesOpen ? createSpaceHref : allSpacesHref)}
             icon={
               spacesOpen ? <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} /> : <LayoutDashboard />
             }
-            title={t(spacesOpen ? 'teamSpaceEmptyAction' : 'tariffHomeTitle')}
-            caption={t(spacesOpen ? 'teamSpaceEmptyBody' : 'tariffHomeCaption')}
+            title={t(
+              spacesOpen
+                ? 'teamSpaceEmptyAction'
+                : workspaceAnnouncementEnabled
+                  ? 'tariffHomeTitle'
+                  : 'spaceComingSoonTitle'
+            )}
+            caption={t(
+              spacesOpen
+                ? 'teamSpaceEmptyBody'
+                : workspaceAnnouncementEnabled
+                  ? 'tariffHomeCaption'
+                  : 'spaceComingSoonBody'
+            )}
             trailing={
-              spacesOpen ? undefined : (
+              spacesOpen || !workspaceAnnouncementEnabled ? undefined : (
                 <>
                   {t('tariffHomeHow')}
                   <ArrowRight size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} />

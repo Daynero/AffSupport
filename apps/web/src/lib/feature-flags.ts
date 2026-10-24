@@ -94,3 +94,7 @@ export function useFeatureLock(feature: FeatureId): boolean {
   }, [feature]);
   return locked;
 }
+
+/** Temporary pre-announcement presentation switch; server access stays authoritative.
+ * Enable with the workspace announcement to restore the retained plans/contact page. */
+export const workspaceAnnouncementEnabled = false;
