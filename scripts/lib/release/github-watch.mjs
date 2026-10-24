@@ -1,4 +1,5 @@
-export const WORKFLOW_TIMEOUT_MS = 180 * 60_000;
+// Validation (60m), Windows build (120m), and room for runner allocation (30m).
+export const WORKFLOW_TIMEOUT_MS = 210 * 60_000;
 
 export function summarizeWorkflowRun(run) {
   const active = (run.jobs ?? []).flatMap(job => (job.steps ?? []).filter(step => step.status === 'in_progress').map(step => `${job.name}: ${step.name}`)).join(' | ');

@@ -44,7 +44,9 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The suite has its own 45-minute deadline; allow setup and static gates too.
+    # A healthy 1.2.7 validation took 28 minutes, nearly hitting the old job limit.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:

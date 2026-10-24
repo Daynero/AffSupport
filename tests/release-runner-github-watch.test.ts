@@ -1,6 +1,17 @@
+import { readFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
-import { watchWorkflow } from '../scripts/lib/release/github-watch.mjs';
+import { WORKFLOW_TIMEOUT_MS, watchWorkflow } from '../scripts/lib/release/github-watch.mjs';
 import { stepDefinition } from '../scripts/lib/release/steps.mjs';
+
+it('allows the workflow job budgets plus time to allocate hosted runners', () => {
+  const workflow = readFileSync('.github/workflows/release-windows.yml', 'utf8');
+  const jobMinutes = [...workflow.matchAll(/^\s+timeout-minutes: (\d+)$/gm)].reduce(
+    (total, match) => total + Number(match[1]),
+    0
+  );
+  expect(jobMinutes).toBeGreaterThan(0);
+  expect(WORKFLOW_TIMEOUT_MS).toBeGreaterThan(jobMinutes * 60_000);
+});
 
 it('emits only changed workflow states and terminates on final conclusion', async () => {
   const states: string[] = [];
