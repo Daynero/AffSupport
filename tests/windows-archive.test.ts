@@ -12,6 +12,7 @@ import {
   zipDirectory
 } from '../apps/agent/src/platform/platform.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { itRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * ZIP creation and extraction take a different branch on Windows so entry
@@ -113,7 +114,8 @@ describe('zipDirectory on the current platform', () => {
   });
 });
 
-it.runIf(realPlatform === 'darwin')(
+itRequiring(
+  requirePlatform('darwin'),
   'does not add macOS extended attributes to a web-content ZIP',
   async () => {
     const root = await workspace();

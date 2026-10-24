@@ -13,8 +13,9 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, expect, it } from 'vitest';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
  * C1, SC-010. The macOS signing chain: inside-out signatures, hardened runtime, a minimal
@@ -40,7 +41,7 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
  */
 
 const run = promisify(execFile);
-const isMac = process.platform === 'darwin';
+const macHost = requirePlatform('darwin');
 const CHAIN = path.resolve('scripts/sign-mac-app.sh');
 const chainExists = existsSync(CHAIN);
 const identity = process.env.SOTY_TEST_SIGNING_IDENTITY ?? '-';
@@ -180,7 +181,7 @@ async function runChain(app: string) {
   });
 }
 
-describe.skipIf(!isMac)('the signing verifier has teeth', () => {
+describeRequiring(macHost, 'the signing verifier has teeth', () => {
   it('rejects the ad-hoc chain package-mac.sh ships today', async () => {
     // C1 itself: an ad-hoc signature with the hardened runtime off. This is the bundle users
     // are currently told to right-click past Gatekeeper.
@@ -262,7 +263,7 @@ describe.skipIf(!isMac)('the signing verifier has teeth', () => {
   });
 });
 
-describe.skipIf(!isMac)('the signing chain (scripts/sign-mac-app.sh)', () => {
+describeRequiring(macHost, 'the signing chain (scripts/sign-mac-app.sh)', () => {
   it.skipIf(!chainExists)(
     'signs inside-out with the hardened runtime and a minimal entitlement set [needs: script:scripts/sign-mac-app.sh]',
     async () => {
