@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { clientBreakingStatements } from '../migration-compat.mjs';
+import { redactText } from '../redaction.mjs';
 
 /**
  * The adapter that actually talks to Supabase.
@@ -88,7 +89,7 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
   if (!projectRef) throw new SupabaseBackendError('TARGET_MISMATCH', 'no project ref');
   if (!accessToken && !run) throw new SupabaseBackendError('ACCESS_UNAVAILABLE', 'no Supabase access token');
 
-  const cli =
+  const invoke =
     run ??
     (args =>
       execFileSync('npx', ['--yes', CLI, ...args], {
@@ -98,6 +99,28 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, SUPABASE_ACCESS_TOKEN: accessToken }
       }));
+  const cli = args => {
+    try {
+      return invoke(args);
+    } catch (error) {
+      // Agent-mode CLI errors live on stdout; execFileSync's message includes
+      // only stderr, which otherwise hides the actual reason from the panel.
+      let problem;
+      try {
+        const stdout = error && typeof error === 'object' && 'stdout' in error ? String(error.stdout) : '';
+        problem = lastJsonLine(stdout).error;
+      } catch {
+        throw error;
+      }
+      if (typeof problem?.message !== 'string') throw error;
+      throw new SupabaseBackendError('GATE_FAILED', redactText(
+        `Supabase ${problem.code ?? 'CLI_ERROR'}: ${problem.message}`
+      ).slice(0, 1000));
+    }
+  };
+
+  /** @type {any[] | null} A fresh post-push history snapshot, scoped to one apply attempt. */
+  let migrationBatch = null;
 
   const migrationsDirectory = path.join(root, 'supabase/migrations');
   const functionsDirectory = path.join(root, 'supabase/functions');
@@ -143,6 +166,8 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
 
   return {
     async pendingMigrations() {
+      // Every retry starts from current remote history, never a previous batch.
+      migrationBatch = null;
       return remoteMigrations()
         .filter(entry => entry.local && !entry.remote)
         .map(entry => entry.local);
@@ -174,7 +199,14 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
       if (change.kind === 'migration') {
         // --skip-vault: this project declares no vault secrets in config.toml,
         // and a release must not quietly write ones somebody added there.
-        cli(['db', 'push', '--linked', '--skip-vault']);
+        if (!migrationBatch) {
+          // The caller has already validated the exact pending set, all digests
+          // and compatibility. Include reviewed gaps before later remote IDs too.
+          cli(['db', 'push', '--linked', '--skip-vault', '--include-all', '--yes']);
+          migrationBatch = remoteMigrations();
+        }
+        if (!migrationBatch?.some(row => row.remote === change.id))
+          throw new SupabaseBackendError('GATE_FAILED', `${change.id} is absent from post-push migration history`);
         return { ok: true, transaction: 'transactional' };
       }
       cli(['functions', 'deploy', change.id, '--project-ref', projectRef, '--use-api']);
@@ -183,7 +215,7 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
 
     async observe(change) {
       if (change.kind === 'migration') {
-        const entry = remoteMigrations().find(row => row.local === change.id || row.remote === change.id);
+        const entry = (migrationBatch ?? remoteMigrations()).find(row => row.local === change.id || row.remote === change.id);
         const present = Boolean(entry?.remote);
         return {
           historyPresent: present,

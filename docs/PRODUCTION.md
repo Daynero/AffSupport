@@ -156,6 +156,12 @@ npm run release:backend-plan -- --out=plan.json
 віддалений набір pending не збігається з планом точно, реліз зупиняється — так
 міграція з чужої гілки не поїде «заодно».
 
+`db push --include-all --yes --skip-vault` застосовує саме перевірений pending-набір,
+зокрема пропуски перед пізнішими remote-номерами. Команда виконується один раз на
+спробу; одна свіжа історія після неї підтверджує кожну міграцію. Повторна спроба
+завжди читає історію заново. Структурована помилка CLI зі stdout потрапляє в
+журнал без стороннього виводу та секретів.
+
 For a server-only change, use `npm run release:backend-plan -- --since=<deployed-sha>
 --out=<plan>` followed by `npm run release:backend-apply -- --plan=<plan>` for inspection,
 then the same command with `--confirm`. This is the runner's backend adapter with identical

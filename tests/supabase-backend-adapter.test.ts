@@ -167,13 +167,25 @@ describe('the Supabase backend adapter', () => {
         accessToken: 'token',
         run: args => {
           calls.push([...args]);
+          if (args[0] === 'migration')
+            return JSON.stringify({
+              migrations: [{ local: '20260912150000', remote: '20260912150000' }]
+            });
           return '';
         }
       });
       await adapter.apply({ kind: 'migration', id: '20260912150000' });
       await adapter.apply({ kind: 'function', id: 'catalog-sync' });
-      expect(calls[0]).toEqual(['db', 'push', '--linked', '--skip-vault']);
-      expect(calls[1]).toEqual([
+      expect(calls[0]).toEqual([
+        'db',
+        'push',
+        '--linked',
+        '--skip-vault',
+        '--include-all',
+        '--yes'
+      ]);
+      expect(calls[1]).toEqual(['migration', 'list', '--linked']);
+      expect(calls[2]).toEqual([
         'functions',
         'deploy',
         'catalog-sync',
@@ -184,6 +196,71 @@ describe('the Supabase backend adapter', () => {
     } finally {
       await removeTemporaryDirectory(root);
     }
+  });
+
+  it('pushes a reviewed batch once, proves every member, and refreshes history on retry', async () => {
+    const calls: string[][] = [];
+    let applied = false;
+    const adapter = createSupabaseBackendAdapter({
+      projectRef: 'ref',
+      targetId: 'production',
+      accessToken: 'token',
+      run: args => {
+        calls.push([...args]);
+        if (args[0] === 'db') {
+          applied = true;
+          return '';
+        }
+        return JSON.stringify({
+          migrations: ['001', '002'].map(id => ({ local: id, remote: applied ? id : '' }))
+        });
+      }
+    });
+    expect(await adapter.pendingMigrations()).toEqual(['001', '002']);
+    for (const id of ['001', '002']) {
+      await adapter.apply({ kind: 'migration', id });
+      expect(await adapter.observe({ kind: 'migration', id })).toMatchObject({
+        historyPresent: true
+      });
+    }
+    expect(calls.filter(args => args[0] === 'db')).toHaveLength(1);
+    expect(calls.filter(args => args[0] === 'migration')).toHaveLength(2);
+    await expect(adapter.apply({ kind: 'migration', id: 'missing' })).rejects.toThrow(
+      'absent from post-push'
+    );
+    applied = false;
+    expect(await adapter.pendingMigrations()).toEqual(['001', '002']);
+    expect(await adapter.observe({ kind: 'migration', id: '001' })).toMatchObject({
+      historyPresent: false
+    });
+    await adapter.apply({ kind: 'migration', id: '001' });
+    expect(calls.filter(args => args[0] === 'db')).toHaveLength(2);
+  });
+
+  it('reports the structured CLI failure without dumping its surrounding output', async () => {
+    const adapter = createSupabaseBackendAdapter({
+      projectRef: 'ref',
+      targetId: 'production',
+      accessToken: 'token',
+      run: () => {
+        throw Object.assign(new Error('Command failed'), {
+          stdout:
+            'private surrounding output\n' +
+            JSON.stringify({
+              _tag: 'Error',
+              error: {
+                code: 'LegacyDbPushMissingRemoteError',
+                message: 'Missing earlier migrations',
+                suggestion: 'private suggestion'
+              }
+            })
+        });
+      }
+    });
+    await expect(adapter.apply({ kind: 'migration', id: '001' })).rejects.toMatchObject({
+      code: 'GATE_FAILED',
+      message: 'Supabase LegacyDbPushMissingRemoteError: Missing earlier migrations'
+    });
   });
 
   it('observes a migration as present only once the remote history has it', async () => {
