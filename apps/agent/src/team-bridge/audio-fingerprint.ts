@@ -8,10 +8,12 @@ import { scaled, spawnTracked } from '../power/spawn.js';
  *
  * A hash of what the file *sounds like*, not of its bytes: the first audio stream decoded to
  * 16 kHz mono signed 16-bit PCM and run through SHA-256. A re-wrapped copy (another container,
- * the same audio stream) hashes the same, so the space can tell that two files carry the same
+ * the same decoded samples) hashes the same, so the space can tell that two files carry the same
  * speech and reuse one transcript for both (FR-T2). A re-encoded copy does not — lossy audio
  * decodes to different samples — which is why a compression carries its transcript along
  * explicitly instead of relying on this.
+ * Container changes that lose encoder priming/padding metadata may also change the decoded
+ * samples. Those conservatively miss reuse; trimming them could equate different audio.
  *
  * Never throws. A file with no audio, an ffmpeg that refuses it, a cancel or a run that takes
  * too long all answer `null`: the transcript is worth having without a fingerprint, and the

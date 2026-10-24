@@ -78,34 +78,17 @@ describe('the decoded-audio fingerprint', () => {
     'matches a re-wrapped copy of the same audio and differs for other audio',
     async () => {
       const dir = await root();
-      const original = path.join(dir, 'speech.mp4');
+      // Lossless PCM keeps the decoded timeline identical across containers.
+      // Older FFmpeg versions lose AAC priming metadata on MP4 → MKV remux,
+      // which changes the samples and therefore legitimately changes the hash.
+      const original = path.join(dir, 'speech.wav');
       const rewrapped = path.join(dir, 'speech.mkv');
-      const other = path.join(dir, 'other.mp4');
+      const other = path.join(dir, 'other.wav');
       const run = (args: string[]) =>
         expect(spawnSync(FFMPEG, ['-v', 'error', '-y', ...args]).status).toBe(0);
-      run([
-        '-f',
-        'lavfi',
-        '-i',
-        'sine=frequency=440:duration=1',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '64k',
-        original
-      ]);
+      run(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', '-c:a', 'pcm_s16le', original]);
       run(['-i', original, '-c', 'copy', rewrapped]);
-      run([
-        '-f',
-        'lavfi',
-        '-i',
-        'sine=frequency=660:duration=1',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '64k',
-        other
-      ]);
+      run(['-f', 'lavfi', '-i', 'sine=frequency=660:duration=1', '-c:a', 'pcm_s16le', other]);
       const [a, b, c] = await Promise.all(
         [original, rewrapped, other].map(file => audioFingerprint({ file, command: FFMPEG }))
       );

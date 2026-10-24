@@ -176,7 +176,10 @@ text (`copyMaterialWithTail`); compression did not — no run surface knew about
   The queue's Transcribe asks first and, on a hit, copies that text instead of running whisper
   (toast "the same audio already had a transcript"). Fingerprint matches need the second video to
   have been fingerprinted, so in practice the checksum catches re-uploads and copies, and the
-  fingerprint catches re-wraps once both have been through the agent.
+  fingerprint catches re-wraps with identical decoded samples once both have been through the
+  agent. AAC MP4 → MKV can lose encoder priming metadata with older FFmpeg, so even a stream-copy
+  remux may decode to a different timeline and conservatively miss reuse. The real remux regression
+  uses lossless PCM to prove container independence without assuming AAC metadata preservation.
 - **T007** Re-transcribe from the card enqueues `fresh`, which never reuses.
 - **T003** the folder page and the search carry `hasTranscriptCompanion` (search also
   `companionOf` / `companionKind`); search results now show "Copy text" without a request per row.

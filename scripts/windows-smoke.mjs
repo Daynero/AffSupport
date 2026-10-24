@@ -146,6 +146,10 @@ async function pair() {
   };
   const privateKeyPath = process.env.SMOKE_ENTITLEMENT_PRIVATE_KEY?.trim();
   if (privateKeyPath) {
+    const health = await request('/api/health');
+    if (typeof health.entitlementRevision !== 'string' || !health.entitlementRevision) {
+      throw new Error('the paired agent does not expose its entitlement revision');
+    }
     const key = createPrivateKey(readFileSync(privateKeyPath));
     const now = Math.floor(Date.now() / 1000);
     const payload = Buffer.from(
@@ -158,7 +162,10 @@ async function pair() {
     const entitlement = await request('/api/entitlement', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token: `wat1.${payload}.${signature}` })
+      body: JSON.stringify({
+        token: `wat1.${payload}.${signature}`,
+        revision: health.entitlementRevision
+      })
     });
     if (!entitlement.entitled) throw new Error('smoke entitlement token was not accepted');
   }
