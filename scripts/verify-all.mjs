@@ -296,11 +296,14 @@ function parseArgs(argv) {
  * The phases this invocation will run, in order.
  *
  * @param {'fast'|'release'} form
- * @param {string|null} [group] one named phase group, as the CI jobs pass
+ * @param {string|null} [group] comma-separated phase groups, with shared prerequisites run once
  * @returns {string[]}
  */
 export function phasesFor(form, group = null) {
-  const selected = group ? (GROUP_PHASES[group] ?? []) : PHASE_ORDER;
+  const groups = group === null ? null : group.split(',').map(name => name.trim());
+  if (groups?.some(name => !Object.hasOwn(GROUP_PHASES, name)))
+    throw new Error(`Unknown verification gate group: ${group}`);
+  const selected = groups ? groups.flatMap(name => GROUP_PHASES[name]) : PHASE_ORDER;
   return PHASE_ORDER.filter(name => {
     if (!selected.includes(name)) return false;
     const phase = PHASES[name];
@@ -580,8 +583,15 @@ async function main() {
   let failure = null;
 
   let suite = null;
+  let phases = [];
+  try {
+    phases = phasesFor(args.form, args.gates);
+  } catch (error) {
+    const subject = error instanceof Error ? error.message : String(error);
+    failure = { gate: 'selection', subject, excerpt: [subject] };
+  }
 
-  for (const name of phasesFor(args.form, args.gates)) {
+  for (const name of phases) {
     if (name === 'suite') {
       // A timed-out Vitest run may never replace these files. Clearing them
       // before this gate prevents a previous green run from being reported as

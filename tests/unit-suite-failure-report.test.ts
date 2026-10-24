@@ -8,7 +8,7 @@ import { removeTemporaryDirectory } from './support/temp-dir';
 
 const execute = promisify(execFile);
 
-async function fixture(mode: string) {
+async function fixture(mode: string, nodeOptions?: string) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'soty-suite-report-'));
   try {
     await mkdir(path.join(directory, 'scripts/lib'), { recursive: true });
@@ -21,6 +21,7 @@ async function fixture(mode: string) {
 const args=process.argv.slice(2);
 const merge=args.some(x=>x.startsWith('--mergeReports='));
 const value=name=>args.find(x=>x.startsWith(name+'='))?.slice(name.length+1);
+fs.writeFileSync('node-options.json',JSON.stringify(process.env.NODE_OPTIONS));
 fs.appendFileSync('calls.jsonl',JSON.stringify({merge,coverage:args.includes('--coverage')})+'\\n');
 if(merge){
  fs.writeFileSync(value('--outputFile.json'),JSON.stringify({numPassedTests:3,numFailedTests:${mode === 'success' ? 0 : 1}}));
@@ -31,9 +32,13 @@ process.exit(${mode === 'success' ? 0 : 23});`
     );
     await writeFile(path.join(directory, 'verification-suite.json'), '{"stale":true}');
     let code = 0;
+    const env = { ...process.env };
+    if (nodeOptions === undefined) delete env.NODE_OPTIONS;
+    else env.NODE_OPTIONS = nodeOptions;
     try {
       await execute(process.execPath, ['scripts/run-unit-suite.mjs', '--coverage'], {
         cwd: directory,
+        env,
         timeout: 10_000,
         maxBuffer: 1024 * 1024
       });
@@ -50,7 +55,10 @@ process.exit(${mode === 'success' ? 0 : 23});`
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
-    return { code, calls, report };
+    const heapOptions = JSON.parse(
+      await readFile(path.join(directory, 'node-options.json'), 'utf8')
+    );
+    return { code, calls, report, heapOptions };
   } finally {
     await removeTemporaryDirectory(directory);
   }
@@ -86,8 +94,15 @@ it('merges all successful shards with coverage and marks the report complete', a
   expect(result.code).toBe(0);
   expect(result.calls).toHaveLength(9);
   expect(result.calls.at(-1)).toEqual({ merge: true, coverage: true });
+  expect(result.heapOptions).toBe('--max-old-space-size=2048');
   expect(result.report).toMatchObject({
     numFailedTests: 0,
     sotySuite: { plannedShards: 8, completedShards: 8, complete: true }
   });
+}, 15_000);
+
+it('preserves an explicitly configured Node memory budget', async () => {
+  const result = await fixture('success', '--max-old-space-size=1024');
+  expect(result.code).toBe(0);
+  expect(result.heapOptions).toBe('--max-old-space-size=1024');
 }, 15_000);

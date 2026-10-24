@@ -1,6 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PowerGovernor } from '../apps/agent/src/power/governor.js';
+import { testPowerGovernor } from './support/power-governor.js';
 import { PowerSampler } from '../apps/agent/src/power/sampler.js';
 import { descendantsOf } from '../apps/agent/src/power/process-tree.js';
 import { parseCpuTime } from '../apps/agent/src/platform/platform.js';
@@ -22,7 +22,7 @@ interface ProbeScript {
   throws?: boolean;
 }
 
-function samplerWith(script: ProbeScript, governor = new PowerGovernor({ cpuCount: 10 })) {
+function samplerWith(script: ProbeScript, governor = testPowerGovernor({ cpuCount: 10 })) {
   let call = 0;
   const sampler = new PowerSampler({
     governor,
@@ -107,7 +107,7 @@ describe('a changing set of processes', () => {
   /** A sampler whose probe answers from a mutable per-PID table. */
   function perPidSampler() {
     const times = new Map<number, number>();
-    const governor = new PowerGovernor({ cpuCount: 10 });
+    const governor = testPowerGovernor({ cpuCount: 10 });
     const sampler = new PowerSampler({
       governor,
       cpuCount: 10,
@@ -274,7 +274,7 @@ describe('process trees', () => {
   });
 
   it('feeds the tracked PID list', () => {
-    const governor = new PowerGovernor({ cpuCount: 10 });
+    const governor = testPowerGovernor({ cpuCount: 10 });
     governor.register(fakeChild(100), { toolId: 'landing-preview' });
     governor.setDescendants(100, [200, 300]);
     expect(governor.trackedPids().sort()).toEqual([100, 200, 300]);

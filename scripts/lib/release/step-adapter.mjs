@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { execute } from './execute.mjs';
@@ -10,6 +11,7 @@ import { createSupabaseBackendAdapter } from './adapters/supabase-backend.mjs';
 import { commitKnownFiles, promoteBeta, remoteBetaSha } from './adapters/git.mjs';
 import { retryDelay } from './retry.mjs';
 import { readJournal } from './journal.mjs';
+import { releaseNotesForVersion } from './notes.mjs';
 
 const exec = promisify(execFile);
 
@@ -464,7 +466,9 @@ export async function createStepAdapter({
           // has got to -- so the tag would name commits the artifacts beside it
           // were not built from, and every later question ("what shipped in
           // 1.1.1?") would be answered with somebody else's work.
-          await exec('gh', ['release', 'create', `v${version}`, dmg, '--target', sourceSha, '--title', `Soty v${version}`, '--notes-file', 'RELEASE_NOTES.md'], { cwd, shell: false });
+          const notesPath = path.join(cwd, 'release', `notes-${version}.md`);
+          await writeFile(notesPath, releaseNotesForVersion(readFileSync(path.join(cwd, 'RELEASE_NOTES.md'), 'utf8'), version), { mode: 0o600 });
+          await exec('gh', ['release', 'create', `v${version}`, dmg, '--target', sourceSha, '--title', `Soty v${version}`, '--notes-file', notesPath], { cwd, shell: false });
         } catch (error) {
           return fail('EFFECT_AMBIGUOUS', `gh release create failed: ${messageOf(error)}`);
         }

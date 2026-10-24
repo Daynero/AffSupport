@@ -1,6 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { afterEach, expect, it, vi } from 'vitest';
-import { PowerGovernor } from '../apps/agent/src/power/governor.js';
+import { testPowerGovernor } from './support/power-governor.js';
 import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
@@ -37,7 +37,7 @@ const posixSignals = requirePlatform('darwin', 'linux');
 describeRequiring(posixSignals, 'estimate prioritization under a limit', () => {
   it('keeps the encode stopped for the whole hold, whatever the cycler wants', async () => {
     vi.useFakeTimers();
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     const { child, signals } = fakeChild();
     power.register(child, { toolId: 'compressor' });
     await power.setLimit(50);
@@ -58,7 +58,7 @@ describeRequiring(posixSignals, 'estimate prioritization under a limit', () => {
   });
 
   it('lets the encode run again once the last hold is released', async () => {
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     const { child, signals } = fakeChild();
     power.register(child, { toolId: 'compressor' });
 
@@ -77,7 +77,7 @@ describeRequiring(posixSignals, 'estimate prioritization under a limit', () => {
 describeRequiring(posixSignals, 'termination while suspended', () => {
   it('resumes before a graceful signal can be delivered', async () => {
     vi.useFakeTimers();
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     const { child, signals } = fakeChild();
     power.register(child, { toolId: 'compressor' });
     await power.setLimit(20);
@@ -95,7 +95,7 @@ describeRequiring(posixSignals, 'termination while suspended', () => {
 
   it('keeps the child resumed for the rest of its life', async () => {
     vi.useFakeTimers();
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     const { child, signals } = fakeChild();
     power.register(child, { toolId: 'compressor' });
     await power.setLimit(20);
@@ -110,7 +110,7 @@ describeRequiring(posixSignals, 'termination while suspended', () => {
   });
 
   it('clears outstanding holds so nothing keeps it stopped', () => {
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     const { child, signals } = fakeChild();
     power.register(child, { toolId: 'compressor' });
     power.hold(child, 'estimate-priority');
@@ -122,7 +122,7 @@ describeRequiring(posixSignals, 'termination while suspended', () => {
 
 describeRequiring(posixSignals, 'kill escalation under a limit', () => {
   it('stretches the grace period in step with the duty cycle', async () => {
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     expect(power.scaleTimeout(2_000)).toBe(2_000);
     await power.setLimit(20);
     // A throttled process gets a fifth of the machine, so a fixed 2 s grace

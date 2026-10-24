@@ -32,6 +32,12 @@ export function ReleasePanel({
   );
   const title = snapshot ? `${m.title} ${snapshot.version}` : m.title;
   const state = snapshot ? (m.states[snapshot.state] ?? snapshot.state) : m.loading;
+  const steps = (snapshot?.progress.steps ?? []).filter(step => step.status !== 'excluded');
+  const completed = steps.filter(step => step.status === 'completed').length;
+  const current = snapshot?.currentStep
+    ? (m.stepNames[snapshot.currentStep] ?? snapshot.currentStep)
+    : state;
+  const next = steps.find(step => step.status === 'pending');
   const loadLogs = async () => {
     if (!snapshot?.logRef) return;
     try {
@@ -62,36 +68,22 @@ export function ReleasePanel({
       {cancelError && <Alert color="error">{cancelError}</Alert>}
       <Card
         role="panel"
-        title={state}
+        title={current}
         aside={<span className="release-panel-percent">{snapshot?.progress.percent ?? 0}%</span>}
       >
         <span className="visually-hidden" role="status" aria-live="polite">
-          {state}
+          {current} — {state}
         </span>
         <Progress
           value={snapshot?.progress.percent ?? 0}
           label={m.progress}
           valueText={`${snapshot?.progress.percent ?? 0}% — ${m.progress}`}
         />
-        <p className="release-panel-muted">{m.progress}</p>
         <p>
-          {snapshot?.currentStep
-            ? (m.stepNames[snapshot.currentStep] ?? snapshot.currentStep)
-            : state}
+          {state} · {completed} із {steps.length} етапів завершено
         </p>
-        {snapshot?.waiting && <p>{snapshot.waiting}</p>}
-        {snapshot?.nextCheckAt && (
-          <p>Наступна перевірка: {new Date(snapshot.nextCheckAt).toLocaleTimeString('uk-UA')}</p>
-        )}
+        {next && <p className="release-panel-muted">Далі: {m.stepNames[next.id] ?? next.id}</p>}
         {snapshot?.progressReason && <Alert color="info">{snapshot.progressReason}</Alert>}
-        {snapshot?.windowsUrl &&
-          /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/actions\/runs\/\d+$/.test(
-            snapshot.windowsUrl
-          ) && (
-            <a href={snapshot.windowsUrl} target="_blank" rel="noreferrer">
-              Windows CI
-            </a>
-          )}
         {snapshot?.repair && (
           <p>
             {m.states.repairing}: {snapshot.repair.cause} — {snapshot.repair.state}
@@ -106,57 +98,78 @@ export function ReleasePanel({
           </Alert>
         )}
       </Card>
-      <Card role="surface" title={m.steps}>
-        <Timeline
-          entries={(snapshot?.progress.steps ?? []).map(step => ({
-            id: step.id,
-            title: m.stepNames[step.id] ?? step.id,
-            meta: m.stepStates[step.status] ?? step.status,
-            tone: step.status === 'completed' ? 'success' : 'neutral'
-          }))}
-        />
-      </Card>
-      <Card role="section" title={m.details}>
-        {/* Watching the runner there is no repair to count. */}
-        {!snapshot?.readOnly && (
-          <>
-            <p>
-              {m.tokens}:{' '}
-              {snapshot?.usage == null ? m.unknown : snapshot.usage.toLocaleString('uk-UA')}
-            </p>
-            <p>
-              {m.attempts}: {snapshot?.attempts ?? 0}
-            </p>
-          </>
-        )}
-        <p className="release-panel-muted">{m.monitoring}</p>
-        <details>
-          <summary>{m.candidates}</summary>
-          <ol>
-            {snapshot?.candidates.map(id => (
-              <li key={id}>
-                <code>{id}</code>
-              </li>
-            ))}
-          </ol>
-        </details>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            void loadLogs();
-          }}
-        >
-          {m.logs}
-        </Button>
-        {logs.length > 0 && <pre className="release-panel-logs">{logs.join('\n')}</pre>}
-        {snapshot &&
-          !snapshot.readOnly &&
-          !['completed', 'cancelled', 'cancelling'].includes(snapshot.state) && (
-            <Button variant="ghost" color="error" onClick={() => setConfirm(true)}>
-              {m.cancel}
+      <details>
+        <summary>{m.steps}</summary>
+        <Card role="surface">
+          <Timeline
+            entries={(snapshot?.progress.steps ?? []).map(step => ({
+              id: step.id,
+              title: m.stepNames[step.id] ?? step.id,
+              meta: m.stepStates[step.status] ?? step.status,
+              tone: step.status === 'completed' ? 'success' : 'neutral'
+            }))}
+          />
+        </Card>
+      </details>
+      <details>
+        <summary>{m.details}</summary>
+        <Card role="section">
+          <p className="release-panel-muted">{m.progress}</p>
+          {snapshot?.waiting && <p>{snapshot.waiting}</p>}
+          {snapshot?.nextCheckAt && (
+            <p>Наступна перевірка: {new Date(snapshot.nextCheckAt).toLocaleTimeString('uk-UA')}</p>
+          )}
+          {snapshot?.windowsUrl &&
+            /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/actions\/runs\/\d+$/.test(
+              snapshot.windowsUrl
+            ) && (
+              <a href={snapshot.windowsUrl} target="_blank" rel="noreferrer">
+                Windows CI
+              </a>
+            )}
+          {/* Watching the runner there is no repair to count. */}
+          {!snapshot?.readOnly && (
+            <>
+              <p>
+                {m.tokens}:{' '}
+                {snapshot?.usage == null ? m.unknown : snapshot.usage.toLocaleString('uk-UA')}
+              </p>
+              <p>
+                {m.attempts}: {snapshot?.attempts ?? 0}
+              </p>
+            </>
+          )}
+          <p className="release-panel-muted">{m.monitoring}</p>
+          <details>
+            <summary>{m.candidates}</summary>
+            <ol>
+              {snapshot?.candidates.map(id => (
+                <li key={id}>
+                  <code>{id}</code>
+                </li>
+              ))}
+            </ol>
+          </details>
+          {snapshot?.logRef && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void loadLogs();
+              }}
+            >
+              {m.logs}
             </Button>
           )}
-      </Card>
+          {logs.length > 0 && <pre className="release-panel-logs">{logs.join('\n')}</pre>}
+          {snapshot &&
+            !snapshot.readOnly &&
+            !['completed', 'cancelled', 'cancelling'].includes(snapshot.state) && (
+              <Button variant="ghost" color="error" onClick={() => setConfirm(true)}>
+                {m.cancel}
+              </Button>
+            )}
+        </Card>
+      </details>
       <ConfirmDialog
         open={confirm}
         title={m.cancel}

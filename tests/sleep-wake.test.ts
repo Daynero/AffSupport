@@ -1,6 +1,6 @@
 import type { ChildProcess, ChildProcessWithoutNullStreams } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PowerGovernor } from '../apps/agent/src/power/governor.js';
+import { testPowerGovernor } from './support/power-governor.js';
 import {
   SleepWakeDetector,
   classifyProbeInterval,
@@ -66,7 +66,7 @@ afterEach(() => {
 describe('noticing that the machine slept', () => {
   it('tells its listener once, and only for a gap no lateness explains', () => {
     vi.useFakeTimers();
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     const { child } = fakeChild();
     let wakes = 0;
     power.setWakeListener(() => {
@@ -89,7 +89,7 @@ describe('noticing that the machine slept', () => {
 
   it('watches only while something is managed', () => {
     vi.useFakeTimers();
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     const { child } = fakeChild();
     let wakes = 0;
     power.setWakeListener(() => {
@@ -111,7 +111,7 @@ describe('noticing that the machine slept', () => {
 
   it('leaves nothing stopped by the time it reports the wake', async () => {
     vi.useFakeTimers();
-    const power = new PowerGovernor({ cpuCount: 8, pauseSupported: true });
+    const power = testPowerGovernor({ cpuCount: 8, pauseSupported: true });
     const { child } = fakeChild();
     // Sampled inside the listener, which is the one moment the wake is over and the
     // cycler has not had a tick since — anywhere later and an ordinary off-window would
@@ -252,7 +252,7 @@ describe('reading a suspend off the clocks', () => {
     vi.useFakeTimers();
     let wall = 1_000_000;
     let monotonic = 0;
-    const power = new PowerGovernor({
+    const power = testPowerGovernor({
       cpuCount: 8,
       pauseSupported: true,
       wakeClocks: { wall: () => wall, monotonic: () => monotonic }
@@ -271,7 +271,7 @@ describe('reading a suspend off the clocks', () => {
     vi.useFakeTimers();
     const errors: string[] = [];
     let changes = 0;
-    const power = new PowerGovernor({
+    const power = testPowerGovernor({
       cpuCount: 8,
       pauseSupported: true,
       onError: (_error, message) => errors.push(message),

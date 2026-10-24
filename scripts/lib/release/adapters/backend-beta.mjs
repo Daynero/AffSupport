@@ -18,8 +18,10 @@ export async function rehearseBackendBeta({ binding, plan, adapter, lease, relea
   if (binding.kind !== 'sandbox') throw new Error('TARGET_MISMATCH');
   if (!lease?.leaseId) throw new Error('LEASE_REQUIRED');
   const target = releaseTargetId ?? binding.bindingId;
-  for (const change of plan.changes) {
+  for (const change of plan.changes)
     if (change.targetId !== target) throw new Error('TARGET_MISMATCH');
+  if (adapter.verifyAll) return adapter.verifyAll(plan.changes);
+  for (const change of plan.changes) {
     const result = await adapter.verify(change);
     if (!result?.ok) return { ok: false, changeId: change.id, error: result?.error ?? 'BETA_BACKEND_FAILED' };
   }

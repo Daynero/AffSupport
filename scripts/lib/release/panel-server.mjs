@@ -35,9 +35,14 @@ export async function startPanelServer({ controller, assetsRoot, port = 43150 })
     res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
     try {
-      if (req.headers.host !== new URL(origin).host || (req.headers.origin && req.headers.origin !== origin) ||
-          (req.headers['sec-fetch-site'] && !['same-origin', 'none'].includes(String(req.headers['sec-fetch-site'])))) { json(res, 403, { error: 'PANEL_ORIGIN_DENIED' }); return; }
       const url = new URL(req.url ?? '/', origin);
+      // Opening the public shell from another app is a navigation, not an API
+      // request. Session creation still requires the one-use capability and
+      // every API request retains the same-origin checks below.
+      const shellNavigation = req.method === 'GET' && url.pathname === '/release-panel/' &&
+        req.headers['sec-fetch-mode'] === 'navigate' && req.headers['sec-fetch-dest'] === 'document';
+      if (req.headers.host !== new URL(origin).host || (req.headers.origin && req.headers.origin !== origin) ||
+          (!shellNavigation && req.headers['sec-fetch-site'] && !['same-origin', 'none'].includes(String(req.headers['sec-fetch-site'])))) { json(res, 403, { error: 'PANEL_ORIGIN_DENIED' }); return; }
       if (req.method === 'POST' && url.pathname === '/release-panel/api/session') {
         if (req.headers.origin !== origin) { json(res, 403, { error: 'PANEL_ORIGIN_DENIED' }); return; }
         const input = await body(req); const expiry = capabilities.get(input.capability); capabilities.delete(input.capability);

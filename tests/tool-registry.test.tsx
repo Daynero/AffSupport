@@ -228,20 +228,23 @@ describe('web tool registry', () => {
     expect(navigate).toHaveBeenCalledWith('/team?new=1');
   });
 
-  it('tells somebody outside the gate, after the tools that do work (024)', async () => {
+  it('keeps the workspace announcement closed after the available tools', async () => {
     // The workspace opens in batches, and `create_team` answers a stranger with a refusal. The
     // home screen used to lead with "create your first space" for everybody, so the first thing
     // a new customer saw was a button that ends at a waiting list.
     vi.mocked(teamApi.canAccessTeamWorkspace).mockResolvedValue(false);
     renderHome();
 
-    // 034 — the tile says what a space is and leads to the showcase, not to a waiting list.
-    expect(await screen.findByText(translate('en', 'tariffHomeTitle'))).toBeTruthy();
-    expect(screen.getByText(translate('en', 'tariffHomeCaption'))).toBeTruthy();
-    const waitlist = screen.getByRole('link', {
-      name: new RegExp(translate('en', 'tariffHomeTitle'), 'u')
+    // The beta's pre-announcement switch keeps the public entry closed, while
+    // existing workspace members still get their normal entry above.
+    expect(await screen.findByText(translate('en', 'spaceComingSoonTitle'))).toBeTruthy();
+    expect(screen.getByText(translate('en', 'spaceComingSoonBody'))).toBeTruthy();
+    expect(screen.queryByText(translate('en', 'tariffHomeTitle'))).toBeNull();
+    expect(screen.queryByText(translate('en', 'tariffHomeHow'))).toBeNull();
+    const entry = screen.getByRole('link', {
+      name: new RegExp(translate('en', 'spaceComingSoonTitle'), 'u')
     });
-    expect(waitlist.getAttribute('href')).toBe('/team?all=1');
+    expect(entry.getAttribute('href')).toBe('/team?all=1');
     expect(
       screen.queryByRole('link', { name: translate('en', 'teamSpaceEmptyAction') })
     ).toBeNull();

@@ -7,6 +7,7 @@ import {
   createSupabaseBackendAdapter,
   lastJsonLine
 } from '../scripts/lib/release/adapters/supabase-backend.mjs';
+import { rehearseBackendBeta } from '../scripts/lib/release/adapters/backend-beta.mjs';
 
 /**
  * The adapter drives a command-line tool, so every test here supplies that tool
@@ -36,6 +37,43 @@ const FUNCTIONS = JSON.stringify([
 ]);
 
 describe('the Supabase backend adapter', () => {
+  it('reads local history once per rehearsal and reads it again before a retry', async () => {
+    const calls: string[][] = [];
+    let applied = true;
+    const adapter = createSupabaseBackendAdapter({
+      projectRef: 'ref',
+      targetId: 'production',
+      accessToken: 'token',
+      run: args => {
+        calls.push([...args]);
+        return JSON.stringify({
+          migrations: ['001', '002', '003'].map(id => ({ local: id, remote: applied ? id : '' }))
+        });
+      }
+    });
+    const options = {
+      binding: { kind: 'sandbox', bindingId: 'beta-local' },
+      releaseTargetId: 'production',
+      lease: { leaseId: 'test' },
+      adapter,
+      plan: {
+        changes: ['001', '002', '003'].map(id => ({
+          kind: 'migration',
+          id,
+          targetId: 'production'
+        }))
+      }
+    };
+    expect(await rehearseBackendBeta(options)).toEqual({ ok: true, changes: 3 });
+    expect(calls).toEqual([['migration', 'list', '--local']]);
+    applied = false;
+    expect(await rehearseBackendBeta(options)).toMatchObject({ ok: false, changeId: '001' });
+    expect(calls).toHaveLength(2);
+    await expect(rehearseBackendBeta({ ...options, releaseTargetId: 'wrong' })).rejects.toThrow(
+      'TARGET_MISMATCH'
+    );
+    expect(calls).toHaveLength(2);
+  });
   it('finds the JSON the CLI prints after its progress lines', () => {
     // The real output opens with "Initialising login role..." and a notice about
     // skipping ROLLBACK.md, then one line of JSON.

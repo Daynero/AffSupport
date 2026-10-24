@@ -1,6 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PowerGovernor } from '../apps/agent/src/power/governor.js';
+import { testPowerGovernor } from './support/power-governor.js';
 import { PowerSampler } from '../apps/agent/src/power/sampler.js';
 import { parseGraphicsUtilization } from '../apps/agent/src/power/graphics.js';
 
@@ -26,7 +26,7 @@ function fakeChild(pid: number) {
  * whisper works, because the work is all on the other side of the chip.
  */
 function samplerWith(graphics: () => Promise<number | null>) {
-  const governor = new PowerGovernor({ cpuCount: 10 });
+  const governor = testPowerGovernor({ cpuCount: 10 });
   const sampler = new PowerSampler({
     governor,
     cpuCount: 10,

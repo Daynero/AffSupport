@@ -127,6 +127,20 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
     return JSON.parse(cli(['functions', 'list', '--project-ref', projectRef, '-o', 'json']));
   }
 
+  function verifyLocal(change, appliedMigrations) {
+    if (change.kind === 'migration')
+      return appliedMigrations.has(change.id)
+        ? { ok: true }
+        : { ok: false, error: `${change.id} is not applied in the beta stack` };
+    statSync(path.join(functionsDirectory, change.id));
+    return { ok: true };
+  }
+
+  function localMigrations() {
+    const local = lastJsonLine(cli(['migration', 'list', '--local'])).migrations ?? [];
+    return new Set(local.map(row => row.remote).filter(Boolean));
+  }
+
   return {
     async pendingMigrations() {
       return remoteMigrations()
@@ -196,13 +210,22 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
      */
     async verify(change) {
       try {
-        if (change.kind === 'migration') {
-          const local = lastJsonLine(cli(['migration', 'list', '--local'])).migrations ?? [];
-          const applied = local.some(row => row.remote === change.id);
-          return applied ? { ok: true } : { ok: false, error: `${change.id} is not applied in the beta stack` };
+        return verifyLocal(change, change.kind === 'migration' ? localMigrations() : new Set());
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : 'beta rehearsal failed' };
+      }
+    },
+
+    // One fresh local-history read per rehearsal, never cached across retries
+    // or used as evidence for a production write.
+    async verifyAll(changes) {
+      try {
+        const applied = changes.some(change => change.kind === 'migration') ? localMigrations() : new Set();
+        for (const change of changes) {
+          const result = verifyLocal(change, applied);
+          if (!result.ok) return { ...result, changeId: change.id };
         }
-        statSync(path.join(functionsDirectory, change.id));
-        return { ok: true };
+        return { ok: true, changes: changes.length };
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : 'beta rehearsal failed' };
       }

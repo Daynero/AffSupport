@@ -31,7 +31,13 @@ function run(args, env = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, args, {
       cwd: root,
-      env: { ...process.env, ...env },
+      env: {
+        ...process.env,
+        // One worker is already enforced; also bound each Node process so a
+        // coverage run cannot consume the laptop's remaining memory by default.
+        NODE_OPTIONS: process.env.NODE_OPTIONS ?? '--max-old-space-size=2048',
+        ...env
+      },
       stdio: 'inherit'
     });
     child.once('error', reject);

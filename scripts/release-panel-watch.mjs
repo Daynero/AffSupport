@@ -113,6 +113,8 @@ export function panelState(run, events, agent = null, now = Date.now()) {
     agent &&
     typeof agent.message === 'string' &&
     now - Date.parse(agent.updatedAt ?? '') < AGENT_STATUS_FRESH_MS;
+  if (run.state === 'draft')
+    return { state: 'accepted', blocker: null, reason: fresh ? agent.message : null };
   if (run.state === 'blocked' || failed) {
     if (fresh) return { state: 'repairing', blocker: null, reason: agent.message };
     const step = STEP_NAMES[failed?.stepId] ?? failed?.stepId ?? 'Етап';

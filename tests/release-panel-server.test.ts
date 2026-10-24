@@ -3,9 +3,43 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { request } from 'node:http';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { startPanelServer } from '../scripts/lib/release/panel-server.mjs';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 describe('operator loopback security', () => {
+  it('opens the public shell from an external link while rejecting cross-site API reads', async () => {
+    const assetsRoot = await mkdtemp(path.join(tmpdir(), 'release-panel-navigation-'));
+    await writeFile(path.join(assetsRoot, 'release-panel.html'), '<html>Release panel</html>');
+    const panel = await startPanelServer({ controller: new EventEmitter(), assetsRoot, port: 0 });
+    const navigate = (pathname: string) =>
+      new Promise<number | undefined>((resolve, reject) => {
+        const req = request(
+          `${panel.origin}${pathname}`,
+          {
+            headers: {
+              'Sec-Fetch-Site': 'cross-site',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Dest': 'document'
+            }
+          },
+          res => {
+            res.resume();
+            resolve(res.statusCode);
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+    try {
+      expect(await navigate('/release-panel/')).toBe(200);
+      expect(await navigate('/release-panel/api/tasks')).toBe(403);
+    } finally {
+      await panel.close();
+      await removeTemporaryDirectory(assetsRoot);
+    }
+  });
   it('requires single-use capability, same-origin session and revision-fenced cancellation', async () => {
     const taskId = randomUUID();
     const task = { taskId, runId: randomUUID(), revision: 4 };

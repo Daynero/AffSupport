@@ -119,6 +119,22 @@ describe('gate lists', () => {
     expect(phasesFor('release', 'build')).toEqual(['seed', 'build']);
     expect(phasesFor('release', 'e2e')).toEqual(['seed', 'build', 'e2e']);
   });
+
+  it('resumes multiple groups in order without repeating shared prerequisites', () => {
+    expect(phasesFor('release', 'suite,build,environment,e2e')).toEqual([
+      'seed',
+      'suite',
+      'build',
+      'environment',
+      'e2e'
+    ]);
+    expect(phasesFor('release', 'e2e,build,e2e')).toEqual(['seed', 'build', 'e2e']);
+  });
+
+  it('refuses misspelled or empty selections instead of reporting zero gates as passed', () => {
+    for (const selection of ['sutie', 'suite,typo', '', 'suite,', 'toString'])
+      expect(() => phasesFor('release', selection)).toThrow('Unknown verification gate group');
+  });
 });
 
 describe('output budgets', () => {

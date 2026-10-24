@@ -1,7 +1,9 @@
 import type { ChildProcess } from 'node:child_process';
 import os from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PowerGovernor } from '../apps/agent/src/power/governor.js';
+import type { PowerGovernor } from '../apps/agent/src/power/governor.js';
+import { testPowerGovernor } from './support/power-governor.js';
+import * as platform from '../apps/agent/src/platform/platform.js';
 import { POWER_LIMIT_MAX, POWER_LIMIT_MIN } from '../packages/shared/src/types.js';
 import { describeRequiring, requirePlatform } from './support/requires.js';
 
@@ -24,10 +26,35 @@ function fakeChild(pid = 4242) {
 }
 
 function governor(options: Partial<ConstructorParameters<typeof PowerGovernor>[0]> = {}) {
-  return new PowerGovernor({ cpuCount: 10, pauseSupported: true, ...options });
+  return testPowerGovernor({ cpuCount: 10, pauseSupported: true, ...options });
 }
 
 const posixSignals = requirePlatform('darwin', 'linux');
+
+describeRequiring(posixSignals, 'test process isolation', () => {
+  it('never probes or signals host descendants for fake child PIDs', async () => {
+    vi.useFakeTimers();
+    // Guard the host even if the fixture regresses: a fake PID 1 would otherwise
+    // discover launchd's children, including the test runner and the desktop.
+    const probe = vi.spyOn(platform, 'processTableSnapshot').mockResolvedValue([]);
+    const pause = vi.spyOn(platform, 'pauseProcessId').mockReturnValue(false);
+    const resume = vi.spyOn(platform, 'resumeProcessId').mockReturnValue(false);
+    const priority = vi.spyOn(os, 'setPriority').mockImplementation(() => {});
+    const power = governor();
+    const { child } = fakeChild(1);
+    power.register(child, { toolId: 'test' });
+    await power.setLimit(50);
+    await power.refreshTree();
+    power.setDescendants(1, [process.pid]);
+    power.hold(child, 'test');
+    await power.shutdown();
+
+    expect(probe).not.toHaveBeenCalled();
+    expect(pause).not.toHaveBeenCalled();
+    expect(resume).not.toHaveBeenCalled();
+    expect(priority).not.toHaveBeenCalled();
+  });
+});
 
 afterEach(() => {
   vi.useRealTimers();

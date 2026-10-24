@@ -16,14 +16,13 @@ export const messages = {
   attempts: 'Спроби ремонту',
   monitoring: 'Моніторинг не викликає модель',
   candidates: 'Кандидати',
-  observing:
-    'Лише спостереження за раннером: без автоматичних ремонтів. Зупинити — npm run release -- cancel <runId>.',
+  observing: 'Прогрес оновлюється автоматично',
   cancel: 'Скасувати реліз',
   keep: 'Продовжити виконання',
   cancelBody:
     'Нові етапи та ремонти не запускатимуться. Поточна зовнішня дія спочатку безпечно завершиться або буде звірена.',
   states: {
-    accepted: 'Прийнято',
+    accepted: 'Підготовка релізу',
     running: 'Виконується',
     waiting: 'Очікування',
     repairing: 'Агент виправляє',
@@ -36,19 +35,19 @@ export const messages = {
   stepNames: {
     preflight: 'Передумови',
     prepare: 'Підготовка',
-    candidate_gate: 'Перевірка кандидата',
+    candidate_gate: 'Перевірка релізу',
     beta_package: 'Пакування beta',
     beta_verify: 'Перевірка beta',
-    backend_beta: 'Репетиція backend',
+    backend_beta: 'Перевірка серверних змін',
     readiness: 'Готовність до публікації',
     macos_package: 'Пакування macOS',
     windows_smoke: 'Windows: перевірка',
-    publish: 'Публікація артефактів',
-    manifest: 'Підписаний маніфест',
-    manifest_beta_verify: 'Перевірка commit маніфесту',
-    backend_apply: 'Оновлення backend',
-    deploy: 'Розгортання web',
-    live_verify: 'Фінальна жива перевірка'
+    publish: 'Публікація застосунку',
+    manifest: 'Підготовка оновлення',
+    manifest_beta_verify: 'Перевірка оновлення',
+    backend_apply: 'Оновлення сервера',
+    deploy: 'Оновлення сайту',
+    live_verify: 'Фінальна перевірка'
   } as Record<string, string>,
   stepStates: {
     completed: 'Підтверджено',
