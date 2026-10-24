@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { WORKFLOW_TIMEOUT_MS } from './github-watch.mjs';
 
 export const STEP_IDS = /** @type {const} */ ([
   'preflight',
@@ -83,8 +84,9 @@ const profiles = JSON.parse(
 
 /**
  * Timeouts come from the calibrated resource profile rather than a number
- * repeated here, so raising an estimate after a measured run changes both the
- * reservation and the deadline together.
+ * repeated here. Watching a remote workflow is the exception: its local
+ * hash/download resource budget must not kill a healthy Windows build after
+ * 30 minutes. Leave the watcher time to report its own bounded timeout.
  */
 function timeoutFor(resourceClass) {
   if (resourceClass === 'light') return LIGHT_TIMEOUT_MS;
@@ -101,7 +103,9 @@ export const STEP_DEFINITIONS = Object.freeze(
       dependencies: index === 0 ? [] : [STEP_IDS[index - 1]],
       resourceClass,
       heavy: resourceClass !== 'light',
-      timeoutMs: timeoutFor(resourceClass),
+      timeoutMs: ['windows_smoke', 'publish'].includes(id)
+        ? Math.max(timeoutFor(resourceClass), WORKFLOW_TIMEOUT_MS + 60_000)
+        : timeoutFor(resourceClass),
       interruption: NON_INTERRUPTIBLE.has(id) ? 'reconcile' : 'terminate',
       retry: NON_INTERRUPTIBLE.has(id) ? 'inspect-before-retry' : 'bounded'
     });
