@@ -161,6 +161,8 @@ npm run release:backend-plan -- --out=plan.json
 спробу; одна свіжа історія після неї підтверджує кожну міграцію. Повторна спроба
 завжди читає історію заново. Структурована помилка CLI зі stdout потрапляє в
 журнал без стороннього виводу та секретів.
+CLI виконується асинхронно, тому довга серверна команда не зупиняє оновлення
+статусу панелі.
 
 For a server-only change, use `npm run release:backend-plan -- --since=<deployed-sha>
 --out=<plan>` followed by `npm run release:backend-apply -- --plan=<plan>` for inspection,

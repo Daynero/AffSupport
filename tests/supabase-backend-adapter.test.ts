@@ -37,6 +37,28 @@ const FUNCTIONS = JSON.stringify([
 ]);
 
 describe('the Supabase backend adapter', () => {
+  it('keeps heartbeat timers responsive while awaiting the CLI', async () => {
+    let heartbeats = 0;
+    const timer = setInterval(() => {
+      heartbeats += 1;
+    }, 1);
+    const adapter = createSupabaseBackendAdapter({
+      projectRef: 'ref',
+      targetId: 'production',
+      accessToken: 'token',
+      run: async () => {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        return MIGRATIONS;
+      }
+    });
+    try {
+      expect(await adapter.pendingMigrations()).toEqual(['20260912150000']);
+      expect(heartbeats).toBeGreaterThan(0);
+    } finally {
+      clearInterval(timer);
+    }
+  });
+
   it('reads local history once per rehearsal and reads it again before a retry', async () => {
     const calls: string[][] = [];
     let applied = true;

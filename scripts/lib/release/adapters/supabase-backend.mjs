@@ -1,4 +1,5 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -31,6 +32,7 @@ import { redactText } from '../redaction.mjs';
 
 const CLI = 'supabase@2.117.0';
 const CLI_TIMEOUT_MS = 300_000;
+const exec = promisify(execFile);
 
 export class SupabaseBackendError extends Error {
   constructor(code, subject) {
@@ -82,7 +84,7 @@ export function lastJsonLine(output) {
  *   targetId: string,
  *   root?: string,
  *   accessToken: string,
- *   run?: (args: readonly string[]) => string
+ *   run?: (args: readonly string[]) => string | Promise<string>
  * }} options
  */
 export function createSupabaseBackendAdapter({ projectRef, targetId, root = process.cwd(), accessToken, run }) {
@@ -91,19 +93,21 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
 
   const invoke =
     run ??
-    (args =>
-      execFileSync('npx', ['--yes', CLI, ...args], {
+    (async args => {
+      const pending = exec('npx', ['--yes', CLI, ...args], {
         cwd: root,
         encoding: 'utf8',
         timeout: CLI_TIMEOUT_MS,
-        stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, SUPABASE_ACCESS_TOKEN: accessToken }
-      }));
-  const cli = args => {
+      });
+      pending.child.stdin?.end();
+      return (await pending).stdout;
+    });
+  const cli = async args => {
     try {
-      return invoke(args);
+      return await invoke(args);
     } catch (error) {
-      // Agent-mode CLI errors live on stdout; execFileSync's message includes
+      // Agent-mode CLI errors live on stdout; the process error includes
       // only stderr, which otherwise hides the actual reason from the panel.
       let problem;
       try {
@@ -142,12 +146,12 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
     return readFileSync(file, 'utf8');
   }
 
-  function remoteMigrations() {
-    return lastJsonLine(cli(['migration', 'list', '--linked'])).migrations ?? [];
+  async function remoteMigrations() {
+    return lastJsonLine(await cli(['migration', 'list', '--linked'])).migrations ?? [];
   }
 
-  function deployedFunctions() {
-    return JSON.parse(cli(['functions', 'list', '--project-ref', projectRef, '-o', 'json']));
+  async function deployedFunctions() {
+    return JSON.parse(await cli(['functions', 'list', '--project-ref', projectRef, '-o', 'json']));
   }
 
   function verifyLocal(change, appliedMigrations) {
@@ -159,8 +163,8 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
     return { ok: true };
   }
 
-  function localMigrations() {
-    const local = lastJsonLine(cli(['migration', 'list', '--local'])).migrations ?? [];
+  async function localMigrations() {
+    const local = lastJsonLine(await cli(['migration', 'list', '--local'])).migrations ?? [];
     return new Set(local.map(row => row.remote).filter(Boolean));
   }
 
@@ -168,7 +172,7 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
     async pendingMigrations() {
       // Every retry starts from current remote history, never a previous batch.
       migrationBatch = null;
-      return remoteMigrations()
+      return (await remoteMigrations())
         .filter(entry => entry.local && !entry.remote)
         .map(entry => entry.local);
     },
@@ -202,20 +206,20 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
         if (!migrationBatch) {
           // The caller has already validated the exact pending set, all digests
           // and compatibility. Include reviewed gaps before later remote IDs too.
-          cli(['db', 'push', '--linked', '--skip-vault', '--include-all', '--yes']);
-          migrationBatch = remoteMigrations();
+          await cli(['db', 'push', '--linked', '--skip-vault', '--include-all', '--yes']);
+          migrationBatch = await remoteMigrations();
         }
         if (!migrationBatch?.some(row => row.remote === change.id))
           throw new SupabaseBackendError('GATE_FAILED', `${change.id} is absent from post-push migration history`);
         return { ok: true, transaction: 'transactional' };
       }
-      cli(['functions', 'deploy', change.id, '--project-ref', projectRef, '--use-api']);
+      await cli(['functions', 'deploy', change.id, '--project-ref', projectRef, '--use-api']);
       return { ok: true, transaction: 'nontransactional' };
     },
 
     async observe(change) {
       if (change.kind === 'migration') {
-        const entry = (migrationBatch ?? remoteMigrations()).find(row => row.local === change.id || row.remote === change.id);
+        const entry = (migrationBatch ?? await remoteMigrations()).find(row => row.local === change.id || row.remote === change.id);
         const present = Boolean(entry?.remote);
         return {
           historyPresent: present,
@@ -224,7 +228,7 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
           provenAbsent: !entry
         };
       }
-      const deployed = deployedFunctions().find(entry => entry.slug === change.id);
+      const deployed = (await deployedFunctions()).find(entry => entry.slug === change.id);
       return {
         historyPresent: Boolean(deployed),
         postconditionsPass: deployed?.status === 'ACTIVE',
@@ -242,7 +246,7 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
      */
     async verify(change) {
       try {
-        return verifyLocal(change, change.kind === 'migration' ? localMigrations() : new Set());
+        return verifyLocal(change, change.kind === 'migration' ? await localMigrations() : new Set());
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : 'beta rehearsal failed' };
       }
@@ -252,7 +256,7 @@ export function createSupabaseBackendAdapter({ projectRef, targetId, root = proc
     // or used as evidence for a production write.
     async verifyAll(changes) {
       try {
-        const applied = changes.some(change => change.kind === 'migration') ? localMigrations() : new Set();
+        const applied = changes.some(change => change.kind === 'migration') ? await localMigrations() : new Set();
         for (const change of changes) {
           const result = verifyLocal(change, applied);
           if (!result.ok) return { ...result, changeId: change.id };
