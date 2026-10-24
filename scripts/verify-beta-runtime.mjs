@@ -80,8 +80,7 @@ function launchedProcessTree(app) {
 }
 
 function fail(message) {
-  process.stderr.write(`Beta runtime journey failed: ${message}\n`);
-  process.exit(1);
+  throw new Error(message);
 }
 
 const started = Date.now();
@@ -264,7 +263,7 @@ async function main() {
     for (let attempt = 0; attempt < 40 && agentListeners().length; attempt += 1) {
       spawnSync('sleep', ['0.1'], { shell: false });
     }
-    for (const pid of agentListeners()) {
+    for (const pid of agentListeners().filter(pid => launched.includes(pid))) {
       try {
         process.kill(pid, 'SIGKILL');
       } catch {
@@ -304,11 +303,16 @@ async function main() {
       fail(`the packaged agent reports channel ${health.channel}, not beta`);
     if (health.entitlement?.enforced !== true)
       fail('beta must enforce the entitlement gate; an unenforced gate tests nothing');
+    if (typeof health.entitlementRevision !== 'string' || !health.entitlementRevision)
+      fail('the packaged beta does not expose its entitlement revision');
 
     const entitlement = await api('/api/entitlement', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token: betaEntitlementToken(jobId) })
+      body: JSON.stringify({
+        token: betaEntitlementToken(jobId),
+        revision: health.entitlementRevision
+      })
     });
     if (!entitlement.entitled)
       fail('the beta entitlement token was refused; the packaged public key does not match');
@@ -340,4 +344,11 @@ async function main() {
   }
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  process.stderr.write(
+    `Beta runtime journey failed: ${error instanceof Error ? error.message : String(error)}\n`
+  );
+  process.exitCode = 1;
+}

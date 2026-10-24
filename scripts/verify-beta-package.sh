@@ -73,7 +73,9 @@ codesign --verify --deep --strict "$app"
 # Structure proven; now prove it runs. The record below is only written after a
 # real packaged login, a real entitlement and one completed operation, so a
 # build that cannot actually work cannot be promoted.
-node "$PWD/scripts/verify-beta-runtime.mjs"
+# The release runner owns the verification harness; the package, keys and
+# exact-SHA record still belong to the candidate working directory.
+node "${0:A:h}/verify-beta-runtime.mjs"
 
 source_revision=$(git rev-parse HEAD)
 package_digest=$(shasum -a 256 "$app/Contents/Resources/release.json" | awk '{print $1}')

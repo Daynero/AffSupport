@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, readFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, lstat, readlink, writeFile, rename } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -185,6 +186,27 @@ export function dependencyClosure(text) {
   );
 }
 
+/** Own a private regular file; safely upgrade links made by older runner versions. */
+export async function provisionPrivateFile(source, target) {
+  if (!(await lstat(source)).isFile()) throw new Error('RELEASE_WORKTREE_CONFIGURATION_UNSAFE');
+  const existing = await lstat(target).catch(error => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (existing?.isFile()) return false;
+  if (existing && (!existing.isSymbolicLink() || await readlink(target) !== source))
+    throw new Error('RELEASE_WORKTREE_CONFIGURATION_UNSAFE');
+  const temporary = `${target}.release-${randomUUID()}`;
+  try {
+    await writeFile(temporary, await readFile(source), { mode: 0o600, flag: 'wx' });
+    // Rename replaces the link itself, never writes through it into the source.
+    await rename(temporary, target);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+  return true;
+}
+
 export async function provisionWorktree({ cwd, directory }) {
   const lockPath = 'package-lock.json';
   if (existsSync(path.join(cwd, lockPath)) && existsSync(path.join(directory, lockPath))) {
@@ -207,7 +229,7 @@ export async function provisionWorktree({ cwd, directory }) {
     provisioned.push(`${relative} (copied)`);
   }
   /**
-   * A borrowed directory is copied; a borrowed file is linked.
+   * The worktree owns directories and private configuration files.
    *
    * `.gitignore` names these paths with a trailing slash -- `config/keys/`,
    * `supabase/.temp/` -- and a trailing slash matches a directory and nothing
@@ -218,21 +240,21 @@ export async function provisionWorktree({ cwd, directory }) {
    * gate downstream consults.
    *
    * Directories are cloned for the reason the dependency closures are: on APFS
-   * the copy costs a directory entry. Files keep the link -- their patterns
-   * (`.env*`) never named a directory, so they match either shape, and a link is
-   * how one secret stays one file with one owner.
+   * the copy costs a directory entry. Environment files must be private regular
+   * files: the acceptance-isolation gate deliberately refuses links outside the
+   * source it is inspecting. A resume upgrades only links this runner created.
    */
   for (const relative of PROVISIONED_PATHS) {
     const source = path.join(cwd, relative);
     const target = path.join(directory, relative);
-    if (!existsSync(source) || existsSync(target)) continue;
+    if (!existsSync(source)) continue;
     await mkdir(path.dirname(target), { recursive: true });
     if (statSync(source).isDirectory()) {
+      if (existsSync(target)) continue;
       await exec('cp', ['-Rc', source, target]);
       provisioned.push(`${relative} (copied)`);
     } else {
-      await symlink(source, target);
-      provisioned.push(relative);
+      if (await provisionPrivateFile(source, target)) provisioned.push(`${relative} (private copy)`);
     }
   }
   /**

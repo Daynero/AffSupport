@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execute } from './execute.mjs';
 import { stepDefinition } from './steps.mjs';
 import { applyBackendPlan } from './adapters/backend.mjs';
@@ -135,6 +136,7 @@ async function run(stepId, argv, { cwd, env = {}, admission = null }) {
 }
 
 const npm = (...args) => ['npm', 'run', ...args];
+const betaVerification = ['zsh', fileURLToPath(new URL('../../verify-beta-package.sh', import.meta.url))];
 
 /**
  * Locates the workflow run a dispatch just created.
@@ -415,7 +417,7 @@ export async function createStepAdapter({
 
     // LaunchServices cannot redirect a GUI launch into removable-volume temp
     // files reliably. Keep only the small runtime journey on the local volume.
-    beta_verify: () => run('beta_verify', npm('beta:verify'), { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission }),
+    beta_verify: () => run('beta_verify', betaVerification, { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission }),
 
     backend_beta: async () => {
       if (!backendPlan?.changes?.length) return { ok: true, skipped: true };
@@ -556,7 +558,7 @@ export async function createStepAdapter({
     manifest_beta_verify: async () => {
       const packaged = await run('manifest_beta_verify', npm('beta:package'), { cwd, env: childEnv, admission });
       if (!packaged.ok) return packaged;
-      return run('manifest_beta_verify', npm('beta:verify'), { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission });
+      return run('manifest_beta_verify', betaVerification, { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission });
     },
 
     backend_apply: async () => {

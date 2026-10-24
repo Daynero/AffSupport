@@ -31,7 +31,7 @@ async function fakeProject() {
   const log = join(root, 'calls.log');
   await mkdir(bin, { recursive: true });
   await mkdir(join(root, 'scripts'), { recursive: true });
-  for (const name of ['npm', 'gh']) {
+  for (const name of ['npm', 'gh', 'zsh']) {
     await writeFile(join(bin, name), `#!/bin/sh\necho "${name} $*" >> ${log}\nexit 0\n`);
     await chmod(join(bin, name), 0o755);
   }
@@ -128,7 +128,7 @@ describe('the step adapter runs the runbook', () => {
         const calls = await readFile(log, 'utf8');
         expect(calls).toContain('npm run release:check');
         expect(calls).toContain('npm run beta:package');
-        expect(calls).toContain('npm run beta:verify');
+        expect(calls).toContain(`zsh ${process.cwd()}/scripts/verify-beta-package.sh`);
         expect(calls).toContain('npm run package:mac');
         expect(calls).toContain('npm run package:dmg');
       } finally {

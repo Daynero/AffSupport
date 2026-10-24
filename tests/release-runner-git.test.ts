@@ -1,16 +1,60 @@
 import { expect, it } from 'vitest';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   createOwnedWorktree,
   dependencyClosure,
   freezeSource,
+  provisionPrivateFile,
   promoteBeta,
   remoteBetaSha
 } from '../scripts/lib/release/adapters/git-worktree.mjs';
+import { describeRequiring, requirePlatform } from './support/requires.js';
+
+describeRequiring(requirePlatform('darwin', 'linux'), 'private release configuration', () => {
+  it('owns a private regular file and upgrades an older runner link without changing its source', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'release-private-config-'));
+    const source = join(root, 'source.env');
+    const target = join(root, 'release.env');
+    try {
+      await writeFile(source, 'SETTING=original\n');
+      await symlink(source, target);
+      expect(await provisionPrivateFile(source, target)).toBe(true);
+      expect((await lstat(target)).isFile()).toBe(true);
+      expect((await lstat(target)).mode & 0o777).toBe(0o600);
+      expect(await readFile(source, 'utf8')).toBe('SETTING=original\n');
+      await writeFile(source, 'SETTING=changed\n');
+      expect(await provisionPrivateFile(source, target)).toBe(false);
+      expect(await readFile(target, 'utf8')).toBe('SETTING=original\n');
+      const fresh = join(root, 'fresh.env');
+      expect(await provisionPrivateFile(source, fresh)).toBe(true);
+      expect((await lstat(fresh)).mode & 0o777).toBe(0o600);
+    } finally {
+      await removeTemporaryDirectory(root);
+    }
+  });
+
+  it('refuses a link the runner did not create', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'release-private-config-'));
+    try {
+      const source = join(root, 'source.env');
+      const other = join(root, 'other.env');
+      const target = join(root, 'release.env');
+      await writeFile(source, 'source');
+      await writeFile(other, 'other');
+      await symlink(other, target);
+      await expect(provisionPrivateFile(source, target)).rejects.toThrow(
+        'RELEASE_WORKTREE_CONFIGURATION_UNSAFE'
+      );
+      expect(await readFile(other, 'utf8')).toBe('other');
+    } finally {
+      await removeTemporaryDirectory(root);
+    }
+  });
+});
 
 it('freezes an exact source commit without checking out main', async () => {
   const result = await freezeSource({ cwd: process.cwd(), sourceSha: 'HEAD' });
